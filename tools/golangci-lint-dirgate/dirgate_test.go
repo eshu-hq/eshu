@@ -9,9 +9,14 @@
 package main
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/tools/go/analysis"
 )
 
 func TestNewReturnsExpectedAnalyzer(t *testing.T) {
@@ -162,16 +167,29 @@ func TestQualifyingDigest(t *testing.T) {
 	}
 }
 
+// TestNormalizeDir pins normalizeDir's contract: it receives a DIRECTORY
+// (never a file path). normalizeDir's only caller, run(), already reduced
+// a file position to its containing directory via filepath.Dir before
+// calling this function (packageFilePositions), so these cases are
+// directory shapes, not file shapes -- an earlier version of this test fed
+// file paths (e.g. "internal/query/foo.go") and normalizeDir called
+// filepath.Dir a second time to compensate, which produced the wrong key
+// the moment run() (correctly) started passing it an already-resolved
+// directory. See TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation
+// for the regression test that exercises the real call chain end to end.
 func TestNormalizeDir(t *testing.T) {
 	cases := []struct {
 		path string
 		want string
 	}{
-		{path: "internal/query/foo.go", want: "internal/query"},
-		{path: "./internal/query/foo.go", want: "internal/query"},
-		{path: "/Users/dev/repos/eshu/go/internal/query/foo.go", want: "internal/query"},
-		{path: "/Users/dev/repos/eshu/go/cmd/eshu/main.go", want: "cmd/eshu"},
-		{path: "foo.go", want: "."},
+		{path: "internal/query", want: "internal/query"},
+		{path: "./internal/query", want: "internal/query"},
+		{path: "/Users/dev/repos/eshu/go/internal/query", want: "internal/query"},
+		{path: "/Users/dev/repos/eshu/go/cmd/eshu", want: "cmd/eshu"},
+		// The package sits directly at the go/ module root (no subdirectory).
+		{path: "/Users/dev/repos/eshu/go", want: "."},
+		{path: "go", want: "."},
+		{path: ".", want: "."},
 	}
 	for _, c := range cases {
 		t.Run(c.path, func(t *testing.T) {
@@ -179,6 +197,70 @@ func TestNormalizeDir(t *testing.T) {
 				t.Fatalf("normalizeDir(%q) = %q, want %q", c.path, got, c.want)
 			}
 		})
+	}
+}
+
+// TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation is the
+// regression test for the #6054 P1 defect found in codex review on PR
+// #6081: run() calls evaluateDirectory(normalizeDir(dir), dir, ...) where
+// dir is ALREADY a directory (packageFilePositions resolved it via
+// filepath.Dir), but normalizeDir used to call filepath.Dir a SECOND time,
+// stripping the package's own directory segment. "go/internal/query"
+// normalized to "internal" instead of "internal/query", so the derived key
+// never matched any row in grandfatheredDirectories and every pinned
+// directory would have been reported as newly, un-grandfatheredly over
+// cap. Every other test in this package calls evaluateDirectory directly
+// with an already-correct key and so enters below this seam; this test
+// goes through run() itself -- golangci-lint's actual entry point -- with
+// a real *ast.File/*token.FileSet pair rooted at a directory whose
+// grandfather-ledger key has more than one path segment, which is exactly
+// the shape the double-Dir bug corrupted.
+func TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation(t *testing.T) {
+	const wantCount = maxDirFiles + 5
+	names := numberedFiles(wantCount)
+	digest := qualifyingDigest(names)
+
+	orig := grandfatheredDirectories
+	grandfatheredDirectories = map[string]grandfatherEntry{
+		"internal/fakepkg": {FileCount: wantCount, Digest: digest},
+	}
+	t.Cleanup(func() { grandfatheredDirectories = orig })
+
+	root := t.TempDir()
+	pkgDir := filepath.Join(root, "go", "internal", "fakepkg")
+	if err := os.MkdirAll(pkgDir, 0o750); err != nil {
+		t.Fatalf("mkdir %s: %v", pkgDir, err)
+	}
+	writeGoFiles(t, pkgDir, names...)
+
+	fset := token.NewFileSet()
+	astFiles := make([]*ast.File, 0, len(names))
+	for _, n := range names {
+		p := filepath.Join(pkgDir, n)
+		af, err := parser.ParseFile(fset, p, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", p, err)
+		}
+		astFiles = append(astFiles, af)
+	}
+
+	var diags []analysis.Diagnostic
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: astFiles,
+		Report: func(d analysis.Diagnostic) {
+			diags = append(diags, d)
+		},
+	}
+
+	if _, err := run(pass); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("run() findings = %v, want none: internal/fakepkg is pinned at exactly its live "+
+			"count and digest and must be recognised as grandfathered through run()'s real key "+
+			"derivation, not un-grandfathered by normalizeDir stripping its own directory segment",
+			diags)
 	}
 }
 

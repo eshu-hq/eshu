@@ -245,24 +245,39 @@ func qualifyingDigest(files []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// normalizeDir converts a Go source file path (as golangci-lint or `go
-// vet` report it -- absolute or relative depending on how the tool was
-// invoked) into the canonical grandfather-ledger key: the package
-// directory relative to the go/ module root, e.g.
-// "/Users/dev/repos/eshu/go/internal/query/foo.go" and
-// "internal/query/foo.go" both normalize to "internal/query".
+// normalizeDir converts a package DIRECTORY path (as packageFilePositions
+// derives it from golangci-lint's or `go vet`'s reported file positions --
+// absolute or relative depending on how the tool was invoked) into the
+// canonical grandfather-ledger key: the directory's path relative to the
+// go/ module root, e.g. "/Users/dev/repos/eshu/go/internal/query" and
+// "internal/query" both normalize to "internal/query".
+//
+// normalizeDir's ONLY caller, run(), already resolved a file position down
+// to its containing directory (packageFilePositions calls filepath.Dir on
+// the file path) before calling this function -- so normalizeDir must NOT
+// strip another path segment itself. An earlier version of this function
+// called filepath.Dir a SECOND time here, silently dropping the package's
+// own directory name (e.g. "go/internal/query" normalized to "internal"
+// instead of "internal/query") and un-grandfathering every pinned
+// directory, because the mis-derived key never matched any ledger row. See
+// TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation in
+// dirgate_test.go for the regression test that goes through run() itself,
+// the exact call chain that exposed the bug (every other test in this
+// plugin calls evaluateDirectory directly with an already-correct key and
+// so enters below this seam).
 //
 // The go/ module root is located by finding the LAST "go" path segment;
 // this works whether the path is absolute (CI checks out the repo at an
 // arbitrary path) or already relative to go/ (the common case when
 // golangci-lint is invoked with go/ as its working directory, as
-// scripts/dev/precommit-go.sh and .github/workflows/test.yml both do). If
-// no "go" segment is found, the path is assumed to already be relative to
-// the module root.
-func normalizeDir(path string) string {
-	dir := filepath.ToSlash(filepath.Dir(path))
-	dir = strings.TrimPrefix(dir, "./")
-	segs := strings.Split(dir, "/")
+// scripts/dev/precommit-go.sh and .github/workflows/test.yml both do). A
+// dir that IS the go/ module root itself normalizes to ".". If no "go"
+// segment is found, the path is assumed to already be relative to the
+// module root.
+func normalizeDir(dir string) string {
+	d := filepath.ToSlash(filepath.Clean(dir))
+	d = strings.TrimPrefix(d, "./")
+	segs := strings.Split(d, "/")
 	for i := len(segs) - 1; i >= 0; i-- {
 		if segs[i] == "go" {
 			rest := segs[i+1:]
@@ -272,5 +287,5 @@ func normalizeDir(path string) string {
 			return strings.Join(rest, "/")
 		}
 	}
-	return dir
+	return d
 }
