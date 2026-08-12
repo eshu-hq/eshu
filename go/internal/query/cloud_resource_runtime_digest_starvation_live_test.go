@@ -14,9 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
 )
 
 // The #5789 starvation regression, at scale, against real rows.
@@ -66,7 +63,7 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	db := openRuntimeDigestFixtureDB(t, ctx, dsn)
+	db, _ := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestStarvationCorpus(t, ctx, db)
 	store := NewPostgresCloudResourceListStore(db)
 
@@ -131,57 +128,6 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 // starvationDigest renders digest i as a valid-shaped sha256 reference.
 func starvationDigest(i int) string {
 	return fmt.Sprintf("sha256:%064d", i)
-}
-
-// openRuntimeDigestFixtureDB returns a Postgres handle whose unqualified table
-// names resolve inside a schema created for this test run alone, and registers
-// the cleanup that drops it.
-//
-// The fixture tables are ordinary tables in that schema rather than TEMP
-// tables. A TEMP table belongs to the session that created it, and
-// database/sql owns session lifetime, not the test. SetMaxOpenConns(1) caps
-// how many connections are open at once; it does not pin identity. Let the
-// server close the connection, or an idle timeout or a network blip drop it,
-// and database/sql opens a replacement whose pg_temp is empty. The test then
-// dies with `relation "ingestion_scopes" does not exist`, which looks nothing
-// like the starvation regression it guards, and sends whoever hits it in CI
-// looking in the wrong place.
-//
-// search_path is carried as a connection runtime parameter, so pgx sets it
-// during startup on every connection this handle opens, replacements included.
-// Setting it once with `SET search_path` would have the same session-scoped
-// problem the TEMP tables had.
-func openRuntimeDigestFixtureDB(t *testing.T, ctx context.Context, dsn string) *sql.DB {
-	t.Helper()
-
-	config, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("parse ESHU_POSTGRES_TEST_DSN: %v", err)
-	}
-	// Only the fixture schema, with no public fallback: an unqualified name
-	// this test forgot to create must fail loudly rather than resolve against
-	// whatever the target database already holds.
-	schema := fmt.Sprintf("eshu_digest_fixture_%d_%d", os.Getpid(), time.Now().UnixNano())
-	config.RuntimeParams["search_path"] = schema
-
-	db := sql.OpenDB(stdlib.GetConnector(*config))
-	t.Cleanup(func() { _ = db.Close() })
-
-	quoted := `"` + schema + `"`
-	if _, err := db.ExecContext(ctx, `CREATE SCHEMA `+quoted); err != nil {
-		t.Fatalf("create fixture schema %s: %v", schema, err)
-	}
-	t.Cleanup(func() {
-		// The test's own context is usually cancelled by now, so the drop gets
-		// a fresh deadline. Leaking the schema would break the next run's
-		// CREATE only if the name repeated, but it would still accumulate.
-		dropCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if _, err := db.ExecContext(dropCtx, `DROP SCHEMA `+quoted+` CASCADE`); err != nil {
-			t.Errorf("drop fixture schema %s: %v", schema, err)
-		}
-	})
-	return db
 }
 
 // seedRuntimeDigestStarvationCorpus builds the skewed shape the issue
@@ -288,7 +234,7 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	db := openRuntimeDigestFixtureDB(t, ctx, dsn)
+	db, _ := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestEligibilityCorpus(t, ctx, db, ineligible)
 	store := NewPostgresCloudResourceListStore(db)
 
