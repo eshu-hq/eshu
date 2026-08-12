@@ -166,7 +166,17 @@ acceptance evidence.
 ./scripts/verify_admin_refinalize_compose.sh
 ./scripts/verify_graph_analysis_compose.sh
 ./scripts/verify_correlation_dsl_compose.sh
+./scripts/verify-graph-rebuild-from-facts.sh
 ```
+
+`verify-graph-rebuild-from-facts.sh` runs the disaster-recovery procedure rather
+than a single behavior: it indexes the corpus, snapshots the graph, wipes the
+graph volume with Postgres preserved, reapplies graph schema, rebuilds every
+scope from the surviving facts, and checks the rebuilt counts against the
+snapshot. It then repeats the rebuild with the workers killed partway through to
+show a restart converges. It prints `graph_rebuild_seconds` for the SLO row. Set
+`ESHU_DR_SKIP_INTERRUPT=true` to run the timed pass only. Reads the procedure
+being tested: [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
 
 For a no-credential proof of additional lanes against public, unauthenticated
 endpoints (CISA KEV, FIRST EPSS, OSV, public npm), use the public-collector

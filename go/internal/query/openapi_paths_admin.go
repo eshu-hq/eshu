@@ -30,16 +30,17 @@ const openAPIPathsAdmin = `
       "post": {
         "tags": ["admin"],
         "summary": "Recover wedged generations",
-        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed. Durably re-enqueues projector work for the named scopes through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing.",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every active scope holding an active generation, which is what a graph rebuild after a Postgres restore needs. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["scope_ids", "reason", "idempotency_key"],
+                "required": ["reason", "idempotency_key"],
                 "properties": {
-                  "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes whose wedged active generations should be re-driven."},
+                  "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes whose wedged active generations should be re-driven. Required unless all_scopes is true."},
+                  "all_scopes": {"type": "boolean", "default": false, "description": "Re-enqueue every active scope that holds an active generation, for rebuilding the graph from preserved facts when no scope list is available. Cannot be combined with scope_ids."},
                   "reason": {"type": "string", "description": "Why the recovery is safe."},
                   "idempotency_key": {"type": "string", "description": "Makes the recovery safe under retries and concurrent delivery."}
                 }

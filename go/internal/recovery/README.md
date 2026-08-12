@@ -70,8 +70,9 @@ backend, or any network connection directly.
   refused), `Limit`.
 - `DrainResult` — outcome of a drain: `Stage`, `Replayed`,
   `BacklogDepthBefore`, `WorkItemIDs`.
-- `RefinalizeFilter` — filter for scope re-projection: `ScopeIDs` (required,
-  non-empty).
+- `RefinalizeFilter` — filter for scope re-projection: `ScopeIDs` (a non-empty
+  list) or `AllScopes` (every active scope holding an active generation).
+  Exactly one of the two.
 - `RefinalizeResult` — outcome of a refinalize call: `Enqueued` count,
   `ScopeIDs`.
 - `CollectorGenerationReplayFilter` — filter for collector generation replay
@@ -125,8 +126,14 @@ invokes `Handler`.
   carries the manual-review exclusion to the store, so a broad selector can
   never replay a poison row. Replaying those classes requires the forced admin
   replay path (`internal/query`), not the drain.
-- `RefinalizeFilter.ScopeIDs` must be non-empty. Refinalize is always scoped
-  to explicit scope IDs; unbounded refinalize is not supported.
+- A `RefinalizeFilter` must state its breadth: a non-empty `ScopeIDs`, or
+  `AllScopes`. An empty filter is rejected, and so is one setting both.
+  `AllScopes` serves disaster recovery — rebuilding the graph from preserved
+  Postgres facts after a restore, when the operator has no scope list. It is a
+  separate field rather than an "empty means all" reading of `ScopeIDs`, so a
+  caller bug that drops the scope list cannot turn into a full re-projection of
+  the deployment. See
+  [Rebuild the graph from facts](../../../docs/public/operate/graph-rebuild-from-facts.md).
 - `CollectorGenerationReplayFilter.CollectorKind` is required and must not be
   blank. Collector generation replay is intentionally source-level because the
   original fact stream is not durable when the commit boundary fails before

@@ -152,7 +152,22 @@ func run(
 	if err != nil {
 		return err
 	}
-	if applied {
+	// The marker lives in Postgres and describes a graph it cannot inspect. After
+	// a disaster-recovery graph wipe with Postgres preserved it still matches, so
+	// an operator who wiped the graph sets ESHU_GRAPH_SCHEMA_FORCE_REAPPLY to
+	// override it. See docs/public/operate/graph-rebuild-from-facts.md.
+	forceReapply := graphSchemaForceReapply(getenv)
+	if forceReapply && applied {
+		logger.Warn(
+			"graph schema marker overridden by force reapply",
+			telemetry.EventAttr("bootstrap.graph.force_reapply"),
+			"graph_backend", backend,
+			"schema_fingerprint", schemaApplication.Fingerprint,
+			"marker_fingerprint", latestFingerprint,
+		)
+	}
+
+	if applied && !forceReapply {
 		if refreshMarker {
 			if err = markGraphSchemaApplied(ctx, db, schemaApplication); err != nil {
 				return err

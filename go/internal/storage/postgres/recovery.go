@@ -107,7 +107,24 @@ WHERE status IN ('dead_letter', 'failed')
   %s
 `
 
-const refinalizeScopeProjectionsQuery = `
+// refinalizeScopeProjectionsTemplate re-enqueues projector work by inserting one
+// pending work item per active scope generation. The %s is the scope predicate:
+// the explicit-scope path renders `AND scope.scope_id = ANY($2)`, and the
+// disaster-recovery all-scopes path renders nothing so every active scope is
+// selected.
+//
+// The all-scopes variant removes the clause rather than passing an empty array,
+// because `scope_id = ANY('{}')` matches no rows. A rebuild that silently
+// enqueued zero work would report success and leave the graph empty, which is
+// the worst possible failure for the one operation an operator runs when
+// everything is already broken.
+//
+// ON CONFLICT (work_item_id) DO UPDATE is what makes the rebuild restartable.
+// The work_item_id is derived from scope_id and active_generation_id, so a
+// second rebuild over the same generations resets the same rows to pending
+// instead of inserting duplicates. An interrupted rebuild is re-runnable with
+// the same command.
+const refinalizeScopeProjectionsTemplate = `
 INSERT INTO fact_work_items (
     work_item_id,
     scope_id,
@@ -148,9 +165,9 @@ SELECT
     $1,
     $1
 FROM ingestion_scopes AS scope
-WHERE scope.scope_id = ANY($2)
-  AND scope.active_generation_id IS NOT NULL
+WHERE scope.active_generation_id IS NOT NULL
   AND scope.status = 'active'
+  %s
 ON CONFLICT (work_item_id) DO UPDATE
 SET status = 'pending',
     attempt_count = 0,
@@ -354,8 +371,30 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 	}, nil
 }
 
-// RefinalizeScopeProjections re-enqueues projector work for the given scope
-// IDs by inserting new pending work items for their active generations.
+// buildRefinalizeScopeProjectionsQuery renders the refinalize SQL and its
+// positional args for one filter. The explicit-scope path keeps its
+// `scope_id = ANY($2)` predicate; the all-scopes path drops the clause entirely
+// and passes only the timestamp, so every active scope with an active
+// generation is re-enqueued.
+//
+// Both variants keep the active_generation_id and status guards, so an
+// all-scopes rebuild still skips retired and generation-less scopes rather than
+// re-projecting rows the pipeline has already retired.
+func buildRefinalizeScopeProjectionsQuery(
+	filter recovery.RefinalizeFilter,
+	now time.Time,
+) (string, []any) {
+	if filter.AllScopes {
+		return fmt.Sprintf(refinalizeScopeProjectionsTemplate, ""), []any{now.UTC()}
+	}
+
+	return fmt.Sprintf(refinalizeScopeProjectionsTemplate, "AND scope.scope_id = ANY($2)"),
+		[]any{now.UTC(), filter.ScopeIDs}
+}
+
+// RefinalizeScopeProjections re-enqueues projector work by inserting new pending
+// work items for active scope generations: for the given scope IDs, or for every
+// active scope when the filter sets AllScopes.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
@@ -365,7 +404,9 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, fmt.Errorf("recovery store database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, refinalizeScopeProjectionsQuery, now.UTC(), filter.ScopeIDs)
+	query, args := buildRefinalizeScopeProjectionsQuery(filter, now)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: %w", err)
 	}

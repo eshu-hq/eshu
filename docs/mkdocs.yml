@@ -361,6 +361,7 @@ nav:
     - Correlation Admission Decisions: operate/correlation-admission-decisions.md
     - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
+    - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
     - Troubleshooting: operate/troubleshooting.md
     - "3 AM Operator Runbook": operate/3am-operator-runbook.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md

@@ -10,8 +10,11 @@
 // dead-letter backlog drain that defaults to the transient retry_exhausted
 // bucket, refuses manual-review (poison) classes sourced from the projector
 // triage, and reports backlog depth before replaying so an operator can watch
-// progress; Refinalize re-enqueues projector work for an explicit list of scopes
-// so their active generations are projected again. ReplayCollectorGenerations
+// progress; Refinalize re-enqueues projector work so active generations are
+// projected again, for an explicit list of scopes or — with
+// RefinalizeFilter.AllScopes — for every active scope, which is how the graph is
+// rebuilt from preserved Postgres facts after a restore.
+// ReplayCollectorGenerations
 // marks collector generation
 // commit failures for source-level replay when the failure happened before
 // durable projector work items existed; the source collector resolves those

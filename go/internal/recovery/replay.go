@@ -175,14 +175,40 @@ type DrainResult struct {
 
 // RefinalizeFilter constrains which scopes to re-enqueue for projection.
 type RefinalizeFilter struct {
-	// ScopeIDs targets specific ingestion scopes. Required and non-empty.
+	// ScopeIDs targets specific ingestion scopes. Required unless AllScopes is
+	// set.
 	ScopeIDs []string
+
+	// AllScopes re-enqueues every active scope that has an active generation,
+	// with no scope list. It exists for disaster recovery: after a Postgres
+	// restore the operator rebuilding the graph from preserved facts does not
+	// know the scope IDs, and hand-enumerating them is the step that makes a
+	// 3 AM rebuild unusable.
+	//
+	// It is a deliberate opt-in rather than "an empty ScopeIDs means all"
+	// because that reading would turn every caller bug that forgets to populate
+	// ScopeIDs into a full re-projection of the deployment. A caller must say
+	// which mode it means.
+	AllScopes bool
 }
 
-// Validate returns an error if the filter is not usable.
+// Validate returns an error if the filter is not usable. It refuses a filter
+// that sets AllScopes alongside an explicit scope list: that request is
+// ambiguous, and either reading rebuilds a different set than the operator
+// asked for.
 func (f RefinalizeFilter) Validate() error {
+	if f.AllScopes {
+		if len(f.ScopeIDs) > 0 {
+			return errors.New(
+				"refinalize filter cannot set all_scopes together with scope_ids: " +
+					"pick every active scope or a named list, not both",
+			)
+		}
+		return nil
+	}
+
 	if len(f.ScopeIDs) == 0 {
-		return errors.New("refinalize filter requires at least one scope_id")
+		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every active scope")
 	}
 
 	return nil

@@ -117,9 +117,17 @@ unsafe to publish. It rejects:
 ## Operator proof order
 
 1. Restore Postgres in an isolated environment with platform-owned tooling.
-2. Run schema bootstrap against the restored Postgres and graph backend.
+2. Run schema bootstrap against the restored Postgres and graph backend. If the
+   graph was wiped or replaced, set `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true` for
+   that run — the "already applied" marker is a Postgres row, so a preserved
+   Postgres makes bootstrap skip the graph and the rebuild lands in a backend
+   with no indexes or constraints.
 3. Replay projection work or rebuild graph state from preserved facts and
-   workflow rows.
+   workflow rows:
+   `POST /api/v0/admin/recover-generations` with `{"all_scopes": true}`, plus a
+   `reason` and `idempotency_key`. Step by step, including when a graph wipe is
+   required first, in
+   [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
 4. Verify queue terminal state is zero.
 5. Compare restored readback against the expected source-of-truth summary.
 6. Capture one bounded API read, one bounded MCP read, and first-query status.

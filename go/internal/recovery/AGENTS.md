@@ -16,9 +16,13 @@
 - **Stage validation** — `ReplayFilter.Stage` must be `StageProjector` or
   `StageReducer`. Any other value causes `Validate` to return an error before
   the store is called.
-- **Refinalize is always scoped** — `RefinalizeFilter.ScopeIDs` must be
-  non-empty. Unbounded refinalize is not supported; the filter rejects an empty
-  slice.
+- **Refinalize picks its breadth explicitly** — a filter must either carry a
+  non-empty `RefinalizeFilter.ScopeIDs` or set `AllScopes`. An empty filter is
+  rejected, and so is one that sets both. `AllScopes` exists for disaster
+  recovery (rebuilding the graph from preserved Postgres facts after a restore,
+  when nobody has a scope list to type); it is a deliberate opt-in field rather
+  than "empty means all" so a caller that forgets to populate `ScopeIDs` still
+  fails closed instead of re-projecting the whole deployment.
 - **UTC clock** — `Handler.time()` returns `time.Now().UTC()`. Test stubs that
   inject `now` via the unexported `now` field must use UTC values to match
   assertions.
@@ -65,9 +69,11 @@
 - **Direct graph or Postgres writes** — all mutations go through `ReplayStore`.
   This package must not open connections or run SQL directly.
 
-- **Unbounded refinalize** — always pass explicit `ScopeIDs`. A missing
-  filter guard on the caller side will be caught by `RefinalizeFilter.Validate`,
-  but add the guard at the call site too for clarity.
+- **Accidental unbounded refinalize** — pass explicit `ScopeIDs` unless the
+  caller genuinely means every active scope, and then say so with `AllScopes`.
+  Never treat an empty `ScopeIDs` as "all": `RefinalizeFilter.Validate` rejects
+  it, and the caller should carry the same guard so the intent is readable at
+  the call site.
 
 - **Skipping filter validation** — always call `Validate` (or rely on
   `Handler.ReplayFailed` / `Handler.Refinalize` to do so) before passing a

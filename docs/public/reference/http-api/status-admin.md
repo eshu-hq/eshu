@@ -618,6 +618,12 @@ console or API defect.
   canonical-nodes-committed. It durably re-enqueues projector work for the named
   scopes (re-driving reduce -> readiness -> projection over existing facts, no
   re-clone) and records the action in the durable `admin_replay_requests` ledger.
+  Send `{"all_scopes": true}` instead of `scope_ids` to re-enqueue every active
+  scope holding an active generation. That is the disaster-recovery mode: after
+  restoring Postgres, an operator rebuilding the graph from preserved facts has
+  no scope list. Sending both is rejected, and one idempotency key cannot cover
+  both modes. Procedure:
+  [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
   tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`
@@ -688,12 +694,13 @@ arrives to supersede it. Two mechanisms protect against this:
   Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation
   deadline, max recover attempts, batch limit). It is enabled by default.
 - **Operator escape hatch.** `POST /api/v0/admin/recover-generations` re-drives a
-  named set of wedged scopes on demand. Like replay it requires `scope_ids`, an
-  explicit `reason`, and an `idempotency_key`; requires an admin (all-scopes)
-  token; records the action in the durable `admin_replay_requests` ledger; and
-  returns the prior outcome (`duplicate=true`) for a repeated key. It re-enqueues
-  projector work over existing facts — no re-clone — so a wedged scope is driven
-  through canonical-nodes-committed -> completed -> projected.
+  named set of wedged scopes on demand, or every active scope with
+  `all_scopes: true`. Like replay it requires an explicit `reason` and an
+  `idempotency_key`; requires an admin (all-scopes) token; records the action in
+  the durable `admin_replay_requests` ledger; and returns the prior outcome
+  (`duplicate=true`) for a repeated key. It re-enqueues projector work over
+  existing facts — no re-clone — so a wedged scope is driven through
+  canonical-nodes-committed -> completed -> projected.
 
 Observability for wedged generations:
 
