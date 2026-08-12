@@ -7,9 +7,10 @@ than write an empty-join decision.
 
 ## The theory
 
-The probe's `NOT EXISTS` body is **byte-equivalent** to the production reducer
-claim query (`go/internal/storage/postgres/reducer_queue_claim_query.go:25-30`),
-a hot path run on every reducer claim:
+The probe's `NOT EXISTS` body asks the same question, on the same columns, as
+the projector-drain fence in the production reducer claim query
+(`go/internal/storage/postgres/reducer_queue_claim_query.go:25-30`), a hot path
+run on every reducer claim:
 
 ```sql
 NOT EXISTS (
@@ -20,10 +21,19 @@ NOT EXISTS (
 )
 ```
 
-So the probe is not a novel query. It reuses an already-hot, already-indexed
-shape. The proof only has to **confirm** the reused shape stays index-backed when
-driven from the `ingestion_scopes` side (filtered by `collector_kind`, gated on
-`active_generation_id IS NOT NULL`).
+The two are not the same text and cannot be. The claim query correlates against
+`fact_work_items.scope_id`, since it is already scanning that table; the probe
+correlates against the scope row it is driving from. What matches is everything
+the planner has to resolve — `stage = 'projector'`, a `scope_id` equality, and
+the same four live statuses — so both should reach `fact_work_items` the same
+way.
+
+*Should* is the operative word, and it is why this proof exists. The probe is
+not a novel query: it reuses an already-hot, already-indexed shape. The proof
+has to **confirm** the reused shape stays index-backed when driven from the
+`ingestion_scopes` side (filtered by `collector_kind`, gated on
+`active_generation_id IS NOT NULL`). Resemblance to a fast query is not
+evidence; the `EXPLAIN` below is.
 
 ## Setup
 
@@ -133,8 +143,9 @@ FROM registered LEFT JOIN quiescent ON quiescent.scope_id = registered.scope_id
 ```
 
 The Nested Loop Anti Join and the Index Scan survive, and `shared hit=795`
-matches the first version's buffer count exactly. Aliasing the CTE `AS s` is what
-keeps the `NOT EXISTS` body byte-identical to the reducer claim query's fence.
+matches the first version's buffer count exactly. Aliasing the CTE `AS s` leaves
+the correlation a plain column reference, which is what the planner needs to push
+it into the index — the same access the claim query's fence gets.
 
 Five consecutive runs of each on the same seed, median execution time:
 
@@ -161,31 +172,30 @@ Executed correctness for the new shape is covered separately by
 real query against a real Postgres and pins the three states apart: kind absent,
 registered with live projector work, registered and drained.
 
-## Evidence markers (#5709 substrate)
+## What this proof covers, and where the runtime evidence lives
 
-Round 2 (registered + quiescent in one query) does not change these markers: the
-probe still emits nothing of its own, and its access shape is unchanged — same
-Nested Loop Anti Join, same Index Scan, same 795 shared buffers, 0.300 ms to
-0.338 ms median on the same seed.
+The probe is wired. `ProducerScopeQuiescence` has exactly one production caller,
+`CrossScopeProducerReadinessStore.CrossScopeProducersReady`
+(`go/internal/storage/postgres/cross_scope_producer_readiness.go:160`), and its
+answer decides whether `CICDRunCorrelationHandler.Handle` commits a correlation
+or returns `crossScopeProducerNotReadyError`
+(`go/internal/reducer/ci_cd_run_correlation.go:169-173`). So the failure class
+this branch declares is a class the runtime now produces.
 
-No-Regression Evidence: this PR is declarative cross-scope substrate — the
-dependency contract, the readiness error type + failure class, the quiescence
-probe, and the failure-class enrollment. Nothing consumes any of it at runtime
-yet (no handler returns `crossScopeProducerNotReadyError`, no claim path calls
-`ProducerScopeQuiescence`), so it adds no runtime path and cannot regress one.
-The two primitives that will run once wired are proven against Postgres 16 for
-when they are: the quiescence probe rides `fact_work_items_scope_generation_idx`
-with an Index Scan (no seq scan) at 0.554 ms on the seeded 500-scope × 20-gen
-× 50k-`fact_work_items` seed (the `EXPLAIN (ANALYZE, BUFFERS)` above), and the
-`attempt_count`-freeze CASE holds for the enrolled class
-(`docs/internal/evidence/5709-attempt-count-freeze.md`). Baseline vs after: the
-whole `internal/reducer` + `internal/storage/postgres` test suites are green
-before and after; input shape is the seeded shape above; terminal queue state
-is unchanged (no new work items enqueued). Why safe: zero-behavior-change — the
-declarations have no consumer in this PR.
+That makes this document the wrong place for the branch's runtime evidence. It
+covers one thing: the query plan. The `No-Regression Evidence` and
+`Observability Evidence` markers for the wired floor live in the *Readiness query
+cost* section of `docs/internal/evidence/5709-cross-scope-readiness-floor.md`
+(lines 226-249 as committed), which states what was and was not measured —
+including that no scale or contention measurement was taken.
 
-No-Observability-Change: no metric, span, or log is added or removed. The two new
-reducer files are declared in `docs/public/observability/telemetry-coverage.md`
-with No-Observability-Change markers; `scope_quiescence.go` and the enrollment
-emit nothing of their own and stay inert until a later slice wires them, at which
-point the existing reducer queue retry/attempt telemetry covers the deferral.
+What this document still carries, unchanged by round 2 (registered + quiescent
+in one query): the probe's access shape. Same Nested Loop Anti Join, same Index
+Scan, same 795 shared buffers, 0.300 ms to 0.338 ms median on the same seed. The
+probe itself emits no metric, span, or log — a deferral's telemetry comes from
+the reducer side, and is described in the sibling document.
+
+Limits worth repeating next to those numbers: plan shape on a synthetic seed,
+one connection, no concurrent writers, single database. It shows the predicates
+stay index-resolvable under a query planner. It says nothing about behavior
+under production concurrency.
