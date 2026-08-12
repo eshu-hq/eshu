@@ -185,6 +185,119 @@ func TestValidate_CIOnlySkipsScriptCheck(t *testing.T) {
 	}
 }
 
+// TestValidate_LiteralTriggerMissingFails proves the #6055 hardening: a
+// literal (non-glob) registry trigger naming a file that does not exist on
+// disk is a validation error, not a silently ignored entry. Before this
+// check, a stale trigger (its target file deleted or renamed outside a
+// tracked move) had NO existence check anywhere in Validate — it simply
+// never selected the gate again, and nothing said why.
+func TestValidate_LiteralTriggerMissingFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			// go/internal/collector/git_snapshot_entity_buckets.go does not
+			// exist under this hermetic fixture root — a stale literal
+			// trigger, the exact shape #6055 item (e) catalogued for 10 real
+			// gates in the committed registry.
+			Triggers: []string{"go/internal/collector/git_snapshot_entity_buckets.go"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+	errs := reg.Validate(root)
+	if len(errs) == 0 {
+		t.Fatal("expected an error for a literal trigger naming a nonexistent file, got none")
+	}
+	found := false
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		if got := err.Error(); got != "" &&
+			containsAll(got, "openapi-surface", "git_snapshot_entity_buckets.go") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an error naming both the gate id and the missing trigger, got: %v", errs)
+	}
+}
+
+// TestValidate_LiteralTriggerPresentPasses is the revert-to-green
+// counterpart: the same trigger, now pointing at a file that DOES exist,
+// produces no error.
+func TestValidate_LiteralTriggerPresentPasses(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+	triggerPath := filepath.Join(root, "go", "internal", "collector", "git_snapshot_entity_buckets.go")
+	if err := os.MkdirAll(filepath.Dir(triggerPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(triggerPath, []byte("package collector\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"go/internal/collector/git_snapshot_entity_buckets.go"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+	errs := reg.Validate(root)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for an existing literal trigger, got: %v", errs)
+	}
+}
+
+// TestValidate_GlobTriggerNeverRequiresExistence proves the existence check
+// is scoped to LITERAL triggers only (isLiteralTrigger's own definition,
+// shared with checkPathFilterCoverage): a glob trigger matching zero files
+// today is a legitimate future-proofing entry, not a stale one, and must
+// never be flagged.
+func TestValidate_GlobTriggerNeverRequiresExistence(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"go/internal/collector/nothing/matches/this/**"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+	errs := reg.Validate(root)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for a glob trigger matching nothing, got: %v", errs)
+	}
+}
+
 func TestValidate_AccumulatesErrors(t *testing.T) {
 	t.Parallel()
 	root := buildHermeticRepo(
