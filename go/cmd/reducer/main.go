@@ -235,6 +235,7 @@ func buildReducerService(
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,
+		CrossScopeProducerReadiness:        postgres.CrossScopeProducerReadinessStore{DB: database},
 		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
 		GraphProjectionPhasePublisher:      graphProjectionStateStore,

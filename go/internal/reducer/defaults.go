@@ -39,6 +39,13 @@ type DefaultHandlers struct {
 	// platform materialization.
 	FactLoader FactLoader
 
+	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
+	//
+	// Optional: nil means "no floor", not "not ready". A deployment that has
+	// not wired it keeps the pre-#5709 behaviour of committing whatever the
+	// cross-scope load resolved, rather than stranding every consumer.
+	CrossScopeProducerReadiness CrossScopeProducerReadiness
+
 	// AdmissionDecisionWriter persists shared explainability decisions for
 	// reducer domains that map local admission outcomes to the cross-domain
 	// admission_decisions read model. Nil keeps existing reducer behavior.
