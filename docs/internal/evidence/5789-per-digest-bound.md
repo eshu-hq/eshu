@@ -71,7 +71,7 @@ Against the pre-fix global cap it fails exactly as the bug predicts:
 20 of 21 digests got NO runtime evidence (hot digest returned 200 rows)
 ```
 
-## Why eligibility runs BEFORE the bound (codex review)
+## Why eligibility runs BEFORE the bound
 
 The first draft bounded rows and filtered after. That is what the original code
 did, and it is wrong for the same reason at a smaller scale: a digest whose
