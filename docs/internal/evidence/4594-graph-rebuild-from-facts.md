@@ -333,6 +333,48 @@ This does leave a latent trap worth recording: `CreateGeneration` is dead code
 whose identity is wall-clock-derived. If anything ever wires it into the rebuild
 path, every evidence artifact id in the graph changes on every recovery.
 
+## What the identity assertion found that counts hid
+
+The first full run under the set-difference assertion reported:
+
+```text
+Pass 1 (clean rebuild): nodes differ from the pre-wipe snapshot: 10 missing, 6 extra
+Pass 1 (clean rebuild): edges differ from the pre-wipe snapshot: 23 missing, 11 extra
+```
+
+The count comparison had been reporting this same corpus as a handful of nodes
+short. It was not just short. Three `Module` nodes are **wrong**, not missing:
+
+```text
+missing:  Module||basic|||ruby        extra:  Module||basic|||python
+          Module||inheritance|||ruby          Module||inheritance|||python
+          Module||path|||go                   Module||path|||javascript
+```
+
+Same module names, different `lang`. Three out, three in, so `Module` counted
+228 before and 228 after and the count gate called it identical. A query asking
+which Ruby modules a repository defines gets a different answer before and after
+a recovery, and nothing in the old assertion could see it.
+
+The single missing `CALLS` edge is now identified too, and it is cross-repo:
+
+```text
+content-entity:e_20bfb893f36a|main|/data/repos/orders-api/main.go|...|go
+  ||CALLS||
+content-entity:e_d1500a4208a0|Identity|/data/repos/lib-common/common.go|...|go
+```
+
+A call from `orders-api` into `lib-common`. That is the reducer→reducer ordering
+gap in section 2, named: the edge needs both repositories' canonical nodes
+committed, and one pass can drain it before the second repository is there. A
+same-repo call would not have this problem, which is why exactly one edge of 116
+is affected on this corpus.
+
+`graph_rebuild_seconds` also changes meaning in this run: 341 s (5m41s), against
+15-25 s previously. Nothing got slower. The measurement now waits for the shared
+edge backlog as well as the work queue, so it finally covers the whole rebuild
+rather than stopping at the first queue.
+
 ## What still does not match, and why
 
 The verifier still exits 1. The remaining difference has three separate causes,

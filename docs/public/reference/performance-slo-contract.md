@@ -147,7 +147,7 @@ Measurements from `scripts/verify-graph-rebuild-from-facts.sh` on 2026-08-12:
 
 | Field | Before #4594 fix | After |
 | --- | --- | --- |
-| `graph_rebuild_seconds` | 15 s | 20-25 s |
+| `graph_rebuild_seconds` | 15 s | 20-25 s work queue only; 341 s including the shared backlog |
 | Graph rebuilt | 2,431 of 2,504 nodes, 2,905 of 3,289 rels | 2,503 of 2,505 nodes, 3,286 of 3,288 rels |
 | Reducer work re-driven | 335 rows | ~1,034 rows |
 | Shared intents re-drained | 0 | ~600 |
@@ -162,11 +162,16 @@ The corpus is 1.4 MB, well below the smallest scale-lab slot, so it shows the
 mechanism runs rather than what a real rebuild costs. The two runs sat at
 different machine loads (2.41 against 5.19 on 12 CPUs), so part of the 15-to-25
 second difference is the machine, not the change — the direction is solid, a
-precise multiplier from these two numbers is not. The `graph_rebuild_seconds`
-figure covers the work queue only; the shared backlog can add minutes after it.
-And the rebuild is not yet count-exact: `HANDLES_ROUTE`, `RUNS_IN`, and `CALLS`
-can come back thin on a single pass because they depend on nodes another domain
-materializes.
+precise multiplier from these two numbers is not.
+
+The 341-second figure is not a regression against the 20-25 second one. It is a
+different measurement: once the gate started waiting for the shared edge backlog
+as well as the work queue, the number finally covers the whole rebuild. Size a
+recovery objective against it, not against the smaller one.
+
+The rebuild is also not yet exact: `HANDLES_ROUTE`, `RUNS_IN`, and one cross-repo
+`CALLS` edge can come back missing on a single pass because they depend on nodes
+another domain or another repository materializes.
 
 A separate limit applies to any comparison against a pre-wipe snapshot: indexing
 the same corpus is not deterministic. Three runs recorded pre-wipe totals of
