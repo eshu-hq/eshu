@@ -95,6 +95,28 @@ start_id_for_pid() {
 # relative to THIS file so it is found however the caller was invoked.
 . "${BASH_SOURCE[0]%/*}/golden-corpus-keep-marker.sh"
 
+# Translate the marker helper's explicit status contract into the boolean
+# refusal contract used below. Only status 10 means clear. Status 0 carries the
+# helper's refusal reason; every other status blocks as an internal decision
+# failure, so a future arithmetic/command regression cannot fail open.
+keep_marker_refusal() {
+	local candidate="$1" reason status=0
+	reason="$(keep_marker_blocks "${candidate}")" || status=$?
+	case "${status}" in
+		0)
+			printf '%s' "${reason}"
+			return 0
+			;;
+		10)
+			return 1
+			;;
+		*)
+			printf 'the --keep marker decision failed internally with status %s; ownership and age are unknown' "${status}"
+			return 0
+			;;
+	esac
+}
+
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
 # sits at the lock path - e.g. left behind by an older mkdir-based lock - `ln`
 # links INTO it and reports success, so every caller would "acquire" and the
@@ -160,7 +182,7 @@ acquire_live_gate_lock() {
 			# second contender now observes this live owner instead of querying
 			# and deleting the same marker while we replace it on --keep.
 			local keep_why
-			if keep_why="$(keep_marker_blocks "${candidate}")"; then
+			if keep_why="$(keep_marker_refusal "${candidate}")"; then
 				release_live_gate_lock
 				die "a --keep run retained the compose stack on the fixed host ports.
   ${keep_why}.
@@ -303,7 +325,7 @@ acquire_live_gate_lock() {
 				# marker is written BEFORE that holder exits, so at the instant the
 				# pid reads dead the marker is guaranteed to be on disk.
 				local keep_why_guard
-				if keep_why_guard="$(keep_marker_blocks "${candidate}")"; then
+				if keep_why_guard="$(keep_marker_refusal "${candidate}")"; then
 					rm -f "${guard}"
 					die "a --keep run retained the compose stack on the fixed host ports.
   ${keep_why_guard}.

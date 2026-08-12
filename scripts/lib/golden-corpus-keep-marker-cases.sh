@@ -48,6 +48,28 @@ keep_acquire() {
 		' _ "${lock_lib}" 2>&1
 }
 
+# Call the production helper directly so a nonzero status cannot be hidden by
+# acquire's caller-side command substitution. A running Docker stub makes every
+# valid timestamp a block; invalid representations must also block before any
+# Compose decision.
+direct_marker_status() {
+	local timestamp="$1" output_var="$2" output rc=0
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "0" "${timestamp}" "eshu-gate-direct" "/direct-worktree" >"${keep_lock}.keep"
+	output="$(PATH="${keep_bin}:${PATH}" "${bash_bin}" -c '. "$1"; keep_marker_blocks "$2"' _ "${lock_lib}" "${keep_lock}" 2>&1)" || rc=$?
+	printf -v "${output_var}" '%s' "${output}"
+	return "${rc}"
+}
+
+acquire_marker_status() {
+	local timestamp="$1" date_value="$2" output_var="$3" output
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "0" "${timestamp}" "eshu-gate-acquire-direct" "/acquire-direct-worktree" >"${keep_lock}.keep"
+	printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q\n' "${date_value}" >"${keep_bin}/date"
+	chmod +x "${keep_bin}/date"
+	output="$(keep_acquire || true)"
+	printf -v "${output_var}" '%s' "${output}"
+	rm -f "${keep_lock}" "${keep_lock}.keep" "${keep_bin}/date"
+}
+
 # Use this test runner's known-live pid. Marker reclaim must not depend on pid
 # death or a guessed unused pid: the Compose project is the durable authority.
 ps -p "$$" >/dev/null 2>&1 || fail "keep-marker fixture pid $$ must be live"
@@ -68,6 +90,51 @@ rm -f "${keep_lock}"
 # though process identity is irrelevant to its lifetime.
 printf '#!/usr/bin/env bash\nprintf "deadbeefcafe\\n"\n' >"${keep_bin}/docker"
 chmod +x "${keep_bin}/docker"
+
+for direct_timestamp in 08 0000000008; do
+	direct_out=""
+	direct_status=0
+	direct_marker_status "${direct_timestamp}" direct_out || direct_status=$?
+	rm -f "${keep_lock}.keep"
+	[[ "${direct_status}" -eq 0 ]] \
+		|| fail "timestamp [${direct_timestamp}] escaped a running marker with status ${direct_status} (got: ${direct_out})"
+	[[ "${direct_out}" == *"holder pid $$"* && "${direct_out}" == *"retained for "* && "${direct_out}" == *"compose project eshu-gate-direct"* ]] \
+		|| fail "leading-zero timestamp [${direct_timestamp}] must normalize as decimal and block on the running project (got: ${direct_out})"
+done
+
+for acquire_timestamp in 08 0000000008; do
+	acquire_out=""
+	acquire_marker_status "${acquire_timestamp}" 08 acquire_out
+	[[ "${acquire_out}" != *KEEP_RECLAIMED* && "${acquire_out}" == *"holder pid $$"* && "${acquire_out}" == *"compose project eshu-gate-acquire-direct"* ]] \
+		|| fail "acquire must refuse leading-zero marker/current clock [${acquire_timestamp}]/08 (got: ${acquire_out})"
+done
+
+for direct_timestamp in 999999999999999999999999999999999999 '+8' '-8' ' 8' '8 '; do
+	direct_out=""
+	direct_status=0
+	direct_marker_status "${direct_timestamp}" direct_out || direct_status=$?
+	rm -f "${keep_lock}.keep"
+	[[ "${direct_status}" -eq 0 ]] \
+		|| fail "timestamp [${direct_timestamp}] escaped a running marker with status ${direct_status} (got: ${direct_out})"
+	[[ "${direct_out}" == *"holder pid $$"* && "${direct_out}" == *"invalid retention timestamp"* && "${direct_out}" == *"age is unknown"* ]] \
+		|| fail "timestamp [${direct_timestamp}] must block with an invalid/unknown-age diagnostic (got: ${direct_out})"
+done
+
+# Inject an unexpected helper status after sourcing the production lock code.
+# Only the helper's explicit status 10 may mean clear; any other nonzero must
+# block acquisition instead of being mistaken for stale-marker success.
+keep_marker "eshu-gate-internal-error" "/internal-error-worktree"
+internal_out="$(
+	ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" "${bash_bin}" -c '
+		. "$1"
+		keep_marker_blocks() { return 47; }
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}" "${keep_lock}.keep"
+[[ "${internal_out}" != *KEEP_RECLAIMED* && "${internal_out}" == *"decision failed internally with status 47"* ]] \
+	|| fail "unexpected helper status must fail closed at acquire (got: ${internal_out})"
+
 keep_marker "eshu-gate-running" "/running:worktree"
 keep_running_out="$(keep_acquire || true)"
 rm -f "${keep_lock}" "${keep_lock}.keep"

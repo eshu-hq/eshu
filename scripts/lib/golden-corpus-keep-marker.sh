@@ -7,13 +7,28 @@
 # Decide what ${1}.keep means while the caller owns either the main live-gate
 # lock or its exclusive stale-reclaim guard.
 #
-# Returns 0 and describes why the marker blocks on stdout. Returns 1 when the
-# marker is absent or was positively proven stale and removed. The holder pid
-# is diagnostic only: a retained marker normally outlives that process. The
-# recorded Compose project is the durable resource authority.
+# Returns 0 and describes why the marker blocks on stdout. Returns the explicit
+# status 10 only when the marker is absent or was positively proven stale and
+# removed. Every other status is an internal failure that the caller must turn
+# into a block. The holder pid is diagnostic only: a retained marker normally
+# outlives that process. The recorded Compose project is the resource authority.
+normalize_keep_epoch() {
+	local value="$1"
+	[[ "${value}" =~ ^[0-9]+$ ]] || return 1
+	while [[ "${#value}" -gt 1 && "${value}" == 0* ]]; do
+		value="${value#0}"
+	done
+	# Ten decimal digits fit safely in Bash's signed 64-bit arithmetic on every
+	# supported runner. Reject before arithmetic so a corrupt huge field cannot
+	# wrap, and never let Bash interpret a leading zero as octal.
+	[[ "${#value}" -le 10 ]] || return 1
+	KEEP_EPOCH_DECIMAL="${value}"
+	return 0
+}
+
 keep_marker_blocks() {
-	local marker="$1.keep" raw rest pid retained_at project where now elapsed age running current
-	[[ -e "${marker}" || -L "${marker}" ]] || return 1
+	local marker="$1.keep" raw rest pid retained_at retained_decimal project where now now_decimal elapsed age running current
+	[[ -e "${marker}" || -L "${marker}" ]] || return 10
 	if ! raw="$(cat "${marker}" 2>/dev/null)"; then
 		printf 'could not read the --keep marker at %s, so its retained stack and age are unknown' "${marker}"
 		return 0
@@ -66,22 +81,26 @@ keep_marker_blocks() {
 			"${pid:-unknown}" "${where:-unknown}"
 		return 0
 	fi
-	if [[ ! "${retained_at}" =~ ^[0-9]{1,10}$ || "${retained_at}" == "0" ]]; then
+	if ! normalize_keep_epoch "${retained_at}" || [[ "${KEEP_EPOCH_DECIMAL}" == "0" ]]; then
 		printf 'holder pid %s at %s has an invalid retention timestamp (%s); age is unknown and the marker remains protected' \
 			"${pid:-unknown}" "${where:-unknown}" "${retained_at}"
 		return 0
 	fi
-	if ! now="$(date +%s 2>/dev/null)" || [[ ! "${now}" =~ ^[0-9]{1,10}$ || "${now}" == "0" ]]; then
+	retained_decimal="${KEEP_EPOCH_DECIMAL}"
+	if ! now="$(date +%s 2>/dev/null)" || ! normalize_keep_epoch "${now}" || [[ "${KEEP_EPOCH_DECIMAL}" == "0" ]]; then
 		printf 'holder pid %s at %s retained compose project %s, but the current clock is unavailable; age is unknown and the marker remains protected' \
 			"${pid:-unknown}" "${where:-unknown}" "${project:-unknown}"
 		return 0
 	fi
-	if (( retained_at > now )); then
+	now_decimal="${KEEP_EPOCH_DECIMAL}"
+	# Both operands are normalized, bounded decimal strings. 10# prevents octal
+	# interpretation and the length bound prevents signed overflow.
+	if (( 10#${retained_decimal} > 10#${now_decimal} )); then
 		printf 'holder pid %s at %s has a future retention timestamp (%s > %s); age is unknown and the marker remains protected' \
 			"${pid:-unknown}" "${where:-unknown}" "${retained_at}" "${now}"
 		return 0
 	fi
-	elapsed=$(( now - retained_at ))
+	elapsed=$(( 10#${now_decimal} - 10#${retained_decimal} ))
 	age="retained for ${elapsed} seconds"
 
 	if [[ -z "${project}" ]]; then
@@ -120,5 +139,5 @@ keep_marker_blocks() {
 	fi
 	printf 'live-gate-lock: reclaimed --keep marker after compose project %s reported no running containers (pid %s, worktree %s, %s).\n' \
 		"${project}" "${pid:-unknown}" "${where:-unknown}" "${age}" >&2
-	return 1
+	return 10
 }
