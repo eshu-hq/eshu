@@ -32,6 +32,12 @@ func isInlineContentKey(key string) bool {
 	return ok
 }
 
+// isRedactedKeyName is the single key-name predicate both walks and Validate
+// ask, so no caller can drift from the others about what a sensitive key is.
+func isRedactedKeyName(key string) bool {
+	return collector.IsSensitiveKeyName(key) || isInlineContentKey(key)
+}
+
 // queryPairSeparators are the characters that end one key=value pair inside a
 // query-string-shaped value: "?" opens a nested query, "&" and ";" separate
 // pairs within one. A raw "&" only reaches a parsed value percent-encoded,
@@ -49,11 +55,15 @@ const queryPairSeparators = "?&;"
 // same collector.IsSensitiveKeyName predicate everything else here asks. What
 // changes is where key names are looked for, not what counts as one.
 //
-// It exists because splitting the target's query string (SplitTargetQuery)
-// splits on the first "?" only. Everything after a second "?" stays inside a
-// parameter's value, so a credential lands under a benign name like "next" and
-// survives both the key walk and the share-safe gate. Scanning the DECODED
-// value also covers the percent-encoded form of the same trick.
+// It exists because a reporter-typed query input can carry a key=value pair in
+// a place no key walk can reach. SplitTargetQuery splits the target on the
+// first "?" only, so everything after a second "?" stays inside a parameter's
+// value; --params can hand over the same string directly, at any nesting
+// depth; and an error envelope's Details echoes a caller selector back. All
+// three are the same object wearing different costumes, which is why this scan
+// is attached to the query-input DOMAIN (see redactQueryInput) rather than to
+// whichever arrival path a reviewer happened to find first. Scanning the
+// DECODED value also covers the percent-encoded form of the same trick.
 //
 // Deliberate limits, because a caller must not read more into a pass than is
 // there:
@@ -87,7 +97,96 @@ func embeddedSensitiveKey(value string) (string, bool) {
 	return "", false
 }
 
-// redactValue walks a decoded JSON value (map[string]any / []any / scalars,
+// carriesEmbeddedSensitiveKey reports whether a value embeds a sensitive-named
+// key in query-string-shaped text. A repeated or list-valued parameter is
+// flagged when ANY of its elements is: the parameter is what gets dropped, and
+// keeping the surviving elements of a list whose sibling held a credential
+// would report a list the reporter never sent.
+//
+// Nested objects are not walked here. redactQueryInput recurses into them
+// itself, so the drop lands on the smallest enclosing key rather than throwing
+// away a whole object because one leaf three levels down was query-shaped.
+func carriesEmbeddedSensitiveKey(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		_, found := embeddedSensitiveKey(typed)
+		return found
+	case []any:
+		for _, item := range typed {
+			if carriesEmbeddedSensitiveKey(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// redactQueryInput is the walk for the REPORTER-TYPED QUERY-INPUT domain:
+// Query.Target's parsed parameters, Query.Params, and an error envelope's
+// Details, all of which hold text a reporter typed or a server echoed straight
+// back from it. On top of the key-name rule redactValue applies, it drops any
+// key whose VALUE is query-string-shaped and embeds a sensitive-named key
+// (see embeddedSensitiveKey).
+//
+// Why a domain and not a path: three review rounds each closed this leak for
+// one arrival route — the target string, then its parse failure, then its
+// nested values — and each time the same credential reappeared through the
+// next route. "May carry a reporter-typed credential inside a string value" is
+// a property of where the data CAME FROM, not of how it got here. Capture
+// merges every source into one map and then calls this once, so there is no
+// path into Query.Params that can skip the scan.
+//
+// The dropped key is the outer parameter name, not the embedded one: "next" is
+// what is missing from the bundle, and that is what a maintainer reading
+// Redaction.Rules is trying to account for.
+//
+// A value that merely looks query-shaped survives. A Package URL's qualifier
+// segment is literally "?arch=amd64&distro=debian-12", and `package_id` on the
+// supply-chain routes accepts one; neither qualifier is a sensitive key name,
+// so the parameter the report is about stays in the bundle.
+func redactQueryInput(value any) (any, []string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		var rules []string
+		for key, child := range typed {
+			if isRedactedKeyName(key) || carriesEmbeddedSensitiveKey(child) {
+				rules = append(rules, key)
+				continue
+			}
+			redactedChild, childRules := redactQueryInput(child)
+			out[key] = redactedChild
+			rules = append(rules, childRules...)
+		}
+		return out, rules
+	case []any:
+		out := make([]any, len(typed))
+		var rules []string
+		for i, child := range typed {
+			redactedChild, childRules := redactQueryInput(child)
+			out[i] = redactedChild
+			rules = append(rules, childRules...)
+		}
+		return out, rules
+	default:
+		return value, nil
+	}
+}
+
+// redactValue is the walk for the SERVER-PRODUCED EVIDENCE domain:
+// Response.Data. It applies the key-name rule ONLY, and deliberately does not
+// run the embedded-key scan redactQueryInput does.
+//
+// The exemption is recorded rather than assumed. Data holds the answer under
+// investigation — search results, code topics, citation metadata — so a value
+// there can legitimately contain "key=value" text that a query-input parameter
+// never would, and dropping it would strip the evidence the bundle exists to
+// carry. The known cost is that Eshu's API echoes some request parameters back
+// into data (for example data.input on the supply-chain impact routes), so a
+// credential the reporter typed can return through the server's echo. That gap
+// is named in the package README and is not closed here.
+//
+// It walks a decoded JSON value (map[string]any / []any / scalars,
 // the shape produced by json.Unmarshal into `any`) and, for every object key
 // that collector.IsSensitiveKeyName or isInlineContentKey flags at any
 // nesting depth, DROPS that key-value pair from the output entirely. It
@@ -121,7 +220,7 @@ func redactValue(value any) (any, []string) {
 		out := make(map[string]any, len(typed))
 		var rules []string
 		for key, child := range typed {
-			if collector.IsSensitiveKeyName(key) || isInlineContentKey(key) {
+			if isRedactedKeyName(key) {
 				rules = append(rules, key)
 				continue
 			}

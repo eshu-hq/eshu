@@ -64,10 +64,20 @@ stored verbatim, so a credential typed into `--endpoint`'s own query string
 (`--endpoint "/path?api_key=..."`) landed in a bundle labeled `public` that
 passed its own validation. Every redaction rule here matches on object KEY
 names, and `collector.ValidateShareSafeKeys` does too — neither ever reads a
-string value, so the target string was invisible to both. `Capture` now splits
-the query string off and folds its parameters into `Params`, and `Validate`
-rejects a bundle whose target still carries a sensitive-named parameter
-(`target_query_string`, a fifth entry in `ValidationChecks`).
+string value, so the target string was invisible to both.
+
+Fixing it one arrival path at a time did not hold. Three rounds closed the
+target string, then its parse failure, then its nested values, and the same
+credential came back through `--params` and through the error message that
+echoed the target. The boundary is now scoped by provenance domain instead:
+reporter-typed query input (`Query.Target`, all of `Query.Params`,
+`Response.Error.Details`) gets the key-name walk plus a structural re-parse of
+query-string-shaped values at any depth, and `Capture` merges every source
+before it scans, so no source can bypass the scan. Server-produced evidence
+(`Response.Data`) keeps the key-name walk only. `Validate` mirrors the same
+domain (`query_inputs`, a fifth entry in `ValidationChecks`) so a hand-edited
+bundle is judged by the same rule, and the package interpolates no user-supplied
+string into any error it returns.
 
 ---
 

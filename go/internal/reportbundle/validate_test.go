@@ -230,7 +230,15 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		{"schema_version", func(b *Bundle) { b.SchemaVersion = "report/vX" }},
 		{"bundle_id", func(b *Bundle) { b.BundleID = "" }},
 		{"profile_payloads_consistency", func(b *Bundle) { b.Payloads = &PayloadAttachment{Warning: "x"} }},
-		{"target_query_string", func(b *Bundle) { b.Query.Target = targetWithSensitiveQueryString() }},
+		// query_inputs replaced the narrower target_query_string check. The
+		// mutation is a Query.Params value rather than a target query string
+		// on purpose: params are the half the old check could not see, so a
+		// target-only mutation here would still pass against the old code and
+		// prove nothing about the widening. The target half stays covered by
+		// TestValidateFullEgressCanary.
+		{"query_inputs", func(b *Bundle) {
+			b.Query.Params = map[string]any{"next": "/api/v0/x?api_key=" + egressExplicitParamSentinel}
+		}},
 		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
 	}
 	for _, tc := range cases {

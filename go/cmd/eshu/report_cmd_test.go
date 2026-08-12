@@ -220,6 +220,61 @@ func TestReportCapture_RefusesUnparseableEndpointQueryString(t *testing.T) {
 	}
 }
 
+// TestReportCapture_RequestFailureDoesNotEchoEndpointQueryString covers the
+// last place a reporter's credential reaches a terminal. The CLI has to put the
+// real query string on the wire — the whole point is to reproduce the request
+// the reporter actually ran — and net/http embeds the full request URL in the
+// error it returns when that request fails. So a mistyped host, an unreachable
+// service, or a dropped connection printed
+// `Get "http://host/path?api_key=sk-live-...": dial tcp ...` straight to stderr
+// and into whatever CI log captured it.
+//
+// The bundle-side redaction cannot help here: this error is produced before
+// Capture ever runs. The command replaces the URL with the bare endpoint path
+// instead, which is what a reader needs to fix the problem anyway.
+func TestReportCapture_RequestFailureDoesNotEchoEndpointQueryString(t *testing.T) {
+	t.Parallel()
+
+	// A server that is closed immediately, so its port is bound to nothing and
+	// the request fails at dial time with a *url.Error carrying the full URL.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	closedURL := server.URL
+	server.Close()
+
+	const endpointSentinel = "CLI-ENDPOINT-SENTINEL-3f8b21"
+	const paramSentinel = "CLI-PARAM-SENTINEL-c47e09"
+
+	cmd := &cobra.Command{}
+	addReportCaptureFlags(cmd)
+	addRemoteFlags(cmd)
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	mustSetFlag(t, cmd, "service-url", closedURL)
+	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story?api_key="+endpointSentinel)
+	mustSetFlag(t, cmd, "params", `{"access_token":"`+paramSentinel+`"}`)
+
+	err := runReportCapture(cmd, nil)
+	if err == nil {
+		t.Fatalf("runReportCapture() error = nil, want a request failure against a closed port")
+	}
+
+	egress := err.Error() + "\n" + out.String() + "\n" + errOut.String()
+	for _, sentinel := range []string{endpointSentinel, paramSentinel} {
+		if strings.Contains(egress, sentinel) {
+			t.Errorf("request failure echoed the credential sentinel %q to the user:\n%s", sentinel, egress)
+		}
+	}
+	// The message still has to be actionable: the path a reader needs to fix
+	// survives, only its query string is gone.
+	if !strings.Contains(err.Error(), "/api/v0/services/checkout/story") {
+		t.Errorf("request failure error = %q, want it to name the endpoint path so the reporter can act on it", err.Error())
+	}
+}
+
 // TestReportCapture_IncludePayloadsWarnsLoudlyAndFailsRequirePublic proves
 // --include-payloads flips the bundle profile, prints a loud stderr warning,
 // and that the resulting bundle fails a subsequent --require-public check.

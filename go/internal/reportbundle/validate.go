@@ -32,54 +32,104 @@ var ValidationChecks = []string{
 	"schema_version",
 	"bundle_id",
 	"profile_payloads_consistency",
-	"target_query_string",
+	"query_inputs",
 	"share_safe_keys",
 }
 
-// validateTargetQuery rejects a bundle whose Query.Target still carries a
-// sensitive-named parameter in its query string.
+// validateQueryInputs rejects a bundle whose reporter-typed query inputs still
+// carry a credential the share-safe key walk cannot see. It covers the same
+// domain redactQueryInput redacts: Query.Target's query string, every string
+// inside Query.Params at any depth, and Response.Error.Details — which sits in
+// the Response section but holds the reporter's own selector echoed back, so it
+// belongs to this domain rather than to the server-produced evidence Data
+// carries.
 //
 // The share-safe walk below judges object key names and never reads a string
-// value, so a credential sitting inside the target string is invisible to it.
-// Capture splits the query string off before it builds a bundle, but Validate
-// is what a maintainer points at a file somebody sent them — hand-edited, or
-// written by a build from before that split existed. It has to find the leak
-// without assuming Capture produced the input.
+// value, so a credential sitting inside any of these strings is invisible to
+// it. Capture routes all of them through one redaction walk before it builds a
+// bundle, but Validate is what a maintainer points at a file somebody sent
+// them — hand-edited, written by a third-party tool, or produced by a build
+// from before that walk existed. It has to find the leak without assuming
+// Capture produced the input.
 //
-// A query string with nothing sensitive in it passes. The rule here is the same
-// key-name predicate the rest of the package uses, so a bundle Capture produced
-// can never disagree with its own validator.
+// It mirrors redactQueryInput deliberately, and covering only Target was a real
+// hole rather than a theoretical one: a bundle carrying
+// "params":{"next":"/x?api_key=sk-live"} passed every check this package had.
+// Mirroring keeps the package's own invariant intact in both directions — a
+// Capture-produced bundle always passes Validate, and anything Validate accepts
+// is something Capture would have been willing to emit.
 //
-// Three ways a target fails, and all three are reached without trusting the
+// Five ways the inputs fail, and all five are reached without trusting the
 // producer:
 //
-//   - The query string does not parse. Returning "no sensitive parameters
-//     found" for a string nobody could take apart is how a credential gets
-//     waved through, so it is rejected.
-//   - A parameter's NAME is sensitive.
-//   - A parameter's VALUE embeds a sensitive-named key, which is what happens
-//     when a second "?" pushes the credential inside a benign parameter like
-//     "next" (see embeddedSensitiveKey).
-func validateTargetQuery(target string) error {
-	_, params, err := SplitTargetQuery(target)
+//   - The target's query string does not parse. Returning "no sensitive
+//     parameters found" for a string nobody could take apart is how a
+//     credential gets waved through, so it is rejected.
+//   - A target parameter's NAME is sensitive.
+//   - A target parameter's VALUE embeds a sensitive-named key, which is what
+//     happens when a second "?" pushes the credential inside a benign parameter
+//     like "next" (see embeddedSensitiveKey).
+//   - A Query.Params value at any depth embeds one the same way.
+//   - A Response.Error.Details value does, which is how a selector the reporter
+//     typed comes back through the error envelope.
+//
+// A sensitive param NAME inside Query.Params is left to the share-safe gate,
+// which already walks the whole serialized document and reports the full key
+// path. Duplicating it here would give the same bundle two different rejection
+// messages depending on check order.
+func validateQueryInputs(bundle Bundle) error {
+	_, params, err := SplitTargetQuery(bundle.Query.Target)
 	if err != nil {
 		return fmt.Errorf("query.target carries a query string that cannot be parsed (%w): its parameters cannot be checked one by one, so it may hold an unredacted credential; recapture the bundle instead of editing it", err)
 	}
 	offending := make([]string, 0, len(params))
 	for key, value := range params {
-		if collector.IsSensitiveKeyName(key) || isInlineContentKey(key) {
-			offending = append(offending, key)
-			continue
-		}
-		if carriesEmbeddedSensitiveKey(value) {
+		if isRedactedKeyName(key) || carriesEmbeddedSensitiveKey(value) {
 			offending = append(offending, key)
 		}
 	}
-	if len(offending) == 0 {
+	if len(offending) > 0 {
+		sort.Strings(offending)
+		return fmt.Errorf("query.target carries sensitive parameter(s) %s in its query string: the value is unredacted because the share-safe key walk never inspects string values; recapture the bundle instead of editing it", strings.Join(offending, ", "))
+	}
+
+	paths := embeddedCredentialPaths("query.params", bundle.Query.Params)
+	if bundle.Response.Error != nil {
+		paths = append(paths, embeddedCredentialPaths("response.error.details", bundle.Response.Error.Details)...)
+	}
+	if len(paths) > 0 {
+		sort.Strings(paths)
+		return fmt.Errorf("a sensitive key=value pair is embedded in the value of %s: the share-safe key walk never inspects string values, so it reached the bundle unredacted; recapture the bundle instead of editing it", strings.Join(paths, ", "))
+	}
+	return nil
+}
+
+// embeddedCredentialPaths returns the dotted field paths, rooted at prefix,
+// whose value embeds a sensitive-named key. It reports the path rather than the
+// value, per the package error rule: the message has to be actionable in a
+// terminal or a CI log without repeating the credential into one.
+func embeddedCredentialPaths(prefix string, value any) []string {
+	switch typed := value.(type) {
+	case map[string]any:
+		var paths []string
+		for key, child := range typed {
+			path := prefix + "." + key
+			if carriesEmbeddedSensitiveKey(child) {
+				paths = append(paths, path)
+				continue
+			}
+			paths = append(paths, embeddedCredentialPaths(path, child)...)
+		}
+		return paths
+	case []any:
+		var paths []string
+		for i, child := range typed {
+			paths = append(paths, embeddedCredentialPaths(fmt.Sprintf("%s[%d]", prefix, i), child)...)
+		}
+		return paths
+	default:
 		return nil
 	}
-	sort.Strings(offending)
-	return fmt.Errorf("query.target carries sensitive parameter(s) %s in its query string: the value is unredacted because the share-safe key walk never inspects string values; recapture the bundle instead of editing it", strings.Join(offending, ", "))
 }
 
 // Validate checks a finished Bundle: schema_version fail-closed (mirroring
@@ -121,7 +171,7 @@ func Validate(bundle Bundle, opts ValidateOptions) error {
 	default:
 		return fmt.Errorf("redaction profile %q is unsupported", profile)
 	}
-	if err := validateTargetQuery(bundle.Query.Target); err != nil {
+	if err := validateQueryInputs(bundle); err != nil {
 		return err
 	}
 	if opts.RequirePublic && profile != ProfilePublic {
