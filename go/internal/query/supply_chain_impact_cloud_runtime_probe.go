@@ -41,9 +41,10 @@ const supplyChainCloudRuntimeProbeMaxDigests = 200
 // starving other findings' runtime evidence is tracked in #5789.
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
-// supplyChainCloudRuntimeProbePerDigestMaxResults bounds the owner-ledger rows
-// considered FOR EACH subject digest, replacing the total-row cap above as the
-// query's actual bound (#5789).
+// supplyChainCloudRuntimeProbePerDigestMinResults is the floor under the
+// owner-ledger rows considered FOR EACH subject digest. The per-digest bound
+// replaces the total-row cap above as the query's actual bound (#5789); this
+// constant is the smallest that bound may shrink to, however crowded the page.
 //
 // A total cap does not share. Measured on a skewed corpus -- one digest running
 // on 30,000 resources, twenty others on 100 each -- the 200-row global cap

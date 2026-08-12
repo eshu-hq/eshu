@@ -130,12 +130,16 @@ func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourceUIDs(
 	return uids, nil
 }
 
-// CurrentAuthorizedCloudResourcesByDigest examines at most the runtime probe
-// candidate bound in deterministic digest, ARN, and uid order. Freshness and
-// caller authorization are checked after that materialized bound in the same
-// indexed owner-ledger read, preserving the former graph route's global cap:
-// authorized rows beyond the first candidate page remain under-enriched rather
-// than widening hot-digest work.
+// CurrentAuthorizedCloudResourcesByDigest examines at most
+// supplyChainCloudRuntimeProbePerDigestLimit owner-ledger rows PER REQUESTED
+// DIGEST, in deterministic digest, ARN, and uid order.
+//
+// Freshness and caller authorization are checked BEFORE that bound, so the bound
+// counts eligible rows: a digest whose first rows are stale, tombstoned, or
+// outside the caller's grants still yields the later row that is current and
+// authorized. The bound being per digest is what stops one widely-deployed image
+// from spending the whole page budget and leaving every other finding with no
+// runtime evidence (#5789).
 func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourcesByDigest(
 	ctx context.Context,
 	digests []string,

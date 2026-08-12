@@ -40,6 +40,22 @@ const (
 	starvationHotDigestResources = 600
 	// starvationOtherDigests are the findings that used to be starved.
 	starvationOtherDigests = 20
+	// eligibilityDecoyDigests is how many extra digests
+	// TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive asks for
+	// beyond the one it seeds. They exist only to push the per-digest bound down
+	// to its floor.
+	//
+	// The bound is the 200-row page budget shared across the requested digests
+	// (supplyChainCloudRuntimeProbePerDigestLimit), so asking for ONE digest
+	// computes a 200-row bound. No fixture of a dozen rows can overflow that, and
+	// a bound-before-filter implementation would return the eligible row anyway
+	// and pass. 20 decoys put the request at 21 digests, where 200/21 = 9 falls
+	// under the floor and the bound becomes 10 — small enough for the seeded
+	// ineligible rows to exhaust it.
+	eligibilityDecoyDigests = 20
+	// eligibilityDecoyDigestOffset keeps the decoy digest numbers clear of the
+	// one digest the eligibility corpus seeds rows for.
+	eligibilityDecoyDigestOffset = 100
 )
 
 func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testing.T) {
@@ -194,6 +210,11 @@ func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sq
 // The starvation test above cannot catch it: every row it seeds is eligible.
 // This one seeds a digest whose first `perDigestLimit` rows are ALL ineligible,
 // followed by one that is not, and requires the eligible row to come back.
+//
+// The request carries eligibilityDecoyDigests unseeded digests alongside the
+// real one so the shared budget lands on its floor. Without them the bound is
+// 200 and no fixture this size can reach it, which would leave the test unable
+// to fail against a bound-before-filter query (Copilot review).
 func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
@@ -209,36 +230,59 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 	db.SetConnMaxIdleTime(0)
 	t.Cleanup(func() { _ = db.Close() })
 
+	digest := starvationDigest(1)
+	digests := make([]string, 0, eligibilityDecoyDigests+1)
+	digests = append(digests, digest)
+	for i := 1; i <= eligibilityDecoyDigests; i++ {
+		digests = append(digests, starvationDigest(eligibilityDecoyDigestOffset+i))
+	}
+
+	// Guard the guard. If a future budget change lifts the per-digest bound above
+	// the seeded ineligible rows, this test silently stops being able to fail —
+	// exactly the hole it was written to close.
+	perDigestLimit := supplyChainCloudRuntimeProbePerDigestLimit(len(digests))
+	ineligible := perDigestLimit + 5
+	if perDigestLimit != supplyChainCloudRuntimeProbePerDigestMinResults {
+		t.Fatalf(
+			"per-digest limit for %d digests = %d, want the floor %d: the decoy digest count must drive the "+
+				"bound to its floor, or the fixture cannot overflow it and the test cannot fail",
+			len(digests), perDigestLimit, supplyChainCloudRuntimeProbePerDigestMinResults,
+		)
+	}
+
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
-	seedRuntimeDigestEligibilityCorpus(t, ctx, db)
+	seedRuntimeDigestEligibilityCorpus(t, ctx, db, ineligible)
 	store := NewPostgresCloudResourceListStore(db)
 
-	digest := starvationDigest(1)
-	matches, err := store.CurrentAuthorizedCloudResourcesByDigest(ctx, []string{digest}, true, nil, nil)
+	matches, err := store.CurrentAuthorizedCloudResourcesByDigest(ctx, digests, true, nil, nil)
 	if err != nil {
 		t.Fatalf("CurrentAuthorizedCloudResourcesByDigest() error = %v, want nil", err)
 	}
 	if len(matches) != 1 {
 		t.Fatalf(
-			"matches = %d, want exactly 1: the %d ineligible rows sort BEFORE the eligible one, so a bound applied "+
-				"before the eligibility predicate discards it and reports a running image as not running",
-			len(matches), supplyChainCloudRuntimeProbePerDigestMinResults,
+			"matches = %d, want exactly 1: %d ineligible rows sort BEFORE the eligible one and the per-digest "+
+				"bound is %d, so a bound applied before the eligibility predicate spends the whole budget on "+
+				"tombstoned rows, discards the eligible one, and reports a running image as not running",
+			len(matches), ineligible, perDigestLimit,
 		)
 	}
 	if got, want := matches[0].UID, "uid-eligible"; got != want {
 		t.Fatalf("matches[0].UID = %q, want %q", got, want)
 	}
+	if got := matches[0].Digest; got != digest {
+		t.Fatalf("matches[0].Digest = %q, want %q", got, digest)
+	}
 }
 
-// seedRuntimeDigestEligibilityCorpus seeds one digest carrying
-// perDigestLimit + 5 tombstoned rows whose arns sort FIRST, then one current,
-// authorized row. Ordering is what makes the test sharp: the ineligible rows are
-// the ones a naive bound would consume.
-func seedRuntimeDigestEligibilityCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
+// seedRuntimeDigestEligibilityCorpus seeds one digest carrying `ineligible`
+// tombstoned rows whose arns sort FIRST, then one current, authorized row. The
+// caller passes a count above the per-digest bound so those rows alone can
+// exhaust it. Ordering is what makes the test sharp: the ineligible rows are the
+// ones a naive bound would consume.
+func seedRuntimeDigestEligibilityCorpus(t *testing.T, ctx context.Context, db *sql.DB, ineligible int) {
 	t.Helper()
 
-	ineligible := supplyChainCloudRuntimeProbePerDigestMinResults + 5
 	statements := []string{
 		`CREATE TEMP TABLE ingestion_scopes (
           scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,

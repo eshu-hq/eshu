@@ -32,11 +32,16 @@ runtime evidence is indistinguishable from a finding whose image runs nowhere.
 
 `buildCloudResourceRuntimeDigestQuery` drives a `CROSS JOIN LATERAL` from the
 distinct digest set, so each digest gets its own bounded, ordered index scan
-capped at `supplyChainCloudRuntimeProbePerDigestMaxResults` (10).
+capped at `supplyChainCloudRuntimeProbePerDigestLimit(len(digests))` — the 200-row
+total budget shared across the page, with a floor of
+`supplyChainCloudRuntimeProbePerDigestMinResults` (10). A 21-digest page lands on
+that floor; a single-digest page keeps all 200.
 
 Both arms stay on `graph_node_owner_cloud_resource_runtime_digest_idx` — no seq
 scan, no fallback. Total work is bounded and deterministic at
-`len(digests) x 10`, itself capped by `supplyChainCloudRuntimeProbeMaxDigests`.
+`len(digests) x perDigestLimit`. Because the limit floors at 10 and the digest
+count is capped by `supplyChainCloudRuntimeProbeMaxDigests` (200), the worst case
+is 2000 rows — up from the old 200, bounded and stated rather than incidental.
 
 Ten per digest is sufficient for the decision being made: `runtime_confirmed`
 needs only that at least one current, authorized resource runs the digest, so a
