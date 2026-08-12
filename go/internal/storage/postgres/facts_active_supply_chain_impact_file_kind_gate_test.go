@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -21,7 +22,11 @@ import (
 // fact could carry any of these keys, skipping `file` rows when
 // $10 (FileRepositoryIDs) is empty would drop a row the shipped query
 // returns. TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey pins that
-// premise against the file fact contract.
+// premise against the file fact contract, and
+// TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery pins this
+// list itself against the shipped query in both directions — it derives the
+// ungated set from the SQL rather than spot-checking the entries, so a NEW
+// ungated predicate fails the build instead of quietly escaping the premise.
 var supplyChainImpactUngatedIdentityPayloadKeys = []string{
 	"package_id",
 	"purl",
@@ -38,15 +43,171 @@ var supplyChainImpactUngatedIdentityPayloadKeys = []string{
 	"image_ref",
 }
 
-// TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery fails when a
-// key is added to or renamed in the shipped disjunction without updating the
-// list above, so the exactness premise below cannot silently go stale.
+// TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery fails when
+// the shipped disjunction's ungated key set drifts from the list above in
+// EITHER direction: a listed key removed or renamed, and — the direction that
+// actually breaks the gate — a NEW ungated predicate added.
+//
+// The expected set is DERIVED from the shipped query constant by
+// supplyChainImpactUngatedIdentityKeysInQuery rather than re-asserted key by
+// key, because a one-directional "every listed key still appears" check cannot
+// see an addition. An ungated predicate added on a key a `file` fact does carry
+// (`relative_path`, say) would make the #5237 gate drop rows the ungated query
+// returns, and a forward-only check stays green through it.
 func TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery(t *testing.T) {
-	for _, key := range supplyChainImpactUngatedIdentityPayloadKeys {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->>'"+key+"'") {
-			t.Errorf("payload key %q is listed as an ungated identity predicate but no longer appears in the query", key)
+	derived := supplyChainImpactUngatedIdentityKeysInQuery(t, listActiveSupplyChainImpactFactsQuery)
+
+	declared := append([]string(nil), supplyChainImpactUngatedIdentityPayloadKeys...)
+	sort.Strings(declared)
+
+	if !reflect.DeepEqual(derived, declared) {
+		t.Errorf(
+			"ungated identity predicate set drifted from the declared list.\n"+
+				"derived from query: %v\ndeclared in test:   %v\n"+
+				"Every key in the derived set is compared against EVERY row the query visits, "+
+				"including every `file` row. Add or remove keys in "+
+				"supplyChainImpactUngatedIdentityPayloadKeys to match, and re-check the #5237 "+
+				"file-kind gate's exactness premise against the new set.",
+			derived, declared,
+		)
+	}
+}
+
+// supplyChainImpactUngatedIdentityKeysInQuery returns, sorted and deduped,
+// every top-level payload key the query compares against a `file` row outside
+// the $10-guarded file branch.
+//
+// For each `fact.payload->>'key'` / `fact.payload->'scope'->>'key'` occurrence
+// it walks outward through the enclosing parenthesised groups looking for a
+// `fact.fact_kind` restriction that is ANDed with the predicate:
+//
+//   - a restriction whose kind set excludes 'file' means a `file` row never
+//     reaches the predicate, so the key is irrelevant to the gate;
+//   - a restriction of exactly {'file'} is the reachability branch itself — it
+//     must also carry the $10 guard, which is what makes the gate exact;
+//   - no such restriction means the predicate runs for every `file` row, so the
+//     key is ungated and belongs in the declared list.
+func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query string) []string {
+	t.Helper()
+
+	seen := make(map[string]struct{})
+	for _, prefix := range []string{"fact.payload->>'", "fact.payload->'scope'->>'"} {
+		for offset := 0; ; {
+			rel := strings.Index(query[offset:], prefix)
+			if rel < 0 {
+				break
+			}
+			at := offset + rel
+			offset = at + len(prefix)
+
+			end := strings.Index(query[offset:], "'")
+			if end < 0 {
+				t.Fatalf("unterminated payload key literal at offset %d", at)
+			}
+			key := query[offset : offset+end]
+
+			if !supplyChainImpactPredicateIsUnreachableForFileRow(t, query, at) {
+				seen[key] = struct{}{}
+			}
 		}
 	}
+
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// supplyChainImpactPredicateIsUnreachableForFileRow reports whether an
+// enclosing group keeps the predicate at `at` from ever selecting a `file` row
+// once the #5237 gate is in place.
+func supplyChainImpactPredicateIsUnreachableForFileRow(t *testing.T, query string, at int) bool {
+	t.Helper()
+
+	for cursor := at; ; {
+		open := supplyChainImpactEnclosingGroupOpen(query, cursor)
+		if open < 0 {
+			return false
+		}
+		body := strings.TrimLeft(query[open+1:], " \t\r\n")
+
+		switch {
+		case strings.HasPrefix(body, "fact.fact_kind = '"):
+			rest := strings.TrimPrefix(body, "fact.fact_kind = '")
+			end := strings.Index(rest, "'")
+			if end < 0 {
+				t.Fatalf("unterminated fact_kind literal near offset %d", open)
+			}
+			kind := rest[:end]
+			if kind != "file" {
+				return true
+			}
+			// The file branch: exact only because it also requires $10.
+			group := query[open:supplyChainImpactGroupClose(t, query, open)]
+			if !strings.Contains(group, "$10::text[]") {
+				t.Errorf(
+					"a fact_kind = 'file' branch at offset %d does not filter on $10; "+
+						"the #5237 gate would skip rows this branch can still match",
+					open,
+				)
+			}
+			return true
+
+		case strings.HasPrefix(body, "fact.fact_kind IN ("):
+			rest := body[len("fact.fact_kind IN ("):]
+			end := strings.Index(rest, ")")
+			if end < 0 {
+				t.Fatalf("unterminated fact_kind IN list near offset %d", open)
+			}
+			if !strings.Contains(rest[:end], "'file'") {
+				return true
+			}
+			return false
+		}
+
+		cursor = open
+	}
+}
+
+// supplyChainImpactEnclosingGroupOpen returns the index of the innermost
+// unclosed '(' before `at`, or -1 when `at` sits at the query's top level.
+func supplyChainImpactEnclosingGroupOpen(query string, at int) int {
+	depth := 0
+	for i := at - 1; i >= 0; i-- {
+		switch query[i] {
+		case ')':
+			depth++
+		case '(':
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
+// supplyChainImpactGroupClose returns the index just past the ')' matching the
+// '(' at `open`.
+func supplyChainImpactGroupClose(t *testing.T, query string, open int) int {
+	t.Helper()
+
+	depth := 0
+	for i := open; i < len(query); i++ {
+		switch query[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	t.Fatalf("unbalanced parentheses from offset %d", open)
+	return 0
 }
 
 // TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey pins the premise the

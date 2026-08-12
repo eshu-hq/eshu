@@ -79,12 +79,56 @@ With `$10` empty a `file` row cannot satisfy any branch:
 
 When `$10` is non-empty the conjunct is `true` and nothing changes at all.
 
+There is no partial case to worry about. `$10` is bound once per statement, so
+the gate is all-or-nothing for a call: a mixed npm+Maven intent has a non-empty
+`$10` from its npm side and keeps every file row. Pagination is safe for the
+same reason — `loadActiveSupplyChainImpactFactPagePair` re-binds the same
+filter on every page and advances only the cursors, so the gate cannot flip
+mid-stream.
+
+The multi-round loader is safe by induction.
+`loadActiveSupplyChainImpactFactsUntilStable` grows its filter from the rows
+each round returns, so a later round could acquire an npm package and populate
+`$10`. That does not change anything: with `$10` empty the file branch could
+not return a file row before the gate either, so each round's rows — and
+therefore the follow-up filter derived from them — are identical with and
+without the conjunct. The fixed point is unchanged.
+
+`NULL` behaves correctly too. If the driver binds `$10` as `NULL` rather than
+`{}`, `cardinality` returns `NULL` and the `COALESCE` makes the gate `false`,
+which matches the file branch's own `= ANY(NULL)` behaviour.
+
+### Concurrency
+
+Nothing here touches a claim, lease, lock, or queue row. This is a `SELECT` in
+an existing read-only `REPEATABLE READ` transaction, and the conjunct only
+removes rows from it. The effect on concurrency is one-way: the snapshot the
+statement holds open drops from ~43 s to ~0.05 s on the proof corpus, which
+shortens how long this reader pins the xmin horizon against autovacuum on
+`fact_records`. There is no new contention to prove.
+
 That last bullet is the one load-bearing assumption, so it is pinned rather
-than assumed: `TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey`
-reflects over `codegraph/v1.File` and fails if a contract change ever adds one
-of those keys, and
-`TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery` fails if the
-query's ungated key set drifts from the list the first test checks.
+than assumed, by two tests that have to hold together:
+
+- `TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey` reflects over
+  `codegraph/v1.File` and fails if a contract change ever adds one of those
+  keys to the file payload.
+- `TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery` keeps the
+  key list the first test checks honest. It **derives** the ungated set by
+  parsing the shipped query constant — walking outward from every
+  `payload->>'key'` occurrence to see whether an enclosing `fact_kind`
+  restriction keeps a `file` row away from it — and fails unless the derived
+  set equals the declared list exactly.
+
+The derivation matters. The obvious version of that second test — check that
+every declared key still appears in the query — only catches a removal. It
+stays green when someone ADDS an ungated predicate, which is the change that
+actually breaks the gate: an ungated `payload->>'relative_path'` comparison
+would match file facts, and the gate would start dropping rows the ungated
+query returns. Four drift probes were run against the derived version: adding
+an ungated predicate fails it, removing a declared one fails it, adding a key
+inside a kind-gated branch correctly does not, and removing the `$10` guard
+from the file branch fails it.
 
 Limit worth stating: `file.v1.schema.json` sets `additionalProperties: true`,
 so the guarantee is over the emitter and the typed contract, not over a
