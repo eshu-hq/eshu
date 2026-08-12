@@ -750,10 +750,14 @@ emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
   it. A container list beyond `cloudruntime.MaxContainerImagesPerResource`
   (8) is capped, not silently truncated: `containerImagesTruncatedWarning`
   appends `container_images_truncated` to the finding's `WarningFlags`.
-  For `aws_lambda_function` both decoders go through
-  `lambdaComparableScalarAttrSet` rather than `comparableScalarAttrSet`
-  directly, which adds the `package_type` completeness rule described above
-  (#5861) on top of the redaction rule.
+  For `aws_lambda_function` both decoders go through `lambdaScalarDecode`
+  rather than `comparableScalarAttrSet` directly, which adds the `package_type`
+  completeness rule described above (#5861) on top of the redaction rule.
+  Both return a `valueAttributeDecode`, whose `applyTo` is the single place
+  those fields are copied onto a `cloudruntime.ResourceRow` -- four decode sites
+  across the AWS and multi-cloud loaders build these rows, and one that copied
+  `Attributes` while forgetting `DegradedAttributes` would silently reinstate
+  the #5861 convergence for its provider alone.
 
 No-Regression Evidence (#5861): the `package_type` completeness rule sits on the
 same value-drift decode path, so it was measured rather than assumed.
@@ -825,15 +829,67 @@ see, not just a rescue:
   and the retire deleted) and now appears as a durable row. This is the rescue
   the fix exists for.
 - **A real drift alongside the unobservable `image_uri`.** If `version` also
-  differs, the pair previously reported `image_version_drift`
-  (`Compared=1, Drifted=1`); it now reports `value_comparison_inconclusive`
-  (`Compared=0`). The drift is not lost — it is restated as uncertainty,
-  because the all-or-nothing rule #5859/#5904 established says a set with an
-  unusable member is not comparable. That is the same cost the redaction rule
-  already pays and is pinned by
-  `TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift`.
-  An operator watching `image_version_drift` counts on an affected Lambda will
-  see one move to the inconclusive counter.
+  differs, the pair reports `image_version_drift` (`Compared=1, Drifted=1`)
+  plus a `comparable_attribute:image_uri` gap atom. Under the intermediate
+  all-or-nothing rule it reported `value_comparison_inconclusive`
+  (`Compared=0`) instead, which was safe but downgraded a proven drift to
+  uncertainty; the per-attribute rule below restored it. Pinned end to end by
+  `TestClassifyLambdaImagePackagedWithoutObservedImageURIReportsVersionDrift`
+  and, against real rows through the retire,
+  `TestAWSCloudRuntimeDriftLambdaPartialComparabilityKeepsDriftLive`.
+
+#### Per-attribute degradation replaces the all-or-nothing suppression (#5861)
+
+The rules above kept a partial pair from converging by suppressing the resource
+type's whole scalar set. That was safe -- `Compared` fell to 0, so the pair
+reported uncertainty and the retire could not delete -- but it threw away the
+comparison that HAD succeeded, so a proven `version` drift alongside an
+unreadable `image_uri` reached the operator as "inconclusive" rather than as
+drift.
+
+`cloudruntime.ResourceRow.DegradedAttributes` now carries the unreadable key
+itself, so the two concerns separate: the readable comparison keeps its verdict
+and its `declared_`/`observed_` evidence, while `Inconclusive()` declines
+convergence on `len(Degraded) > 0` independently of it. `Classify` checks drift
+first, so a comparison that ran and disagreed is never downgraded. A genuinely
+absent comparable is still not degraded -- that is the zip-packaged-Lambda noise
+line the issue records.
+
+No-Regression Evidence (#5861): the change is on the reducer's per-ARN hot path,
+so it was measured, not assumed. `go test ./internal/correlation/drift/cloudruntime
+-run XXX -bench Benchmark -benchtime 3s -count=6`, Go 1.26 on an Apple M4 Pro,
+medians of six samples. The AFTER arm was sampled twice, on two different
+machine loads, and both are shown -- reporting only the first would have made a
+noise band look like a small win:
+
+```text
+                                    before      after#1    after#2
+BenchmarkClassifyExistenceOnly      0.2529      0.2503     0.2532   ns/op
+BenchmarkClassifyWithValueDrift     37.34       36.67      37.64    ns/op
+BenchmarkBuildCandidatesWithValueDrift
+                                   805.0       738.5      749.2    ns/op
+
+allocations identical on every arm: 0/0, 48 B/1 alloc, 2962 B/19 allocs
+```
+
+**The citable results are: the two `Classify` benchmarks are unchanged, and
+`BuildCandidates` is 7-8% faster.** `Classify` straddles zero between the two
+samplings (-1.8% and +0.8% on the value-drift arm), which is what "no
+regression" looks like rather than a win -- the added work is one linear scan of
+a `DegradedAttributes` slice that is nil on every healthy resource, so it
+returns on the length check. `BuildCandidates` moves in the same direction by a
+similar margin in both (-8.3% and -6.9%), well outside that band, and there is a
+mechanism for it: the change removed a redundant classification.
+`appendValueDriftEvidence` and `appendValueComparisonGapEvidence` used to call
+`ClassifyValueComparison` independently, and `buildOneCandidate` now computes it
+once and passes it to both. That also removes the possibility of the drift atoms
+and the coverage-gap atoms describing different comparisons.
+
+No-Observability-Change (#5861): no metric, span, or log is added. The affected
+pairs move between the EXISTING `image_version_drift` and
+`value_comparison_inconclusive` finding kinds, both already counted on
+`Summary`, and the gap atoms reuse the `comparable_attribute:<key>`
+`missing_evidence` value #5837 introduced.
 `scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its

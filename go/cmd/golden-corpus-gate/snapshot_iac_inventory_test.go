@@ -37,23 +37,34 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	}
 	// Issue #5594 raised these to 13/21/13 (terraform_local_backend_demo's
 	// two resource blocks: aws_instance.local_backend_demo,
-	// aws_s3_bucket.local_backend_demo). Issue #5572 raises them again to
+	// aws_s3_bucket.local_backend_demo). Issue #5572 raised them again to
 	// 14/22/14 (terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf's
-	// one resource block, aws_security_group.vpc_endpoints). Issue #5954 raises
-	// summary.total only, 22 -> 23 (terraform_comprehensive/pagerduty.tf's
-	// module "orders_pagerduty_service" is a MODULE block, not a resource
-	// block, so count and summary.by_kind.resource hold at 14). PR #6037
-	// review round 3 (copilot) added summary.by_kind.module=7 and
-	// summary.by_kind.data-source=2: total=23/resource=14 pin their sum at 9
-	// (23-14) but not the split between them, so without these two a future
-	// regression could shift a count from module to data-source and still
-	// pass -- see
+	// one resource block, aws_security_group.vpc_endpoints). Issue #5861 raised
+	// them to 15/23/15 (terraform_comprehensive/lambda_partial.tf's one resource
+	// block, aws_lambda_function.supply-chain-demo-partial -- the corpus's only
+	// partially comparable runtime-drift pair).
+	//
+	// Issue #5954 then adds terraform_comprehensive/pagerduty.tf's
+	// module "orders_pagerduty_service". That is a MODULE block, not a resource
+	// block, so it moves summary.by_kind.module 6 -> 7 and summary.total
+	// 23 -> 24 while count and summary.by_kind.resource hold at 15.
+	//
+	// Both changes landed independently against a 22/14 base and each raised
+	// summary.total to 23 on its own, for different reasons -- #5861 by adding
+	// a resource, #5954 by adding a module. With both fixtures staged the
+	// totals compose rather than collide: 15 resources + 7 modules +
+	// 2 data-sources = 24.
+	//
+	// summary.by_kind.module and summary.by_kind.data-source are pinned
+	// (PR #6037 review round 3, copilot) because total=24/resource=15 fixes
+	// their sum at 9 but not the split, so without them a regression could
+	// shift a count from module to data-source and still pass -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
 	// comment on this same query shape for the full derivation of all five.
 	for path, want := range map[string]any{
-		"count":                       float64(14),
-		"summary.total":               float64(23),
-		"summary.by_kind.resource":    float64(14),
+		"count":                       float64(15),
+		"summary.total":               float64(24),
+		"summary.by_kind.resource":    float64(15),
 		"summary.by_kind.module":      float64(7),
 		"summary.by_kind.data-source": float64(2),
 	} {

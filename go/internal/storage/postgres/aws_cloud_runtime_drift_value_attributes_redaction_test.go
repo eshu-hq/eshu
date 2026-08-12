@@ -263,16 +263,15 @@ func TestAWSRuntimeStateRowFromPayloadPreservesValueResemblingMarkerText(t *test
 //
 // That is strictly worse than the bug being fixed. The old garbage-string
 // behavior at least left a durable (wrong) row; this would delete a true one,
-// silently, on a condition that is sticky per deployment. So a redacted
-// comparable suppresses its resource type's WHOLE scalar set: no comparison
-// runs, Compared drops to 0, and the pair reports uncertainty instead.
+// silently, on a condition that is sticky per deployment.
 //
-// The cost is deliberate and bounded -- a real `version` drift alongside an
-// unreadable `image_uri` reports as inconclusive rather than as drift. That
-// still names a gap on a durable row an operator can act on, and it can never
-// delete. It also matches how main already treats the ECS side, where an
-// unreadable container_definitions makes the whole image comparison
-// uncomparable rather than partial.
+// #5904 bought that safety by suppressing the resource type's WHOLE scalar set,
+// which also threw away the readable comparison. #5861 replaced the mechanism
+// without weakening the guarantee: the readable `version` is compared and kept,
+// the unreadable `image_uri` is reported as degraded, and Inconclusive() is true
+// on the degradation rather than on an empty comparison. The outcome this test
+// exists for -- no convergence, so the retire can never delete -- is unchanged,
+// so it is asserted here on the new mechanism.
 func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 	t.Parallel()
 
@@ -292,9 +291,12 @@ func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 	if _, present := state.Attributes["image_uri"]; present {
 		t.Fatalf("row.Attributes = %#v, want no image_uri (a redacted comparable must not survive)", state.Attributes)
 	}
-	if _, present := state.Attributes["version"]; present {
-		t.Fatalf("row.Attributes = %#v, want no version either: one redacted comparable suppresses the whole "+
-			"scalar set, or a partial comparison converges and the retire deletes a true finding", state.Attributes)
+	if got := state.Attributes["version"]; got != "7" {
+		t.Fatalf("row.Attributes[version] = %q, want \"7\": the readable comparable is not collateral damage (#5861)", got)
+	}
+	if !reflect.DeepEqual(state.DegradedAttributes, []string{"image_uri"}) {
+		t.Fatalf("row.DegradedAttributes = %#v, want [image_uri]: this is what stops the pass converging",
+			state.DegradedAttributes)
 	}
 
 	cloudPayload := []byte(`{
@@ -310,8 +312,14 @@ func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
 
 	comparison := cloudruntime.ClassifyValueComparison(cloud, state)
-	if comparison.Compared != 0 {
-		t.Fatalf("ClassifyValueComparison() Compared = %d, want 0 (a partial comparison is what converges)", comparison.Compared)
+	if comparison.Compared != 1 {
+		t.Fatalf("ClassifyValueComparison() Compared = %d, want 1: version was readable on both sides", comparison.Compared)
+	}
+	if !reflect.DeepEqual(comparison.Degraded, []string{"image_uri"}) {
+		t.Fatalf("ClassifyValueComparison() Degraded = %#v, want [image_uri]", comparison.Degraded)
+	}
+	if !comparison.Inconclusive() {
+		t.Fatal("Inconclusive() = false: a partial comparison must never converge, whatever the mechanism")
 	}
 	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
 		t.Fatalf("Classify() = %q, want %q -- convergence here would let the retire delete a still-true finding",
@@ -320,11 +328,11 @@ func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 }
 
 // TestClassifyLambdaUnredactedPartialEvidenceStillCompares is the
-// false-positive guard for the all-or-nothing rule above: image_uri is
+// false-positive guard for the degradation rule above: image_uri is
 // legitimately absent on every zip-packaged Lambda, and that must stay a
 // verdict rather than becoming inconclusive on most functions in a corpus
-// (the #5861 objection). Only a REDACTED comparable suppresses the set; a
-// genuinely missing one does not.
+// (the #5861 objection). Only an UNREADABLE comparable is reported degraded; a
+// genuinely missing one is not.
 func TestClassifyLambdaUnredactedPartialEvidenceStillCompares(t *testing.T) {
 	t.Parallel()
 
@@ -380,9 +388,9 @@ func BenchmarkStateDeclaredValueAttributes(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		attrs, _, _, _ := stateDeclaredValueAttributes("aws_instance", attributes)
-		if len(attrs) != 1 {
-			b.Fatalf("stateDeclaredValueAttributes() = %#v, want one comparable attribute", attrs)
+		decode := stateDeclaredValueAttributes("aws_instance", attributes)
+		if len(decode.Attributes) != 1 {
+			b.Fatalf("stateDeclaredValueAttributes() = %#v, want one comparable attribute", decode.Attributes)
 		}
 	}
 }
