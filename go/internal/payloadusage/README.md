@@ -23,6 +23,7 @@ failure surfaces in core CI instead of an external collector's production run.
 | `manifest.go` | `BuildManifest`, `CheckManifest`, `Violation` — joins the three derivations and compares used fields against a declared set |
 | `schema.go` | `LoadDeclaredFieldsFromSchemas` — reads `sdk/go/factschema/schema/*.json` as the declared-field source of truth; `MergeRegistryPayloadSchemaFields` — additive hook for issue #4570's registry `payload_schema` refs |
 | `load.go` | `Paths`, `ResolvePaths`, `Load`, `Gate`, `MarshalIndent` — the package's top-level entry points |
+| `globfiles.go` | `globFilesRecursive`, `decodeSeamFileNamePattern` — walks a directory tree for decode-seam files at any depth, skipping `testdata`, so a family that moves into a subpackage stays visible to the gate (#6055) |
 
 ## Derivation, not string literals
 
