@@ -72,21 +72,41 @@ type AttributeExtraction struct {
 }
 
 // ResourceRelationshipObservation is one typed provider relationship between
-// two AWS resources, named by ARN. It is an observation, not a resolved edge:
-// the target may live in another account or region, or may not be indexed at
-// all, and the reducer decides what to materialize.
+// two AWS resources. It is an observation, not a resolved edge: the target may
+// live in another account or region, or may not be indexed at all, and the
+// reducer decides what to materialize.
+//
+// An endpoint may be named by ARN, by resource ID, or by both, and at least one
+// must be set. Resource ID matters because AWS Config — the feed this registry
+// exists for — names relationship endpoints as resourceId plus resourceType and
+// frequently supplies no ARN. Carrying both, plus per-relationship Attributes,
+// keeps this type lossless against RelationshipObservation (types.go), so
+// converting one to the other cannot silently drop an endpoint or strand a
+// resource ID in an ARN field.
 type ResourceRelationshipObservation struct {
-	// SourceARN is the ARN of the owning resource.
+	// SourceARN is the ARN of the owning resource; empty when the provider named
+	// the source only by resource ID.
 	SourceARN string
+	// SourceResourceID is the provider resource ID of the owning resource, for
+	// endpoints the provider names without an ARN.
+	SourceResourceID string
 	// SourceResourceType is the resource type of the source.
 	SourceResourceType string
 	// RelationshipType is the bounded provider relationship type.
 	RelationshipType string
-	// TargetARN is the ARN of the related resource, preserved verbatim.
+	// TargetARN is the ARN of the related resource, preserved verbatim; empty
+	// when the provider named the target only by resource ID.
 	TargetARN string
+	// TargetResourceID is the provider resource ID of the related resource, such
+	// as a subnet or security-group ID that carries no ARN.
+	TargetResourceID string
 	// TargetResourceType is the resource type of the target when the provider
-	// states it; empty when the ARN alone is what the provider gave us.
+	// states it; empty when the endpoint alone is what the provider gave us.
 	TargetResourceType string
+	// Attributes carries bounded relationship-specific control-plane fields. It
+	// holds the same redaction contract as AttributeExtraction.Attributes: never
+	// secrets, data-plane content, or raw provider bodies.
+	Attributes map[string]any
 }
 
 // ExtractContext is the bounded input handed to a per-resource-type extractor.

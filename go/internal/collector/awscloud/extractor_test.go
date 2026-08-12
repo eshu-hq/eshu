@@ -6,6 +6,7 @@ package awscloud
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -168,5 +169,63 @@ func TestResourceExtractorRegistryIsEmptyUntilConfigLaneExists(t *testing.T) {
 		t.Fatalf("resourceExtractors has %d registration(s) %v, want none until the AWS Config "+
 			"lane feeds this registry; a scanner migration here changes no fact output",
 			len(registered), registered)
+	}
+}
+
+// ResourceRelationshipObservation must stay lossless against the existing
+// RelationshipObservation contract in types.go. Codex raised this on PR #6073:
+// the type originally named endpoints by ARN only, so converting it to a
+// RelationshipObservation would drop ID-only endpoints, or worse, leave a
+// subnet or security-group ID sitting in an ARN field. AWS Config — the feed
+// this registry exists for (#6088) — names relationship endpoints as resourceId
+// plus resourceType and often supplies no ARN at all, so that gap would have
+// been hit by the first extractor written.
+//
+// Each field below states the RelationshipObservation field it preserves. The
+// three RelationshipObservation fields with no counterpart here (Boundary,
+// SourceURI, SourceRecordID) are envelope provenance the caller supplies, not
+// extraction output.
+func TestResourceRelationshipObservationIsLosslessAgainstRelationshipObservation(t *testing.T) {
+	t.Parallel()
+
+	// field in ResourceRelationshipObservation -> field it preserves in RelationshipObservation
+	preserves := map[string]string{
+		"SourceARN":          "SourceARN",
+		"SourceResourceID":   "SourceResourceID",
+		"SourceResourceType": "", // no counterpart; RelationshipObservation has no source type
+		"RelationshipType":   "RelationshipType",
+		"TargetARN":          "TargetARN",
+		"TargetResourceID":   "TargetResourceID",
+		"TargetResourceType": "TargetType",
+		"Attributes":         "Attributes",
+	}
+
+	extraction := reflect.TypeOf(ResourceRelationshipObservation{})
+	got := make(map[string]bool, extraction.NumField())
+	for i := 0; i < extraction.NumField(); i++ {
+		got[extraction.Field(i).Name] = true
+	}
+	for name := range preserves {
+		if !got[name] {
+			t.Errorf("ResourceRelationshipObservation is missing %s; converting to "+
+				"RelationshipObservation would lose it", name)
+		}
+		delete(got, name)
+	}
+	for name := range got {
+		t.Errorf("ResourceRelationshipObservation gained field %s with no recorded "+
+			"RelationshipObservation counterpart; add one to `preserves` deliberately", name)
+	}
+
+	// The counterparts must actually exist on RelationshipObservation, so a rename
+	// there fails here instead of silently breaking conversion later.
+	target := reflect.TypeOf(RelationshipObservation{})
+	for name, counterpart := range preserves {
+		if counterpart == "" {
+			continue
+		}
+		if _, ok := target.FieldByName(counterpart); !ok {
+			t.Errorf("RelationshipObservation has no field %s (preserved by %s)", counterpart, name)
+		}
 	}
 }
