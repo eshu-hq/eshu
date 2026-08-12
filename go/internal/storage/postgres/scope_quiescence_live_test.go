@@ -7,9 +7,27 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
+
+// producerScopeQuiescenceLiveDB opens the live database for this proof, skipping
+// with a message that names this proof.
+//
+// The shared connect-and-bootstrap helper it delegates to skips under the
+// aws_cloud_runtime_drift #5848 issue number, because that is where it was
+// written. Every CI run skips these live tests, so borrowing that helper
+// directly would print the wrong issue number for a #5709 readiness probe on
+// every one of them, and send anyone reading the log to an unrelated issue.
+func producerScopeQuiescenceLiveDB(t *testing.T) (*sql.DB, context.Context) {
+	t.Helper()
+
+	if os.Getenv("ESHU_POSTGRES_DSN") == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres #5709 producer-scope quiescence proof")
+	}
+	return awsCloudRuntimeDriftAdmissionLiveDB(t)
+}
 
 // TestProducerScopeQuiescenceLive runs the probe against a real Postgres, which
 // nothing did before: the query had only text-shape, empty-kinds, and
@@ -32,7 +50,7 @@ import (
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run ProducerScopeQuiescenceLive -count=1 -v
 func TestProducerScopeQuiescenceLive(t *testing.T) {
-	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
+	sqlDB, ctx := producerScopeQuiescenceLiveDB(t)
 	db := SQLDB{DB: sqlDB}
 	now := time.Now().UTC()
 
