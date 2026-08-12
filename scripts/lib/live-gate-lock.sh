@@ -90,6 +90,33 @@ start_id_for_pid() {
 	LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9' || true
 }
 
+# The --keep marker decision lives in its own chunk (see that file's header for
+# why the compose stack, not the holder pid, is the discriminator). Resolved
+# relative to THIS file so it is found however the caller was invoked.
+. "${BASH_SOURCE[0]%/*}/golden-corpus-keep-marker.sh"
+
+# Translate the marker helper's explicit status contract into the boolean
+# refusal contract used below. Only status 10 means clear. Status 0 carries the
+# helper's refusal reason; every other status blocks as an internal decision
+# failure, so a future arithmetic/command regression cannot fail open.
+keep_marker_refusal() {
+	local candidate="$1" reason status=0
+	reason="$(keep_marker_blocks "${candidate}")" || status=$?
+	case "${status}" in
+		0)
+			printf '%s' "${reason}"
+			return 0
+			;;
+		10)
+			return 1
+			;;
+		*)
+			printf 'the --keep marker decision failed internally with status %s; ownership and age are unknown' "${status}"
+			return 0
+			;;
+	esac
+}
+
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
 # sits at the lock path - e.g. left behind by an older mkdir-based lock - `ln`
 # links INTO it and reports success, so every caller would "acquire" and the
@@ -137,14 +164,6 @@ acquire_live_gate_lock() {
 	# start_id_for_pid); an empty fingerprint (this pid is somehow already gone
 	# by the time we read it back) degrades gracefully at the read side, not here.
 	local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"
-	if [[ -e "${candidate}.keep" ]]; then
-		die "a --keep run retained the compose stack on the fixed host ports.
-  Releasing the lock would hand those ports to this run, which would then tear
-  that stack down on exit. Stop the retained stack, then remove:
-    ${candidate}.keep
-    ${candidate}
-  Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
-	fi
 	local max_attempts=50
 	local attempt holder holder_pid holder_startid holder_rest holder_where claim_status
 	local guard guard_payload guard_pid guard_born guard_status
@@ -159,6 +178,20 @@ acquire_live_gate_lock() {
 		if [[ "${claim_status}" -eq 0 ]]; then
 			lock_path="${candidate}"
 			lock_payload="${payload}"
+			# Decide marker-only state only after publishing our main lock. A
+			# second contender now observes this live owner instead of querying
+			# and deleting the same marker while we replace it on --keep.
+			local keep_why
+			if keep_why="$(keep_marker_refusal "${candidate}")"; then
+				release_live_gate_lock
+				die "a --keep run retained the compose stack on the fixed host ports.
+  ${keep_why}.
+  Releasing the lock would hand those ports to this run, which would then tear
+  that stack down on exit. Stop the retained stack, then remove:
+    ${candidate}.keep
+    ${candidate}
+  Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
+			fi
 			return 0
 		fi
 
@@ -291,9 +324,11 @@ acquire_live_gate_lock() {
 				# stack after our pre-loop check, and its pid is dead by design. The
 				# marker is written BEFORE that holder exits, so at the instant the
 				# pid reads dead the marker is guaranteed to be on disk.
-				if [[ -e "${candidate}.keep" ]]; then
+				local keep_why_guard
+				if keep_why_guard="$(keep_marker_refusal "${candidate}")"; then
 					rm -f "${guard}"
 					die "a --keep run retained the compose stack on the fixed host ports.
+  ${keep_why_guard}.
   Reclaiming this lock would hand those ports to this run, which would then tear
   that stack down on exit. Stop the retained stack, then remove:
     ${candidate}.keep
@@ -399,13 +434,33 @@ acquire_live_gate_lock() {
 # Releasing the mutex there would hand those ports to the next run, which would
 # then tear the retained stack down with `docker compose down -v` on its own
 # exit - destroying the very thing --keep was for. The marker has to outlive the
-# holder pid (the pid is gone; the ports are not), so it is cleared only
-# explicitly, and the refusal message says exactly how.
+# holder pid (the pid is gone; the ports are not). Later acquisition may clear
+# it only while serialized and only after Compose positively reports that the
+# recorded project has no running containers.
 retain_live_gate_lock() {
 	[[ -n "${lock_path}" ]] || return 0
-	printf '%s\n' "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
+	# Version, pid, start-id fingerprint, retention epoch, compose project, then
+	# the worktree. The v2 prefix distinguishes this layout from the four-field
+	# marker briefly emitted by the open #5987 branch. Splitting on the first
+	# FIVE colons preserves any later colon in the worktree path.
+	#
+	# The pid and fingerprint are NOT a liveness test for this marker (#5987):
+	# this function runs in the cleanup trap immediately before `exit`, so the
+	# recorded pid is dead within milliseconds in the normal --keep case.
+	# Reclaiming on a dead pid would therefore discard every legitimate marker
+	# at exactly the moment it starts mattering. They are recorded so a blocked
+	# run can NAME the owner instead of printing a bare path. What actually
+	# decides reclaimability is the compose project: the marker protects a
+	# running stack, so its validity is keyed on that stack still existing.
+	local retained_at
+	retained_at="$(date +%s 2>/dev/null)" || retained_at=""
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "$(start_id_for_pid "$$")" \
+		"${retained_at}" "${GATE_COMPOSE_PROJECT:-}" "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
 		die "could not write the --keep marker at ${lock_path}.keep - the retained
   stack is NOT protected, and the next run will tear it down. Stop the stack now."
+	[[ "${retained_at}" =~ ^[0-9]{1,10}$ && "${retained_at}" != "0" ]] ||
+		die "could not record a valid retention timestamp for ${lock_path}.keep. The
+  marker remains fail-closed with unknown age; stop the retained stack manually."
 	printf 'live-gate-lock: --keep retained the stack, so the lock is retained too.\n  Clear it with: rm -f %s %s\n' \
 		"${lock_path}.keep" "${lock_path}" >&2
 }

@@ -148,13 +148,29 @@ clone has its own lock.
 retained containers still hold the fixed ports, so releasing the lock would hand
 those ports to the next run, which would then tear the retained stack down with
 `docker compose down -v` on its own exit — destroying the thing `--keep` was
-for. The marker outlives the holder process, so it is cleared only explicitly.
-Until you clear it, every later gate run — and `make pre-pr` on any branch that
-touches a golden-corpus trigger path — refuses. To release it:
+for. The versioned marker records the Compose project as the durable resource
+owner and an epoch timestamp for elapsed-age diagnostics. The recorded pid and
+worktree identify the holder; process liveness does not decide marker validity
+because the holder normally exits immediately after retaining the stack.
 
-Run the teardown **from the worktree that took `--keep`** — the compose project
-name is derived from that directory, so tearing down from anywhere else leaves
-the retained containers holding the ports:
+A later run checks that project with `docker compose -p <project> ps -q` while
+it owns the applicable live-gate lock. Compose lists running containers by
+default. A successful empty result therefore means the project no longer owns
+running containers or fixed host ports, and the run removes the stale marker.
+Stopped containers are intentionally reclaimable because they do not bind the
+ports; use `docker compose ps --all` separately if you need to inspect them.
+
+Every refusal for a valid marker names its project, worktree, pid, and elapsed
+retention age in seconds. The decision fails closed when Docker is unavailable,
+the Compose query fails, the marker is unreadable or malformed, the current
+clock is unavailable, the timestamp is missing, invalid, or in the future, the
+project is empty, or the stale marker cannot be removed. A four-field marker
+written by the earlier open #5987 branch also remains fail-closed: it identifies
+the holder but reports the retention age as unknown rather than guessing or
+reclaiming it.
+
+Tear down the stack **from the worktree that took `--keep`** because its
+environment and Compose files define the retained project and backend:
 
 ```bash
 docker compose -f docker-compose.yaml down -v          # ESHU_GRAPH_BACKEND=neo4j: docker-compose.neo4j.yml
@@ -166,6 +182,39 @@ Tear the stack down **before** removing the marker. Removing the marker first
 frees the lock while the containers still hold the fixed ports, which is exactly
 the collision the retention exists to prevent. The refusal message names both
 paths, so you do not have to remember them.
+
+The main lock is a deliberately dangling symlink whose link text carries the
+owner payload. A shell check using only `[ -e "$lock" ]` reports it absent.
+Inspect it with `readlink "$lock"` or `[ -L "$lock" ] || [ -e "$lock" ]`.
+
+This mutex refuses immediately; it is not a FIFO queue. A stale retained marker
+self-heals as described above, but an active holder still blocks, and repeated
+active holders can make another worktree retry later. Adding queued fairness is
+a separate scheduling change with waiter cleanup and cancellation semantics.
+
+### Retained-marker evidence
+
+No-Regression Evidence: The conflict domain is the shared git-common-dir lock
+and marker for live gates within one clone. The no-marker fast path checks the
+filesystem and makes no Docker query. A valid marker-present liveness decision
+makes one `docker compose -p <project> ps -q` query while it owns the main lock
+or stale reclaim guard; malformed markers refuse before Docker. The gate refuses
+immediately when a holder is active or stack state is unknown. It does not add
+FIFO waiting. An isolated Docker Compose 5.1.2 run returned 0 container IDs for
+an absent project, 1 for a running project, and after stopping that container
+returned 0 from default `ps -q` and 1 from `ps -q --all`. The focused shell race
+starts two contenders against one stale marker and proves the second never
+queries Docker while the first owns the main lock; the first contender's
+replacement marker remains intact.
+
+Observability Evidence: Refusals write the retained Compose project, worktree,
+holder pid, elapsed age or an explicit unknown-age state, and the decision
+reason to stderr. Reasons distinguish a running project, Docker unavailable,
+query failure, malformed or incompatible marker data, clock/timestamp failure,
+replacement-marker change, and removal failure. Successful stale-marker
+reclaim also reports the project and holder details. This shell coordination
+change adds no service OpenTelemetry metric, span, or log field; service runtime
+behavior is unchanged.
 
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,
