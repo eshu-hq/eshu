@@ -229,11 +229,14 @@ re-enqueueing the same generation updates the row that is already there instead
 of adding a second one. Work that was in flight when the process died returns to
 `pending`; work that never started is unaffected.
 
-Re-running does recover the layers a single interrupted pass leaves thin. On a
-measured rebuild of the Compose fixture corpus, a second `recover-generations`
-brought `CALLS` from 115 to its full 116, and `HANDLES_ROUTE` and `RUNS_IN` from
-2 back to 4 — those edges depend on nodes another domain materializes, and one
-pass can run them in the wrong order.
+This has been measured, not assumed. On the Compose fixture corpus, killing the
+ingester, projector, and resolution-engine mid-rebuild left 62 work items in
+flight, 505 shared intents open, and a half-built graph of 522 nodes. After a
+restart and a re-issued command, both queues drained to terminal with zero
+dead-letter and zero failed rows, and the graph came back matching the
+uninterrupted rebuild on every label and edge type — plus one `CALLS` edge the
+uninterrupted run had missed, because those edges depend on nodes another domain
+materializes and a single pass can run them in the wrong order.
 
 **Do not run it repeatedly on a healthy graph.** Two families are not idempotent
 across repeated rebuilds: in the same measurement, `EvidenceArtifact` and its

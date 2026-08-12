@@ -403,6 +403,63 @@ internally valid, because both sides were measured on the same data. Its absolut
 totals and its `graph_rebuild_seconds` are not comparable to the other runs and
 are not used for the cost table.
 
+## Resumability, measured
+
+The runbook's claim that an interrupted rebuild recovers was asserted, never run.
+It has now been run. The verifier's own phase 3 cannot reach it while phase 1
+fails, so this was driven by hand against the same stack, immediately after an
+uninterrupted rebuild on that stack.
+
+Sequence: wipe the graph, reapply schema, start writers,
+`POST /api/v0/admin/recover-generations`, let it build for 12 seconds, then
+`docker kill` the ingester, projector, and resolution-engine mid-drain. Restart
+them, re-issue the command with a fresh idempotency key, and drain both queues.
+
+At the kill:
+
+```text
+work in flight at the kill: 62
+shared intents open at the kill: 505
+graph at the kill: nodes=522 rels=547
+```
+
+The drain after restart, sampled every 15 s:
+
+```text
+t+15s  work=160 shared_open=592 nodes=2206 rels=2707
+t+45s  work=6   shared_open=138 nodes=2489 rels=3253
+t+60s  work=0   shared_open=138 nodes=2489 rels=3253
+...                (shared backlog idle for ~3.5 minutes)
+t+270s work=0   shared_open=117 nodes=2492 rels=3262
+t+300s work=0   shared_open=0   nodes=2510 rels=3307
+BOTH QUEUES TERMINAL
+```
+
+Residual non-terminal work: none. Zero `dead_letter`, zero `failed`.
+
+Against the uninterrupted rebuild on the same stack, the interrupted one lost
+nothing and recovered one edge more:
+
+| Family | Uninterrupted | Interrupted + restarted |
+| --- | ---: | ---: |
+| `CALLS` | 115 | **116** |
+| `EvidenceArtifact` | 12 | 19 |
+| `IMPORTS` | 224 | 226 |
+
+Every other label and edge type matched exactly. The `CALLS` edge came back
+because the restart issued a second refinalize, which is the same mechanism
+section 2 describes. The two inflated families are the known non-idempotency from
+section 3, and they are the price of the extra pass — over-production, not loss.
+
+So: an interrupted rebuild converges, drains clean, and does not drop work. It
+does inherit the repeat-refinalize inflation, which is one more reason to fix
+that defect rather than live with it.
+
+The plateau is worth noting on its own. The shared backlog sat at 138 open
+intents for about three and a half minutes with the work queue already empty,
+then drained in one burst. Any recovery-time objective has to include that
+window; `graph_rebuild_seconds` does not.
+
 ## Reproducing
 
 ```bash
