@@ -19,10 +19,16 @@
 # for callers that cannot source a bash function (specs/ci-gates.v1.yaml
 # `local.command` strings, GitHub Actions `run:` steps).
 #
-# Registered as its own trigger of every gate that sources it (mirroring
-# scripts/lib/telemetry-coverage-row-check.sh's registration note): a change
-# to this file must re-run every gate above, so it is listed as a trigger for
-# each of them in specs/ci-gates.v1.yaml.
+# Registered as a trigger of the gates that source it AND have a registry
+# entry -- today query-plan-regression and replay-coverage-gate (via
+# authz-scoped-route-tests) -- mirroring
+# scripts/lib/telemetry-coverage-row-check.sh's registration note, so a change
+# here re-runs them. The other sourcing scripts
+# (verify-hosted-governance-proof.sh, verify-ask-eshu-local-proof.sh,
+# verify-hosted-governance-remote-compose-proof.sh) have no entry in
+# specs/ci-gates.v1.yaml and no workflow reference: they are operator scripts
+# run by hand, not CI gates, so there is nothing to register them against. If
+# one of them ever becomes a gate, add this file to its triggers then.
 
 # go_test_run_guard <min_matches> <run_pattern> -- <go-test-args...>
 #

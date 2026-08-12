@@ -18,15 +18,20 @@ import (
 // FieldUsage records that one reducer source file reads a named field off a
 // value returned by a decode<Kind> call.
 type FieldUsage struct {
-	// File is the reducer file's base name, e.g. "aws_resource_materialization.go".
+	// File is the source file's path relative to the scanned root, e.g.
+	// "aws_resource_materialization.go" at the top level or
+	// "containerimage/identity.go" once a family moves into a subpackage.
+	// Relative rather than a bare base name so two files with the same name
+	// in different subpackages stay distinguishable.
 	File string
 	// GoFieldName is the struct field's Go identifier, e.g. "ResourceType".
 	GoFieldName string
 }
 
-// parsedGoFile pairs a parsed reducer source file with its base name, so
-// later passes can attribute a finding back to the file it came from without
-// re-deriving the name from *ast.File (which does not carry it).
+// parsedGoFile pairs a parsed reducer source file with its path relative to
+// the scanned root, so later passes can attribute a finding back to the file it
+// came from without re-deriving the name from *ast.File (which does not carry
+// it).
 type parsedGoFile struct {
 	name string
 	file *ast.File
