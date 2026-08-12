@@ -171,3 +171,23 @@ func (io_Discard) Write(p []byte) (int, error) { return len(p), nil }
 type stubRunner struct{ output []byte }
 
 func (s *stubRunner) Run(context.Context, ...string) ([]byte, error) { return s.output, nil }
+
+// TestAwaitExitCodesAvoidToolchainRange is the reason these codes start at 10.
+//
+// `go run ./cmd/ci-gates await` exits 1 when the binary fails to COMPILE, and
+// this command's own usage error is 2 -- both happen before any classification
+// runs. If gate-failed were 1, a broken build would publish `failure` as though
+// a required gate had gone red, which is the same overclaim #6075 removes, just
+// arriving by a different route. Every code the toolchain can produce must fall
+// through to the publisher's `error` arm instead.
+func TestAwaitExitCodesAvoidToolchainRange(t *testing.T) {
+	t.Parallel()
+
+	for _, reserved := range []int{1, 2} {
+		for _, o := range []awaitOutcome{awaitOutcomeGateFailed, awaitOutcomeStillRunning, awaitOutcomeBroken} {
+			if o.exitCode() == reserved {
+				t.Errorf("outcome %v uses exit code %d, which `go run` or a usage error can produce on its own", o, reserved)
+			}
+		}
+	}
+}

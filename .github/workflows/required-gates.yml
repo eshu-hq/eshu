@@ -120,8 +120,10 @@ jobs:
           code=$?
           set -e
           # The code, not just success/failure, is what the publisher below
-          # needs (#6075): 0 passed, 1 a selected gate failed, 3 gates still
-          # running, 4 aggregation itself broke.
+          # needs (#6075): 0 passed, 10 a selected gate failed, 11 gates still
+          # running, 12 aggregation itself broke. Codes start at 10 so a
+          # `go run` build failure (1) or usage error (2) cannot be mistaken
+          # for a gate result.
           echo "code=${code}" >> "${GITHUB_OUTPUT}"
           exit "${code}"
 
@@ -153,8 +155,8 @@ jobs:
           else
             case "${AGGREGATE_CODE}" in
               0) state=success; description='All path-selected blocking gates passed' ;;
-              1) state=failure; description='A required gate failed' ;;
-              3)
+              10) state=failure; description='A required gate failed' ;;
+              11)
                 echo "::notice::selected gates still running; leaving required-gates-complete pending for the next run"
                 exit 0
                 ;;

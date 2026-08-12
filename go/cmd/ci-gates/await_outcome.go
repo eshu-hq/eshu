@@ -29,15 +29,23 @@ import "errors"
 // these values are a contract with .github/workflows/required-gates.yml and
 // cannot be renumbered without moving that step in the same commit.
 const (
+	// These start at 10 deliberately. `go run ./cmd/ci-gates await` exits 1
+	// when the BINARY ITSELF fails to compile, and 2 is this command's own
+	// usage error -- both before any classification happens. If gate-failed
+	// were 1, a broken build would publish `failure` as though a required gate
+	// had gone red, which is the exact overclaim this change removes. Keeping
+	// the classified codes out of the toolchain's range means every
+	// unrecognized code falls through to `error`, where a build break belongs.
+	//
 	// awaitExitGateFailed means a selected blocking gate concluded failure.
 	// This is the ONLY outcome that may publish `failure`.
-	awaitExitGateFailed = 1
+	awaitExitGateFailed = 10
 	// awaitExitStillRunning means the wait ended while selected gates were
 	// still pending -- a timeout, or a superseded run. Not a gate result.
-	awaitExitStillRunning = 3
+	awaitExitStillRunning = 11
 	// awaitExitBroken means aggregation could not reach a verdict at all
 	// (API error, bad token, unreadable registry). A publisher problem.
-	awaitExitBroken = 4
+	awaitExitBroken = 12
 )
 
 // awaitOutcome is what the await loop concluded, as opposed to how it exited.
