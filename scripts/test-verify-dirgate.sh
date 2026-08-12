@@ -418,6 +418,66 @@ test_removable_grandfather_note() {
 	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE DIRGATE_NAMING_EXEMPT_TSV_OVERRIDE
 }
 
+# ---------------------------------------------------------------------------
+# (k) The #6054 P1 ratchet fix (codex review on PR #6081): a grandfathered
+#     directory that SHRINKS below its pinned count, while still over the
+#     40-file cap, must fail and name the exact re-pin command -- shrinking
+#     used to be an unconditional, digest-free pass, which let a directory
+#     shrink and then silently regrow up to (but not past) its original pin
+#     without ever failing again.
+# ---------------------------------------------------------------------------
+test_grandfathered_shrink_requires_repin() {
+	local repo tsv digest
+	repo="$(new_scratch_repo)"
+	write_numbered_files "${repo}/go/internal/legacy7" 45
+	local -a bases=()
+	local p
+	for p in "${repo}"/go/internal/legacy7/*.go; do
+		bases+=("$(basename "${p}")")
+	done
+	digest="$(dirgate_digest "${bases[@]:-}")"
+
+	tsv="${repo}/grandfather.tsv"
+	printf '# scratch\ninternal/legacy7\t45\t%s\n' "${digest}" > "${tsv}"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="${tsv}"
+
+	# Shrink to 43 -- still over the 40-file cap, so still a cap offender,
+	# but below its pinned count of 45 and with no matching digest.
+	rm "${repo}/go/internal/legacy7/file0043.go" "${repo}/go/internal/legacy7/file0044.go"
+
+	run_dirgate "${repo}" --files go/internal/legacy7/file0000.go
+	assert_exit "${DIRGATE_EXIT}" 1 "shrinking a grandfathered directory below its pin (still over cap) is RED"
+	assert_contains "${DIRGATE_OUT}" "shrunk from its grandfathered count of 45 to 43" "RED message explains the shrink"
+	assert_contains "${DIRGATE_OUT}" "dirgate-digest internal/legacy7" "RED message names the exact digest command to run"
+	assert_contains "${DIRGATE_OUT}" "dirgate-grandfather.tsv" "RED message names the ledger file to edit"
+	assert_contains "${DIRGATE_OUT}" "generate-dirgate-grandfather-go.sh" "RED message names the regenerator to re-run"
+
+	rm -rf "${repo}"
+	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
+}
+
+# ---------------------------------------------------------------------------
+# (l) The shrink-requires-repin rule above does NOT apply once the
+#     directory's real count drops to or below the 40-file cap entirely --
+#     it is no longer a cap offender at all, and scripts/verify-dirgate.sh
+#     --all only nudges that stale row toward removal (see
+#     test_removable_grandfather_note), never fails it outright.
+# ---------------------------------------------------------------------------
+test_grandfathered_shrink_below_cap_needs_no_repin() {
+	local repo tsv
+	repo="$(new_scratch_repo)"
+	write_numbered_files "${repo}/go/internal/legacy8" 38
+	tsv="${repo}/grandfather.tsv"
+	printf '# scratch\ninternal/legacy8\t45\tirrelevant-because-below-cap\n' > "${tsv}"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="${tsv}"
+
+	run_dirgate "${repo}" --files go/internal/legacy8/file0000.go
+	assert_exit "${DIRGATE_EXIT}" 0 "a grandfathered directory shrunk to or below the 40-file cap needs no re-pin"
+
+	rm -rf "${repo}"
+	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
+}
+
 test_digest_helper() {
 	local repo out
 	repo="$(new_scratch_repo)"
@@ -442,6 +502,8 @@ main() {
 	test_naming_exempt_stale_row_hard_fails
 	test_naming_exempt_stale_row_does_not_cover_a_different_file
 	test_removable_grandfather_note
+	test_grandfathered_shrink_requires_repin
+	test_grandfathered_shrink_below_cap_needs_no_repin
 	test_digest_helper
 
 	printf '\ntests passed: %d/%d\n' "${pass_count}" "$((pass_count + fail_count))"

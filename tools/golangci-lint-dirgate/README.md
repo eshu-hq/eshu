@@ -62,10 +62,9 @@ naming-exempt row's directory must already have a cap-ledger row; the
 generator fails before writing any output otherwise.
 
 A grandfathered directory's CAP rule, applied by `evaluateCapViolation` in
-`grandfather_eval.go`:
+`grandfather_eval.go`, is a **monotonic ratchet**: a directory passes only
+while its live state exactly matches the pin.
 
-- Shrinking below the pinned count is always fine (files may move out
-  freely, no ledger edit required).
 - Holding exactly at the pinned count requires the digest to still match
   -- this catches a same-count *swap* (one file removed, a different one
   added) that pure counting would miss.
@@ -73,6 +72,23 @@ A grandfathered directory's CAP rule, applied by `evaluateCapViolation` in
   **adding one file to a grandfathered directory un-grandfathers its cap
   check.** The naming check is NOT re-applied by this -- it never was
   suppressed by the cap in the first place; see below.
+- **Shrinking below the pinned count also fails**, and requires re-pinning
+  the row -- it is not a free pass. An earlier version of this check
+  treated any live count below the pin as an unconditional, digest-free
+  pass, which let a directory pinned at, say, 100 shrink to 50 and then
+  silently regrow to 99 without ever failing, because the live count
+  never crossed back over `entry.FileCount`. That defeated the ratchet
+  the ledger exists to enforce. Now a shrink must be re-pinned in the
+  same change that caused it -- run `scripts/dev/precommit-go.sh
+  dirgate-digest <dir>`, update the row in `dirgate-grandfather.tsv` to
+  the new count and digest, and regenerate `grandfather.go` -- so any
+  later regrowth is always measured against the best (lowest) state the
+  directory ever reached, not its original landing snapshot. This is
+  deliberate ratchet pressure: an otherwise-unrelated PR that deletes a
+  `.go` file from a grandfathered directory must re-pin that row in the
+  same PR. (A directory whose live count drops to or below the 40-file
+  cap entirely is unaffected by this rule -- it is no longer a cap
+  offender at all, and its row should be deleted; see below.)
 
 The NAMING rule, applied by `namingExemptSet` in `grandfather_eval.go`, is
 independent of the cap check and of the directory's aggregate file count
@@ -93,6 +109,9 @@ Both ledgers only shrink:
   is at or below 40 (`scripts/dev/precommit-go.sh dirgate-digest <dir>`
   prints the current count and digest to confirm; `scripts/verify-dirgate.sh
   --all` also nudges a row that no longer needs it with a non-fatal NOTE).
+  If the directory shrank but is still over 40 files, its row must instead
+  be **bumped down** to the new count and digest (a hard failure, not a
+  nudge -- see the ratchet rule above), not removed.
 - Remove a naming-exempt row once its file has actually moved into the
   sibling subpackage (or been renamed/removed so it no longer collides).
   Unlike the cap ledger's soft NOTE, a naming-exempt row whose file no

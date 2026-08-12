@@ -86,7 +86,7 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 	digest := qualifyingDigest(files)
 	entry, grandfathered := grandfather[key]
 
-	capViolates, capNote := evaluateCapViolation(count, digest, entry, grandfathered)
+	capViolates, capNote := evaluateCapViolation(key, count, digest, entry, grandfathered)
 	namingExempt := namingExemptSet(grandfathered, entry)
 
 	var out []finding
@@ -141,12 +141,29 @@ func namingExemptSet(grandfathered bool, entry grandfatherEntry) map[string]bool
 }
 
 // evaluateCapViolation applies the size cap and, when the directory is
-// grandfathered, the pinned-envelope rule: shrinking below the pinned
-// count is always fine, holding exactly at the pinned count requires the
-// digest to still match (otherwise the file set was swapped, not just
-// trimmed), and exceeding the pinned count fails regardless of digest --
-// growth un-grandfathers the directory outright.
-func evaluateCapViolation(count int, digest string, entry grandfatherEntry, grandfathered bool) (violates bool, note string) {
+// grandfathered, the pinned-envelope rule. The ledger is a MONOTONIC
+// ratchet, not a one-time snapshot: a grandfathered directory passes only
+// while its live state exactly matches the pin (same count, same digest).
+//
+//   - Holding exactly at the pinned count requires the digest to still
+//     match (otherwise the file set was swapped, not just trimmed).
+//   - Shrinking below the pinned count is a violation too, NOT a free
+//     pass: without a digest check, a directory pinned at 100 could shrink
+//     to 50 and then silently regrow to 99 -- one file short of its
+//     original pin -- and no check would ever fire, because the live
+//     count would stay below entry.FileCount the whole way. Requiring a
+//     re-pin on every shrink closes that gap: after the fix lands, growth
+//     is always measured against the BEST (lowest) state the directory
+//     ever reached, not the count it happened to have when the gate was
+//     first written.
+//   - Exceeding the pinned count fails regardless of digest -- growth
+//     un-grandfathers the directory outright.
+//
+// A directory whose live count drops to or below maxDirFiles entirely is
+// NOT covered by this rule -- it is no longer a cap offender at all, and
+// its ledger row should be deleted (see
+// dirgate_report_removable_grandfathers's soft NOTE), not re-pinned.
+func evaluateCapViolation(key string, count int, digest string, entry grandfatherEntry, grandfathered bool) (violates bool, note string) {
 	if count <= maxDirFiles {
 		return false, ""
 	}
@@ -154,14 +171,19 @@ func evaluateCapViolation(count int, digest string, entry grandfatherEntry, gran
 		return true, ""
 	}
 	switch {
-	case count < entry.FileCount:
-		return false, ""
 	case count == entry.FileCount && digest == entry.Digest:
 		return false, ""
 	case count == entry.FileCount:
 		return true, fmt.Sprintf(
 			"file set changed at its pinned count of %d (one file was swapped for another); the grandfathered digest no longer matches",
 			entry.FileCount)
+	case count < entry.FileCount:
+		return true, fmt.Sprintf(
+			"shrunk from its grandfathered count of %d to %d; re-pin this row before any further growth is measured against it -- "+
+				"run `bash scripts/dev/precommit-go.sh dirgate-digest %s`, update this row in scripts/lib/dirgate-grandfather.tsv "+
+				"to the printed count and digest, then regenerate tools/golangci-lint-dirgate/grandfather.go with "+
+				"`bash scripts/generate-dirgate-grandfather-go.sh`",
+			entry.FileCount, count, key)
 	default:
 		return true, fmt.Sprintf("grew from its grandfathered count of %d to %d", entry.FileCount, count)
 	}

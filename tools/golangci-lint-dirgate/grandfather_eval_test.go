@@ -10,6 +10,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,7 +160,18 @@ func TestEvaluateDirectoryGrandfatheredExactMatch(t *testing.T) {
 	}
 }
 
-func TestEvaluateDirectoryGrandfatheredShrinkIsFine(t *testing.T) {
+// TestEvaluateDirectoryGrandfatheredShrinkRequiresRepin pins the fix for the
+// #6054 P1 ratchet defect (codex review on PR #6081): the OLD behavior
+// treated any live count below the pinned FileCount as an unconditional
+// pass, with no digest check at all. That let a directory pinned at, say,
+// 50 shrink to 45 and then silently regrow to 49 -- one file under the
+// original pin -- without ever touching the ledger, defeating the ratchet
+// the whole grandfather mechanism exists to enforce. The fix: a
+// grandfathered directory only passes at EXACTLY its pinned count with a
+// matching digest; a shrink (like a swap or a grow) now requires the row to
+// be re-pinned, so regrowth is always measured from the best (lowest)
+// state the directory ever reached, not the original landing snapshot.
+func TestEvaluateDirectoryGrandfatheredShrinkRequiresRepin(t *testing.T) {
 	dir := t.TempDir()
 	files := numberedFiles(maxDirFiles + 3)
 	writeGoFiles(t, dir, files...)
@@ -173,8 +185,41 @@ func TestEvaluateDirectoryGrandfatheredShrinkIsFine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evaluateDirectory: %v", err)
 	}
+	if len(got) != 1 {
+		t.Fatalf("findings = %v, want exactly 1 cap finding (shrink requires re-pinning the ledger row)", got)
+	}
+	for _, want := range []string{
+		"shrunk", fmt.Sprintf("%d", maxDirFiles+10), fmt.Sprintf("%d", maxDirFiles+3),
+		"re-pin", "dirgate-digest", "dirgate-grandfather.tsv", "generate-dirgate-grandfather-go.sh",
+	} {
+		if !strings.Contains(got[0].Message, want) {
+			t.Fatalf("shrink finding message %q missing %q", got[0].Message, want)
+		}
+	}
+}
+
+// TestEvaluateDirectoryGrandfatheredShrinkBelowCapNeedsNoRepin proves the
+// shrink-requires-repin rule above only applies while the directory is
+// STILL over the 40-file cap. Once a grandfathered directory's real count
+// drops to or below the cap, it is no longer a cap offender at all --
+// scripts/verify-dirgate.sh --all already nudges that row toward removal
+// (dirgate_report_removable_grandfathers); this must not additionally
+// report a cap finding requiring a re-pin for a row that should simply be
+// deleted.
+func TestEvaluateDirectoryGrandfatheredShrinkBelowCapNeedsNoRepin(t *testing.T) {
+	dir := t.TempDir()
+	files := numberedFiles(maxDirFiles - 2)
+	writeGoFiles(t, dir, files...)
+	gf := map[string]grandfatherEntry{
+		"test/shrunk-under-cap": {FileCount: maxDirFiles + 10, Digest: "does-not-matter"},
+	}
+
+	got, err := evaluateDirectory("test/shrunk-under-cap", dir, gf)
+	if err != nil {
+		t.Fatalf("evaluateDirectory: %v", err)
+	}
 	if len(got) != 0 {
-		t.Fatalf("findings = %v, want none (shrinking below the pinned count is fine)", got)
+		t.Fatalf("findings = %v, want none (directory is under the cap entirely; the row should be removed, not re-pinned)", got)
 	}
 }
 

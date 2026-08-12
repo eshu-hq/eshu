@@ -245,17 +245,27 @@ dirgate_evaluate_dir() {
 		pinned_digest="${gf_line#*$'\t'}"
 	fi
 
+	# The grandfather ledger is a MONOTONIC ratchet, mirroring
+	# evaluateCapViolation in grandfather_eval.go: a grandfathered directory
+	# passes only while its live state exactly matches the pin (same count,
+	# same digest). Shrinking below the pin is a violation too, not a free
+	# pass -- without this, a directory pinned at 100 could shrink to 50 and
+	# silently regrow to 99 without ever failing, because the live count
+	# would stay below pinned_count the whole way. A shrink must be re-pinned
+	# in the same change, so any later regrowth is always measured against
+	# the best (lowest) state the directory ever reached.
 	local cap_violates=0 cap_note=""
 	if (( count > DIRGATE_MAX_FILES )); then
 		if [[ -z "${pinned_count}" ]]; then
 			cap_violates=1
-		elif (( count < pinned_count )); then
-			cap_violates=0
-		elif [[ "${digest}" == "${pinned_digest}" ]]; then
+		elif (( count == pinned_count )) && [[ "${digest}" == "${pinned_digest}" ]]; then
 			cap_violates=0
 		elif (( count == pinned_count )); then
 			cap_violates=1
 			cap_note="file set changed at its pinned count of ${pinned_count} (one file was swapped for another); the grandfathered digest no longer matches"
+		elif (( count < pinned_count )); then
+			cap_violates=1
+			cap_note="shrunk from its grandfathered count of ${pinned_count} to ${count}; re-pin this row before any further growth is measured against it -- run \`bash scripts/dev/precommit-go.sh dirgate-digest ${dirkey}\`, update this row in scripts/lib/dirgate-grandfather.tsv to the printed count and digest, then regenerate tools/golangci-lint-dirgate/grandfather.go with \`bash scripts/generate-dirgate-grandfather-go.sh\`"
 		else
 			cap_violates=1
 			cap_note="grew from its grandfathered count of ${pinned_count} to ${count}"

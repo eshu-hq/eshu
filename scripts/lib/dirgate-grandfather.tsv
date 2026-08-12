@@ -20,12 +20,23 @@
 #   dir        - package directory path relative to the go/ module root.
 #   file_count - the exact count of qualifying (non-test, non-generated,
 #                non-vendor, non-testdata) .go files in `dir` at the commit
-#                this row was pinned. A directory PASSES at this count or
-#                below (files may be removed freely); it FAILS the moment
-#                its live count exceeds file_count (a new file was added).
+#                this row was pinned. This is a MONOTONIC ratchet, not a
+#                one-time snapshot: a directory PASSES only while its live
+#                count still EQUALS file_count and its live digest still
+#                matches (below). It FAILS the moment its live count
+#                exceeds file_count (a new file was added) -- AND the
+#                moment its live count drops below file_count (files were
+#                removed without re-pinning this row). A shrink is not a
+#                free pass; it requires the same re-pin a grow does, so
+#                that any later regrowth is measured against the best
+#                (lowest) state the directory ever reached, not this
+#                row's original snapshot. If the directory's real count
+#                drops to or below 40 entirely, it is no longer a cap
+#                offender and this row should be removed instead of
+#                re-pinned.
 #   digest     - sha256 hex of the sorted qualifying basenames in `dir`,
 #                newline-joined with a trailing newline, at the same commit.
-#                Used only when the live count still EQUALS file_count: it
+#                Checked whenever the live count still EQUALS file_count: it
 #                catches a same-count file swap (one file removed, a
 #                different one added) that pure counting would miss.
 #
