@@ -234,6 +234,28 @@ jobs:
         working-directory: tools/golangci-lint-dirgate
         run: make build
 
+      # The dirgate Go plugin above is loaded by "Lint Go" below, but
+      # golangci-lint's OWN nolint processor suppresses a finding purely on
+      # `//nolint:dirgate` marker PRESENCE before the plugin's own
+      # nolintJustification check (nolint.go) ever sees it -- so a BARE,
+      # unjustified marker silently passes "Lint Go" even though the
+      # dirgate gate requires a justification (see
+      # tools/golangci-lint-dirgate/README.md's "Escape hatch" section).
+      # scripts/lib/dirgate-core.sh (sourced by verify-dirgate.sh) is the
+      # only path that enforces that rule, plus TSV/generated-Go lockstep
+      # and the naming-exempt ledger's stale-row hard fail -- none of which
+      # "Lint Go" alone can catch. Mirrors go-file-cap's split between the
+      # golangci-lint plugin path and its own local/CI bash enforcement (see
+      # specs/ci-gates.v1.yaml's go-dir-gate entry, which declares this job
+      # as its `ci.job`).
+      - name: Verify dirgate test mirrors
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh
+
+      - name: Verify dirgate (bash mirror)
+        if: ${{ !cancelled() }}
+        run: bash scripts/verify-dirgate.sh --all
+
       - name: Lint Go
         if: ${{ !cancelled() }}
         working-directory: go
