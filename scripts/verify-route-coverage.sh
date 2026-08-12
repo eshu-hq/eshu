@@ -131,6 +131,16 @@ while IFS= read -r gofile; do
   [ -z "$gofile" ] && continue
   file_rel="${gofile#$repo_root/}"
   file_stem="$(basename "$gofile" .go)"
+  # handler_dir scopes the test-existence search to the handler's own
+  # directory tree (not the whole of query_dir/api_dir, #6055 review finding):
+  # searching the full trees let a test in an unrelated SIBLING package
+  # satisfy coverage for a handler it cannot possibly exercise, as long as the
+  # test function's name happened to fuzzily match the derived search word
+  # (e.g. a coincidental TestRepoNew in query/b covering an untested handler
+  # in query/a). The search under handler_dir is still recursive, so a test
+  # that moved WITH its handler into a subpackage of handler_dir is still
+  # found.
+  handler_dir="$(dirname "$gofile")"
   while IFS= read -r line; do
     handle=$(echo "$line" | sed -n 's/.*HandleFunc("\([^"]*\)".*[. ]\([a-zA-Z][a-zA-Z0-9]*\)).*/\1|\2/p')
     if [ -z "$handle" ]; then
@@ -152,12 +162,16 @@ while IFS= read -r gofile; do
       # "SAMLHandler", matching the "SAML" acronym in the handler struct
       # name). An exact-case search would false-positive as "uncovered" on
       # any acronym-bearing handler/route even when a matching test exists.
-      # Recursive (not --max-depth 1, #6055): a handler and its test commonly
-      # move together into the same subdirectory, and a depth-limited search
-      # would otherwise report a real, moved test as missing.
+      # Recursive under handler_dir (not --max-depth 1, #6055): a handler and
+      # its test commonly move together into the same subdirectory, and a
+      # depth-limited search would otherwise report a real, moved test as
+      # missing. Scoped to handler_dir rather than query_dir/api_dir as a
+      # whole (#6055 review finding): a test in an unrelated sibling package
+      # cannot satisfy this handler's coverage requirement just because its
+      # name happens to fuzzily match.
       if rg -qi "func Test\w*${word}\w*\(" \
            --glob '*_test.go' \
-           "$query_dir" "$api_dir" 2>/dev/null; then
+           "$handler_dir" 2>/dev/null; then
         found=1
         break
       fi

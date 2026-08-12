@@ -265,7 +265,56 @@ GO
   fi
 }
 
-# Test 7 — a query_dir that no longer exists at all (the whole surface moved
+# Test 7 — red: an untested handler must NOT be accepted as covered because an
+# UNRELATED sibling package elsewhere under query_dir happens to contain a
+# fuzzily matching test function name. Before the #6055 recursive change, the
+# test-existence rg search was scoped to query_dir/api_dir as a whole (not to
+# the handler's own directory), so a handler in query/a/repo.go could be
+# marked covered by a coincidental TestRepoNew in query/b/other_test.go that
+# has nothing to do with it (a real, reported false-green: "1 routes checked,
+# 0 uncovered" on a genuinely untested handler). The fix restricts the search
+# to the handler's own directory tree (still recursive, so a test that moved
+# WITH its handler into a subpackage is still found — see test 5/6 above).
+test_red_untested_handler_falsely_covered_by_sibling_package_test() {
+  local dir
+  dir="$(setup_repo "red-sibling-package")"
+  mkdir -p "${dir}/go/internal/query/a"
+  mkdir -p "${dir}/go/internal/query/b"
+
+  cat > "${dir}/go/internal/query/a/repo.go" << 'GO'
+package a
+
+import "net/http"
+
+type RepoHandler struct{}
+
+func (h *RepoHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/repos/{repo_id}/new", h.getNew)
+}
+
+func (h *RepoHandler) getNew(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  cat > "${dir}/go/internal/query/b/other_test.go" << 'GO'
+package b
+
+import "testing"
+
+// This test has nothing to do with query/a/repo.go's getNew handler; it just
+// happens to fuzzily match the "RepoNew" search word the coverage checker
+// derives from it.
+func TestRepoNew(t *testing.T) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: untested handler wrongly accepted via an unrelated sibling package's fuzzily matching test (cross-package false accept)"
+  else
+    record_pass "red: untested handler correctly rejected; an unrelated sibling package's fuzzy match does not count as coverage"
+  fi
+}
+
+# Test 8 — a query_dir that no longer exists at all (the whole surface moved
 # or was renamed) must fail loudly rather than silently report "0 routes
 # checked, 0 uncovered".
 test_red_missing_query_dir_fails_loudly() {
@@ -291,6 +340,7 @@ test_green_handler_with_concatenated_name_test
 test_red_short_method_only_has_unrelated_sibling_test
 test_red_moved_handler_in_subdirectory_without_test
 test_green_moved_handler_with_test_in_same_subdirectory
+test_red_untested_handler_falsely_covered_by_sibling_package_test
 test_red_missing_query_dir_fails_loudly
 
 printf '\n%d/%d tests passed\n' "$PASS" "$TOTAL"
