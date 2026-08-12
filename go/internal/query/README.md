@@ -267,7 +267,10 @@ Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. After repository authorization, the handler resolves the canonical
 repository id to exactly one active ingestion-scope id for index reads while
-retaining the canonical id as the repository boundary. No active mapping returns
+retaining the canonical id as the repository boundary. A caller may address the
+repository by its canonical id or by its ingestion scope id; either way the
+retrieval anchor is rebound to the resolved canonical id before ranking, because
+that is the identity every indexed document stores. No active mapping returns
 an empty bounded result; multiple active mappings fail closed as ambiguous.
 Smaller service/workload/environment anchors remain inside that repository
 corpus. The route serves the active generation from the persisted search index,
