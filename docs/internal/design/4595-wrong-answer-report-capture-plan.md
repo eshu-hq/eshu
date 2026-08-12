@@ -1,6 +1,7 @@
 # #4595 — Wrong-Answer Report Capture: Executable Slice Plan
 
-Status: PLAN (not yet executed). Feature issue:
+Status: Slices 1 and 3 SHIPPED. Slice 2 BLOCKED on a maintainer decision (open
+question 4). Feature issue:
 [#4595](https://github.com/eshu-hq/eshu/issues/4595), under epic #4389 (Ifá).
 
 Goal: a user who sees a wrong answer runs `eshu report capture`, gets ONE
@@ -10,6 +11,63 @@ becomes a permanent conformance case.
 
 This plan is grounded in the tree as of `origin/main` (b69361d6e). Every
 load-bearing claim cites file:line.
+
+## Where this stands
+
+| Slice | State | Where it lives |
+|---|---|---|
+| 1 — capture, validate, schema, redaction, canary | Shipped | `go/internal/reportbundle/`, `go/cmd/eshu/report_cmd.go` |
+| 2 — bundle → Odù converter + round-trip | Blocked | nothing built; see below |
+| 3 — issue form + how-to guide | Shipped | `.github/ISSUE_TEMPLATE/wrong-answer.yml`, `docs/public/guides/report-wrong-answer.md` |
+
+**Slice 2 is blocked, and building it now would produce a converter with
+nothing to convert.** `eshu report capture` never populates `Citations` or
+`FactRefs` (`report_cmd.go` builds its `CaptureInput` without them), so
+`capture.go` always records `fact_refs_state: "unavailable"` with the reason
+`"no public fact-record read surface"`. `--include-payloads` has the same hole:
+the CLI passes no `PayloadFacts`, so the private-triage path attaches an empty
+payload section. A converter resolves fact references into a replayable Odù; with
+no fact references in any bundle, there is nothing for it to resolve.
+
+What unblocks it is open question 4 below: a decision on exposing a public
+fact-record read route, or on resolving refs maintainer-side against a local
+durable store. That is an API-surface decision with an owner, not something the
+converter can route around.
+
+## Correction: the issue's "fixture-pack entry" framing is wrong
+
+Issue #4595 says "an Odù is a #4572 fixture-pack entry". It is not, and
+implementing that sentence literally builds the wrong thing.
+
+`ifa.Odu` (`go/internal/ifa/odu.go:25-30`) is `{Name string, Work
+*projector.ScopeGenerationWork, Facts []facts.Envelope}` — a scenario-level
+conformance case at the fact-envelope seam. Fixture packs are a separate
+mechanism: they carry the JSON Schemas an external collector validates its
+payload shapes against. An Odù's facts merely have to validate against those
+schemas. The two are related, not the same thing, and a converter targeting
+"fixture-pack entry" would emit schema material rather than the scenario the
+replay needs.
+
+The converter target in Slice 2 below is `ifa.Odu`, and that is correct as
+written. Only the issue text is wrong.
+
+## Correction: the redaction canary is stronger than the plan describes
+
+Slice 1's canary shipped as `TestCapture_RedactionCanary`
+(`go/internal/reportbundle/capture_test.go`) and asserts something stricter than
+this plan asked for: it plants unique sentinel VALUES under sensitive-shaped
+keys and proves none survive as a substring of the serialized bundle bytes. A
+redactor that renamed keys but left values in place fails it.
+
+One gap that canary could not see was found and closed later: `Query.Target` was
+stored verbatim, so a credential typed into `--endpoint`'s own query string
+(`--endpoint "/path?api_key=..."`) landed in a bundle labeled `public` that
+passed its own validation. Every redaction rule here matches on object KEY
+names, and `collector.ValidateShareSafeKeys` does too — neither ever reads a
+string value, so the target string was invisible to both. `Capture` now splits
+the query string off and folds its parameters into `Params`, and `Validate`
+rejects a bundle whose target still carries a sensitive-named parameter
+(`target_query_string`, a fifth entry in `ValidationChecks`).
 
 ---
 
@@ -244,6 +302,10 @@ leaks values, which (a) alone would miss.
 
 ### Slice 1 — `eshu report capture` + bundle schema + redaction + canary (dependency-free; lands first)
 
+**SHIPPED.** Everything below landed as described, plus the target-query-string
+fix noted above. Fact refs came out as `"unavailable"` on every capture path,
+not only remote ones — see the Slice 2 block.
+
 Scope: the versioned bundle artifact, capture against an API endpoint, the
 shared redaction path, and `eshu report validate`.
 
@@ -313,6 +375,10 @@ no-observability-change; no hot path touched.
 
 ### Slice 2 — bundle → Odù skeleton converter + round-trip (E2E leg needs the demo corpus)
 
+**BLOCKED, not started.** No bundle carries fact references today, so the
+converter would have nothing to resolve. Unblocking it needs the open-question-4
+decision on a fact-record read surface. Do not build it before that lands.
+
 Scope: `eshu report convert` turning a confirmed bundle into an Odù skeleton,
 and the capture→convert→replay round-trip proof.
 
@@ -361,6 +427,11 @@ UX issues. Skills in play: `eshu-contract-rigor`, `eshu-golden-corpus-rigor`
 
 ### Slice 3 — issue template + how-to docs (needs Slice 1 semantics only)
 
+**SHIPPED.** The guide landed at `docs/public/guides/report-wrong-answer.md`
+with a nav entry under How-to Guides → Prove Your Changes. Every command in it
+was run against the built binary before it was written. The form is labeled
+`bug`; there is no `accuracy` label in this repo.
+
 Scope: the reporting path a user actually sees.
 
 Files to create:
@@ -397,11 +468,11 @@ docs). No demo-corpus dependency.
 
 ## Slice/dependency summary
 
-| Slice | Scope (one line) | Depends on | AC covered |
+| Slice | Scope (one line) | State | AC covered |
 |---|---|---|---|
-| 1 | `eshu report capture`/`validate`, `wrong_answer_report.v1` schema, shared redaction path, canary | none | redaction canary |
-| 2 | `eshu report convert` → Odù skeleton + demo-corpus round-trip | Slice 1; demo-corpus stack for the E2E test only | round-trip |
-| 3 | wrong-answer issue form + "got a wrong answer?" guide | Slice 1 (naming/flags) | template + docs |
+| 1 | `eshu report capture`/`validate`, `wrong_answer_report.v1` schema, shared redaction path, canary | Shipped | redaction canary |
+| 2 | `eshu report convert` → Odù skeleton + demo-corpus round-trip | Blocked on open question 4 | round-trip (unmet) |
+| 3 | wrong-answer issue form + "got a wrong answer?" guide | Shipped | template + docs |
 
 Out of scope, restated: no automated triage, no auto-registration of the
 converted Odù (skeleton + manual catalog/manifest edit is deliberate), no
@@ -424,11 +495,16 @@ telemetry/phone-home; console/MCP capture affordances follow later.
    committed fixture, or stay wherever the maintainer runs triage? Depends on
    whether Ifá P2+ adds on-disk Odù loading (the "Drop-an-Odù" path,
    `4389-...md:737-748`).
-4. **Fact refs on remote captures**: is `fact_refs_state:"unavailable"`
-   acceptable for captures against a remote API (no public fact-record route
-   exists today), with resolution deferred to the maintainer-side converter?
-   The alternative — a new bounded citations→fact-refs read surface — is a
-   real API addition and deliberately NOT in this plan.
+4. **Fact refs on remote captures** — **THIS IS THE BLOCKER FOR SLICE 2, and
+   the answer turned out to matter more than the plan expected.** The plan
+   assumed `fact_refs_state:"unavailable"` would apply only to remote captures,
+   with local captures hydrating refs from the durable store. In practice the
+   CLI has no hydration path at all, so EVERY bundle records `"unavailable"`
+   and the converter has nothing to resolve. Deciding this unblocks Slice 2;
+   leaving it open keeps the round-trip acceptance criterion unmet. The options
+   are a new bounded citations→fact-refs read surface (a real API addition), or
+   maintainer-side resolution against a local durable store through the
+   `ifa.FactLoader` seam.
 5. **MCP capture depth in Slice 1**: record-the-tool-call (current plan) vs.
    an actual MCP client invocation from the CLI. The issue says CLI-first
    with MCP affordances to follow; the plan keeps direct MCP invocation out

@@ -109,6 +109,44 @@ func TestValidate_PrivateTriageWithoutPayloadsIsRejected(t *testing.T) {
 	}
 }
 
+// TestValidate_SensitiveTargetQueryStringIsRejected is the Validate-side half
+// of the target-query-string leak. Capture now splits the query string off, but
+// a maintainer runs `eshu report validate --require-public` against a file
+// somebody sent them — possibly hand-edited, possibly written by an older
+// binary. Validate has to catch the leak on its own rather than trust that
+// Capture produced the bundle.
+func TestValidate_SensitiveTargetQueryStringIsRejected(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Target = targetWithSensitiveQueryString()
+
+	for _, opts := range []ValidateOptions{{}, {RequirePublic: true}} {
+		err := Validate(bundle, opts)
+		if err == nil {
+			t.Fatalf("Validate(target with a sensitive query string, %+v) error = nil, want rejection", opts)
+		}
+		if !strings.Contains(err.Error(), "api_key") {
+			t.Errorf("Validate() error = %q, want it to name the offending \"api_key\" parameter", err.Error())
+		}
+	}
+}
+
+// A target query string with no sensitive parameter is not a leak, so Validate
+// accepts it. Rejecting every "?" would fail bundles that carry nothing secret,
+// and the redaction contract this package enforces everywhere else is
+// key-name-based.
+func TestValidate_BenignTargetQueryStringPasses(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Target = "/api/v0/services/checkout/story?repo=demo%2Fservice"
+
+	if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
+		t.Errorf("Validate(benign target query string) error = %v, want nil", err)
+	}
+}
+
 // TestValidationChecksMatchValidateBehavior guards the P2 from the #5060 review:
 // Bundle.Validation.Checks must not drift from Validate's actual checks. It
 // asserts Capture records exactly ValidationChecks, that a bundle satisfying
@@ -140,6 +178,7 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		{"schema_version", func(b *Bundle) { b.SchemaVersion = "report/vX" }},
 		{"bundle_id", func(b *Bundle) { b.BundleID = "" }},
 		{"profile_payloads_consistency", func(b *Bundle) { b.Payloads = &PayloadAttachment{Warning: "x"} }},
+		{"target_query_string", func(b *Bundle) { b.Query.Target = targetWithSensitiveQueryString() }},
 		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
 	}
 	for _, tc := range cases {

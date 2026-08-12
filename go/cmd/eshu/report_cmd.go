@@ -185,12 +185,30 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 	var envelope query.ResponseEnvelope
 	switch method {
 	case "GET":
-		path := endpoint
-		if len(params) > 0 {
-			values := url.Values{}
-			for key, value := range params {
+		// --endpoint may already carry its own query string. Splitting it and
+		// re-encoding both sources together builds one well-formed URL;
+		// appending "?"+params to a path that already had a "?" produced a
+		// malformed second query string. reportbundle.SplitTargetQuery is the
+		// same function Capture uses to keep the credential out of the
+		// recorded bundle, so the request and the record cannot drift.
+		path, targetParams := reportbundle.SplitTargetQuery(endpoint)
+		values := url.Values{}
+		for key, value := range targetParams {
+			repeated, ok := value.([]any)
+			if !ok {
 				values.Set(key, fmt.Sprintf("%v", value))
+				continue
 			}
+			for _, item := range repeated {
+				values.Add(key, fmt.Sprintf("%v", item))
+			}
+		}
+		// An explicit --params entry replaces a same-named endpoint parameter,
+		// matching how Capture resolves the same collision.
+		for key, value := range params {
+			values.Set(key, fmt.Sprintf("%v", value))
+		}
+		if len(values) > 0 {
 			path += "?" + values.Encode()
 		}
 		if err := client.GetEnvelope(path, &envelope); err != nil {

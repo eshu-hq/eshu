@@ -21,6 +21,12 @@ read durable fact records itself — callers supply an already-resolved
 - `Capture` MUST call `Validate` before returning and MUST return an error
   instead of a bundle that fails it. A capture tool refuses to write a bundle
   that trips its own gate; it does not ship one with a warning.
+- The key-name rule cannot see string VALUES. Any `Bundle` field holding raw
+  user input as a bare string needs its own handling before capture — the
+  share-safe gate will not catch a credential inside one. `Query.Target` is the
+  worked example: `SplitTargetQuery` turns its query string back into keys so
+  the ordinary walk applies, and `Validate` re-checks it independently. Adding
+  a new free-string field means answering this question again.
 - `Bundle.Payloads` is the only field allowed to carry raw excerpt bytes or
   fact payloads, and only when the caller set `CaptureInput.IncludePayloads`.
   Never populate it, or leave an `Excerpt`-carrying type, anywhere else in the

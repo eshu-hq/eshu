@@ -61,10 +61,14 @@ type Bundle struct {
 type CapturedQuery struct {
 	// Surface is "api" or "mcp".
 	Surface string `json:"surface"`
-	// Target is the endpoint path (no query string) or MCP tool name.
+	// Target is the endpoint path or MCP tool name, never a query string:
+	// Capture splits any query string off and folds its parameters into
+	// Params so they face the redaction walk, and Validate rejects a bundle
+	// whose target still carries a sensitive-named parameter.
 	Target string `json:"target"`
 	Method string `json:"method,omitempty"`
-	// Params is the query/body parameters as issued, with every
+	// Params is the query/body parameters as issued — including any parsed out
+	// of the target's query string — with every
 	// sensitive-named key removed entirely (see redact.go's design note on
 	// why removal, not a same-key masked-value marker, is what keeps this
 	// bundle from tripping its own Validate gate). Redaction.Rules records

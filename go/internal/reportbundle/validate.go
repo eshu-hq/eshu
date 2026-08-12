@@ -6,6 +6,7 @@ package reportbundle
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/sdk/go/collector"
@@ -31,7 +32,36 @@ var ValidationChecks = []string{
 	"schema_version",
 	"bundle_id",
 	"profile_payloads_consistency",
+	"target_query_string",
 	"share_safe_keys",
+}
+
+// validateTargetQuery rejects a bundle whose Query.Target still carries a
+// sensitive-named parameter in its query string.
+//
+// The share-safe walk below judges object key names and never reads a string
+// value, so a credential sitting inside the target string is invisible to it.
+// Capture splits the query string off before it builds a bundle, but Validate
+// is what a maintainer points at a file somebody sent them — hand-edited, or
+// written by a build from before that split existed. It has to find the leak
+// without assuming Capture produced the input.
+//
+// A query string with nothing sensitive in it passes. The rule here is the same
+// key-name predicate the rest of the package uses, so a bundle Capture produced
+// can never disagree with its own validator.
+func validateTargetQuery(target string) error {
+	_, params := SplitTargetQuery(target)
+	offending := make([]string, 0, len(params))
+	for key := range params {
+		if collector.IsSensitiveKeyName(key) || isInlineContentKey(key) {
+			offending = append(offending, key)
+		}
+	}
+	if len(offending) == 0 {
+		return nil
+	}
+	sort.Strings(offending)
+	return fmt.Errorf("query.target carries sensitive parameter(s) %s in its query string: the value is unredacted because the share-safe key walk never inspects string values; recapture the bundle instead of editing it", strings.Join(offending, ", "))
 }
 
 // Validate checks a finished Bundle: schema_version fail-closed (mirroring
@@ -72,6 +102,9 @@ func Validate(bundle Bundle, opts ValidateOptions) error {
 		}
 	default:
 		return fmt.Errorf("redaction profile %q is unsupported", profile)
+	}
+	if err := validateTargetQuery(bundle.Query.Target); err != nil {
+		return err
 	}
 	if opts.RequirePublic && profile != ProfilePublic {
 		return fmt.Errorf("bundle redaction profile %q fails --require-public: only %q bundles may be treated as share-safe", profile, ProfilePublic)

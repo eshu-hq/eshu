@@ -48,6 +48,29 @@ values, which the key-name walk never inspects).
 public-profile bundle that would trip the gate is a bug, not something the CLI
 silently ships.
 
+### Values are invisible to the key-name rule
+
+Because both the redaction walk and `collector.ValidateShareSafeKeys` judge key
+NAMES, neither ever reads a string value. Any field that carries user input as
+a bare string is therefore outside the gate's reach, and has to be handled by
+name before it lands in a bundle.
+
+`Query.Target` is the case that bit us: `eshu report capture` puts whatever
+follows `--endpoint` into it, so `--endpoint "/path?api_key=sk-live-..."` used
+to place a live credential in a bundle stamped `public` whose own validation
+passed. `SplitTargetQuery` (exported, also used by the CLI to build the request
+URL) splits the query string off and `Capture` folds its parameters into
+`Params`, where the ordinary redaction walk sees them as keys. Benign
+parameters survive the split, because a bundle that drops the query it captured
+cannot be reproduced.
+
+`Validate` re-checks this independently (`target_query_string` in
+`ValidationChecks`) rather than trusting that `Capture` produced the file — a
+maintainer runs `--require-public` against bundles other people send them.
+
+If you add another free-string field to `Bundle`, ask what happens when a user
+pastes a credential into it. The share-safe gate will not catch it.
+
 `--include-payloads` (private-triage only) attaches raw citation excerpts and
 resolved fact envelopes verbatim under `Bundle.Payloads`; every other section
 of the bundle is still redacted and re-validated. `reportbundle.Validate`
