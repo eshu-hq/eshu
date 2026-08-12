@@ -158,12 +158,20 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 	}
 	ready, err := readiness.CrossScopeProducersReady(ctx, intent.Domain, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		// Returned as itself, never converted into a readiness miss. A store
-		// that cannot answer is a real failure; reporting it as
-		// cross_scope_producer_not_ready would hide it in a class that never
-		// counts against the retry budget, so it could retry forever without
-		// surfacing.
-		return crossScopeProducerReadinessSignal{}, err
+		// Never converted into a readiness miss. A store that cannot answer is a
+		// real failure; reporting it as cross_scope_producer_not_ready would
+		// hide it in a class that never counts against the retry budget, so it
+		// could retry forever without surfacing.
+		//
+		// It does go through the same transient classifier the consumer's own
+		// cross-scope load uses, which promotes a torn database stream
+		// ("unexpected EOF") to the non-counting fact_load_transient class.
+		// Without that, a connection reset during this probe burns an attempt
+		// where the identical fault one call later would not -- the probe runs
+		// against the same Postgres, in the same handler pass, over the same
+		// connection pool. classifyFactLoadError returns every other error
+		// unchanged, so nothing else about the classification moves.
+		return crossScopeProducerReadinessSignal{}, classifyFactLoadError(err)
 	}
 	return crossScopeProducerReadinessSignal{
 		ready:           ready,
@@ -176,12 +184,32 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 // the consumer must defer. It returns nil in every other case, so a caller can
 // wrap an existing load site without changing its success path.
 //
-// resolved is how many cross-scope envelopes the load returned. A consumer that
-// resolved something HAS its evidence, so producer readiness is moot; deferring
-// it would turn a working pass into a retry loop.
+// resolved is how many cross-scope envelopes the load returned for the WHOLE
+// BATCH, and that distinction is the floor's widest gap. One
+// CICDRunCorrelationHandler.Handle pass classifies every CI run in a scope
+// generation, and it issues one cross-scope load filtered by the union of every
+// run's artifact digests (ciArtifactDigests). So one digest resolving anywhere
+// in the batch makes this count non-zero and disarms the floor for every other
+// run in the same pass.
+//
+// What that costs: a batch carrying run A, whose digest an already-activated OCI
+// scope published, and run B, whose identity is still inside its producer's
+// activation window, does not defer. B commits a durable answer computed without
+// its producer's evidence -- derived or unresolved where the evidence would have
+// made it exact -- which is the #5709 defect. Where registry activity is steady
+// a fully empty batch join is uncommon, so the floor fires less often than
+// reading this line per-run would suggest.
+//
+// It stays batch-wide anyway. Deferring the batch would hold back the runs that
+// already have their evidence, and the fix is not a tighter comparison here but
+// per-digest readiness -- a different contract than #5709 specifies, and not
+// built. TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved pins
+// the behavior so it stays a known property;
+// docs/internal/evidence/5709-cross-scope-readiness-floor.md discloses it as a
+// residual window.
 //
 // A ready signal with an empty join means the empty answer is the true one:
-// the producer scopes have activated and still say nothing about this run, so
+// the producer scopes have activated and still say nothing about these runs, so
 // the handler converges on a durable unresolved decision rather than deferring
 // forever.
 func crossScopeProducerDeferral(

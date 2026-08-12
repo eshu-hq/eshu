@@ -225,6 +225,114 @@ func TestCICDRunCorrelationDoesNotDeferWithoutTheCrossScopeLoaderSeam(t *testing
 	}
 }
 
+// testCICDWaitingDigest belongs to a run whose container image identity has not
+// been published yet, so no cross-scope envelope in the batch matches it.
+const testCICDWaitingDigest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+// TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved pins the
+// floor's widest known gap, so it stays a documented property instead of
+// something the next maintainer rediscovers from a wrong correlation.
+//
+// Handle classifies every CI run in a scope generation in one pass, and asks the
+// cross-scope loader one question filtered by the union of all their artifact
+// digests. crossScopeProducerDeferral then reads that one batch-wide resolved
+// count. One run resolving therefore disarms the floor for every other run in
+// the same pass.
+//
+// Here run-resolved's digest has a published identity and run-waiting's does
+// not. The batch does not defer, and run-waiting takes a durable `derived`
+// correlation. The second half of the test shows that is the wrong answer: with
+// its identity present the same run is `exact` and carries a canonical write.
+// So the floor let a run commit a weaker answer than its producer's evidence
+// would have given it, which is the #5709 defect.
+//
+// Closing this needs per-digest readiness, a different contract than #5709
+// specifies and not built; see the residual-window section of
+// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
+//
+// If the batch-wide count were ever narrowed to a per-run predicate, this test
+// fails: run-waiting would defer and Handle would return
+// crossScopeProducerNotReadyError instead of writing.
+func TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved(t *testing.T) {
+	t.Parallel()
+
+	batchFacts := []facts.Envelope{
+		ciRunFact("run-resolved", "github_actions", "repo-api", "abc123"),
+		ciArtifactFact("artifact-resolved", "run-resolved", testCICDDigest),
+		ciRunFact("run-waiting", "github_actions", "repo-api", "def456"),
+		ciArtifactFact("artifact-waiting", "run-waiting", testCICDWaitingDigest),
+	}
+	resolvedIdentity := containerImageIdentityFact(
+		"image-identity-resolved", "repo-api",
+		"registry.example.com/team/api@"+testCICDDigest, testCICDDigest,
+	)
+	waitingIdentity := containerImageIdentityFact(
+		"image-identity-waiting", "repo-api",
+		"registry.example.com/team/worker@"+testCICDWaitingDigest, testCICDWaitingDigest,
+	)
+
+	// The load is filtered by BOTH digests and comes back with identity for only
+	// the first. That is a resolved count of 1 for the whole batch.
+	partial := runCICDBatchUnderTheFloor(t, batchFacts, []facts.Envelope{resolvedIdentity})
+	if got := partial["github_actions:run-resolved:1"].Outcome; got != CICDRunCorrelationExact {
+		t.Fatalf("run-resolved outcome = %q, want %q", got, CICDRunCorrelationExact)
+	}
+	if got := partial["github_actions:run-waiting:1"].Outcome; got != CICDRunCorrelationDerived {
+		t.Fatalf(
+			"run-waiting outcome = %q, want %q: the batch-wide resolved count disarms the floor for every run in the pass",
+			got, CICDRunCorrelationDerived,
+		)
+	}
+
+	// Same batch, same "not ready" signal, with the waiting run's identity also
+	// published. This is what run-waiting's answer above should have been.
+	complete := runCICDBatchUnderTheFloor(t, batchFacts, []facts.Envelope{resolvedIdentity, waitingIdentity})
+	if got := complete["github_actions:run-waiting:1"].Outcome; got != CICDRunCorrelationExact {
+		t.Fatalf("run-waiting outcome with its identity present = %q, want %q", got, CICDRunCorrelationExact)
+	}
+	if got := complete["github_actions:run-waiting:1"].CanonicalWrites; got != 1 {
+		t.Fatalf("run-waiting canonical writes with its identity present = %d, want 1", got)
+	}
+}
+
+// runCICDBatchUnderTheFloor drives one Handle pass with the floor armed and the
+// producer reported NOT ready, and returns the decisions it committed keyed by
+// run. It fails the test if the pass defers, so every caller is asserting on a
+// batch the floor let through.
+func runCICDBatchUnderTheFloor(
+	t *testing.T,
+	scopeFacts []facts.Envelope,
+	active []facts.Envelope,
+) map[string]CICDRunCorrelationDecision {
+	t.Helper()
+
+	writer := &recordingCICDRunCorrelationWriter{}
+	handler := CICDRunCorrelationHandler{
+		FactLoader: &stubCICDRunCorrelationFactLoader{
+			scopeFacts: scopeFacts,
+			active:     active,
+		},
+		Writer:            writer,
+		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+	}
+
+	if _, err := handler.Handle(context.Background(), Intent{
+		IntentID:       "intent-cicd-mixed-batch",
+		ScopeID:        "ci://github-actions/acme/api",
+		GenerationID:   "run-mixed:1",
+		SourceSystem:   "ci_cd_run",
+		Domain:         DomainCICDRunCorrelation,
+		Cause:          "one run resolved, one still waiting on its producer",
+		CycleStartedAt: time.Now().Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("Handle() error = %v, want nil: the floor is armed per batch, and this batch resolved something", err)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("WriteCICDRunCorrelations() calls = %d, want 1", writer.calls)
+	}
+	return cicdDecisionsByRun(writer.write.Decisions)
+}
+
 // TestCICDRunCorrelationStillWritesWhenIdentityHasCommitted is the companion
 // guard. The floor must not turn a working correlation into a retry loop.
 func TestCICDRunCorrelationStillWritesWhenIdentityHasCommitted(t *testing.T) {

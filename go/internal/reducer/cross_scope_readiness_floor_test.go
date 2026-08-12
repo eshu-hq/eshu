@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -243,6 +245,41 @@ func TestReadinessFloorSurfacesLookupErrorsAsThemselves(t *testing.T) {
 	var notReady crossScopeProducerNotReadyError
 	if errors.As(err, &notReady) {
 		t.Fatal("a readiness-store failure must not be reported as a readiness miss: that class never counts against the retry budget")
+	}
+}
+
+// TestReadinessFloorClassifiesATornStreamAsTransient keeps the readiness probe's
+// retry accounting matching the cross-scope load that runs immediately after it.
+//
+// Both talk to the same Postgres over the same pool inside one handler pass, and
+// the load routes its errors through classifyFactLoadError, which promotes a
+// torn database stream to the non-counting fact_load_transient class. Left raw,
+// a connection reset during the probe would burn an attempt where the identical
+// fault one call later would not.
+func TestReadinessFloorClassifiesATornStreamAsTransient(t *testing.T) {
+	t.Parallel()
+
+	torn := fmt.Errorf("query producer scope quiescence: %w", io.ErrUnexpectedEOF)
+	err := runCrossScopeFloor(
+		t,
+		&fixedCrossScopeReadiness{err: torn},
+		freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
+	)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("err = %#v, want the torn-stream cause preserved", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) {
+		t.Fatalf("err = %#v, want a classified failure", err)
+	}
+	if got := classified.FailureClass(); got != "fact_load_transient" {
+		t.Fatalf("FailureClass() = %q, want %q", got, "fact_load_transient")
+	}
+	// Still not a readiness miss: that class never counts against the retry
+	// budget at all, which is a different and much stronger exemption.
+	var notReady crossScopeProducerNotReadyError
+	if errors.As(err, &notReady) {
+		t.Fatal("a transient store fault must not be reported as a readiness miss")
 	}
 }
 

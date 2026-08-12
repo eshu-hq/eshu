@@ -199,12 +199,15 @@ still probed. The wired consumer declares one producer, so it costs exactly one
 query.
 
 The plan-shape proof for that query is
-`docs/internal/evidence/5709-quiescence-probe.md`: the `NOT EXISTS` body is
-byte-equivalent to the production reducer claim query's projector-drain fence,
-it rides `fact_work_items_scope_generation_idx` with an Index Scan rather than
-scanning `fact_work_items`, and it ran in 0.34 ms (median of five) on a seeded
-500-scope × 50,000-work-item shape — 0.30 ms before the registered-scope column
-was added.
+`docs/internal/evidence/5709-quiescence-probe.md`: the `NOT EXISTS` body carries
+the same predicates as the production reducer claim query's projector-drain
+fence (same stage, same `scope_id` correlation, same status set, differing only
+in which relation the `scope_id` is correlated against), it rides
+`fact_work_items_scope_generation_idx` with an Index Scan rather than scanning
+`fact_work_items`, and it ran in 0.34 ms (median of five) on a seeded 500-scope
+× 50,000-work-item shape — 0.30 ms before the registered-scope column was added.
+The predicate match is why the index was expected to apply; the `EXPLAIN` is what
+shows it does.
 
 **What that proof is and is not.** It is a plan-shape confirmation on a synthetic
 seed: one connection, no concurrent writers, no contention. It shows the
@@ -353,6 +356,30 @@ producer-scope-kind half of the contract that #5709 proposed and nobody built.
 `aws_cloud_runtime_drift_readiness.go` names the same gap and defers it the same
 way. This change does not depend on it and does not attempt it.
 
+**The widest residual window: readiness is armed per batch, not per run.** One
+`ci_cd_run_correlation` pass classifies *every* CI run in a scope generation, and
+it issues one cross-scope load filtered by the union of every run's artifact
+digests (`ciArtifactDigests`, `ci_cd_run_correlation_decode.go:198-213`). The
+floor's `resolved > 0` short-circuit reads that batch-wide count.
+
+So a generation carrying run A, whose digest an already-activated OCI scope
+published, and run B, whose identity is still inside its producer's activation
+window, resolves one envelope and does not defer. B then commits a durable answer
+computed without its producer's evidence: `derived` or `unresolved` where that
+evidence would have made it `exact`. That is the #5709 defect, unchanged. In a
+deployment with steady registry activity a *fully* empty batch join is uncommon,
+so the floor fires less often than the mechanism sounds like it would. How much
+less has not been measured — that sentence is a reading of the code, not a
+number.
+
+This is wider than the three windows below and it is not closed here. The fix is
+per-digest readiness, which is a different contract than #5709 specifies:
+`CrossScopeProducerReadiness` answers per consumer domain and scope, not per
+artifact. Deferring the whole batch instead would be worse — it holds back runs
+that already have their evidence, on a class that freezes `attempt_count`.
+`TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved` pins the
+all-or-nothing behavior so it stays a known property rather than a discovery.
+
 **The collector-kind mapping is under-inclusive, on purpose.**
 `container_image_identity` intents are also enqueued in `aws`, `azure`, `gcp`,
 `git`, and `sbom_attestation` scopes — see
@@ -388,7 +415,7 @@ has activated and drained but whose identity reducer has not yet written its
 support set reads as ready and joins to nothing. Narrower than the window this
 change closes, and not closed by it.
 
-**A third residual window: the gap before projector items exist.**
+**A further residual window: the gap before projector items exist.**
 `fact_work_items` carries only `projector` and `reducer` stages. Between a new
 generation being scheduled and its projector items being enqueued, the scope has
 no live projector row, so the probe reads it as quiescent — off its *previous*
