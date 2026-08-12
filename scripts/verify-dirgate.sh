@@ -44,6 +44,9 @@ case "${mode}" in
 			| awk -F/ 'NF>1 { d=$1; for (i=2;i<NF;i++) d=d"/"$i; print d }' \
 			| LC_ALL=C sort -u)
 		dirgate_report_removable_grandfathers "${go_dir}"
+		if ! dirgate_verify_naming_exempt_ledger "${go_dir}"; then
+			exit_status=1
+		fi
 		exit "${exit_status}"
 		;;
 	--files)

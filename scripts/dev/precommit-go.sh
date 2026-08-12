@@ -119,11 +119,12 @@ ensure_nancy() {
 }
 
 # stripped_config writes a golangci config copy without the custom filelength
+# and dirgate
 # plugin (the only linter needing an exact toolchain match) and prints its path.
 stripped_config() {
 	local out="${worktree_cache_dir}/golangci-nocustom.yml"
 	awk '
-		$0 ~ /^[[:space:]]*- filelength[[:space:]]*$/ { next }
+		$0 ~ /^[[:space:]]*- (filelength|dirgate)[[:space:]]*$/ { next }
 		/^    custom:/ { skip = 1; next }
 		skip == 1 { if ($0 ~ /^    [A-Za-z]/) { skip = 0 } else { next } }
 		{ print }

@@ -40,14 +40,28 @@ production counterpart when the family moves.
 
 ## Grandfather ledger
 
-`scripts/lib/dirgate-grandfather.tsv` is the source of truth: one row per
-directory that was already over the cap when this gate landed, pinning
-the exact qualifying-file count and a sha256 digest of the sorted file
-list at that time. `grandfather.go` in this directory is **generated**
-from that TSV by `scripts/generate-dirgate-grandfather-go.sh` -- edit the
-TSV, then re-run the generator; never hand-edit `grandfather.go`.
+Two SEPARATE ledgers pin the two checks independently -- a directory's cap
+state and a file's naming exemption never gate each other:
 
-A grandfathered directory's rule, applied by `evaluateCapViolation` in
+- `scripts/lib/dirgate-grandfather.tsv` pins the **cap** check: one row per
+  directory that was already over the cap when this gate landed, with the
+  exact qualifying-file count and a sha256 digest of the sorted file list
+  at that time.
+- `scripts/lib/dirgate-naming-exempt.tsv` pins the **naming** check: one
+  row per individual file (`dir<TAB>file`) that already violated the
+  naming rule when this gate landed. It is a separate file, not a column
+  on the cap ledger, so that appending a new exemption is a new,
+  reviewable row rather than an edit buried inside a long comma-separated
+  cell, and so two PRs fixing different files in the same directory don't
+  conflict on one shared line.
+
+`grandfather.go` in this directory is **generated** by joining both TSVs
+(`scripts/generate-dirgate-grandfather-go.sh`) -- edit the relevant TSV,
+then re-run the generator; never hand-edit `grandfather.go`. A
+naming-exempt row's directory must already have a cap-ledger row; the
+generator fails before writing any output otherwise.
+
+A grandfathered directory's CAP rule, applied by `evaluateCapViolation` in
 `grandfather_eval.go`:
 
 - Shrinking below the pinned count is always fine (files may move out
@@ -56,12 +70,38 @@ A grandfathered directory's rule, applied by `evaluateCapViolation` in
   -- this catches a same-count *swap* (one file removed, a different one
   added) that pure counting would miss.
 - Exceeding the pinned count fails outright, regardless of digest:
-  **adding one file to a grandfathered directory un-grandfathers it**,
-  and both the cap check and the naming check re-apply in full.
+  **adding one file to a grandfathered directory un-grandfathers its cap
+  check.** The naming check is NOT re-applied by this -- it never was
+  suppressed by the cap in the first place; see below.
 
-The ledger only shrinks. Remove a row once its directory's real,
-unpinned file count is at or below 40 (`scripts/dev/precommit-go.sh
-dirgate-digest <dir>` prints the current count and digest to confirm).
+The NAMING rule, applied by `namingExemptSet` in `grandfather_eval.go`, is
+independent of the cap check and of the directory's aggregate file count
+entirely: a file is exempt if and only if its exact basename has a row in
+`dirgate-naming-exempt.tsv` for that directory. A brand-new naming
+violation is reported the moment it appears, even in a directory that
+sits well under its cap-ledger pin; a pinned exemption stays suppressed
+even while the directory grows past its cap. (An earlier version of this
+gate gated the naming check on the directory's aggregate count instead --
+that suppressed brand-new violations for as long as a directory stayed at
+or below its pinned cap, which got WORSE as the epic's move-issues
+(#6056-#6062) shrank those directories. The per-file design above is the
+fix.)
+
+Both ledgers only shrink:
+
+- Remove a cap-ledger row once its directory's real, unpinned file count
+  is at or below 40 (`scripts/dev/precommit-go.sh dirgate-digest <dir>`
+  prints the current count and digest to confirm; `scripts/verify-dirgate.sh
+  --all` also nudges a row that no longer needs it with a non-fatal NOTE).
+- Remove a naming-exempt row once its file has actually moved into the
+  sibling subpackage (or been renamed/removed so it no longer collides).
+  Unlike the cap ledger's soft NOTE, a naming-exempt row whose file no
+  longer exists, or no longer collides with any sibling subpackage, makes
+  `scripts/verify-dirgate.sh --all` **fail outright** -- the PR that fixes
+  the violation must delete the row in the same change. `scripts/verify-dirgate.sh
+  --digest <dir>` also prints that directory's current naming violations
+  (if any) so a new row, when genuinely needed, can be authored honestly
+  instead of guessed.
 
 ## Escape hatch
 

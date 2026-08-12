@@ -23,6 +23,11 @@
 DIRGATE_MAX_FILES=40
 DIRGATE_NAME="dirgate"
 DIRGATE_GRANDFATHER_TSV="${DIRGATE_GRANDFATHER_TSV:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dirgate-grandfather.tsv}"
+# DIRGATE_NAMING_EXEMPT_TSV is the SEPARATE per-file naming-exemption
+# ledger (one row per exempt file, joined to DIRGATE_GRANDFATHER_TSV only
+# by directory key) -- see that file's header for why it is not a column
+# on the cap ledger.
+DIRGATE_NAMING_EXEMPT_TSV="${DIRGATE_NAMING_EXEMPT_TSV:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dirgate-naming-exempt.tsv}"
 
 # dirgate_sha256 prints the lowercase hex sha256 of stdin.
 dirgate_sha256() {
@@ -174,11 +179,14 @@ dirgate_digest() {
 	printf '%s\n' "$@" | LC_ALL=C sort | dirgate_sha256
 }
 
-# dirgate_grandfather_lookup mirrors a map lookup against
-# grandfatheredDirectories in grandfather.go, reading it from
-# scripts/lib/dirgate-grandfather.tsv instead of an embedded Go literal.
-# Prints "<file_count><TAB><digest>" and returns 0 if dirkey has a row;
-# returns 1 with no output otherwise.
+# dirgate_grandfather_lookup mirrors a map lookup against the
+# FileCount/Digest half of grandfatheredDirectories in grandfather.go,
+# reading it from scripts/lib/dirgate-grandfather.tsv instead of an
+# embedded Go literal. Prints "<file_count><TAB><digest>" and returns 0 if
+# dirkey has a row; returns 1 with no output otherwise. See
+# dirgate_naming_is_exempt for the SEPARATE per-file naming-exemption
+# lookup (scripts/lib/dirgate-naming-exempt.tsv) that joins with this one
+# only via the shared dirkey.
 dirgate_grandfather_lookup() {
 	local dirkey="$1"
 	awk -F'\t' -v key="${dirkey}" '
@@ -186,6 +194,23 @@ dirgate_grandfather_lookup() {
 		$1 == key { print $2"\t"$3; found=1 }
 		END { exit(found ? 0 : 1) }
 	' "${DIRGATE_GRANDFATHER_TSV}"
+}
+
+# dirgate_naming_is_exempt mirrors namingExemptSet's per-file lookup in
+# grandfather_eval.go: true (exit 0) if the (dirkey, file) pair has a row
+# in scripts/lib/dirgate-naming-exempt.tsv. A file's exemption depends only
+# on its own name being pinned in that SEPARATE ledger -- NEVER on the
+# directory's aggregate file count in dirgate-grandfather.tsv (see that
+# file and dirgate-naming-exempt.tsv's header for why the earlier
+# aggregate-count gate was a bug).
+dirgate_naming_is_exempt() {
+	local file="$1" dirkey="$2"
+	[[ -f "${DIRGATE_NAMING_EXEMPT_TSV}" ]] || return 1
+	awk -F'\t' -v dirkey="${dirkey}" -v file="${file}" '
+		/^#/ || NF != 2 { next }
+		$1 == dirkey && $2 == file { found=1; exit }
+		END { exit(found ? 0 : 1) }
+	' "${DIRGATE_NAMING_EXEMPT_TSV}"
 }
 
 # dirgate_evaluate_dir mirrors evaluateDirectory() in grandfather_eval.go.
@@ -237,11 +262,6 @@ dirgate_evaluate_dir() {
 		fi
 	fi
 
-	local naming_covered=0
-	if [[ -n "${pinned_count}" ]] && (( count <= pinned_count )); then
-		naming_covered=1
-	fi
-
 	local exit_status=0
 
 	if (( cap_violates == 1 )); then
@@ -256,10 +276,16 @@ dirgate_evaluate_dir() {
 		fi
 	fi
 
-	if (( naming_covered == 0 )) && [[ ${#subs[@]} -gt 0 ]]; then
+	# Naming exemption is checked PER FILE against
+	# scripts/lib/dirgate-naming-exempt.tsv, never gated by the directory's
+	# aggregate count -- see dirgate_naming_is_exempt.
+	if [[ ${#subs[@]} -gt 0 ]]; then
 		local sub
 		for f in "${files[@]:-}"; do
 			sub="$(dirgate_naming_violation_subpkg "${f}" "${subs[@]:-}")" || continue
+			if dirgate_naming_is_exempt "${f}" "${dirkey}"; then
+				continue
+			fi
 			if dirgate_nolint_justified "${dir}/${f}" "${DIRGATE_NAME}"; then
 				continue
 			fi
@@ -328,6 +354,49 @@ dirgate_report_removable_grandfathers() {
 	return 0
 }
 
+# dirgate_verify_naming_exempt_ledger HARD-FAILS -- unlike
+# dirgate_report_removable_grandfathers' soft NOTE above -- when
+# scripts/lib/dirgate-naming-exempt.tsv pins a (dir, file) row whose file
+# either no longer exists in dir, or exists but no longer collides with any
+# of dir's sibling subpackages (it was renamed, or its colliding
+# subpackage was removed). A stale row means the violation it was pinned
+# for has ALREADY been fixed; the PR that fixed it must delete the row in
+# the same change, not leave it to rot -- see dirgate-naming-exempt.tsv's
+# header for why this is a hard fail rather than the cap ledger's nudge.
+# Prints one line per stale row to stderr; returns 1 if any are stale, 0
+# otherwise (including when the ledger file is absent).
+dirgate_verify_naming_exempt_ledger() {
+	local go_dir="$1" line dirkey file dir_path exit_status=0
+	[[ -f "${DIRGATE_NAMING_EXEMPT_TSV}" ]] || return 0
+	while IFS=$'\t' read -r dirkey file; do
+		case "${dirkey}" in
+			""|\#*) continue ;;
+		esac
+		[[ -n "${file}" ]] || continue
+		dir_path="${go_dir}/${dirkey}"
+
+		if [[ ! -f "${dir_path}/${file}" ]]; then
+			printf 'dirgate: STALE naming-exempt row %s\t%s -- file no longer exists; remove this row from scripts/lib/dirgate-naming-exempt.tsv in the same change that moved/renamed/removed it\n' \
+				"${dirkey}" "${file}" >&2
+			exit_status=1
+			continue
+		fi
+
+		local -a subs=()
+		local s
+		while IFS= read -r s; do
+			[[ -n "${s}" ]] && subs+=("${s}")
+		done < <(dirgate_naming_subpackages "${dir_path}")
+
+		if ! dirgate_naming_violation_subpkg "${file}" "${subs[@]:-}" >/dev/null; then
+			printf 'dirgate: STALE naming-exempt row %s\t%s -- the file no longer collides with any sibling subpackage; remove this row from scripts/lib/dirgate-naming-exempt.tsv\n' \
+				"${dirkey}" "${file}" >&2
+			exit_status=1
+		fi
+	done < "${DIRGATE_NAMING_EXEMPT_TSV}"
+	return "${exit_status}"
+}
+
 # dirgate_changed_dirs prints the unique go/-relative directories that own
 # at least one of the given repo-root-relative file paths (as pre-commit
 # passes them), filtering to paths under go/ ending in .go. Mirrors
@@ -346,9 +415,12 @@ dirgate_changed_dirs() {
 	done | LC_ALL=C sort -u
 }
 
-# dirgate_print_digest prints "count<TAB><N>" and "digest<TAB><sha256>" for
-# dir, the human-facing helper for authoring or updating a
-# dirgate-grandfather.tsv row (scripts/dev/precommit-go.sh dirgate-digest).
+# dirgate_print_digest prints "count<TAB><N>", "digest<TAB><sha256>", and
+# one "naming_violation<TAB><file><TAB><subpackage>" line per CURRENT
+# naming violation for dir. The human-facing helper for authoring or
+# updating a dirgate-grandfather.tsv row (scripts/dev/precommit-go.sh
+# dirgate-digest) AND for authoring a dirgate-naming-exempt.tsv row
+# honestly instead of guessing which files actually collide.
 dirgate_print_digest() {
 	local dir="$1"
 	if [[ ! -d "${dir}" ]]; then
@@ -362,4 +434,17 @@ dirgate_print_digest() {
 	done < <(dirgate_qualifying_files "${dir}")
 	printf 'count\t%d\n' "${#files[@]}"
 	printf 'digest\t%s\n' "$(dirgate_digest "${files[@]:-}")"
+
+	local -a subs=()
+	local s
+	while IFS= read -r s; do
+		[[ -n "${s}" ]] && subs+=("${s}")
+	done < <(dirgate_naming_subpackages "${dir}")
+	[[ ${#subs[@]} -eq 0 ]] && return 0
+
+	local sub
+	for f in "${files[@]:-}"; do
+		sub="$(dirgate_naming_violation_subpkg "${f}" "${subs[@]:-}")" || continue
+		printf 'naming_violation\t%s\t%s\n' "${f}" "${sub}"
+	done
 }

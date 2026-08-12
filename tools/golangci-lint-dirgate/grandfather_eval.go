@@ -25,6 +25,17 @@ type grandfatherEntry struct {
 	// same-count swap (one file removed, a different one added) that pure
 	// counting would miss.
 	Digest string
+	// NamingExempt pins the exact basenames of files that already violated
+	// the sibling-subpackage naming rule when this directory was
+	// grandfathered. A file's exemption depends only on its own name being
+	// listed here -- NEVER on the directory's aggregate file count, unlike
+	// FileCount/Digest above. This is deliberate: gating the naming check
+	// on the aggregate count (the pre-fix behavior) suppressed it for the
+	// WHOLE directory for as long as the live count stayed at or below the
+	// pin, which silently hid brand-new naming violations, and un-hid
+	// pre-existing ones the moment any OTHER file pushed the count over the
+	// pin. See namingExemptSet and evaluateDirectory's naming section.
+	NamingExempt []string
 }
 
 // finding is one reportable dirgate diagnostic. File is the qualifying
@@ -39,13 +50,18 @@ type finding struct {
 // evaluateDirectory decides the findings dirgate should report for the
 // package directory dir (whose grandfather-ledger key is key), combining:
 //
-//  1. the 40-non-test-.go-file cap,
-//  2. the sibling-subpackage naming rule,
-//  3. the digest-pinned grandfather ledger (grandfather, nil if none
-//     applies -- e.g. in tests exercising an ungrandfathered directory),
-//     and
-//  4. the //nolint:dirgate escape hatch, checked per finding against its
+//  1. the 40-non-test-.go-file cap, gated by the digest-pinned
+//     FileCount/Digest envelope (evaluateCapViolation) when grandfathered,
+//  2. the sibling-subpackage naming rule, gated PER FILE by the
+//     grandfather entry's NamingExempt list (namingExemptSet) when
+//     grandfathered -- never by the directory's aggregate file count, and
+//  3. the //nolint:dirgate escape hatch, checked per finding against its
 //     own reported file.
+//
+// The cap check and the naming check are independent: a directory can be
+// over its cap while every naming violation stays pinned-exempt, or under
+// its cap while a brand-new naming violation is reported. grandfather is
+// nil in tests exercising an ungrandfathered directory.
 //
 // It is deliberately independent of analysis.Pass / the AST so it can be
 // tested directly against a real temp directory; run() is the only
@@ -71,7 +87,7 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 	entry, grandfathered := grandfather[key]
 
 	capViolates, capNote := evaluateCapViolation(count, digest, entry, grandfathered)
-	namingCovered := grandfathered && count <= entry.FileCount
+	namingExempt := namingExemptSet(grandfathered, entry)
 
 	var out []finding
 
@@ -82,16 +98,34 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 		}
 	}
 
-	if !namingCovered {
-		for _, v := range namingViols {
-			if _, justified := nolintJustification(filepath.Join(dir, v.File), gateName); justified {
-				continue
-			}
-			out = append(out, finding{File: v.File, Message: namingMessage(v)})
+	for _, v := range namingViols {
+		if namingExempt[v.File] {
+			continue
 		}
+		if _, justified := nolintJustification(filepath.Join(dir, v.File), gateName); justified {
+			continue
+		}
+		out = append(out, finding{File: v.File, Message: namingMessage(v)})
 	}
 
 	return out, nil
+}
+
+// namingExemptSet builds the lookup set of basenames pinned as legacy
+// naming exemptions for a grandfathered directory. It deliberately ignores
+// the directory's aggregate file count -- see the doc comment on
+// grandfatherEntry.NamingExempt for why gating on the count was the bug.
+// Returns nil (a safe, always-false-lookup zero value) when dir is not
+// grandfathered or has no pinned exemptions.
+func namingExemptSet(grandfathered bool, entry grandfatherEntry) map[string]bool {
+	if !grandfathered || len(entry.NamingExempt) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(entry.NamingExempt))
+	for _, f := range entry.NamingExempt {
+		set[f] = true
+	}
+	return set
 }
 
 // evaluateCapViolation applies the size cap and, when the directory is

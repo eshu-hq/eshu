@@ -229,13 +229,26 @@ func TestEvaluateDirectoryGrandfatheredGrowthFails(t *testing.T) {
 	}
 }
 
-func TestEvaluateDirectoryGrandfatherGrowthAlsoUnsuppressesNaming(t *testing.T) {
+// TestEvaluateDirectoryGrandfatherGrowthDoesNotUnsuppressPinnedNaming pins
+// down the fix for the #6054 follow-up defect: the OLD namingCovered gate
+// (grandfathered && count <= entry.FileCount) suppressed the naming check
+// for the WHOLE directory whenever the live count sat at or below the
+// pinned cap, and un-suppressed the WHOLE directory -- including
+// already-pinned legacy violations -- the moment it grew past the cap. A
+// per-file naming exemption must stay independent of the cap check: growth
+// still fails the cap, but a pinned exemption for an unchanged file must
+// not resurface just because some OTHER file pushed the count over the pin.
+func TestEvaluateDirectoryGrandfatherGrowthDoesNotUnsuppressPinnedNaming(t *testing.T) {
 	dir := t.TempDir()
 	mustMkdirGo(t, dir, "bar", "bar.go")
 	pinnedFiles := append(numberedFiles(maxDirFiles+1), "bar_legacy.go")
 	pinnedDigest := qualifyingDigest(pinnedFiles)
 	gf := map[string]grandfatherEntry{
-		"test/grown-naming": {FileCount: len(pinnedFiles), Digest: pinnedDigest},
+		"test/grown-naming": {
+			FileCount:    len(pinnedFiles),
+			Digest:       pinnedDigest,
+			NamingExempt: []string{"bar_legacy.go"},
+		},
 	}
 
 	writeGoFiles(t, dir, pinnedFiles...)
@@ -245,10 +258,110 @@ func TestEvaluateDirectoryGrandfatherGrowthAlsoUnsuppressesNaming(t *testing.T) 
 	if err != nil {
 		t.Fatalf("evaluateDirectory: %v", err)
 	}
-	// Growth un-grandfathers the whole directory: expect the cap finding
-	// AND the pre-existing naming violation (bar_legacy.go) to both surface.
-	if len(got) != 2 {
-		t.Fatalf("findings = %v, want 2 (cap + the now-unsuppressed naming violation)", got)
+	if len(got) != 1 {
+		t.Fatalf("findings = %v, want exactly 1 (cap only; bar_legacy.go stays pinned-exempt)", got)
+	}
+	// bar_legacy.go sorts alphabetically first, so it IS the representative
+	// file the cap finding is reported against -- check the MESSAGE, not
+	// the File, to distinguish "cap finding that happens to name this file"
+	// from "bar_legacy.go's own naming violation resurfaced".
+	if strings.Contains(got[0].Message, "should move into the sibling subpackage") {
+		t.Fatalf("bar_legacy.go's pinned naming exemption resurfaced merely because the directory grew past its cap: %v", got)
+	}
+	if !strings.Contains(got[0].Message, "exceeding the") {
+		t.Fatalf("findings = %v, want the sole finding to be the cap violation", got)
+	}
+}
+
+// TestEvaluateDirectoryNewNamingViolationBelowPinnedCountIsNotSuppressed is
+// the primary regression test for the #6054 follow-up defect: a BRAND-NEW
+// naming violation in a grandfathered directory whose live count is still
+// BELOW its pinned peak used to be silently swallowed by the old aggregate
+// namingCovered gate (it stays swallowed for as long as the directory's
+// move-issues shrink it further, which is exactly backwards). It must be
+// reported regardless of the directory's aggregate file count.
+func TestEvaluateDirectoryNewNamingViolationBelowPinnedCountIsNotSuppressed(t *testing.T) {
+	dir := t.TempDir()
+	mustMkdirGo(t, dir, "bar", "bar.go")
+	gf := map[string]grandfatherEntry{
+		// FileCount pinned well above the live count, as if other files in
+		// this directory moved out elsewhere without touching this row --
+		// exactly the shape the epic's move-issues (#6056-#6062) produce.
+		"test/new-naming": {
+			FileCount:    50,
+			Digest:       "irrelevant-because-live-count-is-below-the-pin",
+			NamingExempt: []string{"bar_legacy.go"},
+		},
+	}
+	writeGoFiles(t, dir, "bar_legacy.go", "unrelated.go")
+	// A brand-new file that also collides with the "bar" subpackage but was
+	// never pinned in NamingExempt.
+	writeGoFiles(t, dir, "bar_new.go")
+
+	got, err := evaluateDirectory("test/new-naming", dir, gf)
+	if err != nil {
+		t.Fatalf("evaluateDirectory: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("findings = %v, want exactly 1 (bar_new.go; bar_legacy.go stays pinned-exempt)", got)
+	}
+	if got[0].File != "bar_new.go" {
+		t.Fatalf("finding reported against %q, want bar_new.go", got[0].File)
+	}
+}
+
+// TestEvaluateDirectoryPinnedNamingExemptionStaysGreen is the positive
+// counterpart of the test above: an already-pinned legacy naming violation
+// stays suppressed even while the directory sits well below its pinned cap.
+func TestEvaluateDirectoryPinnedNamingExemptionStaysGreen(t *testing.T) {
+	dir := t.TempDir()
+	mustMkdirGo(t, dir, "bar", "bar.go")
+	gf := map[string]grandfatherEntry{
+		"test/pinned-naming": {
+			FileCount:    50,
+			Digest:       "irrelevant-because-live-count-is-below-the-pin",
+			NamingExempt: []string{"bar_legacy.go"},
+		},
+	}
+	writeGoFiles(t, dir, "bar_legacy.go", "unrelated.go")
+
+	got, err := evaluateDirectory("test/pinned-naming", dir, gf)
+	if err != nil {
+		t.Fatalf("evaluateDirectory: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("findings = %v, want none (bar_legacy.go is pinned-exempt)", got)
+	}
+}
+
+// TestEvaluateDirectoryStaleNamingExemptionDoesNotCoverADifferentFile
+// proves exemption matching is exact-name-only: a stale ledger pin for a
+// file that has since been renamed or removed (its real fix, not a ledger
+// edit) must never be read as covering some OTHER, unrelated file that
+// happens to also violate the naming rule against the same subpackage.
+func TestEvaluateDirectoryStaleNamingExemptionDoesNotCoverADifferentFile(t *testing.T) {
+	dir := t.TempDir()
+	mustMkdirGo(t, dir, "bar", "bar.go")
+	gf := map[string]grandfatherEntry{
+		"test/stale-exempt": {
+			FileCount:    50,
+			Digest:       "irrelevant-because-live-count-is-below-the-pin",
+			NamingExempt: []string{"bar_legacy.go"},
+		},
+	}
+	// bar_legacy.go is gone (renamed/moved); a different, never-pinned file
+	// now collides with the same subpackage.
+	writeGoFiles(t, dir, "bar_replacement.go")
+
+	got, err := evaluateDirectory("test/stale-exempt", dir, gf)
+	if err != nil {
+		t.Fatalf("evaluateDirectory: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("findings = %v, want exactly 1 (bar_replacement.go; the stale bar_legacy.go pin must not cover a different file)", got)
+	}
+	if got[0].File != "bar_replacement.go" {
+		t.Fatalf("finding reported against %q, want bar_replacement.go", got[0].File)
 	}
 }
 

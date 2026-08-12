@@ -5,10 +5,16 @@
 # cap when the gate landed, so the gate lands green on today's tree and new
 # sprawl fails immediately.
 #
-# This file is the single source of truth. tools/golangci-lint-dirgate/grandfather.go
-# is GENERATED from it by scripts/generate-dirgate-grandfather-go.sh (see that
-# script and scripts/test-generate-dirgate-grandfather-go.sh); scripts/lib/dirgate-core.sh
-# reads this file directly. Regenerate the .go file after editing this TSV.
+# This file is the single source of truth for the CAP check. See
+# scripts/lib/dirgate-naming-exempt.tsv for the separate, per-FILE naming
+# exemption ledger -- the two are joined by directory key when
+# tools/golangci-lint-dirgate/grandfather.go is generated; a naming-exempt
+# row's directory must already have a row here (see that file's header).
+#
+# tools/golangci-lint-dirgate/grandfather.go is GENERATED from both files by
+# scripts/generate-dirgate-grandfather-go.sh (see that script and
+# scripts/test-generate-dirgate-grandfather-go.sh); scripts/lib/dirgate-core.sh
+# reads this file directly. Regenerate the .go file after editing either TSV.
 #
 # Columns (tab-separated): dir<TAB>file_count<TAB>digest
 #   dir        - package directory path relative to the go/ module root.
