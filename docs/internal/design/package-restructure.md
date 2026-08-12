@@ -1,0 +1,254 @@
+# Package restructure: from flat thousand-file directories to a tree a human can read
+
+Status: proposed. Research: 8-agent measured sweep, 2026-08-11 (per-package
+family inventories, symbol-level dependency measurement, gate blast surface).
+Tracked as epic #6053; this document is its committed plan.
+
+## The problem, in numbers
+
+| Package | .go files, one flat dir | Non-test / test |
+|---|---|---|
+| `internal/query` | 1,903 | 877 / 1,026 |
+| `internal/reducer` | 1,269 | 536 / 733 |
+| `internal/mcp` | 338 | 130 / 208 |
+| `internal/parser` (root) | 259 | 47 / 212 |
+| `internal/collector` (root) | 250 | 111 / 139 |
+| `cmd/eshu` | 233 | 121 / 112 |
+| `internal/projector` | 188 | 92 / 96 |
+| `internal/coordinator` | 124 | 66 / 58 |
+
+Three splits are corrected from the research, all counted on disk when this
+was committed with `rg --files -g '*.go' --max-depth 1` against each
+directory and the `*_test.go` subset of the same list. Collector read
+`~240 / ~10+3`, which is the package-clause split (247 files say `package
+collector`, 3 say `package collector_test`), not the filename split: it is
+111 / 139. Projector and coordinator read `94 / 94` and `62 / 62`, which
+the appendix marks "approx" and this table had dropped the hedge on; they
+are 92 / 96 and 66 / 58. All three totals were already right.
+
+The other rows are the research's own count and have drifted a little since
+2026-08-11, which is the point the appendix makes about re-running the
+census before any move: query now reads 1,910 files (879 / 1,031), reducer
+1,270 (536 / 734), and mcp 340 (130 / 210). Parser and cmd/eshu still match
+exactly.
+
+3,165 of the query+reducer files were added since 2026-07-01. The cause is
+our own 500-line file cap: it splits files but says nothing about
+directories, so every split adds flat files. A gate fixed file size and
+created directory sprawl. The fix is the same move one level up: a
+directory gate, then a measured migration.
+
+Why this matters beyond taste: a contributor opening `internal/query` sees
+1,903 files and concludes nobody curates this codebase. The counter to
+"this looks machine-generated" is a tree a stranger can navigate. And the
+directories we create become the module seams #4047/#4398 (the
+package-extraction program) need — a family graded "clean" today is a
+candidate repo tomorrow.
+
+## Part 1: the gate (lands first, conflicts with nothing)
+
+Model it on the existing 500-line cap, which has two implementations that
+must stay in lockstep: the golangci-lint plugin
+(`tools/golangci-lint-filelength/filelength.go`) that CI runs, and the bash
+mirror in `scripts/dev/precommit-go.sh` (`filecap` / `filecap-all`) that
+pre-commit and the local gate runner use. The directory gate follows the
+same pattern:
+
+- **Rule 1 — size:** max 40 non-test `.go` files per package directory
+  (tests excluded; they pair with subjects). 40 keeps every
+  already-healthy package green and catches sprawl early.
+- **Rule 2 — naming:** a file whose name prefix matches a sibling
+  subdirectory's package name belongs in that subdirectory (catches the
+  "new file dodges the tree" regression).
+- **Escape hatch:** same `//nolint:<gate>` convention on the package line
+  with a written justification (27 files use this for filelength today).
+- **Grandfather:** digest-pinned list of the current offenders (the #5335
+  gate's pattern) so the gate lands green and the list only shrinks;
+  editing a grandfathered directory's file count upward un-grandfathers it.
+- **Registry entry** in `specs/ci-gates.v1.yaml` triggered on `go/**`
+  (broad glob = immune to the two-layer registry/workflow drift trap).
+- **BITES proof** required: seeded violation goes red naming the directory
+  and the two legal exits; green on revert.
+
+Three of the families Part 3 calls clean and moves early are themselves over
+the cap, counted on disk when this was committed (non-test `.go` files at
+depth 1): `reducer/supply_chain_impact` 63, `query/code` 85,
+`query/supply_chain` 61. Moving any of them into one new directory would
+create a directory that fails this gate the moment it exists. They land
+pre-split into nested subdirectories in the same move PR — the shape the
+collector plan already uses (`gitrepo/snapshot`, `gitrepo/selection`).
+Grandfathering is for directories that exist today and never for one a move
+PR creates, because the pinned list only shrinks. The rest of the early
+movers clear the cap: `query/impact` 39, `collector/git_snapshot` 24,
+`collector/git_selection` 21, `reducer/container_image_identity` 18,
+`reducer/code_call_materialization` 25.
+
+## Part 2: harden the gates BEFORE anything moves
+
+The research found the scariest class isn't gates that break — it's gates
+that **pass silently on nothing** after a move. Fix these first, as their
+own PR, before any file moves:
+
+1. Non-recursive `go test ./internal/query -run '<names>'` in at least six
+   scripts (`verify-replay-coverage-gate.sh:51`,
+   `verify-hosted-governance-proof.sh:58,60,96,98`,
+   `verify-ask-eshu-local-proof.sh:192,229`,
+   `verify-hosted-governance-remote-compose-proof.sh:61,92`,
+   `verify-query-plan-profile.sh:53`, `verify-query-plan-regression.sh:9`)
+   plus `specs/ci-gates.v1.yaml:2166` — a `-run` regex matching zero tests
+   exits 0 ("no tests to run"). Same class in
+   `mcp-schema-drift.yml:199` and `security_intelligence_release_gate.sh:277`
+   for `./internal/mcp`. Change to `/...` where safe; where a `-run` pin
+   must stay package-scoped, add a "matched at least N tests" assertion.
+2. `scripts/verify-route-coverage.sh:112` uses `find -maxdepth 1` — a moved
+   handler file silently drops out of route-coverage checking.
+3. `go/internal/payloadusage/load.go:37-64` and `:95-113` resolve
+   decode-seam files with a NON-recursive
+   `filepath.Glob(dir/"factschema_decode*.go")`, so a seam file moved into a
+   subdirectory drops out of the manifest gate without a word. The reducer
+   glob does fail when it matches nothing at all; the projector, query,
+   loader, relationships and replay globs deliberately accept an empty
+   match while those families migrate. Neither case catches a PARTIAL move,
+   which is the one a restructure produces. (The research cited
+   `paths.go:99-143`, which documents this behavior in the `Paths` field
+   comments rather than implementing it.)
+4. Run `go/cmd/ci-gates validate --drift` (checkPathFilterCoverage) in the
+   registry gate by default, not only on demand — it exists precisely to
+   catch registry-vs-workflow filter drift, but only checks literal
+   triggers and only when invoked.
+5. The 10 literal single-file gate triggers (list in the research:
+   `git_snapshot_entity_buckets.go`, `materialized_edge_families.go`,
+   `shared_projection.go`, 3× `sql_relationship_*`, 3×
+   `gcp_resource_materialization*`, `intent.go`, plus
+   `canonical.go`/projector and `mcp_setup*`/cmd-eshu) each need updating in
+   the same PR as their move — the hardening PR adds an existence check so
+   a stale trigger fails loudly (the telemetry-coverage gate already does
+   this with `path_target_exists`; copy it).
+
+`docs/public/observability/telemetry-coverage.md` (473 rows citing exact
+paths) will fail LOUDLY on moves — that's correct behavior; each move PR
+rewrites its rows. The parser ledgers
+(`language-feature-parity-ledger.v1.yaml`, `parser-backing-ledger.v1.yaml`)
+and cmd/eshu's spec references (`backend-conformance.v1.yaml:98-101`,
+`ci-gates.v1.yaml:1269-1271,1848`) are the same shape. `internal/mcp` has
+~80 hardcoded `go test ./internal/mcp` references across five spec files.
+
+## Part 3: target layouts (measured, per package)
+
+Full family tables with counts and extraction grades live in the
+[research appendix](restructure-research.md). Summary of what moves and
+what stays:
+
+**collector (250 flat root files):** one new `gitrepo/` umbrella package
+absorbing the git-specific families — snapshot(64), selection(39),
+docs(41), observability, submodule, workflow-image, tfstate-glue,
+service-catalog-glue, codeowners-glue, refs, tracked, webhook, priority,
+fair-dispatch. Root keeps the shared seam every collector kind uses:
+`Service`/`Source`/`Committer`, the `claimed_service*` family (backs ~15
+other collector kinds), `git_source_types.go`, `git_fact_builder*`.
+git_snapshot↔git_selection↔git_source is a measured 3-way production
+import cycle — they move together into gitrepo, not into separate
+packages, until a dependency-inversion refactor earns the split. Five glue
+families need disambiguated names (gitsubmodule, gittfstate, …) because
+same-named sibling packages already exist.
+
+**projector (188) + coordinator (124):** projector's ~20 per-provider
+intents families are measured clean (zero cross-family calls; all fan out
+from `scope_generation_intents.go`, 43 call sites). Root keeps `canonical*`,
+`runtime_*`, `stage_*`, decode helpers, payload readers, the dispatcher,
+and failure/retry infra (~70 files). Hazard: canonical Row types are
+consumed by 182 external files; family moves need qualifier updates or root
+aliases, and the `canonical.go` exact-path gate trigger (#5531) moves in
+lockstep. Coordinator: per-provider `_scheduler.go` halves extract cleanly
+(they implement a root Planner interface); the `_service.go` halves are
+methods on the shared `Service` struct and stay until Service is
+decomposed — a design decision, not a file move.
+
+**mcp (338):** two layers. Registration (`tools_<domain>.go`, 43
+constructors, zero lateral calls) moves cleanly. Routing is the tangle:
+`dispatch.go`'s 490-line switch inlines ~20 families' routing, and
+`dispatch_repositories.go` is a hidden second router fanning out to 13
+other families. Wave 1: the 11 families whose Route funcs are already
+isolated. Wave 2: extract per-family Route funcs out of the two hub
+switches, then move. The consumer-existence gates and ~35 package-wide
+contract/authz test sweeps stay in root.
+
+**cmd/eshu (233):** `package main` — subdirectories are impossible by
+language rule. The lever is extracting business logic to new
+`internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
+which the package's own AGENTS.md already demands. ~20 families measured;
+all clean except the local_host/local_graph supervisor cluster (31 files,
+real bidirectional cycle — extract as ONE `localsupervisor` unit or leave
+last).
+
+**parser (259 root):** the split already happened — 34 language
+subpackages hold 734 files. Root keeps the Engine/Registry/Runtime
+dispatcher (by design: languages must not import the parent). The 27
+`<lang>_language.go` glue files are Engine methods and CANNOT move without
+wiring the already-defined-but-unused LanguageProvider seam — a refactor
+to schedule separately, not a file move. What CAN happen now: normalize
+straggler filenames and convert per-language root tests into external
+`_test` packages inside the existing language dirs, with the two parser
+ledgers updated in lockstep. Lowest priority of the seven.
+
+**query (1,903):** the architecture already fits — ~60 handler types, each
+with its own Mount(). Phase 0 decision needed first: 284 external files
+(86 in mcp dispatch) reference `query.<Type>`; the doc recommends
+root type aliases (`type SupplyChainHandler = supplychain.Handler`) so
+external code compiles unchanged, burned down later. Then clean families
+first: supplychain(~183), code(~172), contentread(42), packagereg(32).
+Tangled families (impact ← repository/service/deployment_trace call its
+unexported helpers) need the helper seam exported before their move. Root
+keeps: APIRouter/Mount + Write* helpers, ports.go interfaces, contract.go
+envelopes, the capabilityMatrix init() registry (all 40 contract_* files
+until it gets an exported registration API), openapi.go assembly + the 101
+openapi_paths_* constants, and the two cross-cutting test sweeps
+(auth_scoped_routes 41 files, graph_read_error 17).
+
+**reducer (1,269):** hub-and-spoke with a small hub: registry.go, the
+defaults_additive_domains wiring (11 files), domain.go/intent.go,
+shared_projection harness (26), batch-insert helpers. ~30 largest families
+symbol-measured: most are clean (containerimage 81, cicdrun 28, secalert,
+iamcan, searchdoc, secretsiam, sbomattest, awscloudruntime, tfconfigstate,
+the six code-intelligence domains, ~15 per-cloud-resource domains). Three
+proven traps: supply_chain_impact ↔ supply_chain_suppression are
+bidirectionally type-coupled (one subpackage, or hoist shared types);
+code_call_materialization needs code_call_language's unexported resolver
+registry exported first; `service_materialization_{docs,vulnerabilities,
+incidents}.go` are misnamed ServiceCatalogCorrelationHandler methods —
+they move with svccatalog, proving every cluster gets measured before
+moved. ~400 external files import reducer; storage/postgres names
+family-specific types — whole-module grep before each family move.
+
+## Part 4: execution model
+
+- **Order:** gate PR → hardening PR → collector → projector+coordinator →
+  mcp → cmd/eshu → query → reducer. Parser last, optional. Small packages
+  move while normal lanes run (per-package claim, same as issue claims);
+  **query and reducer each get an all-lanes-quiet window** — their moves
+  conflict with everything.
+- **One owner** for the whole program. Two agents inventing taxonomies
+  produce two taxonomies.
+- **Per move PR:** `git mv` (history follows); one family per PR; the
+  three doc files (doc.go, README.md, AGENTS.md) for every new directory
+  (the package-docs gate enforces this); gate/spec path updates in the
+  SAME PR; behavior-preserving proof = whole-module build + full package
+  tests + golden-corpus gate byte-identical + `go vet` + route/openapi
+  parity where applicable. No logic changes ride along with moves, ever.
+- **Timing:** after current lanes drain, before Epic M (multi-tenancy),
+  feeding directly into #4047/#4398. Epic M then lands on the new layout.
+
+## Part 5: what this buys the modularization program
+
+Extraction grades from the research become the repo-split roadmap:
+
+- `clean` families (query/supplychain, query/code, reducer/containerimage,
+  collector/gitrepo leaves, projector provider intents, coordinator
+  schedulers, most cli families) = future module/repo candidates with
+  measured-zero internal coupling.
+- `tangled` families = the dependency-inversion backlog, each with its
+  named blocker (impact helper seam, Service decomposition, dispatch hub
+  extraction, LanguageProvider wiring, supplychain type hoist).
+- `shared-core` sets = the de-facto public API of each future module;
+  what stays in root today is what a split repo would have to export
+  tomorrow. #4047's "extraction readiness gate" can assert exactly this.
