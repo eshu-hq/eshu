@@ -39,6 +39,13 @@ case "${mode}" in
 			if ! dirgate_evaluate_dir "${dirkey}" "${go_dir}/${dirkey}"; then
 				exit_status=1
 			fi
+		# `go/*.go` IS recursive here. A git pathspec is not a shell glob: `*`
+		# crosses `/`, so this lists every tracked .go file under go/ at any
+		# depth. Measured on this tree: 12335 matches, 0 of them at depth 1,
+		# reaching go/internal/collector/awscloud/acm_types.go. Three reviewers
+		# have read this as a depth-1 match and filed it as a bug, so: it is
+		# not one, and `go/**/*.go` would be equivalent, not a fix.
+		# The awk below then reduces each file path to its directory.
 		done < <(git -C "${repo_root}" ls-files 'go/*.go' \
 			| sed -E 's#^go/##' \
 			| awk -F/ 'NF>1 { d=$1; for (i=2;i<NF;i++) d=d"/"$i; print d }' \
