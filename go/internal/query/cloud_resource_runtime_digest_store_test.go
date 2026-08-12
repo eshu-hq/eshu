@@ -27,7 +27,7 @@ func TestBuildCloudResourceRuntimeDigestQueryUsesIndexedDigestAndCurrentAuthoriz
 		", candidates AS MATERIALIZED (",
 		"NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL",
 		"NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL",
-		"fact.fact_id = candidate.source_fact_id",
+		"fact.fact_id = owner.winning_row->>'source_fact_id'",
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
 		"fact.is_tombstone = FALSE",
@@ -43,8 +43,10 @@ func TestBuildCloudResourceRuntimeDigestQueryUsesIndexedDigestAndCurrentAuthoriz
 	if len(args) != 4 {
 		t.Fatalf("args = %#v, want digest, repository grants, scope grants, and per-digest limit", args)
 	}
-	if got, want := args[3], supplyChainCloudRuntimeProbePerDigestMaxResults; got != want {
-		t.Fatalf("bound arg = %v, want the PER-DIGEST limit %v, not the total-row cap", got, want)
+	// One digest shares the whole budget, so this page keeps the previous
+	// single-digest breadth exactly.
+	if got, want := args[3], supplyChainCloudRuntimeProbeMaxResults; got != want {
+		t.Fatalf("single-digest bound = %v, want the full budget %v (shared budget, not a flat per-digest cut)", got, want)
 	}
 
 	// A global cap over the whole ordered set does not share: on a skewed
@@ -56,12 +58,14 @@ func TestBuildCloudResourceRuntimeDigestQueryUsesIndexedDigestAndCurrentAuthoriz
 	}
 	lateral := strings.Index(query, "CROSS JOIN LATERAL (")
 	perDigestLimit := strings.Index(query, "LIMIT $4")
-	authorization := strings.Index(query, "fact.fact_id = candidate.source_fact_id")
+	authorization := strings.Index(query, "fact.fact_id = owner.winning_row->>'source_fact_id'")
 	if lateral == -1 || perDigestLimit == -1 || authorization == -1 {
 		t.Fatalf("query is missing the LATERAL, its bound, or the authorization boundary:\n%s", query)
 	}
-	if lateral >= perDigestLimit || perDigestLimit >= authorization {
-		t.Fatalf("the per-digest LIMIT must sit inside the LATERAL and run before authorization:\n%s", query)
+	// Eligibility must run BEFORE the bound, or a digest whose first rows are
+	// stale returns nothing while a later row is current and authorized.
+	if lateral >= authorization || authorization >= perDigestLimit {
+		t.Fatalf("freshness/authorization must sit inside the LATERAL and run BEFORE its LIMIT:\n%s", query)
 	}
 	if count := strings.Count(query, "LIMIT $4"); count != 1 {
 		t.Fatalf("runtime-digest query bound count = %d, want exactly one per-digest bound:\n%s", count, query)

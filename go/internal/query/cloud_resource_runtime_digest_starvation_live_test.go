@@ -98,9 +98,9 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 	// Still bounded: no digest may exceed the per-digest limit, so one hot image
 	// cannot widen the probe's work either.
 	for digest, count := range perDigest {
-		if count > supplyChainCloudRuntimeProbePerDigestMaxResults {
+		if count > supplyChainCloudRuntimeProbePerDigestMinResults {
 			t.Fatalf("digest %s returned %d rows, want at most %d: the bound must still hold",
-				digest, count, supplyChainCloudRuntimeProbePerDigestMaxResults)
+				digest, count, supplyChainCloudRuntimeProbePerDigestMinResults)
 		}
 	}
 
@@ -179,4 +179,121 @@ func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sq
 			t.Fatalf("seed statement %d: %v\n%s", i, err, statement)
 		}
 	}
+}
+
+// TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive closes the
+// regression a per-digest bound introduces if it is applied in the wrong place.
+//
+// Bounding first and filtering after looks cheaper and is wrong: a digest whose
+// first N `(arn, uid)` rows are stale, tombstoned, or outside the caller's
+// grants would return NOTHING, even though a later row is current and
+// authorized. That is a genuinely running vulnerable image reported as not
+// running — the same class of wrong answer the per-digest bound exists to fix,
+// reached from the other direction.
+//
+// The starvation test above cannot catch it: every row it seeds is eligible.
+// This one seeds a digest whose first `perDigestLimit` rows are ALL ineligible,
+// followed by one that is not, and requires the eligible row to come back.
+func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live eligible-rows-only proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	seedRuntimeDigestEligibilityCorpus(t, ctx, db)
+	store := NewPostgresCloudResourceListStore(db)
+
+	digest := starvationDigest(1)
+	matches, err := store.CurrentAuthorizedCloudResourcesByDigest(ctx, []string{digest}, true, nil, nil)
+	if err != nil {
+		t.Fatalf("CurrentAuthorizedCloudResourcesByDigest() error = %v, want nil", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf(
+			"matches = %d, want exactly 1: the %d ineligible rows sort BEFORE the eligible one, so a bound applied "+
+				"before the eligibility predicate discards it and reports a running image as not running",
+			len(matches), supplyChainCloudRuntimeProbePerDigestMinResults,
+		)
+	}
+	if got, want := matches[0].UID, "uid-eligible"; got != want {
+		t.Fatalf("matches[0].UID = %q, want %q", got, want)
+	}
+}
+
+// seedRuntimeDigestEligibilityCorpus seeds one digest carrying
+// perDigestLimit + 5 tombstoned rows whose arns sort FIRST, then one current,
+// authorized row. Ordering is what makes the test sharp: the ineligible rows are
+// the ones a naive bound would consume.
+func seedRuntimeDigestEligibilityCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+
+	ineligible := supplyChainCloudRuntimeProbePerDigestMinResults + 5
+	statements := []string{
+		`CREATE TEMP TABLE ingestion_scopes (
+          scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,
+          active_generation_id text
+        )`,
+		`CREATE TEMP TABLE scope_generations (
+          generation_id text PRIMARY KEY, scope_id text NOT NULL, status text NOT NULL
+        )`,
+		`CREATE TEMP TABLE fact_records (
+          fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
+          is_tombstone boolean NOT NULL
+        )`,
+		`CREATE TEMP TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
+		`INSERT INTO ingestion_scopes VALUES ('scope:allowed','repository','repository:allowed','generation:allowed')`,
+		`INSERT INTO scope_generations VALUES ('generation:allowed','scope:allowed','active')`,
+		fmt.Sprintf(`INSERT INTO fact_records
+          SELECT 'fact-stale-' || lpad(value::text, 4, '0'), 'scope:allowed', 'generation:allowed', true
+          FROM generate_series(1, %d) AS value`, ineligible),
+		`INSERT INTO fact_records VALUES ('fact-eligible', 'scope:allowed', 'generation:allowed', false)`,
+		fmt.Sprintf(`INSERT INTO graph_node_owner
+          SELECT 'uid-stale-' || lpad(value::text, 4, '0'),
+                 jsonb_build_object(
+                   'source_fact_id', 'fact-stale-' || lpad(value::text, 4, '0'),
+                   'resource_type', 'aws_ec2_instance',
+                   'running_image_digest', %s,
+                   'arn', 'arn:example:compute:::aaa-' || lpad(value::text, 4, '0')
+                 )
+          FROM generate_series(1, %d) AS value`,
+			quoteLiteral(starvationDigest(1)), ineligible),
+		fmt.Sprintf(`INSERT INTO graph_node_owner VALUES ('uid-eligible',
+           jsonb_build_object(
+             'source_fact_id', 'fact-eligible',
+             'resource_type', 'aws_ec2_instance',
+             'running_image_digest', %s,
+             'arn', 'arn:example:compute:::zzz-0001'
+           ))`, quoteLiteral(starvationDigest(1))),
+		`CREATE INDEX graph_node_owner_cloud_resource_runtime_digest_idx
+           ON graph_node_owner (((winning_row->>'running_image_digest')), ((winning_row->>'arn')), uid)
+           WHERE winning_row->>'resource_type' IS NOT NULL
+             AND NULLIF(BTRIM(winning_row->>'running_image_digest'), '') IS NOT NULL
+             AND NULLIF(BTRIM(winning_row->>'arn'), '') IS NOT NULL`,
+		`ANALYZE ingestion_scopes`,
+		`ANALYZE scope_generations`,
+		`ANALYZE fact_records`,
+		`ANALYZE graph_node_owner`,
+	}
+	for i, statement := range statements {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed statement %d: %v\n%s", i, err, statement)
+		}
+	}
+}
+
+// quoteLiteral renders a fixture string as a SQL literal. The values here are
+// test-authored digests, never caller input.
+func quoteLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }

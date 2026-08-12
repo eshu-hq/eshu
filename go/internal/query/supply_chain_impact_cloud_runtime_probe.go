@@ -58,7 +58,37 @@ const supplyChainCloudRuntimeProbeMaxResults = 200
 // bounded sample answers it -- while total work stays bounded and deterministic
 // at len(digests) x this value, itself capped by
 // supplyChainCloudRuntimeProbeMaxDigests.
-const supplyChainCloudRuntimeProbePerDigestMaxResults = 10
+const supplyChainCloudRuntimeProbePerDigestMinResults = 10
+
+// supplyChainCloudRuntimeProbePerDigestLimit returns the per-digest bound for a
+// page of digestCount digests: the total budget shared evenly, with a floor.
+//
+// A flat per-digest number would have fixed starvation while quietly narrowing
+// the single-digest case -- one digest used to yield up to
+// supplyChainCloudRuntimeProbeMaxResults resource refs as evidence, and a flat
+// 10 would have cut that to 10 for every caller, a user-visible reduction this
+// issue never asked for.
+//
+// Sharing the existing total budget keeps both properties:
+//
+//   - 1 digest   -> 200 per digest: identical to the previous behaviour.
+//   - 21 digests -> 10 (the floor): every finding gets evidence.
+//   - 200 digests -> 10 (the floor): worst case 200 x 10 = 2000 rows.
+//
+// The floor is what actually fixes #5789: an even share alone would give a
+// 200-digest page one row each, and a page's digest count must not decide
+// whether a finding gets any runtime evidence at all. The worst case grows from
+// 200 rows to 2000, bounded and stated rather than incidental (Copilot review).
+func supplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
+	if digestCount <= 0 {
+		return supplyChainCloudRuntimeProbePerDigestMinResults
+	}
+	share := supplyChainCloudRuntimeProbeMaxResults / digestCount
+	if share < supplyChainCloudRuntimeProbePerDigestMinResults {
+		return supplyChainCloudRuntimeProbePerDigestMinResults
+	}
+	return share
+}
 
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
 // to observed CloudResource owner-ledger rows whose running_image_digest equals
