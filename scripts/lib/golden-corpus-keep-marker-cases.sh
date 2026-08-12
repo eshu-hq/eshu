@@ -26,6 +26,12 @@ done
 require_matches "#5987 helper pre-pr live trigger" "${prepr}" \
 	"^(?!\\s*#)[^\\n]*run_or_defer golden-corpus \\\\\\n[^\\n]*scripts/lib/\\(golden-corpus-\\.\\+"
 
+keep_evidence_doc="${repo_root}/docs/public/reference/local-testing/golden-corpus-gate.md"
+rg --fixed-strings --quiet -- 'No-Regression Evidence:' "${keep_evidence_doc}" \
+	|| fail "live-gate evidence doc must retain No-Regression Evidence:"
+rg --fixed-strings --quiet -- 'Observability Evidence:' "${keep_evidence_doc}" \
+	|| fail "live-gate evidence doc must retain Observability Evidence:"
+
 keep_marker() {
 	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "0" "${keep_retained_at}" "$1" "$2" >"${keep_lock}.keep"
 }

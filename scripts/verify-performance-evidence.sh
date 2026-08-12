@@ -120,6 +120,15 @@ is_runtime_config_by_content() {
   return 1
 }
 
+is_live_gate_coordination_file() {
+  local path="$1"
+  case "$path" in
+    scripts/lib/live-gate-lock.sh) return 0 ;;
+    scripts/lib/golden-corpus-keep-marker.sh) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Pre-fetch the full diff once so comment-only and marker-added-lines checks
 # are O(1) lookups against this cache instead of one git invocation per file.
 # Falls back to the two-dot form on failure -- the three-dot (merge-base)
@@ -292,6 +301,18 @@ if [ "${#changed_files[@]}" -gt 0 ]; then
     fi
 
     if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
+      if is_comment_only_change "$file"; then
+        continue
+      fi
+      hot_files+=("$file")
+      continue
+    fi
+
+    # These shell helpers own cross-worktree exclusion and the one Docker
+    # liveness query used to reclaim retained stacks. Changes can alter runner
+    # wait/refusal behavior or add external calls even though no Go/runtime
+    # configuration file changed.
+    if is_live_gate_coordination_file "$file"; then
       if is_comment_only_change "$file"; then
         continue
       fi

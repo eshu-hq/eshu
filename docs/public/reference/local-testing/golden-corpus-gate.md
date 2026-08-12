@@ -192,6 +192,30 @@ self-heals as described above, but an active holder still blocks, and repeated
 active holders can make another worktree retry later. Adding queued fairness is
 a separate scheduling change with waiter cleanup and cancellation semantics.
 
+### Retained-marker evidence
+
+No-Regression Evidence: The conflict domain is the shared git-common-dir lock
+and marker for live gates within one clone. The no-marker fast path checks the
+filesystem and makes no Docker query. A valid marker-present liveness decision
+makes one `docker compose -p <project> ps -q` query while it owns the main lock
+or stale reclaim guard; malformed markers refuse before Docker. The gate refuses
+immediately when a holder is active or stack state is unknown. It does not add
+FIFO waiting. An isolated Docker Compose 5.1.2 run returned 0 container IDs for
+an absent project, 1 for a running project, and after stopping that container
+returned 0 from default `ps -q` and 1 from `ps -q --all`. The focused shell race
+starts two contenders against one stale marker and proves the second never
+queries Docker while the first owns the main lock; the first contender's
+replacement marker remains intact.
+
+Observability Evidence: Refusals write the retained Compose project, worktree,
+holder pid, elapsed age or an explicit unknown-age state, and the decision
+reason to stderr. Reasons distinguish a running project, Docker unavailable,
+query failure, malformed or incompatible marker data, clock/timestamp failure,
+replacement-marker change, and removal failure. Successful stale-marker
+reclaim also reports the project and holder details. This shell coordination
+change adds no service OpenTelemetry metric, span, or log field; service runtime
+behavior is unchanged.
+
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,
 storage, the pipeline command binaries, the cassettes, or the snapshot).
