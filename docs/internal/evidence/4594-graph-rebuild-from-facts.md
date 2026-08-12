@@ -270,17 +270,23 @@ re-driving the whole catalog.
 
 | Measure | Before the fix | After the fix |
 | --- | ---: | ---: |
-| `graph_rebuild_seconds` | 15 s | 25 s |
-| Reducer rows re-driven | 335 (new rows only) | 1,034 (deleted and re-derived) |
-| Shared intents re-drained | 0 | 586 |
-| Readiness phase rows cleared | 0 | 609 |
-| Load average at completion | 2.41 | 5.19 |
+| `graph_rebuild_seconds` | 15 s | 20 s and 25 s, two runs |
+| Load average at completion | 2.41 | 3.78 and 5.19 |
+| Reducer rows re-driven | 335 (new rows only) | ~1,034 (deleted and re-derived) |
+| Shared intents re-drained | 0 | ~590 |
+| Readiness phase rows cleared | 0 | ~610 |
 
-Read that as indicative, not controlled. The two runs sat at different machine
-loads (2.41 against 5.19 on 12 CPUs), so some of the 10-second difference is the
-machine rather than the change. The direction is not in doubt — roughly three
-times the reducer work and 586 shared intents that previously did nothing — but
-anyone quoting a precise multiplier from these two numbers is over-reading them.
+All three runs indexed the same corpus and reported 3,866 `fact_records`, so the
+workload matches. What does not match is the machine: the runs sat at loads of
+2.41, 3.78, and 5.19 on 12 CPUs, and rebuild time tracked load as much as it
+tracked the change. Read the direction, not a multiplier — roughly three times
+the reducer work plus ~590 shared intents that previously did nothing, landing
+somewhere around a third to two thirds more wall time on this corpus.
+
+`graph_rebuild_seconds` also under-counts now. It stops when the work queue is
+empty, and the shared backlog can keep running for minutes after that (four, in
+the sample above). A recovery-time objective should be sized against both queues
+draining, not against this number alone.
 
 The cost lands only on refinalize. Ordinary indexing, shard drains, reopens, and
 retries are untouched, which is the whole reason the reset is scoped to the
@@ -310,24 +316,28 @@ the terminal condition now requires both queues empty. This was a defect in the
 verifier, not in the rebuild — it was invisible before, because shared intents
 never reopened.
 
-### 2. Three edge families come back thin on one pass, and converge on a second
-
-Measured against the same pre-wipe snapshot, after the backlog settled:
-
-| Family | Pre-wipe | After 1 rebuild | After a 2nd |
-| --- | ---: | ---: | ---: |
-| `CALLS` | 116 | 115 | 116 |
-| `HANDLES_ROUTE` | 4 | 2 | 4 |
-| `RUNS_IN` | 4 | 2 | 4 |
+### 2. Two of the three thin edge families were the wait, not an ordering bug
 
 `handles_route` and `runs_in` connect code symbols to `:Endpoint` and `:Workload`
-nodes that `workload_materialization` commits under a different acceptance unit.
-The edge Cypher is `MATCH`-only, so a pass that drains them before those nodes
-exist writes nothing and still completes the intent. A second refinalize reopens
-them once the targets are there.
+nodes that `workload_materialization` commits under a different acceptance unit,
+and their intents live in the shared backlog. Tracking them across three runs
+shows the wait was the whole story:
 
-This is a genuine within-rebuild ordering gap. The reset restores
-projector→reducer causality but not reducer→reducer ordering.
+| Run | Waits on both queues | `HANDLES_ROUTE` | `RUNS_IN` | `CALLS` |
+| --- | --- | --- | --- | --- |
+| 1 | no | 0 of 4 | 0 of 4 | 115 of 116 |
+| 2 | no, settled by hand | 2 of 4 | 2 of 4 | 115 of 116 |
+| 3 | yes | **4 of 4** | **4 of 4** | 115 of 116 |
+
+Once the verifier waits for the shared backlog, both families come back complete
+on a single pass. No ordering fix was needed for them.
+
+`CALLS` is different: 115 of 116 in all three runs, reproducible, and unmoved by
+the wait. A second refinalize does recover it (115 → 116), so the missing edge is
+one whose endpoints were not both present when its intent drained — a real
+within-rebuild ordering gap, one edge wide on this corpus. The reset restores
+projector→reducer causality but not reducer→reducer ordering, and this is what
+that costs here.
 
 ### 3. Repeated refinalize is not idempotent for two families
 
@@ -362,11 +372,36 @@ three different pre-wipe graphs:
 Diffing run 1 against run 3: `EvidenceArtifact` 15 vs 13, `Module` 228 vs 231,
 `Environment` 2 vs 0, and their edges. Those are the same families that show up
 in a rebuild comparison, which means part of what reads as a rebuild shortfall is
-the indexer's own run-to-run variance. Exact count equality against a snapshot
-taken from one indexing run cannot pass reliably until that is understood.
+the indexer's own run-to-run variance.
 
-The assertion was left alone. It is the right assertion; the reference under it
-is not yet stable enough to satisfy it.
+`EvidenceArtifact` is the clearest case, and it moves on both sides:
+
+| Run | Pre-wipe | Rebuilt |
+| --- | ---: | ---: |
+| 1 | 15 | — |
+| 2 | 13 | 8 |
+| 3 | 13 | 9 |
+| 4 | 17 | 12 |
+
+Neither column is stable, so the gap between them is not a fixed number either.
+`semantic_entity_materialization` is the domain behind all of it, and it is the
+same domain that inflates on a repeated refinalize in section 3. One defect
+probably explains both: an `EvidenceArtifact` identity that is not a pure
+function of the facts. That is a hypothesis from four runs, not a diagnosis — the
+identity construction has not been read.
+
+Exact count equality against a snapshot taken from one indexing run cannot pass
+reliably until that is understood. The assertion was left alone: it is the right
+assertion, and the reference under it is what is not yet stable.
+
+### Caveat on run 4
+
+Run 4 reported 6,285 `fact_records` where runs 1-3 each reported 3,866, so its
+Postgres was not fully cleared before indexing — most likely the previous stack
+was still up when the teardown ran. Its pre-wipe-versus-rebuilt delta is still
+internally valid, because both sides were measured on the same data. Its absolute
+totals and its `graph_rebuild_seconds` are not comparable to the other runs and
+are not used for the cost table.
 
 ## Reproducing
 
