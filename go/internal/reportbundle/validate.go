@@ -49,11 +49,29 @@ var ValidationChecks = []string{
 // A query string with nothing sensitive in it passes. The rule here is the same
 // key-name predicate the rest of the package uses, so a bundle Capture produced
 // can never disagree with its own validator.
+//
+// Three ways a target fails, and all three are reached without trusting the
+// producer:
+//
+//   - The query string does not parse. Returning "no sensitive parameters
+//     found" for a string nobody could take apart is how a credential gets
+//     waved through, so it is rejected.
+//   - A parameter's NAME is sensitive.
+//   - A parameter's VALUE embeds a sensitive-named key, which is what happens
+//     when a second "?" pushes the credential inside a benign parameter like
+//     "next" (see embeddedSensitiveKey).
 func validateTargetQuery(target string) error {
-	_, params := SplitTargetQuery(target)
+	_, params, err := SplitTargetQuery(target)
+	if err != nil {
+		return fmt.Errorf("query.target carries a query string that cannot be parsed (%w): its parameters cannot be checked one by one, so it may hold an unredacted credential; recapture the bundle instead of editing it", err)
+	}
 	offending := make([]string, 0, len(params))
-	for key := range params {
+	for key, value := range params {
 		if collector.IsSensitiveKeyName(key) || isInlineContentKey(key) {
+			offending = append(offending, key)
+			continue
+		}
+		if carriesEmbeddedSensitiveKey(value) {
 			offending = append(offending, key)
 		}
 	}

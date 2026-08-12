@@ -144,3 +144,53 @@ func TestRedact_MatchesUnderlyingValidator(t *testing.T) {
 		})
 	}
 }
+
+// TestEmbeddedSensitiveKey covers the one place this package reads a value.
+// The rule is narrow on purpose, and both halves of that need pinning: it must
+// find a sensitive key hiding inside a query-shaped value, and it must not fire
+// on ordinary values, because a false positive costs a maintainer a parameter
+// they needed to reproduce the query.
+//
+// The "does not fire" cases double as the honest statement of what this does
+// NOT protect against — a bare secret with no key= in front of it is invisible
+// here, and so is one that survived only a single decoding pass.
+func TestEmbeddedSensitiveKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "nested query after a second question mark", value: "/api/v0/x?api_key=sk-live-abc", want: "api_key"},
+		{name: "decoded ampersand separated pair", value: "/api/v0/x&access_token=abc", want: "access_token"},
+		{name: "semicolon separated pair", value: "/api/v0/x?page=2;password=hunter2", want: "password"},
+		{name: "bare pair with no separator", value: "authorization=Bearer-abc", want: "authorization"},
+		{name: "inline content key", value: "/api/v0/x?excerpt=func+Handler", want: "excerpt"},
+
+		{name: "benign nested url is kept", value: "/api/v0/x?page=2", want: ""},
+		{name: "plain path is kept", value: "/api/v0/services/checkout/story", want: ""},
+		{name: "no pair shape is kept", value: "demo/service", want: ""},
+		{name: "prose with a spaced key is kept", value: "SELECT token = 1 FROM t", want: ""},
+		{name: "empty key is kept", value: "/api/v0/x?=abc", want: ""},
+
+		// Stated limits: neither of these is detected, and pretending
+		// otherwise in a doc comment would be worse than the gap itself.
+		{name: "LIMIT bare secret under a benign name", value: "sk-live-abc", want: ""},
+		{name: "LIMIT double encoded nested query", value: "/api/v0/x%3Fapi_key%3Dsk-live", want: ""},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, found := embeddedSensitiveKey(tt.value)
+			if found != (tt.want != "") {
+				t.Fatalf("embeddedSensitiveKey(%q) found = %v, want %v", tt.value, found, tt.want != "")
+			}
+			if got != tt.want {
+				t.Fatalf("embeddedSensitiveKey(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}

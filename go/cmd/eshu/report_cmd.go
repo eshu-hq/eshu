@@ -191,7 +191,15 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 		// malformed second query string. reportbundle.SplitTargetQuery is the
 		// same function Capture uses to keep the credential out of the
 		// recorded bundle, so the request and the record cannot drift.
-		path, targetParams := reportbundle.SplitTargetQuery(endpoint)
+		//
+		// A query string it cannot parse stops the run here, before the
+		// request goes out. Capture would refuse the same target anyway, and
+		// issuing a query the reporter did not type only to throw the answer
+		// away is worse than not issuing it.
+		path, targetParams, err := reportbundle.SplitTargetQuery(endpoint)
+		if err != nil {
+			return query.ResponseEnvelope{}, err
+		}
 		values := url.Values{}
 		for key, value := range targetParams {
 			repeated, ok := value.([]any)

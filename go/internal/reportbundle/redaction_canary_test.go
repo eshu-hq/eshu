@@ -32,6 +32,7 @@ const (
 	sentinelExcerptMarker       = "CANARY-EXCERPT-SENTINEL-55d201"
 	sentinelEmbeddedExcerptData = "CANARY-EMBEDDED-EXCERPT-SENTINEL-c02f18"
 	sentinelTargetQueryValue    = "CANARY-TARGET-QUERY-SENTINEL-a7e3b1"
+	sentinelNestedTargetValue   = "CANARY-NESTED-TARGET-SENTINEL-6d90f4"
 )
 
 // targetWithSensitiveQueryString is the one place the target-query-string
@@ -41,6 +42,32 @@ func targetWithSensitiveQueryString() string {
 	return "/api/v0/services/checkout/story?api_key=" + sentinelTargetQueryValue + "&repo=demo%2Fservice"
 }
 
+// targetWithUnparseableQueryString carries a credential AND a broken
+// percent-escape. net/url refuses the whole query string, so no per-parameter
+// redaction is possible and the credential can only be handled by rejecting the
+// target outright. Written once, exercised by both the Capture and the Validate
+// test.
+func targetWithUnparseableQueryString() string {
+	return "/api/v0/services/checkout/story?api_key=" + sentinelTargetQueryValue + "&bad=%ZZ"
+}
+
+// targetWithNestedCredentialValue reaches the same leak from the other side.
+// strings.Cut splits on the FIRST "?" only and net/url treats a later "?" as an
+// ordinary value character, so this parses to one benign-named parameter,
+// "next", whose VALUE carries the credential. Key-name matching cannot see it.
+func targetWithNestedCredentialValue() string {
+	return "/api/v0/services/checkout/story?next=/api/v0/x?api_key=" + sentinelNestedTargetValue
+}
+
+// canaryCaptureInput builds the canary input. The payload excerpt and fact
+// sentinels are planted UNCONDITIONALLY and includePayloads only decides
+// whether they are expected to come back out.
+//
+// They used to be planted only in the private-triage variant, which left the
+// public variant unable to fail: it asserted the sentinels were absent from
+// bytes they had never been put into. A regression where Capture began inlining
+// excerpts or fact payloads without IncludePayloads would have passed. Planting
+// them always is what makes the public assertion mean something.
 func canaryCaptureInput(includePayloads bool) CaptureInput {
 	input := CaptureInput{
 		Surface: "api",
@@ -70,15 +97,13 @@ func canaryCaptureInput(includePayloads bool) CaptureInput {
 		},
 		ReporterNote:    "expected the owning team, got an empty list",
 		IncludePayloads: includePayloads,
-	}
-	if includePayloads {
-		input.PayloadExcerpts = []CitationExcerpt{
+		PayloadExcerpts: []CitationExcerpt{
 			{
 				CitationRef: CitationRef{Kind: "file", RepoID: "demo/service", RelativePath: "main.go"},
 				Excerpt:     sentinelExcerptMarker,
 			},
-		}
-		input.PayloadFacts = []facts.Envelope{
+		},
+		PayloadFacts: []facts.Envelope{
 			{
 				FactID:        "fact-1",
 				FactKind:      "repository",
@@ -87,7 +112,7 @@ func canaryCaptureInput(includePayloads bool) CaptureInput {
 				GenerationID:  "gen-1",
 				Payload:       map[string]any{"description": sentinelFactValue},
 			},
-		}
+		},
 	}
 	return input
 }
@@ -147,12 +172,14 @@ func TestCapture_RedactionCanary(t *testing.T) {
 			t.Fatalf("serialized public bundle carries a live excerpt key embedded in response data; inline content bytes must be stripped from Data too, not only from the typed CitationRef")
 		}
 
-		// (c) fact payload bytes are absent entirely (refs only), so the
-		// fact-only sentinel cannot appear even though this variant did not
-		// plant one (guards against a future capture path inlining facts by
-		// default).
-		if strings.Contains(text, "payload") && strings.Contains(text, sentinelFactValue) {
-			t.Fatalf("serialized public bundle unexpectedly carries fact payload sentinel")
+		// (c) the payload excerpt and fact sentinels WERE planted in this
+		// input (see canaryCaptureInput) and must not come back out without
+		// IncludePayloads. This is the assertion that catches Capture
+		// unconditionally inlining excerpts or fact payload bytes.
+		for _, sentinel := range []string{sentinelExcerptMarker, sentinelFactValue} {
+			if strings.Contains(text, sentinel) {
+				t.Fatalf("serialized public bundle leaks payload sentinel %q; excerpts and fact payloads are attachable only under --include-payloads:\n%s", sentinel, text)
+			}
 		}
 	})
 
@@ -255,6 +282,92 @@ func TestCapture_RedactsSensitiveTargetQueryString(t *testing.T) {
 	// The removal is documented rather than silent.
 	if !containsString(bundle.Redaction.Rules, "api_key") {
 		t.Errorf("Redaction.Rules = %v, want it to record the stripped \"api_key\" target parameter", bundle.Redaction.Rules)
+	}
+}
+
+// TestCapture_RefusesUnparseableTargetQueryString covers the case where the
+// query string cannot be taken apart at all. `?api_key=...&bad=%ZZ` makes
+// net/url reject the whole string, and the first version of this fix responded
+// by returning no parameters — which silently dropped the credential from the
+// redaction walk while leaving it sitting in Query.Target, and left the
+// recorded bundle describing a query the CLI never issued.
+//
+// Capture refuses instead of guessing. Nothing here can separate the secret
+// from the rest of an unparseable blob, and a partially-issued query would make
+// the bundle a report about a different request than the reporter ran.
+func TestCapture_RefusesUnparseableTargetQueryString(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   targetWithUnparseableQueryString(),
+		Method:   "GET",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+	})
+	if err == nil {
+		t.Fatalf("Capture(unparseable target query string) error = nil, want refusal; bundle target = %q", bundle.Query.Target)
+	}
+	if !strings.Contains(err.Error(), "query.target") {
+		t.Errorf("Capture() error = %q, want it to name query.target so the reporter can fix the endpoint", err.Error())
+	}
+	if text := string(mustMarshal(t, bundle)); strings.Contains(text, sentinelTargetQueryValue) {
+		t.Errorf("refused Capture still returned a bundle carrying the sentinel %q:\n%s", sentinelTargetQueryValue, text)
+	}
+}
+
+// TestCapture_DropsCredentialNestedInTargetParamValue is the same leak reached
+// from a second direction. `?next=/api/v0/x?api_key=sk-live` splits on the
+// first "?" only, so net/url parses ONE parameter named `next` whose value
+// carries the credential. The key walk sees a benign name and passes; so does
+// the share-safe gate; so did the target-query-string check, which also only
+// read keys.
+//
+// The parameter is dropped whole and recorded, the same treatment a
+// sensitive-NAMED parameter already gets.
+func TestCapture_DropsCredentialNestedInTargetParamValue(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   targetWithNestedCredentialValue(),
+		Method:   "GET",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+
+	if text := string(mustMarshal(t, bundle)); strings.Contains(text, sentinelNestedTargetValue) {
+		t.Errorf("serialized public bundle leaks the nested target sentinel %q:\n%s", sentinelNestedTargetValue, text)
+	}
+	if _, present := bundle.Query.Params["next"]; present {
+		t.Errorf("Query.Params[%q] = %#v, want the parameter dropped: its value carries an embedded sensitive key", "next", bundle.Query.Params["next"])
+	}
+	if !containsString(bundle.Redaction.Rules, "next") {
+		t.Errorf("Redaction.Rules = %v, want it to record the stripped %q parameter rather than drop it silently", bundle.Redaction.Rules, "next")
+	}
+}
+
+// A target parameter whose value merely looks URL-ish is not a credential, and
+// dropping it would cost the maintainer reproduction context for nothing. Only
+// an embedded pair whose KEY is sensitive-named triggers the removal.
+func TestCapture_KeepsBenignNestedURLTargetParamValue(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   "/api/v0/services/checkout/story?next=/api/v0/x?page=2&repo=demo%2Fservice",
+		Method:   "GET",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	if got := bundle.Query.Params["next"]; got != "/api/v0/x?page=2" {
+		t.Errorf("Query.Params[\"next\"] = %#v, want the benign nested URL kept verbatim", got)
+	}
+	if got := bundle.Query.Params["repo"]; got != "demo/service" {
+		t.Errorf("Query.Params[\"repo\"] = %#v, want the decoded sibling parameter kept", got)
 	}
 }
 

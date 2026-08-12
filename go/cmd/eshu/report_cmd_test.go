@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -104,6 +105,118 @@ func TestReportCapture_AgainstEnvelopeServer(t *testing.T) {
 
 	if err := reportbundle.Validate(bundle, reportbundle.ValidateOptions{RequirePublic: true}); err != nil {
 		t.Fatalf("Validate(bundle, RequirePublic=true) error = %v, want nil", err)
+	}
+}
+
+// TestReportCapture_GETMergesEndpointQueryWithParams is the CLI-level proof for
+// the request URL fetchReportEnvelope builds. The other capture tests all pass
+// an --endpoint with no query string, so none of them reaches the merge loop,
+// the repeated-value branch, or the collision rule — a regression there would
+// build a wrong request and, because Capture splits the same target, record
+// parameters that no longer describe it.
+//
+// It also pins the deliberate asymmetry: the request keeps the credential
+// (it is the reporter's own API call, and the answer under investigation is the
+// one that credential returns), the bundle does not.
+func TestReportCapture_GETMergesEndpointQueryWithParams(t *testing.T) {
+	t.Parallel()
+
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		if r.URL.Path != "/api/v0/services/checkout/story" {
+			t.Errorf("request path = %q, want the bare path with the query string split off", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/eshu.envelope+json")
+		_, _ = w.Write([]byte(`{"data":{"owner":"platform-team"},"truth":{"level":"exact","profile":"local_authoritative"},"error":null}`))
+	}))
+	defer server.Close()
+
+	cmd := &cobra.Command{}
+	addReportCaptureFlags(cmd)
+	addRemoteFlags(cmd)
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	mustSetFlag(t, cmd, "service-url", server.URL)
+	mustSetFlag(t, cmd, "endpoint",
+		"/api/v0/services/checkout/story?repo=demo%2Fservice&tag=alpha&tag=beta&limit=5&api_key=sk-live-should-not-leak")
+	mustSetFlag(t, cmd, "params", `{"limit":25}`)
+
+	if err := runReportCapture(cmd, nil); err != nil {
+		t.Fatalf("runReportCapture() error = %v, want nil", err)
+	}
+
+	// The request the server actually received.
+	if got := gotQuery.Get("repo"); got != "demo/service" {
+		t.Errorf("request repo = %q, want the endpoint parameter merged in", got)
+	}
+	if got := gotQuery["tag"]; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
+		t.Errorf("request tag = %#v, want both repeated endpoint values in order", got)
+	}
+	if got := gotQuery["limit"]; len(got) != 1 || got[0] != "25" {
+		t.Errorf("request limit = %#v, want the explicit --params value to replace the endpoint's, not append to it", got)
+	}
+	if got := gotQuery.Get("api_key"); got != "sk-live-should-not-leak" {
+		t.Errorf("request api_key = %q, want the reporter's own credential still sent with the query under investigation", got)
+	}
+
+	// The bundle recorded alongside it.
+	var bundle reportbundle.Bundle
+	if err := json.Unmarshal(out.Bytes(), &bundle); err != nil {
+		t.Fatalf("decode captured bundle: %v\noutput: %s", err, out.String())
+	}
+	if bundle.Query.Target != "/api/v0/services/checkout/story" {
+		t.Errorf("Query.Target = %q, want the bare path", bundle.Query.Target)
+	}
+	if got := bundle.Query.Params["repo"]; got != "demo/service" {
+		t.Errorf("Query.Params[\"repo\"] = %#v, want the endpoint parameter recorded", got)
+	}
+	tags, ok := bundle.Query.Params["tag"].([]any)
+	if !ok || len(tags) != 2 || tags[0] != "alpha" || tags[1] != "beta" {
+		t.Errorf("Query.Params[\"tag\"] = %#v, want both repeated values recorded in order", bundle.Query.Params["tag"])
+	}
+	if got := bundle.Query.Params["limit"]; got != float64(25) {
+		t.Errorf("Query.Params[\"limit\"] = %#v, want the explicit --params value, matching what was issued", got)
+	}
+	if _, present := bundle.Query.Params["api_key"]; present {
+		t.Errorf("Query.Params carries api_key; the request may send it, the shared artifact may not")
+	}
+	if strings.Contains(out.String(), "sk-live-should-not-leak") {
+		t.Errorf("captured bundle leaks the endpoint credential:\n%s", out.String())
+	}
+}
+
+// TestReportCapture_RefusesUnparseableEndpointQueryString proves the CLI fails
+// closed on an endpoint whose query string net/url cannot parse, instead of
+// issuing a request with the query silently emptied and writing a bundle that
+// still carries the raw target.
+func TestReportCapture_RefusesUnparseableEndpointQueryString(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server was called; capture must refuse the malformed endpoint before issuing the request")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cmd := &cobra.Command{}
+	addReportCaptureFlags(cmd)
+	addRemoteFlags(cmd)
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	mustSetFlag(t, cmd, "service-url", server.URL)
+	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story?api_key=sk-live-should-not-leak&bad=%ZZ")
+
+	err := runReportCapture(cmd, nil)
+	if err == nil {
+		t.Fatalf("runReportCapture() error = nil, want refusal; stdout = %s", out.String())
+	}
+	if strings.Contains(out.String(), "sk-live-should-not-leak") {
+		t.Errorf("refused capture still wrote a bundle carrying the credential:\n%s", out.String())
 	}
 }
 

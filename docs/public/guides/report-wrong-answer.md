@@ -131,6 +131,18 @@ What a bundle never carries by default:
 A credential you typed into `--endpoint` itself is covered too. Capture splits
 any query string off the endpoint and runs its parameters through the same
 redaction pass, keeping the harmless ones so the query is still reproducible.
+A parameter that hides a credential in its own value, as in
+`?next=/api/v0/x?api_key=...`, is dropped whole and listed in
+`redaction.rules`. If the query string is malformed and cannot be taken apart
+at all, capture stops and tells you rather than guess which part was secret.
+
+The request Eshu issues still carries everything you typed — it is your API
+call, and the wrong answer under investigation is the one it returns. The
+redaction applies to the bundle you attach to an issue.
+
+The limit is worth knowing before you paste something unusual: the rule matches
+credential-shaped key **names**. A secret sitting in a parameter named
+something innocuous, with no `key=` in front of it, is not detected.
 
 `fact_refs_state: "unavailable"` in the example above is expected right now, not
 a capture failure. There is no public route for reading fact records, so a

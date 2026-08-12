@@ -61,10 +61,16 @@ type Bundle struct {
 type CapturedQuery struct {
 	// Surface is "api" or "mcp".
 	Surface string `json:"surface"`
-	// Target is the endpoint path or MCP tool name, never a query string:
-	// Capture splits any query string off and folds its parameters into
-	// Params so they face the redaction walk, and Validate rejects a bundle
-	// whose target still carries a sensitive-named parameter.
+	// Target is the endpoint path or MCP tool name. A bundle Capture produced
+	// carries no query string here: Capture splits one off and folds its
+	// parameters into Params, where the redaction walk sees them as keys.
+	//
+	// Validate does not require that, because it runs against files other
+	// people send. It accepts a target query string carrying nothing
+	// sensitive, and rejects one whose parameters cannot be parsed, whose
+	// parameter name is sensitive, or whose parameter value embeds a
+	// sensitive-named key. That check is what protects a hand-edited or
+	// third-party bundle, and it runs independently of Capture.
 	Target string `json:"target"`
 	Method string `json:"method,omitempty"`
 	// Params is the query/body parameters as issued — including any parsed out

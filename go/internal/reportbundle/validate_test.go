@@ -132,6 +132,50 @@ func TestValidate_SensitiveTargetQueryStringIsRejected(t *testing.T) {
 	}
 }
 
+// TestValidate_UnparseableTargetQueryStringIsRejected is the maintainer-side
+// half of the same case Capture refuses. `--require-public` is run against
+// bundles other people send you, so it cannot lean on Capture having produced
+// the file: a bundle whose target query string net/url cannot parse may carry a
+// credential nobody could redact key by key, and is rejected rather than read
+// as "no sensitive parameters found".
+func TestValidate_UnparseableTargetQueryStringIsRejected(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Target = targetWithUnparseableQueryString()
+
+	for _, opts := range []ValidateOptions{{}, {RequirePublic: true}} {
+		err := Validate(bundle, opts)
+		if err == nil {
+			t.Fatalf("Validate(unparseable target query string, %+v) error = nil, want rejection", opts)
+		}
+		if !strings.Contains(err.Error(), "query.target") {
+			t.Errorf("Validate() error = %q, want it to name query.target", err.Error())
+		}
+	}
+}
+
+// TestValidate_NestedCredentialInTargetParamValueIsRejected covers the leak
+// that survives inside a benign-named parameter's VALUE. Capture drops the
+// parameter, but a hand-edited bundle or one written before this check existed
+// still carries it in query.target, so Validate has to find it on its own.
+func TestValidate_NestedCredentialInTargetParamValueIsRejected(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Target = targetWithNestedCredentialValue()
+
+	for _, opts := range []ValidateOptions{{}, {RequirePublic: true}} {
+		err := Validate(bundle, opts)
+		if err == nil {
+			t.Fatalf("Validate(target parameter value embedding a sensitive key, %+v) error = nil, want rejection", opts)
+		}
+		if !strings.Contains(err.Error(), "next") {
+			t.Errorf("Validate() error = %q, want it to name the offending %q parameter", err.Error(), "next")
+		}
+	}
+}
+
 // A target query string with no sensitive parameter is not a leak, so Validate
 // accepts it. Rejecting every "?" would fail bundles that carry nothing secret,
 // and the redaction contract this package enforces everywhere else is
@@ -139,11 +183,19 @@ func TestValidate_SensitiveTargetQueryStringIsRejected(t *testing.T) {
 func TestValidate_BenignTargetQueryStringPasses(t *testing.T) {
 	t.Parallel()
 
-	bundle := minimalPublicBundle(t)
-	bundle.Query.Target = "/api/v0/services/checkout/story?repo=demo%2Fservice"
+	targets := []string{
+		"/api/v0/services/checkout/story?repo=demo%2Fservice",
+		// A nested URL is not by itself a credential. The embedded-pair rule
+		// only fires on a sensitive KEY name, so this must still pass.
+		"/api/v0/services/checkout/story?next=/api/v0/x?page=2",
+	}
+	for _, target := range targets {
+		bundle := minimalPublicBundle(t)
+		bundle.Query.Target = target
 
-	if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
-		t.Errorf("Validate(benign target query string) error = %v, want nil", err)
+		if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
+			t.Errorf("Validate(benign target query string %q) error = %v, want nil", target, err)
+		}
 	}
 }
 
