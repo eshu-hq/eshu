@@ -33,10 +33,9 @@ import (
 //     (internal/collector/cicdrun/ghactionsruntime and .../gitlabciruntime).
 //
 // A producer domain absent from this map resolves to no collector kind and is
-// SKIPPED rather than guessed. That is the known gap, not a silent pass: a
-// guessed kind that a deployment never registers would hold every consumer of
-// that producer at "not ready" until the elapsed bound, once per repair cycle,
-// for a producer scope that was never going to appear.
+// SKIPPED rather than guessed. That is a known gap, not a silent pass: the
+// consumer commits its best available answer instead of waiting on a scope kind
+// nobody has shown it depends on.
 //
 // What this mapping does NOT capture: container_image_identity intents are also
 // enqueued in aws, azure, gcp, git, and sbom_attestation scopes (see
@@ -131,7 +130,8 @@ type CrossScopeProducerReadinessStore struct {
 // docs/internal/evidence/5709-cross-scope-readiness-floor.md.
 //
 // The probe runs once per declared producer collector kind and stops at the
-// first kind with no quiescent-active scope, so the wired consumer
+// first REGISTERED kind with no quiescent-active scope; a kind with no
+// registered scope is skipped and the rest are still probed. The wired consumer
 // (ci_cd_run_correlation, one producer kind) costs exactly one query.
 //
 // scopeID and generationID are accepted for the interface and for future

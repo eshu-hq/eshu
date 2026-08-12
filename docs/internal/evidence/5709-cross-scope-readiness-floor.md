@@ -249,23 +249,63 @@ could be a redacted identifier. No new metric.
 
 ```
 $ cd go && go test ./internal/reducer/ ./cmd/reducer/ ./internal/storage/postgres/ -count=1
-ok  github.com/eshu-hq/eshu/go/internal/reducer          3.656s
-ok  github.com/eshu-hq/eshu/go/cmd/reducer               0.847s
-ok  github.com/eshu-hq/eshu/go/internal/storage/postgres 5.120s
-exit 0
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	2.894s
+ok  	github.com/eshu-hq/eshu/go/cmd/reducer	1.135s
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	5.002s
+exit=0
+
+$ ESHU_POSTGRES_DSN=postgresql://eshu:...@localhost:15709/eshu_live \
+    go test ./internal/storage/postgres -run ProducerScopeQuiescenceLive -count=1 -v
+--- PASS: TestProducerScopeQuiescenceLive (4.70s)
+    --- PASS: .../a_collector_kind_with_no_scope_at_all_reports_nothing_registered (0.00s)
+    --- PASS: .../an_active_scope_with_live_projector_work_is_registered_but_not_quiescent (0.01s)
+    --- PASS: .../a_reducer-stage_work_item_does_not_hold_the_scope_back (0.01s)
+    --- PASS: .../a_scope_with_no_active_generation_is_registered_but_not_quiescent (0.00s)
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	7.253s
 
 $ bash scripts/verify-telemetry-coverage.sh
 verify-telemetry-coverage: docs/public/observability/telemetry-coverage.md and
 go/internal/telemetry/instruments.go agree, no new untracked stages
-exit 0
+telemetry_exit=0
 
 $ bash scripts/verify-package-docs.sh
 verify-package-docs: changed Go package docs present
-exit 0
+pkgdocs_exit=0
 
 $ git diff --check
-exit 0
+diffcheck_exit=0
 ```
+
+### The golden-corpus gate (B-7)
+
+B-7 is the run that indexes a fixed 30-repository corpus through the real
+pipeline and diffs the resulting graph and query answers against a committed
+snapshot. `ci_cd_run_correlation` output is part of what it asserts, and
+`testdata/golden/e2e-baseline.json` calls this chain the convergence long pole.
+
+```
+summary: 554 pass, 0 required-fail, 0 advisory-warn
+
+=== PASS: B-7 golden corpus gate green (elapsed 127s, budget ceiling 1800s) ===
+```
+
+**Read that as a no-regression result, not as proof the floor works.** Every
+drain checkpoint reported `fact_work_items_residual: residual=0`, and the gate
+prints its `live= / readiness-deferred= / dead_letter= / failed=` breakdown only
+when residual rows exist (`drains.go`, `len(rows) == 0` short-circuit). So the
+**readiness-deferred count is 0**: no row sat deferred at any checkpoint, and no
+deferral log line appears in the run.
+
+That is the expected outcome, not a surprise. Quiescence fences only the
+`projector` stage, so in a gate run the OCI registry scope reads quiescent-active
+before `ci_cd_run_correlation` executes and the floor never fires. What B-7
+proves here is that arming the floor did not change the corpus answers, the drain
+shape, or the timing (`phase_first_drain: observed=64.0s, baseline=75.0s`).
+
+What proves the floor actually defers is
+`TestBuildReducerServiceWiresCrossScopeProducerReadiness`, which runs the real
+`buildReducerService` wiring against a producer scope that has not finished and
+observes the `cross_scope_producer_not_ready` failure class come back out.
 
 ### Which guards were proven to guard
 

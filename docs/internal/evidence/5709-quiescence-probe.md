@@ -175,12 +175,12 @@ yet (no handler returns `crossScopeProducerNotReadyError`, no claim path calls
 `ProducerScopeQuiescence`), so it adds no runtime path and cannot regress one.
 The two primitives that will run once wired are proven against Postgres 16 for
 when they are: the quiescence probe rides `fact_work_items_scope_generation_idx`
-with an Index Scan (no seq scan) at 0.554 ms on the worst-case 500-scope × 20-gen
+with an Index Scan (no seq scan) at 0.554 ms on the seeded 500-scope × 20-gen
 × 50k-`fact_work_items` seed (the `EXPLAIN (ANALYZE, BUFFERS)` above), and the
 `attempt_count`-freeze CASE holds for the enrolled class
 (`docs/internal/evidence/5709-attempt-count-freeze.md`). Baseline vs after: the
 whole `internal/reducer` + `internal/storage/postgres` test suites are green
-before and after; input shape is the worst-case seed above; terminal queue state
+before and after; input shape is the seeded shape above; terminal queue state
 is unchanged (no new work items enqueued). Why safe: zero-behavior-change — the
 declarations have no consumer in this PR.
 
