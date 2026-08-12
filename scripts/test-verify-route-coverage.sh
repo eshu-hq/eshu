@@ -35,6 +35,16 @@ record_fail() {
 # query_dir and api_dir must exist (#6055's existence guard requires it, the
 # same as the real repository), even for a fixture that puts no handler
 # under go/cmd/api.
+#
+# The `git init` and baseline commit are load-bearing, not decoration. The
+# verifier picks its branch with
+# `[ -n "$base" ] && git rev-parse --verify "$base"`, so in a non-git fixture
+# that check fails and EVERY test silently takes the no-base-ref fallback --
+# including the ones that set ESHU_ROUTE_COVERAGE_BASE specifically to pin the
+# git-diff branch CI uses. That is how
+# test_green_testdata_fixture_ignored_on_the_git_diff_branch shipped as a false
+# green: deleting the git-diff branch's own `grep -v '/testdata/'` left the
+# whole suite passing 12/12 (#6055 review finding).
 setup_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
@@ -45,6 +55,13 @@ setup_repo() {
   # Copy verifier to the test repo
   cp "$verifier" "${dir}/scripts/verify-route-coverage.sh"
   chmod +x "${dir}/scripts/verify-route-coverage.sh"
+
+  # Baseline commit so "HEAD" resolves. Identity and default branch are passed
+  # per-command so the fixture does not depend on this machine's git config.
+  git -C "$dir" -c init.defaultBranch=main init -q
+  git -C "$dir" add -A
+  git -C "$dir" -c user.email=eshu-test@invalid -c user.name='eshu test' \
+    commit -qm 'fixture baseline'
 
   echo "$dir"
 }
@@ -338,11 +355,47 @@ func (h *FixtureHandler) Mount(mux *http.ServeMux) {
 func (h *FixtureHandler) getProbe(w http.ResponseWriter, r *http.Request) {}
 GO
 
+  # A REAL handler with its own co-located test. Without it the scan finds
+  # nothing and the test would pass on an empty result -- green because the
+  # branch ran and excluded the fixture, or green because it scanned zero
+  # files, being indistinguishable. Asserting "1 routes checked" separates them.
+  cat > "${dir}/go/internal/query/e/widget.go" << 'GO'
+package e
+
+import "net/http"
+
+type WidgetHandler struct{}
+
+func (h *WidgetHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/widgets/{widget_id}/probe", h.getProbe)
+}
+
+func (h *WidgetHandler) getProbe(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  cat > "${dir}/go/internal/query/e/widget_test.go" << 'GO'
+package e
+
+import "testing"
+
+func TestWidgetProbe(t *testing.T) {}
+GO
+
+  # Stage them: the verifier's git-diff branch reads `git diff HEAD` and
+  # `git diff --cached`, and NEITHER lists an untracked file. Leaving these
+  # unstaged would put the scan back at zero files -- the same empty-result
+  # false green by a different route.
+  git -C "$dir" add -A
+
   # Force the git-diff branch by giving it a real base ref to diff against.
   export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
   export ESHU_ROUTE_COVERAGE_BASE="HEAD"
   if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
-    record_pass "green: a testdata fixture is ignored on the git-diff branch CI uses"
+    if rg -q '^1 routes checked, 0 uncovered$' /tmp/eshu-route-coverage.out; then
+      record_pass "green: a testdata fixture is ignored on the git-diff branch CI uses"
+    else
+      record_fail "green: git-diff branch did not scan the real handler, so the testdata exclusion was never exercised ($(cat /tmp/eshu-route-coverage.out))"
+    fi
   else
     record_fail "green: testdata fixture scanned as a route on the git-diff branch ($(cat /tmp/eshu-route-coverage.out))"
   fi
