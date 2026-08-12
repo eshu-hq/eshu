@@ -101,9 +101,61 @@ Sixteen smaller families went to zero as well, among them
 re-run and rebuild source-local structure. Reducer work is a separate matter, and
 the rebuild only reaches part of it.
 
-The rebuild's projector rows carry `updated_at` between `15:35:00.8` and
-`15:35:15.1`. Grouping every reducer row by domain and asking whether its latest
-update falls inside that window splits the seventeen domains cleanly in two:
+### Correction: `updated_at` was the wrong signal
+
+The classification below was originally made by grouping reducer rows by domain
+and asking whether the latest `updated_at` fell inside the rebuild window. That
+only proves a row was touched. A re-run increments `attempt_count`, so that is
+the column to read, and reading it changes the answer.
+
+Re-measured on a second run of the same script (2026-08-12, Eshu `880d2e7d5`,
+same corpus, idle machine), after the rebuild drained:
+
+```text
+SELECT attempt_count, count(*) FROM fact_work_items WHERE stage='reducer' GROUP BY 1;
+ 1 | 1301
+```
+
+`attempt_count` is 1 on all 1,301 reducer rows, including all 259
+`workload_materialization` rows. **No pre-existing reducer row was re-driven by
+the rebuild — not five domains, not four, zero.**
+
+What the five domains actually did was gain *new* rows. Comparing the catalog
+before and after the rebuild:
+
+| Domain | Rows before | New rows during rebuild |
+| --- | ---: | ---: |
+| `eshu_search_document` | 0 | 133 |
+| `deployment_mapping` | 67 | 67 |
+| `workload_identity` | 67 | 67 |
+| `workload_materialization` | 192 | 67 |
+| `service_catalog_correlation` | 1 | 1 |
+
+Those rows escaped `ON CONFLICT (work_item_id) DO NOTHING` because their ids
+differ. Same scope, same generation, different id:
+
+```text
+original: ..._deployment_mapping_deployment_sql_comprehensive
+rebuild:  ..._deployment_mapping
+```
+
+The entity-key suffix is absent on the re-derived intent. That is its own defect
+— a projection run should derive the same intent id from the same facts — and it
+is the only reason those five domains produced any work at all.
+
+Three more domains muddy the original method from the other side.
+`code_import_repo_edge`, `container_image_identity` and
+`deployable_unit_correlation` had `updated_at` bumped during the rebuild window
+with no new rows and no `attempt_count` increase. An `updated_at` reading would
+call them re-run; they were not.
+
+So the headline number survives at the domain level — five domains did execute
+handlers during the rebuild — but nothing in the original method supported it,
+and the mechanism is "new rows under unstable ids", not "the domain re-ran".
+
+The two-column table below is kept because the mapping from domain to missing
+graph structure is correct and is what the fix was built against. Read the left
+column as "produced some work", not "re-ran".
 
 | Re-ran during the rebuild | Did not |
 | --- | --- |

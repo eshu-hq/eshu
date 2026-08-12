@@ -74,7 +74,11 @@ backend, or any network connection directly.
   list) or `AllScopes` (every active scope holding an active generation).
   Exactly one of the two.
 - `RefinalizeResult` — outcome of a refinalize call: `Enqueued` count,
-  `ScopeIDs`.
+  `ScopeIDs`, plus the three rebuild-reset counts `ReducerWorkDeleted`,
+  `SharedIntentsReopened`, and `ReadinessPhasesCleared`. Those three are how an
+  operator tells a rebuild that will restore the whole graph from one that will
+  come back with only its source-local layer; see
+  `docs/public/operate/graph-rebuild-from-facts.md`.
 - `CollectorGenerationReplayFilter` — filter for collector generation replay
   requests: `CollectorKind` (required and non-blank), `ScopeIDs`,
   `FailureClass`, `Limit`.

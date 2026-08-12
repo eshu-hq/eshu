@@ -13,7 +13,12 @@
 // progress; Refinalize re-enqueues projector work so active generations are
 // projected again, for an explicit list of scopes or — with
 // RefinalizeFilter.AllScopes — for every active scope, which is how the graph is
-// rebuilt from preserved Postgres facts after a restore.
+// rebuilt from preserved Postgres facts after a restore. Refinalize also clears
+// the downstream dedup state for exactly those generations — succeeded reducer
+// work, completed shared projection intents, and graph projection phase rows —
+// because all three outlive a graph wipe and would otherwise tell the pipeline
+// the work is already done, leaving the rebuild stuck at source-local structure.
+// RefinalizeResult reports each of those three counts.
 // ReplayCollectorGenerations
 // marks collector generation
 // commit failures for source-level replay when the failure happened before

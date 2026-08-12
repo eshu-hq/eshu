@@ -226,9 +226,16 @@ Run step 6 again with a **new** `idempotency_key`. That is the whole recovery.
 Interruption is safe by construction rather than by good luck. Each queued item
 gets an id derived from its scope and generation, so re-enqueueing the same
 generation updates the row that is already there instead of adding a second one.
-Work that finished stays finished; work that was in flight when the process died
-returns to `pending`; work that never started is unaffected. Running the command
-five times leaves the same queue as running it once.
+Work that was in flight when the process died returns to `pending`; work that
+never started is unaffected. Running the command five times converges on the
+same graph as running it once.
+
+One thing it is not is free. Each call clears the dedup state for every
+generation it covers, which includes reducer work the *current* rebuild has
+already finished. Re-issuing the command while a rebuild is still draining is
+safe and still converges, but it hands that completed work back to the queue and
+the rebuild takes longer. Watch the drain first; re-issue when it has stopped
+making progress, not because it is slow.
 
 You do not need to wipe again before restarting. The graph is partially built,
 `MERGE` is idempotent, and the remaining work fills in the rest.

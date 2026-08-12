@@ -300,9 +300,12 @@ func (h *AdminHandler) refinalize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"status":    "accepted",
-		"enqueued":  result.Enqueued,
-		"scope_ids": result.ScopeIDs,
+		"status":                   "accepted",
+		"enqueued":                 result.Enqueued,
+		"scope_ids":                result.ScopeIDs,
+		"reducer_work_deleted":     result.ReducerWorkDeleted,
+		"shared_intents_reopened":  result.SharedIntentsReopened,
+		"readiness_phases_cleared": result.ReadinessPhasesCleared,
 	})
 }
 

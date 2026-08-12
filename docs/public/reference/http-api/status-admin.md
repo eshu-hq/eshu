@@ -624,6 +624,18 @@ console or API defect.
   no scope list. Sending both is rejected, and one idempotency key cannot cover
   both modes. Procedure:
   [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
+
+  Alongside `status`, `enqueued`, and `scope_ids`, the response reports what the
+  call cleared so the re-projection can rebuild the whole graph rather than only
+  its source-local layer: `reducer_work_deleted` (succeeded reducer work items
+  removed so the re-projection's enqueue is not deduplicated away),
+  `shared_intents_reopened` (shared projection intents whose `completed_at` was
+  cleared so the partition workers drain them again), and
+  `readiness_phases_cleared` (graph projection phase rows removed, because they
+  outlive a graph wipe and would otherwise assert that canonical nodes are
+  committed for a graph that is empty). On a rebuild after a wipe all three
+  should be non-zero; three zeros mean the rebuild will restore source-local
+  structure and nothing else.
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
   tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`
