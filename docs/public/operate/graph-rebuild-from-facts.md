@@ -232,14 +232,7 @@ from the reference one.
   `refinalize` and `replay` routes, for recovering individual wedged scopes
   without a full rebuild.
 
-No-Regression Evidence: `scripts/verify-graph-rebuild-from-facts.sh` runs the
-sequence on this page end to end against a Compose stack — snapshot, wipe,
-forced schema reapply, all-scopes rebuild, drain to terminal, count comparison
-against the pre-wipe snapshot — and times the rebuild. It also runs the rebuild a
-second time with the drain interrupted partway, to prove restart converges to the
-same counts.
-
-No-Observability-Change: the rebuild path reuses the existing projector queue
-metrics, `GET /api/v0/index-status`, and the `admin_replay_requests` ledger. The
-one new signal is the `bootstrap.graph.force_reapply` warning log, emitted when
-an operator overrides the schema marker.
+`scripts/verify-graph-rebuild-from-facts.sh` runs this page end to end against a
+Compose stack and times it. The measurement and the evidence it rests on are
+recorded in
+[Performance SLO contract](../reference/performance-slo-contract.md#graph-rebuild-from-facts).

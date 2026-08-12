@@ -148,7 +148,11 @@ func (h *AdminHandler) respondDuplicateRecoverGenerations(
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
 		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_idempotency_key_reused", auth, correlationID)
-		WriteError(w, http.StatusConflict, "idempotency_key was already used with different scope_ids")
+		// The fingerprint covers both the scope list and the all_scopes flag, so
+		// this also fires when a key from a scoped recovery is reused for a
+		// whole-deployment rebuild. Name both, or an operator reads "different
+		// scope_ids" on a request that carried none.
+		WriteError(w, http.StatusConflict, "idempotency_key was already used with a different scope_ids list or all_scopes setting")
 		return
 	}
 	if claim.Status != replayRequestStatusCompleted {
