@@ -193,10 +193,12 @@ ledgers updated in lockstep. Lowest priority of the seven.
 
 **query (1,903):** the architecture already fits — ~60 handler types, each
 with its own Mount(). Phase 0 decision needed first: 284 external files
-(86 in mcp dispatch) reference `query.<Type>`; the doc recommends
+(86 in mcp dispatch) reference `query.<Type>`; the research recommends
 root type aliases (`type SupplyChainHandler = supplychain.Handler`) so
-external code compiles unchanged, burned down later. Then clean families
-first: supplychain(~183), code(~172), contentread(42), packagereg(32).
+external code compiles unchanged, burned down later. That alias alone does
+not compile — see the acyclic-boundary prerequisite below, which has to land
+first. Then clean families first: supplychain(~183), code(~172),
+contentread(42), packagereg(32).
 Tangled families (impact ← repository/service/deployment_trace call its
 unexported helpers) need the helper seam exported before their move. Root
 keeps: APIRouter/Mount + Write* helpers, ports.go interfaces, contract.go
@@ -219,6 +221,36 @@ incidents}.go` are misnamed ServiceCatalogCorrelationHandler methods —
 they move with svccatalog, proving every cluster gets measured before
 moved. ~400 external files import reducer; storage/postgres names
 family-specific types — whole-module grep before each family move.
+
+### Prerequisite for query and reducer: an acyclic boundary
+
+A reviewer caught this and it is the one thing in this plan that does not
+compile as written. Both packages hit the same wall.
+
+In query, the alias plan needs root to import `supplychain` to declare
+`type SupplyChainHandler = supplychain.Handler` and to wire the router, while
+`supplychain` needs root for `GraphQuery`, `ContentStore`, the response
+envelopes and the `Write*` helpers. In reducer, the invariant "every subpackage
+imports root, root imports nothing family-specific" is already false:
+`defaults_additive_domains_correlation.go:66-67` calls
+`containerImageIdentityDomainDefinition()` and constructs
+`ContainerImageIdentityHandler{}`, while the family needs root's
+`DomainDefinition`, `Domain`, `Intent` and `Handler`
+(`container_image_identity.go:52,73`). Either direction alone is fine. Both at
+once is an import cycle, and Go refuses to build it.
+
+So before any query or reducer family moves, one of these has to land as its
+own change: hoist the shared contracts — ports, envelopes, `DomainDefinition`,
+`Domain`, `Intent`, `Handler` — into a dependency-neutral package that both
+root and the families import, or invert registration so root never names a
+family symbol (self-registration from the family side, with the import edge
+owned by a wiring package above both).
+
+Until that exists, read `clean` in the family tables as what it measures:
+zero coupling to other families. It does not mean ready to move. The packages
+whose moves are gated on this are exactly the two the plan already schedules
+last, and the collector, projector, coordinator, mcp and cmd/eshu families are
+unaffected — they do not carry a root alias or a root-side constructor call.
 
 ## Part 4: execution model
 
