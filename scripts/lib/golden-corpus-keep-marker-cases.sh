@@ -9,6 +9,7 @@ keep_home="$(mktemp -d)"
 keep_lock="${keep_home}/eshu-live-gate.lock"
 keep_bin="${keep_home}/bin"
 bash_bin="$(command -v bash)"
+keep_retained_at="$(( $(date +%s) - 42 ))"
 mkdir -p "${keep_bin}"
 
 # A helper-only change must select all three gate mirrors. The helper name is
@@ -26,7 +27,15 @@ require_matches "#5987 helper pre-pr live trigger" "${prepr}" \
 	"^(?!\\s*#)[^\\n]*run_or_defer golden-corpus \\\\\\n[^\\n]*scripts/lib/\\(golden-corpus-\\.\\+"
 
 keep_marker() {
-	printf '%s:%s:%s:%s\n' "$$" "0" "$1" "$2" >"${keep_lock}.keep"
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "0" "${keep_retained_at}" "$1" "$2" >"${keep_lock}.keep"
+}
+
+require_holder_age() {
+	local label="$1" output="$2" where="$3"
+	[[ "${output}" == *"holder pid $$"* && "${output}" == *"at ${where}"* ]] \
+		|| fail "${label} must identify the retained holder and full worktree (got: ${output})"
+	rg --quiet -- 'retained for [0-9]+ seconds' <<<"${output}" \
+		|| fail "${label} must report elapsed retention age in stable units (got: ${output})"
 }
 
 keep_acquire() {
@@ -59,11 +68,12 @@ rm -f "${keep_lock}"
 # though process identity is irrelevant to its lifetime.
 printf '#!/usr/bin/env bash\nprintf "deadbeefcafe\\n"\n' >"${keep_bin}/docker"
 chmod +x "${keep_bin}/docker"
-keep_marker "eshu-gate-running" "/running-worktree"
+keep_marker "eshu-gate-running" "/running:worktree"
 keep_running_out="$(keep_acquire || true)"
 rm -f "${keep_lock}" "${keep_lock}.keep"
 [[ "${keep_running_out}" != *KEEP_RECLAIMED* && "${keep_running_out}" == *"compose project eshu-gate-running"* ]] \
 	|| fail "a running retained project must block and name the project (got: ${keep_running_out})"
+require_holder_age "running-project refusal" "${keep_running_out}" "/running:worktree"
 
 # Docker unavailable must be a truthful child execution: resolve bash before
 # overriding command -v for Docker only. Emptying PATH before invoking `bash`
@@ -83,6 +93,7 @@ keep_nodocker_out="$(
 rm -f "${keep_lock}" "${keep_lock}.keep"
 [[ "${keep_nodocker_out}" != *KEEP_RECLAIMED* && "${keep_nodocker_out}" == *"docker is unavailable"* ]] \
 	|| fail "Docker-unavailable marker decision must fail closed with its real reason (got: ${keep_nodocker_out})"
+require_holder_age "Docker-unavailable refusal" "${keep_nodocker_out}" "/no-docker-worktree"
 
 # Query failure is not an empty project. Compose must positively report no
 # running containers before the marker can be removed.
@@ -93,6 +104,7 @@ keep_query_out="$(keep_acquire || true)"
 rm -f "${keep_lock}" "${keep_lock}.keep"
 [[ "${keep_query_out}" != *KEEP_RECLAIMED* && "${keep_query_out}" == *"querying docker failed"* ]] \
 	|| fail "Compose query failure must block with a distinct diagnostic (got: ${keep_query_out})"
+require_holder_age "Compose-query refusal" "${keep_query_out}" "/query-failed-worktree"
 
 # Legacy, malformed, empty, unreadable, and empty-project markers are separate
 # operator states. All fail closed, but diagnostics must not conflate them.
@@ -126,6 +138,63 @@ keep_noproject_out="$(keep_acquire || true)"
 rm -f "${keep_lock}" "${keep_lock}.keep"
 [[ "${keep_noproject_out}" == *"recorded an empty compose project"* ]] \
 	|| fail "empty Compose project diagnostic is not distinct (got: ${keep_noproject_out})"
+
+# The open PR briefly emitted four-field markers without a retained-at epoch.
+# Do not reinterpret the project as a timestamp or reclaim it: fail closed and
+# tell the operator that its age is unavailable.
+printf '%s:%s:%s:%s\n' "$$" "0" "eshu-gate-pre-age" "/pre-age-worktree" >"${keep_lock}.keep"
+keep_pre_age_out="$(keep_acquire || true)"
+rm -f "${keep_lock}" "${keep_lock}.keep"
+[[ "${keep_pre_age_out}" != *KEEP_RECLAIMED* && "${keep_pre_age_out}" == *"pre-age four-field --keep marker"* && "${keep_pre_age_out}" == *"retention age is unknown"* ]] \
+	|| fail "four-field marker must fail closed with unknown age (got: ${keep_pre_age_out})"
+
+# Missing, invalid, and future timestamps cannot be used to calculate truthful
+# age. None may reach the stack-reclaim decision even when Docker would report
+# no running containers.
+for age_case in \
+	"missing::missing retention timestamp" \
+	"invalid:not-a-time:invalid retention timestamp" \
+	"future:$(( $(date +%s) + 3600 )):future retention timestamp"; do
+	IFS=: read -r age_label age_value age_message <<<"${age_case}"
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "0" "${age_value}" "eshu-gate-${age_label}" "/${age_label}-age-worktree" >"${keep_lock}.keep"
+	age_out="$(keep_acquire || true)"
+	rm -f "${keep_lock}" "${keep_lock}.keep"
+	[[ "${age_out}" != *KEEP_RECLAIMED* && "${age_out}" == *"${age_message}"* && "${age_out}" == *"age is unknown"* ]] \
+		|| fail "${age_label} timestamp must fail closed truthfully (got: ${age_out})"
+done
+
+# A valid recorded timestamp is still unusable when the current clock cannot
+# be read. Stub date only after the marker is written so the fixture stays
+# deterministic, and assert that no reclaim occurs.
+printf '#!/usr/bin/env bash\nexit 74\n' >"${keep_bin}/date"
+chmod +x "${keep_bin}/date"
+keep_marker "eshu-gate-no-clock" "/no-clock-worktree"
+keep_clock_out="$(keep_acquire || true)"
+rm -f "${keep_lock}" "${keep_lock}.keep" "${keep_bin}/date"
+[[ "${keep_clock_out}" != *KEEP_RECLAIMED* && "${keep_clock_out}" == *"current clock is unavailable"* && "${keep_clock_out}" == *"age is unknown"* ]] \
+	|| fail "unavailable current clock must fail closed truthfully (got: ${keep_clock_out})"
+
+# Clock failure while publishing --keep must still leave a fail-closed marker.
+# Otherwise the ordinary lock becomes stale when this process exits and a later
+# run can reclaim it while the retained stack is still up.
+printf '#!/usr/bin/env bash\nexit 74\n' >"${keep_bin}/date"
+chmod +x "${keep_bin}/date"
+keep_publish_out="$(
+	PATH="${keep_bin}:${PATH}" ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" \
+		GATE_COMPOSE_PROJECT="eshu-gate-publish-no-clock" "${bash_bin}" -c '
+			. "$1"
+			acquire_live_gate_lock
+			retain_live_gate_lock
+		' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}" "${keep_bin}/date"
+[[ "${keep_publish_out}" == *"could not record a valid retention timestamp"* ]] \
+	|| fail "retention-time clock failure must be reported (got: ${keep_publish_out})"
+[[ -e "${keep_lock}.keep" ]] \
+	|| fail "retention-time clock failure must leave a fail-closed marker"
+rg --quiet -- '^v2:[0-9]+:[0-9]+::eshu-gate-publish-no-clock:' "${keep_lock}.keep" \
+	|| fail "clock-failure marker must preserve holder and project with an empty timestamp"
+rm -f "${keep_lock}.keep"
 
 # A dangling marker symlink is invisible to `-e` but still occupies the name.
 # It must fail closed as unreadable, not be treated as marker absence.
@@ -187,6 +256,8 @@ wait "${keep_b_pid}" 2>/dev/null || true
 [[ -e "${keep_lock}.keep" ]] || fail "contender race deleted A's replacement marker"
 rg --fixed-strings --quiet -- ":eshu-gate-replacement:" "${keep_lock}.keep" \
 	|| fail "contender race did not preserve A's replacement marker"
+rg --quiet -- '^v2:[0-9]+:[0-9]+:[0-9]{1,10}:eshu-gate-replacement:' "${keep_lock}.keep" \
+	|| fail "retain_live_gate_lock did not publish the versioned retained-at marker format"
 rm -f "${keep_lock}" "${keep_lock}.keep"
 
 # The dead-lock path makes the same decision while holding `.reclaim`. Use a

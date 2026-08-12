@@ -417,9 +417,10 @@ acquire_live_gate_lock() {
 # recorded project has no running containers.
 retain_live_gate_lock() {
 	[[ -n "${lock_path}" ]] || return 0
-	# pid, start-id fingerprint, compose project, then the worktree - split on
-	# the first THREE colons, same rule as the lock payload (a path may contain
-	# a colon; a pid, a fingerprint and a compose project never do).
+	# Version, pid, start-id fingerprint, retention epoch, compose project, then
+	# the worktree. The v2 prefix distinguishes this layout from the four-field
+	# marker briefly emitted by the open #5987 branch. Splitting on the first
+	# FIVE colons preserves any later colon in the worktree path.
 	#
 	# The pid and fingerprint are NOT a liveness test for this marker (#5987):
 	# this function runs in the cleanup trap immediately before `exit`, so the
@@ -429,10 +430,15 @@ retain_live_gate_lock() {
 	# run can NAME the owner instead of printing a bare path. What actually
 	# decides reclaimability is the compose project: the marker protects a
 	# running stack, so its validity is keyed on that stack still existing.
-	printf '%s:%s:%s:%s\n' "$$" "$(start_id_for_pid "$$")" \
-		"${GATE_COMPOSE_PROJECT:-}" "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
+	local retained_at
+	retained_at="$(date +%s 2>/dev/null)" || retained_at=""
+	printf 'v2:%s:%s:%s:%s:%s\n' "$$" "$(start_id_for_pid "$$")" \
+		"${retained_at}" "${GATE_COMPOSE_PROJECT:-}" "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
 		die "could not write the --keep marker at ${lock_path}.keep - the retained
   stack is NOT protected, and the next run will tear it down. Stop the stack now."
+	[[ "${retained_at}" =~ ^[0-9]{1,10}$ && "${retained_at}" != "0" ]] ||
+		die "could not record a valid retention timestamp for ${lock_path}.keep. The
+  marker remains fail-closed with unknown age; stop the retained stack manually."
 	printf 'live-gate-lock: --keep retained the stack, so the lock is retained too.\n  Clear it with: rm -f %s %s\n' \
 		"${lock_path}.keep" "${lock_path}" >&2
 }

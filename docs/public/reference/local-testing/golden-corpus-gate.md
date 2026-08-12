@@ -148,9 +148,10 @@ clone has its own lock.
 retained containers still hold the fixed ports, so releasing the lock would hand
 those ports to the next run, which would then tear the retained stack down with
 `docker compose down -v` on its own exit — destroying the thing `--keep` was
-for. The marker records the Compose project as the durable resource owner. The
-recorded pid and worktree are diagnostics only; the holder process normally
-exits immediately after retaining the stack.
+for. The versioned marker records the Compose project as the durable resource
+owner and an epoch timestamp for elapsed-age diagnostics. The recorded pid and
+worktree identify the holder; process liveness does not decide marker validity
+because the holder normally exits immediately after retaining the stack.
 
 A later run checks that project with `docker compose -p <project> ps -q` while
 it owns the applicable live-gate lock. Compose lists running containers by
@@ -159,10 +160,14 @@ running containers or fixed host ports, and the run removes the stale marker.
 Stopped containers are intentionally reclaimable because they do not bind the
 ports; use `docker compose ps --all` separately if you need to inspect them.
 
-The decision fails closed when Docker is unavailable, the Compose query fails,
-the marker is unreadable, empty, legacy, malformed, or lacks a project, or the
-stale marker cannot be removed. The refusal names the recorded project,
-worktree, pid, and decision reason when those fields are available.
+Every refusal for a valid marker names its project, worktree, pid, and elapsed
+retention age in seconds. The decision fails closed when Docker is unavailable,
+the Compose query fails, the marker is unreadable or malformed, the current
+clock is unavailable, the timestamp is missing, invalid, or in the future, the
+project is empty, or the stale marker cannot be removed. A four-field marker
+written by the earlier open #5987 branch also remains fail-closed: it identifies
+the holder but reports the retention age as unknown rather than guessing or
+reclaiming it.
 
 Tear down the stack **from the worktree that took `--keep`** because its
 environment and Compose files define the retained project and backend:
