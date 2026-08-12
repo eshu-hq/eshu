@@ -180,13 +180,31 @@ wait_for_queue_terminal() {
 	return 1
 }
 
+# graph_pairs runs a two-column key/count query and emits `key=count` lines.
+graph_pairs() {
+	local statement="$1" prefix="$2"
+	curl -fsS -H 'Content-Type: application/json' \
+		-d "$(jq -nc --arg s "$statement" '{statements:[{statement:$s}]}')" \
+		"${GRAPH_BASE}/db/nornic/tx/commit" \
+		| jq -r --arg p "$prefix" '.results[0].data[] | "\($p)\(.row[0])=\(.row[1])"'
+}
+
+# snapshot_counts records totals plus a count for every node label and every
+# relationship type. The per-label breakdown is what makes a mismatch
+# actionable: bare totals tell you the rebuild is short without telling you
+# which part of the graph did not come back.
+#
+# This is count equivalence, not the canonical byte-identity the issue's
+# acceptance criterion ultimately wants. It catches a missing label or edge
+# family; it would not catch a property that changed value while cardinality
+# stayed the same.
 snapshot_counts() {
 	local out_file="$1"
 	{
-		echo "nodes=$(graph_scalar 'MATCH (n) RETURN count(n) AS c')"
-		echo "rels=$(graph_scalar 'MATCH ()-[r]->() RETURN count(r) AS c')"
-		echo "repositories=$(graph_scalar 'MATCH (n:Repository) RETURN count(n) AS c')"
-		echo "files=$(graph_scalar 'MATCH (n:File) RETURN count(n) AS c')"
+		echo "total_nodes=$(graph_scalar 'MATCH (n) RETURN count(n) AS c')"
+		echo "total_rels=$(graph_scalar 'MATCH ()-[r]->() RETURN count(r) AS c')"
+		graph_pairs 'MATCH (n) UNWIND labels(n) AS l RETURN l AS k, count(*) AS c ORDER BY l' 'label:'
+		graph_pairs 'MATCH ()-[r]->() RETURN type(r) AS k, count(*) AS c ORDER BY k' 'rel:'
 	} >"$out_file"
 }
 
@@ -319,7 +337,7 @@ snapshot_counts "$TMP_DIR/before.txt"
 echo "Pre-wipe graph:"
 sed 's/^/  /' "$TMP_DIR/before.txt"
 
-BEFORE_NODES="$(rg -o 'nodes=(\d+)' -r '$1' "$TMP_DIR/before.txt")"
+BEFORE_NODES="$(rg -o 'total_nodes=(\d+)' -r '$1' "$TMP_DIR/before.txt")"
 if [[ "$BEFORE_NODES" == "0" ]]; then
 	echo "The corpus produced an empty graph; there is nothing to prove a rebuild against." >&2
 	exit 1
@@ -343,11 +361,17 @@ REBUILD_SECONDS=$((SECONDS - REBUILD_START))
 snapshot_counts "$TMP_DIR/after.txt"
 echo "Rebuilt graph:"
 sed 's/^/  /' "$TMP_DIR/after.txt"
-compare_counts "$TMP_DIR/before.txt" "$TMP_DIR/after.txt" "Pass 1 (clean rebuild)"
 
+# Report the timing before comparing. The measurement is valid whether or not
+# the counts match, and a mismatch that swallowed the number would mean rerunning
+# the whole thing to get it back.
 echo
 echo "graph_rebuild_seconds=${REBUILD_SECONDS} ($(human_duration "$REBUILD_SECONDS"))"
 echo "  scopes_enqueued=${ENQUEUED} fact_records=${FACT_ROWS} nodes=${BEFORE_NODES}"
+echo "  load_at_finish=$(uptime | sed 's/.*averages: //')"
+echo
+
+compare_counts "$TMP_DIR/before.txt" "$TMP_DIR/after.txt" "Pass 1 (clean rebuild)"
 
 if [[ "$SKIP_INTERRUPT" == "true" ]]; then
 	echo
