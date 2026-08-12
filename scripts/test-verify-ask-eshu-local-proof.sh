@@ -23,8 +23,13 @@ bash -n "${verifier}"
 list_log="${tmp_dir}/list.log"
 bash "${verifier}" --list >"${list_log}"
 
-rg --fixed-strings --quiet "go test ./cmd/api -run 'TestAskLocalProof'" "${list_log}"
-rg --fixed-strings --quiet "go test ./internal/query -run 'TestScopedHTTPRoute_Ask'" "${list_log}"
+# #6055: the --list output now names the go_test_run_guard invocation (which
+# asserts a minimum matched-test count before running `go test -run`) rather
+# than a bare `go test -run` command — assert the new shape, not merely a
+# relaxed substring of the old one, so this self-test still proves the
+# printed command is the one actually executed below.
+rg --fixed-strings --quiet "go_test_run_guard 8 'TestAskLocalProof' -- ./cmd/api -count=1" "${list_log}"
+rg --fixed-strings --quiet "go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1" "${list_log}"
 rg --fixed-strings --quiet "go run ./cmd/eshu answer-quality-scorecard --from" "${list_log}"
 rg --fixed-strings --quiet "TestAskEshuLocalProofScorecardFixturePasses" "${list_log}"
 rg --fixed-strings --quiet "JSON+SSE cited success" "${list_log}"
@@ -60,19 +65,11 @@ fi
 
 fake_bin="${tmp_dir}/bin"
 mkdir -p "${fake_bin}"
-# Body lives in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1 writes the
-# entire heredoc body to a pipe before forking the reader, and macOS's
-# 512-byte pipe buffer deadlocks on any body over that size (#5074).
+# Both bodies live in scripts/lib/ (not a heredoc): Homebrew bash >= 5.1
+# writes the entire heredoc body to a pipe before forking the reader, and
+# macOS's 512-byte pipe buffer deadlocks on any body over that size (#5074).
 cat "${repo_root}/scripts/lib/test-verify-ask-eshu-local-proof-fake-curl.sh" >"${fake_bin}/curl"
-cat >"${fake_bin}/go" <<'FAKE_GO'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >>"${FAKE_GO_LOG:?}"
-if [[ "$*" == *"answer-quality-scorecard"* && "${FAKE_SCORECARD_FAIL:-}" == "true" ]]; then
-	exit 17
-fi
-exit 0
-FAKE_GO
+cat "${repo_root}/scripts/lib/test-verify-ask-eshu-local-proof-fake-go.sh" >"${fake_bin}/go"
 chmod +x "${fake_bin}/curl" "${fake_bin}/go"
 
 run_fake_deepseek() {

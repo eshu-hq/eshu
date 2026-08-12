@@ -16,8 +16,15 @@ bash -n "${verifier}"
 list_log="${tmp_dir}/list.log"
 bash "${verifier}" --list >"${list_log}"
 
-rg --fixed-strings --quiet "go test ./internal/query" "${list_log}"
-rg --fixed-strings --quiet "go test ./internal/mcp" "${list_log}"
+# #6055: the --list output now names the go_test_run_guard invocation (which
+# asserts a minimum matched-test count before running `go test -run`) rather
+# than a bare `go test -run` command — assert the new shape, not merely a
+# relaxed substring of the old one, so this self-test still proves the
+# printed command is the one actually executed below.
+rg --fixed-strings --quiet "go_test_run_guard 12" "${list_log}"
+rg --fixed-strings --quiet -- "-- ./internal/query -count=1" "${list_log}"
+rg --fixed-strings --quiet "go_test_run_guard 7" "${list_log}"
+rg --fixed-strings --quiet -- "-- ./internal/mcp -count=1" "${list_log}"
 rg --fixed-strings --quiet "scripts/test-verify-hosted-security-posture.sh" "${list_log}"
 rg --fixed-strings --quiet "scripts/test-verify-hosted-governance-retention-proof.sh" "${list_log}"
 rg --fixed-strings --quiet "scripts/test-verify-hosted-auth-audit-proof.sh" "${list_log}"
@@ -31,7 +38,8 @@ rg --fixed-strings --quiet "semantic no-provider runtime status" "${list_log}"
 rg --fixed-strings --quiet "semantic queue no-provider planning" "${list_log}"
 rg --fixed-strings --quiet "hosted governance retention-state proof self-test" "${list_log}"
 rg --fixed-strings --quiet "scripts/test-verify-two-team-governance-proof.sh" "${list_log}"
-rg --fixed-strings --quiet "go test ./internal/status" "${list_log}"
-rg --fixed-strings --quiet "go test ./internal/semanticqueue" "${list_log}"
+rg --fixed-strings --quiet "go_test_run_guard 2" "${list_log}"
+rg --fixed-strings --quiet -- "-- ./internal/status -count=1" "${list_log}"
+rg --fixed-strings --quiet -- "-- ./internal/semanticqueue -count=1" "${list_log}"
 
 printf 'hosted governance proof verifier tests passed\n'

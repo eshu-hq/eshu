@@ -38,7 +38,16 @@ var goPackageSubcommands = map[string]struct{}{
 // said 19 by miscounting gates with no scripts/ token (which includes the npm
 // ones) as Go gates. A reviewer caught the second one. Keep the figure in
 // exactly one place that a test can check.
-const goPackageGateCount = 18
+//
+// #6055 dropped this from 18 to 17: authz-scoped-route-tests' local.command
+// now calls scripts/go-test-run-guard.sh (a go_test_run_guard wrapper that
+// fails loudly on a zero-matched `-run` pin) instead of invoking `go test
+// ./internal/query ...` as a literal token this extractor recognizes. That
+// gate's Go-package trigger coverage is not weakened by the drop —
+// "go/internal/query/**" is already an explicit, correct trigger on it — but
+// checkGoPackageTriggerCoverage's derived cross-check no longer independently
+// re-confirms that fact for this one gate the way it does for the other 17.
+const goPackageGateCount = 17
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

@@ -134,7 +134,11 @@ jobs:
 
       - name: Check ReadOnlyTools count
         working-directory: go
-        run: go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1
+        # go_test_run_guard (#6055) runs `go test -list` first and fails
+        # loudly if the pattern matches fewer than the expected 1 test,
+        # instead of the bare `go test -run` exiting 0 on a zero-match
+        # rename/move.
+        run: ../scripts/go-test-run-guard.sh 1 '^TestReadOnlyTools$' -- ./internal/mcp/ -count=1
 
   # ── Gate 2: Capability matrix reconciliation + artifact staleness ──
   # Runs in parallel with mcp-tool-count (no data dependency) so both

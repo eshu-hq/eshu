@@ -22,6 +22,17 @@ fi
 query_dir="${repo_root}/go/internal/query"
 api_dir="${repo_root}/go/cmd/api"
 
+# A moved-away or renamed surface must fail loudly, not vanish from route
+# coverage checking (#6055): both scan paths below (the git-diff path and the
+# no-base-ref fallback) end in an empty file list — indistinguishable from a
+# genuinely quiet PR — when either directory no longer exists at all.
+for required_dir in "$query_dir" "$api_dir"; do
+  if [ ! -d "$required_dir" ]; then
+    printf 'verify-route-coverage: %s does not exist; route coverage cannot be checked\n' "$required_dir" >&2
+    exit 1
+  fi
+done
+
 base="${ESHU_ROUTE_COVERAGE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
@@ -109,7 +120,10 @@ get_changed_files() {
     | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep '\.go$' | \
     while IFS= read -r f; do [ -n "$f" ] && echo "${repo_root}/${f}"; done
   else
-    find "$query_dir" "$api_dir" -maxdepth 1 -name '*.go' ! -name '*_test.go' 2>/dev/null
+    # Recursive (not -maxdepth 1, #6055): a handler that moved into a
+    # subdirectory of query_dir/api_dir must still be found when no base ref
+    # is available and every route is being checked.
+    rg --files --glob '*.go' --glob '!*_test.go' "$query_dir" "$api_dir" 2>/dev/null
   fi
 }
 
@@ -138,9 +152,11 @@ while IFS= read -r gofile; do
       # "SAMLHandler", matching the "SAML" acronym in the handler struct
       # name). An exact-case search would false-positive as "uncovered" on
       # any acronym-bearing handler/route even when a matching test exists.
+      # Recursive (not --max-depth 1, #6055): a handler and its test commonly
+      # move together into the same subdirectory, and a depth-limited search
+      # would otherwise report a real, moved test as missing.
       if rg -qi "func Test\w*${word}\w*\(" \
            --glob '*_test.go' \
-           --max-depth 1 \
            "$query_dir" "$api_dir" 2>/dev/null; then
         found=1
         break
