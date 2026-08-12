@@ -238,16 +238,12 @@ uninterrupted rebuild on every label and edge type — plus one `CALLS` edge the
 uninterrupted run had missed, because those edges depend on nodes another domain
 materializes and a single pass can run them in the wrong order.
 
-**Do not run it repeatedly on a healthy graph.** Two families are not idempotent
-across repeated rebuilds: in the same measurement, `EvidenceArtifact` and its
-`EVIDENCES_REPOSITORY_RELATIONSHIP` / `HAS_DEPLOYMENT_EVIDENCE` edges went from
-13 before the wipe to 12 after one rebuild and 19 after two, and `IMPORTS` went
-from 224 to 226. Those counts grow rather than converge, so a third and fourth
-run would keep inflating them. Until that is fixed, treat re-running as a
-targeted repair for a rebuild you watched fall short, not as a routine
-"run it again to be sure".
+Re-running is safe. A second pass adds what the first missed, and passes after
+that change nothing: across four measured rebuilds the `EvidenceArtifact` set
+settled at pass 2 and passes 3 and 4 added and removed exactly zero, compared by
+node id rather than by count.
 
-It is also not free. Each call clears the dedup state for every generation it
+It is not free, though. Each call clears the dedup state for every generation it
 covers, including reducer work the *current* rebuild has already finished, so
 re-issuing mid-drain hands that work back to the queue and the rebuild takes
 longer. Watch the drain first; re-issue when it has stopped making progress, not

@@ -184,10 +184,14 @@ cycle and has been measured still running four minutes after the first went
 quiet, so a comparison made on the first alone reports edges as missing that were
 simply not written yet.
 
+It asserts a bidirectional set difference on node and edge identities, not a
+count comparison, so a failure names the exact nodes and edges that are missing
+or extra rather than reporting a delta of three.
+
 **This gate does not pass today**, and that is a known state rather than a broken
-environment. Two edge families come back thin on a single rebuild pass, repeated
-rebuilds inflate two others instead of converging, and indexing the same corpus
-twice does not produce the same graph, so the snapshot it compares against moves
+environment. A single rebuild pass under-produces two families — one `CALLS` edge
+and part of the `EvidenceArtifact` family — and indexing the same corpus twice
+does not produce the same graph, so the snapshot it compares against moves
 between runs. Each cause, with counts, is in
 `docs/internal/evidence/4594-graph-rebuild-from-facts.md`. Do not treat a red
 result here as a regression without diffing it against that breakdown first.

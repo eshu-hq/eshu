@@ -292,6 +292,47 @@ The cost lands only on refinalize. Ordinary indexing, shard drains, reopens, and
 retries are untouched, which is the whole reason the reset is scoped to the
 recovery path instead of the guards.
 
+## Does the rebuild re-resolve, or replay the stored generation?
+
+A proposed explanation for the artifact churn was that the rebuild *re-resolves*
+rather than replaying the stored active generation. The identity chain makes that
+consequential: `CreateGeneration` digests `time.Now().UnixNano()`
+(`storage/postgres/relationship_store.go:117`), `ResolvedRelationshipID` embeds
+the generation id (`relationships/models.go:231`), and `repoEvidenceArtifactID`
+digests the resolved id (`storage/cypher/edge_writer_row_metadata.go:141`). So if
+a rebuild minted a fresh relationship generation, every artifact id would change
+and an all-new family would land beside the old one.
+
+Tested directly, dumping `relationship_generations` before and after each of four
+refinalizes on a wiped stack:
+
+```sql
+SELECT generation_id, created_at FROM relationship_generations ORDER BY created_at;
+```
+
+| Point | Rows | Diff vs previous |
+| --- | ---: | --- |
+| after initial index | 67 | — |
+| after refinalize #1 | 67 | identical |
+| after refinalize #2 | 67 | identical |
+| after refinalize #3 | 67 | identical |
+
+**No new generation is minted.** The rebuild replays the stored generation, which
+is what it is supposed to do. Two independent facts confirm it: all 67
+`relationship_generations.generation_id` values are exactly the ingestion
+`active_generation_id`s that refinalize preserves, and the production path is
+`ActivateResolutionGeneration(ctx, intent.GenerationID, scopeID)`
+(`reducer/platform_materialization.go:123`) whose SQL is
+`INSERT ... ON CONFLICT (generation_id) DO UPDATE`. The wall-clock
+`CreateGeneration` has no production caller at all.
+
+So the re-resolution theory is falsified for the within-run rebuild, and it does
+not explain the 13 → 19 movement. Section 3 localizes that instead.
+
+This does leave a latent trap worth recording: `CreateGeneration` is dead code
+whose identity is wall-clock-derived. If anything ever wires it into the rebuild
+path, every evidence artifact id in the graph changes on every recovery.
+
 ## What still does not match, and why
 
 The verifier still exits 1. The remaining difference has three separate causes,
@@ -339,24 +380,36 @@ within-rebuild ordering gap, one edge wide on this corpus. The reset restores
 projector→reducer causality but not reducer→reducer ordering, and this is what
 that costs here.
 
-### 3. Repeated refinalize is not idempotent for two families
+### 3. Correction: repeated refinalize converges, it does not inflate
 
-The same second-pass measurement that fixed the three families above also
-inflated two others:
+An earlier revision of this document claimed repeated refinalize inflates without
+bound — that `EvidenceArtifact` went 13 → 12 → 19 and "a third and fourth run
+would keep inflating them". **That was wrong.** It was an extrapolation from two
+data points. Running the third and fourth passes falsifies it:
 
-| Family | Pre-wipe | After 1 rebuild | After a 2nd |
-| --- | ---: | ---: | ---: |
-| `EvidenceArtifact` | 13 | 12 | 19 |
-| `EVIDENCES_REPOSITORY_RELATIONSHIP` | 13 | 12 | 19 |
-| `HAS_DEPLOYMENT_EVIDENCE` | 13 | 12 | 19 |
-| `IMPORTS` | 224 | 224 | 226 |
+| Pass | `EvidenceArtifact` | Artifact id set vs previous pass |
+| --- | ---: | --- |
+| initial index | 13 | — |
+| rebuild #1 | 13 | — |
+| rebuild #2 | 19 | +6 |
+| rebuild #3 | 19 | **0 added, 0 removed** |
+| rebuild #4 | 19 | **0 added, 0 removed** |
 
-Those grow rather than converge, so a third run would keep inflating them.
-`semantic_entity_materialization` appears to mint a new `EvidenceArtifact`
-identity per run instead of merging on a stable one. This change did not create
-that defect, but it exposed it: before, a second refinalize re-ran no reducer
-domain at all, so nothing could accumulate. It needs its own owner and its own
-fix — one sample, one corpus, cause not yet confirmed.
+Passes 3 and 4 were compared by exporting the actual `n.id` set, sorted, and
+diffing — not by count. Both diffs are empty, so the artifact identities are
+stable and content-derived. There is no inflation defect.
+
+What this actually is, is the same under-production as `CALLS` in section 2: one
+rebuild pass produces 13 of the 19 artifacts, a second pass completes the set,
+and every pass after that is exactly idempotent. Whether 19 or 13 is the
+*correct* number is unresolved — the initial index is not a reliable reference
+(section 4).
+
+One methodological note, because it nearly produced a false green. The first
+version of this check queried `n.uid`, which `EvidenceArtifact` does not have.
+That returned 19 nulls before and 19 nulls after, which diffed clean and looked
+like proof of idempotency. The identity property is `n.id`. A set comparison is
+only as good as the key it compares.
 
 ### 4. The pre-wipe reference is itself nondeterministic
 

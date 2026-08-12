@@ -9,12 +9,18 @@
 # Postgres still holds. That is easy to assert and was never executed, so this
 # executes it:
 #
-#   index a corpus -> snapshot graph counts -> wipe the graph volume
-#   -> reapply graph schema -> rebuild every scope from facts -> drain
-#   -> compare counts against the snapshot
+#   index a corpus -> snapshot every node and edge identity -> wipe the graph
+#   volume -> reapply graph schema -> rebuild every scope from facts -> drain
+#   both queues -> assert the identity sets are unchanged
+#
+# The assertion is a bidirectional set difference on identities, not a count
+# comparison. Counts can match while the content is wrong: a node rebuilt under a
+# different id, an edge rewired to a different target, or a family that lost two
+# and gained two all compare equal by count. Comparing identities turns a failure
+# into a named list of which nodes and edges are missing or extra.
 #
 # Pass 2 repeats the rebuild with the workers killed partway through, to show an
-# interrupted rebuild converges to the same counts after a restart rather than
+# interrupted rebuild converges to the same graph after a restart rather than
 # needing a wipe and a fresh start.
 #
 # Set ESHU_DR_SKIP_INTERRUPT=true to run pass 1 only.
@@ -205,14 +211,9 @@ graph_pairs() {
 }
 
 # snapshot_counts records totals plus a count for every node label and every
-# relationship type. The per-label breakdown is what makes a mismatch
-# actionable: bare totals tell you the rebuild is short without telling you
-# which part of the graph did not come back.
-#
-# This is count equivalence, not the canonical byte-identity the issue's
-# acceptance criterion ultimately wants. It catches a missing label or edge
-# family; it would not catch a property that changed value while cardinality
-# stayed the same.
+# relationship type. It is reported for readability, not asserted on: the
+# assertion is the identity-set comparison below. Counts tell a reader at a
+# glance which part of the graph is short.
 snapshot_counts() {
 	local out_file="$1"
 	{
@@ -223,15 +224,120 @@ snapshot_counts() {
 	} >"$out_file"
 }
 
-compare_counts() {
-	local before="$1" after="$2" label="$3"
-	if diff -u "$before" "$after" >"$TMP_DIR/counts.diff"; then
-		echo "$label: graph counts match the pre-wipe snapshot."
-		return 0
+# node_identity_expr builds the per-node identity key. No single property is
+# universal: most nodes carry `uid`, Repository/Workload/Endpoint/Platform carry
+# `id`, CodeownerTeam carries `ref`, Directory is (repo_id, path), Module is
+# (name, lang), Environment is `name`. Concatenating the union of those fields
+# gives one key that is populated for every label present in this corpus.
+#
+# `$1` is the pattern variable to key on.
+node_identity_expr() {
+	local v="$1"
+	printf "coalesce(%s.uid, %s.id, %s.ref, %s.locator, '') + '|' + coalesce(%s.name,'') + '|' + coalesce(%s.path,'') + '|' + coalesce(%s.repo_id,'') + '|' + coalesce(%s.lang,'')" \
+		"$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v"
+}
+
+# graph_lines runs a single-column query and emits one raw line per row.
+graph_lines() {
+	curl -fsS -H 'Content-Type: application/json' \
+		-d "$(jq -nc --arg s "$1" '{statements:[{statement:$s}]}')" \
+		"${GRAPH_BASE}/db/nornic/tx/commit" \
+		| jq -r '.results[0].data[] | .row[0] // ""'
+}
+
+# snapshot_sets writes the identity of every node and every edge, one per line.
+#
+# This is what the rebuild is asserted against, replacing count equality. Counts
+# can match while the content is wrong -- a node rebuilt under a different id, an
+# edge rewired to a different target, a family that lost two and gained two all
+# compare equal by count. Comparing the identities themselves turns a failure
+# into a named list of exactly which nodes and edges are missing or extra.
+#
+# Duplicate lines are kept rather than deduplicated, so multiplicity is part of
+# the comparison: two nodes collapsing into one still shows up.
+#
+# Nodes are queried one label at a time on purpose. The natural shape,
+# `UNWIND labels(n) AS l RETURN l + '|' + ...`, silently returns null on this
+# backend -- concatenating an UNWIND-produced variable yields null even though
+# the same concatenation over plain property refs works. That produced a file of
+# 2,510 identical "null" lines, which diffs clean against any other such file:
+# a gate that passes while comparing nothing. Per-label queries avoid UNWIND
+# entirely. `toString()` is also avoided here: it renders null as the literal
+# string "<nil>" rather than null, which would defeat coalesce.
+snapshot_sets() {
+	local out_dir="$1"
+	mkdir -p "$out_dir"
+
+	local node_expr edge_expr label
+	node_expr="$(node_identity_expr n)"
+
+	# The label list comes from the `l, count(*)` aggregation, not from
+	# `RETURN DISTINCT l`. DISTINCT after UNWIND returns one null per node on this
+	# backend -- 2,510 nulls instead of 83 labels -- while the aggregation shape
+	# returns the labels correctly. graph_pairs already relies on that shape.
+	# Labels are interpolated bare, NOT backtick-quoted. This backend silently
+	# returns zero rows for `MATCH (n:`Label`)` -- no error, no warning, just an
+	# empty result -- which would write an empty snapshot that compares equal to
+	# another empty snapshot. Bare labels return the rows. The pattern check below
+	# keeps that safe: anything needing quoting is rejected loudly instead of being
+	# interpolated into a query that would fail silently or inject.
+	: >"$out_dir/nodes.txt"
+	while IFS= read -r label; do
+		[[ -n "$label" ]] || continue
+		if [[ ! "$label" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+			echo "Refusing to compare: node label '$label' needs quoting, which this backend does not support." >&2
+			return 1
+		fi
+		graph_lines "MATCH (n:${label}) RETURN ${node_expr} AS k ORDER BY k" \
+			| sed "s|^|${label}\||" >>"$out_dir/nodes.txt"
+	done < <(graph_lines 'MATCH (n) UNWIND labels(n) AS l RETURN l AS k, count(*) AS c ORDER BY l')
+	sort -o "$out_dir/nodes.txt" "$out_dir/nodes.txt"
+
+	edge_expr="$(node_identity_expr a) + '||' + type(r) + '||' + $(node_identity_expr b)"
+	graph_lines "MATCH (a)-[r]->(b) RETURN ${edge_expr} AS k ORDER BY k" \
+		| sort >"$out_dir/edges.txt"
+
+	# A snapshot of blank or null keys would compare equal to anything, so refuse
+	# to compare rather than let the gate go green on nothing. The patterns are
+	# anchored: an unanchored `null` also matches legitimate content such as the
+	# Terraform resource name `null_resource.network_placeholder`, which would turn
+	# this safety check into a false failure on real data.
+	local nodes_total nodes_bad edges_bad
+	nodes_total="$(wc -l <"$out_dir/nodes.txt" | tr -d ' ')"
+	nodes_bad="$(rg -c '^\s*$|^null$|\|null$' "$out_dir/nodes.txt" 2>/dev/null || true)"
+	edges_bad="$(rg -c '^\s*$|^null$' "$out_dir/edges.txt" 2>/dev/null || true)"
+	if [[ "$nodes_total" == "0" ]]; then
+		echo "Refusing to compare: node identity snapshot is empty." >&2
+		return 1
 	fi
-	echo "$label: rebuilt graph does not match the pre-wipe snapshot:" >&2
-	cat "$TMP_DIR/counts.diff" >&2
-	return 1
+	if [[ -n "$nodes_bad" && "$nodes_bad" != "0" ]] || [[ -n "$edges_bad" && "$edges_bad" != "0" ]]; then
+		echo "Refusing to compare: ${nodes_bad:-0} node and ${edges_bad:-0} edge identity lines are blank or null." >&2
+		return 1
+	fi
+}
+
+# compare_sets asserts bidirectional set difference is empty for nodes and edges,
+# and prints the actual missing and extra identities when it is not.
+compare_sets() {
+	local before="$1" after="$2" label="$3" failed=0 kind
+	for kind in nodes edges; do
+		comm -23 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.missing"
+		comm -13 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.extra"
+		local missing extra
+		missing="$(wc -l <"$TMP_DIR/$kind.missing" | tr -d ' ')"
+		extra="$(wc -l <"$TMP_DIR/$kind.extra" | tr -d ' ')"
+		if [[ "$missing" == "0" && "$extra" == "0" ]]; then
+			echo "$label: $kind set difference 0/0."
+			continue
+		fi
+		failed=1
+		echo "$label: $kind differ from the pre-wipe snapshot: $missing missing, $extra extra" >&2
+		echo "  missing (in pre-wipe, absent after rebuild), first 25:" >&2
+		sed -n '1,25p' "$TMP_DIR/$kind.missing" | sed 's/^/    /' >&2
+		echo "  extra (absent before, present after rebuild), first 25:" >&2
+		sed -n '1,25p' "$TMP_DIR/$kind.extra" | sed 's/^/    /' >&2
+	done
+	return "$failed"
 }
 
 wipe_graph() {
@@ -349,6 +455,7 @@ resolve_api_key
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
 snapshot_counts "$TMP_DIR/before.txt"
+snapshot_sets "$TMP_DIR/before"
 echo "Pre-wipe graph:"
 sed 's/^/  /' "$TMP_DIR/before.txt"
 
@@ -374,6 +481,7 @@ wait_for_queue_terminal "$DRAIN_TIMEOUT"
 REBUILD_SECONDS=$((SECONDS - REBUILD_START))
 
 snapshot_counts "$TMP_DIR/after.txt"
+snapshot_sets "$TMP_DIR/after"
 echo "Rebuilt graph:"
 sed 's/^/  /' "$TMP_DIR/after.txt"
 
@@ -386,7 +494,7 @@ echo "  scopes_enqueued=${ENQUEUED} fact_records=${FACT_ROWS} nodes=${BEFORE_NOD
 echo "  load_at_finish=$(uptime | sed 's/.*averages: //')"
 echo
 
-compare_counts "$TMP_DIR/before.txt" "$TMP_DIR/after.txt" "Pass 1 (clean rebuild)"
+compare_sets "$TMP_DIR/before" "$TMP_DIR/after" "Pass 1 (clean rebuild)"
 
 if [[ "$SKIP_INTERRUPT" == "true" ]]; then
 	echo
@@ -418,9 +526,10 @@ request_rebuild "dr-rebuild-pass2b-$$" >/dev/null
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
 snapshot_counts "$TMP_DIR/after-interrupt.txt"
+snapshot_sets "$TMP_DIR/after-interrupt"
 echo "Graph after the interrupted rebuild:"
 sed 's/^/  /' "$TMP_DIR/after-interrupt.txt"
-compare_counts "$TMP_DIR/before.txt" "$TMP_DIR/after-interrupt.txt" "Pass 2 (interrupted rebuild)"
+compare_sets "$TMP_DIR/before" "$TMP_DIR/after-interrupt" "Pass 2 (interrupted rebuild)"
 
 echo
 echo "Graph rebuild-from-facts verification passed."
