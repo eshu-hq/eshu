@@ -107,7 +107,7 @@ func openIngesterCanonicalWriter(
 		}
 		filePhaseStatements, err = nornicDBFilePhaseGroupStatements(getenv)
 		if err != nil {
-			return nil, nil, err
+			return failAfterDriverOpen(err)
 		}
 		structuralEdgePhaseStatements, err = nornicDBStructuralEdgePhaseGroupStatements(getenv)
 		if err != nil {

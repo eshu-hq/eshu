@@ -230,6 +230,58 @@ func TestNornicDBFilePhaseGroupStatementsFromEnv(t *testing.T) {
 	}
 }
 
+func TestNornicDBStructuralEdgePhaseGroupStatementsDefault(t *testing.T) {
+	t.Parallel()
+
+	got, err := nornicDBStructuralEdgePhaseGroupStatements(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements() error = %v, want nil", err)
+	}
+	if got != defaultNornicDBStructuralEdgePhaseStatements {
+		t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements() = %d, want %d",
+			got, defaultNornicDBStructuralEdgePhaseStatements)
+	}
+}
+
+func TestNornicDBStructuralEdgePhaseGroupStatementsFromEnv(t *testing.T) {
+	t.Parallel()
+
+	got, err := nornicDBStructuralEdgePhaseGroupStatements(func(key string) string {
+		if key == nornicDBStructuralEdgePhaseGroupStatementsEnv {
+			return "7"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements() error = %v, want nil", err)
+	}
+	if got != 7 {
+		t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements() = %d, want 7", got)
+	}
+}
+
+// A non-positive override must be rejected rather than silently accepted: zero
+// or a negative value would fall through to the broad 500-statement default at
+// the executor, which is the defect issue #6070 fixes.
+func TestNornicDBStructuralEdgePhaseGroupStatementsRejectsInvalidEnv(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"nope", "0", "-1"} {
+		_, err := nornicDBStructuralEdgePhaseGroupStatements(func(key string) string {
+			if key == nornicDBStructuralEdgePhaseGroupStatementsEnv {
+				return raw
+			}
+			return ""
+		})
+		if err == nil {
+			t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements(%q) error = nil, want non-nil", raw)
+		}
+		if !strings.Contains(err.Error(), nornicDBStructuralEdgePhaseGroupStatementsEnv) {
+			t.Fatalf("nornicDBStructuralEdgePhaseGroupStatements(%q) error = %q, want env name", raw, err)
+		}
+	}
+}
+
 func TestNornicDBFilePhaseGroupStatementsRejectsInvalidEnv(t *testing.T) {
 	t.Parallel()
 

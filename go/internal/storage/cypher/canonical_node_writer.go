@@ -95,7 +95,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	phases := w.buildPhases(mat)
 	if kustomizeStmts := w.kustomizeExtendsBaseEdgeStatements(ctx, mat); len(kustomizeStmts) > 0 {
 		for i := range phases {
-			if phases[i].name == "structural_edges" {
+			if phases[i].name == CanonicalPhaseStructuralEdges {
 				phases[i].statements = append(phases[i].statements, kustomizeStmts...)
 				break
 			}
@@ -310,7 +310,7 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: canonicalPhasePackageRegistryArtifacts, statements: w.buildPackageRegistryArtifactStatements(mat)},
 		{name: canonicalPhasePackageRegistryEvents, statements: w.buildPackageRegistryEventStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
-		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},
+		{name: CanonicalPhaseStructuralEdges, statements: w.buildStructuralEdgeStatements(mat)},
 		// Deferred package_registry edge phases. These MUST run after the
 		// package_registry node phases (packages, versions, dependency targets,
 		// dependencies, artifacts, events) commit, because NornicDB does not
