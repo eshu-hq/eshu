@@ -102,7 +102,9 @@ them — extracted from the Go constant, never retyped.
 
 Corpus: 896 repository scopes plus one OSV scope; 448,000 `file` facts
 (~8 KB payloads, 2.5 GB total payload, `fact_records` 2769 MB); Maven intent,
-so `FileRepositoryIDs` is empty. Legacy stream returns 0 rows.
+so `FileRepositoryIDs` is empty. The query returns the two seeded OSV rows and
+nothing else — no `file` row matches either before or after, which is the whole
+point.
 
 Performance Evidence:
 
@@ -128,19 +130,20 @@ decompressed once per identity predicate per row.
 Per-loop shape before the fix: 897 loops (one per active scope), 63.7 ms each,
 499 rows removed by filter per loop — about 127 µs per file row.
 
-Two controls from an earlier pass over the same corpus, which is why the fix
-targets the rows rather than the predicates:
+Controls over the same corpus, which is why the fix targets the rows rather
+than the predicates:
 
-| Control variant | EXPLAIN exec | Wall median (n=5) |
-| --- | ---: | ---: |
-| shipped, pre-fix | 57 168 ms | 47.956 s |
-| `cardinality()` guards on the empty arrays only | 17 892 ms | 23.217 s |
-| one identity predicate narrowed by fact kind | 49 801 ms | not run |
+| Control variant | Wall median (n=5) |
+| --- | ---: |
+| no gate, `cardinality()` guards on the empty arrays only | 16.962 s |
+| gate plus those guards | 0.050 s |
+| one identity predicate narrowed by fact kind (EXPLAIN only) | 49 801 ms vs 57 168 ms |
 
-Narrowing a single predicate moved almost nothing (57 168 → 49 801 ms): the
-cost is spread evenly across all thirteen extractions, so a fix has to remove
-the rows, not one branch. Guarding the empty arrays is a real and provably
-exact 2x, but it cannot reach the rows that dominate.
+Two things fall out of that. Narrowing a single predicate moved almost nothing,
+because the cost is spread evenly across all thirteen extractions — so a fix
+has to remove the rows, not one branch. And once the gate is in, adding the
+guards changes nothing measurable (0.052 s → 0.050 s, inside the noise): the
+gate already removed every row they would have saved work on.
 
 Scaling is linear in file rows, so the reported 116 s corresponds to roughly
 1.1 million file facts, or about 1 200 indexed files per repository across 896
