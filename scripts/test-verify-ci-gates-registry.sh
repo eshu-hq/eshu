@@ -213,6 +213,10 @@ SOURCED_LIB_GATES
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
 check_telemetry_coverage_trigger_parity
 
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-performance-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
+check_performance_evidence_trigger_parity
+
 # The number of gates that trigger on every path ("**"). Derived by asking the
 # selector what a path no surface gate matches selects, rather than hardcoding
 # it: this file previously assumed exactly one such gate (the AI-attribution
