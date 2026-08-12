@@ -201,10 +201,10 @@ first. Then clean families first: supplychain(~183), code(~172),
 contentread(42), packagereg(32).
 Tangled families (impact ← repository/service/deployment_trace call its
 unexported helpers) need the helper seam exported before their move. Root
-keeps: APIRouter/Mount + Write* helpers, ports.go interfaces, contract.go
-envelopes, the capabilityMatrix init() registry (all 40 contract_* files
+keeps: APIRouter/Mount + `Write*` helpers, ports.go interfaces, contract.go
+envelopes, the capabilityMatrix init() registry (all 40 `contract_*` files
 until it gets an exported registration API), openapi.go assembly + the 101
-openapi_paths_* constants, and the two cross-cutting test sweeps
+`openapi_paths_*` constants, and the two cross-cutting test sweeps
 (auth_scoped_routes 41 files, graph_read_error 17).
 
 **reducer (1,269):** hub-and-spoke with a small hub: registry.go, the
@@ -222,35 +222,49 @@ they move with svccatalog, proving every cluster gets measured before
 moved. ~400 external files import reducer; storage/postgres names
 family-specific types — whole-module grep before each family move.
 
-### Prerequisite for query and reducer: an acyclic boundary
+### Prerequisite for four packages: an acyclic boundary
 
-A reviewer caught this and it is the one thing in this plan that does not
-compile as written. Both packages hit the same wall.
+A reviewer caught this in query and reducer, and applying the same check to the
+rest of Part 3 found it in projector and mcp too. It is the one thing in this
+plan that does not compile as written.
 
-In query, the alias plan needs root to import `supplychain` to declare
-`type SupplyChainHandler = supplychain.Handler` and to wire the router, while
-`supplychain` needs root for `GraphQuery`, `ContentStore`, the response
-envelopes and the `Write*` helpers. In reducer, the invariant "every subpackage
-imports root, root imports nothing family-specific" is already false:
-`defaults_additive_domains_correlation.go:66-67` calls
-`containerImageIdentityDomainDefinition()` and constructs
-`ContainerImageIdentityHandler{}`, while the family needs root's
-`DomainDefinition`, `Domain`, `Intent` and `Handler`
-(`container_image_identity.go:52,73`). Either direction alone is fine. Both at
-once is an import cycle, and Go refuses to build it.
+The shape is always the same. Root calls into a symbol that is scheduled to move
+out, and the moved symbol needs a type that stays in root. Either edge alone is
+fine. Both at once is an import cycle, and Go refuses to build it.
 
-So before any query or reducer family moves, one of these has to land as its
-own change: hoist the shared contracts — ports, envelopes, `DomainDefinition`,
-`Domain`, `Intent`, `Handler` — into a dependency-neutral package that both
-root and the families import, or invert registration so root never names a
-family symbol (self-registration from the family side, with the import edge
-owned by a wiring package above both).
+| Package | Root reaches into the family | Family needs from root |
+|---|---|---|
+| query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `GraphQuery`, `ContentStore` (`ports.go:15,21`), `QueryProfile` (`contract.go:21`, used at `supply_chain.go:64,122`), the envelopes, the `Write*` helpers |
+| reducer | `defaults_additive_domains_correlation.go:66-67` calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `DomainDefinition`, `Domain`, `Intent`, `Handler` (`container_image_identity.go:52,73`) |
+| projector | `scope_generation_intents.go` calls `build*ReducerIntent` across 35 family files | `ReducerIntent` (`runtime.go:50`) |
+| mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |
 
-Until that exists, read `clean` in the family tables as what it measures:
-zero coupling to other families. It does not mean ready to move. The packages
-whose moves are gated on this are exactly the two the plan already schedules
-last, and the collector, projector, coordinator, mcp and cmd/eshu families are
-unaffected — they do not carry a root alias or a root-side constructor call.
+Collector and coordinator are genuinely clear: their families are constructed
+from the external `cmd/` binaries, so root never names a family symbol.
+`cmd/eshu` has a different constraint rather than a cycle — it is `package main`
+and nothing can import it, so logic extracted to `internal/cli/<family>` cannot
+call back into the shared CLI helpers at all. Either those helpers move too, or
+the extracted logic must not need them.
+
+Two ways out, and they are not interchangeable:
+
+- **Hoist the shared contracts** — ports, envelopes, `DomainDefinition`,
+  `Domain`, `Intent`, `Handler`, `ReducerIntent`, `ToolDefinition` — into a
+  dependency-neutral package below both root and the families. This works for
+  all four.
+- **Invert registration** so root never names a family symbol: the family
+  registers itself, and a wiring package above both owns the import edge. This
+  works for reducer, projector and mcp, where root's only edge is a call. It
+  does NOT work for query: the alias is itself root naming a family symbol, and
+  it has to stay in root or the 284 external `query.<Type>` references stop
+  compiling, which is the whole reason the alias exists.
+
+Until this lands, read `clean` in the family tables as what it measures: zero
+coupling to other families. It does not mean ready to move.
+
+This also breaks Part 4's order below, which puts projector second and mcp fifth
+— both well before query and reducer. Either the boundary lands first for every
+affected package, or those moves wait.
 
 ## Part 4: execution model
 
