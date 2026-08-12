@@ -108,8 +108,17 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         working-directory: go
         run: |
+          # BUILD FIRST, then execute. `go run` does NOT propagate the compiled
+          # binary's exit status -- `go help run` says so outright, and a local
+          # probe confirms it: a program calling os.Exit(10) surfaces as shell
+          # status 1 through `go run`, and as 10 when the built binary is
+          # executed. Reading $? after `go run` would collapse every classified
+          # code (10/11/12) to 1, so the publisher below would never reach its
+          # failure or still-running arms and would label everything `error` --
+          # reintroducing the #6075 bug under a different status.
+          go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates
           set +e
-          go run ./cmd/ci-gates await \
+          "${RUNNER_TEMP}/ci-gates-bin" await \
             --registry ../specs/ci-gates.v1.yaml \
             --repo-root .. \
             --repo "${GITHUB_REPOSITORY}" \
@@ -134,7 +143,6 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PENDING_OUTCOME: ${{ steps.pending.outcome }}
-          AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
           AGGREGATE_CODE: ${{ steps.aggregate.outputs.code }}
         run: |
           # #6075: publish what actually happened, not "failure" for every

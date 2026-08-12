@@ -24,8 +24,8 @@ func TestCheckRequiredStatusWorkflows_RequiresOutcomeBranchedPublisher(t *testin
 	// state=failure default, no reference to the classified exit code.
 	body := strings.Replace(trustedRequiredWorkflow, `          case "${AGGREGATE_CODE}" in
             0) state=success ;;
-            1) state=failure ;;
-            3) exit 0 ;;
+            10) state=failure ;;
+            11) exit 0 ;;
             *) state=error ;;
           esac
 `, "          state=failure\n", 1)

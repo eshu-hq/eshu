@@ -31,6 +31,24 @@ set -uo pipefail
 attempts="${ESHU_GO_DOWNLOAD_ATTEMPTS:-3}"
 delay="${ESHU_GO_DOWNLOAD_RETRY_DELAY:-5}"
 
+# Validate up front. Without this a 0 or non-numeric attempts count makes `seq`
+# emit nothing, the loop body never runs, and -- since this script does not use
+# `set -e` -- it exits 0 having downloaded nothing. A warmup that silently does
+# not warm up is worse than no warmup: the proxy flake it exists to absorb
+# comes back, and the step that was supposed to catch it reports success
+# (#6083 review).
+if ! [[ "${attempts}" =~ ^[1-9][0-9]*$ ]]; then
+	# Plain quoting, not ${var@Q}: that parameter transformation needs bash
+	# 4.4+ and macOS ships 3.2, where it is a bad substitution that makes this
+	# guard fall through to the very seq failure it exists to prevent.
+	printf 'go-mod-download-retry: ESHU_GO_DOWNLOAD_ATTEMPTS must be a positive integer, got "%s"\n' "${attempts}" >&2
+	exit 2
+fi
+if ! [[ "${delay}" =~ ^[0-9]+$ ]]; then
+	printf 'go-mod-download-retry: ESHU_GO_DOWNLOAD_RETRY_DELAY must be a non-negative integer, got "%s"\n' "${delay}" >&2
+	exit 2
+fi
+
 cd "$(dirname "$0")/../../go" || exit 1
 
 for attempt in $(seq 1 "${attempts}"); do

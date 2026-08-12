@@ -281,48 +281,31 @@ func validateTrustedAggregator(
 				))
 			}
 		}
-		if strings.Contains(step.Run, "ci-gates await") {
+		// The step builds ./cmd/ci-gates and runs the binary rather than
+		// using `go run`, which does NOT propagate the compiled binary's exit
+		// status (`go help run`; a probe confirms os.Exit(10) surfaces as 1).
+		// Matching only the literal "ci-gates await" missed that built form.
+		if strings.Contains(step.Run, "ci-gates") && strings.Contains(step.Run, "await") {
 			awaitIndex = index
+			// Pin build-first. Reverting to `go run` would collapse every
+			// classified exit code to 1, so the publisher could never reach
+			// its failure or still-running arms and would label everything
+			// `error` -- the #6075 bug wearing a different status.
+			// Match the INVOCATION, not the words: this step's own comment
+			// explains why `go run` is wrong, and a bare phrase match fires
+			// on that explanation.
+			if strings.Contains(step.Run, "go run ./cmd/ci-gates") {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: await step must build ./cmd/ci-gates and execute the binary, "+
+						"not `go run` -- go run does not propagate the binary's exit status, so the publisher's "+
+						"exit-code branching would silently collapse to one outcome",
+					check.Context,
+				))
+			}
 		}
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=failure") {
 			terminalIndex = index
-			if !strings.Contains(step.Run, "-f context="+check.Context) {
-				errs = append(errs, fmt.Errorf(
-					"required status context %q: terminal status publisher must target the required context",
-					check.Context,
-				))
-			}
-			condition := strings.TrimSpace(step.If)
-			hasExpressionDelimiters := strings.HasPrefix(condition, "${{") && strings.HasSuffix(condition, "}}")
-			if hasExpressionDelimiters {
-				condition = strings.TrimSpace(condition[3 : len(condition)-2])
-			}
-			if !hasExpressionDelimiters || condition != "!cancelled()" {
-				errs = append(errs, fmt.Errorf(
-					"required status context %q: terminal status publisher must use !cancelled() to run after failure without publishing on cancellation",
-					check.Context,
-				))
-			}
-			if !strings.Contains(step.Env["HEAD_SHA"], "workflow_run.head_sha") {
-				errs = append(errs, fmt.Errorf(
-					"required status context %q: terminal status must target github.event.workflow_run.head_sha",
-					check.Context,
-				))
-			}
-			// #6075: the publisher must branch on the await exit code. Before
-			// this, any non-success outcome defaulted to `failure`, so gates
-			// merely still running published a red on the status branch
-			// protection uses to summarize every other gate -- a red that
-			// meant "look again", which is how a genuine aggregation failure
-			// gets waved through and how a lander abandons a green PR.
-			if !strings.Contains(step.Run, "AGGREGATE_CODE") {
-				errs = append(errs, fmt.Errorf(
-					"required status context %q: terminal publisher must branch on the await exit code "+
-						"(AGGREGATE_CODE) so only a genuinely failed gate publishes failure; "+
-						"still-running and aggregation-broken outcomes must not",
-					check.Context,
-				))
-			}
+			errs = append(errs, validateTerminalPublisher(step, check)...)
 		}
 		if strings.HasPrefix(step.Uses, "actions/checkout@") {
 			if ref := strings.TrimSpace(step.With["ref"]); ref != "" && !strings.Contains(ref, "default_branch") {
@@ -347,7 +330,11 @@ func validateTrustedAggregator(
 		))
 	}
 	commandText := commands.String()
-	for _, required := range []string{"ci-gates await", "/statuses/", "context=" + check.Context} {
+	// "ci-gates" plus "await" rather than the joined literal: the step now
+	// builds ./cmd/ci-gates and executes the binary, so the two words are no
+	// longer adjacent. See the awaitIndex detection above for why `go run` is
+	// not used here.
+	for _, required := range []string{"ci-gates", "await", "/statuses/", "context=" + check.Context} {
 		if !strings.Contains(commandText, required) {
 			errs = append(errs, fmt.Errorf(
 				"required status context %q: publisher job %q does not execute %q",

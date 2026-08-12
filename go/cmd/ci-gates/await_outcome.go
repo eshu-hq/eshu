@@ -29,13 +29,20 @@ import "errors"
 // these values are a contract with .github/workflows/required-gates.yml and
 // cannot be renumbered without moving that step in the same commit.
 const (
-	// These start at 10 deliberately. `go run ./cmd/ci-gates await` exits 1
-	// when the BINARY ITSELF fails to compile, and 2 is this command's own
-	// usage error -- both before any classification happens. If gate-failed
-	// were 1, a broken build would publish `failure` as though a required gate
-	// had gone red, which is the exact overclaim this change removes. Keeping
-	// the classified codes out of the toolchain's range means every
-	// unrecognized code falls through to `error`, where a build break belongs.
+	// These start at 10 deliberately, to stay clear of the codes produced
+	// BEFORE this classification can run: a failed `go build` of the
+	// aggregator exits 1, and main's own usage/dispatch path exits 2 without
+	// reaching runAwait at all. If gate-failed were 1, a broken build would
+	// publish `failure` as though a required gate had gone red, which is the
+	// exact overclaim this change removes. Every code outside this range falls
+	// through to the publisher's `error` arm, where a build break belongs.
+	//
+	// Precise about what 2 means, since the distinction is easy to misread
+	// (#6083 review): main exits 2 for an unknown subcommand or missing args,
+	// before dispatch. A flag-parse error INSIDE runAwait is an ordinary
+	// returned error and classifies as `broken` (12), because by then the
+	// process is committed to awaiting and a publisher problem is the honest
+	// label.
 	//
 	// awaitExitGateFailed means a selected blocking gate concluded failure.
 	// This is the ONLY outcome that may publish `failure`.
