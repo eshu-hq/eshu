@@ -91,6 +91,13 @@ func ParseDecodeSeams(path string) ([]DecodeSeam, error) {
 // factschema_decode_<family>.go file, so the manifest must scan the whole
 // per-family set rather than the single base factschema_decode.go.
 //
+// glob's directory component is walked at ANY depth (see
+// globFilesRecursive), not only matched directly against glob's own
+// directory: a shell-style filepath.Glob never crosses a "/", so a
+// restructure that relocates only some factschema_decode*.go files into a
+// subdirectory (epic #6053) would otherwise still match the leftover
+// top-level files and never signal the ones that moved (#6055).
+//
 // A glob matching no files, or matching files that declare no seams, returns
 // an empty slice with no error; Load treats an empty result as a fail-closed
 // configuration error so a broken glob cannot silently disable the gate. A
@@ -98,7 +105,7 @@ func ParseDecodeSeams(path string) ([]DecodeSeam, error) {
 // decode functions with the same name are a real duplication bug the gate
 // must surface rather than silently deduplicate.
 func ParseDecodeSeamsGlob(glob string) ([]DecodeSeam, error) {
-	matches, err := filepath.Glob(glob)
+	matches, err := globFilesRecursive(filepath.Dir(glob), filepath.Base(glob))
 	if err != nil {
 		return nil, fmt.Errorf("payload-usage-manifest: glob %s: %w", glob, err)
 	}

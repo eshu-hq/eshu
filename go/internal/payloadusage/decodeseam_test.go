@@ -164,6 +164,48 @@ func TestParseDecodeSeamsGlobMergesPerFamilyFiles(t *testing.T) {
 	}
 }
 
+// TestParseDecodeSeamsGlobFindsFilesInSubdirectories proves ParseDecodeSeamsGlob
+// finds a factschema_decode*.go file regardless of how deep under the glob's
+// directory it lives, not just at that directory's top level. #6055: a
+// restructure PR can land family-by-family, moving SOME
+// factschema_decode*.go files into a subdirectory while leaving others at
+// the top level. filepath.Glob (the pre-#6055 implementation) never crosses
+// a "/", so that partial move went undetected — the glob still matched the
+// leftover top-level files, giving a non-empty, silently incomplete result
+// instead of the zero-match signal a full move would have produced. Before
+// the fix, this test fails because decodeAzureCloudResource (seeded one
+// level down, in dir/subdir/) is missing from the parsed seams.
+func TestParseDecodeSeamsGlobFindsFilesInSubdirectories(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "factschema_decode.go"), []byte(fixtureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write top-level fixture: %v", err)
+	}
+	subdir := filepath.Join(dir, "aws")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatalf("mkdir subdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "factschema_decode_azure.go"), []byte(fixtureAzureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write subdirectory fixture: %v", err)
+	}
+
+	seams, err := ParseDecodeSeamsGlob(filepath.Join(dir, "factschema_decode*.go"))
+	if err != nil {
+		t.Fatalf("ParseDecodeSeamsGlob() error = %v", err)
+	}
+
+	byName := map[string]DecodeSeam{}
+	for _, s := range seams {
+		byName[s.FuncName] = s
+	}
+	for _, want := range []string{"decodeAWSResource", "decodeAWSIAMPrincipal", "decodeAzureCloudResource"} {
+		if _, ok := byName[want]; !ok {
+			t.Errorf("seam %q missing from glob merge; a factschema_decode*.go file one directory level down was not scanned: %+v", want, seams)
+		}
+	}
+}
+
 func TestParseDecodeSeamsGlobRejectsDuplicateFuncName(t *testing.T) {
 	t.Parallel()
 

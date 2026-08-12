@@ -4,6 +4,7 @@
 package payloadusage
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -366,5 +367,85 @@ func TestLoadCoversWiredAzureKinds(t *testing.T) {
 		if _, present := byKind[kind]; present {
 			t.Errorf("deferred azure kind %q appears in the manifest; it has no typed decode seam yet and must not be gated (hollow contract)", kind)
 		}
+	}
+}
+
+// TestResolveDecodeFilesFindsFilesInSubdirectory proves resolveDecodeFiles
+// (the reducer's fail-closed seam resolver) finds a factschema_decode*.go
+// file that has moved one directory level below ReducerDir, not only the
+// files still sitting directly under it. #6055: filepath.Glob (the pre-fix
+// implementation) never crosses a "/", so a partial family-by-family move
+// left the reducer's fail-closed zero-match check unable to ever fire again
+// — the glob kept matching whatever was left at the top level. Before the
+// fix, this test fails because the aws/factschema_decode_azure.go seam is
+// missing from the resolved file list.
+func TestResolveDecodeFilesFindsFilesInSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "factschema_decode.go"), []byte(fixtureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write top-level fixture: %v", err)
+	}
+	subdir := filepath.Join(dir, "aws")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatalf("mkdir subdir: %v", err)
+	}
+	movedFile := filepath.Join(subdir, "factschema_decode_azure.go")
+	if err := os.WriteFile(movedFile, []byte(fixtureAzureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write subdirectory fixture: %v", err)
+	}
+
+	files, err := resolveDecodeFiles(Paths{ReducerDir: dir})
+	if err != nil {
+		t.Fatalf("resolveDecodeFiles() error = %v", err)
+	}
+
+	found := false
+	for _, f := range files {
+		if f == movedFile {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("resolveDecodeFiles() = %v, want %q among them (a subdirectory seam file must not vanish from the fail-closed reducer resolver)", files, movedFile)
+	}
+}
+
+// TestResolveOptionalDecodeFilesFindsFilesInSubdirectory is
+// TestResolveDecodeFilesFindsFilesInSubdirectory's counterpart for the
+// non-fail-closed surfaces (projector, query, loader, relationships,
+// replay) that share resolveOptionalDecodeFiles. An empty result is valid
+// for these surfaces, so the risk is not a stuck-open gate but a silently
+// incomplete one — the same class of defect, proven through the shared
+// resolver rather than reasserting it once per caller.
+func TestResolveOptionalDecodeFilesFindsFilesInSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "factschema_decode.go"), []byte(fixtureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write top-level fixture: %v", err)
+	}
+	subdir := filepath.Join(dir, "azure")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatalf("mkdir subdir: %v", err)
+	}
+	movedFile := filepath.Join(subdir, "factschema_decode_azure.go")
+	if err := os.WriteFile(movedFile, []byte(fixtureAzureDecodeFile), 0o600); err != nil {
+		t.Fatalf("write subdirectory fixture: %v", err)
+	}
+
+	files, err := resolveOptionalDecodeFiles("test", dir, nil)
+	if err != nil {
+		t.Fatalf("resolveOptionalDecodeFiles() error = %v", err)
+	}
+
+	found := false
+	for _, f := range files {
+		if f == movedFile {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("resolveOptionalDecodeFiles() = %v, want %q among them", files, movedFile)
 	}
 }
