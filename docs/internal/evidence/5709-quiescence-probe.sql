@@ -49,8 +49,10 @@ ANALYZE fact_work_items;
 
 -- Round 1 (superseded, kept for the before/after comparison): producer scopes of
 -- a given collector kind that are active AND have NO live projector work item.
--- The NOT EXISTS body is byte-equivalent to the production reducer claim query
--- (reducer_queue_claim_query.go:25-30).
+-- The NOT EXISTS body carries the same predicates as the production reducer
+-- claim query's projector-drain fence (reducer_queue_claim_query.go:25-30) --
+-- same stage, same scope_id correlation, same status set -- differing only in
+-- which relation the scope_id is correlated against.
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT s.scope_id
 FROM ingestion_scopes AS s
@@ -81,8 +83,8 @@ FROM ingestion_scopes AS s
 WHERE s.collector_kind = ANY(ARRAY['oci_registry']);
 
 -- Round 2, SHIPPED: every registered scope of the kind plus a quiescent flag,
--- with the anti-join kept intact inside a CTE aliased AS s so the NOT EXISTS
--- body stays byte-identical to the claim query's fence.
+-- with the anti-join kept intact inside a CTE aliased AS s, so the scope_id
+-- correlation stays a plain column reference the planner pushes into the index.
 EXPLAIN (ANALYZE, BUFFERS)
 WITH registered AS (
     SELECT s.scope_id, s.active_generation_id

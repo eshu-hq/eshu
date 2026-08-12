@@ -20,12 +20,20 @@ import (
 // exists and has not finished yet", and a caller that sees only an empty
 // quiescent set cannot distinguish them.
 //
-// The NOT EXISTS body is byte-equivalent to the production reducer claim query's
-// projector-drain fence (reducer_queue_claim_query.go), so it rides
+// The NOT EXISTS body asks the same question as the production reducer claim
+// query's projector-drain fence (reducer_queue_claim_query.go) on the same
+// columns: stage = 'projector', a scope_id correlation, and the same four live
+// statuses. The text is not identical, and cannot be -- the claim query
+// correlates against fact_work_items.scope_id because it is already scanning
+// that table, while this one correlates against s.scope_id from the CTE above.
+// The columns the planner has to resolve are the same either way, so both ride
 // fact_work_items_scope_generation_idx (scope_id-anchored) rather than scanning
-// the work-items table. That equivalence is why the scope filter lives in a CTE
-// aliased AS s: the fence body keeps referring to s.scope_id, character for
-// character.
+// the work-items table. The EXPLAIN in
+// docs/internal/evidence/5709-quiescence-probe.md is what establishes that;
+// the resemblance on its own would not.
+//
+// Keeping the scope filter in a CTE aliased AS s is what leaves the correlation
+// a plain column reference the planner can push into the index.
 //
 // The CTE-plus-LEFT-JOIN shape is deliberate and was measured, because the
 // obvious alternative loses the index. Writing the flag as a NOT EXISTS
