@@ -122,4 +122,65 @@ git -C "${complete_repo}" add .
 git -C "${complete_repo}" commit -q -m 'complete collector gate evidence'
 expect_pass "${complete_repo}"
 
+# Regression: with neither ESHU_COLLECTOR_AUTHORING_BASE nor GITHUB_BASE_REF
+# set -- the shape every test above bypasses by pinning HEAD~1 -- the base must
+# be the merge base with origin/main. A HEAD~1 default scopes the gate to the
+# last commit, so a collector added in an earlier commit of a multi-commit
+# branch escapes whenever the tip commit is innocuous.
+#
+# Gives the fixture a real origin/main to resolve a merge base against: clone
+# the repo at its initial commit into a bare origin, then branch away from it.
+setup_branch_on_origin() {
+  local dir="$1"
+  local origin_dir="${dir}-origin"
+  git -C "${dir}" branch -M main
+  git clone -q --bare "${dir}" "${origin_dir}"
+  git -C "${dir}" remote add origin "${origin_dir}"
+  git -C "${dir}" fetch -q origin
+  git -C "${dir}" checkout -q -b feature
+}
+
+run_verifier_local_base() {
+  local dir="$1"
+  env -u ESHU_COLLECTOR_AUTHORING_BASE -u GITHUB_BASE_REF \
+    ESHU_COLLECTOR_AUTHORING_REPO_ROOT="${dir}" \
+    "${verifier}" >/tmp/eshu-collector-authoring.out \
+    2>/tmp/eshu-collector-authoring.err
+}
+
+merge_base_repo="$(init_repo merge-base)"
+setup_branch_on_origin "${merge_base_repo}"
+# Commit A: a collector with no package docs -- the gate must reject this.
+mkdir -p "${merge_base_repo}/go/internal/collector/confluence2"
+printf 'package confluence2\n' \
+  >"${merge_base_repo}/go/internal/collector/confluence2/source.go"
+git -C "${merge_base_repo}" add .
+git -C "${merge_base_repo}" commit -q -m 'branch commit A: collector without package docs'
+# Commit B: an innocuous tip commit that used to hide commit A from the gate.
+printf '# readme\n' >"${merge_base_repo}/README.md"
+git -C "${merge_base_repo}" add .
+git -C "${merge_base_repo}" commit -q -m 'branch commit B: readme touch'
+if run_verifier_local_base "${merge_base_repo}"; then
+  printf 'expected the gate to FAIL: the branch adds an undocumented collector\n' >&2
+  printf 'in an earlier commit and its tip commit is innocuous. A pass here\n' >&2
+  printf 'means the base fell back to HEAD~1 and scoped to the last commit.\n' >&2
+  sed -n '1,140p' /tmp/eshu-collector-authoring.out >&2
+  exit 1
+fi
+
+# The widened window must not fire on a branch with no collector change at all.
+merge_base_clean_repo="$(init_repo merge-base-clean)"
+setup_branch_on_origin "${merge_base_clean_repo}"
+printf '# docs only\n' >"${merge_base_clean_repo}/README.md"
+git -C "${merge_base_clean_repo}" add .
+git -C "${merge_base_clean_repo}" commit -q -m 'branch commit A: docs only'
+printf '# docs only, again\n' >"${merge_base_clean_repo}/README.md"
+git -C "${merge_base_clean_repo}" add .
+git -C "${merge_base_clean_repo}" commit -q -m 'branch commit B: docs only'
+if ! run_verifier_local_base "${merge_base_clean_repo}"; then
+  printf 'expected a docs-only branch to PASS under the merge-base window\n' >&2
+  sed -n '1,140p' /tmp/eshu-collector-authoring.err >&2
+  exit 1
+fi
+
 printf 'verify-collector-authoring-gate tests passed\n'

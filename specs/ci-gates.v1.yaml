@@ -2404,6 +2404,10 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"
       - "scripts/test-verify-performance-evidence.sh"
+      - "scripts/test-verify-performance-evidence-ci-base.sh"
+      - "scripts/test-verify-performance-evidence-inherited-marker.sh"
+      - "scripts/test-verify-performance-evidence-large-marker.sh"
+      - "scripts/test-verify-performance-evidence-merge-base.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh perf-evidence"
       test_command: "bash scripts/test-verify-performance-evidence.sh"

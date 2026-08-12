@@ -15,6 +15,25 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
     base="origin/$GITHUB_BASE_REF"
   fi
 fi
+# Fall back to the merge base with origin/main, NOT HEAD~1 -- the same trap
+# fixed in verify-performance-evidence.sh and verify-root-cause-evidence.sh.
+# This gate's registry entry runs `bash scripts/verify-parser-relationship-kit.sh`
+# with no base pinned, so a HEAD~1 default scopes it to the last commit alone:
+# a spec/parser change in an earlier commit of a multi-commit branch is invisible
+# when the tip commit is innocuous, and on a branch based on a squash-merge
+# commit HEAD~1 diffs the MERGE's files instead of the branch's own.
+if [ -z "$base" ]; then
+  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
+    # A merge base equal to HEAD means the branch adds no commits of its own,
+    # so the window would be empty -- narrower than HEAD~1. Leave base unset.
+    if [ -n "$merge_base" ] &&
+      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
+      base="$merge_base"
+    fi
+  fi
+fi
+# Last resort only: shallow clone, no origin remote, or a fresh fixture repo.
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"

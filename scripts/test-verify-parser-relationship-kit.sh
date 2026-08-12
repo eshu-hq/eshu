@@ -345,4 +345,68 @@ git -C "${parser_backing_complete_repo}" add .
 git -C "${parser_backing_complete_repo}" commit -q -m 'complete parser backing ledger'
 expect_pass "${parser_backing_complete_repo}"
 
+# Regression: with neither ESHU_PARSER_RELATIONSHIP_KIT_BASE nor
+# GITHUB_BASE_REF set -- the shape of this gate's registry command, which every
+# test above bypasses by pinning HEAD~1 -- the base must be the merge base with
+# origin/main. A HEAD~1 default scopes the gate to the last commit, so a parser
+# added in an earlier commit escapes whenever the tip commit is innocuous.
+#
+# Gives the fixture a real origin/main to resolve a merge base against: clone
+# the repo at its initial commit into a bare origin, then branch away from it.
+merge_base_repo="$(init_repo merge-base)"
+git -C "${merge_base_repo}" branch -M main
+merge_base_origin="${tmp_root}/merge-base-origin"
+git clone -q --bare "${merge_base_repo}" "${merge_base_origin}"
+git -C "${merge_base_repo}" remote add origin "${merge_base_origin}"
+git -C "${merge_base_repo}" fetch -q origin
+git -C "${merge_base_repo}" checkout -q -b feature
+
+run_verifier_local_base() {
+  local dir="$1"
+  env -u ESHU_PARSER_RELATIONSHIP_KIT_BASE -u GITHUB_BASE_REF \
+    ESHU_PARSER_RELATIONSHIP_KIT_REPO_ROOT="${dir}" \
+    "${verifier}" >/tmp/eshu-parser-relationship-kit.out \
+    2>/tmp/eshu-parser-relationship-kit.err
+}
+
+# Commit A: a parser with no docs -- the gate must reject this.
+printf 'package parser\nfunc parseNewLanguage() {}\n' \
+  >"${merge_base_repo}/go/internal/parser/new_language.go"
+printf 'package parser\nfunc TestNewLanguage(t interface{}) {}\n' \
+  >"${merge_base_repo}/go/internal/parser/new_language_test.go"
+git -C "${merge_base_repo}" add .
+git -C "${merge_base_repo}" commit -q -m 'branch commit A: parser without docs'
+# Commit B: an innocuous tip commit that used to hide commit A from the gate.
+printf '# readme\n' >"${merge_base_repo}/README.md"
+git -C "${merge_base_repo}" add .
+git -C "${merge_base_repo}" commit -q -m 'branch commit B: readme touch'
+
+if run_verifier_local_base "${merge_base_repo}"; then
+  printf 'expected the gate to FAIL: the branch adds an undocumented parser in\n' >&2
+  printf 'an earlier commit and its tip commit is innocuous. A pass here means\n' >&2
+  printf 'the base fell back to HEAD~1 and scoped the gate to the last commit.\n' >&2
+  sed -n '1,160p' /tmp/eshu-parser-relationship-kit.out >&2
+  exit 1
+fi
+
+# The widened window must not fire on a branch with no parser change at all.
+merge_base_clean_repo="$(init_repo merge-base-clean)"
+git -C "${merge_base_clean_repo}" branch -M main
+merge_base_clean_origin="${tmp_root}/merge-base-clean-origin"
+git clone -q --bare "${merge_base_clean_repo}" "${merge_base_clean_origin}"
+git -C "${merge_base_clean_repo}" remote add origin "${merge_base_clean_origin}"
+git -C "${merge_base_clean_repo}" fetch -q origin
+git -C "${merge_base_clean_repo}" checkout -q -b feature
+printf '# docs only\n' >"${merge_base_clean_repo}/README.md"
+git -C "${merge_base_clean_repo}" add .
+git -C "${merge_base_clean_repo}" commit -q -m 'branch commit A: docs only'
+printf '# docs only, again\n' >"${merge_base_clean_repo}/README.md"
+git -C "${merge_base_clean_repo}" add .
+git -C "${merge_base_clean_repo}" commit -q -m 'branch commit B: docs only'
+if ! run_verifier_local_base "${merge_base_clean_repo}"; then
+  printf 'expected a docs-only branch to PASS under the merge-base window\n' >&2
+  sed -n '1,160p' /tmp/eshu-parser-relationship-kit.err >&2
+  exit 1
+fi
+
 printf 'verify-parser-relationship-kit tests passed\n'

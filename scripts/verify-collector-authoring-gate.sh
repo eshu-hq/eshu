@@ -14,6 +14,23 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
     base="origin/$GITHUB_BASE_REF"
   fi
 fi
+# Fall back to the merge base with origin/main, NOT HEAD~1 -- the same trap
+# fixed in verify-performance-evidence.sh and verify-root-cause-evidence.sh. A
+# HEAD~1 default scopes the gate to the last commit alone, so a collector added
+# in an earlier commit of a multi-commit branch is never seen when the tip
+# commit is innocuous, and the gate passes without checking it.
+if [ -z "$base" ]; then
+  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
+    # A merge base equal to HEAD means the branch adds no commits of its own,
+    # so the window would be empty -- narrower than HEAD~1. Leave base unset.
+    if [ -n "$merge_base" ] &&
+      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
+      base="$merge_base"
+    fi
+  fi
+fi
+# Last resort only: shallow clone, no origin remote, or a fresh fixture repo.
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"
