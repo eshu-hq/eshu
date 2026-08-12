@@ -61,14 +61,14 @@ clears indexes and constraints too, which a delete sweep leaves behind. It also
 keeps the destructive step where an operator can see it, rather than behind an
 HTTP route.
 
-That last point is a deliberate design choice, and it is worth being explicit
-about. Eshu's recovery code holds no graph write credential at all — the recovery
-package re-enqueues queue work and nothing else. The runtime admin routes that
-expose it are unauthenticated by design, served on an internal admin port. Adding
-"delete every node" to that surface would mean an unauthenticated request could
-destroy the graph, and an environment-variable safety catch would only narrow
-that window rather than close it. The wipe stays a step you take with the same
-tools you use to manage the volume in the first place.
+That last point is deliberate. Eshu's recovery code holds no graph write
+credential at all — the recovery package re-enqueues queue work and nothing else.
+The runtime admin routes that expose it carry no authentication of their own;
+they are protected by not exposing the admin port. Putting "delete every node"
+there would put the graph one unauthenticated request from destruction, and an
+environment-variable safety catch would narrow that window rather than close it.
+So the wipe stays a step you take with the same tools you already use to manage
+the volume.
 
 ## The procedure
 
@@ -167,9 +167,14 @@ afternoon of copying scope ids out of `psql`.
 The response tells you how much work was queued:
 
 ```json
-{"status":"recovered","enqueued":847,"duplicate":false,
- "idempotency_key":"dr-rebuild-2026-08-12"}
+{"status":"recovered","enqueued":67,"duplicate":false,
+ "idempotency_key":"dr-rebuild-2026-08-12",
+ "scope_ids":["git-repository-scope:repository:r_9e291581", "..."]}
 ```
+
+`enqueued` is the number of active scopes queued, and `scope_ids` lists them
+(truncated above). Both come from a real run against the Compose fixture corpus,
+so expect a much larger number on a real deployment.
 
 The route needs an admin token — one with all scopes, not a scoped token. It
 also insists on a `reason` and an `idempotency_key`, both recorded in the
