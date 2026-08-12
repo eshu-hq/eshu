@@ -194,21 +194,42 @@ func buildCloudResourceRuntimeDigestQuery(
 		authorization = "\n          AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY(" + repositories + "::text[]))" +
 			" OR fact.scope_id = ANY(" + scopes + "::text[]))"
 	}
-	limit := bind(supplyChainCloudRuntimeProbeMaxResults)
+	perDigestLimit := bind(supplyChainCloudRuntimeProbePerDigestMaxResults)
 
+	// The candidate bound is PER DIGEST, applied through a LATERAL so each
+	// digest gets its own bounded, ordered index scan. A single global LIMIT
+	// over the whole ordered set does not share: measured on a skewed corpus
+	// (one digest on 30,000 resources, 20 others on 100 each), the old shape
+	// returned 200 rows for exactly ONE digest and zero for the other twenty,
+	// so twenty findings silently kept their CI-declared tier. See
+	// docs/internal/evidence/5789-per-digest-bound.md.
+	//
+	// Still bounded and still deterministic: total work is at most
+	// len(digests) x perDigestLimit, and the ORDER BY inside the LATERAL is the
+	// same (digest, arn, uid) the index is built on, so the row set is
+	// reproducible run to run -- a security evidence field must not vary.
 	return `
-WITH candidates AS MATERIALIZED (
-  SELECT owner.uid,
-         owner.winning_row->>'running_image_digest' AS digest,
-         owner.winning_row->>'arn' AS arn,
-         owner.winning_row->>'source_fact_id' AS source_fact_id
-  FROM graph_node_owner AS owner
-  WHERE owner.winning_row->>'resource_type' IS NOT NULL
-    AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
-    AND owner.winning_row->>'running_image_digest' = ANY(` + digestSet + `::text[])
-    AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
-  ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
-  LIMIT ` + limit + `
+WITH wanted AS (
+  SELECT DISTINCT unnest(` + digestSet + `::text[]) AS digest
+), candidates AS MATERIALIZED (
+  SELECT per_digest.uid,
+         per_digest.digest,
+         per_digest.arn,
+         per_digest.source_fact_id
+  FROM wanted
+  CROSS JOIN LATERAL (
+    SELECT owner.uid,
+           owner.winning_row->>'running_image_digest' AS digest,
+           owner.winning_row->>'arn' AS arn,
+           owner.winning_row->>'source_fact_id' AS source_fact_id
+    FROM graph_node_owner AS owner
+    WHERE owner.winning_row->>'resource_type' IS NOT NULL
+      AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
+      AND owner.winning_row->>'running_image_digest' = wanted.digest
+      AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
+    ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
+    LIMIT ` + perDigestLimit + `
+  ) AS per_digest
 )
 SELECT candidate.uid,
        candidate.digest,

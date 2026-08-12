@@ -41,6 +41,25 @@ const supplyChainCloudRuntimeProbeMaxDigests = 200
 // starving other findings' runtime evidence is tracked in #5789.
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
+// supplyChainCloudRuntimeProbePerDigestMaxResults bounds the owner-ledger rows
+// considered FOR EACH subject digest, replacing the total-row cap above as the
+// query's actual bound (#5789).
+//
+// A total cap does not share. Measured on a skewed corpus -- one digest running
+// on 30,000 resources, twenty others on 100 each -- the 200-row global cap
+// returned rows for exactly ONE digest and zero for the other twenty, because
+// the ordered scan spent the whole budget before reaching them. Those twenty
+// findings silently kept their CI-declared tier: not a truncated answer, a
+// missing one, and invisible because a finding with no runtime evidence looks
+// identical to a finding whose image runs nowhere.
+//
+// Ten per digest keeps the promotion decision intact -- runtime_confirmed needs
+// only that at least one current, authorized resource runs the digest, so a
+// bounded sample answers it -- while total work stays bounded and deterministic
+// at len(digests) x this value, itself capped by
+// supplyChainCloudRuntimeProbeMaxDigests.
+const supplyChainCloudRuntimeProbePerDigestMaxResults = 10
+
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
 // to observed CloudResource owner-ledger rows whose running_image_digest equals
 // that digest AND that are current + authorized —

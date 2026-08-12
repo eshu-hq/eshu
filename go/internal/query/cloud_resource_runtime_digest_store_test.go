@@ -18,8 +18,13 @@ func TestBuildCloudResourceRuntimeDigestQueryUsesIndexedDigestAndCurrentAuthoriz
 		[]string{"scope:allowed"},
 	)
 	for _, want := range []string{
-		"WITH candidates AS MATERIALIZED",
-		"owner.winning_row->>'running_image_digest' = ANY($1::text[])",
+		// The bound is PER DIGEST now: a LATERAL driven by the distinct digest
+		// set, so each digest gets its own bounded ordered index scan (#5789).
+		"WITH wanted AS (",
+		"SELECT DISTINCT unnest($1::text[]) AS digest",
+		"CROSS JOIN LATERAL (",
+		"owner.winning_row->>'running_image_digest' = wanted.digest",
+		", candidates AS MATERIALIZED (",
 		"NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL",
 		"NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL",
 		"fact.fact_id = candidate.source_fact_id",
@@ -36,18 +41,29 @@ func TestBuildCloudResourceRuntimeDigestQueryUsesIndexedDigestAndCurrentAuthoriz
 		}
 	}
 	if len(args) != 4 {
-		t.Fatalf("args = %#v, want digest, repository grants, scope grants, and limit", args)
+		t.Fatalf("args = %#v, want digest, repository grants, scope grants, and per-digest limit", args)
+	}
+	if got, want := args[3], supplyChainCloudRuntimeProbePerDigestMaxResults; got != want {
+		t.Fatalf("bound arg = %v, want the PER-DIGEST limit %v, not the total-row cap", got, want)
 	}
 
-	candidateLimit := strings.Index(query, "LIMIT $4")
-	authorization := strings.Index(query, "fact.fact_id = candidate.source_fact_id")
-	if candidateLimit == -1 || authorization == -1 {
-		t.Fatalf("query is missing candidate limit or authorization boundary:\n%s", query)
+	// A global cap over the whole ordered set does not share: on a skewed
+	// corpus it spends the entire budget on one hot digest and returns nothing
+	// for the rest. This is the assertion that fails if the LATERAL is ever
+	// flattened back into one scan with a single trailing LIMIT.
+	if strings.Contains(query, "= ANY($1::text[])") {
+		t.Fatalf("digest match must be per-digest (= wanted.digest), not a shared ANY() scan:\n%s", query)
 	}
-	if candidateLimit > authorization {
-		t.Fatalf("candidate LIMIT must run before authorization to bound owner-ledger work:\n%s", query)
+	lateral := strings.Index(query, "CROSS JOIN LATERAL (")
+	perDigestLimit := strings.Index(query, "LIMIT $4")
+	authorization := strings.Index(query, "fact.fact_id = candidate.source_fact_id")
+	if lateral == -1 || perDigestLimit == -1 || authorization == -1 {
+		t.Fatalf("query is missing the LATERAL, its bound, or the authorization boundary:\n%s", query)
+	}
+	if lateral >= perDigestLimit || perDigestLimit >= authorization {
+		t.Fatalf("the per-digest LIMIT must sit inside the LATERAL and run before authorization:\n%s", query)
 	}
 	if count := strings.Count(query, "LIMIT $4"); count != 1 {
-		t.Fatalf("runtime-digest query LIMIT count = %d, want exactly one candidate bound:\n%s", count, query)
+		t.Fatalf("runtime-digest query bound count = %d, want exactly one per-digest bound:\n%s", count, query)
 	}
 }
