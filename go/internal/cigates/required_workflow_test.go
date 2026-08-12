@@ -15,6 +15,9 @@ on:
   workflow_run:
     workflows: ["Build Test"]
     types: [in_progress, completed]
+concurrency:
+  group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: false
 permissions:
   actions: read
   checks: read
@@ -32,7 +35,7 @@ jobs:
       - name: Await blockers
         run: go run ./cmd/ci-gates await
       - name: Publish terminal
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=failure -f context=required-gates-complete
@@ -75,6 +78,16 @@ func TestCheckRequiredStatusWorkflows_TrustedPublisherPasses(t *testing.T) {
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, trustedRequiredWorkflow), requiredWorkflowRegistry())
 	if len(errs) != 0 {
 		t.Fatalf("trusted required-status publisher returned errors: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_AcceptsEquivalentCancellationSpacing(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, `${{ !cancelled() }}`, `${{!cancelled()}}`, 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) != 0 {
+		t.Fatalf("equivalent cancellation-safe condition returned errors: %v", errs)
 	}
 }
 
@@ -150,22 +163,85 @@ func TestCheckRequiredStatusWorkflows_RejectsFilteredSourceWorkflow(t *testing.T
 	}
 }
 
-func TestCheckRequiredStatusWorkflows_RequiresAlwaysRunTerminalFailure(t *testing.T) {
+func TestCheckRequiredStatusWorkflows_RequiresTerminalFailureAfterSetupFailure(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ always() }}`, `if: ${{ success() }}`, 1)
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ success() }}`, 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("terminal failure publisher must run even when setup or aggregation fails")
 	}
 	found := false
 	for _, err := range errs {
-		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "always") {
+		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "cancel") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected terminal always-run error, got: %v", errs)
+		t.Fatalf("expected terminal cancellation-safety error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RejectsTerminalPublisherOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ always() }}`, 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("cancelled aggregate must not publish a terminal status")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "cancel") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected terminal cancellation-safety error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RejectsMalformedCancellationConditions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"missing opening delimiter":  `!cancelled() }}`,
+		"missing closing delimiter":  `${{ !cancelled()`,
+		"extra opening delimiter":    `${{{ !cancelled() }}`,
+		"extra closing delimiter":    `${{ !cancelled() }}}`,
+		"empty expression":           `${{}}`,
+		"empty condition":            ``,
+		"trailing text":              `${{ !cancelled() }} trailing`,
+		"second expression":          `${{ !cancelled() }} ${{ success() }}`,
+		"space after unary operator": `${{ ! cancelled() }}`,
+		"space before call":          `${{ !cancelled () }}`,
+		"always expression":          `${{ always() }}`,
+		"success expression":         `${{ success() }}`,
+		"compound expression":        `${{ !cancelled() && always() }}`,
+	}
+	for name, condition := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := strings.Replace(
+				trustedRequiredWorkflow,
+				`        if: ${{ !cancelled() }}`,
+				"        if: '"+condition+"'",
+				1,
+			)
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			if len(errs) == 0 {
+				t.Fatalf("malformed cancellation condition %q must be rejected", condition)
+			}
+			found := false
+			for _, err := range errs {
+				if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "cancel") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("expected terminal cancellation-safety error, got: %v", errs)
+			}
+		})
 	}
 }
 
@@ -200,6 +276,134 @@ func TestCheckRequiredStatusWorkflows_RequiresInProgressInvalidation(t *testing.
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("publisher must invalidate stale success when a blocking workflow starts")
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RequiresSerializedPerHeadPublisher(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"running publisher cancellation": strings.Replace(
+			trustedRequiredWorkflow,
+			"cancel-in-progress: false",
+			"cancel-in-progress: true",
+			1,
+		),
+		"conditional publisher cancellation": strings.Replace(
+			trustedRequiredWorkflow,
+			"cancel-in-progress: false",
+			"cancel-in-progress: ${{ github.event_name == 'workflow_run' }}",
+			1,
+		),
+		"missing per-head concurrency": strings.Replace(
+			trustedRequiredWorkflow,
+			"concurrency:\n  group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}\n  cancel-in-progress: false\n",
+			"",
+			1,
+		),
+		"per-run concurrency group": strings.Replace(
+			trustedRequiredWorkflow,
+			"group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}",
+			"group: required-gates-${{ github.run_id }}",
+			1,
+		),
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			if len(errs) == 0 {
+				t.Fatal("trusted publisher must serialize per-head runs without cancelling the active writer")
+			}
+			if !strings.Contains(errs[0].Error(), "concurrency") {
+				t.Fatalf("expected concurrency error, got: %v", errs)
+			}
+		})
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RequiresPendingBeforeSetup(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(
+		trustedRequiredWorkflow,
+		"    steps:\n      - name: Publish pending",
+		"    steps:\n      - name: Setup before invalidation\n        run: echo setup\n      - name: Publish pending",
+		1,
+	)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("pending invalidation must run before setup")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "pending") && strings.Contains(err.Error(), "first step") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected first-step pending error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RequiresUnconditionalPendingStatus(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(
+		trustedRequiredWorkflow,
+		"      - name: Publish pending\n",
+		"      - name: Publish pending\n        if: ${{ false }}\n",
+		1,
+	)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("pending invalidation must execute unconditionally")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "pending") && strings.Contains(err.Error(), "unconditional") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected unconditional pending error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_BindsEachStatusPublisherContext(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"pending publisher": strings.Replace(
+			trustedRequiredWorkflow,
+			"state=pending -f context=required-gates-complete",
+			"state=pending -f context=unrelated-context",
+			1,
+		),
+		"terminal publisher": strings.Replace(
+			trustedRequiredWorkflow,
+			"state=failure -f context=required-gates-complete",
+			"state=failure -f context=unrelated-context",
+			1,
+		),
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			if len(errs) == 0 {
+				t.Fatal("each status publisher must target the required context")
+			}
+			found := false
+			for _, err := range errs {
+				if strings.Contains(err.Error(), "status") && strings.Contains(err.Error(), "required context") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("expected required-context error, got: %v", errs)
+			}
+		})
 	}
 }
 

@@ -17,6 +17,8 @@ It answers two related questions:
 | `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
+| `requiredworkflow_concurrency.go` | serialized per-head publisher concurrency contract |
+| `requiredworkflow_triggers.go` | trusted workflow trigger and source-workflow validation |
 | `scriptworkflow.go` | `checkVerifyScriptWorkflowMatch`, called from `DriftCheck` — a gate whose `verify-*.sh` is executed by exactly one workflow must declare that workflow ([#5748](https://github.com/eshu-hq/eshu/issues/5748)) |
 | `pathfilter.go` | `checkPathFilterCoverage`, called from `DriftCheck` — registry trigger vs. CI `dorny/paths-filter` glob cross-check ([#5855](https://github.com/eshu-hq/eshu/issues/5855)), resolving a gate's filter key through `append_gate` or through a job's `if:` on a paths-filter output ([#5546](https://github.com/eshu-hq/eshu/issues/5546)) |
 | `trivyskipdirs.go` | `checkTrivySkipDirsParity`, called from `DriftCheck` — `scripts/lib/trivy-skip-dirs.sh` must be provably wired to read `specs/trivy-skip-dirs.txt`, the single authoritative skip-dirs list, and `scripts/dev/trivy-fs-local.sh` must be provably wired to `source` that shared helper, call the function it defines, and `set` pipefail rather than reading the specs file or re-deriving the list itself (rationale in `AGENTS.md`) |
@@ -54,13 +56,24 @@ deduplicates rows that share one workflow/job, and fails if a blocker has no CI
 workflow/job mapping or shared rows disagree on concrete check names.
 
 The required-status workflow runs from default-branch code after its declared
-source workflow. It publishes a pending status on the exact pull-request head
-before resolving the PR, and an always-run terminal failure prevents setup or
-identity errors from leaving an old success in place. Success is published only
-after every selected check reports `pass`. Failed, skipped, neutral, missing,
-and timed-out checks fail closed. `DriftCheck` rejects an
-aggregator that runs directly on pull-request code, lacks the declared source,
-uses repository secrets, checks out a non-default ref, or lacks its minimal
+source workflow. Per-head concurrency keeps one aggregate running and retains
+only the latest pending run without cancelling the active status writer. The
+publisher posts pending on the exact pull-request head as its first step,
+before checkout or setup. The running aggregate therefore reaches a real
+success or failure, and the retained run invalidates that result before it
+recomputes.
+
+The terminal publisher does not start when cancellation is already observed,
+so cancellation alone is not converted into failure. A manual cancellation
+after the first step leaves pending, which fails closed. GitHub cannot run the
+first step after a cancellation that happens before runner allocation, and the
+commit-status API has no compare-and-swap or generation token; the workflow
+does not claim atomic fencing for that operator/API boundary. Success is
+published only after every selected check reports `pass`. Failed, skipped,
+neutral, missing, and timed-out checks fail closed. `DriftCheck` rejects an
+aggregator that runs directly on pull-request code, lacks serialized per-head
+concurrency and first-step invalidation, lacks the declared source, uses
+repository secrets, checks out a non-default ref, or lacks its minimal
 read/status-write permissions.
 
 The trusted boundary covers the aggregate policy, selector, and publisher. The
