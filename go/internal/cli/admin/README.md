@@ -25,10 +25,14 @@ that stays in `go/cmd/eshu/admin.go` and
 
 What that boundary means concretely, verified against the non-test source:
 
-- **Environment variables read: none.** No non-test file imports `os`.
-  `ESHU_POSTGRES_DSN` and `ESHU_AUTH_SECRET_ENC_KEY` appear only inside
-  operator-facing error strings; `go/cmd/eshu/admin_initial_credential.go`
-  is what reads them. The same holds transitively for the call paths this
+- **Environment variables read: none.** No non-test file imports `os`. The
+  names that do appear in the source, none of them read here, are
+  `ESHU_AUTH_SECRET_ENC_KEY`, `ESHU_AUTH_BOOTSTRAP_MODE`, and
+  `ESHU_ADMIN_USERNAME`/`PASSWORD` in operator-facing error strings, and
+  `ESHU_POSTGRES_DSN` in comments only.
+  `go/cmd/eshu/admin_initial_credential.go` reads `ESHU_POSTGRES_DSN`
+  directly and hands `os.Getenv` to `secretcrypto.KeyringFromEnv`, which is
+  what reaches the encryption-key variables. The same holds transitively for the call paths this
   package reaches — `query.IdentityHash`, `secretcrypto`'s `Seal`/`Open`/
   `EnvelopeKeyID`, `governanceaudit`, and the `pgstorage`
   `IdentitySubjectStore`/`GovernanceAuditStore` methods used here contain no
@@ -42,8 +46,10 @@ What that boundary means concretely, verified against the non-test source:
 - **`Client` errors are returned verbatim.** They already read as operator
   guidance — `API error 404: <body>` for an HTTP status, or
   `request failed: Post "http://host/path": dial tcp …` for a transport
-  failure — and `cmd/eshu` prints them straight to stderr. `go/.golangci.yml`
-  exempts `admin.Client` from `wrapcheck` for that reason.
+  failure — and `cmd/eshu` prints them straight to stderr. These returns lost
+  `go/.golangci.yml`'s `go/cmd/*` `wrapcheck` exemption when they left
+  `package main`, so each carries a `//nolint:wrapcheck` naming that reason
+  rather than a wrap that would print the context twice.
 - **Network calls: none of its own.** HTTP requests go through the `Client`
   interface the caller supplies; Postgres statements go through the
   `pgstorage.ExecQueryer` the caller supplies. Base URL, API key, timeout,

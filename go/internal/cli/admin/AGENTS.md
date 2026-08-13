@@ -43,9 +43,11 @@
 - **Errors from `Client` are returned verbatim.** They already carry the
   operator's context (`API error 404: <body>` for an HTTP status,
   `request failed: Post "http://host/path": dial tcp …` for a transport
-  failure) and `cmd/eshu` prints them straight to stderr. `go/.golangci.yml`
-  exempts `admin.Client` from `wrapcheck` for exactly this reason; wrapping
-  would change operator-facing output rather than add context.
+  failure) and `cmd/eshu` prints them straight to stderr. Leaving
+  `package main` cost these returns the `go/cmd/*` exemption in
+  `go/.golangci.yml`'s `wrapcheck` config, so each carries its own
+  `//nolint:wrapcheck` with that reason. Wrapping would prepend a second
+  prefix to what the operator already reads, not add context.
 
 ## Common changes and how to scope them
 

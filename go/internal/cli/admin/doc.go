@@ -5,7 +5,7 @@
 // fact work-item and reindex API calls, and bootstrap admin credential
 // retrieval and reset.
 //
-// Two groups of callers exist. The work-item side (Reindex, TuningReport,
+// Two unrelated groups of operations share it. The work-item side (Reindex, TuningReport,
 // ListWorkItems, ListDecisions, Replay, DeadLetter, Skip, Backfill,
 // ListReplayEvents) decides which admin endpoint to call and what request
 // body to send, then returns the decoded response for the caller to render.
@@ -19,9 +19,11 @@
 // own either — HTTP goes through the Client interface it is handed, and
 // Postgres statements go through the pgstorage.ExecQueryer it is handed, so
 // base URL, credential, timeout, proxy handling, and DSN are all decided by
-// the caller. ESHU_POSTGRES_DSN and ESHU_AUTH_SECRET_ENC_KEY appear here
-// only inside operator-facing error text; go/cmd/eshu is what actually reads
-// them. Two _test.go files do read ESHU_POSTGRES_DSN, to skip the
+// the caller. Environment variables are named in this source but never read
+// from it: ESHU_AUTH_SECRET_ENC_KEY, ESHU_AUTH_BOOTSTRAP_MODE, and
+// ESHU_ADMIN_USERNAME/PASSWORD appear in operator-facing error text, and
+// ESHU_POSTGRES_DSN appears only in comments pointing at the wrapper that
+// reads it. Two _test.go files do read ESHU_POSTGRES_DSN, to skip their
 // real-Postgres proofs when no DSN is set.
 //
 // go/cmd/eshu/admin.go and go/cmd/eshu/admin_initial_credential.go are the
