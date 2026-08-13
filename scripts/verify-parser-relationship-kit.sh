@@ -8,21 +8,15 @@ if [ -z "$repo_root" ]; then
     || (cd "$script_dir/.." && pwd))"
 fi
 
-base="${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
-if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-  if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    base="origin/$GITHUB_BASE_REF"
-  fi
-fi
-if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    base="HEAD~1"
-  else
-    printf 'verify-parser-relationship-kit: no base commit available, skipping diff checks\n'
-    base=""
-  fi
-fi
+# Base resolution (override -> origin/$GITHUB_BASE_REF -> merge base with
+# origin/main -> HEAD~1) is shared with the other diff-scoped gates. The two
+# traps it defends against, and why HEAD~1 is a last resort rather than a
+# default, are documented in the helper.
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "$script_dir/lib/gate-diff-base.sh"
+eshu_gate_resolve_diff_base "verify-parser-relationship-kit" "$repo_root" \
+  "${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
+base="$eshu_gate_diff_base"
 
 changed_files=()
 tmp_file="$(mktemp)"

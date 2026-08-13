@@ -470,4 +470,13 @@ expect_fail "${last_line_repo}"
 # this one under the repo's 500-line cap.
 "${repo_root}/scripts/test-verify-performance-evidence-large-marker.sh"
 
+# Regression: with neither ESHU_PERFORMANCE_EVIDENCE_BASE nor GITHUB_BASE_REF
+# set -- the shape of a local `make pre-pr` run, which every test above bypasses
+# -- the base must be the merge base with origin/main, not HEAD~1. A HEAD~1
+# base scopes the gate to the last commit, so a branch whose hot-path change
+# sits in an earlier commit and whose tip commit is innocuous passed with no
+# evidence at all. Split into its own file to keep this one under the repo's
+# 500-line cap.
+"${repo_root}/scripts/test-verify-performance-evidence-merge-base.sh"
+
 printf 'verify-performance-evidence tests passed\n'
