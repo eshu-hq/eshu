@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,7 @@ stays broad until that scoped token is provisioned.`,
 	onboardCmd.Flags().Bool("json", false, "Write the onboarding artifact as JSON instead of the terminal summary")
 	onboardCmd.Flags().String("out", "", "Write the redacted onboarding artifact to this path")
 	onboardCmd.Flags().String("format", "md", "Artifact format for --out: md or json")
-	onboardCmd.Flags().String("platform", "", "Emit a hosted MCP setup snippet for this assistant client: "+strings.Join(supportedPlatformNames(), ", "))
+	onboardCmd.Flags().String("platform", "", "Emit a hosted MCP setup snippet for this assistant client: "+strings.Join(mcpsetup.SupportedPlatformNames(), ", "))
 	addRemoteFlags(onboardCmd)
 	rootCmd.AddCommand(onboardCmd)
 }

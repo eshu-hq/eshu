@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
@@ -34,7 +35,7 @@ const mcpSetupLongHelp = "Print platform-specific MCP client config and optional
 // failing, which is why registration is centralized here rather than repeated
 // per command (see service.go's mAlias wiring history).
 func addMCPSetupFlags(cmd *cobra.Command) {
-	cmd.Flags().String("platform", "generic", "Target MCP client: "+strings.Join(supportedPlatformNames(), ", "))
+	cmd.Flags().String("platform", "generic", "Target MCP client: "+strings.Join(mcpsetup.SupportedPlatformNames(), ", "))
 	cmd.Flags().Bool("hosted", false, "Generate hosted HTTP setup instead of local stdio")
 	cmd.Flags().Bool("write", false, "Merge the config into the platform's file instead of printing it")
 	cmd.Flags().String("target", "", "Override the file path used by --write")
@@ -77,20 +78,20 @@ func runMCPSetup(cmd *cobra.Command, args []string) error {
 	authFlag, _ := cmd.Flags().GetString("auth")
 	sharedKey, _ := cmd.Flags().GetBool("shared-key")
 
-	platform, err := resolvePlatform(platformName)
+	platform, err := mcpsetup.ResolvePlatform(platformName)
 	if err != nil {
 		return err
 	}
 
-	req := mcpSetupRequest{Mode: modeLocalStdio}
+	req := mcpsetup.SetupRequest{Mode: mcpsetup.ModeLocalStdio}
 	if hosted {
-		req.Mode = modeHostedHTTP
+		req.Mode = mcpsetup.ModeHostedHTTP
 		client := apiClientFromCmd(cmd)
 		req.ServiceURL = client.BaseURL
 		req.APIKey = client.APIKey
 	}
 
-	posture, err := resolveAuthPosture(authFlag, sharedKey, hosted, hostedPostureProbe, req.ServiceURL)
+	posture, err := mcpsetup.ResolveAuthPosture(authFlag, sharedKey, hosted, mcpsetup.HostedPostureProbe, req.ServiceURL)
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func runMCPSetup(cmd *cobra.Command, args []string) error {
 		return mcpSetupVerify(cmd, platform, req)
 	}
 
-	snippet, err := renderSetupSnippet(platform, req)
+	snippet, err := mcpsetup.RenderSetupSnippet(platform, req)
 	if err != nil {
 		return err
 	}
@@ -119,23 +120,23 @@ func runMCPSetup(cmd *cobra.Command, args []string) error {
 
 // mcpSetupWrite merges the eshu entry into the platform config file and reports
 // where it landed. It never prints a raw token.
-func mcpSetupWrite(platform *mcpPlatform, req mcpSetupRequest, target string) error {
+func mcpSetupWrite(platform *mcpsetup.Platform, req mcpsetup.SetupRequest, target string) error {
 	if !platform.Writable {
 		return fmt.Errorf("platform %q does not support --write; print the snippet and add it to %s manually",
 			platform.Name, platform.TargetFile)
 	}
 	path := strings.TrimSpace(target)
 	if path == "" {
-		def, err := defaultWriteTarget(platform)
+		def, err := mcpsetup.DefaultWriteTarget(platform)
 		if err != nil {
 			return err
 		}
 		path = def
 	}
-	if err := writeMCPServerConfig(platform, req, path); err != nil {
+	if err := mcpsetup.WriteMCPServerConfig(platform, req, path); err != nil {
 		return err
 	}
-	printSuccess(fmt.Sprintf("Merged eshu MCP server into %s", describeWriteTarget(path)))
+	printSuccess(fmt.Sprintf("Merged eshu MCP server into %s", mcpsetup.DescribeWriteTarget(path)))
 	return nil
 }
 
@@ -158,28 +159,28 @@ func mcpSetupWrite(platform *mcpPlatform, req mcpSetupRequest, target string) er
 //     health and the query run against it.
 //
 // The public /health reachability probe runs under every hosted posture.
-func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupRequest) error {
-	snippet, err := renderSetupSnippet(platform, req)
+func mcpSetupVerify(cmd *cobra.Command, platform *mcpsetup.Platform, req mcpsetup.SetupRequest) error {
+	snippet, err := mcpsetup.RenderSetupSnippet(platform, req)
 	if err != nil {
 		snippet = ""
 	}
 
-	var health healthProber
-	var query queryProber
+	var health mcpsetup.HealthProber
+	var query mcpsetup.QueryProber
 	var querySkipReason string
-	if req.Mode == modeHostedHTTP {
+	if req.Mode == mcpsetup.ModeHostedHTTP {
 		client := apiClientFromCmd(cmd)
 		switch req.Posture {
-		case postureSSO:
+		case mcpsetup.PostureSSO:
 			querySkipReason = "OAuth is interactive; complete sign-in via your client (e.g. Claude Code /mcp)"
-		case postureSharedKey:
+		case mcpsetup.PostureSharedKey:
 			query = apiQueryProber{client: client}
-		default: // postureToken
-			if token := strings.TrimSpace(os.Getenv(mcpTokenEnvVar)); token != "" {
+		default: // mcpsetup.PostureToken
+			if token := strings.TrimSpace(os.Getenv(mcpsetup.MCPTokenEnvVar)); token != "" {
 				client.APIKey = token
 				query = apiQueryProber{client: client}
 			} else {
-				querySkipReason = "set " + mcpTokenEnvVar + " to verify the personal credential"
+				querySkipReason = "set " + mcpsetup.MCPTokenEnvVar + " to verify the personal credential"
 			}
 		}
 		// Built after any credential override so the public health probe uses
@@ -188,10 +189,43 @@ func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupReque
 		health = apiHealthProber{client: client}
 	}
 
-	report := runVerification(snippet, mcp.ReadOnlyTools, health, query, querySkipReason)
-	fmt.Print(postureVerifyHeader(req) + renderVerifyReport(report))
-	if !report.allOK() {
+	report := mcpsetup.RunVerification(snippet, mcp.ReadOnlyTools, health, query, querySkipReason)
+	fmt.Print(postureVerifyHeader(req) + mcpsetup.RenderVerifyReport(report))
+	if !report.AllOK() {
 		return fmt.Errorf("mcp setup verification failed")
+	}
+	return nil
+}
+
+// apiHealthProber probes the hosted API /health endpoint via the shared
+// client, implementing mcpsetup.HealthProber. It stays in cmd/eshu because it
+// wraps *APIClient, which reads process-level flags and environment
+// (resolveConfigValue) that mcpsetup cannot depend on.
+type apiHealthProber struct {
+	client *APIClient
+}
+
+// Reachable issues a GET /health and treats any non-error response as reachable.
+func (p apiHealthProber) Reachable() error {
+	if err := p.client.Get("/health", nil); err != nil {
+		return fmt.Errorf("health probe %s failed: %w", p.client.BaseURL, err)
+	}
+	return nil
+}
+
+// apiQueryProber runs one bounded index-status read as the first-query smoke,
+// implementing mcpsetup.QueryProber. It stays in cmd/eshu for the same reason
+// as apiHealthProber: it wraps *APIClient.
+type apiQueryProber struct {
+	client *APIClient
+}
+
+// Smoke fetches index status, a cheap bounded read that proves the query surface
+// answers without fetching a large payload.
+func (p apiQueryProber) Smoke() error {
+	var result map[string]any
+	if err := p.client.Get("/api/v0/index-status", &result); err != nil {
+		return fmt.Errorf("index-status query failed: %w", err)
 	}
 	return nil
 }
@@ -200,19 +234,19 @@ func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupReque
 // leading line before the staged verification report, so `--verify` output is
 // self-explanatory about which credential story it exercised. Empty for local
 // stdio mode, which carries no credential to name.
-func postureVerifyHeader(req mcpSetupRequest) string {
-	if req.Mode != modeHostedHTTP {
+func postureVerifyHeader(req mcpsetup.SetupRequest) string {
+	if req.Mode != mcpsetup.ModeHostedHTTP {
 		return ""
 	}
 	switch req.Posture {
-	case postureSSO:
+	case mcpsetup.PostureSSO:
 		if len(req.Issuers) > 0 {
 			return fmt.Sprintf("Auth posture: sso (issuer: %s)\n", req.Issuers[0])
 		}
 		return "Auth posture: sso\n"
-	case postureSharedKey:
-		return "Auth posture: shared-key (admin/dev " + apiKeyEnvVar + ")\n"
-	default: // postureToken
-		return "Auth posture: token (per-user " + mcpTokenEnvVar + ")\n"
+	case mcpsetup.PostureSharedKey:
+		return "Auth posture: shared-key (admin/dev " + mcpsetup.APIKeyEnvVar + ")\n"
+	default: // mcpsetup.PostureToken
+		return "Auth posture: token (per-user " + mcpsetup.MCPTokenEnvVar + ")\n"
 	}
 }

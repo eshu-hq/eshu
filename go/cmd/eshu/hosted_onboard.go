@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -267,9 +268,9 @@ func hostedMCPEndpoint(base string) string {
 // when none is resolved the team is told which env var to set.
 func hostedTokenSourceName(apiKey string) string {
 	if strings.TrimSpace(apiKey) == "" {
-		return apiKeyEnvVar + " (unset)"
+		return mcpsetup.APIKeyEnvVar + " (unset)"
 	}
-	return apiKeyEnvVar
+	return mcpsetup.APIKeyEnvVar
 }
 
 // hostedTokenSourceNameFromRef derives the token source name from the redacted
@@ -279,9 +280,9 @@ func hostedTokenSourceName(apiKey string) string {
 // surfaced as the source name.
 func hostedTokenSourceNameFromRef(tokenRef string) string {
 	if strings.TrimSpace(tokenRef) == "" {
-		return apiKeyEnvVar + " (unset)"
+		return mcpsetup.APIKeyEnvVar + " (unset)"
 	}
-	return apiKeyEnvVar
+	return mcpsetup.APIKeyEnvVar
 }
 
 // hostedStarterPrompts returns a small, bounded set of starter prompts for an

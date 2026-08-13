@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
@@ -245,8 +246,8 @@ func TestHostedSetupHostedSnippetGenerated(t *testing.T) {
 	if strings.TrimSpace(result.SetupHint) == "" {
 		t.Fatal("SetupHint is empty, want a hosted MCP snippet")
 	}
-	if !strings.Contains(result.SetupHint, "${"+apiKeyEnvVar+"}") {
-		t.Fatalf("SetupHint does not reference %s env var: %q", apiKeyEnvVar, result.SetupHint)
+	if !strings.Contains(result.SetupHint, "${"+mcpsetup.APIKeyEnvVar+"}") {
+		t.Fatalf("SetupHint does not reference %s env var: %q", mcpsetup.APIKeyEnvVar, result.SetupHint)
 	}
 	if strings.Contains(result.SetupHint, secretToken) {
 		t.Fatal("SetupHint leaked the raw bearer token")

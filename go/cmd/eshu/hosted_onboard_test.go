@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
 // narrowOnboardOptions returns onboarding options that pass rule validation: an
@@ -159,8 +161,8 @@ func TestHostedOnboardTokenSourceNameIsReferenceNotValue(t *testing.T) {
 		t.Fatalf("executeHostedOnboard() err = %v", err)
 	}
 
-	if artifact.TokenSourceName != apiKeyEnvVar {
-		t.Fatalf("TokenSourceName = %q, want the env var name %q (never the value)", artifact.TokenSourceName, apiKeyEnvVar)
+	if artifact.TokenSourceName != mcpsetup.APIKeyEnvVar {
+		t.Fatalf("TokenSourceName = %q, want the env var name %q (never the value)", artifact.TokenSourceName, mcpsetup.APIKeyEnvVar)
 	}
 
 	jsonBytes, err := json.Marshal(artifact)
@@ -178,7 +180,7 @@ func TestHostedOnboardTokenSourceNameIsReferenceNotValue(t *testing.T) {
 	if strings.Contains(markdown, secretToken) {
 		t.Fatal("Markdown artifact leaked the raw bearer token value")
 	}
-	if !strings.Contains(markdown, apiKeyEnvVar) {
+	if !strings.Contains(markdown, mcpsetup.APIKeyEnvVar) {
 		t.Fatal("Markdown artifact must name the token source env var")
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"encoding/json"
@@ -17,22 +17,22 @@ const fakeBearerToken = "eshu_live_SUPERSECRET_abc123def456ghi789"
 
 // renderForTest renders the platform snippet block for a request, failing the
 // test on error.
-func renderForTest(t *testing.T, platform string, req mcpSetupRequest) string {
+func renderForTest(t *testing.T, platform string, req SetupRequest) string {
 	t.Helper()
-	p, err := resolvePlatform(platform)
+	p, err := ResolvePlatform(platform)
 	if err != nil {
-		t.Fatalf("resolvePlatform(%q) error = %v, want nil", platform, err)
+		t.Fatalf("ResolvePlatform(%q) error = %v, want nil", platform, err)
 	}
-	out, err := renderSetupSnippet(p, req)
+	out, err := RenderSetupSnippet(p, req)
 	if err != nil {
-		t.Fatalf("renderSetupSnippet(%q) error = %v, want nil", platform, err)
+		t.Fatalf("RenderSetupSnippet(%q) error = %v, want nil", platform, err)
 	}
 	return out
 }
 
 func TestSnippetCodexLocalStdio(t *testing.T) {
 	t.Parallel()
-	out := renderForTest(t, "codex", mcpSetupRequest{Mode: modeLocalStdio})
+	out := renderForTest(t, "codex", SetupRequest{Mode: ModeLocalStdio})
 	if !strings.Contains(out, "[mcp_servers.eshu]") {
 		t.Fatalf("codex snippet missing [mcp_servers.eshu] block:\n%s", out)
 	}
@@ -46,7 +46,7 @@ func TestSnippetCodexLocalStdio(t *testing.T) {
 
 func TestSnippetClaudeLocalStdio(t *testing.T) {
 	t.Parallel()
-	out := renderForTest(t, "claude", mcpSetupRequest{Mode: modeLocalStdio})
+	out := renderForTest(t, "claude", SetupRequest{Mode: ModeLocalStdio})
 	// Snippet must be valid JSON with an mcpServers.eshu stdio entry.
 	jsonPart := extractJSON(t, out)
 	var doc map[string]any
@@ -64,7 +64,7 @@ func TestSnippetClaudeLocalStdio(t *testing.T) {
 
 func TestSnippetGenericJSON(t *testing.T) {
 	t.Parallel()
-	out := renderForTest(t, "generic", mcpSetupRequest{Mode: modeLocalStdio})
+	out := renderForTest(t, "generic", SetupRequest{Mode: ModeLocalStdio})
 	jsonPart := extractJSON(t, out)
 	var doc map[string]any
 	if err := json.Unmarshal([]byte(jsonPart), &doc); err != nil {
@@ -77,7 +77,7 @@ func TestSnippetGenericJSON(t *testing.T) {
 
 func TestSnippetVSCodeUsesServersKey(t *testing.T) {
 	t.Parallel()
-	out := renderForTest(t, "vscode", mcpSetupRequest{Mode: modeLocalStdio})
+	out := renderForTest(t, "vscode", SetupRequest{Mode: ModeLocalStdio})
 	jsonPart := extractJSON(t, out)
 	var doc map[string]any
 	if err := json.Unmarshal([]byte(jsonPart), &doc); err != nil {
@@ -90,9 +90,9 @@ func TestSnippetVSCodeUsesServersKey(t *testing.T) {
 
 func TestUnsupportedPlatformError(t *testing.T) {
 	t.Parallel()
-	_, err := resolvePlatform("emacs")
+	_, err := ResolvePlatform("emacs")
 	if err == nil {
-		t.Fatal("resolvePlatform(emacs) error = nil, want non-nil")
+		t.Fatal("ResolvePlatform(emacs) error = nil, want non-nil")
 	}
 	for _, want := range []string{"codex", "claude", "cursor", "vscode", "generic"} {
 		if !strings.Contains(err.Error(), want) {
@@ -109,20 +109,20 @@ func TestHostedTokenNeverLeaksRaw(t *testing.T) {
 	const fakePersonalToken = "eshu_pat_ANOTHERSECRET_789xyz"
 	postures := []struct {
 		name    string
-		posture mcpAuthPosture
+		posture AuthPosture
 		apiKey  string
 	}{
-		{"token", postureToken, ""},
-		{"sso", postureSSO, ""},
-		{"shared-key", postureSharedKey, fakeBearerToken},
+		{"token", PostureToken, ""},
+		{"sso", PostureSSO, ""},
+		{"shared-key", PostureSharedKey, fakeBearerToken},
 	}
 	for _, platform := range []string{"codex", "claude", "cursor", "vscode", "generic"} {
 		for _, p := range postures {
 			platform, p := platform, p
 			t.Run(platform+"/"+p.name, func(t *testing.T) {
 				t.Parallel()
-				req := mcpSetupRequest{
-					Mode:       modeHostedHTTP,
+				req := SetupRequest{
+					Mode:       ModeHostedHTTP,
 					ServiceURL: "https://eshu.example.com",
 					Posture:    p.posture,
 					APIKey:     p.apiKey,
@@ -149,33 +149,33 @@ func TestHostedSnippetShapes(t *testing.T) {
 
 		t.Run(platform+"/token", func(t *testing.T) {
 			t.Parallel()
-			out := renderForTest(t, platform, mcpSetupRequest{
-				Mode:       modeHostedHTTP,
+			out := renderForTest(t, platform, SetupRequest{
+				Mode:       ModeHostedHTTP,
 				ServiceURL: "https://eshu.example.com",
-				Posture:    postureToken,
+				Posture:    PostureToken,
 			})
-			if strings.Contains(out, "${"+apiKeyEnvVar+"}") {
-				t.Fatalf("%s token snippet must not reference %s:\n%s", platform, apiKeyEnvVar, out)
+			if strings.Contains(out, "${"+APIKeyEnvVar+"}") {
+				t.Fatalf("%s token snippet must not reference %s:\n%s", platform, APIKeyEnvVar, out)
 			}
 			if platform == "codex" {
-				if !strings.Contains(out, `bearer_token_env_var = "`+mcpTokenEnvVar+`"`) {
+				if !strings.Contains(out, `bearer_token_env_var = "`+MCPTokenEnvVar+`"`) {
 					t.Fatalf("codex token snippet missing bearer_token_env_var:\n%s", out)
 				}
-			} else if !strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
-				t.Fatalf("%s token snippet missing ${%s} reference:\n%s", platform, mcpTokenEnvVar, out)
+			} else if !strings.Contains(out, "${"+MCPTokenEnvVar+"}") {
+				t.Fatalf("%s token snippet missing ${%s} reference:\n%s", platform, MCPTokenEnvVar, out)
 			}
 		})
 
 		t.Run(platform+"/sso", func(t *testing.T) {
 			t.Parallel()
-			out := renderForTest(t, platform, mcpSetupRequest{
-				Mode:                  modeHostedHTTP,
+			out := renderForTest(t, platform, SetupRequest{
+				Mode:                  ModeHostedHTTP,
 				ServiceURL:            "https://eshu.example.com",
-				Posture:               postureSSO,
+				Posture:               PostureSSO,
 				Issuers:               []string{"https://idp.example.com/oauth2/aus123"},
 				PreregisteredClientID: "eshu-mcp-client",
 			})
-			if strings.Contains(out, "${"+apiKeyEnvVar+"}") || strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
+			if strings.Contains(out, "${"+APIKeyEnvVar+"}") || strings.Contains(out, "${"+MCPTokenEnvVar+"}") {
 				t.Fatalf("%s sso snippet must not reference a bearer token env var:\n%s", platform, out)
 			}
 			if strings.Contains(out, "bearer_token_env_var") {
@@ -213,10 +213,10 @@ func TestHostedSnippetShapes(t *testing.T) {
 
 		t.Run(platform+"/shared-key", func(t *testing.T) {
 			t.Parallel()
-			out := renderForTest(t, platform, mcpSetupRequest{
-				Mode:       modeHostedHTTP,
+			out := renderForTest(t, platform, SetupRequest{
+				Mode:       ModeHostedHTTP,
 				ServiceURL: "https://eshu.example.com",
-				Posture:    postureSharedKey,
+				Posture:    PostureSharedKey,
 				APIKey:     fakeBearerToken,
 			})
 			if !strings.Contains(out, "WARNING") {
@@ -226,11 +226,11 @@ func TestHostedSnippetShapes(t *testing.T) {
 				t.Fatalf("%s shared-key snippet leaked raw token:\n%s", platform, out)
 			}
 			if platform == "codex" {
-				if !strings.Contains(out, `bearer_token_env_var = "`+apiKeyEnvVar+`"`) {
+				if !strings.Contains(out, `bearer_token_env_var = "`+APIKeyEnvVar+`"`) {
 					t.Fatalf("codex shared-key snippet missing bearer_token_env_var:\n%s", out)
 				}
-			} else if !strings.Contains(out, "${"+apiKeyEnvVar+"}") {
-				t.Fatalf("%s shared-key snippet missing ${%s} reference:\n%s", platform, apiKeyEnvVar, out)
+			} else if !strings.Contains(out, "${"+APIKeyEnvVar+"}") {
+				t.Fatalf("%s shared-key snippet missing ${%s} reference:\n%s", platform, APIKeyEnvVar, out)
 			}
 		})
 	}
@@ -238,20 +238,20 @@ func TestHostedSnippetShapes(t *testing.T) {
 
 func TestRedactTokenNeverReturnsRaw(t *testing.T) {
 	t.Parallel()
-	got := redactToken(fakeBearerToken)
+	got := RedactToken(fakeBearerToken)
 	if got == fakeBearerToken {
-		t.Fatal("redactToken returned the raw token")
+		t.Fatal("RedactToken returned the raw token")
 	}
 	if strings.Contains(got, "SUPERSECRET") {
-		t.Fatalf("redactToken leaked secret body: %q", got)
+		t.Fatalf("RedactToken leaked secret body: %q", got)
 	}
 	if !strings.HasPrefix(got, "eshu") {
-		t.Fatalf("redactToken should keep a short recognizable prefix, got %q", got)
+		t.Fatalf("RedactToken should keep a short recognizable prefix, got %q", got)
 	}
-	if redactToken("") != "" {
-		t.Fatal("redactToken(\"\") should be empty")
+	if RedactToken("") != "" {
+		t.Fatal("RedactToken(\"\") should be empty")
 	}
-	if got := redactToken("short"); strings.Contains(got, "short") {
+	if got := RedactToken("short"); strings.Contains(got, "short") {
 		t.Fatalf("short token not fully masked: %q", got)
 	}
 }
@@ -323,9 +323,9 @@ func TestWriteMCPServerConfigMergesFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"mcpServers":{"other":{"command":"keep"}}}`), 0o644); err != nil {
 		t.Fatalf("seed write error = %v", err)
 	}
-	p, _ := resolvePlatform("cursor")
-	if err := writeMCPServerConfig(p, mcpSetupRequest{Mode: modeLocalStdio}, path); err != nil {
-		t.Fatalf("writeMCPServerConfig error = %v, want nil", err)
+	p, _ := ResolvePlatform("cursor")
+	if err := WriteMCPServerConfig(p, SetupRequest{Mode: ModeLocalStdio}, path); err != nil {
+		t.Fatalf("WriteMCPServerConfig error = %v, want nil", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -346,10 +346,10 @@ func TestWriteMCPServerConfigMergesFile(t *testing.T) {
 
 func TestWriteRefusesNonWritablePlatform(t *testing.T) {
 	t.Parallel()
-	p, _ := resolvePlatform("codex")
-	err := writeMCPServerConfig(p, mcpSetupRequest{Mode: modeLocalStdio}, filepath.Join(t.TempDir(), "x.json"))
+	p, _ := ResolvePlatform("codex")
+	err := WriteMCPServerConfig(p, SetupRequest{Mode: ModeLocalStdio}, filepath.Join(t.TempDir(), "x.json"))
 	if err == nil {
-		t.Fatal("writeMCPServerConfig(codex) error = nil, want non-nil")
+		t.Fatal("WriteMCPServerConfig(codex) error = nil, want non-nil")
 	}
 }
 
@@ -378,22 +378,22 @@ func extractJSON(t *testing.T, s string) string {
 	return ""
 }
 
-// failingHealth is a healthProber that always reports unreachable.
+// failingHealth is a HealthProber that always reports unreachable.
 type failingHealth struct{}
 
 func (failingHealth) Reachable() error { return errFakeUnreachable }
 
-// okHealth is a healthProber that always reports reachable.
+// okHealth is a HealthProber that always reports reachable.
 type okHealth struct{}
 
 func (okHealth) Reachable() error { return nil }
 
-// okQuery is a queryProber that always succeeds.
+// okQuery is a QueryProber that always succeeds.
 type okQuery struct{}
 
 func (okQuery) Smoke() error { return nil }
 
-// failQuery is a queryProber that always fails.
+// failQuery is a QueryProber that always fails.
 type failQuery struct{}
 
 func (failQuery) Smoke() error { return errFakeQuery }
@@ -409,41 +409,41 @@ func (e *fakeErr) Error() string { return e.msg }
 
 func TestVerificationLocalStdioSkipsEndpointStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, nil, nil, "")
+	report := RunVerification("snippet", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
-	if !byStage[stageConfigGenerated].OK {
+	if !byStage[StageConfigGenerated].OK {
 		t.Fatal("config generated stage should pass")
 	}
-	if !byStage[stageToolsVisible].OK {
+	if !byStage[StageToolsVisible].OK {
 		t.Fatal("tools visible stage should pass with embedded tools")
 	}
-	if !byStage[stageClientReachable].Skipped {
+	if !byStage[StageClientReachable].Skipped {
 		t.Fatal("client reachable should be skipped for local stdio")
 	}
-	if !byStage[stageFirstQuery].Skipped {
+	if !byStage[StageFirstQuery].Skipped {
 		t.Fatal("first query should be skipped for local stdio")
 	}
-	if !report.allOK() {
+	if !report.AllOK() {
 		t.Fatal("local stdio verification should be all-OK (skipped stages do not fail)")
 	}
 }
 
 func TestVerificationHostedAllStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{}, "")
-	if !report.allOK() {
+	report := RunVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{}, "")
+	if !report.AllOK() {
 		t.Fatalf("hosted verification should pass, got %+v", report.Stages)
 	}
 }
 
 func TestVerificationUnreachableFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{}, "")
+	report := RunVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{}, "")
 	byStage := stageMap(report)
-	if byStage[stageClientReachable].OK {
+	if byStage[StageClientReachable].OK {
 		t.Fatal("reachable stage should fail when health probe errors")
 	}
-	if report.allOK() {
+	if report.AllOK() {
 		t.Fatal("report should not be all-OK when a stage fails")
 	}
 }
@@ -451,33 +451,33 @@ func TestVerificationUnreachableFails(t *testing.T) {
 func TestVerificationHealthIsNotQuerySuccess(t *testing.T) {
 	t.Parallel()
 	// Reachable but the first query fails: report must distinguish the two.
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{}, "")
+	report := RunVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{}, "")
 	byStage := stageMap(report)
-	if !byStage[stageClientReachable].OK {
+	if !byStage[StageClientReachable].OK {
 		t.Fatal("reachable stage should pass")
 	}
-	if byStage[stageFirstQuery].OK {
+	if byStage[StageFirstQuery].OK {
 		t.Fatal("first query stage must fail independently of reachability")
 	}
-	if report.allOK() {
+	if report.AllOK() {
 		t.Fatal("report should fail when first query fails even though reachable")
 	}
 }
 
 func TestVerificationEmptySnippetFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("", mcp.ReadOnlyTools, nil, nil, "")
+	report := RunVerification("", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
-	if byStage[stageConfigGenerated].OK {
+	if byStage[StageConfigGenerated].OK {
 		t.Fatal("config generated stage must fail when snippet is empty")
 	}
-	if report.allOK() {
+	if report.AllOK() {
 		t.Fatal("report should fail when config generation fails")
 	}
 }
 
-func stageMap(report verifyReport) map[verifyStage]stageResult {
-	m := make(map[verifyStage]stageResult, len(report.Stages))
+func stageMap(report VerifyReport) map[VerifyStage]StageResult {
+	m := make(map[VerifyStage]StageResult, len(report.Stages))
 	for _, s := range report.Stages {
 		m[s.Stage] = s
 	}

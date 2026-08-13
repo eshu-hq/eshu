@@ -6,6 +6,8 @@ package main
 import (
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
 // evidenceIndexingState names whether the first-run proved indexing reached a
@@ -230,7 +232,7 @@ func dedupeStrings(values []string) []string {
 // userinfo (user:password@) is stripped because it can carry a token or
 // password; the scheme, host, and path remain so the operator can still
 // recognize the target. A value that does not parse as a URL is masked through
-// redactToken so a credential-looking string never survives verbatim.
+// mcpsetup.RedactToken so a credential-looking string never survives verbatim.
 func redactEndpoint(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -238,7 +240,7 @@ func redactEndpoint(raw string) string {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Host == "" {
-		return redactToken(trimmed)
+		return mcpsetup.RedactToken(trimmed)
 	}
 	if parsed.User != nil {
 		parsed.User = url.User("redacted")

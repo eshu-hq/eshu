@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"bytes"
@@ -53,17 +53,17 @@ func mergeMCPServerConfig(existing []byte, serversKey string, entry map[string]a
 
 // serversKeyForPlatform returns the JSON container key a platform uses for its
 // server map.
-func serversKeyForPlatform(p *mcpPlatform) string {
+func serversKeyForPlatform(p *Platform) string {
 	if p.Name == "vscode" {
 		return "servers"
 	}
 	return "mcpServers"
 }
 
-// writeMCPServerConfig safely installs the eshu server entry into targetPath,
+// WriteMCPServerConfig safely installs the eshu server entry into targetPath,
 // merging with any existing config and preserving unrelated content. It creates
 // parent directories as needed and writes atomically via a temp file rename.
-func writeMCPServerConfig(p *mcpPlatform, req mcpSetupRequest, targetPath string) error {
+func WriteMCPServerConfig(p *Platform, req SetupRequest, targetPath string) error {
 	if !p.Writable {
 		return fmt.Errorf("platform %q has no safe --write target; copy the snippet into %s manually", p.Name, p.TargetFile)
 	}
@@ -104,10 +104,10 @@ func writeMCPServerConfig(p *mcpPlatform, req mcpSetupRequest, targetPath string
 	return nil
 }
 
-// defaultWriteTarget resolves the default config file path for a writable
+// DefaultWriteTarget resolves the default config file path for a writable
 // platform. It honors HOME via os.UserHomeDir for user-scoped targets and uses
 // the current working directory for project-scoped targets.
-func defaultWriteTarget(p *mcpPlatform) (string, error) {
+func DefaultWriteTarget(p *Platform) (string, error) {
 	switch p.Name {
 	case "claude":
 		// Project-scoped .mcp.json is the safest default to merge.
@@ -121,9 +121,9 @@ func defaultWriteTarget(p *mcpPlatform) (string, error) {
 	}
 }
 
-// describeWriteTarget returns a human label for where a write landed, trimming a
+// DescribeWriteTarget returns a human label for where a write landed, trimming a
 // home prefix when present for readability.
-func describeWriteTarget(path string) string {
+func DescribeWriteTarget(path string) string {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		if rel, err := filepath.Rel(home, path); err == nil && !strings.HasPrefix(rel, "..") {
 			return filepath.Join("~", rel)

@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
 // newSetupCmd builds a cobra command wired with the same flags as `mcp setup`
@@ -64,10 +66,10 @@ func TestRunMCPSetupHostedTokenPostureDoesNotPrintRawToken(t *testing.T) {
 	if strings.Contains(out, fakeBearerToken) {
 		t.Fatalf("hosted token-posture setup leaked raw token:\n%s", out)
 	}
-	if !strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
+	if !strings.Contains(out, "${"+mcpsetup.MCPTokenEnvVar+"}") {
 		t.Fatalf("hosted token-posture setup did not emit env-var reference:\n%s", out)
 	}
-	if strings.Contains(out, "${"+apiKeyEnvVar+"}") {
+	if strings.Contains(out, "${"+mcpsetup.APIKeyEnvVar+"}") {
 		t.Fatalf("hosted token-posture setup must not reference the shared key:\n%s", out)
 	}
 }
@@ -90,7 +92,7 @@ func TestRunMCPSetupHostedSharedKeyPostureDoesNotPrintRawToken(t *testing.T) {
 	if strings.Contains(out, fakeBearerToken) {
 		t.Fatalf("hosted shared-key setup leaked raw token:\n%s", out)
 	}
-	if !strings.Contains(out, "${"+apiKeyEnvVar+"}") {
+	if !strings.Contains(out, "${"+mcpsetup.APIKeyEnvVar+"}") {
 		t.Fatalf("hosted shared-key setup did not emit env-var reference:\n%s", out)
 	}
 	if !strings.Contains(out, "WARNING") {
@@ -112,7 +114,7 @@ func TestRunMCPSetupHostedSharedKeyBoolFlagAlsoWorks(t *testing.T) {
 			t.Fatalf("runMCPSetup error = %v, want nil", err)
 		}
 	})
-	if !strings.Contains(out, "${"+apiKeyEnvVar+"}") {
+	if !strings.Contains(out, "${"+mcpsetup.APIKeyEnvVar+"}") {
 		t.Fatalf("--shared-key setup did not emit env-var reference:\n%s", out)
 	}
 }
@@ -151,7 +153,7 @@ func TestRunMCPSetupHostedAutoDetectsSSO(t *testing.T) {
 			t.Fatalf("runMCPSetup error = %v, want nil", err)
 		}
 	})
-	if strings.Contains(out, "${"+apiKeyEnvVar+"}") || strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
+	if strings.Contains(out, "${"+mcpsetup.APIKeyEnvVar+"}") || strings.Contains(out, "${"+mcpsetup.MCPTokenEnvVar+"}") {
 		t.Fatalf("auto-detected SSO setup must not reference a bearer token env var:\n%s", out)
 	}
 	if !strings.Contains(out, "https://idp.example.com/oauth2/aus123") {
@@ -182,7 +184,7 @@ func TestRunMCPSetupHostedAutoFallsBackToToken(t *testing.T) {
 				}
 			})
 		})
-		if !strings.Contains(stdout, "${"+mcpTokenEnvVar+"}") {
+		if !strings.Contains(stdout, "${"+mcpsetup.MCPTokenEnvVar+"}") {
 			t.Fatalf("404 fallback should emit the token env-var reference:\n%s", stdout)
 		}
 		if strings.TrimSpace(stderr) != "" {
@@ -206,7 +208,7 @@ func TestRunMCPSetupHostedAutoFallsBackToToken(t *testing.T) {
 				}
 			})
 		})
-		if !strings.Contains(stdout, "${"+mcpTokenEnvVar+"}") {
+		if !strings.Contains(stdout, "${"+mcpsetup.MCPTokenEnvVar+"}") {
 			t.Fatalf("dead-endpoint fallback should emit the token env-var reference:\n%s", stdout)
 		}
 		if strings.TrimSpace(stderr) == "" {
@@ -232,8 +234,8 @@ func TestRunMCPSetupSharedKeyRequiresExplicitFlag(t *testing.T) {
 			t.Fatalf("runMCPSetup error = %v, want nil", err)
 		}
 	})
-	if strings.Contains(out, "${"+apiKeyEnvVar+"}") {
-		t.Fatalf("default hosted run must never emit %s:\n%s", apiKeyEnvVar, out)
+	if strings.Contains(out, "${"+mcpsetup.APIKeyEnvVar+"}") {
+		t.Fatalf("default hosted run must never emit %s:\n%s", mcpsetup.APIKeyEnvVar, out)
 	}
 	if strings.Contains(out, fakeBearerToken) {
 		t.Fatalf("default hosted run leaked the raw shared key:\n%s", out)
@@ -380,7 +382,7 @@ func TestRunMCPSetupVerifyHostedReachable(t *testing.T) {
 // verification actually authenticates the way a real client would.
 func TestRunMCPSetupVerifyTokenPostureUsesEnvFallback(t *testing.T) {
 	const envToken = "eshu_pat_verify_fallback_TESTONLY" // #nosec G101 -- test-only fixture value
-	t.Setenv(mcpTokenEnvVar, envToken)
+	t.Setenv(mcpsetup.MCPTokenEnvVar, envToken)
 	t.Setenv("ESHU_API_KEY", "")
 
 	var gotAuth string

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
 // hostedHealthzPath is the deployed liveness probe path served by the runtime
@@ -125,27 +127,27 @@ func classifyIndexReadiness(status scanPipelineStatus, repoCount int) (hostedFai
 }
 
 // hostedTokenReference returns a display-safe reference for the resolved bearer
-// token, never the raw value. It reuses the #1767 tokenReference/redactToken
-// helpers: when a platform supports env-var references it returns
-// ${ESHU_API_KEY}; otherwise it returns a masked placeholder so the operator can
-// recognize which key is configured without exposing it. `eshu hosted-setup`
-// connects using this resolved ESHU_API_KEY (the shared admin/dev credential,
-// issue #1767) regardless of the deployment's F-8 auth posture, so this always
-// references apiKeyEnvVar -- it is showing the credential the command actually
-// used to connect, not re-deriving a posture.
+// token, never the raw value. It reuses the #1767 mcpsetup.TokenReference/
+// mcpsetup.RedactToken helpers: when a platform supports env-var references it
+// returns ${ESHU_API_KEY}; otherwise it returns a masked placeholder so the
+// operator can recognize which key is configured without exposing it. `eshu
+// hosted-setup` connects using this resolved ESHU_API_KEY (the shared admin/dev
+// credential, issue #1767) regardless of the deployment's F-8 auth posture, so
+// this always references mcpsetup.APIKeyEnvVar -- it is showing the credential
+// the command actually used to connect, not re-deriving a posture.
 func hostedTokenReference(platform, apiKey string) string {
 	if strings.TrimSpace(apiKey) == "" {
 		return ""
 	}
-	if p, err := resolvePlatform(platform); err == nil {
-		return tokenReference(p, apiKeyEnvVar, apiKey)
+	if p, err := mcpsetup.ResolvePlatform(platform); err == nil {
+		return mcpsetup.TokenReference(p, mcpsetup.APIKeyEnvVar, apiKey)
 	}
-	return redactToken(apiKey)
+	return mcpsetup.RedactToken(apiKey)
 }
 
 // hostedSetupHint renders a hosted MCP setup snippet for the requested platform
-// by delegating to the #1767 renderSetupSnippet helper. It returns an empty
-// string when no platform was requested or the platform is unknown. The
+// by delegating to the #1767 mcpsetup.RenderSetupSnippet helper. It returns an
+// empty string when no platform was requested or the platform is unknown. The
 // snippet is pinned to shared-key posture: this command authenticates via the
 // resolved ESHU_API_KEY (see hostedTokenReference), so the hint it shows must
 // match the credential it actually used, independent of the deployment's F-8
@@ -154,17 +156,17 @@ func hostedSetupHint(platform string, client *APIClient) string {
 	if strings.TrimSpace(platform) == "" {
 		return ""
 	}
-	p, err := resolvePlatform(platform)
+	p, err := mcpsetup.ResolvePlatform(platform)
 	if err != nil {
 		return ""
 	}
-	req := mcpSetupRequest{
-		Mode:       modeHostedHTTP,
+	req := mcpsetup.SetupRequest{
+		Mode:       mcpsetup.ModeHostedHTTP,
 		ServiceURL: client.BaseURL,
 		APIKey:     client.APIKey,
-		Posture:    postureSharedKey,
+		Posture:    mcpsetup.PostureSharedKey,
 	}
-	hint, err := renderSetupSnippet(p, req)
+	hint, err := mcpsetup.RenderSetupSnippet(p, req)
 	if err != nil {
 		return ""
 	}

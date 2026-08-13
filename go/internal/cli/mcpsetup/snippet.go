@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ func localStdioServerEntry() map[string]any {
 
 // hostedBaseURL returns the trimmed hosted service base URL, or a placeholder
 // host when none was resolved.
-func hostedBaseURL(req mcpSetupRequest) string {
+func hostedBaseURL(req SetupRequest) string {
 	base := strings.TrimRight(strings.TrimSpace(req.ServiceURL), "/")
 	if base == "" {
 		base = "https://your-eshu-host"
@@ -48,30 +48,30 @@ func hostedBaseURL(req mcpSetupRequest) string {
 // object with an env-var bearer reference (never the raw secret); SSO posture
 // omits the headers key entirely so the client hits the bare endpoint,
 // receives the RFC 9728 401 challenge, and completes the OAuth flow itself.
-func hostedServerEntry(p *mcpPlatform, req mcpSetupRequest) map[string]any {
+func hostedServerEntry(p *Platform, req SetupRequest) map[string]any {
 	entry := map[string]any{
 		"type": "http",
 		"url":  hostedBaseURL(req) + "/mcp/message",
 	}
 	switch req.Posture {
-	case postureSSO:
+	case PostureSSO:
 		// No headers: the client authenticates via OAuth against the 401
 		// challenge, not a static bearer token.
-	case postureSharedKey:
+	case PostureSharedKey:
 		entry["headers"] = map[string]any{
-			"Authorization": "Bearer " + tokenReference(p, apiKeyEnvVar, req.APIKey),
+			"Authorization": "Bearer " + TokenReference(p, APIKeyEnvVar, req.APIKey),
 		}
-	default: // postureToken
+	default: // PostureToken
 		entry["headers"] = map[string]any{
-			"Authorization": "Bearer " + tokenReference(p, mcpTokenEnvVar, ""),
+			"Authorization": "Bearer " + TokenReference(p, MCPTokenEnvVar, ""),
 		}
 	}
 	return entry
 }
 
 // serverEntry selects the stdio or hosted entry for the request mode.
-func serverEntry(p *mcpPlatform, req mcpSetupRequest) map[string]any {
-	if req.Mode == modeHostedHTTP {
+func serverEntry(p *Platform, req SetupRequest) map[string]any {
+	if req.Mode == ModeHostedHTTP {
 		return hostedServerEntry(p, req)
 	}
 	return localStdioServerEntry()
@@ -79,8 +79,8 @@ func serverEntry(p *mcpPlatform, req mcpSetupRequest) map[string]any {
 
 // mcpServersJSONSnippet renders the common { "mcpServers": { "eshu": {...} } }
 // shape used by Claude Code, Cursor, and generic MCP clients.
-func mcpServersJSONSnippet(req mcpSetupRequest) (string, error) {
-	p, err := resolvePlatform("generic")
+func mcpServersJSONSnippet(req SetupRequest) (string, error) {
+	p, err := ResolvePlatform("generic")
 	if err != nil {
 		return "", err
 	}
@@ -94,8 +94,8 @@ func mcpServersJSONSnippet(req mcpSetupRequest) (string, error) {
 
 // vscodeJSONSnippet renders the VS Code .vscode/mcp.json shape, which nests
 // servers under a top-level "servers" key.
-func vscodeJSONSnippet(req mcpSetupRequest) (string, error) {
-	p, err := resolvePlatform("vscode")
+func vscodeJSONSnippet(req SetupRequest) (string, error) {
+	p, err := ResolvePlatform("vscode")
 	if err != nil {
 		return "", err
 	}
@@ -119,10 +119,10 @@ func vscodeJSONSnippet(req mcpSetupRequest) (string, error) {
 // (`codex mcp add eshu --url ... --bearer-token-env-var ESHU_MCP_TOKEN`).
 // Codex stores only the env-var name in config.toml, never the value.
 // SSO posture emits the URL only: Codex's streamable_http transport has no
-// documented client-side OAuth flow, so the guidance block (renderSetupSnippet)
+// documented client-side OAuth flow, so the guidance block (RenderSetupSnippet)
 // tells the operator to fall back to --auth token if the OAuth flow cannot run.
-func codexTOMLSnippet(req mcpSetupRequest) (string, error) {
-	if req.Mode != modeHostedHTTP {
+func codexTOMLSnippet(req SetupRequest) (string, error) {
+	if req.Mode != ModeHostedHTTP {
 		var b strings.Builder
 		fmt.Fprintf(&b, "[mcp_servers.%s]\n", mcpServerKey)
 		b.WriteString("command = \"eshu\"\n")
@@ -134,19 +134,19 @@ func codexTOMLSnippet(req mcpSetupRequest) (string, error) {
 	fmt.Fprintf(&b, "[mcp_servers.%s]\n", mcpServerKey)
 	fmt.Fprintf(&b, "url = %q\n", hostedBaseURL(req)+"/mcp/message")
 	switch req.Posture {
-	case postureSSO:
+	case PostureSSO:
 		// URL only; no bearer_token_env_var, no http_headers.
-	case postureSharedKey:
-		fmt.Fprintf(&b, "bearer_token_env_var = %q\n", apiKeyEnvVar)
-	default: // postureToken
-		fmt.Fprintf(&b, "bearer_token_env_var = %q\n", mcpTokenEnvVar)
+	case PostureSharedKey:
+		fmt.Fprintf(&b, "bearer_token_env_var = %q\n", APIKeyEnvVar)
+	default: // PostureToken
+		fmt.Fprintf(&b, "bearer_token_env_var = %q\n", MCPTokenEnvVar)
 	}
 	return strings.TrimRight(b.String(), "\n"), nil
 }
 
-// renderSetupSnippet builds the full guidance block for a platform: snippet plus
+// RenderSetupSnippet builds the full guidance block for a platform: snippet plus
 // target-file and notes. It never prints a raw token.
-func renderSetupSnippet(p *mcpPlatform, req mcpSetupRequest) (string, error) {
+func RenderSetupSnippet(p *Platform, req SetupRequest) (string, error) {
 	snippet, err := p.snippet(req)
 	if err != nil {
 		return "", err
@@ -156,7 +156,7 @@ func renderSetupSnippet(p *mcpPlatform, req mcpSetupRequest) (string, error) {
 	fmt.Fprintf(&b, "Add to: %s\n\n", p.TargetFile)
 	b.WriteString(snippet)
 	b.WriteString("\n")
-	if req.Mode == modeHostedHTTP {
+	if req.Mode == ModeHostedHTTP {
 		b.WriteString(postureGuidance(p, req))
 	}
 	if len(p.notes) > 0 {
@@ -172,14 +172,14 @@ func renderSetupSnippet(p *mcpPlatform, req mcpSetupRequest) (string, error) {
 // after a hosted snippet: how to obtain and export a per-user token (token
 // posture, the default), how the OAuth flow proceeds (SSO posture), or the
 // admin/dev caveat (shared-key posture, always explicit and always warned).
-func postureGuidance(p *mcpPlatform, req mcpSetupRequest) string {
+func postureGuidance(p *Platform, req SetupRequest) string {
 	var b strings.Builder
 	switch req.Posture {
-	case postureSSO:
+	case PostureSSO:
 		writeSSOGuidance(&b, p, req)
-	case postureSharedKey:
+	case PostureSharedKey:
 		writeSharedKeyGuidance(&b, p)
-	default: // postureToken
+	default: // PostureToken
 		writeTokenGuidance(&b, p)
 	}
 	return b.String()
@@ -187,10 +187,10 @@ func postureGuidance(p *mcpPlatform, req mcpSetupRequest) string {
 
 // writeTokenGuidance renders the default per-user token posture's guidance:
 // where to issue the token and which env var to export.
-func writeTokenGuidance(b *strings.Builder, p *mcpPlatform) {
+func writeTokenGuidance(b *strings.Builder, p *Platform) {
 	b.WriteString("\nCreate a personal API token in the Eshu console: https://<host>/profile\n")
 	b.WriteString("(Profile -> API tokens), then export it before launching the client:\n")
-	writeExportOrInjectNote(b, p, mcpTokenEnvVar)
+	writeExportOrInjectNote(b, p, MCPTokenEnvVar)
 	b.WriteString("The token authenticates you as yourself; it is scoped to your grants.\n")
 }
 
@@ -198,7 +198,7 @@ func writeTokenGuidance(b *strings.Builder, p *mcpPlatform) {
 // client will run, naming the issuer and any pre-registered client id the
 // discovery probe advertised, plus a Codex-specific fallback note since
 // Codex's streamable_http transport has no documented OAuth flow.
-func writeSSOGuidance(b *strings.Builder, p *mcpPlatform, req mcpSetupRequest) {
+func writeSSOGuidance(b *strings.Builder, p *Platform, req SetupRequest) {
 	b.WriteString("\nYour MCP client will authenticate via OAuth against your identity provider")
 	if len(req.Issuers) > 0 {
 		fmt.Fprintf(b, ":\n  %s\n", req.Issuers[0])
@@ -218,18 +218,18 @@ func writeSSOGuidance(b *strings.Builder, p *mcpPlatform, req mcpSetupRequest) {
 // writeSharedKeyGuidance renders the shared-key posture's guidance: the
 // admin/dev caveat, always shown because this posture is never the default
 // and only ever selected by an explicit --auth shared-key or --shared-key.
-func writeSharedKeyGuidance(b *strings.Builder, p *mcpPlatform) {
-	b.WriteString("\nWARNING: the shared " + apiKeyEnvVar + " is an admin/dev credential: full AllScopes\n")
+func writeSharedKeyGuidance(b *strings.Builder, p *Platform) {
+	b.WriteString("\nWARNING: the shared " + APIKeyEnvVar + " is an admin/dev credential: full AllScopes\n")
 	b.WriteString("access with no user attribution. Use it for bootstrap and break-glass only.\n")
 	b.WriteString("Per-user tokens (the default) or SSO are the supported paths for engineers.\n")
 	b.WriteString("Export the token before launching the client:\n")
-	writeExportOrInjectNote(b, p, apiKeyEnvVar)
+	writeExportOrInjectNote(b, p, APIKeyEnvVar)
 }
 
 // writeExportOrInjectNote writes the export line for platforms that support
 // env-var references in their config, or the out-of-band injection note for
 // platforms that do not.
-func writeExportOrInjectNote(b *strings.Builder, p *mcpPlatform, envVar string) {
+func writeExportOrInjectNote(b *strings.Builder, p *Platform, envVar string) {
 	if !p.SupportsEnvVarToken {
 		fmt.Fprintf(b, "This client cannot reference env vars in config; inject the %s bearer token through your secret manager, not the file.\n", envVar)
 		return
