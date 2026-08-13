@@ -43,6 +43,13 @@ git diff --check
 
 See [TESTING.md](TESTING.md) for the full test strategy and layer breakdown.
 
+## Documentation Changes
+
+Follow the [documentation style guide](docs/public/documentation-style-guide.md)
+when adding or revising public pages. Choose the page type before writing, check
+commands and configuration names against their source, and run the focused docs
+checks listed in the guide.
+
 ## Submitting Changes
 
 1. Make the smallest change that solves the problem.
