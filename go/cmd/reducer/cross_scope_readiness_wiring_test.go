@@ -91,6 +91,183 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	}
 }
 
+// TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
+// is the same guard for the SECOND registered cross-scope consumer.
+//
+// supply_chain_impact sat in the cross-scope catalog ungated for the whole life
+// of the floor's first release, and nothing failed, because the handler treats a
+// nil readiness seam as "no floor" by design. Deleting the two lines that hand
+// this handler its store and its logger therefore makes the floor inert in
+// production while every unit test stays green.
+//
+// So this drives the real buildReducerService, executes a supply_chain_impact
+// intent, and asserts the deferral comes back out. The fake database gives the
+// pass one fact carrying a repository ID -- one of the three filter dimensions
+// the active-evidence query can match a producer row on, which is what arms the
+// floor -- and answers the producer-quiescence probe with a registered scope
+// that has NOT finished publishing.
+func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact(t *testing.T) {
+	t.Parallel()
+
+	db := &supplyChainReadinessWiringDB{}
+	logged := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logged, nil))
+	service, err := buildReducerService(
+		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		func(string) string { return "" }, nil, nil, logger, nil,
+	)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v, want nil", err)
+	}
+
+	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+		IntentID:       "cross-scope-readiness-wiring-supply-chain",
+		Domain:         reducer.DomainSupplyChainImpact,
+		ScopeID:        "scope-123",
+		GenerationID:   "generation-456",
+		SourceSystem:   "osv",
+		CycleStartedAt: time.Now().UTC(),
+		EnqueuedAt:     time.Now().UTC(),
+	})
+	if execErr == nil {
+		t.Fatal("execution error = nil, want a readiness deferral: the floor is not wired into the supply_chain_impact registration")
+	}
+
+	var classified interface{ FailureClass() string }
+	if !errors.As(execErr, &classified) {
+		t.Fatalf("execution error = %v, want an error carrying a failure class", execErr)
+	}
+	if got := classified.FailureClass(); got != reducer.CrossScopeProducerNotReadyFailureClass {
+		t.Fatalf(
+			"failure class = %q, want %q",
+			got, reducer.CrossScopeProducerNotReadyFailureClass,
+		)
+	}
+	if !db.probedProducerQuiescence {
+		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
+	}
+
+	// The logger is wired separately and fails silently on its own. Without it
+	// a deferral leaves no elapsed-versus-bound signal anywhere, because this
+	// failure class freezes attempt_count and the queue row therefore cannot
+	// say how long the consumer has been waiting.
+	for _, want := range []string{
+		"cross-scope consumer deferred",
+		"elapsed_since_cycle_start",
+		"max_wait",
+	} {
+		if !strings.Contains(logged.String(), want) {
+			t.Fatalf("deferral log is missing %q; got:\n%s", want, logged.String())
+		}
+	}
+}
+
+// supplyChainReadinessWiringDB answers the queries one supply_chain_impact pass
+// makes before the floor fires: the base scope-fact read, the shared
+// active-evidence read, and the producer-quiescence probe.
+type supplyChainReadinessWiringDB struct {
+	fakeReducerDB
+	probedProducerQuiescence bool
+}
+
+func (f *supplyChainReadinessWiringDB) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (postgres.Rows, error) {
+	// The producer-scope quiescence probe. Identified by the projector-drain
+	// fence, which no other reducer query carries. supply_chain_impact declares
+	// two producer domains, so this answers for both collector kinds: each is
+	// registered and neither is quiescent.
+	if strings.Contains(query, "FROM fact_work_items AS projector_work") {
+		f.probedProducerQuiescence = true
+		return &crossScopeReadinessRows{rows: [][]any{
+			{"oci_registry:ghcr.io/acme", false},
+		}}, nil
+	}
+	// The shared cross-scope active-evidence read resolves nothing. Checked
+	// before the generic fact_records branch below, which its FROM clause also
+	// matches. Combined with the not-quiescent probe answer above, that is the
+	// #5709 condition: an empty producer join whose producers have not
+	// published yet.
+	if strings.Contains(query, "legacy_facts") {
+		return &crossScopeReadinessRows{}, nil
+	}
+	if strings.Contains(query, "FROM fact_records") {
+		return &crossScopeReadinessRows{rows: [][]any{
+			supplyChainReadinessConsumptionFactRow("scope-123", "generation-456"),
+		}}, nil
+	}
+	return f.fakeReducerDB.QueryContext(ctx, query, args...)
+}
+
+// BeginReadOnlyRepeatableRead satisfies the snapshot seam shared reducer wiring
+// requires. The transaction routes straight back to this fake.
+func (f *supplyChainReadinessWiringDB) BeginReadOnlyRepeatableRead(
+	context.Context,
+) (postgres.Transaction, error) {
+	return supplyChainReadinessTx{db: f}, nil
+}
+
+// supplyChainReadinessTx is a pass-through transaction over the fake database.
+type supplyChainReadinessTx struct {
+	db *supplyChainReadinessWiringDB
+}
+
+func (t supplyChainReadinessTx) ExecContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	return t.db.ExecContext(ctx, query, args...)
+}
+
+func (t supplyChainReadinessTx) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (postgres.Rows, error) {
+	return t.db.QueryContext(ctx, query, args...)
+}
+
+func (supplyChainReadinessTx) Commit() error { return nil }
+
+func (supplyChainReadinessTx) Rollback() error { return nil }
+
+// supplyChainReadinessConsumptionFactRow builds one fact_records row in
+// listFactsQuery column order for a package-consumption correlation carrying a
+// repository ID. That repository ID is what puts a producer-reachable dimension
+// in the pass's active-evidence filter and so arms the floor.
+func supplyChainReadinessConsumptionFactRow(scopeID, generationID string) []any {
+	payload, err := json.Marshal(map[string]any{
+		"package_id":    "pkg:npm/example",
+		"repository_id": "repo://example/api",
+		"outcome":       "exact",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return []any{
+		"fact-consumption-1",
+		scopeID,
+		generationID,
+		"reducer_package_consumption_correlation",
+		"reducer_package_consumption_correlation:pkg:npm/example:repo://example/api",
+		"",
+		"package_registry",
+		int64(1),
+		facts.SourceConfidenceReported,
+		"eshu_reducer",
+		"reducer_package_consumption_correlation:pkg:npm/example",
+		"",
+		"",
+		time.Now().UTC(),
+		false,
+		payload,
+	}
+}
+
 // crossScopeReadinessWiringDB answers the handful of queries one
 // ci_cd_run_correlation pass makes, with the two answers this test turns on:
 // one ci.artifact fact carrying a digest (so the pass has something to look up,

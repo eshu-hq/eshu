@@ -80,4 +80,12 @@ jobs:
         # exactly-one-winner / no-lost-update row-lock proof against real
         # Postgres so the concurrency contract is proven in CI, not only when a
         # local DSN happens to be set.
+        # TestReducerContentionGateCrossScopeReadiness* runs the #5709 real-queue
+        # proof of the non-counting cross-scope readiness deferral: attempt_count
+        # frozen across more claim/fail cycles than MaxAttempts, no durable write
+        # while waiting, and convergence on producer activation or the elapsed
+        # bound. A fake queue cannot establish any of it, which is why these live
+        # here rather than beside the handler tests.
+        # TestCrossScopeReadinessProofsRunInTheReducerContentionGate is the
+        # hermetic guard that keeps that pair inside the -run filter below.
         run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate)' -race -count=1 -timeout 180s -v

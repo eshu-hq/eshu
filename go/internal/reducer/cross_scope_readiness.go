@@ -20,12 +20,18 @@ import (
 // attempt_count-freeze theory-proof
 // (docs/internal/evidence/5709-attempt-count-freeze.md).
 //
-// ci_cd_run_correlation produces this class today. Its handler samples
-// CrossScopeProducerReadiness before its cross-scope identity load and returns
-// crossScopeProducerNotReadyError when the load resolved nothing and the
-// producer scopes have not activated (cross_scope_readiness_floor.go). It is
-// the only producer of the class so far: supply_chain_impact is in the
-// cross-scope catalog and has not opted in.
+// Both registered cross-scope consumers produce this class:
+// ci_cd_run_correlation and supply_chain_impact. Each samples
+// CrossScopeProducerReadiness before its cross-scope load and returns
+// crossScopeProducerNotReadyError when the load resolved no producer output and
+// the producer scopes have not activated (cross_scope_readiness_floor.go, and
+// supply_chain_impact_evidence_load.go for the second consumer's producer-owned
+// counting rule).
+//
+// Being in crossScopeDependencyCatalog is not what gates a consumer. Each
+// handler opts in by calling the floor helpers and carrying the seam through its
+// registration, so a third consumer added to the catalog produces this class
+// only once its handler does the same.
 const CrossScopeProducerNotReadyFailureClass = "cross_scope_producer_not_ready"
 
 // crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss as

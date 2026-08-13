@@ -82,16 +82,24 @@ var crossScopeProducerCollectorKindByDomain = map[reducer.Domain]scope.Collector
 // (the re-trigger and the floor) cannot drift apart on WHO the producers are.
 //
 // Adding a consumer to that catalog does not by itself gate it. Each consumer
-// handler opts in explicitly by calling the reducer-side floor helper;
-// supply_chain_impact is in the catalog today and is not gated.
+// handler opts in explicitly by calling the reducer-side floor helper. Both
+// catalog consumers have now opted in: ci_cd_run_correlation and
+// supply_chain_impact.
 type CrossScopeProducerReadinessStore struct {
 	DB Queryer
 }
 
-// CrossScopeProducersReady reports whether every producer collector kind the
-// consumer declares, AND THAT THIS DEPLOYMENT ACTUALLY REGISTERS, has at least
-// one quiescent-active scope: a scope with an active generation and no projector
-// work item still pending, retrying, claimed, or running.
+// CrossScopeProducersReady reports, for EACH producer domain the consumer
+// declares, whether that producer's collector kind -- AND THAT THIS DEPLOYMENT
+// ACTUALLY REGISTERS -- has at least one quiescent-active scope: a scope with an
+// active generation and no projector work item still pending, retrying, claimed,
+// or running.
+//
+// Per producer, not one bool for the set. The consumer compares each answer
+// against the evidence that producer actually wrote, and a single bool paired
+// with a single evidence count cannot tell "both producers answered once" from
+// "one producer answered twice" (see reducer.CrossScopeProducerReadinessByDomain,
+// found reviewing #6093).
 //
 // A kind with no registered scope at all is ready, not blocked. Not every
 // deployment runs every collector -- the OCI registry collector needs registry
@@ -129,10 +137,21 @@ type CrossScopeProducerReadinessStore struct {
 // still reads as ready here. That residual window is recorded in
 // docs/internal/evidence/5709-cross-scope-readiness-floor.md.
 //
-// The probe runs once per declared producer collector kind and stops at the
-// first REGISTERED kind with no quiescent-active scope; a kind with no
-// registered scope is skipped and the rest are still probed. The wired consumer
-// (ci_cd_run_correlation, one producer kind) costs exactly one query.
+// The probe runs at most once per DISTINCT declared producer collector kind,
+// and every kind is probed: a per-producer answer cannot short-circuit at the
+// first miss the way the old aggregate bool did, because the producers that
+// come after it still need answers of their own. So the cost is one query per
+// distinct declared kind: ci_cd_run_correlation declares one producer and costs
+// one query, supply_chain_impact declares two and costs two. The removed
+// short-circuit was worth at most one saved query on a deferring
+// supply_chain_impact pass, against a per-producer answer the correctness rule
+// needs. Two kinds also means two chances to be held back, so
+// supply_chain_impact is strictly more likely to defer than the CI/CD consumer.
+//
+// A producer domain with no mapped collector kind answers ready rather than
+// blocking, for the reason crossScopeProducerCollectorKindByDomain gives: a kind
+// nobody has shown the consumer depends on is a guess, and a guessed 30-minute
+// deferral is worse than a missing wait.
 //
 // scopeID and generationID are accepted for the interface and for future
 // scope-narrowed readiness, but are deliberately not filtered on: the producer
@@ -145,40 +164,42 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 	consumer reducer.Domain,
 	_ string,
 	_ string,
-) (bool, error) {
-	producerKinds := crossScopeProducerCollectorKindsFor(consumer)
-	if len(producerKinds) == 0 {
-		// Not a registered cross-scope consumer, or every declared producer is
-		// a domain with no resolvable scope kind. Nothing to wait for.
-		return true, nil
-	}
-	if s.DB == nil {
-		return false, fmt.Errorf("cross-scope producer readiness database is required")
+) (reducer.CrossScopeProducerReadinessByDomain, error) {
+	producers := crossScopeProducerDomainsFor(consumer)
+	readiness := make(reducer.CrossScopeProducerReadinessByDomain, len(producers))
+	if len(crossScopeProducerCollectorKinds(producers)) > 0 && s.DB == nil {
+		return nil, fmt.Errorf("cross-scope producer readiness database is required")
 	}
 
-	for _, kind := range producerKinds {
-		report, err := ProducerScopeQuiescence(ctx, s.DB, []string{kind})
-		if err != nil {
-			return false, fmt.Errorf(
-				"check producer scope quiescence for consumer %s producer kind %s: %w", consumer, kind, err,
-			)
-		}
-		if len(report.Registered) == 0 {
-			// This deployment runs no collector of this kind, so no scope of
-			// it will ever activate. Waiting is waiting for nothing.
+	// Cached per collector kind so two producers mapping to one kind cost one
+	// query, which is what the deduplicating helper used to buy before the
+	// answers had to stay per producer.
+	readyByKind := make(map[string]bool, len(producers))
+	for _, producer := range producers {
+		kind, mapped := crossScopeProducerCollectorKindByDomain[producer]
+		if !mapped {
+			// No resolvable scope kind, so there is no activation to wait for.
+			readiness[producer] = true
 			continue
 		}
-		if len(report.Quiescent) == 0 {
-			return false, nil
+		ready, cached := readyByKind[string(kind)]
+		if !cached {
+			report, err := ProducerScopeQuiescence(ctx, s.DB, []string{string(kind)})
+			if err != nil {
+				return nil, fmt.Errorf(
+					"check producer scope quiescence for consumer %s producer kind %s: %w", consumer, kind, err,
+				)
+			}
+			// No registered scope of this kind means this deployment runs no
+			// such collector, so none will ever activate and waiting is waiting
+			// for nothing. A registered kind with nothing quiescent is the
+			// #5709 case and holds this producer back.
+			ready = len(report.Registered) == 0 || len(report.Quiescent) > 0
+			readyByKind[string(kind)] = ready
 		}
+		readiness[producer] = ready
 	}
-	return true, nil
-}
-
-// crossScopeProducerCollectorKindsFor returns the producer collector kinds the
-// consumer's declared producer domains resolve to, deduplicated and sorted.
-func crossScopeProducerCollectorKindsFor(consumer reducer.Domain) []string {
-	return crossScopeProducerCollectorKinds(crossScopeProducerDomainsFor(consumer))
+	return readiness, nil
 }
 
 // crossScopeProducerDomainsFor returns the producer domains the consumer

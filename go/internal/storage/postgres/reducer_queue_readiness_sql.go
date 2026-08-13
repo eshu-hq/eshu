@@ -35,8 +35,9 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.AWSRelationshipEC2InstanceNodesNotReadyFailureClass,
 	// #5709: a cross-scope consumer deferred until its declared producer scope
 	// activates. Enrolled here so a retrying row in this class keeps its
-	// attempt_count and is not dead-lettered while it waits. Produced by
-	// ci_cd_run_correlation's readiness floor
+	// attempt_count and is not dead-lettered while it waits. Produced by both
+	// registered cross-scope consumers, ci_cd_run_correlation and
+	// supply_chain_impact
 	// (go/internal/reducer/cross_scope_readiness_floor.go); the deferral is
 	// bounded by elapsed time since the repair cycle began, so a producer scope
 	// that never activates still converges instead of retrying forever.

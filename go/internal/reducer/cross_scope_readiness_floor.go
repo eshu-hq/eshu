@@ -71,20 +71,38 @@ const crossScopeProducerReadinessMaxWait = 30 * time.Minute
 // reducer package already takes its readiness seams this way (see
 // GraphProjectionReadinessLookup), and it keeps this package free of SQL.
 type CrossScopeProducerReadiness interface {
-	// CrossScopeProducersReady reports whether the producer scopes the
-	// consumer declares are quiescent-active, so an empty cross-scope join is
+	// CrossScopeProducersReady reports, PER DECLARED PRODUCER, whether that
+	// producer's scopes are quiescent-active, so an empty cross-scope join is
 	// the true answer rather than a timing artefact.
 	//
-	// Returning (false, nil) means "not yet" and is the deferrable case.
-	// Returning an error means the readiness question itself could not be
+	// A false entry means "not yet" for that producer and is the deferrable
+	// case. Returning an error means the readiness question itself could not be
 	// answered, which is NOT a readiness miss and must not be reported as one.
 	CrossScopeProducersReady(
 		ctx context.Context,
 		consumer Domain,
 		scopeID string,
 		generationID string,
-	) (bool, error)
+	) (CrossScopeProducerReadinessByDomain, error)
 }
+
+// CrossScopeProducerReadinessByDomain answers readiness for each producer
+// domain separately.
+//
+// Per producer, and not one bool for the set, because the consumer's resolved
+// evidence is also per producer and the two are compared pairwise. A single
+// aggregate bool paired with a single aggregate count cannot tell "both
+// producers answered once" from "one producer answered twice", and
+// supply_chain_impact shipped exactly that arithmetic until a round of review on
+// #6093 caught it: two container_image_identity envelopes disarmed the floor for
+// ci_cd_run_correlation, which had published nothing.
+//
+// An implementation MUST carry an entry for every producer domain the consumer
+// declares in crossScopeDependencyCatalog. A missing entry reads as NOT ready,
+// which is the safe direction — the consumer defers, bounded by
+// crossScopeProducerReadinessMaxWait, rather than committing an answer for a
+// producer nobody asked about.
+type CrossScopeProducerReadinessByDomain map[Domain]bool
 
 // crossScopeProducerReadinessSignal is the floor's answer, captured BEFORE the
 // consumer's cross-scope load runs. See
@@ -95,11 +113,12 @@ type crossScopeProducerReadinessSignal struct {
 	// up, or an elapsed bound already reached. When true the handler must
 	// never defer, whatever the load returns.
 	gateDisabled bool
-	// ready is the readiness store's answer, captured before the load.
-	// Meaningless when gateDisabled is true.
-	ready bool
-	// producerDomains is the bounded producer set the deferral error names.
-	// Empty when gateDisabled is true.
+	// readyByProducer is the readiness store's per-producer answer, captured
+	// before the load. Meaningless when gateDisabled is true.
+	readyByProducer CrossScopeProducerReadinessByDomain
+	// producerDomains is the bounded producer set, in catalog order. Every one
+	// of them is evaluated on its own; the deferral error names the subset
+	// actually holding the pass back. Empty when gateDisabled is true.
 	producerDomains []Domain
 }
 
@@ -156,7 +175,9 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 		now.Sub(anchor) >= crossScopeProducerReadinessMaxWait {
 		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
 	}
-	ready, err := readiness.CrossScopeProducersReady(ctx, intent.Domain, intent.ScopeID, intent.GenerationID)
+	readyByProducer, err := readiness.CrossScopeProducersReady(
+		ctx, intent.Domain, intent.ScopeID, intent.GenerationID,
+	)
 	if err != nil {
 		// Never converted into a readiness miss. A store that cannot answer is a
 		// real failure; reporting it as cross_scope_producer_not_ready would
@@ -181,23 +202,41 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 		return crossScopeProducerReadinessSignal{}, classifyFactLoadError(err)
 	}
 	return crossScopeProducerReadinessSignal{
-		ready:           ready,
+		readyByProducer: readyByProducer,
 		producerDomains: dependencies[0].ProducerDomains,
 	}, nil
 }
 
-// crossScopeProducerDeferral combines the PRE-load readiness signal with the
-// POST-load resolved count and returns the non-counting readiness error when
-// the consumer must defer. It returns nil in every other case, so a caller can
-// wrap an existing load site without changing its success path.
+// crossScopeUnreadyProducers is the floor's decision rule: it returns the
+// declared producers that are BOTH unready in the pre-load signal AND absent
+// from the post-load resolved evidence, in catalog order. An empty result means
+// this pass may commit.
 //
-// resolved is how many cross-scope envelopes the load returned for the WHOLE
-// BATCH, and that distinction is the floor's widest gap. One
+// Pairwise, per producer. The readiness answer and the resolved count are both
+// keyed by producer domain and compared one producer at a time, because an
+// aggregate on either side loses the association: an envelope carries the
+// identity of the producer that wrote it, and a bare count does not. The
+// version of this rule that used one bool and one int let two
+// container_image_identity envelopes stand in for the ci_cd_run_correlation
+// output that never arrived, so supply_chain_impact committed findings with no
+// deployment context (found reviewing #6093).
+//
+// A producer missing from readyByProducer reads as unready, so a store that
+// forgets a declared producer costs a bounded deferral rather than a wrong
+// answer. Resolved evidence still disarms it — a producer that demonstrably
+// wrote output on this pass has answered, whatever the readiness probe thought.
+//
+// A producer that reads ready with an empty join has given the true answer:
+// its scopes have activated and still say nothing, so the consumer converges on
+// a durable unresolved decision rather than deferring forever.
+//
+// resolvedByProducer counts what the load returned for the WHOLE BATCH, and
+// that distinction is the floor's widest gap. One
 // CICDRunCorrelationHandler.Handle pass classifies every CI run in a scope
 // generation, and it issues one cross-scope load filtered by the union of every
 // run's artifact digests (ciArtifactDigests). So one digest resolving anywhere
-// in the batch makes this count non-zero and disarms the floor for every other
-// run in the same pass.
+// in the batch makes that producer's count non-zero and disarms the floor for
+// every other run in the same pass.
 //
 // What that costs: a batch carrying run A, whose digest an already-activated OCI
 // scope published, and run B, whose identity is still inside its producer's
@@ -213,26 +252,52 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 // built. TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved pins
 // the behavior so it stays a known property;
 // docs/internal/evidence/5709-cross-scope-readiness-floor.md discloses it as a
-// residual window.
-//
-// A ready signal with an empty join means the empty answer is the true one:
-// the producer scopes have activated and still say nothing about these runs, so
-// the handler converges on a durable unresolved decision rather than deferring
-// forever.
-func crossScopeProducerDeferral(
+// residual window. Splitting the count per producer narrows the OTHER axis of
+// the same gap -- which producer the evidence came from -- and leaves this one
+// exactly where it was.
+func crossScopeUnreadyProducers(
 	signal crossScopeProducerReadinessSignal,
-	intent Intent,
-	resolved int,
-) error {
-	if signal.gateDisabled || signal.ready || resolved > 0 {
+	resolvedByProducer map[Domain]int,
+) []Domain {
+	if signal.gateDisabled {
 		return nil
 	}
-	return newCrossScopeProducerNotReadyError(
-		intent.Domain,
-		intent.ScopeID,
-		intent.GenerationID,
-		signal.producerDomains,
-	)
+	unready := make([]Domain, 0, len(signal.producerDomains))
+	for _, producer := range signal.producerDomains {
+		if signal.readyByProducer[producer] {
+			continue
+		}
+		if resolvedByProducer[producer] > 0 {
+			continue
+		}
+		unready = append(unready, producer)
+	}
+	if len(unready) == 0 {
+		return nil
+	}
+	return unready
+}
+
+// singleProducerResolvedCounts credits one whole-batch resolved count to the
+// consumer's single declared producer.
+//
+// It is the adapter for a consumer whose cross-scope load asks a DEDICATED
+// producer reader, so every envelope it returns is that producer's output and a
+// plain count carries no ambiguity about which producer wrote it.
+// ci_cd_run_correlation is the only such consumer: it declares
+// container_image_identity and reads container-image-identity support facts and
+// nothing else.
+//
+// A consumer that grows a second producer gets zero credited counts here rather
+// than a count spread across producers it did not come from, so the drift costs
+// a bounded deferral instead of the aggregate-count defect this whole rule
+// exists to remove. TestCICDRunCorrelationDeclaresExactlyOneProducer fails first
+// if that day comes.
+func singleProducerResolvedCounts(producers []Domain, resolved int) map[Domain]int {
+	if len(producers) != 1 || resolved <= 0 {
+		return nil
+	}
+	return map[Domain]int{producers[0]: resolved}
 }
 
 // crossScopeReadinessCycleAnchor returns intent.CycleStartedAt when set,

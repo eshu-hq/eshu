@@ -176,10 +176,10 @@ registered with live projector work, registered and drained.
 
 The probe is wired. `ProducerScopeQuiescence` has exactly one production caller,
 `CrossScopeProducerReadinessStore.CrossScopeProducersReady`
-(`go/internal/storage/postgres/cross_scope_producer_readiness.go:160`), and its
+(`go/internal/storage/postgres/cross_scope_producer_readiness.go`), and its
 answer decides whether `CICDRunCorrelationHandler.Handle` commits a correlation
 or returns `crossScopeProducerNotReadyError`
-(`go/internal/reducer/ci_cd_run_correlation.go:169-173`). So the failure class
+(`go/internal/reducer/ci_cd_run_correlation.go`). So the failure class
 this branch declares is a class the runtime now produces.
 
 That makes this document the wrong place for the branch's runtime evidence. It

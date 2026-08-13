@@ -66,3 +66,60 @@ func TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam(t *testing.T) {
 		t.Fatal("Logger is not the one passed to DefaultHandlers: cross-scope deferrals would be invisible")
 	}
 }
+
+// TestSupplyChainImpactRegistrationCarriesTheReadinessSeam is the same wiring
+// guard for the SECOND registered cross-scope consumer.
+//
+// supply_chain_impact sat in the cross-scope catalog ungated for the whole life
+// of the floor's first release, and nothing failed — because a nil seam means
+// "no floor" on purpose. That is precisely why the wiring needs its own test:
+// drop these two lines from the registration and every logic test above stays
+// green while production reverts to committing whatever the cross-scope load
+// happened to resolve.
+func TestSupplyChainImpactRegistrationCarriesTheReadinessSeam(t *testing.T) {
+	t.Parallel()
+
+	readiness := &fixedCrossScopeReadiness{ready: true}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	definitions := appendSupplyChainCorrelationAdditiveDomains(nil, DefaultHandlers{
+		FactLoader: &stubSupplyChainImpactFactLoader{},
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SupplyChainImpactWriter: &recordingSupplyChainImpactWriter{},
+		},
+		CrossScopeProducerReadiness: readiness,
+		CrossScopeReadinessLogger:   logger,
+	})
+
+	var handler SupplyChainImpactHandler
+	found := false
+	for _, definition := range definitions {
+		if definition.Domain != DomainSupplyChainImpact {
+			continue
+		}
+		typed, ok := definition.Handler.(SupplyChainImpactHandler)
+		if !ok {
+			t.Fatalf("handler for %s = %T, want SupplyChainImpactHandler", definition.Domain, definition.Handler)
+		}
+		handler, found = typed, true
+	}
+	if !found {
+		t.Fatalf("no %s registration found", DomainSupplyChainImpact)
+	}
+	if handler.ProducerReadiness == nil {
+		t.Fatal("ProducerReadiness is nil on the registered handler: the readiness floor would ship inert")
+	}
+
+	// Prove it is the seam we passed, not some other non-nil value, by
+	// observing the call.
+	if _, err := handler.ProducerReadiness.CrossScopeProducersReady(
+		context.Background(), DomainSupplyChainImpact, "scope:vuln", "gen:vuln",
+	); err != nil {
+		t.Fatalf("CrossScopeProducersReady() error = %v", err)
+	}
+	if readiness.calls != 1 {
+		t.Fatalf("readiness lookup calls = %d, want 1: the registration wired a different seam", readiness.calls)
+	}
+	if handler.Logger != logger {
+		t.Fatal("Logger is not the one passed to DefaultHandlers: cross-scope deferrals would be invisible")
+	}
+}
