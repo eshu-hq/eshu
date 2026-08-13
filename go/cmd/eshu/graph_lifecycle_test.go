@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 554 lines, pre-existing (553 before this change): table-driven graph lifecycle tests (start/stop/upgrade) that were already over the cap before the #6059 graphinstall extraction touched two call sites here for the graphinstall.Options/Result rename. Splitting this file is out of scope for that extraction; track it separately.
+package main //nolint:filelength // 554 lines, 553 of them pre-existing: table-driven graph lifecycle tests already over the cap before #6059 touched two call sites here for the graphinstall.Options/Result rename. The marker is required by the pre-commit `filecap` variant, which flags any file over 500 lines; the CI plugin and `filecap-all` both exempt _test.go, so this suppresses a local-only gate. Splitting the file is out of scope for an extraction; track it separately.
 
 import (
 	"errors"
