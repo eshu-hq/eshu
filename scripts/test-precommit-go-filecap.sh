@@ -10,6 +10,13 @@
 # (surfaced on PR #6104). The parity matrix below is the regression test for
 # that; the mutation check at the end proves the matrix can actually fail.
 #
+# "Parity" here means one thing only: the same file gets the same verdict from
+# both bash variants. It does NOT mean they see the same set of files. The
+# pre-commit hook feeds `filecap` every .go path in the repo (types: [go]),
+# while `filecap-all` walks only `git ls-files 'go/*.go'` — so outside go/ the
+# changed-files arm is stricter than CI on purpose. precommit-go.sh's file-cap
+# header block explains why. Nothing below asserts anything about input sets.
+#
 # Every scratch repo is built under mktemp -d with `env -u GIT_*` so the outer
 # repository cannot leak in.
 set -euo pipefail
@@ -28,6 +35,7 @@ trap 'rm -rf "${tmp_root}"' EXIT
 assertions=0
 parity_cases=0
 scratch_seq=0
+gate_seq=0
 
 fail() {
 	echo "test-precommit-go-filecap: FAIL: $*" >&2
@@ -102,10 +110,14 @@ write_file() {
 
 # run_gate runs one precommit-go.sh subcommand in a scratch repo and sets
 # GATE_RC directly from the process (never through a pipe) plus GATE_OUT.
+# Each run gets its OWN output path. A single shared path would be overwritten
+# by the next run, so in assert_parity a `filecap` failure would dump
+# `filecap-all`'s output and send the reader after the wrong arm.
 run_gate() {
 	local repo_dir="$1" sub="$2"
 	shift 2
-	GATE_OUT="${tmp_root}/gate.out"
+	gate_seq=$((gate_seq + 1))
+	GATE_OUT="${tmp_root}/gate-${gate_seq}-${sub}.out"
 	set +e
 	(
 		cd "${repo_dir}" &&
@@ -130,21 +142,33 @@ assert_contains() {
 # ---------------------------------------------------------------------------
 assert_parity() {
 	local label="$1" rel="$2" lines="$3" marker="$4" want_rc="$5"
-	local repo_dir changed_rc all_rc
+	local repo_dir changed_rc all_rc changed_out all_out
 	new_repo
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" "${lines}" "${rel}" "${marker}"
 
 	run_gate "${repo_dir}" filecap "${rel}"
 	changed_rc="${GATE_RC}"
+	changed_out="${GATE_OUT}"
 	run_gate "${repo_dir}" filecap-all
 	all_rc="${GATE_RC}"
+	all_out="${GATE_OUT}"
 
 	parity_cases=$((parity_cases + 1))
-	[[ "${changed_rc}" == "${all_rc}" ]] ||
+	if [[ "${changed_rc}" != "${all_rc}" ]]; then
+		# Dump the arm that produced the unexpected verdict, not whichever ran
+		# last.
+		if [[ "${changed_rc}" == "${want_rc}" ]]; then
+			GATE_OUT="${all_out}"
+		else
+			GATE_OUT="${changed_out}"
+		fi
 		fail "${label}: parity broken — filecap rc=${changed_rc}, filecap-all rc=${all_rc} for ${rel}"
-	[[ "${changed_rc}" == "${want_rc}" ]] ||
+	fi
+	if [[ "${changed_rc}" != "${want_rc}" ]]; then
+		GATE_OUT="${changed_out}"
 		fail "${label}: rc=${changed_rc}, wanted ${want_rc} for ${rel}"
+	fi
 	pass "parity ${label} (${rel}, ${lines} lines) -> rc=${want_rc} on both variants"
 }
 
@@ -210,19 +234,52 @@ test_non_go_file_is_ignored() {
 
 # The plugin matches "/testdata/" against an ABSOLUTE path, so a repo-root
 # testdata/ tree is exempt in CI. The hook passes repo-RELATIVE paths, where
-# that leading separator is absent; without the `testdata/*` alternative the
-# local gate would reject a file CI never even lints. This repo has a
-# repo-root testdata/ tree, so the case is reachable, not hypothetical.
+# that leading separator is absent; without the `<seg>/*` alternatives the local
+# gate would reject a file CI never even lints. The split is latent, not live:
+# no file in this repo exercises it today. The repo-root testdata/ tree holds
+# two .go files, both _test.go and both under the cap, and there is no repo-root
+# generated/ or vendor/ at all. These fixtures are the only thing holding each
+# alternative in place.
+#
+# Each of the three gets its own written file and its own assertion. An earlier
+# version asserted `generated/` with a path it never created, which meant
+# filecap_check_file returned 0 at its `[[ -f ... ]]` guard before the skip
+# logic ran: the assertion passed with or without the exemption, and the single
+# pass line claimed all three segments were covered. Deleting a leading
+# alternative from filecap_skip must turn this red, one alternative at a time.
 test_leading_segment_is_exempt() {
 	local repo_dir
 	new_repo
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 501 "testdata/nornicdb/oversize.go"
+	write_file "${repo_dir}" 501 "generated/oversize.go"
+	write_file "${repo_dir}" 501 "vendor/example.com/dep/oversize.go"
+
 	run_gate "${repo_dir}" filecap "testdata/nornicdb/oversize.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for repo-root testdata/, got ${GATE_RC}"
+	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root testdata/ file, got ${GATE_RC}"
+	pass "a leading testdata/ segment is exempt (501-line file on disk)"
+
 	run_gate "${repo_dir}" filecap "generated/oversize.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a missing repo-root generated/ path, got ${GATE_RC}"
-	pass "a leading generated/, vendor/, or testdata/ segment is exempt"
+	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root generated/ file, got ${GATE_RC}"
+	pass "a leading generated/ segment is exempt (501-line file on disk)"
+
+	run_gate "${repo_dir}" filecap "vendor/example.com/dep/oversize.go"
+	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root vendor/ file, got ${GATE_RC}"
+	pass "a leading vendor/ segment is exempt (501-line file on disk)"
+}
+
+# A path the hook stages but that does not exist on disk (deleted in the same
+# commit, say) must not be a violation. This is what the old generated/ case was
+# accidentally testing; keep it as its own explicit assertion so the guard is
+# covered on purpose rather than by accident.
+test_missing_file_is_ignored() {
+	local repo_dir
+	new_repo
+	repo_dir="${REPO_DIR}"
+	write_file "${repo_dir}" 10 "go/internal/big/present.go"
+	run_gate "${repo_dir}" filecap "go/internal/big/absent.go"
+	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a path with no file on disk, got ${GATE_RC}"
+	pass "a staged path with no file on disk is ignored"
 }
 
 # A file with no trailing newline: the plugin's bufio.Scanner counts the final
@@ -307,6 +364,7 @@ run_parity_matrix
 test_violation_message
 test_non_go_file_is_ignored
 test_leading_segment_is_exempt
+test_missing_file_is_ignored
 test_missing_trailing_newline_counts
 test_mutation_breaks_parity
 

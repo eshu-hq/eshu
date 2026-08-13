@@ -105,6 +105,20 @@ go_install_tool() {
 # touching any long _test.go file was rejected locally while CI and `filecap-all`
 # both passed it, and the only way through was a //nolint:filelength marker that
 # suppresses nothing in CI. Keep the logic here, not in the case arms.
+#
+# The two arms share the per-file VERDICT but not the INPUT SET, so "parity"
+# below always means "same file -> same answer", never "same set of files".
+# `filecap` gets whatever the pre-commit hook stages, and the go-file-cap hook
+# in .pre-commit-config.yaml declares `types: [go]` — every .go file in the
+# repo, sdk/go/ and tools/ and examples/ included. `filecap-all` walks only
+# `git ls-files 'go/*.go'`, and the CI plugin lints only the go/ module. Outside
+# go/ the local `filecap` arm is therefore STRICTER than CI: a 501-line sdk/go
+# file is rejected at commit time and no CI check would ever say so. That is
+# deliberate. The 500-line cap is a repo rule (AGENTS.md), not a go/-module
+# rule, and narrowing `filecap` to go/ would quietly drop it from first-party
+# sdk/go and tools code. It is close to biting today: the largest non-test .go
+# outside go/ is sdk/go/factschema/fact_kinds.go at 493 lines, seven short of a
+# local-only rejection CI would not reproduce.
 # ---------------------------------------------------------------------------
 
 # filecap_skip returns 0 for a Go path the cap intentionally does not apply to,
@@ -116,8 +130,14 @@ go_install_tool() {
 # path, so a segment at the very start still has a separator in front of it.
 # These callers pass repo-RELATIVE paths, where that leading separator is
 # absent — hence the `<seg>/*` alternative beside `*/<seg>/*`. Without it a
-# repo-root `testdata/` tree (this repo has one) would be capped locally and
-# exempt in CI. The `*/<seg>/*` form is otherwise exactly equivalent to the
+# repo-root `testdata/`, `generated/`, or `vendor/` tree would be capped locally
+# and exempt in CI. That split is latent, not live: the repo-root `testdata/`
+# tree holds two .go files, both `_test.go` and both under the cap, so the
+# `_test.go` rule above exempts them first, and there is no repo-root
+# `generated/` or `vendor/` at all. No file exercises this today. It is here so
+# the local arm cannot disagree with the plugin the day one appears, and
+# scripts/test-precommit-go-filecap.sh proves each of the three alternatives
+# separately. The `*/<seg>/*` form is otherwise exactly equivalent to the
 # plugin's substring test: `*` in a case pattern matches `/`, and the literal
 # separators anchor the segment so `generated_foo/` and `vendored/` stay capped.
 filecap_skip() {
@@ -142,6 +162,18 @@ filecap_count_lines() {
 
 # filecap_check_file evaluates one repo-relative Go path against the cap,
 # printing the violation. Returns 1 on violation, 0 otherwise.
+#
+# One check here is deliberately laxer than CI, and it is the `rg -q` nolint
+# test: it matches `nolint:filelength` ANYWHERE in the file, while golangci-lint
+# honours a directive only on the line it reports or on the block enclosing it.
+# A file that merely mentions the string in a comment is exempt here and still
+# capped in CI. Matching the plugin would mean parsing directive attachment,
+# which a grep cannot do, and that is not worth building for this hook. Both
+# arms call this one function, so they still agree with each other; the gap is
+# against CI only. Nothing trips it today: all 13 non-test files carrying the
+# marker put it on the `package` line, which is exactly where the plugin
+# reports, and the only prose-only mentions are in `_test.go` files that the
+# skip above exempts before this line runs.
 filecap_check_file() {
 	local f="$1" lines
 	[[ "${f}" == *.go ]] || return 0
@@ -252,7 +284,10 @@ case "${cmd}" in
 		# pre-commit hook (.pre-commit-config.yaml go-file-cap) and
 		# scripts/dev/pre-pr.sh's step_filecap both pass a file list here. Same
 		# verdict as filecap-all on any given file — both go through
-		# filecap_check_file above. Self-tested by
+		# filecap_check_file above — but NOT the same set of files: this arm
+		# sees every .go path the hook stages, including paths outside go/ that
+		# filecap-all and the CI plugin never look at. The header block above
+		# has the direction and the margin. Self-tested by
 		# scripts/test-precommit-go-filecap.sh.
 		status=0
 		for f in "$@"; do

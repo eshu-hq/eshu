@@ -120,6 +120,14 @@ gates:
       - "tools/golangci-lint-filelength/**"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
+      # No workflow in .github/workflows/ runs this mirror test; only the local
+      # runner does (`make pre-pr` selects go-file-cap on a go/** change). That
+      # is the existing convention, not an oversight: 12 of the 71 test scripts
+      # named by a test_command in this file appear nowhere under
+      # .github/workflows/, scripts/test-precommit-console.sh -- the harness
+      # this one was modelled on -- among them. CI still enforces the cap
+      # itself through the golangci-lint plugin. What CI does not check is
+      # whether the two bash variants still mirror that plugin.
       test_command: "bash scripts/test-precommit-go-filecap.sh"
     ci:
       workflow: test.yml
