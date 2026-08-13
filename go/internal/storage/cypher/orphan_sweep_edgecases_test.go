@@ -74,7 +74,7 @@ func TestReadCandidateOrphanNodesRejectsUnexpectedKeyType(t *testing.T) {
 
 	reader := stubOrphanReader{rows: []map[string]any{{"key": 42, "observed_at": nil}}}
 	store := &OrphanSweepStore{Reader: reader}
-	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, ""); err == nil {
+	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, nil); err == nil {
 		t.Fatal("readCandidateOrphanNodes() error = nil, want error for non-string key")
 	}
 }
@@ -84,7 +84,7 @@ func TestReadCandidateOrphanNodesPropagatesReaderError(t *testing.T) {
 
 	reader := stubOrphanReader{err: errStubOrphanReader}
 	store := &OrphanSweepStore{Reader: reader}
-	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, ""); err == nil {
+	if _, err := store.readCandidateOrphanNodes(context.Background(), OrphanSweepLabelFile, 10, nil); err == nil {
 		t.Fatal("readCandidateOrphanNodes() error = nil, want propagated reader error")
 	}
 }
@@ -108,7 +108,7 @@ func TestReadConnectedKeysRejectsUnexpectedKeyType(t *testing.T) {
 
 	reader := stubOrphanReader{rows: []map[string]any{{"key": 7}}}
 	store := &OrphanSweepStore{Reader: reader}
-	if _, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, []string{"a"}); err == nil {
+	if _, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, singleOrphanKeys([]string{"a"})); err == nil {
 		t.Fatal("readConnectedKeys() error = nil, want error for non-string key")
 	}
 }
@@ -157,7 +157,7 @@ func TestNormalizePositiveIntAndBoundedKeysDefaultOnNonPositive(t *testing.T) {
 		t.Fatalf("normalizePositiveInt(7, 42) = %d, want 7", got)
 	}
 
-	keys := []string{"a", "b", "c"}
+	keys := singleOrphanKeys([]string{"a", "b", "c"})
 	if got := boundedKeys(keys, 0); len(got) != defaultOrphanSweepBatchLimit && len(got) != len(keys) {
 		t.Fatalf("boundedKeys(keys, 0) = %#v, want keys capped at default batch limit", got)
 	}
@@ -166,11 +166,11 @@ func TestNormalizePositiveIntAndBoundedKeysDefaultOnNonPositive(t *testing.T) {
 	}
 }
 
-func TestOrphanSweepIdentityKeyRejectsUnknownLabel(t *testing.T) {
+func TestOrphanSweepIdentityPropertiesRejectsUnknownLabel(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := orphanSweepIdentityKey(OrphanSweepLabel("Unknown")); ok {
-		t.Fatal("orphanSweepIdentityKey() ok = true, want false for unknown label")
+	if _, ok := orphanSweepIdentityProperties(OrphanSweepLabel("Unknown")); ok {
+		t.Fatal("orphanSweepIdentityProperties() ok = true, want false for unknown label")
 	}
 }
 

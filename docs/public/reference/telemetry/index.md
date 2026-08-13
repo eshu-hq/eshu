@@ -286,16 +286,19 @@ each label by `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanu
 pressure signal. Use reducer sweep logs for cycle duration, mark/delete counts,
 and `failure_class=graph_orphan_sweep_error` when the count is not draining.
 
-One known non-error case leaves a small, steady `node_label="Module"` residue.
-Import-graph Module nodes are identified by (name, language) — a Go `time` and a
-Python `time` are different modules — but the sweep anchors on the name alone,
-so two same-named modules in different languages share one sweep key. When one
-of them is still imported and the other is not, the pair reads as connected and
-the disconnected one is never swept. It is inert: no query reaches it, because
-every Module read arrives through an edge it no longer has. If the Module count
-sits at a small non-zero value with no sweep errors and no growth, this is the
-likely cause and no action is needed. A count that grows is not this, and should
-be diagnosed from the sweep logs.
+A `node_label="Module"` count that would not drain used to be expected here, and
+is not any more. Import-graph Module nodes are identified by (name, language) —
+a Go `time` and a Python `time` are different modules — and the sweep now
+anchors on both. It used to anchor on the name alone, so two same-named modules
+in different languages shared one sweep key: when one was still imported and the
+other was not, the pair read as connected and the disconnected one was never
+swept, leaving a node that stayed counted for good. That residue accrued one
+node per module name whose projected language had ever changed, so on a corpus
+that shifts languages it grew name by name rather than settling.
+
+Every Module orphan now drains like any other label's. A Module count that does
+not fall across sweep cycles is worth diagnosing from the sweep logs rather than
+explaining away, the same as `node_label="File"` or `node_label="Directory"`.
 
 Observability Evidence: `TestRegisterGraphOrphanObservableGauge_WithObserver`
 proves the gauge emits one datapoint per observed closed label. No-Regression

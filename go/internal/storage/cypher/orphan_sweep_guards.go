@@ -3,10 +3,52 @@
 
 package cypher
 
+import (
+	"sort"
+	"strings"
+)
+
 // This file holds the orphan-sweep WHERE guards (evidence/ownership + node
-// class) applied uniformly across S1, S2, and the key-anchored writes, plus the
-// process-local per-label paging cursor. Keeping them here keeps orphan_sweep.go
-// under the file-length cap.
+// class) applied uniformly across S1, S2, and the key-anchored writes, the
+// identity-key type the anti-join is computed over, and the process-local
+// per-label paging cursor. Keeping them here keeps orphan_sweep.go under the
+// file-length cap.
+
+// orphanSweepKey is one node's identity inside the class its label's sweep
+// owns: the property values named by orphanSweepIdentityProperties, in that
+// order. Most labels have a single value; Module has two, because a canonical
+// import Module is identified by (name, lang) and a Go `time` is not the
+// Python `time`.
+type orphanSweepKey []string
+
+// orphanSweepKeySeparator joins key values into the single string used for map
+// lookups and ordering. NUL is below every byte a property value can hold, so
+// sorting the encoded form yields exactly the tuple order the emitted
+// `ORDER BY key_0, key_1` produces on the backend -- which is what lets the
+// paging cursor resume where the previous page stopped.
+const orphanSweepKeySeparator = "\x00"
+
+// encode renders the key for use as a Go map key and for ordering.
+func (k orphanSweepKey) encode() string {
+	return strings.Join(k, orphanSweepKeySeparator)
+}
+
+// encodeOrphanSweepKey is the package-level form of orphanSweepKey.encode, used
+// where values arrive as a plain slice.
+func encodeOrphanSweepKey(values []string) string {
+	return strings.Join(values, orphanSweepKeySeparator)
+}
+
+// decodeOrphanSweepKey reverses encodeOrphanSweepKey.
+func decodeOrphanSweepKey(encoded string) orphanSweepKey {
+	return strings.Split(encoded, orphanSweepKeySeparator)
+}
+
+// sortOrphanSweepKeys orders keys the way the S1 read returns them, so the
+// cursor taken from the last element is the true high-water mark of the page.
+func sortOrphanSweepKeys(keys []orphanSweepKey) {
+	sort.Slice(keys, func(i, j int) bool { return keys[i].encode() < keys[j].encode() })
+}
 
 // orphanSweepClassPredicate restricts a sweep to the single node class its
 // label owns, for labels whose identity key is not unique across node classes.
@@ -39,8 +81,8 @@ func orphanSweepNodeGuard(label OrphanSweepLabel) string {
 }
 
 // candidateCursor returns the paging cursor for a label's next S1 candidate
-// read (empty means start from the beginning of the label).
-func (s *OrphanSweepStore) candidateCursor(label OrphanSweepLabel) string {
+// read. A nil cursor means start from the beginning of the label.
+func (s *OrphanSweepStore) candidateCursor(label OrphanSweepLabel) orphanSweepKey {
 	s.cursorMu.Lock()
 	defer s.cursorMu.Unlock()
 	return s.cursors[label]
@@ -52,16 +94,18 @@ func (s *OrphanSweepStore) candidateCursor(label OrphanSweepLabel) string {
 // reached, so the cursor wraps to "" to rescan from the start. The cursor
 // advances regardless of orphan state, so a window that is entirely connected
 // still makes forward progress rather than re-reading the same rows forever.
-// sortedKeys must be ascending (the S1 read is ORDER BY the identity key).
-func (s *OrphanSweepStore) advanceCursor(label OrphanSweepLabel, sortedKeys []string, limit int) {
+// sortedKeys must be ascending (the S1 read is ORDER BY the identity key). For
+// a composite-key label the cursor carries every property, so the next page
+// resumes inside a name's language group rather than skipping the rest of it.
+func (s *OrphanSweepStore) advanceCursor(label OrphanSweepLabel, sortedKeys []orphanSweepKey, limit int) {
 	s.cursorMu.Lock()
 	defer s.cursorMu.Unlock()
 	if s.cursors == nil {
-		s.cursors = make(map[OrphanSweepLabel]string)
+		s.cursors = make(map[OrphanSweepLabel]orphanSweepKey)
 	}
 	if limit > 0 && len(sortedKeys) >= limit {
 		s.cursors[label] = sortedKeys[len(sortedKeys)-1]
 		return
 	}
-	s.cursors[label] = ""
+	s.cursors[label] = nil
 }
