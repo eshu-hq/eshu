@@ -37,7 +37,11 @@
   field fails `scopeSafe`, the whole call skips with `reasonBroadScope`
   rather than trying the next field — do not change this to "try all
   fields, use the first safe one" without an ADR; it changes which scope a
-  multi-field request advises on.
+  multi-field request advises on. `TestDocLockstepScopeResolutionIsFirstMatch`
+  (doc_lockstep_behavior_test.go) is what holds it: turning the refusal into a
+  `continue` advises on `service=checkout` for a request whose `repo_path` is
+  `/etc/passwd`, which that test pairs against the same request without the
+  unsafe field so it fails on the ordering rather than on the rejection.
 - **`--json` output only ever comes from a `DecisionAdvise` `Output`.** The
   wrapper checks this before calling `ClaudePreToolUseOutputForPreflight`;
   do not make that function tolerate a skip `Output` by returning non-empty
@@ -51,10 +55,19 @@
   docs/public/reference/assistant-fast-path-hooks.md's "Trigger Classes"
   section in the same PR — that doc is the contract, not just a reference.
   `TestDocLockstepAllowedTriggersMatchDoc` reads the accepted classes out of
-  `triggerAllowed`'s case clause with a `go/ast` walk, so a class you add is
-  seen whether or not anyone thought to probe for it, and it also pins the
-  contract doc's own "Trigger Classes" wording. Adding the case, dropping a
-  case, or editing that section alone each fail it.
+  `triggerAllowed` with a `go/ast` walk, so a class you add is seen whether or
+  not anyone thought to probe for it, and it also pins the contract doc's own
+  "Trigger Classes" wording. Adding the case, dropping a case, or editing that
+  section alone each fail it.
+  Keep `triggerAllowed` in the closed shape that walk requires: its body must
+  be exactly one `switch trigger { ... }` whose clauses are string literals
+  returning a bare `true`, plus one `default` returning a bare `false`. An
+  early `if`, a conditional inside a clause, a returned variable or comparison,
+  a tagless switch, or a clause returning anything else all accept a class the
+  literal list never names, so `TestDocLockstepSwitchScannerRejectsEvasions`
+  (doc_lockstep_switch_test.go) treats each of them as a structural violation.
+  If a class genuinely needs a condition, that condition belongs in
+  `Evaluate`'s switch as its own skip reason, not hidden inside this one.
 - **Add a new scope kind** → add a candidate to `scopeFromInput`
   (preflight.go) and a case to `plannedCallForScope` choosing which MCP tool
   answers it. Both must change together: a scope kind with no
@@ -92,16 +105,18 @@
   structural claims (which structs carry `json` tags and under what wire
   names, which packages the non-test files import, the
   `assistant_fast_path_hook.v1` literal, the three reason codes the contract
-  doc's "Safe Failure Modes" table names), `doc_lockstep_behavior_test.go`
-  pins the behavioral ones (reason-code precedence, that no skip publishes a
-  scope or planned call, the trigger classes), and
+  doc's "Safe Failure Modes" table names, both places that table's timeout
+  code appears), `doc_lockstep_behavior_test.go` pins the behavioral ones
+  (reason-code precedence, first-match scope resolution, that no skip
+  publishes a scope or planned call, `DefaultBudget`, the trigger classes),
   `doc_lockstep_source_test.go` walks the source with `go/ast` for the claims
-  a hand-written list cannot carry: the full set of json-tagged structs, the
-  accepted trigger classes, and that the only `fmt` and `path/filepath` calls
-  in production files are `Fprintf`/`Sprintf` and `IsAbs`/`Rel`/`Clean`/
-  `ToSlash`. Fix the doc or the code — do not relax the assertion. These
-  exist because four rounds of hand-edited doc corrections on this package
-  each fixed the reported sentence and left the next one standing.
+  a hand-written list cannot carry (the full set of json-tagged structs, and
+  that the only `fmt` and `path/filepath` calls in production files are
+  `Fprintf`/`Sprintf` and `IsAbs`/`Rel`/`Clean`/`ToSlash`), and
+  `doc_lockstep_switch_test.go` holds `triggerAllowed` to the closed-switch
+  shape that walk depends on. Fix the doc or the code — do not relax the
+  assertion. These exist because four rounds of hand-edited doc corrections on
+  this package each fixed the reported sentence and left the next one standing.
 - Symptom: `TestAssistantHookPreflightBenchmarkCasesCoverContract`
   (preflight_bench_test.go) fails after adding a case → the test asserts
   `len(cases) >= 6` and that every one of six named cases is present; a
@@ -146,3 +161,8 @@
 - `DefaultBudget` (200ms) — this is the contract's documented latency
   budget, not a locally-tunable default; changing it needs the benchmark
   evidence the contract doc requires for any budget change.
+  `TestDocLockstepDefaultBudgetMatchesContract` (doc_lockstep_behavior_test.go)
+  is the gate, and like the precedence test it is not a substitute for the ADR:
+  it asserts the constant, the milliseconds it puts on the wire, and the
+  contract-doc and AGENTS.md sentences quoting 200 ms, so raising the budget
+  means editing all of them and noticing you did.

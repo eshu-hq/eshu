@@ -271,13 +271,16 @@ source, installs no hook, claims no queue work, and emits no OTEL from this
 dispatcher.
 
 No-Regression Evidence: assistant hook preflight is covered by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight' -count=1`.
+`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -count=1`.
 
 Benchmark Evidence: assistant hook preflight is measured by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`;
+`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`;
 local Darwin arm64 samples kept evaluator advisory below 279 ns/op, evaluator
 fail-open below 102 ns/op, command advisory JSON at 10.789 us/op, and
-malformed-payload fail-open at 6.065 us/op.
+malformed-payload fail-open at 6.065 us/op. Those bounds are carried forward
+from the measurement taken before the planner moved into
+`go/internal/cli/hookpreflight`; the move and the doc-lockstep work since have
+changed no evaluator line and did not re-measure them.
 
 ## Gotchas / invariants
 

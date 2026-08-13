@@ -184,6 +184,135 @@ func TestDocLockstepSkipCarriesNoScope(t *testing.T) {
 	}
 }
 
+// TestDocLockstepScopeResolutionIsFirstMatch pins the publish-safety ordering
+// README.md and AGENTS.md both state: scopeFromInput stops at the first
+// non-empty field, and an unsafe first match is not silently replaced by a
+// safer later one.
+//
+// It takes two cases because one proves the wrong thing. A request carrying
+// only an unsafe repo_path skips whether scopeFromInput refuses or falls
+// through, since there is nothing later to fall through to. Pairing it with the
+// same unsafe field alongside a safe service is what makes the assertion about
+// ordering: turning the refusal into a `continue` advises on service=checkout
+// and publishes a scope the caller never asked for, which is the change
+// AGENTS.md says needs an ADR.
+func TestDocLockstepScopeResolutionIsFirstMatch(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		input      Input
+		wantDesc   string
+		wantAdvise bool
+		wantScope  *Scope
+		wantReason string
+	}{
+		{
+			name: "unsafe_first_field_refuses_the_safe_later_one",
+			input: Input{
+				Host: supportedHostClaude, Enabled: true, Trigger: "read",
+				RepoPath: "/etc/passwd", Service: "checkout", Budget: DefaultBudget,
+			},
+			wantDesc:   "an absolute repo_path is the first non-empty field, so the whole call skips",
+			wantReason: reasonBroadScope,
+		},
+		{
+			name: "safe_later_field_resolves_when_no_earlier_one_is_set",
+			input: Input{
+				Host: supportedHostClaude, Enabled: true, Trigger: "read",
+				Service: "checkout", Budget: DefaultBudget,
+			},
+			wantDesc:   "with repo_path empty, service is the first non-empty field and resolves",
+			wantAdvise: true,
+			wantScope:  &Scope{Kind: "service", ID: "checkout"},
+			wantReason: reasonBoundedPreflight,
+		},
+	}
+	if len(cases) != 2 {
+		t.Fatalf("scope-ordering cases = %d; the pair is the assertion -- one case alone cannot tell a refusal from a fall-through", len(cases))
+	}
+
+	for _, tc := range cases {
+		out := Evaluate(tc.input)
+		if out.Reason != tc.wantReason {
+			t.Errorf("%s: reason = %q, want %q (%s)", tc.name, out.Reason, tc.wantReason, tc.wantDesc)
+		}
+		if !tc.wantAdvise {
+			if out.Decision != decisionSkip {
+				t.Errorf("%s: decision = %q, want skip (%s)", tc.name, out.Decision, tc.wantDesc)
+			}
+			if out.Scope != nil {
+				t.Errorf("%s: Output.Scope = %+v, want nil; falling through to a later field publishes a scope the unsafe first field ruled out", tc.name, out.Scope)
+			}
+			if out.PlannedCall != nil {
+				t.Errorf("%s: Output.PlannedCall = %+v, want nil for a skip", tc.name, out.PlannedCall)
+			}
+			continue
+		}
+		if out.Decision != DecisionAdvise {
+			t.Errorf("%s: decision = %q, want advise (%s)", tc.name, out.Decision, tc.wantDesc)
+		}
+		if out.Scope == nil || *out.Scope != *tc.wantScope {
+			t.Errorf("%s: Output.Scope = %+v, want %+v", tc.name, out.Scope, tc.wantScope)
+		}
+	}
+}
+
+// TestDocLockstepDefaultBudgetMatchesContract pins the second entry in
+// AGENTS.md's two-item "What NOT to change without an ADR" list. The first
+// entry, Evaluate's check order, has TestDocLockstepReasonPrecedence holding
+// it; this one had nothing, so raising DefaultBudget past the ceiling the
+// contract doc sets left the whole suite green.
+//
+// The value is asserted as a literal on both sides -- the constant, the
+// milliseconds it puts on the wire, and the sentences in the contract doc and
+// AGENTS.md that quote the same number -- so changing one of the two without
+// the other fails here.
+func TestDocLockstepDefaultBudgetMatchesContract(t *testing.T) {
+	t.Parallel()
+
+	const wantBudget = 200 * time.Millisecond
+	if DefaultBudget != wantBudget {
+		t.Errorf("DefaultBudget = %v, want %v; the contract doc's Latency Budget section says a host adapter may not exceed 200 ms without a tracked benchmark", DefaultBudget, wantBudget)
+	}
+
+	out := Evaluate(Input{
+		Host: supportedHostClaude, Enabled: true, Trigger: "read",
+		RepoPath: "services/api/handler.go",
+	})
+	if out.BudgetMS != 200 {
+		t.Errorf("Output.BudgetMS with no caller budget = %d, want 200; normalizeInput's floor is DefaultBudget", out.BudgetMS)
+	}
+	if out.PlannedCall == nil {
+		t.Fatal("advise Output carries no PlannedCall; the timeout assertion below would be vacuous")
+	}
+	if out.PlannedCall.TimeoutMS != 200 {
+		t.Errorf("PlannedCall.TimeoutMS = %d, want 200; the recommended call carries the same budget the hook was given", out.PlannedCall.TimeoutMS)
+	}
+
+	contractClaims := []string{
+		"The default hook budget is 200 ms wall time for local hot-path preflight.",
+		"it may not exceed 200 ms without a",
+		"- latency measurement against the 200 ms budget",
+	}
+	for _, claim := range contractClaims {
+		missing, err := docsMissingLiteral(contractDocDir, []string{contractDocName}, claim)
+		if err != nil {
+			t.Fatalf("read %s: %v", contractDocName, err)
+		}
+		for _, name := range missing {
+			t.Errorf("%s no longer says %q; DefaultBudget is that sentence's value, so change both or neither", name, claim)
+		}
+	}
+	missing, err := docsMissingLiteral(".", []string{"AGENTS.md"}, "`DefaultBudget` (200ms)")
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	for _, name := range missing {
+		t.Errorf("%s no longer names DefaultBudget's 200ms value in its ADR list", name)
+	}
+}
+
 // documentedTriggers is the set AGENTS.md and the contract doc's "Trigger
 // Classes" section permit: source file read, text or symbol search (which this
 // package splits into read/search/grep), glob discovery, editor symbol lookup,
@@ -212,18 +341,26 @@ func contractDocTriggerClaims() []string {
 // triggerAllowed accepts against documentedTriggers, and documentedTriggers
 // against the contract doc's own wording.
 //
-// It reads the accepted classes out of triggerAllowed's case clause rather
-// than probing a candidate list. A probe list can only ever contain classes
-// someone already thought of, so it catches a removal and misses the addition
-// AGENTS.md names as this package's most common change: a newly accepted class
-// is not in the list, never gets probed, and the comparison still passes.
+// It reads the accepted classes out of triggerAllowed itself rather than
+// probing a candidate list. A probe list can only ever contain classes someone
+// already thought of, so it catches a removal and misses the addition AGENTS.md
+// names as this package's most common change: a newly accepted class is not in
+// the list, never gets probed, and the comparison still passes.
+//
+// The scanner asserts the function's structure, not one spelling of it, so a
+// class accepted by a guard before the switch or by a conditional inside a case
+// fails as a shape violation instead of slipping past the literal set. See
+// doc_lockstep_switch_test.go for the four rewrites that used to pass.
 func TestDocLockstepAllowedTriggersMatchDoc(t *testing.T) {
 	t.Parallel()
 
 	documented := documentedTriggers()
-	clauses, accepted, err := scanTrueCaseValues(".", "triggerAllowed")
+	clauses, accepted, findings, err := scanClosedStringSwitch(".", "triggerAllowed")
 	if err != nil {
 		t.Fatalf("read triggerAllowed's accepted classes: %v", err)
+	}
+	for _, finding := range findings {
+		t.Errorf("triggerAllowed is no longer a closed string switch -- %s; keep it a literal case list so the accepted set stays readable out of the source", finding.Detail)
 	}
 	if clauses == 0 || len(accepted) == 0 {
 		t.Fatalf("found %d true-returning case clauses carrying %d classes; the assertion would be vacuous", clauses, len(accepted))

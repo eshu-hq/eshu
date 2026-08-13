@@ -191,7 +191,7 @@ provider endpoints, open graph/Postgres drivers, claim queue work, install
 hooks, or emit OTEL from this dispatcher.
 
 No-Regression Evidence: assistant hook preflight behavior is covered by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight' -count=1`.
+`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -count=1`.
 
 ## Committing Guidance
 

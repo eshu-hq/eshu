@@ -158,14 +158,14 @@ support for a target host unless a PR adds implementation proof for that host:
 - `Observability Evidence:` or `No-Observability-Change:` in tracked docs
 
 No-Regression Evidence: the local preflight planner is covered by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight' -count=1`.
+`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -count=1`.
 The evaluator, scope, and Claude PreToolUse merge logic live in
 `go/internal/cli/hookpreflight`; the cobra wrapper and its command-level tests
 stay in `go/cmd/eshu` (issue #6059).
 
 Benchmark Evidence: on Darwin arm64 / Apple M4 Pro, the local evaluator and
 command wrapper were measured with
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`.
+`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`.
 The sampled local advisory evaluator path measured p50 333 ns, p95 542 ns, and
 max 143.167 us. The command JSON advisory path measured p50 9.042 us, p95
 16.792 us, and max 323.667 us. The malformed-payload fail-open command path

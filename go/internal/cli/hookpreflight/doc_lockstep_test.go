@@ -38,9 +38,10 @@ import (
 // over a fixture directory and prove it reports what it should.
 //
 // doc_lockstep_source_test.go carries the scanners that read declarations out
-// of the source. Every hand-written list in this file is an inventory those
-// scanners prove complete; without them a list catches a removal and misses an
-// addition.
+// of the source, and doc_lockstep_switch_test.go the one that holds
+// triggerAllowed to a shape those declarations can be read from. Every
+// hand-written list in this file is an inventory those scanners prove complete;
+// without them a list catches a removal and misses an addition.
 
 // contractDocDir and contractDocName locate the contract doc from the package
 // directory. The reason codes and trigger classes pinned here are its wording,
@@ -182,10 +183,10 @@ func TestDocLockstepJSONFieldNames(t *testing.T) {
 	}
 }
 
-// docAllowedImports is the exact set README.md's "Dependencies" section names.
-// It is the strong form of that section's package-count claim: every
-// transitive dependency is standard library because every direct import is,
-// and a count in prose rots on the next Go release while this set does not.
+// docAllowedImports is the exact set README.md's "Dependencies" section names,
+// and the reason that section quotes no dependency count: every transitive
+// dependency is standard library because every direct import is, and the number
+// of them moves with the Go release while this set does not.
 func docAllowedImports() map[string]bool {
 	return map[string]bool{
 		"fmt":           true,
@@ -367,10 +368,14 @@ func TestDocLockstepReasonCodeWireValues(t *testing.T) {
 		name  string
 		input Input
 		want  string
-		// row is the whole "Safe Failure Modes" row, not the bare code:
-		// eshu_hook_timeout also appears in the latency section, so a bare
-		// literal search stays green when the row itself is rewritten.
-		row string
+		// sentences are the whole contract-doc lines that carry the code, not
+		// the bare code: eshu_hook_timeout appears twice in that document, so a
+		// bare literal search stays green when either occurrence is rewritten.
+		// The timeout case pins both -- the "Safe Failure Modes" row, which is
+		// the normative requirement, and the Latency Budget paragraph that
+		// restates it. Editing one to say eshu_hook_stalled would otherwise
+		// leave the contract doc contradicting itself with the suite green.
+		sentences []string
 	}{
 		{
 			name: "timeout",
@@ -380,7 +385,10 @@ func TestDocLockstepReasonCodeWireValues(t *testing.T) {
 				Elapsed: DefaultBudget + time.Millisecond,
 			},
 			want: "eshu_hook_timeout",
-			row:  "| Timeout | Fail open and report `eshu_hook_timeout`. |",
+			sentences: []string{
+				"| Timeout | Fail open and report `eshu_hook_timeout`. |",
+				"report `eshu_hook_timeout` only as optional",
+			},
 		},
 		{
 			name: "permission_denied",
@@ -389,8 +397,8 @@ func TestDocLockstepReasonCodeWireValues(t *testing.T) {
 				RepoPath: narrowScope, Permission: permissionDenied,
 				Budget: DefaultBudget,
 			},
-			want: "eshu_permission_denied",
-			row:  "| Permission denied | Report `eshu_permission_denied` without exposing",
+			want:      "eshu_permission_denied",
+			sentences: []string{"| Permission denied | Report `eshu_permission_denied` without exposing"},
 		},
 		{
 			name: "unavailable_context",
@@ -399,26 +407,36 @@ func TestDocLockstepReasonCodeWireValues(t *testing.T) {
 				RepoPath: narrowScope, Freshness: freshnessUnavailable,
 				Budget: DefaultBudget,
 			},
-			want: "eshu_mcp_unavailable",
-			row:  "report `eshu_mcp_unavailable` if the host supports diagnostic output",
+			want:      "eshu_mcp_unavailable",
+			sentences: []string{"report `eshu_mcp_unavailable` if the host supports diagnostic output"},
 		},
 	}
 	if len(cases) != 3 {
 		t.Fatalf("reason-code cases = %d, want one per code the Safe Failure Modes table names", len(cases))
 	}
 
+	checked := 0
 	for _, tc := range cases {
 		out := Evaluate(tc.input)
 		if out.Reason != tc.want {
 			t.Errorf("%s: Output.Reason = %q, want the contract's %q", tc.name, out.Reason, tc.want)
 		}
-		missing, err := docsMissingLiteral(contractDocDir, []string{contractDocName}, tc.row)
-		if err != nil {
-			t.Fatalf("read %s: %v", contractDocName, err)
+		if len(tc.sentences) == 0 {
+			t.Fatalf("%s pins no contract-doc sentence; the check below would be vacuous", tc.name)
 		}
-		for _, name := range missing {
-			t.Errorf("%s no longer carries the %s row %q", name, tc.want, tc.row)
+		for _, sentence := range tc.sentences {
+			missing, err := docsMissingLiteral(contractDocDir, []string{contractDocName}, sentence)
+			if err != nil {
+				t.Fatalf("read %s: %v", contractDocName, err)
+			}
+			for _, name := range missing {
+				t.Errorf("%s no longer says %q; that is where the %s code is specified", name, sentence, tc.want)
+			}
+			checked++
 		}
+	}
+	if checked != 4 {
+		t.Fatalf("checked %d contract-doc sentences, want 4 (both eshu_hook_timeout occurrences plus one each for the other two codes)", checked)
 	}
 }
 

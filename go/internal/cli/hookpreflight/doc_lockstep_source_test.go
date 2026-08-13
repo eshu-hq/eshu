@@ -4,7 +4,6 @@
 package hookpreflight
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -17,12 +16,12 @@ import (
 )
 
 // Source-derived half of the doc-lockstep guard (see doc_lockstep_test.go for
-// the rationale and conventions). The pins in the other two files compare the
-// code against a hand-written list, which catches a removal but not an
-// addition: a new trigger class, a new tagged struct, or a new qualified call
-// is simply absent from the list, so nothing looks at it. These scanners read
-// the declarations out of the source instead, so the pinned set has to be a
-// complete inventory rather than a sample.
+// the rationale and conventions, and doc_lockstep_switch_test.go for the
+// trigger-class scanner). The pins in the hand-written files compare the code
+// against a list, which catches a removal but not an addition: a new tagged
+// struct or a new qualified call is simply absent from the list, so nothing
+// looks at it. These scanners read the declarations out of the source instead,
+// so the pinned set has to be a complete inventory rather than a sample.
 //
 // Each scanner returns findings and the count of what it examined; the caller
 // fails on them. That split is what makes them falsifiable -- a scanner that
@@ -213,8 +212,8 @@ func scanQualifiedCalls(dir string, allowed map[string]map[string]bool) (uses in
 // docAllowedQualifiedCalls is the strong form of two README.md claims that the
 // import set alone cannot carry. "Nothing in this package calls fmt.Print* to
 // a process stream" holds because the only fmt selectors are Fprintf and
-// Sprintf, and "the package reads no environment variable and touches no file"
-// holds because the only path/filepath selectors are the four pure string
+// Sprintf, and "the production files read no environment variable and touch no
+// file" holds because the only path/filepath selectors are the four pure string
 // operations. Both packages are on the import allow-list, so Println, Glob,
 // WalkDir, and EvalSymlinks would all pass TestDocLockstepNonTestImports.
 func docAllowedQualifiedCalls() map[string]map[string]bool {
@@ -224,10 +223,11 @@ func docAllowedQualifiedCalls() map[string]map[string]bool {
 	}
 }
 
-// TestDocLockstepProductionCallsStayPure pins README.md's "reads no
-// environment variable and touches no file" claim, doc.go's "writes to no
-// process stream", and AGENTS.md's anti-pattern entry against the calls the
-// source actually makes.
+// TestDocLockstepProductionCallsStayPure pins README.md's "the production
+// files read no environment variable and touch no file" claim, doc.go's
+// "writes to no process stream", and AGENTS.md's anti-pattern entry against
+// the calls the source actually makes. The scanner reads only the non-test
+// files, which is the same line the README's claim now draws.
 func TestDocLockstepProductionCallsStayPure(t *testing.T) {
 	t.Parallel()
 
@@ -275,93 +275,7 @@ func TestDocLockstepCallScannerReportsImpureCalls(t *testing.T) {
 	}
 }
 
-// scanTrueCaseValues returns the string literals in every case clause of
-// funcName whose body returns true, plus the number of such clauses. It is how
-// the trigger-class pin reads the accepted set out of the code rather than
-// probing a fixed candidate list -- a probe list can never contain a class
-// nobody has added yet.
-func scanTrueCaseValues(dir, funcName string) (clauses int, values []string, err error) {
-	_, parsed, err := parseNonTestGoFiles(dir)
-	if err != nil {
-		return 0, nil, err
-	}
-	var target *ast.FuncDecl
-	for _, file := range parsed {
-		for _, decl := range file.Decls {
-			funcDecl, ok := decl.(*ast.FuncDecl)
-			if ok && funcDecl.Recv == nil && funcDecl.Name.Name == funcName {
-				target = funcDecl
-			}
-		}
-	}
-	if target == nil {
-		return 0, nil, fmt.Errorf("func %s not found in %s", funcName, dir)
-	}
-
-	ast.Inspect(target, func(node ast.Node) bool {
-		clause, ok := node.(*ast.CaseClause)
-		if !ok || !returnsTrue(clause.Body) {
-			return true
-		}
-		clauses++
-		for _, expr := range clause.List {
-			lit, ok := expr.(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
-				continue
-			}
-			value, unquoteErr := strconv.Unquote(lit.Value)
-			if unquoteErr != nil {
-				err = unquoteErr
-				return false
-			}
-			values = append(values, value)
-		}
-		return true
-	})
-	sort.Strings(values)
-	return clauses, values, err
-}
-
-// returnsTrue reports whether body's statements include a bare `return true`.
-func returnsTrue(body []ast.Stmt) bool {
-	for _, stmt := range body {
-		ret, ok := stmt.(*ast.ReturnStmt)
-		if !ok || len(ret.Results) != 1 {
-			continue
-		}
-		if ident, ok := ret.Results[0].(*ast.Ident); ok && ident.Name == "true" {
-			return true
-		}
-	}
-	return false
-}
-
-// TestDocLockstepCaseScannerReportsAddedCase is the negative half of the
-// trigger-class pin: it proves the scanner reports the literals a fixture
-// accepts, ignores the ones it rejects, and errors on a missing function
-// rather than returning an empty set that would read as "nothing accepted".
-func TestDocLockstepCaseScannerReportsAddedCase(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	fixture := "package fixture\n\nfunc allowed(v string) bool {\n\tswitch v {\n" +
-		"\tcase \"read\", \"list\":\n\t\treturn true\n" +
-		"\tcase \"edit\":\n\t\treturn false\n\tdefault:\n\t\treturn false\n\t}\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte(fixture), 0o600); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-
-	clauses, values, err := scanTrueCaseValues(dir, "allowed")
-	if err != nil {
-		t.Fatalf("scan fixture: %v", err)
-	}
-	if clauses != 1 {
-		t.Fatalf("true-returning clauses = %d, want 1", clauses)
-	}
-	if strings.Join(values, ",") != "list,read" {
-		t.Fatalf("values = %v, want [list read]", values)
-	}
-	if _, _, err := scanTrueCaseValues(dir, "notThere"); err == nil {
-		t.Fatal("scanning a missing function returned no error; a caller could read the empty set as an empty allow-list")
-	}
-}
+// The trigger-class scanner used to live here. It reads the accepted set out
+// of triggerAllowed's own switch, so it now asserts that function's structure
+// rather than pattern-matching one way to write `return true`; that is a big
+// enough piece to own its file. See doc_lockstep_switch_test.go.

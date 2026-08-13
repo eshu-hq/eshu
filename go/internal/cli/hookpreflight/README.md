@@ -58,16 +58,23 @@ See `doc.go` for the full godoc contract.
 ## Dependencies
 
 None internal. The non-test files import only `fmt`, `io`, `path/filepath`,
-`strings`, and `time` -- `go list -deps` resolves to 61 standard-library
-packages plus this package itself, and nothing else. `os/exec`, `net/http`,
-and `encoding/json` are not among them: this package runs no binary, opens
-no connection, and does no JSON encoding or decoding outside its own tests
-(the wrapper decodes the stdin payload and encodes the `--json` response;
-`preflight_test.go` marshals an `Output` to check for a leaked path). `os`
-is pulled in transitively by `path/filepath`, but no code here calls it,
-and the four `path/filepath` functions this package does call -- `IsAbs`,
-`Rel`, `Clean`, `ToSlash` -- are pure string operations, so the package
-reads no environment variable and touches no file.
+`strings`, and `time`, so every package `go list -deps` resolves is standard
+library. `os/exec`, `net/http`, and `encoding/json` are not among them: this
+package runs no binary, opens no connection, and does no JSON encoding or
+decoding outside its own tests (the wrapper decodes the stdin payload and
+encodes the `--json` response; `preflight_test.go` marshals an `Output` to
+check for a leaked path). The exact dependency count is deliberately not
+quoted here -- it moves with the Go release, while the import set does not,
+and `TestDocLockstepNonTestImports` pins the set.
+
+`os` is pulled in transitively by `path/filepath`, but no production file
+here calls it, and the four `path/filepath` functions those files do call --
+`IsAbs`, `Rel`, `Clean`, `ToSlash` -- are pure string operations. So the
+production files read no environment variable and touch no file. The lockstep
+tests do both: they read the contract doc off disk and write fixture packages
+under `t.TempDir()`. Like the `json.Marshal` above, that is test-only, and it
+is what lets those tests fail on a real file the way a compiler-level overlay
+could not.
 
 Consumed by `go/cmd/eshu`: `assistant_hook_preflight.go` (the `hook
 preflight` command) is the only production caller.
@@ -102,21 +109,23 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Three lockstep
+- The claims on this page are tested, not just written down. Four lockstep
   files pin them, and a code change that makes one of the sentences above
   false fails a test rather than quietly aging into fiction:
   `doc_lockstep_test.go` pins the struct tags and their wire names, the
   import set, the `assistant_fast_path_hook.v1` literal, and the three reason
   codes the contract doc names; `doc_lockstep_behavior_test.go` pins the
-  reason-code precedence, that no skip publishes a scope, and the trigger
-  classes; `doc_lockstep_source_test.go` reads the source declarations, so
-  the json-tagged struct set and the accepted trigger classes are complete
-  inventories rather than hand-written samples, and the only calls the
-  production files make are `fmt.Fprintf`/`fmt.Sprintf` and the four pure
-  `path/filepath` functions named above. The last one is what backs this
-  section's "touches no file" claim: `path/filepath` is on the import
-  allow-list, so `Glob`, `WalkDir`, `Abs`, and `EvalSymlinks` would all clear
-  the import check on their own.
+  reason-code precedence, the first-match scope ordering above, that no skip
+  publishes a scope, the 200 ms `DefaultBudget`, and the trigger classes;
+  `doc_lockstep_source_test.go` reads the source declarations, so the
+  json-tagged struct set is a complete inventory rather than a hand-written
+  sample, and the only calls the production files make are
+  `fmt.Fprintf`/`fmt.Sprintf` and the four pure `path/filepath` functions
+  named above; `doc_lockstep_switch_test.go` requires `triggerAllowed` to
+  stay a closed string switch, so the accepted classes can be read out of it.
+  The call-level pin is what backs this section's "touches no file" claim:
+  `path/filepath` is on the import allow-list, so `Glob`, `WalkDir`, `Abs`,
+  and `EvalSymlinks` would all clear the import check on their own.
 
 ## Related docs
 
