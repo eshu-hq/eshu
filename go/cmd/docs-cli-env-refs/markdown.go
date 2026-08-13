@@ -153,7 +153,6 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	if len(fields) > 1 && strings.HasPrefix(fields[1], "-") {
 		flags := []string{}
 		for _, field := range fields[1:] {
-			field = normalizeShellToken(field)
 			if !longFlagPattern.MatchString(field) {
 				break
 			}
@@ -165,7 +164,6 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	seen := map[string]struct{}{}
 	commandFields := []string{}
 	for _, field := range fields[1:] {
-		field = normalizeShellToken(field)
 		if !strings.HasPrefix(field, "-") && len(seen) == 0 {
 			commandFields = append(commandFields, field)
 		}
@@ -253,16 +251,19 @@ func splitShellFields(line string) []string {
 func containsUnquotedShellListOperator(line string) bool {
 	var quote byte
 	escaped := false
+	started := false
 	for index := 0; index < len(line); index++ {
 		char := line[index]
 		if escaped {
 			escaped = false
+			started = true
 			continue
 		}
 		if quote == '\'' {
 			if char == quote {
 				quote = 0
 			}
+			started = true
 			continue
 		}
 		if char == '\\' {
@@ -273,28 +274,27 @@ func containsUnquotedShellListOperator(line string) bool {
 			if char == quote {
 				quote = 0
 			}
+			started = true
 			continue
 		}
 		if char == '\'' || char == '"' {
 			quote = char
+			started = true
+			continue
+		}
+		if char == '#' && !started {
+			break
+		}
+		if char == ' ' || char == '\t' {
+			started = false
 			continue
 		}
 		if char == '|' || char == '&' || char == ';' {
 			return true
 		}
+		started = true
 	}
 	return false
-}
-
-func normalizeShellToken(token string) string {
-	if len(token) < 2 {
-		return token
-	}
-	first, last := token[0], token[len(token)-1]
-	if (first == '\'' && last == '\'') || (first == '"' && last == '"') {
-		return token[1 : len(token)-1]
-	}
-	return token
 }
 
 func sortReferences(refs []reference) {

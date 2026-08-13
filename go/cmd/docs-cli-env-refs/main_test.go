@@ -145,6 +145,27 @@ func TestFlagsFromEshuCommandDoesNotTreatQuotedOrEscapedHashAsComment(t *testing
 	}
 }
 
+func TestFlagsFromEshuCommandKeepsEscapedLiteralQuotesPositional(t *testing.T) {
+	t.Parallel()
+
+	_, flags := flagsFromEshuCommand(`eshu docs verify \"--not-a-real-flag\"`)
+	if len(flags) != 0 {
+		t.Fatalf("flagsFromEshuCommand() flags = %#v, want escaped literal quotes outside flag scope", flags)
+	}
+}
+
+func TestFlagsFromEshuCommandIgnoresOperatorsInsideTrailingComment(t *testing.T) {
+	t.Parallel()
+
+	command, flags := flagsFromEshuCommand(`eshu docs verify --not-a-real-flag # explanation | example`)
+	if command != "docs/verify" {
+		t.Fatalf("flagsFromEshuCommand() command = %q, want docs/verify", command)
+	}
+	if want := []string{"--not-a-real-flag"}; !reflect.DeepEqual(flags, want) {
+		t.Fatalf("flagsFromEshuCommand() flags = %#v, want %#v", flags, want)
+	}
+}
+
 func TestScanMarkdownFindsQuotedFlagsInNestedShellFences(t *testing.T) {
 	t.Parallel()
 
@@ -317,5 +338,45 @@ func TestBaselineMembershipRejectsAtomicDebtAddition(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "ESHU_ATOMIC_NEW_DEBT") {
 		t.Fatalf("validateBaselineMembership() error = %q, want new debt named", err)
+	}
+}
+
+func TestRootCommandFlagBaselineRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	command, flags := flagsFromEshuCommand(`eshu --root-leading-invalid docs verify`)
+	if command != "" || !reflect.DeepEqual(flags, []string{"--root-leading-invalid"}) {
+		t.Fatalf("flagsFromEshuCommand() = %q, %#v, want root command flag", command, flags)
+	}
+	refs := unresolvedReferences([]reference{{
+		Kind:     referenceKindFlag,
+		Document: "guide.md",
+		Command:  command,
+		Value:    flags[0],
+	}}, map[string]map[string]struct{}{"": {}})
+	if len(refs) != 1 || refs[0].Command != "" {
+		t.Fatalf("unresolvedReferences() = %#v, want one root-command reference", refs)
+	}
+
+	path := filepath.Join(t.TempDir(), "baseline.txt")
+	if err := writeBaseline(path, refs); err != nil {
+		t.Fatalf("writeBaseline() error = %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read written baseline: %v", err)
+	}
+	if !strings.Contains(string(content), "<root>::--root-leading-invalid") {
+		t.Fatalf("writeBaseline() output = %q, want stable root-command sentinel", content)
+	}
+	baseline, err := readBaseline(path)
+	if err != nil {
+		t.Fatalf("readBaseline() error = %v", err)
+	}
+	if missing := difference(refs, baseline); len(missing) != 0 {
+		t.Fatalf("baseline round trip lost root-command refs: %#v", missing)
+	}
+	if err := validateBaselineUpdate(refs, baseline); err != nil {
+		t.Fatalf("validateBaselineUpdate() after round trip error = %v", err)
 	}
 }

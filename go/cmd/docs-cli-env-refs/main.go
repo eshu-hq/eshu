@@ -21,7 +21,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/envregistry"
 )
 
-const defaultCLITimeout = 2 * time.Minute
+const (
+	defaultCLITimeout        = 2 * time.Minute
+	rootCommandBaselineToken = "<root>"
+)
 
 type options struct {
 	docsRoot string
@@ -123,7 +126,7 @@ func validateBaselineUpdate(unresolved []reference, baseline map[string]struct{}
 	for _, ref := range newRefs {
 		value := ref.Value
 		if ref.Kind == referenceKindFlag {
-			value = ref.Command + "::" + value
+			value = baselineFlagValue(ref.Command, value)
 		}
 		values = append(values, ref.Document+":"+value)
 	}
@@ -280,6 +283,9 @@ func readBaseline(path string) (map[string]struct{}, error) {
 					return nil, fmt.Errorf("baseline malformed at line %d: flag value must be <command>::<flag>", line)
 				}
 				ref.Command, ref.Value = parts[0], parts[1]
+				if ref.Command == rootCommandBaselineToken {
+					ref.Command = ""
+				}
 			} else {
 				ref.Value = value
 			}
@@ -325,7 +331,7 @@ func writeBaseline(path string, refs []reference) error {
 		}
 		value := ref.Value
 		if ref.Kind == referenceKindFlag {
-			value = ref.Command + "::" + ref.Value
+			value = baselineFlagValue(ref.Command, ref.Value)
 		}
 		groups[key] = append(groups[key], value)
 	}
@@ -338,4 +344,11 @@ func writeBaseline(path string, refs []reference) error {
 		return fmt.Errorf("close baseline: %w", err)
 	}
 	return nil
+}
+
+func baselineFlagValue(command string, flag string) string {
+	if command == "" {
+		command = rootCommandBaselineToken
+	}
+	return command + "::" + flag
 }

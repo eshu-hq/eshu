@@ -124,6 +124,10 @@ test_hostile_command_and_markdown_forms_fail() {
     'eshu docs verify "#literal" --after-quoted-hash-invalid' \
     'eshu docs verify \#literal --after-escaped-hash-invalid' \
     '```'
+  write_doc "${root}" "comment-operator.md" \
+    '```bash' \
+    'eshu docs verify --before-comment-operator-invalid # explanation | example' \
+    '```'
   write_doc "${root}" "nested-fence.md" \
     '1. Nested example:' \
     '    ```bash' \
@@ -170,6 +174,7 @@ test_hostile_command_and_markdown_forms_fail() {
   assert_contains "quoted-flag-value.md" "${out}" "quoted long flag value with whitespace is checked"
   assert_contains "unmatched-quote.md" "${out}" "unmatched quote does not hide an earlier flag"
   assert_contains "quoted-hash.md" "${out}" "quoted or escaped hash does not hide a later flag"
+  assert_contains "comment-operator.md" "${out}" "operator inside shell comment does not hide an earlier flag"
   assert_contains "nested-fence.md" "${out}" "nested shell fence is checked"
   assert_contains "fence-close.md" "${out}" "closing fence suffix does not hide flags"
   assert_contains "fence-close-nbsp.md" "${out}" "non-ASCII fence suffix does not hide flags"
@@ -203,6 +208,7 @@ test_precision_exclusions_pass() {
     'eshu docs verify --json | eshu definitely-not-a-command --not-a-real-flag' \
     'eshu docs verify --json && eshu definitely-not-a-command --not-a-real-flag' \
     'eshu docs verify --json ; eshu definitely-not-a-command --not-a-real-flag' \
+    'eshu docs verify \"--not-a-real-flag\"' \
     '```'
   : >"${baseline}"
   if run_verifier "${root}" "${baseline}" "${out}"; then
@@ -221,12 +227,13 @@ test_baseline_and_update_are_burn_down_safe() {
     'Use `ESHU_NOT_REGISTERED`.' \
     '```console' \
     '$ eshu docs verify --not-a-real-flag' \
+    '$ eshu --root-leading-invalid docs verify' \
     '```'
   mkdir -p "$(dirname "${baseline}")"
   printf '%s\n' \
     '# baseline' \
     'env guide.md ESHU_NOT_REGISTERED' \
-    'flag guide.md docs/verify::--not-a-real-flag' >"${baseline}"
+    'flag guide.md <root>::--root-leading-invalid,docs/verify::--not-a-real-flag' >"${baseline}"
   if run_verifier "${root}" "${baseline}" "${out}"; then
     record_pass "baselined unknown references pass"
   else
