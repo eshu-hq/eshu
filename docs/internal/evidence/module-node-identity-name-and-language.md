@@ -103,41 +103,117 @@ canonical import modules and excludes the uid-keyed semantic ones. A
 disconnected node is marked, then deleted after `defaultOrphanSweepTTL`
 (7 days).
 
-### The one consumer that degrades
+### The sweep key, now exact
 
-The orphan sweep anchors on `n.name`, and after this change that key is no
-longer unique inside the class it owns. Its Go-side anti-join keys connectivity
-by that single string, so two same-named modules share one entry and the pair
-counts as connected when EITHER node has a relationship.
+The sweep used to anchor on `n.name`, which stopped being unique inside the
+class it owns the moment Module identity became `(name, lang)`. Two same-named
+modules shared one entry in its Go-side anti-join, so a disconnected one counted
+as connected whenever its sibling was still imported: never marked, never
+deleted, and permanently counted in `GraphOrphanNodeCounts`. The residue grew
+one node per module name whose projected language ever changed.
 
-The degradation is one-directional and bounded:
+The key is `(name, lang)` now, threaded through the S1 candidate read, the S2
+connectivity read, and all three key-anchored writes. Single-property labels
+emit byte-identical Cypher and the same `$keys`/`$cursor` parameter shapes.
 
-- It never deletes a connected node, and never deletes a disconnected node whose
-  same-named sibling is connected.
-- A disconnected module whose same-named sibling is still imported is not swept.
-  It lingers as a disconnected node. No query reaches it — every Module read
-  arrives through an IMPORTS or CONTAINS edge it no longer has — and it stays
-  counted in `GraphOrphanNodeCounts`, so it surfaces as a Module orphan count
-  that does not drain rather than as wrong query truth.
+Two properties of the pinned backend shaped it, both verified through the Bolt
+driver before the code was written:
 
-`TestLiveOrphanSweepModuleSameNameDifferentLanguages` pins both directions
-against the pinned backend so this cannot drift silently. Making the sweep exact
-means threading a composite key through its S1/S2 reads and its three
-key-anchored writes, which is a larger change than the identity fix and is
-deliberately not folded in here.
+- `ORDER BY` over the RETURN aliases is not honoured — five rows across three
+  names came back unordered — while ordering the `WITH`-projected values is. The
+  composite read projects through a `WITH` and orders on that.
+- A Module written before the identity cutover can carry no `lang` property at
+  all, because the old writer settled it with
+  `SET m.lang = coalesce(m.lang, row.language)` and that removes the property
+  when the row had no language. A bare `n.lang > $cursor_1` never matches such a
+  node, so it would sit outside every page forever. Every property after the
+  anchor compares through `coalesce(n.lang, '')`.
+
+Paging is the risky part of a composite key, so it is tested rather than
+inferred. `TestOrphanSweepCompositeCursorVisitsEveryRowExactlyOnce` runs five
+rows across three names at two rows a page, so a boundary lands inside a name's
+language group in both positions, and asserts only the two connected rows
+survive. `TestOrphanSweepCompositeCursorResumesMidName` pins the resume itself.
+The same walk was run live first — six rows, two a page, each key visited
+exactly once. `TestLiveOrphanSweepModuleSameNameDifferentLanguages` now asserts
+the disconnected sibling is deleted and the connected one and its live IMPORTS
+edge are untouched, and
+`TestLiveOrphanSweepModuleWithNoLanguageIsStillReachable` covers the
+language-less node.
+
+### Stale writers during a rolling upgrade
+
+The identity cutover changes no DDL, and the schema fingerprint was a digest of
+the backend name plus the ordered DDL and nothing else. An old pod therefore
+computed the same value, `RequireCompatible` admitted it, and its name-only
+`MATCH (m:Module {name: row.module_name})` bound both language nodes —
+attaching a Go file's IMPORTS edge to the Python module. The bad edge outlives
+the rollout, because `canonicalNodeRefreshCurrentFileImportEdgesCypher` only
+deletes IMPORTS edges for the paths a generation projects.
+
+The digest now covers a write-identity contract (`graphWriteIdentityContract`)
+as well as the DDL, and the resulting fingerprint lists no compatible
+predecessors. Bootstrap applies byte-identical statements; `StatementCount` is
+unchanged.
+
+A composite `(m.name, m.lang)` index was the other candidate lever, and it is
+not available on this backend. Cypher DDL routes every index to
+`storage.SchemaManager.AddPropertyIndex`, which keys by label plus **first**
+property, so `module_name_lookup` already owning `Module:name` wins and the
+two-property statement returns success while registering nothing. Reproduced
+through the Bolt driver against `eshu-nornicdb-pr290:3722b483c02c`:
+
+```text
+[A-collide]       CREATE INDEX kx_collide ... ON (m.name, m.lang)   rows=0
+[A-after-collide] SHOW INDEXES
+                    kx_name_lang ONLINE PROPERTY NODE [KeyProbe] [name]
+                    (kx_collide absent)
+[A-free-key]      CREATE INDEX kx_free ... ON (m.lang, m.name)      rows=0
+[A-after-free]    SHOW INDEXES
+                    kx_free ONLINE PROPERTY NODE [KeyProbe] [lang name]
+```
+
+An A/B of the module upsert across that "with and without" pair measured
+138,297–144,054 ns/op against 146,166–156,465, but both arms had the identical
+index set, so that difference is noise and is not evidence for anything.
+
+### target_id on IMPORTS edges
+
+Canonical import Modules carry no `id` and no `uid`, so the relationships
+catalog resolved `target_id` to the bare module name and the two language nodes
+projected the same value. It is language-qualified now. Measured against the
+pinned backend with four seeded edges:
+
+| edge target | before | after |
+| --- | --- | --- |
+| `Module{name: "time", lang: "go"}` | `time` | `time@go` |
+| `Module{name: "time", lang: "python"}` | `time` | `time@python` |
+| `Module{name: "time"}` | `time` | `time@` |
+| a Module carrying a `uid` | its `uid` | its `uid` |
+
+The query-plan gate's pinned `cypher_sha256` does not move: QP-RELATIONSHIPS-EDGES
+binds the CALLS representative of this 20-verb family, and CALLS keeps the
+default projection, so a verb-specific override is invisible to it. The
+`ORDER BY` tie-breaker is left alone for a measured reason — `ORDER BY` over a
+`CASE` expression is not honoured on this backend, so putting the expression
+there would move a pinned hash for a sort that does not happen.
 
 ## Schema
 
-No schema change. `module_name_lookup` (a plain index on `(m:Module) ON
-(m.name)`) still anchors the MERGE, and it must stay an index rather than a
-constraint: the semantic entity path MERGEs Module on `uid` and shares the
-label, so a uniqueness constraint on `name` — or on `(name, lang)` — fails on
-those nodes.
+No DDL change. `module_name_lookup` (a plain index on `(m:Module) ON (m.name)`)
+still anchors the MERGE, and it must stay an index rather than a constraint: the
+semantic entity path MERGEs Module on `uid` and shares the label, so a
+uniqueness constraint on `name` — or on `(name, lang)` — fails on those nodes.
 
 That the index is enough is measured, not assumed. NornicDB's `findMergeNode`
 (pkg/cypher/merge.go at the pinned revision) tries an exact composite index,
 then a unique constraint, then the smallest single-property index candidate set,
 and marks `MergeScanFallbackUsed` only when none of those matched.
+
+The schema **fingerprint** does move, even though the DDL does not, because the
+digest now covers the write-identity contract. See "Stale writers during a
+rolling upgrade" above for why that is the fence and why the composite index is
+not.
 
 ## Performance Evidence
 
@@ -254,3 +330,41 @@ had; the statement count and batching are unchanged. The one operator-visible
 signal that shifts is the existing `GraphOrphanNodeCounts` Module gauge, which
 is the surface the orphan-sweep degradation above reports through, and it needed
 no code change to do so.
+
+## Follow-up changes (#6102 review)
+
+The three review follow-ups touch the orphan sweep, the schema fingerprint, and
+the relationships `target_id` projection. None of them changes how much work any
+path does.
+
+No-Regression Evidence: the orphan sweep issues the same round trips per label
+per cycle it did before — one S1 candidate read, chunked S2 connectivity reads,
+a bounded S2 re-verify only on a sweeping cycle, and up to three key-anchored
+writes. The composite key changes the statement text, not the count, and the
+Module statements still anchor on `name` inline in the MATCH pattern, so they
+resolve through `module_name_lookup` rather than scanning the label; the second
+property is a comparison on the already-loaded candidate. Backend:
+`eshu-nornicdb-pr290:3722b483c02c` over Bolt.
+`TestLiveOrphanSweepModuleSameNameDifferentLanguages` (two cycles, three seeded
+nodes, one IMPORTS edge) runs in 0.26s and
+`TestLiveOrphanSweepModuleWithNoLanguageIsStillReachable` in 0.12s against it.
+No throughput benchmark was taken, and the reason is that there is nothing to
+compare: the round-trip shape is identical, and the corpus-scale Module
+population is the same one the pre-change sweep already paged. The schema
+fingerprint change adds no DDL, so `SchemaStatementsForBackend` returns a
+byte-identical list and `StatementCount` is unchanged — asserted by
+`TestWriteIdentityContractMovesTheFingerprintWithoutMovingTheDDL`. The
+`target_id` change adds one scalar expression over an already-bound target node
+in an already-bounded, `LIMIT`-capped projection; it adds no MATCH, no scan, and
+no ORDER BY term.
+
+The one measurement that could have justified new work is recorded above and
+came back negative: a composite `(m.name, m.lang)` index cannot be created on
+this backend, and the A/B that appeared to favour it had the identical index set
+in both arms.
+
+No-Observability-Change: no metric, span, or log is added or removed. The
+`GraphOrphanNodeCounts` Module gauge keeps its name and shape; what changes is
+that a Module orphan now drains instead of staying counted, which is why the
+operator note in the telemetry reference no longer describes an expected
+residue.
