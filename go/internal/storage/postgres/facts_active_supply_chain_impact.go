@@ -61,6 +61,29 @@ WHERE fact.fact_kind IN (
     'vulnerability.known_exploited'
 )
   AND fact.is_tombstone = FALSE
+  -- #5237: 'file' is in the scanned kind list ONLY to feed the JS/TS
+  -- reachability branch further down, and that branch cannot match unless
+  -- $10 (FileRepositoryIDs) is non-empty. $10 is populated only when an
+  -- affected package is npm-ecosystem (npmAffectedPackages,
+  -- go/internal/reducer/supply_chain_impact_active_filter.go), so for a
+  -- Maven/PyPI/Go/OS-package intent every 'file' row in every active scope
+  -- was read and its payload detoasted once per ungated identity predicate
+  -- below -- roughly thirteen full detoasts per file fact -- to produce no
+  -- match. That is the ~116s active-evidence load the issue reports; a
+  -- 448k-file-row proof measured 42.951s before this gate and 0.052s after.
+  --
+  -- Exactness: with $10 empty a 'file' row cannot satisfy ANY branch of the
+  -- disjunction. The suppression-scope branches and the repository branch
+  -- are already gated to other fact kinds, and the ungated identity
+  -- predicates compare payload keys the file fact contract never carries
+  -- (codegraph/v1.File is repo_id/relative_path/parsed_file_data plus
+  -- graph_id/graph_kind/is_dependency/language). That premise is pinned by
+  -- TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey, which fails
+  -- loudly if a contract change ever adds one of those keys to a file fact.
+  -- TestSupplyChainImpactFileKindGateLive then runs the whole page statement
+  -- against real Postgres with $10 empty, NULL, and populated, and fails if
+  -- the gate changes the rows or stops saving the detoast traffic.
+  AND (fact.fact_kind <> 'file' OR COALESCE(cardinality($10::text[]), 0) > 0)
   AND generation.status = 'active'
   AND (
       fact.payload->>'package_id' = ANY($1::text[])
