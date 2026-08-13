@@ -15,10 +15,12 @@ import (
 )
 
 // ReadInput returns the captured service-story response bytes for `eshu
-// service-report`: the file at path when path is non-empty, otherwise stdin.
-// It errors when stdin is read and turns out to be empty or all whitespace,
-// since a silent empty report would otherwise print as an unsupported dossier
-// with no explanation.
+// service-report`: the file at path when path is non-blank, otherwise
+// everything readable from stdin. A blank or whitespace-only path counts as
+// no path and falls through to stdin. It returns an error in two cases: the
+// file read failed, or stdin was read and turned out to be empty or all
+// whitespace -- a silent empty report would otherwise print as an
+// unsupported dossier with no explanation.
 func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
 		data, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local captured response file, not an HTTP request param
@@ -38,8 +40,8 @@ func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 }
 
 // SupplyChainSection reads an optional captured supply-chain inventory response
-// and maps it into the report's supply_chain section. It returns nil when no
-// path is given, so the section falls back to its unsupported placeholder.
+// and maps it into the report's supply_chain section. It returns a nil section
+// when path is blank, so the section falls back to its unsupported placeholder.
 func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*serviceintel.SectionInput, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
@@ -59,7 +61,9 @@ func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*servi
 // ParseServiceStoryResponse extracts the dossier map and optional truth envelope
 // from a captured service-story response. It accepts the standard envelope
 // ({"data": ..., "truth": ...}) and falls back to treating the whole object as a
-// bare dossier when no envelope wrapper is present.
+// bare dossier, with a nil truth envelope, whenever "data" decodes to nil --
+// which covers a bare dossier with no wrapper and an explicit "data": null
+// alike.
 func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope, error) {
 	var envelope struct {
 		Data  map[string]any       `json:"data"`

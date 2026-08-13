@@ -25,30 +25,36 @@
   path parameter the caller supplies. That is not process wiring — it is
   the same "act on an explicit parameter" shape as
   `internal/cli/mcpsetup`'s `WriteMCPServerConfig`. Do not "fix" it by
-  pushing file reads into the wrapper. Those two reads are the package's
-  entire operating-system surface: it writes no files, opens no network
-  connections, and runs no subprocesses. Keep it that way.
+  pushing file reads into the wrapper. The package's entire
+  operating-system surface is those two `os.ReadFile` calls, the
+  `io.ReadAll` of the `io.Reader` `ReadInput` is handed, and the `io.Writer`
+  `RenderReport` formats into — every one of them behind a caller-supplied
+  parameter. It writes no files, opens no network connections, and runs no
+  subprocesses. Keep it that way.
 - **No printing from this package except through `RenderReport`'s
   `io.Writer` parameter.** `fmt.Print*` (writing straight to the process's
   real stdout) belongs only in `service_report_cmd.go`.
-- **`RenderReport` is text-mode only.** The `--json` path in the wrapper
-  marshals `serviceintel.Report` directly and never calls into this
-  package; do not route JSON output through `RenderReport` or vice versa.
+- **`RenderReport` is text-mode only.** The `--json` path still calls
+  `ReadInput`, `ParseServiceStoryResponse`, and `SupplyChainSection` — both
+  output modes share the whole input half — but it marshals
+  `serviceintel.Report` itself and never reaches `RenderReport`. Do not
+  route JSON output through `RenderReport` or vice versa.
 
 ## Common changes and how to scope them
 
 - **Change what the captured-response envelope accepts** → edit
-  `ParseServiceStoryResponse` in report.go. It is the single decode path
-  both `ReadInput`'s caller (the wrapper) and `SupplyChainSection` use, so a
-  second decoder elsewhere would drift.
+  `ParseServiceStoryResponse` in report.go. It is the single decode path for
+  both captured inputs — the wrapper runs it over `ReadInput`'s bytes, and
+  `SupplyChainSection` runs it over the supply-chain file — so a second
+  decoder elsewhere would drift.
 - **Change the text report's layout** → edit `RenderReport` (and its
   private helpers `reportSubjectLabel` / `nextCallLabel`) in report.go. The
   JSON shape is untouched by this package — it comes straight from
   `serviceintel.Report`'s JSON tags.
 - **Add a new captured-input file the command reads** → follow the
   `SupplyChainSection` shape: a function taking the file path plus whatever
-  context it needs, returning a `serviceintel` input type or `nil` when no
-  path was given. Wire the new flag in `service_report_cmd.go` and pass the
+  context it needs, returning a `serviceintel` input type or `nil` when the
+  path is blank. Wire the new flag in `service_report_cmd.go` and pass the
   flag's value in as a parameter.
 
 ## Failure modes and how to debug
@@ -72,9 +78,10 @@
   process stdin), add a parameter instead.
 - **Composing the report here.** `serviceintel.Compose` is called directly
   in the wrapper's `runServiceReport`, next to the JSON/text branch. This
-  package only prepares inputs (`ParseServiceStoryResponse`,
-  `SupplyChainSection`) and renders the finished report
-  (`RenderReport`) — it does not call `serviceintel.Compose` itself.
+  package prepares inputs (`ReadInput`, `ParseServiceStoryResponse`,
+  `SupplyChainSection`) and renders the finished report (`RenderReport`) —
+  those four exported functions are its whole surface, and none of them
+  calls `serviceintel.Compose`.
 
 ## What NOT to change without an ADR
 

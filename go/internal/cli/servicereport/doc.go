@@ -12,15 +12,18 @@
 // file.
 //
 // The package reads no cobra flags, resolves no Eshu config or credential
-// from the process environment, and never calls os.Exit. Its only operating
-// system interaction is reading two kinds of local input through the
-// file-path parameters callers pass it -- the captured service-story
-// response and the optional supply-chain inventory -- because a local file
-// read behind an explicit path is mechanical input handling, not process
-// wiring. It writes no files, opens no network connections, and executes no
-// subprocesses. go/cmd/eshu's service_report_cmd.go is the thin cobra
-// wrapper that resolves flags (--from, --supply-chain-from, --json), passes
-// process stdin in as an io.Reader, composes the report, and returns errors
-// to main's exit-code handling; this package returns data and errors, and
-// writes text only to the io.Writer the wrapper hands RenderReport.
+// from the process environment, and never calls os.Exit. Its whole
+// operating-system surface is three reads and one write, all of them behind
+// a parameter the caller supplies: os.ReadFile on the --from path
+// (ReadInput), os.ReadFile on the --supply-chain-from path
+// (SupplyChainSection), io.ReadAll on the io.Reader it is handed when no
+// --from path is given, and the io.Writer RenderReport formats into. A
+// local file read behind an explicit path is mechanical input handling, not
+// process wiring. Nothing here touches os.Stdin or os.Stdout by name, writes
+// a file, opens a network connection, or executes a subprocess.
+//
+// go/cmd/eshu's service_report_cmd.go is the thin cobra wrapper that
+// resolves flags (--from, --supply-chain-from, --json), passes process stdin
+// in as that io.Reader, composes the report, and returns errors to main,
+// which maps them to an exit code.
 package servicereport

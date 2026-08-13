@@ -23,26 +23,31 @@ The wrapper resolves process state (flags, `cmd.InOrStdin()`,
 package returns data and errors, printing only through the `io.Writer` the
 caller supplies to `RenderReport`.
 
-Composing the report is `internal/serviceintel`'s job, and the calls that
-drive it stay in the wrapper: `runServiceReport` is the only caller of
-`serviceintel.FromServiceStory` and `serviceintel.Compose`. This package
-decodes a captured response into the dossier map and truth envelope those
-calls consume, adapts the optional supply-chain file through
-`serviceintel.FromSupplyChainInventory` (the one `serviceintel` adapter this
-package does call), and renders the finished `serviceintel.Report`. It never
-calls `serviceintel.Compose` itself.
+Composing the report is `internal/serviceintel`'s job, and on the
+`service-report` path the calls that drive it stay in the wrapper:
+`runServiceReport` is where `serviceintel.FromServiceStory` and
+`serviceintel.Compose` are called. (Both have other callers elsewhere in the
+repo -- `internal/serviceintelhttp` serves the same report over HTTP, and
+`internal/answerquality` composes reports for its corpus -- so this is a
+statement about the CLI path, not a repo-wide sole-caller claim.) This
+package decodes a captured response into the dossier map and truth envelope
+those calls consume, adapts the optional supply-chain file through
+`serviceintel.FromSupplyChainInventory` -- the one `serviceintel` adapter
+this package calls -- and renders the finished `serviceintel.Report`. It
+never calls `serviceintel.Compose` itself.
 
 ## Exported surface
 
 - `ReadInput` -- reads the captured service-story response from a file path
-  or, when no path is given, from the supplied `io.Reader` (the wrapper's
-  stdin), erroring on empty stdin input
+  or, when the path is blank, from the supplied `io.Reader` (the wrapper's
+  stdin); errors on a failed file read and on empty or whitespace-only stdin
 - `ParseServiceStoryResponse` -- decodes a captured response into the
   dossier map and optional `query.TruthEnvelope`, accepting both the
-  `{"data": ..., "truth": ...}` envelope and a bare dossier object
+  `{"data": ..., "truth": ...}` envelope and a bare dossier object; a `data`
+  that decodes to nil (absent or explicitly null) takes the bare path
 - `SupplyChainSection` -- reads an optional captured supply-chain inventory
-  file and adapts it into a `serviceintel.SectionInput`; returns `nil` when
-  no path is given
+  file and adapts it into a `serviceintel.SectionInput`; returns a nil
+  section when the path is blank
 - `RenderReport` -- writes the compact, human-readable view of a
   `serviceintel.Report` to an `io.Writer`
 
