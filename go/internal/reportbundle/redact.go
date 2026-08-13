@@ -5,6 +5,7 @@ package reportbundle
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
@@ -29,6 +30,61 @@ var inlineContentKeys = map[string]struct{}{
 func isInlineContentKey(key string) bool {
 	_, ok := inlineContentKeys[strings.ToLower(key)]
 	return ok
+}
+
+// queryPairSeparators are the characters that end one key=value pair inside a
+// query-string-shaped value: "?" opens a nested query, "&" and ";" separate
+// pairs within one. A raw "&" only reaches a parsed value percent-encoded,
+// because net/url would otherwise have split on it into its own parameter.
+const queryPairSeparators = "?&;"
+
+// embeddedSensitiveKey reports the first sensitive-named key found inside a
+// query-string-shaped VALUE, such as the "api_key" in
+// "/api/v0/x?api_key=sk-live-...".
+//
+// This is the one place this package looks at a value rather than a key, and
+// the exception is narrow on purpose. It does not judge value CONTENT and it
+// does not add a second sensitive-key heuristic: it re-parses a value that is
+// itself shaped like a query string back into key=value pairs, then asks the
+// same collector.IsSensitiveKeyName predicate everything else here asks. What
+// changes is where key names are looked for, not what counts as one.
+//
+// It exists because splitting the target's query string (SplitTargetQuery)
+// splits on the first "?" only. Everything after a second "?" stays inside a
+// parameter's value, so a credential lands under a benign name like "next" and
+// survives both the key walk and the share-safe gate. Scanning the DECODED
+// value also covers the percent-encoded form of the same trick.
+//
+// Deliberate limits, because a caller must not read more into a pass than is
+// there:
+//   - Only a "key=value" shape is detected. A bare secret with no "key=" in
+//     front of it ("?next=sk-live-...") is invisible, as is a secret under an
+//     arbitrary benign name anywhere else in the bundle.
+//   - Only one decoding pass. A double-encoded nested query ("%253F") is not
+//     unwrapped.
+//   - A candidate key containing whitespace is skipped, since a real query
+//     key never has one. That keeps prose values ("SELECT token = 1") from
+//     costing a maintainer a parameter, at the price of missing a credential
+//     written with spaces around its "=".
+func embeddedSensitiveKey(value string) (string, bool) {
+	if !strings.ContainsAny(value, queryPairSeparators) && !strings.Contains(value, "=") {
+		return "", false
+	}
+	for _, pair := range strings.FieldsFunc(value, func(r rune) bool {
+		return strings.ContainsRune(queryPairSeparators, r)
+	}) {
+		key, _, found := strings.Cut(pair, "=")
+		if !found {
+			continue
+		}
+		if key == "" || strings.ContainsFunc(key, unicode.IsSpace) {
+			continue
+		}
+		if collector.IsSensitiveKeyName(key) || isInlineContentKey(key) {
+			return key, true
+		}
+	}
+	return "", false
 }
 
 // redactValue walks a decoded JSON value (map[string]any / []any / scalars,

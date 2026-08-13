@@ -1,0 +1,70 @@
+name: Wrong answer
+description: Eshu returned an answer you know is wrong. Attach a captured report bundle so the wrong answer can be reproduced.
+title: "Wrong answer: <what you asked>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please attach a **report bundle** rather than describing the answer in
+        prose. A bundle is one JSON file holding the query you ran, the exact
+        response envelope that came back, and its truth labels. It lets a
+        maintainer reproduce what you saw instead of guessing at it.
+
+        Capture one with the query that went wrong:
+
+        ```bash
+        eshu report capture \
+          --endpoint /api/v0/services/checkout/story \
+          --params '{"repo":"your-org/your-repo"}' \
+          --note "expected the platform team as owner, got an empty list" \
+          --out report-bundle.json
+        ```
+
+        Then confirm it is safe to post here, and attach `report-bundle.json`
+        by dragging it into the box below:
+
+        ```bash
+        eshu report validate --from report-bundle.json --require-public
+        ```
+
+        That prints `report bundle validation: passed` and exits 0 when the
+        bundle is share-safe.
+
+        **Do not use `--include-payloads`.** That flag attaches raw fact
+        payloads and source excerpts from your repositories for private local
+        triage. Bundles captured with it fail `--require-public` and must never
+        be posted to a public issue.
+
+        Walkthrough:
+        [Report a wrong answer](https://github.com/eshu-hq/eshu/blob/main/docs/public/guides/report-wrong-answer.md).
+  - type: textarea
+    id: report_bundle
+    attributes:
+      label: Report bundle
+      description: |
+        Attach `report-bundle.json` (drag the file into this box). If capture
+        did not work, paste the command you ran and the error instead, and say
+        so.
+      placeholder: Drag report-bundle.json here.
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: What did you expect instead?
+      description: |
+        One line. Skip it if you already passed `--note` to
+        `eshu report capture` — the bundle carries that text.
+      placeholder: The platform team should own checkout, it owns the repo in CODEOWNERS.
+    validations:
+      required: false
+  - type: checkboxes
+    id: share_safe
+    attributes:
+      label: Before you submit
+      options:
+        - label: I ran `eshu report validate --require-public` on the attached bundle and it passed.
+          required: true
+        - label: I did not capture this bundle with `--include-payloads`.
+          required: true
