@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"testing"
 )
 
 // Structural half of the trigger-class pin (see doc_lockstep_test.go for the
@@ -29,13 +26,25 @@ import (
 // triggerAllowed("list") report true.
 //
 // So the scanner asserts the shape of the function rather than pattern-matching
-// one spelling of it. triggerAllowed's body must be exactly one tagged switch
-// whose clauses are string-literal cases returning a bare `true`, plus one
-// default returning a bare `false`. A statement before or after the switch, a
-// conditional or an assignment inside a clause, a returned variable or
-// expression, a tagless switch, a missing default, a default that returns true,
-// or a case that returns anything but `true` are all findings. That turns each
-// evasion above into a structural violation instead of an invisible one.
+// one spelling of it. triggerAllowed's body must be exactly one switch, tagged
+// with its own sole parameter, whose clauses are string-literal cases returning
+// a bare `true`, plus one default returning a bare `false`. A statement before
+// or after the switch, a conditional or an assignment inside a clause, a
+// returned variable or expression, a tagless switch, a missing default, a
+// default that returns true, or a case that returns anything but `true` are all
+// findings. That turns each evasion above into a structural violation instead
+// of an invisible one.
+//
+// The tag rule came a round later, for the same reason. Checking only that a
+// tag existed left `switch canonicalTrigger(trigger)` -- with a helper mapping
+// "list" onto "read" -- reading as a perfectly closed switch. The tag may now
+// be wrapped in strings.TrimSpace and strings.ToLower and nothing else: those
+// fold spellings of one class together and cannot turn one class into another,
+// which keeps a legitimate hardening of triggerAllowed inside this function
+// instead of pushing it into normalizeInput, where it becomes the remap
+// doc_lockstep_trigger_path_test.go refuses.
+//
+// The fixture drive for all of it lives in doc_lockstep_switch_fixtures_test.go.
 
 // switchFinding is one departure from the closed-switch shape, named so a
 // failure says which rule the function broke rather than reporting a bare
@@ -48,10 +57,16 @@ type switchFinding struct {
 func (f switchFinding) String() string { return f.Func + ": " + f.Detail }
 
 // findFuncDecl returns the package-level function named name declared in one of
-// dir's non-test files, and errors when there is none -- an empty result would
-// otherwise read to a caller as "this function accepts nothing".
+// dir's non-test files. It errors when there is none -- an empty result would
+// otherwise read to a caller as "this function accepts nothing" -- and errors
+// again when two files declare it, because the old version returned the first
+// match in sorted filename order and had no way to say which one the compiler
+// uses. Two declarations of the same name only compile when one file is
+// build-excluded, which parseNonTestGoFiles now drops and
+// TestDocLockstepNoBuildConstrainedFiles fails on; this is the belt for that
+// brace.
 func findFuncDecl(dir, name string) (*ast.FuncDecl, error) {
-	_, parsed, err := parseNonTestGoFiles(dir)
+	_, parsed, _, err := parseNonTestGoFiles(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -60,15 +75,90 @@ func findFuncDecl(dir, name string) (*ast.FuncDecl, error) {
 		fileNames = append(fileNames, fileName)
 	}
 	sort.Strings(fileNames)
+	var found *ast.FuncDecl
+	var declaredIn []string
 	for _, fileName := range fileNames {
 		for _, decl := range parsed[fileName].Decls {
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if ok && funcDecl.Recv == nil && funcDecl.Name.Name == name {
-				return funcDecl, nil
+				if found == nil {
+					found = funcDecl
+				}
+				declaredIn = append(declaredIn, fileName)
 			}
 		}
 	}
-	return nil, fmt.Errorf("func %s not found in %s", name, dir)
+	if len(declaredIn) > 1 {
+		return nil, fmt.Errorf("func %s is declared in %d files (%s) in %s; the scanner cannot tell which one the compiler uses", name, len(declaredIn), strings.Join(declaredIn, ", "), dir)
+	}
+	if found == nil {
+		return nil, fmt.Errorf("func %s not found in %s", name, dir)
+	}
+	return found, nil
+}
+
+// soleParamName reports the name of fn's single parameter, and false when fn
+// takes anything other than exactly one named parameter. The switch tag is held
+// to this name, so a function with no parameter to compare against has no shape
+// to check.
+func soleParamName(fn *ast.FuncDecl) (string, bool) {
+	if fn.Type == nil || fn.Type.Params == nil || len(fn.Type.Params.List) != 1 {
+		return "", false
+	}
+	field := fn.Type.Params.List[0]
+	if len(field.Names) != 1 {
+		return "", false
+	}
+	return field.Names[0].Name, true
+}
+
+// pureTriggerNormalizers are the strings functions a value may pass through on
+// its way into the switch tag. Both fold representations of the same class
+// together -- case and surrounding whitespace -- and neither can turn one class
+// into another, which is the property that matters: a tag of
+// `strings.ToLower(strings.TrimSpace(trigger))` still answers for exactly the
+// literals the cases name, while `canonicalTrigger(trigger)` can map "list"
+// onto "read". That distinction is why the tag check allows the first and
+// refuses the second, and it is where a legitimate hardening of triggerAllowed
+// belongs -- moving it into normalizeInput instead is the remap
+// TestDocLockstepTriggerReachesTheGateUnrewritten refuses.
+func pureTriggerNormalizers() map[string]bool {
+	return map[string]bool{"ToLower": true, "TrimSpace": true}
+}
+
+// unwrapPureNormalizers peels calls to pureTriggerNormalizers off expr and
+// returns what is underneath, reporting false as soon as it meets a call that
+// is anything else.
+func unwrapPureNormalizers(expr ast.Expr) (ast.Expr, bool) {
+	for {
+		call, ok := expr.(*ast.CallExpr)
+		if !ok {
+			return expr, true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || len(call.Args) != 1 {
+			return expr, false
+		}
+		pkg, ok := selector.X.(*ast.Ident)
+		if !ok || pkg.Name != "strings" || !pureTriggerNormalizers()[selector.Sel.Name] {
+			return expr, false
+		}
+		expr = call.Args[0]
+	}
+}
+
+// identAfterPureNormalizers reports the identifier expr resolves to once any
+// pure normalizer wrappers are removed.
+func identAfterPureNormalizers(expr ast.Expr) (string, bool) {
+	root, pure := unwrapPureNormalizers(expr)
+	if !pure {
+		return "", false
+	}
+	ident, ok := root.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	return ident.Name, true
 }
 
 // bareReturnIdent reports the identifier a clause body returns, when that body
@@ -120,8 +210,16 @@ func scanClosedStringSwitch(dir, funcName string) (clauses int, values []string,
 	if switchStmt.Init != nil {
 		report("the switch carries an init statement, which can settle the answer before any case is compared")
 	}
-	if switchStmt.Tag == nil {
+	param, hasParam := soleParamName(target)
+	switch {
+	case !hasParam:
+		report("the function does not take exactly one named parameter, so there is no value to hold the switch tag to")
+	case switchStmt.Tag == nil:
 		report("the switch has no tag, so its cases are arbitrary boolean expressions rather than string literals")
+	default:
+		if name, ok := identAfterPureNormalizers(switchStmt.Tag); !ok || name != param {
+			report("the switch tag is not the bare parameter %q (optionally wrapped in strings.TrimSpace/ToLower), so the compared value can be rewritten before any case is reached", param)
+		}
 	}
 	if switchStmt.Body == nil {
 		report("the switch has no body")
@@ -167,136 +265,4 @@ func scanClosedStringSwitch(dir, funcName string) (clauses int, values []string,
 	}
 	sort.Strings(values)
 	return clauses, values, findings, nil
-}
-
-// writeSwitchFixture writes body as the sole non-test file of a fresh
-// directory, next to a _test.go file the scanner must ignore.
-func writeSwitchFixture(t *testing.T, body string) string {
-	t.Helper()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte("package fixture\n\n"+body), 0o600); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	ignored := "package fixture\n\nfunc allowed(v string) bool {\n\treturn v == \"from_a_test_file\"\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "fixture_test.go"), []byte(ignored), 0o600); err != nil {
-		t.Fatalf("write ignored fixture: %v", err)
-	}
-	return dir
-}
-
-// TestDocLockstepSwitchScannerReadsTheClosedShape proves the scanner reads the
-// literals out of a well-formed closed switch, skips _test.go files, and errors
-// on a missing function rather than returning an empty set a caller could read
-// as an empty allow-list.
-func TestDocLockstepSwitchScannerReadsTheClosedShape(t *testing.T) {
-	t.Parallel()
-
-	dir := writeSwitchFixture(t, "func allowed(v string) bool {\n\tswitch v {\n"+
-		"\tcase \"read\", \"list\":\n\t\treturn true\n"+
-		"\tcase \"symbol\":\n\t\treturn true\n"+
-		"\tdefault:\n\t\treturn false\n\t}\n}\n")
-
-	clauses, values, findings, err := scanClosedStringSwitch(dir, "allowed")
-	if err != nil {
-		t.Fatalf("scan fixture: %v", err)
-	}
-	if len(findings) != 0 {
-		t.Fatalf("findings = %v, want none for a well-formed closed switch", findings)
-	}
-	if clauses != 2 {
-		t.Fatalf("true-returning clauses = %d, want 2", clauses)
-	}
-	if strings.Join(values, ",") != "list,read,symbol" {
-		t.Fatalf("values = %v, want [list read symbol]", values)
-	}
-	if _, _, _, err := scanClosedStringSwitch(dir, "notThere"); err == nil {
-		t.Fatal("scanning a missing function returned no error; a caller could read the empty set as an empty allow-list")
-	}
-}
-
-// TestDocLockstepSwitchScannerRejectsEvasions is the negative half. The first
-// four bodies are the rewrites of triggerAllowed that accept "list" while the
-// old bare-`return true` scanner saw nothing; the rest are the neighbouring
-// shapes that express the same change differently. Each must produce a finding.
-//
-// Two of the bodies deliberately do not compile (a function that can fall off
-// the end). The scanner only parses, and a fixture that has to compile could
-// not isolate a missing default from the extra statement Go would require.
-func TestDocLockstepSwitchScannerRejectsEvasions(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name string
-		body string
-	}{
-		{
-			name: "guard_before_switch",
-			body: "func allowed(v string) bool {\n\tif v == \"list\" {\n\t\treturn true\n\t}\n" +
-				"\tswitch v {\n\tcase \"read\":\n\t\treturn true\n\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "conditional_inside_case",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tcase \"list\":\n\t\tif v != \"\" {\n\t\t\treturn true\n\t\t}\n\t\treturn false\n" +
-				"\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "variable_returned_from_case",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tcase \"list\":\n\t\tok := true\n\t\treturn ok\n\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "expression_returned_from_case",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tcase \"list\":\n\t\treturn v != \"\"\n\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "tagless_switch",
-			body: "func allowed(v string) bool {\n\tswitch {\n\tcase v == \"read\" || v == \"list\":\n\t\treturn true\n" +
-				"\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "switch_init_statement",
-			body: "func allowed(v string) bool {\n\tswitch t := v; t {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "case_returns_false",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tcase \"edit\":\n\t\treturn false\n\tdefault:\n\t\treturn false\n\t}\n}\n",
-		},
-		{
-			name: "default_returns_true",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tdefault:\n\t\treturn true\n\t}\n}\n",
-		},
-		{
-			name: "no_default_clause",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\", \"list\":\n\t\treturn true\n\t}\n}\n",
-		},
-		{
-			name: "statement_after_switch",
-			body: "func allowed(v string) bool {\n\tswitch v {\n\tcase \"read\":\n\t\treturn true\n" +
-				"\tdefault:\n\t\tbreak\n\t}\n\treturn v == \"list\"\n}\n",
-		},
-	}
-	if len(cases) < 10 {
-		t.Fatalf("evasion cases = %d, want one per shape that expresses a widened allow-list", len(cases))
-	}
-
-	checked := 0
-	for _, tc := range cases {
-		dir := writeSwitchFixture(t, tc.body)
-		_, values, findings, err := scanClosedStringSwitch(dir, "allowed")
-		if err != nil {
-			t.Fatalf("%s: scan fixture: %v", tc.name, err)
-		}
-		if len(findings) == 0 {
-			t.Errorf("%s: scanner reported no finding and read the accepted set as %v; this shape widens the allow-list invisibly", tc.name, values)
-		}
-		checked++
-	}
-	if checked != len(cases) {
-		t.Fatalf("scanned %d of %d evasion fixtures", checked, len(cases))
-	}
 }

@@ -32,25 +32,77 @@ import (
 
 // parseNonTestGoFiles parses every non-test .go file in dir. It is the shared
 // front half of the scanners below.
-func parseNonTestGoFiles(dir string) (*token.FileSet, map[string]*ast.File, error) {
+//
+// It reports build-constrained files separately instead of parsing them. A file
+// the compiler never sees is not the package's behavior, and a scanner that
+// reads one is reading a decoy: `//go:build ignore` on an aliases.go declaring a
+// pristine triggerAllowed sorts ahead of preflight.go, so the old scanner read
+// the decoy while `go build` used the widened real one. Nothing in this package
+// is build-constrained today, and TestDocLockstepNoBuildConstrainedFiles keeps
+// it that way -- skipping a file silently is the same blind spot in the other
+// direction.
+func parseNonTestGoFiles(dir string) (fset *token.FileSet, files map[string]*ast.File, constrained []string, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	fset := token.NewFileSet()
-	files := map[string]*ast.File{}
+	fset = token.NewFileSet()
+	files = map[string]*ast.File{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		parsed, parseErr := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		parsed, parseErr := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments|parser.SkipObjectResolution)
 		if parseErr != nil {
-			return nil, nil, parseErr
+			return nil, nil, nil, parseErr
+		}
+		if hasBuildConstraint(parsed) {
+			constrained = append(constrained, name)
+			continue
 		}
 		files[name] = parsed
 	}
-	return fset, files, nil
+	sort.Strings(constrained)
+	return fset, files, constrained, nil
+}
+
+// hasBuildConstraint reports whether file carries a //go:build or // +build
+// line ahead of its package clause -- the marker that decides whether the
+// compiler reads the file at all.
+func hasBuildConstraint(file *ast.File) bool {
+	for _, group := range file.Comments {
+		if group.Pos() > file.Package {
+			break
+		}
+		for _, comment := range group.List {
+			text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
+			if strings.HasPrefix(text, "go:build") || strings.HasPrefix(text, "+build") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// TestDocLockstepNoBuildConstrainedFiles keeps every scanner in this package
+// reading the same files the compiler does. parseNonTestGoFiles skips
+// build-constrained files so a decoy cannot answer for the real one; this is
+// the other half of that bargain, so a constrained file that genuinely belongs
+// in the package cannot hide from the scanners either.
+func TestDocLockstepNoBuildConstrainedFiles(t *testing.T) {
+	t.Parallel()
+
+	_, files, constrained, err := parseNonTestGoFiles(".")
+	if err != nil {
+		t.Fatalf("parse package: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("parsed 0 non-test files; the assertion would be vacuous")
+	}
+	for _, name := range constrained {
+		t.Errorf("%s carries a build constraint, so the compiler may not read it while the doc-lockstep scanners skip it; keep production files unconstrained or teach the scanners the constraint", name)
+	}
 }
 
 // scanTaggedStructs reports the name of every struct type declared in dir's
@@ -59,7 +111,7 @@ func parseNonTestGoFiles(dir string) (*token.FileSet, map[string]*ast.File, erro
 // docTaggedStructs from a pair of maps that agree with each other into an
 // assertion about the package.
 func scanTaggedStructs(dir string) (files int, names []string, err error) {
-	_, parsed, err := parseNonTestGoFiles(dir)
+	_, parsed, _, err := parseNonTestGoFiles(dir)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -162,7 +214,7 @@ type callFinding struct {
 // and names the ones outside allowed[pkg]. It reports the total selector uses
 // it examined so a caller can refuse a vacuous pass.
 func scanQualifiedCalls(dir string, allowed map[string]map[string]bool) (uses int, findings []callFinding, err error) {
-	_, parsed, err := parseNonTestGoFiles(dir)
+	_, parsed, _, err := parseNonTestGoFiles(dir)
 	if err != nil {
 		return 0, nil, err
 	}

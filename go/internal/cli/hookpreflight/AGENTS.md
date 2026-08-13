@@ -50,24 +50,48 @@
 ## Common changes and how to scope them
 
 - **Add a new trigger class** → add it to the `case` list in
-  `triggerAllowed` (preflight.go) and to `triggerFromClaudeTool`'s switch
+  `triggerAllowed` (preflight.go), to `documentedTriggers()`
+  (doc_lockstep_behavior_test.go), and to `triggerFromClaudeTool`'s switch
   (claude.go) if a Claude tool name should map to it. Update
   docs/public/reference/assistant-fast-path-hooks.md's "Trigger Classes"
   section in the same PR — that doc is the contract, not just a reference.
   `TestDocLockstepAllowedTriggersMatchDoc` reads the accepted classes out of
-  `triggerAllowed` with a `go/ast` walk, so a class you add is seen whether or
-  not anyone thought to probe for it, and it also pins the contract doc's own
-  "Trigger Classes" wording. Adding the case, dropping a case, or editing that
-  section alone each fail it.
+  `triggerAllowed` with a `go/ast` walk rather than probing a candidate list,
+  so a class added to that `case` list is compared whether or not anyone
+  thought to probe for it. What it compares against is `documentedTriggers()`,
+  a hand-maintained transcription, plus the contract doc's "Trigger Classes"
+  bullets — it does **not** require the doc to name your new class by its
+  code-side spelling (`grep` appears nowhere in the contract doc), so editing
+  the code and `documentedTriggers()` together with the doc untouched passes.
+  Updating the doc is a rule here, not something the test proves.
   Keep `triggerAllowed` in the closed shape that walk requires: its body must
   be exactly one `switch trigger { ... }` whose clauses are string literals
-  returning a bare `true`, plus one `default` returning a bare `false`. An
-  early `if`, a conditional inside a clause, a returned variable or comparison,
-  a tagless switch, or a clause returning anything else all accept a class the
-  literal list never names, so `TestDocLockstepSwitchScannerRejectsEvasions`
-  (doc_lockstep_switch_test.go) treats each of them as a structural violation.
-  If a class genuinely needs a condition, that condition belongs in
+  returning a bare `true`, plus one `default` returning a bare `false`. The
+  switch tag must be the bare parameter, optionally wrapped in
+  `strings.TrimSpace`/`strings.ToLower` — those fold spellings of one class
+  together and cannot map one class onto another, which a helper like
+  `canonicalTrigger(trigger)` can. An early `if`, a conditional inside a
+  clause, a returned variable or comparison, a tagless switch, a rewritten tag,
+  or a clause returning anything else all accept a class the literal list never
+  names, so `TestDocLockstepSwitchScannerRejectsEvasions`
+  (doc_lockstep_switch_fixtures_test.go) treats each of them as a structural
+  violation. If a class genuinely needs a condition, that condition belongs in
   `Evaluate`'s switch as its own skip reason, not hidden inside this one.
+- **Do not rewrite a trigger on its way to the gate.** `normalizeInput` may
+  lowercase and trim `Input.Trigger` and nothing else; `baseOutput` copies it
+  onto the wire unchanged; `MergeClaudePreToolUseInput` is the one deliberate
+  translation, and only through `triggerFromClaudeTool(payload.ToolName)`.
+  `Evaluate`'s switch must consult `triggerAllowed` itself, on a bare
+  `.Trigger` field. Both ends are pinned by
+  `doc_lockstep_trigger_path_test.go`, because a remap in `normalizeInput` or a
+  call to a widened twin changes which classes get an advisory while
+  `triggerAllowed` stays byte-identical for a reader to check.
+- **Change which Claude tools fire the hook** → edit `triggerFromClaudeTool`
+  (claude.go). `TestDocLockstepClaudeToolTriggerClasses`
+  (doc_lockstep_publish_safety_test.go) drives every tool the contract doc's
+  exclusion sentence names through `MergeClaudePreToolUseInput` and `Evaluate`
+  and requires each to come back as a skip with an empty `additionalContext`,
+  so remapping `Bash` into a read-family class fails there.
 - **Add a new scope kind** → add a candidate to `scopeFromInput`
   (preflight.go) and a case to `plannedCallForScope` choosing which MCP tool
   answers it. Both must change together: a scope kind with no
@@ -84,6 +108,14 @@
   echoes both in its `scope:` text line and inside the Claude hook
   `additionalContext` string — treat any relaxation here as a publish-safety
   change requiring the same scrutiny as a new output field.
+  `TestDocLockstepScopeSafeRejectionsStayUnpublished`
+  (doc_lockstep_publish_safety_test.go) drives one input per rejection kind
+  README.md lists through `Evaluate` and asserts the decision, the absent
+  `Output.Scope`, and an empty `additionalContext`. Two of the six clauses
+  overlap the character-class check — `~` and `\` are outside
+  `[A-Za-z0-9._/:-]` too — so deleting either explicit check changes no
+  decision and no test can go red on it. The character-class loop is what
+  actually holds those two; treat it accordingly.
 
 ## Failure modes and how to debug
 
@@ -112,11 +144,24 @@
   `doc_lockstep_source_test.go` walks the source with `go/ast` for the claims
   a hand-written list cannot carry (the full set of json-tagged structs, and
   that the only `fmt` and `path/filepath` calls in production files are
-  `Fprintf`/`Sprintf` and `IsAbs`/`Rel`/`Clean`/`ToSlash`), and
+  `Fprintf`/`Sprintf` and `IsAbs`/`Rel`/`Clean`/`ToSlash`),
   `doc_lockstep_switch_test.go` holds `triggerAllowed` to the closed-switch
-  shape that walk depends on. Fix the doc or the code — do not relax the
-  assertion. These exist because four rounds of hand-edited doc corrections on
-  this package each fixed the reported sentence and left the next one standing.
+  shape that walk depends on (with its fixture drive in
+  `doc_lockstep_switch_fixtures_test.go`),
+  `doc_lockstep_trigger_path_test.go` pins the path the trigger takes to reach
+  that switch, `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`
+  rejections and the Claude tool-to-class mapping, and
+  `doc_lockstep_literal_test.go` counts the contract-name mentions in the
+  package docs rather than checking each file has one. Fix the doc or the code
+  — do not relax the assertion. These exist because four rounds of hand-edited
+  doc corrections on this package each fixed the reported sentence and left the
+  next one standing.
+- Symptom: a scanner reports nothing for a file you can see in the directory →
+  check for a `//go:build` line. `parseNonTestGoFiles` reports
+  build-constrained files separately instead of parsing them, because a file
+  the compiler skips is not the package's behavior; a real one carrying a
+  constraint fails `TestDocLockstepNoBuildConstrainedFiles` rather than going
+  quietly unscanned.
 - Symptom: `TestAssistantHookPreflightBenchmarkCasesCoverContract`
   (preflight_bench_test.go) fails after adding a case → the test asserts
   `len(cases) >= 6` and that every one of six named cases is present; a

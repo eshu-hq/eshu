@@ -178,6 +178,13 @@ live query, uses no cache, covers read/search/glob-style trigger families plus
 timeout, unsupported-host, permission-denied, broad-scope, and
 malformed-payload fallbacks, and records allocations for each path.
 
+Those numbers are carried forward from the measurement taken before the planner
+moved into `go/internal/cli/hookpreflight`; the move and the doc-lockstep work
+since have changed no evaluator line and did not re-measure them. A later
+sample on the same machine came in faster than the bounds above (evaluator
+advisory 207.5 ns/op, fail-open 48.58 ns/op), so read them as a ceiling that
+still holds rather than as a fresh reading.
+
 No-Observability-Change: the local preflight planner does not start Eshu
 runtimes, call MCP/API or provider endpoints, open graph/Postgres drivers,
 claim queue work, or emit OTEL from the CLI dispatcher. It only classifies

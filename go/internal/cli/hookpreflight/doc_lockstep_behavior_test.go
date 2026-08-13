@@ -348,9 +348,21 @@ func contractDocTriggerClaims() []string {
 // the list, never gets probed, and the comparison still passes.
 //
 // The scanner asserts the function's structure, not one spelling of it, so a
-// class accepted by a guard before the switch or by a conditional inside a case
-// fails as a shape violation instead of slipping past the literal set. See
-// doc_lockstep_switch_test.go for the four rewrites that used to pass.
+// class accepted by a guard before the switch, by a conditional inside a case,
+// or by a rewritten switch tag fails as a shape violation instead of slipping
+// past the literal set. See doc_lockstep_switch_test.go for the shapes that
+// used to pass, and doc_lockstep_trigger_path_test.go for the two that widened
+// the accepted set with triggerAllowed byte-identical.
+//
+// What it does not do: require the contract doc to name a new class. The two
+// sides it compares are triggerAllowed and documentedTriggers, and the doc
+// check below is on the "Trigger Classes" bullets documentedTriggers
+// transcribes, not on the class names -- those bullets are prose ("text or
+// symbol search"), and `grep` appears nowhere in that document. So adding a
+// class to triggerAllowed and to documentedTriggers, with the contract doc
+// untouched, passes here. Updating the doc in the same change is a rule in
+// AGENTS.md; editing documentedTriggers is the point where a human has to
+// notice it.
 func TestDocLockstepAllowedTriggersMatchDoc(t *testing.T) {
 	t.Parallel()
 

@@ -317,14 +317,16 @@ func docsMissingLiteral(dir string, names []string, literal string) ([]string, e
 	return missing, nil
 }
 
-// TestDocLockstepSchemaLiteral pins the assistant_fast_path_hook.v1 literal in
-// two independent places: the value Evaluate stamps into Output.Schema, and
-// the three package docs that quote it. Renaming the contract in one without
-// the other fails here.
+// TestDocLockstepSchemaLiteral pins the assistant_fast_path_hook.v1 literal as
+// the value Evaluate stamps into Output.Schema on both an advise and a skip.
+// The docs half moved to TestDocLockstepSchemaLiteralOccurrenceCounts
+// (doc_lockstep_literal_test.go), which counts the mentions instead of
+// checking each file has one: the name appears four times in README.md, so
+// rewriting a single occurrence left a Contains check quiet.
 func TestDocLockstepSchemaLiteral(t *testing.T) {
 	t.Parallel()
 
-	const literal = "assistant_fast_path_hook.v1"
+	const literal = schemaLiteral
 
 	out := Evaluate(Input{
 		Host:     supportedHostClaude,
@@ -339,15 +341,6 @@ func TestDocLockstepSchemaLiteral(t *testing.T) {
 	skipped := Evaluate(Input{Host: "codex", Budget: DefaultBudget})
 	if skipped.Schema != literal {
 		t.Errorf("skip Output.Schema = %q, want %q", skipped.Schema, literal)
-	}
-
-	docs := []string{"README.md", "doc.go", "AGENTS.md"}
-	missing, err := docsMissingLiteral(".", docs, literal)
-	if err != nil {
-		t.Fatalf("read package docs: %v", err)
-	}
-	for _, name := range missing {
-		t.Errorf("%s does not mention the %s contract literal", name, literal)
 	}
 }
 

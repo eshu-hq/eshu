@@ -109,23 +109,43 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Four lockstep
-  files pin them, and a code change that makes one of the sentences above
-  false fails a test rather than quietly aging into fiction:
-  `doc_lockstep_test.go` pins the struct tags and their wire names, the
-  import set, the `assistant_fast_path_hook.v1` literal, and the three reason
-  codes the contract doc names; `doc_lockstep_behavior_test.go` pins the
-  reason-code precedence, the first-match scope ordering above, that no skip
-  publishes a scope, the 200 ms `DefaultBudget`, and the trigger classes;
-  `doc_lockstep_source_test.go` reads the source declarations, so the
-  json-tagged struct set is a complete inventory rather than a hand-written
-  sample, and the only calls the production files make are
-  `fmt.Fprintf`/`fmt.Sprintf` and the four pure `path/filepath` functions
-  named above; `doc_lockstep_switch_test.go` requires `triggerAllowed` to
-  stay a closed string switch, so the accepted classes can be read out of it.
-  The call-level pin is what backs this section's "touches no file" claim:
-  `path/filepath` is on the import allow-list, so `Glob`, `WalkDir`, `Abs`,
-  and `EvalSymlinks` would all clear the import check on their own.
+- The claims on this page are tested, not just written down. Seven lockstep
+  files pin them, so a code change that makes one of the sentences above false
+  fails a test rather than quietly aging into fiction. Each names what it
+  covers, and the list is the boundary — a claim not in it is not pinned:
+  - `doc_lockstep_test.go` — the struct tags and their wire names, the import
+    set, the `assistant_fast_path_hook.v1` value `Evaluate` stamps, and the
+    three reason codes the contract doc names
+  - `doc_lockstep_behavior_test.go` — the reason-code precedence, the
+    first-match scope ordering above, that no skip publishes a scope, the
+    200 ms `DefaultBudget`, and the accepted trigger classes
+  - `doc_lockstep_source_test.go` — the source declarations, so the
+    json-tagged struct set is a complete inventory rather than a hand-written
+    sample, and the only calls the production files make are
+    `fmt.Fprintf`/`fmt.Sprintf` and the four pure `path/filepath` functions
+    named above. That call-level pin is what backs this section's "touches no
+    file" claim: `path/filepath` is on the import allow-list, so `Glob`,
+    `WalkDir`, `Abs`, and `EvalSymlinks` would all clear the import check on
+    their own
+  - `doc_lockstep_switch_test.go` and `doc_lockstep_switch_fixtures_test.go` —
+    `triggerAllowed` stays a closed string switch compared against its own
+    parameter, so the accepted classes can be read out of it
+  - `doc_lockstep_trigger_path_test.go` — the trigger reaches that switch
+    unrewritten, and `Evaluate` consults `triggerAllowed` itself rather than a
+    twin
+  - `doc_lockstep_publish_safety_test.go` — one input per `scopeSafe`
+    rejection kind listed above reaches `Evaluate` and publishes nothing, and
+    every Claude tool the contract doc excludes comes back as a skip
+  - `doc_lockstep_literal_test.go` — how many times each package doc quotes
+    the contract name, so rewriting one of several mentions is not silent
+
+  Two things this set deliberately does not prove. The `~` and `\` rejections
+  in `scopeSafe` overlap the character-class check, so deleting either changes
+  no decision and nothing goes red — the character class is what holds them.
+  And the trigger-class comparison is against a transcription of the contract
+  doc's "Trigger Classes" bullets, not against the class names themselves, so
+  adding a class to both the code and that transcription with the doc
+  untouched passes; updating the doc is a rule in `AGENTS.md`, not a gate.
 
 ## Related docs
 
