@@ -24,7 +24,6 @@ helm-chart-templates/**
 deploy/helm/**
 **/Dockerfile
 package-lock.json
-apps/console/package-lock.json
 .eslintcache
 tests/fixtures/**
 apps/console/prototype/**
