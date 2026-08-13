@@ -95,12 +95,19 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	}
 	defer func() { _ = driver.Close(context.Background()) }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	if err := driver.VerifyConnectivity(ctx); err != nil {
-		t.Fatalf("verify graph connectivity: %v", err)
+	// Each phase below owns its deadline. One shared context used to cover
+	// connect, schema setup and every PROFILE subtest, so `db.awaitIndexes(120)`
+	// could spend the whole budget and the subtests then failed en masse with
+	// the driver's connectivity wording. See queryplan_profile_deadlines_test.go
+	// for the budgets and the measurements behind them.
+	connectCtx, cancelConnect := context.WithTimeout(t.Context(), queryplanProfileConnectBudget)
+	defer cancelConnect()
+	connectStarted := time.Now()
+	if err := driver.VerifyConnectivity(connectCtx); err != nil {
+		t.Fatal(queryplanProfileStepError(connectCtx, "verify graph connectivity",
+			time.Since(connectStarted), queryplanProfileConnectBudget, err))
 	}
-	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
+	session := driver.NewSession(t.Context(), neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeWrite,
 		DatabaseName: strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE")),
 	})
@@ -122,20 +129,32 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 		t.Fatalf("bind production legacy Cypher: %v", err)
 	}
 	manifest.Entries = append(manifest.Entries, legacyManifest.Entries...)
-	applyQueryplanProfileSchema(ctx, t, session, manifest)
+	applyQueryplanProfileSchema(t, session, manifest)
+	profileStarted := time.Now()
+	profiled := 0
 	for _, entry := range manifest.Entries {
 		entry := entry
 		if strings.TrimSpace(entry.Cypher) == "" {
 			continue
 		}
+		if err := queryplanProfileTotalBudgetError(time.Since(profileStarted), profiled); err != nil {
+			t.Fatal(err)
+		}
+		profiled++
 		t.Run(entry.ID, func(t *testing.T) {
-			result, err := session.Run(ctx, "PROFILE "+entry.Cypher, queryplanProfileParams())
+			queryCtx, cancelQuery := context.WithTimeout(t.Context(), queryplanProfileQueryBudget)
+			defer cancelQuery()
+			step := "PROFILE " + entry.ID
+			queryStarted := time.Now()
+			result, err := session.Run(queryCtx, "PROFILE "+entry.Cypher, queryplanProfileParams())
 			if err != nil {
-				t.Fatalf("PROFILE query: %v", err)
+				t.Fatal(queryplanProfileStepError(queryCtx, step,
+					time.Since(queryStarted), queryplanProfileQueryBudget, err))
 			}
-			summary, err := result.Consume(ctx)
+			summary, err := result.Consume(queryCtx)
 			if err != nil {
-				t.Fatalf("consume PROFILE: %v", err)
+				t.Fatal(queryplanProfileStepError(queryCtx, "consume "+step,
+					time.Since(queryStarted), queryplanProfileQueryBudget, err))
 			}
 			profile := summary.Profile()
 			if profile == nil {
@@ -148,13 +167,17 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
 	}
-	profileQueryplanSafeProductionVariants(ctx, t, session)
+	profileQueryplanSafeProductionVariants(t, session, profileStarted, profiled)
 }
 
+// profileQueryplanSafeProductionVariants profiles the safe production Cypher
+// variants. profileStarted and profiled carry the enclosing test's wall-clock
+// backstop across both loops, so the gate accounts for one run rather than two.
 func profileQueryplanSafeProductionVariants(
-	ctx context.Context,
 	t *testing.T,
 	session neo4jdriver.SessionWithContext,
+	profileStarted time.Time,
+	profiled int,
 ) {
 	t.Helper()
 	variants := handlerQueryplanSafeCypherVariants()
@@ -165,14 +188,24 @@ func profileQueryplanSafeProductionVariants(
 	sort.Strings(names)
 	for _, name := range names {
 		name := name
+		if err := queryplanProfileTotalBudgetError(time.Since(profileStarted), profiled); err != nil {
+			t.Fatal(err)
+		}
+		profiled++
 		t.Run("production-variant/"+name, func(t *testing.T) {
-			result, err := session.Run(ctx, "PROFILE "+variants[name], queryplanProfileParams())
+			queryCtx, cancelQuery := context.WithTimeout(t.Context(), queryplanProfileQueryBudget)
+			defer cancelQuery()
+			step := "PROFILE production variant " + name
+			queryStarted := time.Now()
+			result, err := session.Run(queryCtx, "PROFILE "+variants[name], queryplanProfileParams())
 			if err != nil {
-				t.Fatalf("PROFILE production variant: %v", err)
+				t.Fatal(queryplanProfileStepError(queryCtx, step,
+					time.Since(queryStarted), queryplanProfileQueryBudget, err))
 			}
-			summary, err := result.Consume(ctx)
+			summary, err := result.Consume(queryCtx)
 			if err != nil {
-				t.Fatalf("consume production variant PROFILE: %v", err)
+				t.Fatal(queryplanProfileStepError(queryCtx, "consume "+step,
+					time.Since(queryStarted), queryplanProfileQueryBudget, err))
 			}
 			profile := summary.Profile()
 			if profile == nil {
@@ -224,13 +257,23 @@ func queryplanProductionVariantAnchorOperators(name string) []string {
 	}
 }
 
+// applyQueryplanProfileSchema creates the indexes and constraints the profiled
+// queries need, then waits for them to come online.
+//
+// It derives its own deadline rather than taking one from the caller: the
+// `CALL db.awaitIndexes(120)` below is allowed two minutes by its own argument,
+// and on a shared context that one statement could consume everything the
+// PROFILE subtests had left. Index population is slow on a cold container by
+// nature; that is this phase's cost to pay, not the subtests'.
 func applyQueryplanProfileSchema(
-	ctx context.Context,
 	t *testing.T,
 	session neo4jdriver.SessionWithContext,
 	manifest queryplan.Manifest,
 ) {
 	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), queryplanProfileSchemaBudget)
+	defer cancel()
+	schemaStarted := time.Now()
 	statements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
 	if err != nil {
 		t.Fatalf("Neo4j schema statements: %v", err)
@@ -251,18 +294,22 @@ func applyQueryplanProfileSchema(
 		}
 		result, err := session.Run(ctx, statement, nil)
 		if err != nil {
-			t.Fatalf("apply PROFILE proof schema %q: %v", statement, err)
+			t.Fatal(queryplanProfileStepError(ctx, fmt.Sprintf("apply PROFILE proof schema %q", statement),
+				time.Since(schemaStarted), queryplanProfileSchemaBudget, err))
 		}
 		if _, err := result.Consume(ctx); err != nil {
-			t.Fatalf("consume PROFILE proof schema %q: %v", statement, err)
+			t.Fatal(queryplanProfileStepError(ctx, fmt.Sprintf("consume PROFILE proof schema %q", statement),
+				time.Since(schemaStarted), queryplanProfileSchemaBudget, err))
 		}
 	}
 	result, err := session.Run(ctx, "CALL db.awaitIndexes(120)", nil)
 	if err != nil {
-		t.Fatalf("await PROFILE proof indexes: %v", err)
+		t.Fatal(queryplanProfileStepError(ctx, "await PROFILE proof indexes",
+			time.Since(schemaStarted), queryplanProfileSchemaBudget, err))
 	}
 	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume index wait: %v", err)
+		t.Fatal(queryplanProfileStepError(ctx, "consume index wait",
+			time.Since(schemaStarted), queryplanProfileSchemaBudget, err))
 	}
 }
 
