@@ -25,7 +25,9 @@
   path parameter the caller supplies. That is not process wiring — it is
   the same "act on an explicit parameter" shape as
   `internal/cli/mcpsetup`'s `WriteMCPServerConfig`. Do not "fix" it by
-  pushing file reads into the wrapper.
+  pushing file reads into the wrapper. Those two reads are the package's
+  entire operating-system surface: it writes no files, opens no network
+  connections, and runs no subprocesses. Keep it that way.
 - **No printing from this package except through `RenderReport`'s
   `io.Writer` parameter.** `fmt.Print*` (writing straight to the process's
   real stdout) belongs only in `service_report_cmd.go`.
@@ -54,8 +56,10 @@
 - Symptom: `service-report` reports "no service-story response provided"
   even though a file exists → cause is almost always the wrapper: check
   that `--from` is being read and passed to `ReadInput` before assuming
-  this package is wrong. `ReadInput` only errors on empty *stdin*; a
-  non-empty `--from` path always attempts the file read.
+  this package is wrong. `ReadInput` raises that particular message only
+  when no `--from` path was given and stdin was empty or all whitespace; a
+  non-empty `--from` path always attempts the file read and surfaces the
+  underlying OS error instead.
 - Symptom: `--json` output differs from the text report's numbers → this
   package cannot be the cause. Both output modes render the same
   `serviceintel.Report` value the wrapper builds once; `RenderReport` never

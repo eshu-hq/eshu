@@ -4,10 +4,11 @@
 
 `servicereport` owns the logic behind `eshu service-report`: reading a
 captured `get_service_story` response (and an optional captured
-supply-chain-impact-inventory response), mapping both into
-`internal/serviceintel` inputs, and rendering the composed report as
+supply-chain-impact-inventory response), decoding both into the inputs
+`internal/serviceintel` composes from, and rendering the composed report as
 human-readable text. It runs offline against captured JSON -- no query,
-store, or LLM path -- so the same input always produces the same report.
+store, or LLM path -- so a given captured response renders the same report
+every time.
 
 ## Ownership boundary
 
@@ -22,10 +23,14 @@ The wrapper resolves process state (flags, `cmd.InOrStdin()`,
 package returns data and errors, printing only through the `io.Writer` the
 caller supplies to `RenderReport`.
 
-Composing the actual report sections is `internal/serviceintel`'s job. This
-package only adapts a captured HTTP response into the shapes
-`serviceintel.FromServiceStory` / `serviceintel.FromSupplyChainInventory`
-expect, then calls `serviceintel.Compose`.
+Composing the report is `internal/serviceintel`'s job, and the calls that
+drive it stay in the wrapper: `runServiceReport` is the only caller of
+`serviceintel.FromServiceStory` and `serviceintel.Compose`. This package
+decodes a captured response into the dossier map and truth envelope those
+calls consume, adapts the optional supply-chain file through
+`serviceintel.FromSupplyChainInventory` (the one `serviceintel` adapter this
+package does call), and renders the finished `serviceintel.Report`. It never
+calls `serviceintel.Compose` itself.
 
 ## Exported surface
 
