@@ -67,7 +67,7 @@
 # digest for a directory so you can update or drop a row honestly.
 #
 # Seeded at #6054 landing from the pre-existing tree (see #6053).
-cmd/eshu	116	619679a26e49f71cb85f7ad4933b75253a6cc697bba47a5952bc34000dd002ba
+cmd/eshu	114	f80ba192c54d84e1d3afaa3207dc2817d563c5aba37fba5f3c6496e33872e1f0
 internal/collector	111	aa91a713d77db808654cec9c92705997921abb22b80435e157280e4c4a7c7d63
 internal/collector/awscloud	154	5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641
 internal/collector/gcpcloud	96	0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3

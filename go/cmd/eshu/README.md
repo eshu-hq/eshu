@@ -114,8 +114,9 @@ orchestration. It does not own service runtime internals:
     `component_conform.go`, `component_index.go`, `component_init.go`,
     `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
-    `logs`, `upgrade` (`graph.go`, `graph_install.go`,
-    `local_graph.go`)
+    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`,
+    `local_graph.go`; the install logic itself lives in
+    `internal/cli/graphinstall`)
   - `admin`: `facts`, `reindex`, `tuning-report`, `list`, `decisions`,
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
   - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`,

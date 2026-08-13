@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 571 lines: graph subcommand tree, status output, and start/stop. The `graphCmd` var and its init()-registered children are wired in this file by design (see cmd/eshu/AGENTS.md).
+package main //nolint:filelength // 576 lines: graph subcommand tree, status output, and start/stop. The `graphCmd` var and its init()-registered children are wired in this file by design (see cmd/eshu/AGENTS.md).
 
 import (
 	"errors"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -37,7 +38,7 @@ var (
 	graphSignalProcess      = signalProcess
 	graphStopPollInterval   = 200 * time.Millisecond
 	graphStopTimeout        = localGraphShutdownTimeout
-	graphInstallNornicDB    = installNornicDB
+	graphInstallNornicDB    = graphinstall.Install
 )
 
 type graphStatusOutput struct {
@@ -284,10 +285,11 @@ func runGraphUpgrade(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := graphUpgradeForLayout(layout, installNornicDBOptions{
-		From:   from,
-		SHA256: checksum,
-		Force:  true,
+	result, err := graphUpgradeForLayout(layout, graphinstall.Options{
+		From:        from,
+		SHA256:      checksum,
+		Force:       true,
+		ReadVersion: localGraphReadVersion,
 	})
 	if err != nil {
 		return err
@@ -536,13 +538,13 @@ func waitForOwnerStop(record eshulocal.OwnerRecord, timeout time.Duration) error
 	return fmt.Errorf("local Eshu service pid %d did not stop within %s", record.PID, timeout)
 }
 
-func graphUpgradeForLayout(layout eshulocal.Layout, opts installNornicDBOptions) (installNornicDBResult, error) {
+func graphUpgradeForLayout(layout eshulocal.Layout, opts graphinstall.Options) (graphinstall.Result, error) {
 	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
 	if err == nil && (graphProcessAlive(record.PID) || graphStopGraphHealthy(record)) {
-		return installNornicDBResult{}, fmt.Errorf("workspace graph backend is running; run eshu graph stop before upgrade")
+		return graphinstall.Result{}, fmt.Errorf("workspace graph backend is running; run eshu graph stop before upgrade")
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return installNornicDBResult{}, err
+		return graphinstall.Result{}, err
 	}
 	opts.Force = true
 	return graphInstallNornicDB(opts)
