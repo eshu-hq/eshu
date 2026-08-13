@@ -15,11 +15,16 @@
 
 ## Invariants this package enforces
 
-- **No process wiring in this package.** No cobra flags, no
-  `os.Getenv` reads beyond `ESHU_NORNICDB_INSTALL_TIMEOUT` (a download
-  timeout, not process wiring), no `fmt.Print*`. `go/cmd/eshu` is
-  `package main`, so nothing can import it — any symbol that reads a flag or
-  maps to an exit code has to live in `graph_install_cmd.go` instead.
+- **No process wiring in this package.** No cobra flags, no `fmt.Print*`.
+  `go/cmd/eshu` is `package main`, so nothing can import it — any symbol that
+  reads a flag or maps to an exit code has to live in `graph_install_cmd.go`
+  instead. The environment this package does read is install-scoped, not
+  wiring, and there are exactly two reads: `ESHU_NORNICDB_INSTALL_TIMEOUT`
+  (source.go, a download timeout), and the managed-home lookup in install.go,
+  which calls `eshulocal.ResolveHomeDir(os.Getenv, ...)` and so consults
+  `ESHU_HOME` first, then `XDG_DATA_HOME` (Linux) or `LOCALAPPDATA`
+  (Windows). Adding a third env read means moving that read to the wrapper,
+  not extending this list.
 - **Never execute a binary.** This package verifies a candidate NornicDB
   binary by calling the `VersionReader` it was handed
   (`Options.ReadVersion` / `ManagedBinaryIfPresent`'s parameter), never by

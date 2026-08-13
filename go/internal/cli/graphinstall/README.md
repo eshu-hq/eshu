@@ -45,7 +45,10 @@ See `doc.go` for the full godoc contract.
 ## Dependencies
 
 - `internal/eshulocal` -- `ResolveHomeDir`, used to locate Eshu's managed
-  home (`~/.eshu` by default) for the installed binary and manifest paths
+  home for the installed binary and manifest paths. It reads `ESHU_HOME`
+  when set, and otherwise falls back to the platform data directory:
+  `~/Library/Application Support/eshu` on macOS, `$XDG_DATA_HOME/eshu` or
+  `~/.local/share/eshu` on Linux, `%LOCALAPPDATA%\eshu` on Windows
 - `internal/query` -- `GraphBackendNornicDB`, the backend name recorded in
   the install manifest
 - `internal/buildinfo` -- `AppVersion`, used to resolve the pinned release
@@ -115,5 +118,8 @@ so `os.IsNotExist` keeps matching it -- see the invariant in `AGENTS.md`.
 - `docs/public/reference/graph-backend-installation.md` -- the `eshu install
   nornicdb` operator guide (source kinds, `--force`, `--sha256`)
 - `docs/public/reference/environment-ingestion-queues.md` -- documents
-  `ESHU_NORNICDB_INSTALL_TIMEOUT`, the one process-environment variable this
-  package itself reads (a download timeout, not process wiring)
+  `ESHU_NORNICDB_INSTALL_TIMEOUT`, this package's install-source download
+  timeout. That is one of two environment reads here; the other is the
+  managed-home lookup through `eshulocal.ResolveHomeDir`, which honours
+  `ESHU_HOME` (see Dependencies above). Neither is process wiring -- both
+  scope an install, and everything else arrives as a parameter.
