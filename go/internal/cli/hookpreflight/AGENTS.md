@@ -50,6 +50,8 @@
   (claude.go) if a Claude tool name should map to it. Update
   docs/public/reference/assistant-fast-path-hooks.md's "Trigger Classes"
   section in the same PR — that doc is the contract, not just a reference.
+  `TestDocLockstepAllowedTriggersMatchDoc` fails until the pinned list there
+  matches, so the doc update cannot be forgotten.
 - **Add a new scope kind** → add a candidate to `scopeFromInput`
   (preflight.go) and a case to `plannedCallForScope` choosing which MCP tool
   answers it. Both must change together: a scope kind with no
@@ -81,6 +83,16 @@
   fails `scopeSafe`, the function returns `(Scope{}, false)` immediately —
   it does not fall through to the `service` field. This is deliberate (see
   Invariants above), not a bug.
+- Symptom: a `TestDocLockstep*` test fails after a code change → the change
+  made a sentence in `README.md`, `doc.go`, this file, or a `preflight.go`
+  constant comment false. `doc_lockstep_test.go` pins the structural claims
+  (which structs carry `json` tags and under what wire names, which packages
+  the non-test files import, the `assistant_fast_path_hook.v1` literal) and
+  `doc_lockstep_behavior_test.go` pins the behavioral ones (reason-code
+  precedence, that no skip publishes a scope or planned call, the trigger
+  classes). Fix the doc or the code — do not relax the assertion. These
+  exist because four rounds of hand-edited doc corrections on this package
+  each fixed the reported sentence and left the next one standing.
 - Symptom: `TestAssistantHookPreflightBenchmarkCasesCoverContract`
   (preflight_bench_test.go) fails after adding a case → the test asserts
   `len(cases) >= 6` and that every one of six named cases is present; a

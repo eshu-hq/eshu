@@ -102,6 +102,12 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
+- The claims on this page are tested, not just written down.
+  `doc_lockstep_test.go` and `doc_lockstep_behavior_test.go` pin the struct
+  tags and their wire names, the import set, the
+  `assistant_fast_path_hook.v1` literal, the reason-code precedence, and the
+  trigger classes described here, so a code change that makes a sentence
+  above false fails a test rather than quietly aging into fiction.
 
 ## Related docs
 
