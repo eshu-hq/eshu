@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
 )
 
 // replayFailedWorkItemsTemplate resets matching terminal rows to pending. The
@@ -380,15 +381,18 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 // Both variants keep the active_generation_id and status guards, so an
 // all-scopes rebuild still skips retired and generation-less scopes rather than
 // re-projecting rows the pipeline has already retired.
-// The scope predicate comes from refinalizeScopePredicate, the same helper the
-// rebuild reset statements use, so the projector re-enqueue and the reset can
-// never select different generations. The insert's leading $1 is the timestamp,
-// which is why its predicate starts at $2.
+// The scope predicate comes from rebuildreset.ScopePredicate, the same helper
+// the rebuild reset statements use, so the projector re-enqueue and the reset
+// can never select different scopes. The two scope GUARDS below
+// (active_generation_id IS NOT NULL, status = 'active') are this statement's own
+// copy of what rebuildreset.AffectedGenerationsSubquery asserts; change one and
+// you must change the other. The insert's leading $1 is the timestamp, which is
+// why its predicate starts at $2.
 func buildRefinalizeScopeProjectionsQuery(
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (string, []any) {
-	predicate, predicateArgs := refinalizeScopePredicate(filter, 2)
+	predicate, predicateArgs := rebuildreset.ScopePredicate(filter, 2)
 	return fmt.Sprintf(refinalizeScopeProjectionsTemplate, predicate),
 		append([]any{now.UTC()}, predicateArgs...)
 }
@@ -400,7 +404,7 @@ func buildRefinalizeScopeProjectionsQuery(
 // It also clears the downstream dedup state that would otherwise stop the
 // re-projection at source-local structure -- succeeded reducer work, completed
 // shared projection intents, and readiness phase rows that outlived a graph wipe.
-// See recovery_refinalize_rebuild_reset.go for why each one blocks a rebuild.
+// See the rebuildreset subpackage for why each one blocks a rebuild.
 //
 // All four statements run in one transaction so a refinalize cannot leave the
 // queue re-enqueued while its downstream state still says the work is done; that
@@ -434,7 +438,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, err
 	}
 
-	counts, err := applyRefinalizeRebuildReset(ctx, tx, filter)
+	counts, err := rebuildreset.Apply(ctx, tx, filter)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
@@ -447,9 +451,9 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	return recovery.RefinalizeResult{
 		Enqueued:               len(scopeIDs),
 		ScopeIDs:               scopeIDs,
-		ReducerWorkDeleted:     counts.reducerWorkDeleted,
-		SharedIntentsReopened:  counts.sharedIntentsReopened,
-		ReadinessPhasesCleared: counts.readinessPhasesCleared,
+		ReducerWorkDeleted:     counts.ReducerWorkDeleted,
+		SharedIntentsReopened:  counts.SharedIntentsReopened,
+		ReadinessPhasesCleared: counts.ReadinessPhasesCleared,
 	}, nil
 }
 
