@@ -742,6 +742,7 @@ gates:
       - "go/internal/storage/cypher/**"
       - "scripts/test-verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-regression.sh"
+      - "scripts/verify-query-plan-profile.sh"
       - "scripts/lib/go-test-run-guard.sh"
     local:
       command: "bash scripts/verify-query-plan-regression.sh"

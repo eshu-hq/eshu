@@ -68,6 +68,15 @@ const (
 	// the slowest runner actually observed. It is a hang guard, not a per-query
 	// limit, and it sits below the -timeout the gate script passes to `go test`
 	// so this budget's own message wins over a test-binary panic.
+	//
+	// Its clock starts before the gate's first graph call and is checked
+	// between profiles, so connect and schema spend it too -- which is the
+	// point, since those are the phases that can cost minutes. It was measured
+	// from after schema at first, leaving the slowest part of the gate outside
+	// the number written to bound it;
+	// TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines now pins where the
+	// clock starts. Connect and schema together must fit inside it with room
+	// left to profile, which TestQueryplanProfileBudgetsAreOrdered asserts.
 	queryplanProfileTotalBudget = 6 * time.Minute
 )
 
@@ -209,5 +218,14 @@ func TestQueryplanProfileBudgetsAreOrdered(t *testing.T) {
 	if queryplanProfileConnectBudget <= 0 || queryplanProfileConnectBudget >= queryplanProfileTotalBudget {
 		t.Errorf("queryplanProfileConnectBudget = %s, want a positive budget under the %s total backstop",
 			queryplanProfileConnectBudget, queryplanProfileTotalBudget)
+	}
+	// The backstop's clock starts before connect, so the two fixed phases spend
+	// it before the first profile runs. If they could spend all of it, the gate
+	// would stop on its backstop having profiled nothing and blame the clock for
+	// a budget arithmetic mistake.
+	if fixedPhases := queryplanProfileConnectBudget + queryplanProfileSchemaBudget; fixedPhases >= queryplanProfileTotalBudget {
+		t.Errorf("connect (%s) and schema (%s) budgets total %s, at or above the %s backstop that now starts before "+
+			"connect: no profile could run before the gate stopped itself",
+			queryplanProfileConnectBudget, queryplanProfileSchemaBudget, fixedPhases, queryplanProfileTotalBudget)
 	}
 }
