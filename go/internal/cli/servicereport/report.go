@@ -15,15 +15,20 @@ import (
 )
 
 // ReadInput returns the captured service-story response bytes for `eshu
-// service-report`: the file at path when path is non-blank, otherwise
-// everything readable from stdin. A blank or whitespace-only path counts as
-// no path and falls through to stdin. It returns an error in two cases: the
-// file read failed, or stdin was read and turned out to be empty or all
-// whitespace -- a silent empty report would otherwise print as an
-// unsupported dossier with no explanation.
+// service-report`: the file at path when path holds any non-whitespace
+// character, otherwise everything readable from stdin. The branch is a
+// strings.TrimSpace test, so a blank or whitespace-only path counts as no
+// path -- a --from of "   " reads stdin and never opens a file.
+//
+// It returns an error in three cases: the file read failed, the stdin read
+// failed, or stdin was read and turned out to be empty or all whitespace --
+// a silent empty report would otherwise print as an unsupported dossier with
+// no explanation. That emptiness check covers stdin only. An empty file at a
+// real path comes back as empty bytes and fails later, when
+// ParseServiceStoryResponse cannot decode it.
 func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
-		data, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local captured response file, not an HTTP request param
+		data, err := os.ReadFile(path) // #nosec G304 -- a caller-supplied path parameter; the CLI wrapper sources it from an operator flag (--from), not an HTTP request param
 		if err != nil {
 			return nil, fmt.Errorf("read service-story response %s: %w", path, err)
 		}
@@ -41,12 +46,15 @@ func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 
 // SupplyChainSection reads an optional captured supply-chain inventory response
 // and maps it into the report's supply_chain section. It returns a nil section
-// when path is blank, so the section falls back to its unsupported placeholder.
+// when path is blank or whitespace-only -- the same strings.TrimSpace test
+// ReadInput branches on -- so the section falls back to its unsupported
+// placeholder. It returns an error when the file read fails and when the file
+// does not decode.
 func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*serviceintel.SectionInput, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local supply-chain inventory file, not an HTTP request param
+	raw, err := os.ReadFile(path) // #nosec G304 -- a caller-supplied path parameter; the CLI wrapper sources it from an operator flag (--supply-chain-from), not an HTTP request param
 	if err != nil {
 		return nil, fmt.Errorf("read supply-chain inventory %s: %w", path, err)
 	}
@@ -82,9 +90,15 @@ func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope
 	return bare, nil, nil
 }
 
-// RenderReport prints a compact, human-readable view of the report to w. The
-// JSON output (serviceintel.Report marshaled directly by the caller) remains
-// the machine-readable source of truth.
+// RenderReport prints a compact, human-readable view of the report to w. It
+// returns nothing and discards w's write errors, so a failed terminal write
+// does not fail the command.
+//
+// The text view is a lossy projection of the report: it omits Schema, the
+// report-level Truth envelope, and the report-level aggregated Limitations,
+// all of which the JSON output carries. The JSON output (serviceintel.Report
+// marshaled directly by the caller) is therefore the machine-readable source
+// of truth, and this function is the only producer of the text form.
 func RenderReport(w io.Writer, report serviceintel.Report) {
 	_, _ = fmt.Fprintf(w, "Service intelligence report: %s\n", reportSubjectLabel(report.Subject))
 	_, _ = fmt.Fprintf(w, "  supported=%t partial=%t truth_class=%s\n\n", report.Supported, report.Partial, report.TruthClass)

@@ -25,12 +25,14 @@
   path parameter the caller supplies. That is not process wiring — it is
   the same "act on an explicit parameter" shape as
   `internal/cli/mcpsetup`'s `WriteMCPServerConfig`. Do not "fix" it by
-  pushing file reads into the wrapper. The package's entire
-  operating-system surface is those two `os.ReadFile` calls, the
+  pushing file reads into the wrapper. Outside its tests, the package's
+  entire operating-system surface is those two `os.ReadFile` calls, the
   `io.ReadAll` of the `io.Reader` `ReadInput` is handed, and the `io.Writer`
   `RenderReport` formats into — every one of them behind a caller-supplied
-  parameter. It writes no files, opens no network connections, and runs no
-  subprocesses. Keep it that way.
+  parameter. Production code here writes no files, opens no network
+  connections, and runs no subprocesses. Keep it that way. (`report_test.go`
+  does call `os.WriteFile`, into `t.TempDir`, to build the captured-response
+  fixtures it feeds back in; that is fixture setup, not package surface.)
 - **No printing from this package except through `RenderReport`'s
   `io.Writer` parameter.** `fmt.Print*` (writing straight to the process's
   real stdout) belongs only in `service_report_cmd.go`.
@@ -60,16 +62,24 @@
 ## Failure modes and how to debug
 
 - Symptom: `service-report` reports "no service-story response provided"
-  even though a file exists → cause is almost always the wrapper: check
-  that `--from` is being read and passed to `ReadInput` before assuming
-  this package is wrong. `ReadInput` raises that particular message only
-  when no `--from` path was given and stdin was empty or all whitespace; a
-  non-empty `--from` path always attempts the file read and surfaces the
-  underlying OS error instead.
-- Symptom: `--json` output differs from the text report's numbers → this
-  package cannot be the cause. Both output modes render the same
-  `serviceintel.Report` value the wrapper builds once; `RenderReport` never
-  runs during `--json` output and vice versa.
+  even though a file exists → check that `--from` is being read and passed
+  to `ReadInput` before assuming the decode side is wrong. `ReadInput`
+  raises that message only when the `--from` path is blank or
+  whitespace-only *and* stdin was empty or all whitespace. A path holding
+  any non-whitespace character always attempts the file read and surfaces
+  the underlying OS error instead. The whitespace-only path is the trap:
+  `--from "   "` is a non-empty flag value, but `ReadInput` branches on
+  `strings.TrimSpace(path) != ""`, so it reads stdin and never opens the
+  file. `TestReadInputWhitespacePathReadsStdin` pins that.
+- Symptom: `--json` output differs from the text report's numbers → the
+  wrapper composes one `serviceintel.Report` before it branches on
+  `--json`, so the two modes cannot be computing different values. What
+  differs is the rendering, and `RenderReport` — in this package — is the
+  sole producer of the text form, so a numeric mismatch points here.
+  Remember the text form is a lossy projection of the report: `schema`, the
+  report-level `truth` envelope, and the report-level aggregated
+  `limitations` are in the JSON and never printed, so "missing from the
+  text" is expected for those and is not a bug.
 
 ## Anti-patterns specific to this package
 

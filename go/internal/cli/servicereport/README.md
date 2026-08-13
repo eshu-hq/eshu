@@ -33,21 +33,25 @@ statement about the CLI path, not a repo-wide sole-caller claim.) This
 package decodes a captured response into the dossier map and truth envelope
 those calls consume, adapts the optional supply-chain file through
 `serviceintel.FromSupplyChainInventory` -- the one `serviceintel` adapter
-this package calls -- and renders the finished `serviceintel.Report`. It
-never calls `serviceintel.Compose` itself.
+its production code calls -- and renders the finished `serviceintel.Report`.
+No production code here calls `serviceintel.Compose`; `report_test.go` does,
+to build a real report to render rather than asserting against a hand-built
+stand-in.
 
 ## Exported surface
 
 - `ReadInput` -- reads the captured service-story response from a file path
-  or, when the path is blank, from the supplied `io.Reader` (the wrapper's
-  stdin); errors on a failed file read and on empty or whitespace-only stdin
+  or, when the path is blank or whitespace-only, from the supplied
+  `io.Reader` (the wrapper's stdin). It has three error returns: a failed
+  file read, a failed stdin read, and stdin that arrives empty or
+  whitespace-only
 - `ParseServiceStoryResponse` -- decodes a captured response into the
   dossier map and optional `query.TruthEnvelope`, accepting both the
   `{"data": ..., "truth": ...}` envelope and a bare dossier object; a `data`
   that decodes to nil (absent or explicitly null) takes the bare path
 - `SupplyChainSection` -- reads an optional captured supply-chain inventory
   file and adapts it into a `serviceintel.SectionInput`; returns a nil
-  section when the path is blank
+  section when the path is blank or whitespace-only
 - `RenderReport` -- writes the compact, human-readable view of a
   `serviceintel.Report` to an `io.Writer`
 
@@ -74,16 +78,27 @@ instrument.
 
 ## Gotchas / invariants
 
-- `ReadInput` treats all-whitespace stdin as an error (no `--from` path was
-  given and stdin carried nothing), rather than falling through to a silent
-  empty-dossier report.
+- `ReadInput` treats all-whitespace stdin as an error (no usable `--from`
+  path was given and stdin carried nothing), rather than falling through to
+  a silent empty-dossier report. The emptiness check applies to stdin only:
+  an empty file at a real `--from` path is returned as empty bytes and fails
+  a step later, at decode.
+- A whitespace-only `--from` path reads stdin. `ReadInput` branches on
+  `strings.TrimSpace(path) != ""`, so `--from "   "` never opens a file --
+  it is the one case where a non-empty flag value behaves as if the flag
+  were absent.
 - `SupplyChainSection` reuses `ParseServiceStoryResponse` for the
   supply-chain file, so both captured inputs accept the same
   envelope-or-bare-object shape.
-- `RenderReport` is a terminal-formatting function only. The JSON output
-  path (`--json`) does not call it -- the wrapper marshals
-  `serviceintel.Report` directly so the JSON shape stays exactly what
-  `serviceintel` produces.
+- `RenderReport` is a terminal-formatting function only, and it is the sole
+  producer of the text output. The JSON output path (`--json`) does not call
+  it -- the wrapper marshals `serviceintel.Report` directly so the JSON
+  shape stays exactly what `serviceintel` produces. The text form is a lossy
+  projection: `schema`, the report-level `truth` envelope, and the
+  report-level aggregated `limitations` appear in the JSON and not in the
+  text.
+- `RenderReport` returns nothing and discards its `io.Writer`'s write
+  errors, so a broken stdout does not fail `service-report`.
 
 ## Related docs
 
