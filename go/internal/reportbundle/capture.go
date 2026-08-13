@@ -43,6 +43,11 @@ type CaptureInput struct {
 	// Profile is the query profile in effect at capture time, when known.
 	Profile string
 
+	// ReporterNote is the reporter's own description of what they expected.
+	// Capture scans it — it is reporter-typed input like Params, and the guide
+	// asks for a repro, so it commonly holds a pasted curl. Callers must not
+	// pre-redact it; see redactReporterNote for what the scan does and does not
+	// find.
 	ReporterNote string
 
 	// Envelope is the query.ResponseEnvelope returned by the query. Truth is
@@ -95,11 +100,15 @@ func Capture(input CaptureInput) (Bundle, error) {
 		// the answer to it as their bug report.
 		return Bundle{}, fmt.Errorf("query.target is unusable: %w (fix the endpoint and recapture; an unparseable query string cannot be redacted parameter by parameter)", err)
 	}
-	targetParams, nestedRules := dropNestedCredentialParams(targetParams)
 
-	redactedParams, paramRules := redactValue(mergeTargetParams(input.Params, targetParams))
-	// copyParams always yields a map[string]any and redactValue's map branch
-	// returns a map[string]any, so this holds by construction; the checked
+	// Merge every query-input source FIRST, then scan the result once. Scanning
+	// the target's parameters before the merge left CaptureInput.Params — the
+	// --params flag and every programmatic caller — with no embedded-key scan
+	// at all. One walk after the merge makes that gap unreachable by
+	// construction instead of by remembering to add another pre-step.
+	redactedParams, paramRules := redactQueryInput(mergeTargetParams(input.Params, targetParams))
+	// copyParams always yields a map[string]any and redactQueryInput's map
+	// branch returns a map[string]any, so this holds by construction; the checked
 	// assertion fails loudly rather than silently substituting nil params if a
 	// future change to either function ever breaks that invariant.
 	redactedParamsMap, ok := redactedParams.(map[string]any)
@@ -119,7 +128,15 @@ func Capture(input CaptureInput) (Bundle, error) {
 
 	redactedError, errorRules := redactErrorEnvelope(input.Envelope.Error)
 
-	rules := dedupeSorted(append(append(append(append([]string{}, paramRules...), nestedRules...), dataRules...), errorRules...))
+	// The note is reporter-typed input like the parameters above, just free text
+	// rather than a parsed query string — see redactReporterNote.
+	reporterNote, noteRedacted := redactReporterNote(input.ReporterNote)
+	var noteRules []string
+	if noteRedacted {
+		noteRules = []string{reporterNoteRule}
+	}
+
+	rules := dedupeSorted(append(append(append(append([]string{}, paramRules...), dataRules...), errorRules...), noteRules...))
 
 	factRefsState := "unavailable"
 	factRefsReason := input.FactRefsReason
@@ -153,7 +170,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 	bundle := Bundle{
 		SchemaVersion: SchemaVersion,
 		CreatedAt:     nowRFC3339UTC(),
-		ReporterNote:  input.ReporterNote,
+		ReporterNote:  reporterNote,
 		Query: CapturedQuery{
 			Surface: input.Surface,
 			Target:  targetPath,
@@ -275,7 +292,15 @@ func SplitTargetQuery(target string) (string, map[string]any, error) {
 	}
 	values, err := url.ParseQuery(rawQuery)
 	if err != nil {
-		return path, nil, fmt.Errorf("parse query string of target %q: %w", target, err)
+		// The target is NOT interpolated here. See the package error rule in
+		// doc.go: an error names the field, never the value, because these
+		// errors reach terminals, CI logs, and pasted bug reports — the same
+		// places the bundle is redacted for. url.ParseQuery's own error is
+		// wrapped because its two shapes are safe to repeat: url.EscapeError
+		// quotes the three-byte escape token only, and the semicolon case is a
+		// fixed sentence. The full-egress canary, not that argument, is what
+		// keeps it true.
+		return path, nil, fmt.Errorf("parse query string of query.target: %w", err)
 	}
 	params := make(map[string]any, len(values))
 	for key, list := range values {
@@ -293,55 +318,6 @@ func SplitTargetQuery(target string) (string, map[string]any, error) {
 		}
 	}
 	return path, params, nil
-}
-
-// dropNestedCredentialParams removes any target query-string parameter whose
-// VALUE carries an embedded sensitive key=value pair, returning the surviving
-// parameters plus the names of the ones it dropped (for Redaction.Rules).
-//
-// strings.Cut splits the target on the first "?" only, and net/url treats a
-// later "?" as an ordinary value character. So `?next=/api/v0/x?api_key=sk-live`
-// parses to a single parameter named "next" holding the credential inside its
-// value, where neither the key walk nor the share-safe gate can see it. The
-// parameter is dropped whole — the same treatment a sensitive-NAMED parameter
-// gets — and recorded by its own name, so the bundle still says something went
-// missing.
-//
-// The dropped name, not the embedded one, is what lands in Redaction.Rules:
-// "next" is the parameter that is no longer there, which is what a maintainer
-// reading the manifest is trying to account for.
-func dropNestedCredentialParams(params map[string]any) (map[string]any, []string) {
-	if len(params) == 0 {
-		return params, nil
-	}
-	kept := make(map[string]any, len(params))
-	var dropped []string
-	for key, value := range params {
-		if carriesEmbeddedSensitiveKey(value) {
-			dropped = append(dropped, key)
-			continue
-		}
-		kept[key] = value
-	}
-	return kept, dropped
-}
-
-// carriesEmbeddedSensitiveKey reports whether a parsed query-string parameter
-// value embeds a sensitive-named key. A repeated parameter is flagged when any
-// of its values is.
-func carriesEmbeddedSensitiveKey(value any) bool {
-	switch typed := value.(type) {
-	case string:
-		_, found := embeddedSensitiveKey(typed)
-		return found
-	case []any:
-		for _, item := range typed {
-			if carriesEmbeddedSensitiveKey(item) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // mergeTargetParams folds query-string parameters into a copy of the
@@ -391,9 +367,17 @@ func dedupeSorted(rules []string) []string {
 	return out
 }
 
-// redactErrorEnvelope routes an error envelope's Details map through the same
-// per-value redactor Params and Data use, returning a copy so the caller's
-// envelope is never mutated.
+// redactErrorEnvelope routes an error envelope's Details map through
+// redactQueryInput — the query-input walk, not the key-name-only one Data
+// gets — returning a copy so the caller's envelope is never mutated.
+//
+// Details belongs to the query-input domain because it echoes the reporter's
+// own selectors back: query/service_story_seam.go:131 puts the caller's
+// service selector into details.selector on an ambiguous match. That is the
+// reporter's typed string arriving by a third route, so it takes the same
+// treatment the other two do. Details is also structured diagnostic metadata
+// rather than answer content, so scanning it costs none of the evidence the
+// Data exemption protects.
 //
 // Before this, Response.Error was copied into the bundle verbatim. That was
 // safe but only in the all-or-nothing sense: a sensitive-shaped key inside
@@ -422,10 +406,10 @@ func redactErrorEnvelope(envelope *query.ErrorEnvelope) (*query.ErrorEnvelope, [
 		return &redacted, nil
 	}
 
-	value, rules := redactValue(copyParams(envelope.Details))
+	value, rules := redactQueryInput(copyParams(envelope.Details))
 	details, ok := value.(map[string]any)
 	if !ok {
-		// copyParams yields a map and redactValue's map branch returns one, so
+		// copyParams yields a map and redactQueryInput's map branch returns one, so
 		// this cannot happen today. Drop the details rather than pass through
 		// an unredacted value if that ever stops being true: losing diagnostic
 		// context is recoverable, leaking is not.

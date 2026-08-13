@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -216,20 +217,49 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 		for key, value := range params {
 			values.Set(key, fmt.Sprintf("%v", value))
 		}
+		requestPath := path
 		if len(values) > 0 {
-			path += "?" + values.Encode()
+			requestPath += "?" + values.Encode()
 		}
-		if err := client.GetEnvelope(path, &envelope); err != nil {
-			return query.ResponseEnvelope{}, err
+		if err := client.GetEnvelope(requestPath, &envelope); err != nil {
+			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, path)
 		}
 	case "POST":
-		if err := client.PostEnvelope(endpoint, params, &envelope); err != nil {
+		postPath, _, err := reportbundle.SplitTargetQuery(endpoint)
+		if err != nil {
 			return query.ResponseEnvelope{}, err
+		}
+		if err := client.PostEnvelope(endpoint, params, &envelope); err != nil {
+			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, postPath)
 		}
 	default:
 		return query.ResponseEnvelope{}, fmt.Errorf("unsupported --method %q: want GET or POST", method)
 	}
 	return envelope, nil
+}
+
+// requestErrorWithoutURL strips the request URL out of a transport error and
+// puts the bare endpoint path in its place.
+//
+// The capture command has to issue the reporter's real request, credentials and
+// all — reproducing the exact query is the feature. net/http reports a failed
+// request as a *url.Error whose Error() quotes that whole URL, so a wrong port
+// or an unreachable service printed the credential to stderr and into any CI
+// log that captured the run. None of the bundle-side redaction applies: this
+// error exists before Capture is ever called.
+//
+// The wrapped transport error is preserved with %w, so errors.Is/As still work
+// and the reader still learns what actually failed (connection refused, TLS
+// handshake, timeout). Those carry host:port, never the query string.
+//
+// Not covered: a server that echoes the request URL back inside a 4xx/5xx
+// response body, which arrives as apiHTTPError.Body rather than a *url.Error.
+func requestErrorWithoutURL(err error, safePath string) error {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return err
+	}
+	return fmt.Errorf("%s %s: %w", urlErr.Op, safePath, urlErr.Err)
 }
 
 // observedTruncation looks for a top-level "truncated" boolean in the

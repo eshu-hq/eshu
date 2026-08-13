@@ -176,6 +176,36 @@ func TestValidate_NestedCredentialInTargetParamValueIsRejected(t *testing.T) {
 	}
 }
 
+// TestValidate_EmbeddedCredentialPathNamesTheListElement pins the location
+// Validate reports for a list-valued parameter. A maintainer given
+// "query.params.filters.redirect" has to open the bundle and read every element
+// of that list to find the one that tripped the check; the index is what makes
+// the message actionable, and the path builder already formats indices for a
+// list of objects. It stopped at the parent only when the list held plain
+// strings — the one shape a reporter's repeated parameter actually takes.
+func TestValidate_EmbeddedCredentialPathNamesTheListElement(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Params = map[string]any{
+		"filters": map[string]any{
+			"redirect": []any{
+				"/api/v0/x?page=2",
+				"/api/v0/x?api_key=sk-live-placeholder",
+			},
+		},
+	}
+
+	err := Validate(bundle, ValidateOptions{})
+	if err == nil {
+		t.Fatalf("Validate(list element embedding a sensitive key) error = nil, want rejection")
+	}
+	const want = "query.params.filters.redirect[1]"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("Validate() error = %q, want it to name %q", err.Error(), want)
+	}
+}
+
 // A target query string with no sensitive parameter is not a leak, so Validate
 // accepts it. Rejecting every "?" would fail bundles that carry nothing secret,
 // and the redaction contract this package enforces everywhere else is
@@ -230,7 +260,22 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		{"schema_version", func(b *Bundle) { b.SchemaVersion = "report/vX" }},
 		{"bundle_id", func(b *Bundle) { b.BundleID = "" }},
 		{"profile_payloads_consistency", func(b *Bundle) { b.Payloads = &PayloadAttachment{Warning: "x"} }},
-		{"target_query_string", func(b *Bundle) { b.Query.Target = targetWithSensitiveQueryString() }},
+		// query_inputs replaced the narrower target_query_string check. The
+		// mutation is a Query.Params value rather than a target query string
+		// on purpose: params are the half the old check could not see, so a
+		// target-only mutation here would still pass against the old code and
+		// prove nothing about the widening. The target half stays covered by
+		// TestValidateFullEgressCanary.
+		{"query_inputs", func(b *Bundle) {
+			b.Query.Params = map[string]any{"next": "/api/v0/x?api_key=" + egressExplicitParamSentinel}
+		}},
+		// The note mutation uses the header form, which no other check in this
+		// file exercises: the key=value half would also be caught by a scan that
+		// only reused the query-input pair splitter, so a header-shaped pair is
+		// what proves the free-text scan is really running.
+		{"reporter_note", func(b *Bundle) {
+			b.ReporterNote = "curl -H 'Authorization: Bearer " + egressNoteHeaderSentinel + "'"
+		}},
 		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
 	}
 	for _, tc := range cases {
