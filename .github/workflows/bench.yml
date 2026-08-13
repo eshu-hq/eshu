@@ -170,6 +170,12 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a latency-budget red
+      # that never measured anything (#6075 follow-up).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Assert reducer handlers within per-handler latency budgets
         env:
           # Same count/benchtime the budgets were captured with so the median

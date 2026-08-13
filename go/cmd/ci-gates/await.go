@@ -327,7 +327,9 @@ func awaitPRRequiredChecks(
 		}
 		evaluation := evaluateRequiredChecks(required, checks)
 		if len(evaluation.Failed) > 0 {
-			return fmt.Errorf("selected blocking checks failed: %s", formatFindings(evaluation.Failed))
+			// Wrapped so classifyAwaitOutcome recognises this structurally
+			// (#6075): this is the one outcome allowed to publish `failure`.
+			return fmt.Errorf("%w: %s", errGateFailed, formatFindings(evaluation.Failed))
 		}
 		if len(evaluation.Pending) == 0 {
 			_, _ = fmt.Fprintf(out, "required-gates: all %d selected blocking workflow job(s) passed\n", len(required))
@@ -345,7 +347,10 @@ func awaitPRRequiredChecks(
 			if !timer.Stop() {
 				<-timer.C
 			}
-			return fmt.Errorf("timed out waiting for selected blocking checks (%s): %w", pending, ctx.Err())
+			// Gates were STILL PENDING when the wait ended, so this is not a
+			// gate result and must not publish `failure` (#6075). The
+			// ctx.Err() cause is kept in the message for the operator.
+			return fmt.Errorf("%w: timed out waiting for (%s): %v", errStillRunning, pending, ctx.Err())
 		case <-timer.C:
 		}
 		if waitInterval < maxWaitInterval {

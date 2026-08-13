@@ -33,12 +33,21 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=pending -f context=required-gates-complete
       - name: Await blockers
-        run: go run ./cmd/ci-gates await
+        run: |
+          go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates
+          "${RUNNER_TEMP}/ci-gates-bin" await
       - name: Publish terminal
         if: ${{ !cancelled() }}
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=failure -f context=required-gates-complete
+        run: |
+          case "${AGGREGATE_CODE}" in
+            0) state=success ;;
+            10) state=failure ;;
+            11) exit 0 ;;
+            *) state=error ;;
+          esac
+          gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete
 `
 
 func writeRequiredWorkflowFixture(t *testing.T, body string) string {
@@ -105,7 +114,7 @@ func TestCheckRequiredStatusWorkflows_RequiresStatusWriteAndAwait(t *testing.T) 
 	t.Parallel()
 
 	body := strings.Replace(trustedRequiredWorkflow, "  statuses: write\n", "", 1)
-	body = strings.Replace(body, "go run ./cmd/ci-gates await", "echo bypass", 1)
+	body = strings.Replace(body, `"${RUNNER_TEMP}/ci-gates-bin" await`, "echo bypass", 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) < 2 {
 		t.Fatalf("expected status permission and await-command errors, got: %v", errs)
@@ -250,8 +259,8 @@ func TestCheckRequiredStatusWorkflows_RejectsExpressionsInShellScripts(t *testin
 
 	body := strings.Replace(
 		trustedRequiredWorkflow,
-		"run: go run ./cmd/ci-gates await",
-		`run: go run ./cmd/ci-gates await --pr "${{ steps.pr.outputs.number }}"`,
+		`"${RUNNER_TEMP}/ci-gates-bin" await`,
+		`"${RUNNER_TEMP}/ci-gates-bin" await --pr "${{ steps.pr.outputs.number }}"`,
 		1,
 	)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
@@ -382,8 +391,8 @@ func TestCheckRequiredStatusWorkflows_BindsEachStatusPublisherContext(t *testing
 		),
 		"terminal publisher": strings.Replace(
 			trustedRequiredWorkflow,
-			"state=failure -f context=required-gates-complete",
-			"state=failure -f context=unrelated-context",
+			`state="${state}" -f context=required-gates-complete`,
+			`state="${state}" -f context=unrelated-context`,
 			1,
 		),
 	}
