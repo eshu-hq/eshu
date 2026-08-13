@@ -242,23 +242,38 @@ run_parity_matrix() {
 	pass "parity matrix evaluated ${parity_cases} cases"
 }
 
-# Iteration. Every case above hands `filecap` exactly ONE path and puts one .go
-# file in the scratch repo, so nothing above notices if either arm stops after
-# its first candidate. Both production callers pass a list — the go-file-cap hook
+# Iteration and accumulation. Every case above hands `filecap` one path and puts
+# one .go file in the scratch repo, so nothing above notices an arm that stops
+# after its first candidate, forgets an earlier violation, or stops REPORTING
+# after the first one. Both production callers pass a list — the go-file-cap hook
 # in .pre-commit-config.yaml forwards every staged .go path, pre-pr.sh's
 # step_filecap forwards its own — and `filecap-all` walks over 2,000 tracked
-# files. Five one-token edits leave the matrix green: `for f in "${1:-}"`, a
-# `status=0` reset inside the loop, a `break` after the first file, a narrowed
-# ls-files pattern, and ls-files piped through `head -1`. So the violation is
-# checked both last in argv (catching a loop that stops early) and first
-# (catching a status variable reset each pass), and go/zzz/ sorts after go/aaa/
-# in ls-files order AND sits outside go/internal/, catching a narrowed walk.
+# files. Four fixtures, because the ordering that catches one defect hides
+# another:
+#
+#   go/aaa/small.go      10 lines, clean, sorts FIRST in git ls-files order
+#   go/zzz/oversize.go  501 lines, violation
+#   go/zzz/oversize2.go 501 lines, violation
+#   go/zzz/tail.go       10 lines, clean, sorts LAST in git ls-files order
+#
+# A violation last in argv catches a loop that stops early (`break`, or
+# `for f in "${1:-}"`), and a violation first catches a `status=0` reset on each
+# pass. A CLEAN file sorting last is what catches that reset on the WHOLE-TREE
+# arm: with the only violation last in ls-files order, a reset still left status
+# at 1 and filecap-all exited 1 for the wrong reason. Two violations, both
+# asserted by path, catch an arm that quits at the first one (`|| exit 1`, or a
+# bare call under `set -e`) — rc stays 1 there, so no rc check can see it, and a
+# committer would fix one file per commit cycle. go/zzz/ also sits outside
+# go/internal/, catching a narrowed ls-files pattern, and `head -1` on that walk
+# leaves only go/aaa.
 test_every_input_is_checked() {
 	local repo_dir
 	new_repo
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 10 "go/aaa/small.go"
 	write_file "${repo_dir}" 501 "go/zzz/oversize.go"
+	write_file "${repo_dir}" 501 "go/zzz/oversize2.go"
+	write_file "${repo_dir}" 10 "go/zzz/tail.go"
 
 	run_gate "${repo_dir}" filecap "go/aaa/small.go" "go/zzz/oversize.go"
 	[[ "${GATE_RC}" == 1 ]] ||
@@ -271,11 +286,43 @@ test_every_input_is_checked() {
 		fail "filecap let a later clean file clear an earlier violation (rc=${GATE_RC})"
 	pass "filecap remembers a violation once a clean file follows it"
 
+	run_gate "${repo_dir}" filecap \
+		"go/zzz/oversize.go" "go/aaa/small.go" "go/zzz/oversize2.go"
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "filecap dropped a violation from a mixed argv (rc=${GATE_RC})"
+	assert_contains "go/zzz/oversize.go"
+	assert_contains "go/zzz/oversize2.go"
+	pass "filecap names every violation in argv, not only the first"
+
 	run_gate "${repo_dir}" filecap-all
 	[[ "${GATE_RC}" == 1 ]] ||
-		fail "filecap-all ignored a violation after the first ls-files entry (rc=${GATE_RC})"
+		fail "filecap-all cleared a violation found before the last file (rc=${GATE_RC})"
 	assert_contains "go/zzz/oversize.go"
-	pass "filecap-all walks the whole tree, not just its first entry"
+	assert_contains "go/zzz/oversize2.go"
+	pass "filecap-all names every violation in the tree, and a clean last file does not clear them"
+}
+
+# Working directory, whole-tree arm. specs/ci-gates.v1.yaml registers
+# `bash scripts/dev/precommit-go.sh filecap-all` as this gate's local.command and
+# pins no directory to run it from. The walk is
+# `git -C "${repo_root}" ls-files 'go/*.go'`; drop the `-C` and the pathspec
+# resolves against the CALLER's directory, so from go/zzz/ it matches nothing,
+# prints nothing, and exits 0 — while from the repo root the same broken arm
+# looks perfect. Hence this case runs from a subdirectory; every other
+# filecap-all assertion here runs from the root and cannot see it.
+# test_violation_message pins the equivalent for the changed-files arm.
+test_filecap_all_walks_from_the_repo_root() {
+	local repo_dir
+	new_repo
+	repo_dir="${REPO_DIR}"
+	write_file "${repo_dir}" 501 "go/zzz/oversize.go"
+
+	GATE_CWD="${repo_dir}/go/zzz"
+	run_gate "${repo_dir}" filecap-all
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "expected rc=1 from filecap-all run inside go/zzz, got ${GATE_RC}"
+	assert_contains "go/zzz/oversize.go"
+	pass "filecap-all walks the repo root, not the caller's working directory"
 }
 
 # ---------------------------------------------------------------------------
@@ -478,6 +525,7 @@ test_mutation_breaks_parity() {
 
 run_parity_matrix
 test_every_input_is_checked
+test_filecap_all_walks_from_the_repo_root
 test_violation_message
 test_non_go_file_is_ignored
 test_outside_go_module_is_capped_locally_only
@@ -492,8 +540,8 @@ test_mutation_breaks_parity
 # against anything. Every assertion increments the counter — assert_contains goes
 # through pass() for that reason — so this covers the message checks too. Read a
 # mismatch as "a test stopped running", not as a stale constant to bump.
-[[ "${assertions}" == 41 ]] ||
-	fail "runner made ${assertions} assertions, expected 41 — a test function or assertion went missing"
+[[ "${assertions}" == 47 ]] ||
+	fail "runner made ${assertions} assertions, expected 47 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"
