@@ -127,7 +127,8 @@ gates:
       # a test_command names it here and nothing under .github/workflows/ ever
       # runs it. Six more are wired the same way. To re-derive that: pull every
       # scripts/*.sh token out of the test_command values in this file and
-      # sort -u them (64 paths at this commit), then rg each one under
+      # sort -u them (65 paths at this commit -- re-derive it rather than
+      # trusting this number, it has gone stale twice), then rg each one under
       # .github/workflows/ -- 8 come back with no hit, the same 8 whether you
       # search the basename or the full path. CI still enforces the cap itself
       # through the golangci-lint plugin. What CI does not check is whether the
