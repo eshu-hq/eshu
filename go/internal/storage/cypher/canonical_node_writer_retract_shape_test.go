@@ -188,9 +188,12 @@ DELETE r`,
 		{
 			name:   "directory contains",
 			cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
+			// Anchored on the File, reading the CONTAINS edge inbound. The
+			// `(:Directory)-[r:CONTAINS]->(f)` form scanned the whole
+			// Directory population per input row (issue #4207).
 			want: `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
-MATCH (:Directory)-[r:CONTAINS]->(f)
+MATCH (f)<-[r:CONTAINS]-(:Directory)
 DELETE r`,
 		},
 		{
@@ -215,8 +218,10 @@ DETACH DELETE d`,
 		{
 			name:   "directory parent contains",
 			cypher: canonicalNodeRefreshCurrentDirectoryParentEdgesCypher,
+			// Anchored on the child Directory's indexed path, reading the
+			// parent CONTAINS edge inbound (issue #4207).
 			want: `UNWIND $rows AS row
-MATCH (p:Directory)-[r:CONTAINS]->(d:Directory {path: row.path})
+MATCH (d:Directory {path: row.path})<-[r:CONTAINS]-(p:Directory)
 WHERE d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
   AND p.path <> row.parent_path

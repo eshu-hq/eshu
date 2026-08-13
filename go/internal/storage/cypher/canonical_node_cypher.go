@@ -62,13 +62,30 @@ MATCH (f:File {path: file_path})
 MATCH (f)-[r:IMPORTS]->(:Module)
 DELETE r`
 
+// canonicalNodeRefreshCurrentDirectoryFileEdgesCypher and
+// canonicalNodeRefreshCurrentDirectoryParentEdgesCypher both walk a CONTAINS
+// edge INTO a node the statement has already anchored by indexed path. Both are
+// written from the anchored node outward, with a `<-` arrow, rather than from
+// the unbound `(:Directory)` side.
+//
+// The direction is load-bearing on NornicDB, not style. Written the other way
+// round — `MATCH (:Directory)-[r:CONTAINS]->(f)` — the executor cold-plans a
+// full Directory label scan and re-joins the CONTAINS fanout to `f`, so the
+// cost tracks the whole graph's Directory population instead of the handful of
+// paths in `$file_paths`. That is what dead-lettered eleven projector work
+// items in the #4207 full-corpus run: repositories as small as 57 facts blew
+// the same 120s budget as one with 59,717, and only on the second generation,
+// once the corpus was populated. Chunking cannot help, because the cost is per
+// input row and independent of how many rows a chunk carries. Reading from the
+// anchored side instead matches the identical edges out of that node's own
+// adjacency. Same rewrite as the workload catalog queries in #3466 and #1731.
 const canonicalNodeRefreshCurrentDirectoryFileEdgesCypher = `UNWIND $file_paths AS file_path
 MATCH (f:File {path: file_path})
-MATCH (:Directory)-[r:CONTAINS]->(f)
+MATCH (f)<-[r:CONTAINS]-(:Directory)
 DELETE r`
 
 const canonicalNodeRefreshCurrentDirectoryParentEdgesCypher = `UNWIND $rows AS row
-MATCH (p:Directory)-[r:CONTAINS]->(d:Directory {path: row.path})
+MATCH (d:Directory {path: row.path})<-[r:CONTAINS]-(p:Directory)
 WHERE d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
   AND p.path <> row.parent_path
