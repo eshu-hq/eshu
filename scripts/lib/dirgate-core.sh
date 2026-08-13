@@ -154,8 +154,18 @@ dirgate_nolint_justified() {
 	[[ -f "${path}" ]] || return 1
 	marker="//nolint:${gate}"
 
+	local trimmed
 	while IFS= read -r line; do
-		case "${line}" in
+		# Trim leading whitespace before testing for the package clause. The Go
+		# plugin uses strings.HasPrefix(strings.TrimSpace(line), "package "),
+		# and an indented package clause is valid Go, so matching `package *`
+		# at column 0 made the two implementations disagree on a real file: the
+		# plugin suppressed the finding, the mirror reported it (#6054 review
+		# finding). Only the leading run is trimmed -- the marker search below
+		# still runs against the original line, and a marker anywhere other
+		# than a package clause is still ignored.
+		trimmed="${line#"${line%%[![:space:]]*}"}"
+		case "${trimmed}" in
 			package\ *) ;;
 			*) continue ;;
 		esac

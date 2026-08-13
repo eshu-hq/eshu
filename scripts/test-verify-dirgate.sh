@@ -116,6 +116,8 @@ main() {
 	test_naming_violation_red_names_subpackage
 	test_nolint_with_justification_turns_cap_green
 	test_bare_nolint_is_rejected
+	test_nolint_on_indented_package_line_is_accepted
+	test_nolint_on_a_non_package_line_is_ignored
 	test_splitting_turns_cap_green
 	test_moving_the_file_turns_naming_green
 	test_grandfathered_directory

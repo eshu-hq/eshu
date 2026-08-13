@@ -79,6 +79,45 @@ test_nolint_with_justification_turns_cap_green() {
 	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
 }
 
+# The Go plugin matches the package line with
+# strings.HasPrefix(strings.TrimSpace(line), "package "), so it tolerates
+# leading whitespace. The bash mirror matched `package *` at column 0 only, so
+# the two disagreed on a file that is perfectly valid Go: the plugin suppressed
+# the finding and the mirror reported it (#6054 review finding). A divergence
+# between the two implementations is the failure mode the mirror exists to
+# prevent, so the shapes are pinned here.
+test_nolint_on_indented_package_line_is_accepted() {
+	local repo
+	repo="$(new_scratch_repo)"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="$(empty_grandfather_tsv "${repo}")"
+	write_numbered_files "${repo}/go/internal/sprawlws" 41
+	printf '  package fixture //nolint:dirgate // indented package line, still valid Go\n' \
+		> "${repo}/go/internal/sprawlws/file0000.go"
+
+	run_dirgate "${repo}" --files go/internal/sprawlws/file0000.go
+	assert_exit "${DIRGATE_EXIT}" 0 "a justified //nolint:dirgate on an INDENTED package line is accepted, matching the Go plugin"
+
+	rm -rf "${repo}"
+	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
+}
+
+test_nolint_on_a_non_package_line_is_ignored() {
+	local repo
+	repo="$(new_scratch_repo)"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="$(empty_grandfather_tsv "${repo}")"
+	write_numbered_files "${repo}/go/internal/sprawlnp" 41
+	# Whitespace tolerance must not become "any line anywhere": a marker in a
+	# function body or a string is not a package-line marker.
+	printf 'package fixture\n\nfunc x() { _ = "//nolint:dirgate // not a package line" }\n' \
+		> "${repo}/go/internal/sprawlnp/file0000.go"
+
+	run_dirgate "${repo}" --files go/internal/sprawlnp/file0000.go
+	assert_exit "${DIRGATE_EXIT}" 1 "a //nolint:dirgate that is NOT on the package line does not suppress the cap"
+
+	rm -rf "${repo}"
+	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
+}
+
 test_bare_nolint_is_rejected() {
 	local repo
 	repo="$(new_scratch_repo)"

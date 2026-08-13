@@ -77,11 +77,11 @@ fi
 
 	# Emit rows sorted by dir key (column 1), skipping comments/blank lines,
 	# joining in each directory's naming-exempt files (if any) from
-	# naming_tsv. gofumpt aligns the struct literals' column widths on
-	# `go fmt`; this generator does not attempt to match that alignment
-	# byte-for-byte, so `gofumpt -l` (run by the go-fmt gate) is what keeps
-	# the emitted file formatter-clean -- run it as part of this script so
-	# the committed output never depends on a separate manual gofmt pass.
+	# naming_tsv. gofumpt aligns the struct literals' column widths; this
+	# generator does not attempt to match that alignment byte-for-byte, so the
+	# formatter run at the end of this script is what keeps the emitted file
+	# clean for the go-fmt gate, and the committed output never depends on a
+	# separate manual pass.
 	awk -F'\t' -v naming_tsv="${naming_tsv}" '
 		BEGIN {
 			while ((getline line < naming_tsv) > 0) {
@@ -112,7 +112,16 @@ fi
 	printf '}\n'
 } > "${out}"
 
-if command -v gofmt >/dev/null 2>&1; then
+# gofumpt first, because gofumpt is what the go-fmt gate checks and the comment
+# above promises this script leaves the output formatter-clean. It ran gofmt
+# only, which happens to agree on the current row shape but is not the same
+# formatter, so a future shape gofumpt normalizes differently would have been
+# committed failing the gate this script claims to satisfy (#6054 review
+# finding). gofmt stays as the fallback so the generator still works where
+# gofumpt is not installed.
+if command -v gofumpt >/dev/null 2>&1; then
+	gofumpt -w "${out}"
+elif command -v gofmt >/dev/null 2>&1; then
 	gofmt -w "${out}"
 fi
 
