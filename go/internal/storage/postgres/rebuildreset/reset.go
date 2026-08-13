@@ -20,27 +20,45 @@ type Execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// AffectedGenerationsSubquery selects the (scope_id, generation_id) pairs one
-// refinalize covers. All three reset statements render this same subquery with
-// the same scope predicate, so they cannot disagree about which generations are
-// being rebuilt.
+// AffectedGenerationsTemplate reads the (scope_id, generation_id) pairs one
+// refinalize covers. The caller runs it once, at the top of the refinalize
+// transaction, and every later statement binds the rows it returned instead of
+// re-deriving them.
 //
-// The projector re-enqueue in the parent package does NOT embed this constant --
-// it is an INSERT ... SELECT over the same table and carries its own copy of the
-// FROM and the two scope guards. What the two sides genuinely share is
-// ScopePredicate, so the scope FILTER cannot drift; the `active_generation_id IS
-// NOT NULL AND status = 'active'` guards are duplicated text and have to be
-// changed in both places together.
+// That is the whole point of reading it separately. A transaction Postgres
+// starts at the default READ COMMITTED isolation gives each statement its own
+// snapshot, so an ingester that activates a new generation mid-refinalize can
+// make the enqueue and the resets disagree: the enqueue re-projects G1 while a
+// later reset deletes G2's dedup state, which both leaves G1 deduplicated and
+// damages G2 without replaying it. One read, four bindings, no disagreement --
+// and no lock on ingestion_scopes, so an activation racing a rebuild is delayed
+// by nothing and simply lands outside this refinalize.
 //
 // The %s is the scope predicate: empty for the all-scopes disaster-recovery
 // path, `AND scope.scope_id = ANY($N)` for an explicit scope list.
-const AffectedGenerationsSubquery = `
-    SELECT scope.scope_id, scope.active_generation_id
-    FROM ingestion_scopes AS scope
-    WHERE scope.active_generation_id IS NOT NULL
-      AND scope.status = 'active'
-      %s
+const AffectedGenerationsTemplate = `
+SELECT scope.scope_id, scope.active_generation_id
+FROM ingestion_scopes AS scope
+WHERE scope.active_generation_id IS NOT NULL
+  AND scope.status = 'active'
+  %s
+ORDER BY scope.scope_id
 `
+
+// affectedPairs renders the materialized generation set as a two-array unnest,
+// binding $first for the scope ids and $first+1 for the generation ids. The
+// reset statements take no other argument and start at $1; the projector
+// re-enqueue carries a leading timestamp and starts at $2.
+//
+// Passing the pairs as parallel arrays rather than re-running the SELECT is what
+// makes the four statements agree by construction: they cannot select a
+// different set, because none of them selects anything.
+func affectedPairs(first int) string {
+	return fmt.Sprintf(
+		"SELECT * FROM unnest($%d::text[], $%d::text[]) AS affected(scope_id, generation_id)",
+		first, first+1,
+	)
+}
 
 // deleteSucceededReducerWorkTemplate removes the succeeded reducer work items
 // whose existence would otherwise make the re-projection's enqueue a no-op.
@@ -53,7 +71,7 @@ const deleteSucceededReducerWorkTemplate = `
 DELETE FROM fact_work_items
 WHERE stage = 'reducer'
   AND status = 'succeeded'
-  AND (scope_id, generation_id) IN (` + AffectedGenerationsSubquery + `)
+  AND (scope_id, generation_id) IN (%s)
 `
 
 // reopenSharedIntentsTemplate clears completed_at so the partition workers drain
@@ -68,7 +86,7 @@ const reopenSharedIntentsTemplate = `
 UPDATE shared_projection_intents
 SET completed_at = NULL
 WHERE completed_at IS NOT NULL
-  AND (scope_id, generation_id) IN (` + AffectedGenerationsSubquery + `)
+  AND (scope_id, generation_id) IN (%s)
 `
 
 // clearReadinessPhaseStateTemplate re-arms the readiness gates by deleting the
@@ -77,30 +95,63 @@ WHERE completed_at IS NOT NULL
 // rather than waving it through on an answer about a graph that is gone.
 const clearReadinessPhaseStateTemplate = `
 DELETE FROM graph_projection_phase_state
-WHERE (scope_id, generation_id) IN (` + AffectedGenerationsSubquery + `)
+WHERE (scope_id, generation_id) IN (%s)
 `
 
-// ScopePredicate renders the scope predicate shared by every statement in a
-// refinalize, plus the args that fill it. placeholder is the $N to use, which
-// differs per statement because the projector insert carries a leading timestamp
-// argument and the resets do not.
+// scopePredicate renders the scope filter for the one statement that still reads
+// ingestion_scopes, plus the arg that fills it.
 //
 // The all-scopes path drops the clause rather than passing an empty array,
 // because `scope_id = ANY('{}')` matches no rows: a rebuild that silently
 // selected nothing would report success and leave the graph empty.
-func ScopePredicate(filter recovery.RefinalizeFilter, placeholder int) (string, []any) {
+func scopePredicate(filter recovery.RefinalizeFilter) (string, []any) {
 	if filter.AllScopes {
 		return "", nil
 	}
 
-	return fmt.Sprintf("AND scope.scope_id = ANY($%d)", placeholder), []any{filter.ScopeIDs}
+	return "AND scope.scope_id = ANY($1)", []any{filter.ScopeIDs}
 }
 
-// buildResetQuery renders one reset statement for the filter's scopes. The reset
-// statements take no timestamp, so their scope predicate starts at $1.
-func buildResetQuery(template string, filter recovery.RefinalizeFilter) (string, []any) {
-	predicate, args := ScopePredicate(filter, 1)
-	return fmt.Sprintf(template, predicate), args
+// AffectedGenerationsQuery renders the read that materializes one refinalize's
+// generation set, plus the args that fill it. The caller runs it inside the
+// refinalize transaction and passes the result to Apply and to its own projector
+// re-enqueue.
+func AffectedGenerationsQuery(filter recovery.RefinalizeFilter) (string, []any) {
+	predicate, args := scopePredicate(filter)
+	return fmt.Sprintf(AffectedGenerationsTemplate, predicate), args
+}
+
+// Generations is one refinalize's materialized generation set, held as parallel
+// arrays because that is the shape every statement binds.
+//
+// The two slices are index-aligned: ScopeIDs[i] holds GenerationIDs[i]. Nothing
+// enforces that in the type, so build it with Append rather than assembling the
+// slices separately.
+type Generations struct {
+	ScopeIDs      []string
+	GenerationIDs []string
+}
+
+// Append records one (scope_id, generation_id) pair, keeping the two slices
+// aligned.
+func (g *Generations) Append(scopeID, generationID string) {
+	g.ScopeIDs = append(g.ScopeIDs, scopeID)
+	g.GenerationIDs = append(g.GenerationIDs, generationID)
+}
+
+// Len reports how many generations the refinalize covers.
+func (g Generations) Len() int { return len(g.ScopeIDs) }
+
+// Args returns the generation set as statement arguments, in the order
+// affectedPairs binds them.
+func (g Generations) Args() []any {
+	return []any{g.ScopeIDs, g.GenerationIDs}
+}
+
+// buildResetQuery renders one reset statement against a materialized generation
+// set. The reset statements take no timestamp, so their arrays start at $1.
+func buildResetQuery(template string, generations Generations) (string, []any) {
+	return fmt.Sprintf(template, affectedPairs(1)), generations.Args()
 }
 
 // Counts reports how much dedup state one refinalize cleared. An operator
@@ -124,12 +175,17 @@ type Counts struct {
 // transaction so a refinalize either re-enqueues the projector work and reopens
 // its downstream state together, or does neither.
 //
+// generations is the set the caller already materialized with
+// AffectedGenerationsQuery, in the same transaction, before it enqueued the
+// projector work. Passing it in rather than re-selecting it is the point: under
+// READ COMMITTED a re-selection could pick up a generation the enqueue never saw.
+//
 // All three statements touch terminal state only, so no live lease is taken away
 // and no claimed item can double-execute.
 func Apply(
 	ctx context.Context,
 	tx Execer,
-	filter recovery.RefinalizeFilter,
+	generations Generations,
 ) (Counts, error) {
 	var counts Counts
 
@@ -142,7 +198,7 @@ func Apply(
 		{"reopen shared projection intents", reopenSharedIntentsTemplate, &counts.SharedIntentsReopened},
 		{"clear readiness phase state", clearReadinessPhaseStateTemplate, &counts.ReadinessPhasesCleared},
 	} {
-		query, args := buildResetQuery(step.template, filter)
+		query, args := buildResetQuery(step.template, generations)
 		result, err := tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			return Counts{}, fmt.Errorf("refinalize rebuild reset: %s: %w", step.name, err)

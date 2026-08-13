@@ -36,6 +36,59 @@ SKIP_INTERRUPT="${ESHU_DR_SKIP_INTERRUPT:-false}"
 BOOTSTRAP_TIMEOUT="${ESHU_DR_BOOTSTRAP_TIMEOUT:-1800}"
 DRAIN_TIMEOUT="${ESHU_DR_DRAIN_TIMEOUT:-1800}"
 
+# assert_identity_snapshot_sane refuses to compare a snapshot whose identities
+# cannot tell anything apart. A file of interchangeable keys diffs clean against
+# any other such file, which is a gate that passes while comparing nothing.
+#
+# Blank and null keys are the obvious case and not the only one. A node identity
+# is a concatenation of coalesce()d properties, so a node carrying none of them
+# produces a key that is nothing but the separators the concatenation added --
+# and the label prefix then makes the line non-empty, `Module|||||`, so an
+# emptiness check waves it through. The same collapse on an edge endpoint leaves
+# six leading or six trailing separators, a count no real identity reaches: the
+# fullest legitimate collapse is a node carrying only a uid, which contributes
+# four.
+#
+# The `null` patterns are anchored. Unanchored, they also match legitimate
+# content such as the Terraform resource name `null_resource.network_placeholder`
+# and would fail the gate on good data.
+#
+# An empty edge file is refused for the reason an empty node file is: it compares
+# clean against any other empty file, and this backend has been observed
+# returning zero rows for a query shape it dislikes without raising an error.
+assert_identity_snapshot_sane() {
+	local out_dir="$1"
+	local nodes_total edges_total nodes_bad edges_bad
+
+	nodes_total="$(wc -l <"$out_dir/nodes.txt" | tr -d ' ')"
+	edges_total="$(wc -l <"$out_dir/edges.txt" | tr -d ' ')"
+	if [[ "$nodes_total" == "0" ]]; then
+		echo "Refusing to compare: node identity snapshot is empty." >&2
+		return 1
+	fi
+	if [[ "$edges_total" == "0" ]]; then
+		echo "Refusing to compare: edge identity snapshot is empty." >&2
+		return 1
+	fi
+
+	nodes_bad="$(rg -c '^\s*$|^null$|\|null$|^[A-Za-z_][A-Za-z0-9_]*\|+$' "$out_dir/nodes.txt" 2>/dev/null || true)"
+	edges_bad="$(rg -c '^\s*$|^null$|^\|{6}|\|{6}$' "$out_dir/edges.txt" 2>/dev/null || true)"
+	if [[ -n "$nodes_bad" && "$nodes_bad" != "0" ]] || [[ -n "$edges_bad" && "$edges_bad" != "0" ]]; then
+		echo "Refusing to compare: ${nodes_bad:-0} node and ${edges_bad:-0} edge identity lines are" \
+			"blank, null, or nothing but separators." >&2
+		return 1
+	fi
+	echo "Identity snapshot checked: $nodes_total node and $edges_total edge keys, all distinguishing."
+}
+
+# Everything below this line is the procedure itself, including the tool and
+# Docker checks. scripts/test-verify-graph-rebuild-from-facts.sh sources this
+# file with ESHU_DR_SOURCE_ONLY=true to exercise the safety check above without
+# a Compose stack.
+if [[ "${ESHU_DR_SOURCE_ONLY:-false}" == "true" ]]; then
+	return 0
+fi
+
 TMP_DIR="$(mktemp -d)"
 COMPOSE_CMD=()
 
@@ -297,32 +350,24 @@ snapshot_sets() {
 	graph_lines "MATCH (a)-[r]->(b) RETURN ${edge_expr} AS k ORDER BY k" \
 		| sort >"$out_dir/edges.txt"
 
-	# A snapshot of blank or null keys would compare equal to anything, so refuse
-	# to compare rather than let the gate go green on nothing. The patterns are
-	# anchored: an unanchored `null` also matches legitimate content such as the
-	# Terraform resource name `null_resource.network_placeholder`, which would turn
-	# this safety check into a false failure on real data.
-	local nodes_total nodes_bad edges_bad
-	nodes_total="$(wc -l <"$out_dir/nodes.txt" | tr -d ' ')"
-	nodes_bad="$(rg -c '^\s*$|^null$|\|null$' "$out_dir/nodes.txt" 2>/dev/null || true)"
-	edges_bad="$(rg -c '^\s*$|^null$' "$out_dir/edges.txt" 2>/dev/null || true)"
-	if [[ "$nodes_total" == "0" ]]; then
-		echo "Refusing to compare: node identity snapshot is empty." >&2
-		return 1
-	fi
-	if [[ -n "$nodes_bad" && "$nodes_bad" != "0" ]] || [[ -n "$edges_bad" && "$edges_bad" != "0" ]]; then
-		echo "Refusing to compare: ${nodes_bad:-0} node and ${edges_bad:-0} edge identity lines are blank or null." >&2
-		return 1
-	fi
+	assert_identity_snapshot_sane "$out_dir"
 }
 
 # compare_sets asserts bidirectional set difference is empty for nodes and edges,
 # and prints the actual missing and extra identities when it is not.
+#
+# Callers run this with `|| status=$?` so a mismatch does not end the run, which
+# also disables `set -e` inside this function. Every command whose failure would
+# otherwise be silent is therefore checked by hand: a `comm` that failed would
+# leave both diff files empty and report a clean 0/0.
 compare_sets() {
 	local before="$1" after="$2" label="$3" failed=0 kind
 	for kind in nodes edges; do
-		comm -23 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.missing"
-		comm -13 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.extra"
+		if ! comm -23 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.missing" ||
+			! comm -13 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.extra"; then
+			echo "$label: could not diff $kind identities; treating as a failure rather than a match" >&2
+			return 1
+		fi
 		local missing extra
 		missing="$(wc -l <"$TMP_DIR/$kind.missing" | tr -d ' ')"
 		extra="$(wc -l <"$TMP_DIR/$kind.extra" | tr -d ' ')"
@@ -494,12 +539,23 @@ echo "  scopes_enqueued=${ENQUEUED} fact_records=${FACT_ROWS} nodes=${BEFORE_NOD
 echo "  load_at_finish=$(uptime | sed 's/.*averages: //')"
 echo
 
-compare_sets "$TMP_DIR/before" "$TMP_DIR/after" "Pass 1 (clean rebuild)"
+# Record the verdict instead of exiting on it. Pass 1 fails today for reasons
+# recorded in docs/internal/evidence/4594-graph-rebuild-from-facts.md, and under
+# `set -e` a bare call here ended the run right there -- so the resumability
+# proof this gate advertises never once executed. The two passes answer different
+# questions; a red answer to the first is not a reason to skip the second. The
+# run still exits non-zero, at the end, after both have reported.
+PASS1_STATUS=0
+compare_sets "$TMP_DIR/before" "$TMP_DIR/after" "Pass 1 (clean rebuild)" || PASS1_STATUS=$?
 
 if [[ "$SKIP_INTERRUPT" == "true" ]]; then
 	echo
 	echo "Skipping the interrupted-rebuild pass (ESHU_DR_SKIP_INTERRUPT=true)."
-	echo "Graph rebuild-from-facts verification passed."
+	if [[ "$PASS1_STATUS" != "0" ]]; then
+		echo "Pass 1 (clean rebuild) did NOT match the pre-wipe snapshot." >&2
+		exit 1
+	fi
+	echo "Graph rebuild-from-facts verification passed (clean rebuild only)."
 	exit 0
 fi
 
@@ -529,9 +585,25 @@ snapshot_counts "$TMP_DIR/after-interrupt.txt"
 snapshot_sets "$TMP_DIR/after-interrupt"
 echo "Graph after the interrupted rebuild:"
 sed 's/^/  /' "$TMP_DIR/after-interrupt.txt"
-compare_sets "$TMP_DIR/before" "$TMP_DIR/after-interrupt" "Pass 2 (interrupted rebuild)"
+PASS2_STATUS=0
+compare_sets "$TMP_DIR/before" "$TMP_DIR/after-interrupt" "Pass 2 (interrupted rebuild)" || PASS2_STATUS=$?
+
+PASS1_VERDICT="identity sets match"
+if [[ "$PASS1_STATUS" != "0" ]]; then
+	PASS1_VERDICT="identity sets DIFFER from the pre-wipe snapshot"
+fi
+PASS2_VERDICT="converged to the pre-wipe identity sets after a restart"
+if [[ "$PASS2_STATUS" != "0" ]]; then
+	PASS2_VERDICT="did NOT converge to the pre-wipe identity sets"
+fi
 
 echo
+echo "Result:"
+echo "  clean rebuild:       ${REBUILD_SECONDS}s ($(human_duration "$REBUILD_SECONDS")), ${PASS1_VERDICT}"
+echo "  interrupted rebuild: ${PASS2_VERDICT}"
+
+if [[ "$PASS1_STATUS" != "0" || "$PASS2_STATUS" != "0" ]]; then
+	echo "The differing identities are listed above." >&2
+	exit 1
+fi
 echo "Graph rebuild-from-facts verification passed."
-echo "  clean rebuild:       ${REBUILD_SECONDS}s ($(human_duration "$REBUILD_SECONDS"))"
-echo "  interrupted rebuild: converged to the same counts after a restart"

@@ -193,9 +193,20 @@ ESHU_API_KEY=$(docker compose exec -T eshu \
   sh -lc 'sed -n "s/^ESHU_API_KEY=//p" /data/.eshu/.env')
 ```
 
+A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
+`shared_intents_reopened`, and `readiness_phases_cleared`. After a wipe all three
+should be non-zero; three zeros mean the rebuild will restore source-local
+structure and nothing else. The response above was captured before those
+counters existed, which is why it does not show them; the fields are described in
+[Status and admin endpoints](../reference/http-api/status-admin.md).
+
 Pick a fresh `idempotency_key` per rebuild attempt. Reusing one from a *scoped*
 recovery is refused with a 409 rather than quietly replaying that recovery's
-much smaller outcome.
+much smaller outcome. Reusing the key from a rebuild that already finished
+returns that rebuild's `enqueued` and `scope_ids` with `duplicate: true`, but
+not the three counters — the ledger does not store them. If you lost the first
+response, count the effect in Postgres instead: pending `projector` rows in
+`fact_work_items`, and `shared_projection_intents` with `completed_at IS NULL`.
 
 ### 7. Watch it drain
 

@@ -211,6 +211,139 @@ func refinalizeResetPhaseRowCount(t *testing.T, ctx context.Context, db *sql.DB,
 	return count
 }
 
+// TestRefinalizeRebuildResetBindsTheGenerationSetItRead is the live proof for the
+// #4594 review finding. A refinalize used to re-derive its (scope_id,
+// generation_id) set inside every statement, and the transaction runs at
+// Postgres's default READ COMMITTED, so each of those statements got its own
+// snapshot.
+//
+// This drives the interleaving directly: an ingester activates a new generation
+// on the scope immediately after the refinalize's first statement. Before the
+// fix, the enqueue re-projected the old generation while the resets cleared the
+// new one's dedup state -- the rebuilt generation stayed deduplicated and never
+// rebuilt, and the newly activated one lost state it will never replay. After
+// it, all four statements act on the generation the first read returned.
+//
+// Only ingestion_scopes.active_generation_id is moved, because that column is
+// the entire input to the affected-generation read; leaving scope_generations
+// alone keeps the fixture clear of the one-active-generation-per-scope partial
+// index without weakening the race.
+func TestRefinalizeRebuildResetBindsTheGenerationSetItRead(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, snapshotGeneration, activatedGeneration := refinalizeResetScope(t, ctx, db, suffix)
+
+	snapshotWork := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, snapshotGeneration, "snapshot-entity", "succeeded")
+	activatedWork := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activatedGeneration, "activated-entity", "succeeded")
+
+	raceDB := &refinalizeActivationRaceDB{
+		SQLDB: SQLDB{DB: db},
+		activate: func() {
+			if _, err := db.ExecContext(
+				ctx,
+				`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`,
+				scopeID, activatedGeneration,
+			); err != nil {
+				t.Errorf("activate a new generation mid-refinalize: %v", err)
+			}
+		},
+	}
+
+	store := NewRecoveryStore(raceDB)
+	result, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
+		ScopeIDs: []string{scopeID},
+	}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil", err)
+	}
+	if !raceDB.fired() {
+		t.Fatal("the concurrent activation never ran, so this test proved nothing about the race")
+	}
+
+	if got := refinalizeResetWorkItemStatus(t, ctx, db, snapshotWork); got != "" {
+		t.Fatalf("succeeded reducer work for the generation this refinalize enqueued survived as %q; "+
+			"a later statement read a different generation and reset that one instead, leaving the "+
+			"rebuilt generation deduplicated", got)
+	}
+	if got := refinalizeResetWorkItemStatus(t, ctx, db, activatedWork); got == "" {
+		t.Fatal("the reset deleted reducer work for a generation activated mid-transaction; that " +
+			"generation was never enqueued for re-projection, so its state is gone and never replayed")
+	}
+	if got, want := result.ReducerWorkDeleted, 1; got != want {
+		t.Fatalf("result.ReducerWorkDeleted = %d, want %d", got, want)
+	}
+	if got := refinalizeResetWorkItemStatus(
+		t, ctx, db, "refinalize_"+scopeID+"_"+snapshotGeneration,
+	); got != "pending" {
+		t.Fatalf("projector work item for the read generation = %q, want %q", got, "pending")
+	}
+}
+
+// refinalizeActivationRaceDB runs a callback once, immediately after the first
+// statement a refinalize issues on its transaction, and otherwise behaves
+// exactly like the live database it wraps.
+//
+// Firing after the first statement is what makes this test shape-independent:
+// wherever the affected-generation read sits, everything after it has to agree
+// with what it returned.
+type refinalizeActivationRaceDB struct {
+	SQLDB
+	activate func()
+	tx       *refinalizeActivationRaceTx
+}
+
+// Begin wraps the live transaction so the callback can fire between statements.
+func (d *refinalizeActivationRaceDB) Begin(ctx context.Context) (Transaction, error) {
+	tx, err := d.SQLDB.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d.tx = &refinalizeActivationRaceTx{Transaction: tx, activate: d.activate}
+	return d.tx, nil
+}
+
+// fired reports whether the concurrent activation actually ran, so a test cannot
+// pass because the race never happened.
+func (d *refinalizeActivationRaceDB) fired() bool {
+	return d.tx != nil && d.tx.activated
+}
+
+type refinalizeActivationRaceTx struct {
+	Transaction
+	activate  func()
+	activated bool
+}
+
+func (t *refinalizeActivationRaceTx) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (Rows, error) {
+	rows, err := t.Transaction.QueryContext(ctx, query, args...)
+	t.fire()
+	return rows, err
+}
+
+func (t *refinalizeActivationRaceTx) ExecContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	result, err := t.Transaction.ExecContext(ctx, query, args...)
+	t.fire()
+	return result, err
+}
+
+// fire runs the activation once. It commits on its own connection, so every
+// later statement in the refinalize's READ COMMITTED transaction can see it.
+func (t *refinalizeActivationRaceTx) fire() {
+	if t.activated {
+		return
+	}
+	t.activated = true
+	t.activate()
+}
+
 // TestRefinalizeRebuildResetConvergesAcrossTwoCalls proves an interrupted rebuild
 // is re-runnable. The runbook's answer to "the rebuild died partway" is to issue
 // the same command again, so a second refinalize over the same generations has to

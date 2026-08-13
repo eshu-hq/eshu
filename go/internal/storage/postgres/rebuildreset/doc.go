@@ -28,9 +28,15 @@
 // generations a refinalize is actually rebuilding, issued once by the recovery
 // path, in the same transaction as the projector re-enqueue.
 //
-// Apply is the entry point; Counts reports what it cleared. ScopePredicate is
-// exported because the caller's projector re-enqueue renders the same predicate,
-// so the enqueue and the resets cannot select different scopes.
+// Apply is the entry point; Counts reports what it cleared.
+//
+// The caller runs AffectedGenerationsQuery once, at the top of its refinalize
+// transaction, and binds the Generations it returns to both its own projector
+// re-enqueue and to Apply. That is deliberate: a refinalize transaction runs at
+// Postgres's default READ COMMITTED isolation, so a statement that re-derived
+// the generation set would get its own snapshot, and an ingester activating a
+// generation mid-refinalize could leave the enqueue rebuilding one generation
+// while the resets cleared another. One read, four bindings.
 //
 // Why the reducer rows are DELETED rather than reset to pending: a pending row
 // is claimable immediately, before the projector re-run that owns its inputs has

@@ -4,7 +4,7 @@
 
 1. `README.md` in this directory — why the package exists and what each reset is
    for
-2. `reset.go` — the three SQL templates, `ScopePredicate`, `Apply`
+2. `reset.go` — the three SQL templates, `AffectedGenerationsQuery`, `Apply`
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
    caller, and the projector re-enqueue that runs in the same transaction
 4. `docs/internal/evidence/4594-graph-rebuild-from-facts.md` — the measured
@@ -24,6 +24,12 @@
   is the drain's input.
 - **Never let the all-scopes path pass an empty array.** `ANY('{}')` matches no
   rows and the rebuild would report success over an empty graph. Drop the clause.
+- **Never let a statement re-read `ingestion_scopes`.** The refinalize
+  transaction is READ COMMITTED, so a second read is a second snapshot. An
+  ingester that activates a generation mid-refinalize would then have the enqueue
+  rebuild G1 while a reset cleared G2 — G1 left deduplicated and never rebuilt,
+  G2 damaged and never replayed. Read the set once with
+  `AffectedGenerationsQuery` and bind the arrays.
 - **Never fix a dedup problem by editing `../reducer_queue.go` or
   `../shared_intents_upsert.go`.** Both guards are correct for ordinary
   operation, and the whole design of this package is that recovery pays the cost
@@ -34,12 +40,14 @@
 
 ## When you change the scope guards
 
-`AffectedGenerationsSubquery` is shared by the three resets here, but the
-projector re-enqueue in `../recovery.go` carries its own copy of the `FROM` and
-the `active_generation_id IS NOT NULL AND status = 'active'` guards. They share
-`ScopePredicate` and nothing else. Change a guard here and you must change it
-there in the same commit, or a rebuild will re-enqueue one set of scopes and
-reset a different one.
+`AffectedGenerationsTemplate` is the only statement in a refinalize that reads
+`ingestion_scopes`, so it is the only place the scope guards live. The projector
+re-enqueue in `../recovery.go` and the three resets here all bind the
+`Generations` it returned. Change a guard and every statement follows, because
+none of them selects anything.
+
+If you find yourself adding a `FROM ingestion_scopes` to any other statement,
+stop: that is the defect this shape exists to prevent.
 
 ## Verification expected on any change here
 

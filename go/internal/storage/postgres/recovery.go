@@ -108,24 +108,18 @@ WHERE status IN ('dead_letter', 'failed')
   %s
 `
 
-// refinalizeScopeProjectionsTemplate re-enqueues projector work by inserting one
-// pending work item per active scope generation. The %s is the scope predicate:
-// the explicit-scope path renders `AND scope.scope_id = ANY($2)`, and the
-// disaster-recovery all-scopes path renders nothing so every active scope is
-// selected.
-//
-// The all-scopes variant removes the clause rather than passing an empty array,
-// because `scope_id = ANY('{}')` matches no rows. A rebuild that silently
-// enqueued zero work would report success and leave the graph empty, which is
-// the worst possible failure for the one operation an operator runs when
-// everything is already broken.
+// refinalizeScopeProjectionsQuery re-enqueues projector work by inserting one
+// pending work item per generation in the set the refinalize already
+// materialized. $1 is the timestamp; $2 and $3 are the index-aligned scope-id
+// and generation-id arrays. It reads no table, which is the point: see
+// refinalizeAffectedGenerations.
 //
 // ON CONFLICT (work_item_id) DO UPDATE is what makes the rebuild restartable.
-// The work_item_id is derived from scope_id and active_generation_id, so a
-// second rebuild over the same generations resets the same rows to pending
-// instead of inserting duplicates. An interrupted rebuild is re-runnable with
-// the same command.
-const refinalizeScopeProjectionsTemplate = `
+// The work_item_id is derived from scope_id and generation_id, so a second
+// rebuild over the same generations resets the same rows to pending instead of
+// inserting duplicates. An interrupted rebuild is re-runnable with the same
+// command.
+const refinalizeScopeProjectionsQuery = `
 INSERT INTO fact_work_items (
     work_item_id,
     scope_id,
@@ -147,9 +141,9 @@ INSERT INTO fact_work_items (
     updated_at
 )
 SELECT
-    'refinalize_' || scope.scope_id || '_' || scope.active_generation_id,
+    'refinalize_' || scope.scope_id || '_' || scope.generation_id,
     scope.scope_id,
-    scope.active_generation_id,
+    scope.generation_id,
     'projector',
     'source_local',
     'pending',
@@ -165,10 +159,7 @@ SELECT
     '{}'::jsonb,
     $1,
     $1
-FROM ingestion_scopes AS scope
-WHERE scope.active_generation_id IS NOT NULL
-  AND scope.status = 'active'
-  %s
+FROM unnest($2::text[], $3::text[]) AS scope(scope_id, generation_id)
 ON CONFLICT (work_item_id) DO UPDATE
 SET status = 'pending',
     attempt_count = 0,
@@ -372,43 +363,19 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 	}, nil
 }
 
-// buildRefinalizeScopeProjectionsQuery renders the refinalize SQL and its
-// positional args for one filter. The explicit-scope path keeps its
-// `scope_id = ANY($2)` predicate; the all-scopes path drops the clause entirely
-// and passes only the timestamp, so every active scope with an active
-// generation is re-enqueued.
-//
-// Both variants keep the active_generation_id and status guards, so an
-// all-scopes rebuild still skips retired and generation-less scopes rather than
-// re-projecting rows the pipeline has already retired.
-// The scope predicate comes from rebuildreset.ScopePredicate, the same helper
-// the rebuild reset statements use, so the projector re-enqueue and the reset
-// can never select different scopes. The two scope GUARDS below
-// (active_generation_id IS NOT NULL, status = 'active') are this statement's own
-// copy of what rebuildreset.AffectedGenerationsSubquery asserts; change one and
-// you must change the other. The insert's leading $1 is the timestamp, which is
-// why its predicate starts at $2.
-func buildRefinalizeScopeProjectionsQuery(
-	filter recovery.RefinalizeFilter,
-	now time.Time,
-) (string, []any) {
-	predicate, predicateArgs := rebuildreset.ScopePredicate(filter, 2)
-	return fmt.Sprintf(refinalizeScopeProjectionsTemplate, predicate),
-		append([]any{now.UTC()}, predicateArgs...)
-}
-
 // RefinalizeScopeProjections re-enqueues projector work by inserting new pending
 // work items for active scope generations: for the given scope IDs, or for every
 // active scope when the filter sets AllScopes.
 //
 // It also clears the downstream dedup state that would otherwise stop the
-// re-projection at source-local structure -- succeeded reducer work, completed
-// shared projection intents, and readiness phase rows that outlived a graph wipe.
-// See the rebuildreset subpackage for why each one blocks a rebuild.
+// re-projection at source-local structure; the rebuildreset subpackage says
+// which state and why each piece blocks a rebuild.
 //
 // All four statements run in one transaction so a refinalize cannot leave the
 // queue re-enqueued while its downstream state still says the work is done; that
-// half-applied state is invisible until the graph comes back short.
+// half-applied state is invisible until the graph comes back short. They all
+// bind one generation set, read once at the top -- see
+// refinalizeAffectedGenerations for why re-deriving it per statement is unsafe.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
@@ -433,12 +400,17 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		}
 	}()
 
-	scopeIDs, err := refinalizeEnqueueProjectorWork(ctx, tx, filter, now)
+	generations, err := refinalizeAffectedGenerations(ctx, tx, filter)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
-	counts, err := rebuildreset.Apply(ctx, tx, filter)
+	scopeIDs, err := refinalizeEnqueueProjectorWork(ctx, tx, generations, now)
+	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
+	counts, err := rebuildreset.Apply(ctx, tx, generations)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
@@ -457,19 +429,55 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	}, nil
 }
 
-// refinalizeEnqueueProjectorWork runs the projector re-enqueue and returns the
-// scope IDs it queued. The rows are fully consumed and closed before the caller
-// issues the reset statements, because database/sql forbids a second statement
-// on a transaction while its Rows are still open.
-func refinalizeEnqueueProjectorWork(
+// refinalizeAffectedGenerations reads the (scope_id, generation_id) set this
+// refinalize covers, once, so the enqueue and the three resets bind the same
+// rows. Re-deriving the set per statement would give each one its own READ
+// COMMITTED snapshot, and an ingester activating a generation mid-refinalize
+// could then leave the enqueue rebuilding G1 while a reset cleared G2.
+//
+// It takes no row locks: a concurrent activation wins and falls outside this
+// refinalize, which is cheaper than putting an ingester behind a rebuild.
+func refinalizeAffectedGenerations(
 	ctx context.Context,
 	tx Transaction,
 	filter recovery.RefinalizeFilter,
-	now time.Time,
-) ([]string, error) {
-	query, args := buildRefinalizeScopeProjectionsQuery(filter, now)
+) (rebuildreset.Generations, error) {
+	query, args := rebuildreset.AffectedGenerationsQuery(filter)
 
 	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var generations rebuildreset.Generations
+	for rows.Next() {
+		var scopeID, generationID string
+		if scanErr := rows.Scan(&scopeID, &generationID); scanErr != nil {
+			return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", scanErr)
+		}
+		generations.Append(scopeID, generationID)
+	}
+	if err := rows.Err(); err != nil {
+		return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
+	}
+
+	return generations, nil
+}
+
+// refinalizeEnqueueProjectorWork runs the projector re-enqueue and returns the
+// scope IDs it queued. The rows are fully consumed and closed before the reset
+// statements run, because database/sql forbids a second statement on a
+// transaction while its Rows are open.
+func refinalizeEnqueueProjectorWork(
+	ctx context.Context,
+	tx Transaction,
+	generations rebuildreset.Generations,
+	now time.Time,
+) ([]string, error) {
+	args := append([]any{now.UTC()}, generations.Args()...)
+
+	rows, err := tx.QueryContext(ctx, refinalizeScopeProjectionsQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("refinalize scope projections: %w", err)
 	}

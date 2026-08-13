@@ -901,3 +901,75 @@ new signal is the `bootstrap.graph.force_reapply` warning log, which fires when
 an operator overrides the graph-schema marker; the run above shows it followed by
 `bootstrap.graph.applied`, which is how you tell the override took effect rather
 than being silently ignored.
+
+## Review round: one generation snapshot per refinalize
+
+Bot review on PR #6098 found a real hazard in the refinalize transaction. Each of
+its four statements — the projector re-enqueue and the three rebuild resets —
+derived its own `(scope_id, generation_id)` set from `ingestion_scopes`.
+`SQLDB.Begin` opens the transaction at PostgreSQL's default READ COMMITTED, where
+every statement takes a fresh snapshot, so an ingester activating a new
+generation partway through could leave the enqueue re-projecting G1 while a later
+reset cleared G2's dedup state. G1 stays deduplicated and never rebuilds; G2
+loses reducer work and readiness state nothing will replay.
+
+The fix reads the set once, at the top of the transaction, and binds it to every
+later statement as two aligned `text[]` arrays through `unnest`. The statements
+now agree by construction: none of them selects a row set.
+
+The read takes no row locks. An activation racing a rebuild wins and lands
+outside that refinalize, so the operator rebuilds the generation that was active
+when the command ran. Locking `ingestion_scopes` for the transaction would put an
+ingester behind a whole-deployment rebuild and buy no truth.
+
+Proof, against a throwaway Postgres 16 (`ESHU_POSTGRES_DSN`), commit
+`00d57e2b9` plus this change:
+
+`TestRefinalizeRebuildResetBindsTheGenerationSetItRead` drives the interleaving
+directly — a wrapper activates a different generation on the scope immediately
+after the refinalize's first statement. Re-deriving the set per statement (the
+pre-fix shape, restored as a one-line mutation) fails it:
+
+```
+--- FAIL: TestRefinalizeRebuildResetBindsTheGenerationSetItRead (0.55s)
+    succeeded reducer work for the generation this refinalize enqueued survived
+    as "succeeded"; a later statement read a different generation and reset that
+    one instead, leaving the rebuilt generation deduplicated
+```
+
+With the fix, all five `RefinalizeRebuildReset` live proofs pass
+(`go test ./internal/storage/postgres -run RefinalizeRebuildReset -count=1`,
+exit 0). `TestRefinalizeReadsIngestionScopesExactlyOnce` holds the shape without
+a database.
+
+No-Regression Evidence: the refinalize goes from four statements to five, and the
+added statement is the `SELECT` the other four used to run as a subquery each —
+one indexed read of `ingestion_scopes` replacing four correlated ones, over the
+same rows, on an admin path invoked once per recovery. No hot path and no read
+path changed. Measured only as statement count and the live proofs above; this
+change is not the source of any wall-clock claim, and none is made for it.
+
+No-Observability-Change: the refinalize reports the same three counters through
+the same `recover-generations` response and the same `admin_replay_requests`
+ledger row. A generation activated mid-refinalize is visible where it always was,
+in `ingestion_scopes.active_generation_id` and the projector queue.
+
+## Review round: the gate's own two defects
+
+The same review found two ways this gate could mislead a reader.
+
+The first: under `set -e`, the pass-1 comparison ended the run. Because pass 1
+fails today for the reasons above, the interruption/restart pass — the
+resumability proof this gate advertises — had never executed. Both passes now
+always run, and the run exits non-zero at the end if either differed.
+
+The second: the snapshot safety check could not catch the failure mode it exists
+for. A node identity is a concatenation of `coalesce()`d properties, so a node
+carrying none of them yields nothing but separators, and the label prefix makes
+the line non-empty — `Module|||||` passes an emptiness check while comparing
+equal to every other such key. The check now rejects any key that is only
+separators, on both endpoints of an edge as well, and refuses an empty edge file
+for the same reason it already refused an empty node file.
+`scripts/test-verify-graph-rebuild-from-facts.sh` sources the real function and
+proves each refusal; reverting the check to its previous patterns fails five of
+its eight cases.

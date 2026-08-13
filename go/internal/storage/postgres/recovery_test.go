@@ -407,13 +407,13 @@ func TestRecoveryStoreCountDeadLetterBacklogPropagatesQueryError(t *testing.T) {
 func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeBeginnerExecQueryer{
-		fakeExecQueryer: fakeExecQueryer{
-			queryResponses: []queueFakeRows{
-				{rows: [][]any{{"scope-1"}, {"scope-2"}}},
-			},
-		},
-	}
+	// scope-3 is named by the caller but absent from the generation read: a scope
+	// with no active generation is filtered out by the read, and the enqueue only
+	// ever sees what the read returned.
+	db := refinalizeFakeDB(
+		[][]any{{"scope-1", "gen-1"}, {"scope-2", "gen-2"}},
+		[][]any{{"scope-1"}, {"scope-2"}},
+	)
 
 	store := NewRecoveryStore(db)
 	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
@@ -433,11 +433,11 @@ func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 		t.Fatalf("result.ScopeIDs = %v, want [scope-1, scope-2]", result.ScopeIDs)
 	}
 
-	if len(db.queries) != 1 {
-		t.Fatalf("query count = %d, want 1", len(db.queries))
+	if len(db.queries) != 2 {
+		t.Fatalf("query count = %d, want 2 (generation read, then enqueue)", len(db.queries))
 	}
-	if !strings.Contains(db.queries[0].query, "INSERT INTO fact_work_items") {
-		t.Fatalf("refinalize query missing INSERT: %s", db.queries[0].query)
+	if !strings.Contains(db.queries[1].query, "INSERT INTO fact_work_items") {
+		t.Fatalf("refinalize query missing INSERT: %s", db.queries[1].query)
 	}
 }
 

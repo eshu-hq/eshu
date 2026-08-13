@@ -43,13 +43,54 @@ const openAPIPathsAdmin = `
                   "all_scopes": {"type": "boolean", "default": false, "description": "Re-enqueue every active scope that holds an active generation, for rebuilding the graph from preserved facts when no scope list is available. Cannot be combined with scope_ids."},
                   "reason": {"type": "string", "description": "Why the recovery is safe."},
                   "idempotency_key": {"type": "string", "description": "Makes the recovery safe under retries and concurrent delivery."}
-                }
+                },
+                "oneOf": [
+                  {"required": ["scope_ids"], "properties": {"scope_ids": {"minItems": 1}, "all_scopes": {"enum": [false]}}},
+                  {"required": ["all_scopes"], "properties": {"all_scopes": {"enum": [true]}, "scope_ids": {"maxItems": 0}}}
+                ]
               }
             }
           }
         },
         "responses": {
-          "200": {"description": "Recovery request results (duplicate=true when an idempotent prior outcome is returned). Alongside status, enqueued, and scope_ids, reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer: reducer_work_deleted, shared_intents_reopened, and readiness_phases_cleared. After a graph wipe all three should be non-zero."},
+          "200": {
+            "description": "A recovery this call performed, or the prior outcome replayed for an idempotency_key that already completed. The two shapes differ: only the first reports the dedup state cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all three counters should be non-zero; three zeros mean the rebuild will restore source-local structure and nothing else.",
+                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "idempotency_key", "duplicate"],
+                      "properties": {
+                        "status": {"type": "string", "enum": ["recovered"]},
+                        "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection."},
+                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes actually re-enqueued."},
+                        "reducer_work_deleted": {"type": "integer", "description": "Succeeded reducer work items removed so the re-projection's enqueue is not deduplicated away."},
+                        "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents whose completed_at was cleared so the partition workers drain them again."},
+                        "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed, because they outlive a graph wipe and would otherwise assert canonical nodes are committed for an empty graph."},
+                        "idempotency_key": {"type": "string"},
+                        "duplicate": {"type": "boolean", "enum": [false]}
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The three dedup counters are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
+                      "required": ["status", "enqueued", "scope_ids", "idempotency_key", "duplicate"],
+                      "properties": {
+                        "status": {"type": "string", "enum": ["recovered"]},
+                        "enqueued": {"type": "integer", "description": "Scope generations the original recovery re-enqueued."},
+                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes the original recovery re-enqueued."},
+                        "idempotency_key": {"type": "string"},
+                        "duplicate": {"type": "boolean", "enum": [true]}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Recovery requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},

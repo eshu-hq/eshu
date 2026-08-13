@@ -636,6 +636,14 @@ console or API defect.
   committed for a graph that is empty). On a rebuild after a wipe all three
   should be non-zero; three zeros mean the rebuild will restore source-local
   structure and nothing else.
+
+  A retry that returns `duplicate: true` does not carry those three counters.
+  The `admin_replay_requests` ledger persists the enqueue outcome and not the
+  reset counts, so a repeat of an idempotency key that already completed can
+  report what was re-enqueued but not what was cleared. If the original
+  response was lost, read the effect from the queue instead: pending
+  `projector` rows in `fact_work_items`, and `shared_projection_intents` with
+  `completed_at IS NULL`.
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
   tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`

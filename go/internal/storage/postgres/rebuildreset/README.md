@@ -31,15 +31,15 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
 
 ## Exported surface
 
-- `Apply(ctx, tx, filter) (Counts, error)` — runs the three resets inside the
-  caller's transaction.
+- `AffectedGenerationsQuery(filter) (string, []any)` — the read that materializes
+  the `(scope_id, generation_id)` set one refinalize covers. The caller runs it
+  once, first, inside its transaction.
+- `Generations` — that set, held as two index-aligned arrays. Build it with
+  `Append`; `Args` hands it to a statement.
+- `Apply(ctx, tx, generations) (Counts, error)` — runs the three resets inside
+  the caller's transaction, against the set it was given.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
   `recover-generations` response.
-- `ScopePredicate(filter, placeholder)` — the scope predicate. Exported because
-  the caller's projector re-enqueue renders the same one; sharing it is what
-  stops the enqueue and the resets from selecting different scopes.
-- `AffectedGenerationsSubquery` — the `(scope_id, generation_id)` selection the
-  three reset statements share.
 - `Execer` — the narrow `ExecContext` surface, declared here so the dependency
   runs one way: `postgres` imports `rebuildreset`, never the reverse.
 
@@ -62,14 +62,19 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
 - **All-scopes drops the clause.** It never passes an empty array:
   `scope_id = ANY('{}')` matches no rows, so a rebuild would report success and
   leave the graph empty.
+- **One read of `ingestion_scopes` per refinalize.** The transaction is READ
+  COMMITTED, so every statement that reads that table gets its own snapshot. Two
+  reads mean an ingester activating a generation mid-refinalize can have the
+  enqueue rebuild G1 while a reset clears G2's dedup state: G1 stays
+  deduplicated and never rebuilds, G2 loses state it will never replay. The read
+  happens once and every statement binds its arrays.
 
 ## Known limits
 
-`AffectedGenerationsSubquery` is shared by the three reset statements only. The
-projector re-enqueue is an `INSERT ... SELECT` that carries its own copy of the
-`FROM` and the two scope guards; it shares `ScopePredicate` but not the guards.
-Change `active_generation_id IS NOT NULL` or `status = 'active'` in one place and
-you must change it in `../recovery.go` too.
+The read takes no row locks, so an activation racing a rebuild wins and simply
+lands outside that refinalize — the operator rebuilds the generation that was
+active when the command ran. Locking `ingestion_scopes` instead would put an
+ingester behind a whole-deployment rebuild and buy no truth.
 
 Restoring projector→reducer causality does not buy reducer→reducer ordering. A
 cross-repository edge whose intent drains before the second repository's
