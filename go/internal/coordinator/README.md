@@ -664,7 +664,11 @@ freshness remains visible through `eshu_dp_workflow_coordinator_run_reconcile_*`
 metrics, `workflow_runs`, `workflow_run_completeness`, and
 `/api/v0/index-status`. Duplicate target suppression emits
 `reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
-`skipped_work_items`, and `trigger_kind` in structured coordinator logs.
+`skipped_work_items`, and `trigger_kind` in structured coordinator logs. A row
+the admission guard let through and the store then refused is a different event
+and gets its own warning, `reason=insert_conflict_dropped_row` with
+`admitted_work_items` and `dropped_work_items`: that work is in no queue, so it
+must not be read as a duplicate that was safely skipped (#4586).
 
 ## Related docs
 

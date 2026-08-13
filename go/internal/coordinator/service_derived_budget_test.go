@@ -239,19 +239,19 @@ func (s *terminalizingWorkflowStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
-) (int, error) {
+) (workflow.RunAdmission, error) {
 	if s.terminalRuns == nil {
 		s.terminalRuns = make(map[string]struct{})
 	}
 	if _, terminal := s.terminalRuns[run.RunID]; terminal {
-		return 0, nil
+		return workflow.RunAdmission{}, nil
 	}
 	if err := s.CreateRun(ctx, run); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	if err := s.EnqueueWorkItems(ctx, items); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	s.terminalRuns[run.RunID] = struct{}{}
-	return len(items), nil
+	return workflow.RunAdmission{EligibleTargets: len(items), InsertedWorkItems: len(items)}, nil
 }

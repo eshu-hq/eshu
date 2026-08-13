@@ -127,7 +127,11 @@ func (s *WorkflowControlStore) EnqueueWorkItems(ctx context.Context, items []wor
 		if end > len(items) {
 			end = len(items)
 		}
-		if err := s.enqueueWorkItemBatch(ctx, items[i:end]); err != nil {
+		// The accepted-row count is deliberately dropped here: EnqueueWorkItems
+		// is the unguarded insert path and reports nothing about admission.
+		// The guarded scheduler (CreateRunWithWorkItemsIfNoOpenTargets) is the
+		// one that must report what actually landed.
+		if _, err := s.enqueueWorkItemBatch(ctx, items[i:end]); err != nil {
 			return err
 		}
 	}

@@ -124,6 +124,15 @@ configuration.
   statements always run sequentially with per-statement timing logs (grouped
   DELETEs under-apply on NornicDB v1.1.11).
 - Keep claim-driven collectors behind an active workflow coordinator.
+- One workflow coordinator replica is the tested shape, and a second one does
+  not buy throughput — the collectors do the collecting. A second replica does
+  not duplicate work: scheduled-work admission takes a Postgres advisory lock
+  per collector instance and compares planned targets on a tuple that ignores
+  the schedule bucket, so two coordinators cannot queue the same target twice.
+  That was measured for #4586 on the OCI registry scheduler; the other
+  schedulers share the same admission path. Two coordinators running at
+  different points in the cycle can start the next collection sooner than the
+  configured interval once the previous run has finished.
 - Keep scanner workers in their own Deployment or Compose service; do not move
   image unpacking, SBOM generation, source scanning, secret scanning, license
   scanning, OS package extraction, or misconfiguration analysis into the

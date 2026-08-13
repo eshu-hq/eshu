@@ -19,8 +19,10 @@ type Store interface {
 	ListCollectorInstances(context.Context) ([]workflow.CollectorInstance, error)
 	CreateRun(context.Context, workflow.Run) error
 	// CreateRunWithWorkItemsIfNoOpenTargets admits scheduled work only when no
-	// non-terminal run already owns the same collector target tuple.
-	CreateRunWithWorkItemsIfNoOpenTargets(context.Context, workflow.Run, []workflow.WorkItem) (int, error)
+	// non-terminal run already owns the same collector target tuple. It reports
+	// the targets that cleared that guard and the rows the store actually
+	// accepted separately, because only the second number is work in the queue.
+	CreateRunWithWorkItemsIfNoOpenTargets(context.Context, workflow.Run, []workflow.WorkItem) (workflow.RunAdmission, error)
 	EnqueueWorkItems(context.Context, []workflow.WorkItem) error
 	ReapExpiredClaims(context.Context, time.Time, int, time.Duration) ([]workflow.Claim, error)
 	ReconcileWorkflowRuns(context.Context, time.Time) (int, error)

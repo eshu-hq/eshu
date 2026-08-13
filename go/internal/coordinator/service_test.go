@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,5 +358,103 @@ func TestServiceRunActiveModeReturnsRunReconcileError(t *testing.T) {
 	err := service.Run(context.Background())
 	if err == nil || err.Error() != "initial workflow run reconciliation: workflow reconcile failed" {
 		t.Fatalf("Run() error = %v, want initial workflow run reconciliation: workflow reconcile failed", err)
+	}
+}
+
+// fixedAdmissionStore returns one canned admission from the guarded scheduler so
+// the two shortfall shapes can be told apart: targets an open run already
+// covered, and rows the database refused after the guard admitted them.
+type fixedAdmissionStore struct {
+	fakeStore
+	admission workflow.RunAdmission
+}
+
+func (s *fixedAdmissionStore) CreateRunWithWorkItemsIfNoOpenTargets(
+	context.Context,
+	workflow.Run,
+	[]workflow.WorkItem,
+) (workflow.RunAdmission, error) {
+	return s.admission, nil
+}
+
+func scheduledWorkLogFixture(admission workflow.RunAdmission) (Service, *bytes.Buffer, workflow.CollectorInstance, workflow.Run, []workflow.WorkItem) {
+	logs := &bytes.Buffer{}
+	service := Service{
+		Store:  &fixedAdmissionStore{admission: admission},
+		Logger: slog.New(slog.NewJSONHandler(logs, nil)),
+	}
+	instance := workflow.CollectorInstance{
+		InstanceID:    "collector-tfstate-primary",
+		CollectorKind: scope.CollectorTerraformState,
+	}
+	now := time.Date(2026, time.May, 13, 15, 0, 0, 0, time.UTC)
+	run := workflow.Run{
+		RunID:              "terraform_state:collector-tfstate-primary:schedule:continuous-20260513T150000Z",
+		TriggerKind:        workflow.TriggerKindSchedule,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "[]",
+		RequestedCollector: string(scope.CollectorTerraformState),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	items := []workflow.WorkItem{
+		{WorkItemID: run.RunID + ":a", RunID: run.RunID, ScopeID: "state_snapshot:s3:a", AcceptanceUnitID: "repository:a"},
+		{WorkItemID: run.RunID + ":b", RunID: run.RunID, ScopeID: "state_snapshot:s3:a", AcceptanceUnitID: "repository:b"},
+	}
+	return service, logs, instance, run, items
+}
+
+// TestCreateWorkflowWorkIfNoOpenTargetsReportsInsertConflictSeparately covers the
+// #4586 reporting gap. Both planned targets clear the open-target guard, then the
+// database accepts one row because a partial unique index covers a narrower tuple
+// than the guard compares. That is planned work that never reached the queue, and
+// reporting it as "target_already_planned" tells an operator a duplicate was
+// harmlessly skipped when work was actually lost.
+func TestCreateWorkflowWorkIfNoOpenTargetsReportsInsertConflictSeparately(t *testing.T) {
+	t.Parallel()
+
+	service, logs, instance, run, items := scheduledWorkLogFixture(workflow.RunAdmission{
+		EligibleTargets:   2,
+		InsertedWorkItems: 1,
+	})
+
+	enqueued, err := service.createWorkflowWorkIfNoOpenTargets(context.Background(), instance, run, items)
+	if err != nil {
+		t.Fatalf("createWorkflowWorkIfNoOpenTargets() error = %v, want nil", err)
+	}
+	if enqueued != 1 {
+		t.Fatalf("enqueued = %d, want 1 row the database accepted", enqueued)
+	}
+
+	got := logs.String()
+	if !strings.Contains(got, `"reason":"insert_conflict_dropped_row"`) {
+		t.Fatalf("logs = %s, want an insert-conflict reason: a row the database refused is lost work, not a skipped duplicate (#4586)", got)
+	}
+	if strings.Contains(got, `"reason":"target_already_planned"`) {
+		t.Fatalf("logs = %s, want no already-planned reason: the guard admitted both targets, so nothing was skipped as a duplicate (#4586)", got)
+	}
+}
+
+// TestCreateWorkflowWorkIfNoOpenTargetsReportsAlreadyPlannedSkips is the other
+// half: when the guard itself drops a target because an open run already covers
+// it, that is the benign duplicate skip and must keep its own reason.
+func TestCreateWorkflowWorkIfNoOpenTargetsReportsAlreadyPlannedSkips(t *testing.T) {
+	t.Parallel()
+
+	service, logs, instance, run, items := scheduledWorkLogFixture(workflow.RunAdmission{
+		EligibleTargets:   1,
+		InsertedWorkItems: 1,
+	})
+
+	if _, err := service.createWorkflowWorkIfNoOpenTargets(context.Background(), instance, run, items); err != nil {
+		t.Fatalf("createWorkflowWorkIfNoOpenTargets() error = %v, want nil", err)
+	}
+
+	got := logs.String()
+	if !strings.Contains(got, `"reason":"target_already_planned"`) {
+		t.Fatalf("logs = %s, want the already-planned reason for a target an open run covers", got)
+	}
+	if strings.Contains(got, `"reason":"insert_conflict_dropped_row"`) {
+		t.Fatalf("logs = %s, want no insert-conflict reason: the database accepted every row the guard admitted", got)
 	}
 }

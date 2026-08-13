@@ -36,21 +36,39 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 	if denied > 0 {
 		run = filterWorkflowRunRequestedScopeSet(run, authorizedItems)
 	}
-	enqueued, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, authorizedItems)
+	admission, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, authorizedItems)
 	if err != nil {
 		return 0, err
 	}
-	if enqueued < len(authorizedItems) && s.Logger != nil {
+	// The two shortfalls are different events and are logged as such. A target
+	// the open-target guard dropped is already being collected by an open run,
+	// which is the benign skip that makes a second coordinator safe. A row the
+	// guard admitted and the store then refused is work nobody will collect, so
+	// it is a warning, not a duplicate notice (#4586).
+	if admission.EligibleTargets < len(authorizedItems) && s.Logger != nil {
 		s.Logger.Info(
 			"workflow coordinator skipped duplicate workflow work",
 			"collector_kind", instance.CollectorKind,
 			"collector_instance_id", instance.InstanceID,
 			"trigger_kind", run.TriggerKind,
 			"planned_work_items", len(authorizedItems),
-			"enqueued_work_items", enqueued,
-			"skipped_work_items", len(authorizedItems)-enqueued,
+			"enqueued_work_items", admission.InsertedWorkItems,
+			"skipped_work_items", len(authorizedItems)-admission.EligibleTargets,
 			"reason", "target_already_planned",
 		)
 	}
-	return enqueued, nil
+	if admission.InsertedWorkItems < admission.EligibleTargets && s.Logger != nil {
+		s.Logger.Warn(
+			"workflow coordinator lost admitted workflow work at insert",
+			"collector_kind", instance.CollectorKind,
+			"collector_instance_id", instance.InstanceID,
+			"trigger_kind", run.TriggerKind,
+			"planned_work_items", len(authorizedItems),
+			"admitted_work_items", admission.EligibleTargets,
+			"enqueued_work_items", admission.InsertedWorkItems,
+			"dropped_work_items", admission.EligibleTargets-admission.InsertedWorkItems,
+			"reason", "insert_conflict_dropped_row",
+		)
+	}
+	return admission.InsertedWorkItems, nil
 }
