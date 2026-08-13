@@ -84,15 +84,17 @@ new_repo() {
 }
 
 # write_file writes exactly ${2} lines to the repo-relative path ${3} under repo
-# ${1}. A non-empty ${4} adds a //nolint:filelength marker on the package line.
+# ${1}. A non-empty ${4} is a lint directive written verbatim onto the package
+# line — `nolint:filelength` for the exemption case, anything else for the
+# negative case that proves an unrelated directive does not buy one.
 write_file() {
-	local repo_dir="$1" lines="$2" rel="$3" marker="${4:-}"
+	local repo_dir="$1" lines="$2" rel="$3" directive="${4:-}"
 	local abs="${repo_dir}/${rel}" i=3
 	mkdir -p "$(dirname "${abs}")"
 	{
 		printf '// SPDX-License-Identifier: MIT\n'
-		if [[ -n "${marker}" ]]; then
-			printf 'package fixture //nolint:filelength // scratch fixture\n'
+		if [[ -n "${directive}" ]]; then
+			printf 'package fixture //%s // scratch fixture\n' "${directive}"
 		else
 			printf 'package fixture\n'
 		fi
@@ -128,10 +130,16 @@ run_gate() {
 	set -e
 }
 
+# assert_contains routes through pass() so it lands in the assertion total. When
+# it did not, deleting one call — or replacing the gate's whole violation message
+# with a one-word stub and deleting all seven — left the run green at the pinned
+# number, because the pin counted pass() calls only. The operator-facing message
+# is the thing this gate exists to deliver, so it gets counted guards.
 assert_contains() {
 	local needle="$1"
 	rg -q --fixed-strings "${needle}" "${GATE_OUT}" ||
 		fail "expected gate output to contain: ${needle}"
+	pass "gate output contains: ${needle}"
 }
 
 # ---------------------------------------------------------------------------
@@ -141,11 +149,11 @@ assert_contains() {
 # is attributable to the single candidate file.
 # ---------------------------------------------------------------------------
 assert_parity() {
-	local label="$1" rel="$2" lines="$3" marker="$4" want_rc="$5"
+	local label="$1" rel="$2" lines="$3" directive="$4" want_rc="$5"
 	local repo_dir changed_rc all_rc changed_out all_out
 	new_repo
 	repo_dir="${REPO_DIR}"
-	write_file "${repo_dir}" "${lines}" "${rel}" "${marker}"
+	write_file "${repo_dir}" "${lines}" "${rel}" "${directive}"
 
 	run_gate "${repo_dir}" filecap "${rel}"
 	changed_rc="${GATE_RC}"
@@ -184,7 +192,16 @@ run_parity_matrix() {
 	assert_parity "testdata/ segment is exempt" \
 		"go/internal/big/testdata/oversize.go" 501 "" 0
 	assert_parity "//nolint:filelength marker is honoured" \
-		"go/internal/big/marked.go" 501 marker 0
+		"go/internal/big/marked.go" 501 "nolint:filelength" 0
+	# The negative half of that exemption. filecap_check_file greps for the
+	# literal string `nolint:filelength`; widening that pattern to `nolint` — or
+	# to `lint` — exempts any file carrying ANY directive, and 39 non-test .go
+	# files under go/ carry a different `nolint:` one today. The longest,
+	# go/internal/collector/git_source_processing.go, is at 457 lines, so the
+	# widening would hand it 43 lines of headroom nobody asked for and the gate
+	# would never say a word.
+	assert_parity "an unrelated nolint directive is NOT an exemption" \
+		"go/internal/big/othermarked.go" 501 "nolint:gocyclo" 1
 	assert_parity "exactly 500 lines is legal" \
 		"go/internal/big/boundary500.go" 500 "" 0
 	assert_parity "501 lines is a violation" \
@@ -199,8 +216,8 @@ run_parity_matrix() {
 
 	((parity_cases > 0)) ||
 		fail "parity matrix evaluated 0 cases — the loop proved nothing"
-	[[ "${parity_cases}" == 10 ]] ||
-		fail "parity matrix evaluated ${parity_cases} cases, expected 10"
+	[[ "${parity_cases}" == 11 ]] ||
+		fail "parity matrix evaluated ${parity_cases} cases, expected 11"
 	pass "parity matrix evaluated ${parity_cases} cases"
 }
 
@@ -311,6 +328,15 @@ test_missing_file_is_ignored() {
 	run_gate "${repo_dir}" filecap "go/internal/big/absent.go"
 	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a path with no file on disk, got ${GATE_RC}"
 	pass "a staged path with no file on disk is ignored"
+	# The exit code alone does not hold the `[[ -f ]]` guard in place. Delete the
+	# guard and rg and awk both run against a path that is not there: rg reports
+	# an IO error, awk reports "can't open file", awk prints no count, and the
+	# empty count still compares as 0 — so rc stays 0 and the assertion above
+	# passes against the broken script. What breaks is the committer's terminal,
+	# so that is what this asserts.
+	[[ ! -s "${GATE_OUT}" ]] ||
+		fail "expected no output for a path with no file on disk (rg/awk errors leaking?)"
+	pass "and the gate stays silent, so no rg or awk error reaches the committer"
 }
 
 # A file with no trailing newline: the plugin's bufio.Scanner counts the final
@@ -403,11 +429,13 @@ test_mutation_breaks_parity
 # Pin the assertion total the way run_parity_matrix pins its case count.
 # Deleting a call from the list above otherwise costs nothing: the runner still
 # exits 0 and still prints "all tests passed", just with a smaller number that
-# nobody is comparing against anything. Update this when you add or remove an
-# assertion, and read a mismatch as "a test stopped running", not as a stale
-# constant to bump.
-[[ "${assertions}" == 22 ]] ||
-	fail "runner made ${assertions} assertions, expected 22 — a test function or assertion went missing"
+# nobody is comparing against anything. Every assertion increments the counter —
+# assert_contains goes through pass() for exactly that reason — so this number
+# also covers the message checks, not only the test functions. Update it when you
+# add or remove an assertion, and read a mismatch as "a test stopped running",
+# not as a stale constant to bump.
+[[ "${assertions}" == 31 ]] ||
+	fail "runner made ${assertions} assertions, expected 31 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"
