@@ -145,12 +145,13 @@ func probeAuthPosture(client *http.Client, baseURL string) PostureProbeResult {
 // since stdio mode carries no credential to select between. An unrecognized
 // --auth value is an error listing the accepted values.
 //
-// probe must be non-nil whenever hosted is true and authFlag is empty or
-// "auto", because that is the one path that calls it; passing nil there
-// panics. Every other combination ignores probe entirely, which is why the
-// tests pass a probe that panics if called -- reaching it proves the
-// no-probe paths regressed. Callers that always probe should pass
-// HostedPostureProbe.
+// probe must be non-nil for exactly one combination: sharedKey false, hosted
+// true, and authFlag empty or "auto". That is the only branch that calls it,
+// and passing nil there panics. sharedKey true returns before the switch, so
+// it needs no probe even in hosted "auto" mode. Every other combination
+// ignores probe entirely, which is why the tests pass a probe that panics if
+// called -- reaching it proves a no-probe path regressed. Callers that always
+// probe should pass HostedPostureProbe.
 func ResolveAuthPosture(authFlag string, sharedKey bool, hosted bool, probe func(string) PostureProbeResult, serviceURL string) (PostureProbeResult, error) {
 	if sharedKey {
 		return PostureProbeResult{Posture: PostureSharedKey}, nil
