@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package graphinstall
 
 import (
 	"archive/tar"
@@ -20,19 +20,19 @@ import (
 	"time"
 )
 
-type nornicDBInstallSourceKind string
+type installSourceKind string
 
 const (
-	nornicDBInstallSourceLocalBinary       nornicDBInstallSourceKind = "local-binary"
-	nornicDBInstallSourceLocalArchive      nornicDBInstallSourceKind = "local-archive"
-	nornicDBInstallSourceLocalPackage      nornicDBInstallSourceKind = "local-package"
-	nornicDBInstallSourceDownloadedBinary  nornicDBInstallSourceKind = "downloaded-binary"
-	nornicDBInstallSourceDownloadedArchive nornicDBInstallSourceKind = "downloaded-archive"
-	nornicDBInstallSourceDownloadedPackage nornicDBInstallSourceKind = "downloaded-package"
-	nornicDBInstallTimeoutEnv                                        = "ESHU_NORNICDB_INSTALL_TIMEOUT"
+	sourceLocalBinary       installSourceKind = "local-binary"
+	sourceLocalArchive      installSourceKind = "local-archive"
+	sourceLocalPackage      installSourceKind = "local-package"
+	sourceDownloadedBinary  installSourceKind = "downloaded-binary"
+	sourceDownloadedArchive installSourceKind = "downloaded-archive"
+	sourceDownloadedPackage installSourceKind = "downloaded-package"
+	installTimeoutEnv                         = "ESHU_NORNICDB_INSTALL_TIMEOUT"
 )
 
-var graphInstallExpandPackage = func(pkgPath, targetDir string) error {
+var expandPackage = func(pkgPath, targetDir string) error {
 	cmd := exec.Command("pkgutil", "--expand-full", pkgPath, targetDir) // #nosec G204 -- fixed binary "pkgutil"; pkgPath and targetDir are program-managed temp paths constructed by this function
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -41,9 +41,9 @@ var graphInstallExpandPackage = func(pkgPath, targetDir string) error {
 	return nil
 }
 
-type preparedNornicDBInstallSource struct {
+type preparedInstallSource struct {
 	SourcePath      string
-	SourceKind      nornicDBInstallSourceKind
+	SourceKind      installSourceKind
 	SourceSHA256    string
 	LocalBinaryPath string
 	BinarySHA256    string
@@ -52,39 +52,39 @@ type preparedNornicDBInstallSource struct {
 	cleanup         func() error
 }
 
-func (s preparedNornicDBInstallSource) Close() error {
+func (s preparedInstallSource) Close() error {
 	if s.cleanup == nil {
 		return nil
 	}
 	return s.cleanup()
 }
 
-func prepareNornicDBInstallSource(ctx context.Context, sourceRef string) (preparedNornicDBInstallSource, error) {
+func prepareInstallSource(ctx context.Context, sourceRef string, readVersion VersionReader) (preparedInstallSource, error) {
 	sourceRef = strings.TrimSpace(sourceRef)
-	localPath, kind, cleanup, err := materializeNornicDBInstallSource(ctx, sourceRef)
+	localPath, kind, cleanup, err := materializeInstallSource(ctx, sourceRef)
 	if err != nil {
-		return preparedNornicDBInstallSource{}, err
+		return preparedInstallSource{}, err
 	}
 
 	sourceSHA, err := sha256File(localPath)
 	if err != nil {
 		_ = cleanup()
-		return preparedNornicDBInstallSource{}, err
+		return preparedInstallSource{}, err
 	}
 
-	prepared, err := inspectNornicDBInstallSource(sourceRef, localPath, kind)
+	prepared, err := inspectInstallSource(sourceRef, localPath, kind, readVersion)
 	if err != nil {
 		_ = cleanup()
-		return preparedNornicDBInstallSource{}, err
+		return preparedInstallSource{}, err
 	}
 	prepared.SourceSHA256 = sourceSHA
-	prepared.cleanup = combineNornicDBInstallCleanups(prepared.cleanup, cleanup)
+	prepared.cleanup = combineInstallCleanups(prepared.cleanup, cleanup)
 	return prepared, nil
 }
 
-// combineNornicDBInstallCleanups preserves independent source and extraction
-// cleanup callbacks so archive/package installs do not leak temporary trees.
-func combineNornicDBInstallCleanups(cleanups ...func() error) func() error {
+// combineInstallCleanups preserves independent source and extraction cleanup
+// callbacks so archive/package installs do not leak temporary trees.
+func combineInstallCleanups(cleanups ...func() error) func() error {
 	return func() error {
 		var errs []error
 		for _, cleanup := range cleanups {
@@ -99,18 +99,18 @@ func combineNornicDBInstallCleanups(cleanups ...func() error) func() error {
 	}
 }
 
-func materializeNornicDBInstallSource(ctx context.Context, sourceRef string) (string, nornicDBInstallSourceKind, func() error, error) {
+func materializeInstallSource(ctx context.Context, sourceRef string) (string, installSourceKind, func() error, error) {
 	parsed, err := url.Parse(sourceRef)
 	if err == nil && parsed.Scheme != "" && parsed.Scheme != "file" {
-		path, err := downloadNornicDBInstallSource(ctx, sourceRef)
+		path, err := downloadInstallSource(ctx, sourceRef)
 		if err != nil {
 			return "", "", nil, err
 		}
-		kind := nornicDBInstallSourceDownloadedBinary
-		if looksLikeNornicDBArchive(sourceRef) {
-			kind = nornicDBInstallSourceDownloadedArchive
-		} else if looksLikeNornicDBPackage(sourceRef) {
-			kind = nornicDBInstallSourceDownloadedPackage
+		kind := sourceDownloadedBinary
+		if looksLikeArchive(sourceRef) {
+			kind = sourceDownloadedArchive
+		} else if looksLikePackage(sourceRef) {
+			kind = sourceDownloadedPackage
 		}
 		return path, kind, func() error { return os.RemoveAll(filepath.Dir(path)) }, nil
 	}
@@ -130,90 +130,90 @@ func materializeNornicDBInstallSource(ctx context.Context, sourceRef string) (st
 	if info.IsDir() {
 		return "", "", nil, fmt.Errorf("nornicdb source path %q is a directory; pass the binary or tarball path", path)
 	}
-	kind := nornicDBInstallSourceLocalBinary
-	if looksLikeNornicDBArchive(path) {
-		kind = nornicDBInstallSourceLocalArchive
-	} else if looksLikeNornicDBPackage(path) {
-		kind = nornicDBInstallSourceLocalPackage
+	kind := sourceLocalBinary
+	if looksLikeArchive(path) {
+		kind = sourceLocalArchive
+	} else if looksLikePackage(path) {
+		kind = sourceLocalPackage
 	}
 	return path, kind, func() error { return nil }, nil
 }
 
-func inspectNornicDBInstallSource(sourceRef, localPath string, kind nornicDBInstallSourceKind) (preparedNornicDBInstallSource, error) {
+func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, readVersion VersionReader) (preparedInstallSource, error) {
 	switch kind {
-	case nornicDBInstallSourceLocalArchive, nornicDBInstallSourceDownloadedArchive:
-		extractedBinary, extractedName, cleanup, err := extractNornicDBBinaryFromArchive(localPath)
+	case sourceLocalArchive, sourceDownloadedArchive:
+		extractedBinary, extractedName, cleanup, err := extractBinaryFromArchive(localPath)
 		if err != nil {
-			return preparedNornicDBInstallSource{}, err
+			return preparedInstallSource{}, err
 		}
-		version, err := localGraphReadVersion(extractedBinary)
+		version, err := readVersion(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedNornicDBInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
 		}
 		binarySHA, err := sha256File(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedNornicDBInstallSource{}, err
+			return preparedInstallSource{}, err
 		}
-		return preparedNornicDBInstallSource{
+		return preparedInstallSource{
 			SourcePath:      sourceRef,
 			SourceKind:      kind,
 			LocalBinaryPath: extractedBinary,
 			BinarySHA256:    binarySHA,
 			Version:         version,
-			Headless:        filepath.Base(extractedName) == managedNornicDBBinaryName,
+			Headless:        filepath.Base(extractedName) == managedBinaryName,
 			cleanup:         cleanup,
 		}, nil
-	case nornicDBInstallSourceLocalPackage, nornicDBInstallSourceDownloadedPackage:
-		extractedBinary, extractedName, cleanup, err := extractNornicDBBinaryFromPackage(localPath)
+	case sourceLocalPackage, sourceDownloadedPackage:
+		extractedBinary, extractedName, cleanup, err := extractBinaryFromPackage(localPath)
 		if err != nil {
-			return preparedNornicDBInstallSource{}, err
+			return preparedInstallSource{}, err
 		}
-		version, err := localGraphReadVersion(extractedBinary)
+		version, err := readVersion(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedNornicDBInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
 		}
 		binarySHA, err := sha256File(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedNornicDBInstallSource{}, err
+			return preparedInstallSource{}, err
 		}
-		return preparedNornicDBInstallSource{
+		return preparedInstallSource{
 			SourcePath:      sourceRef,
 			SourceKind:      kind,
 			LocalBinaryPath: extractedBinary,
 			BinarySHA256:    binarySHA,
 			Version:         version,
-			Headless:        filepath.Base(extractedName) == managedNornicDBBinaryName,
+			Headless:        filepath.Base(extractedName) == managedBinaryName,
 			cleanup:         cleanup,
 		}, nil
 	default:
-		version, err := localGraphReadVersion(localPath)
+		version, err := readVersion(localPath)
 		if err != nil {
-			return preparedNornicDBInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
 		}
 		binarySHA, err := sha256File(localPath)
 		if err != nil {
-			return preparedNornicDBInstallSource{}, err
+			return preparedInstallSource{}, err
 		}
-		return preparedNornicDBInstallSource{
+		return preparedInstallSource{
 			SourcePath:      localPath,
 			SourceKind:      kind,
 			LocalBinaryPath: localPath,
 			BinarySHA256:    binarySHA,
 			Version:         version,
-			Headless:        filepath.Base(localPath) == managedNornicDBBinaryName,
+			Headless:        filepath.Base(localPath) == managedBinaryName,
 		}, nil
 	}
 }
 
-func downloadNornicDBInstallSource(ctx context.Context, sourceURL string) (string, error) {
+func downloadInstallSource(ctx context.Context, sourceURL string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	timeout, err := nornicDBInstallDownloadTimeout()
+	timeout, err := installDownloadTimeout()
 	if err != nil {
 		return "", err
 	}
@@ -259,23 +259,23 @@ func downloadNornicDBInstallSource(ctx context.Context, sourceURL string) (strin
 	return targetPath, nil
 }
 
-func nornicDBInstallDownloadTimeout() (time.Duration, error) {
-	raw := strings.TrimSpace(os.Getenv(nornicDBInstallTimeoutEnv))
+func installDownloadTimeout() (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv(installTimeoutEnv))
 	if raw == "" {
 		return 30 * time.Second, nil
 	}
 	timeout, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("parse %s=%q: %w", nornicDBInstallTimeoutEnv, raw, err)
+		return 0, fmt.Errorf("parse %s=%q: %w", installTimeoutEnv, raw, err)
 	}
 	if timeout <= 0 {
-		return 0, fmt.Errorf("parse %s=%q: must be greater than zero", nornicDBInstallTimeoutEnv, raw)
+		return 0, fmt.Errorf("parse %s=%q: must be greater than zero", installTimeoutEnv, raw)
 	}
 	return timeout, nil
 }
 
-func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func() error, error) {
-	file, err := os.Open(archivePath) // #nosec G304 -- archivePath is a program-managed temp file path created by downloadNornicDBSource, not user-supplied input
+func extractBinaryFromArchive(archivePath string) (string, string, func() error, error) {
+	file, err := os.Open(archivePath) // #nosec G304 -- archivePath is a program-managed temp file path created by downloadInstallSource, not user-supplied input
 	if err != nil {
 		return "", "", nil, fmt.Errorf("open nornicdb archive %q: %w", archivePath, err)
 	}
@@ -320,7 +320,7 @@ func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func(
 			continue
 		}
 		name := filepath.Base(header.Name)
-		if name != managedNornicDBBinaryName && name != "nornicdb" {
+		if name != managedBinaryName && name != "nornicdb" {
 			continue
 		}
 		targetPath := filepath.Join(tempDir, name)
@@ -341,7 +341,7 @@ func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func(
 		}
 		extractedPath = targetPath
 		extractedName = name
-		if name == managedNornicDBBinaryName {
+		if name == managedBinaryName {
 			break
 		}
 	}
@@ -352,7 +352,7 @@ func extractNornicDBBinaryFromArchive(archivePath string) (string, string, func(
 	return extractedPath, extractedName, func() error { return os.RemoveAll(tempDir) }, nil
 }
 
-func extractNornicDBBinaryFromPackage(packagePath string) (string, string, func() error, error) {
+func extractBinaryFromPackage(packagePath string) (string, string, func() error, error) {
 	if runtime.GOOS != "darwin" {
 		return "", "", nil, fmt.Errorf("nornicdb package sources are only supported on darwin today")
 	}
@@ -361,7 +361,7 @@ func extractNornicDBBinaryFromPackage(packagePath string) (string, string, func(
 		return "", "", nil, fmt.Errorf("create package extraction directory: %w", err)
 	}
 	expandedDir := filepath.Join(tempDir, "expanded")
-	if err := graphInstallExpandPackage(packagePath, expandedDir); err != nil {
+	if err := expandPackage(packagePath, expandedDir); err != nil {
 		_ = os.RemoveAll(tempDir)
 		return "", "", nil, err
 	}
@@ -375,7 +375,7 @@ func extractNornicDBBinaryFromPackage(packagePath string) (string, string, func(
 	var chosen string
 	for _, candidate := range candidates {
 		name := filepath.Base(candidate)
-		if name == managedNornicDBBinaryName {
+		if name == managedBinaryName {
 			chosen = candidate
 			break
 		}
@@ -390,11 +390,11 @@ func extractNornicDBBinaryFromPackage(packagePath string) (string, string, func(
 	return chosen, filepath.Base(chosen), func() error { return os.RemoveAll(tempDir) }, nil
 }
 
-func looksLikeNornicDBArchive(path string) bool {
+func looksLikeArchive(path string) bool {
 	lower := strings.ToLower(path)
 	return strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar")
 }
 
-func looksLikeNornicDBPackage(path string) bool {
+func looksLikePackage(path string) bool {
 	return strings.HasSuffix(strings.ToLower(path), ".pkg")
 }
