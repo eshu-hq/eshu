@@ -6,3 +6,5 @@
   copied flag allowlist.
 - Keep baseline updates deterministic and burn-down-only. The `-update` path
   must reject new debt before rewriting the baseline.
+- Treat `scripts/docs-cli-env-refs-ceiling.txt` as the frozen #6023 initial
+  debt set. Never regenerate it from the current docs or mutable baseline.

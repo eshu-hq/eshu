@@ -123,7 +123,9 @@ concrete `ESHU_*` tokens and command-specific long flags in conservative
 fenced `eshu` shell commands. It uses `internal/envregistry` and a real built
 Eshu CLI rather than copied allowlists. The companion mutation harness is
 `test-verify-docs-cli-env-refs.sh`; known legacy environment debt is grouped
-by page in `docs-cli-env-refs-baseline.txt`.
+by page in `docs-cli-env-refs-baseline.txt`. The immutable membership authority
+is `docs-cli-env-refs-ceiling.txt`; the mutable baseline may only shrink within
+that frozen #6023 set.
 
 `verify-okta-saml-live-proof.sh` turns an operator-local Okta SAML proof
 manifest into public-safe JSON and markdown summaries. The manifest can name

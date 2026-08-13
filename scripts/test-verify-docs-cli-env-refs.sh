@@ -40,8 +40,10 @@ run_verifier() {
   local baseline="$2"
   local out="$3"
   shift 3
+  local ceiling="${ESHU_TEST_BASELINE_CEILING_PATH:-${baseline}}"
   ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
     ESHU_DOCS_CLI_ENV_BASELINE_PATH="${baseline}" \
+    ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH="${ceiling}" \
     ESHU_DOCS_CLI_ENV_ESHU_BINARY="${tmp_root}/eshu" \
     ESHU_DOCS_CLI_ENV_CHECKER_BINARY="${tmp_root}/docs-cli-env-refs" \
     ESHU_DOCS_CLI_ENV_GOCACHE="${tmp_root}/gocache-checker" \
@@ -113,6 +115,15 @@ test_hostile_command_and_markdown_forms_fail() {
     '```bash' \
     'eshu docs verify "--quoted-value-invalid=two words"' \
     '```'
+  write_doc "${root}" "unmatched-quote.md" \
+    '```bash' \
+    'eshu docs verify --before-unmatched-invalid "unterminated' \
+    '```'
+  write_doc "${root}" "quoted-hash.md" \
+    '```bash' \
+    'eshu docs verify "#literal" --after-quoted-hash-invalid' \
+    'eshu docs verify \#literal --after-escaped-hash-invalid' \
+    '```'
   write_doc "${root}" "nested-fence.md" \
     '1. Nested example:' \
     '    ```bash' \
@@ -157,6 +168,8 @@ test_hostile_command_and_markdown_forms_fail() {
   assert_contains "unknown-command.md" "${out}" "unknown command is rejected"
   assert_contains "quoted-flag.md" "${out}" "quoted long flag is checked"
   assert_contains "quoted-flag-value.md" "${out}" "quoted long flag value with whitespace is checked"
+  assert_contains "unmatched-quote.md" "${out}" "unmatched quote does not hide an earlier flag"
+  assert_contains "quoted-hash.md" "${out}" "quoted or escaped hash does not hide a later flag"
   assert_contains "nested-fence.md" "${out}" "nested shell fence is checked"
   assert_contains "fence-close.md" "${out}" "closing fence suffix does not hide flags"
   assert_contains "fence-close-nbsp.md" "${out}" "non-ASCII fence suffix does not hide flags"
@@ -260,6 +273,23 @@ test_malformed_baseline_fails_closed() {
   assert_contains "malformed" "${out}" "malformed baseline diagnostic is explicit"
 }
 
+test_atomic_baseline_growth_fails() {
+  local root="${tmp_root}/atomic-growth/docs/public"
+  local baseline="${tmp_root}/atomic-growth/baseline.txt"
+  local ceiling="${tmp_root}/atomic-growth/ceiling.txt"
+  local out="${tmp_root}/atomic-growth.out"
+  write_doc "${root}" "guide.md" 'Use `ESHU_ATOMIC_NEW_DEBT`.'
+  mkdir -p "$(dirname "${baseline}")"
+  printf 'env guide.md ESHU_ATOMIC_NEW_DEBT\n' >"${baseline}"
+  : >"${ceiling}"
+  if ESHU_TEST_BASELINE_CEILING_PATH="${ceiling}" run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "atomic docs and baseline debt addition fails"
+  else
+    record_pass "atomic docs and baseline debt addition fails"
+  fi
+  assert_contains "ESHU_ATOMIC_NEW_DEBT" "${out}" "atomic baseline growth diagnostic names new debt"
+}
+
 test_real_tree_matches_committed_baseline() {
   local baseline="${repo_root}/scripts/docs-cli-env-refs-baseline.txt"
   local out="${tmp_root}/real-tree.out"
@@ -288,6 +318,7 @@ test_hostile_command_and_markdown_forms_fail
 test_precision_exclusions_pass
 test_baseline_and_update_are_burn_down_safe
 test_malformed_baseline_fails_closed
+test_atomic_baseline_growth_fails
 test_real_tree_matches_committed_baseline
 
 if [[ "${FAIL}" -ne 0 ]]; then

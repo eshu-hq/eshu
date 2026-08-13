@@ -13,6 +13,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 docs_root="${ESHU_DOCS_CLI_ENV_DOCS_ROOT:-${repo_root}/docs/public}"
 baseline="${ESHU_DOCS_CLI_ENV_BASELINE_PATH:-${repo_root}/scripts/docs-cli-env-refs-baseline.txt}"
+ceiling="${ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cli-env-refs-ceiling.txt}"
 gocache="${ESHU_DOCS_CLI_ENV_GOCACHE:-${repo_root}/.gocache-docs-cli-env-refs}"
 eshu_binary="${ESHU_DOCS_CLI_ENV_ESHU_BINARY:-}"
 checker_binary="${ESHU_DOCS_CLI_ENV_CHECKER_BINARY:-}"
@@ -44,6 +45,7 @@ fi
 args=(
   -docs-root "${docs_root}"
   -baseline "${baseline}"
+  -baseline-ceiling "${ceiling}"
   -eshu "${eshu_binary}"
 )
 if [[ "${update}" == true ]]; then

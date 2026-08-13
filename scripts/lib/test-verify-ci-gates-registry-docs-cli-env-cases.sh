@@ -12,7 +12,7 @@ check_docs_cli_env_refs_trigger_parity() {
   workflow_filter="$(sed -n '/^[[:space:]]*docsclienvrefs:/,/^[[:space:]]*[a-z][a-z0-9]*:/p' "${static_contract_workflow}")"
   [[ -n "${workflow_filter}" ]] || fail "missing docsclienvrefs workflow filter"
 
-  for input in 'docs/public/**' 'go/cmd/eshu/**' 'go/internal/envregistry/**' 'go/cmd/docs-cli-env-refs/**' 'scripts/verify-docs-cli-env-refs.sh' 'scripts/test-verify-docs-cli-env-refs.sh' 'scripts/docs-cli-env-refs-baseline.txt' 'specs/ci-gates.v1.yaml'; do
+  for input in 'docs/public/**' 'go/cmd/eshu/**' 'go/internal/envregistry/**' 'go/cmd/docs-cli-env-refs/**' 'scripts/verify-docs-cli-env-refs.sh' 'scripts/test-verify-docs-cli-env-refs.sh' 'scripts/docs-cli-env-refs-baseline.txt' 'scripts/docs-cli-env-refs-ceiling.txt' 'specs/ci-gates.v1.yaml'; do
     require_path_line "${gate}" "${input}" "docs-cli-env-refs registry triggers omit ${input}"
     printf '%s\n' "${workflow_filter}" |
       rg --fixed-strings --line-regexp --quiet "              - '${input}'" ||

@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ const defaultCLITimeout = 2 * time.Minute
 type options struct {
 	docsRoot string
 	baseline string
+	ceiling  string
 	eshu     string
 	update   bool
 }
@@ -42,6 +44,7 @@ func run(ctx context.Context, args []string) error {
 	flags.SetOutput(os.Stderr)
 	flags.StringVar(&opts.docsRoot, "docs-root", "../docs/public", "public Markdown root")
 	flags.StringVar(&opts.baseline, "baseline", "../scripts/docs-cli-env-refs-baseline.txt", "burn-down baseline")
+	flags.StringVar(&opts.ceiling, "baseline-ceiling", "../scripts/docs-cli-env-refs-ceiling.txt", "frozen initial-debt ceiling")
 	flags.StringVar(&opts.eshu, "eshu", "", "built Eshu CLI binary")
 	flags.BoolVar(&opts.update, "update", false, "regenerate the baseline")
 	if err := flags.Parse(args); err != nil {
@@ -65,11 +68,18 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	unresolved := unresolvedReferences(refs, knownFlags)
+	baseline, err := readBaseline(opts.baseline)
+	if err != nil {
+		return err
+	}
+	ceiling, err := readBaseline(opts.ceiling)
+	if err != nil {
+		return fmt.Errorf("read baseline ceiling: %w", err)
+	}
+	if err := validateBaselineMembership(baseline, ceiling); err != nil {
+		return err
+	}
 	if opts.update {
-		baseline, err := readBaseline(opts.baseline)
-		if err != nil {
-			return err
-		}
 		if err := validateBaselineUpdate(unresolved, baseline); err != nil {
 			return err
 		}
@@ -78,10 +88,6 @@ func run(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintf(os.Stderr, "docs-cli-env-refs: baseline updated: %d unresolved reference(s)\n", len(unresolved))
 		return nil
-	}
-	baseline, err := readBaseline(opts.baseline)
-	if err != nil {
-		return err
 	}
 	newRefs := difference(unresolved, baseline)
 	if len(newRefs) > 0 {
@@ -92,6 +98,20 @@ func run(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: OK: %d reference(s) checked, %d unresolved reference(s) baselined\n", len(refs), len(unresolved))
 	return nil
+}
+
+func validateBaselineMembership(baseline map[string]struct{}, ceiling map[string]struct{}) error {
+	added := make([]string, 0)
+	for key := range baseline {
+		if _, ok := ceiling[key]; !ok {
+			added = append(added, strings.ReplaceAll(key, "\x00", ":"))
+		}
+	}
+	if len(added) == 0 {
+		return nil
+	}
+	sort.Strings(added)
+	return fmt.Errorf("baseline contains %d reference(s) outside the frozen initial-debt ceiling: %s", len(added), strings.Join(added, ", "))
 }
 
 func validateBaselineUpdate(unresolved []reference, baseline map[string]struct{}) error {

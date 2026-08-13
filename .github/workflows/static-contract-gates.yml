@@ -242,6 +242,7 @@ jobs:
               - 'scripts/verify-docs-cli-env-refs.sh'
               - 'scripts/test-verify-docs-cli-env-refs.sh'
               - 'scripts/docs-cli-env-refs-baseline.txt'
+              - 'scripts/docs-cli-env-refs-ceiling.txt'
             querydoccommitrefs:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

@@ -1123,6 +1123,7 @@ gates:
       - "scripts/verify-docs-cli-env-refs.sh"
       - "scripts/test-verify-docs-cli-env-refs.sh"
       - "scripts/docs-cli-env-refs-baseline.txt"
+      - "scripts/docs-cli-env-refs-ceiling.txt"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-docs-cli-env-refs.sh"

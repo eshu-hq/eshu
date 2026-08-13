@@ -116,6 +116,35 @@ func TestFlagsFromEshuCommandKeepsQuotedFlagValuesWithWhitespace(t *testing.T) {
 	}
 }
 
+func TestFlagsFromEshuCommandKeepsFlagsBeforeUnmatchedQuote(t *testing.T) {
+	t.Parallel()
+
+	command, flags := flagsFromEshuCommand(`eshu docs verify --not-a-real-flag "unterminated`)
+	if command != "docs/verify" {
+		t.Fatalf("flagsFromEshuCommand() command = %q, want docs/verify", command)
+	}
+	if want := []string{"--not-a-real-flag"}; !reflect.DeepEqual(flags, want) {
+		t.Fatalf("flagsFromEshuCommand() flags = %#v, want %#v", flags, want)
+	}
+}
+
+func TestFlagsFromEshuCommandDoesNotTreatQuotedOrEscapedHashAsComment(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []string{
+		`eshu docs verify "#literal" --not-a-real-flag`,
+		`eshu docs verify \#literal --not-a-real-flag`,
+	} {
+		command, flags := flagsFromEshuCommand(line)
+		if !strings.HasPrefix(command, "docs/verify/") {
+			t.Fatalf("flagsFromEshuCommand(%q) command = %q, want docs/verify positional suffix", line, command)
+		}
+		if want := []string{"--not-a-real-flag"}; !reflect.DeepEqual(flags, want) {
+			t.Fatalf("flagsFromEshuCommand(%q) flags = %#v, want %#v", line, flags, want)
+		}
+	}
+}
+
 func TestScanMarkdownFindsQuotedFlagsInNestedShellFences(t *testing.T) {
 	t.Parallel()
 
@@ -268,5 +297,25 @@ func TestBaselineUpdateRejectsNewDebt(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--new-debt") {
 		t.Fatalf("validateBaselineUpdate() error = %q, want new reference named", err)
+	}
+}
+
+func TestBaselineMembershipRejectsAtomicDebtAddition(t *testing.T) {
+	t.Parallel()
+
+	frozen := map[string]struct{}{
+		referenceKey(reference{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_OLD_DEBT"}): {},
+	}
+	current := map[string]struct{}{
+		referenceKey(reference{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_OLD_DEBT"}):        {},
+		referenceKey(reference{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_ATOMIC_NEW_DEBT"}): {},
+	}
+
+	err := validateBaselineMembership(current, frozen)
+	if err == nil {
+		t.Fatal("validateBaselineMembership() error = nil, want atomic debt rejection")
+	}
+	if !strings.Contains(err.Error(), "ESHU_ATOMIC_NEW_DEBT") {
+		t.Fatalf("validateBaselineMembership() error = %q, want new debt named", err)
 	}
 }

@@ -140,10 +140,7 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	if containsUnquotedShellListOperator(line) {
 		return "", nil
 	}
-	fields, ok := splitShellFields(strings.TrimSpace(line))
-	if !ok {
-		return "", nil
-	}
+	fields := splitShellFields(strings.TrimSpace(line))
 	if len(fields) == 0 {
 		return "", nil
 	}
@@ -169,9 +166,6 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	commandFields := []string{}
 	for _, field := range fields[1:] {
 		field = normalizeShellToken(field)
-		if strings.HasPrefix(field, "#") {
-			break
-		}
 		if !strings.HasPrefix(field, "-") && len(seen) == 0 {
 			commandFields = append(commandFields, field)
 		}
@@ -189,7 +183,7 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	return strings.Join(commandFields, "/"), flags
 }
 
-func splitShellFields(line string) ([]string, bool) {
+func splitShellFields(line string) []string {
 	fields := []string{}
 	var token strings.Builder
 	var quote byte
@@ -239,6 +233,9 @@ func splitShellFields(line string) ([]string, bool) {
 			started = true
 			continue
 		}
+		if char == '#' && !started {
+			break
+		}
 		if char == ' ' || char == '\t' {
 			flush()
 			continue
@@ -246,14 +243,11 @@ func splitShellFields(line string) ([]string, bool) {
 		token.WriteByte(char)
 		started = true
 	}
-	if quote != 0 {
-		return nil, false
-	}
 	if escaped {
 		token.WriteByte('\\')
 	}
 	flush()
-	return fields, true
+	return fields
 }
 
 func containsUnquotedShellListOperator(line string) bool {
