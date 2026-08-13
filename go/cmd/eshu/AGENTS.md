@@ -13,6 +13,10 @@
    `indexLookPath`
 5. `go/cmd/eshu/graph.go` — `graph` subcommand tree, `graphStatusOutput`,
    `graphStatusForLayout`, `runGraphStart`, `runGraphStop`
+6. `go/internal/cli/` — where command logic that is not process wiring lives,
+   because this directory is `package main`. `eshu report`'s digest and
+   artifact logic is in `go/internal/cli/opdigest`; read that package's
+   `AGENTS.md` before changing `operator_digest_cmd.go`.
 
 ## Invariants this package enforces
 

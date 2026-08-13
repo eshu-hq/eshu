@@ -15,6 +15,14 @@ orchestration. It does not own service runtime internals:
 `eshu graph start` owns the local-authoritative supervisor and discovers
 `eshu-reducer` and `eshu-ingester` via `PATH`.
 
+Command logic that is not process wiring is moving out into `go/internal/cli/*`
+under epic #6053, because this directory is `package main`, so nothing can
+import it: logic that has to be shared or unit-tested from outside has to live
+outside it. `eshu report` is one of those: `operator_digest_cmd.go` here reads
+the flags, prints, and maps errors to exit codes, while the digest model, the
+artifact wrapper, and the share-safe scope rules live in
+`go/internal/cli/opdigest`.
+
 ## Entry points
 
 - `main` in `go/cmd/eshu/main.go` (delegates to `rootCmd.Execute`)
@@ -66,8 +74,9 @@ orchestration. It does not own service runtime internals:
     status routes (`evidence_bundle_cmd.go`, `evidence_bundle_live.go`); `competitive-parity validate` runs the #3265 gate (`competitive_parity_cmd.go`); `report` renders the deterministic offline `operator_digest.v1` model for an explicit share-safe scope and can
     write a shareable `operator_digest_artifact.v1` JSON wrapper, with
     unsupported sections and fixed-template follow-up questions until live
-    bounded read surfaces are connected (`operator_digest_cmd.go`,
-    `operator_digest_artifact.go`)
+    bounded read surfaces are connected. `operator_digest_cmd.go` is the cobra
+    wrapper only; the digest model, the artifact wrapper, and the share-safe
+    scope rules live in `go/internal/cli/opdigest`
   - assistant guidance: `assistant install|status|uninstall` manages
     project-scoped Claude, Codex, and Cursor instruction files through a
     delimited managed block. `assistant install --verify` and
@@ -223,8 +232,15 @@ No-Observability-Change: operator digest rendering validates explicit
 share-safe inputs and projects offline artifacts without runtime, provider,
 datastore, graph-write, or reducer-claim side effects.
 
-No-Regression Evidence: operator digest CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestOperatorDigest' -count=1`.
+No-Regression Evidence: operator digest behavior needs two commands, because
+the model, artifact, and scope-validation logic now lives in
+`go/internal/cli/opdigest` and this command is the cobra wrapper around it.
+Counts below are test functions, not test cases:
+`go test ./cmd/eshu -run 'TestOperatorDigest' -count=1` covers the wrapper (6
+tests, no subtests); `go test ./internal/cli/opdigest -count=1` covers the
+logic it calls (14 tests, 19 including subtests). The first pattern alone
+stopped reaching scope validation, question-limit truncation, text-render
+content, and the artifact write path when those moved.
 
 No-Observability-Change: `change impact` and `change plan` only derive local
 caller-supplied changed-file metadata, build bounded HTTP requests, and render
