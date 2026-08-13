@@ -14,13 +14,37 @@ read durable fact records itself — callers supply an already-resolved
   `collector.ValidateShareSafeKeys` (`sdk/go/collector`). Never add a second,
   local sensitive-key heuristic — reuse the SDK export so the redactor and the
   fail-closed gate can never disagree.
-- Redaction is scoped by PROVENANCE DOMAIN, not by arrival path. Two domains:
+- Redaction is scoped by PROVENANCE DOMAIN, not by arrival path. Three domains:
   - **Reporter-typed query input** — `Query.Target`, all of `Query.Params`,
     and `Response.Error.Details` (which echoes the caller's own selector back).
     These get the key-name walk PLUS the `embeddedSensitiveKey` structural
     re-parse, at any depth, via `redactQueryInput`.
+  - **Reporter-typed free text** — `ReporterNote`, via `redactReporterNote`.
+    Scanned line by line for a sensitive-named key beside `=` or `:`. It is a
+    separate function from `embeddedSensitiveKey` on purpose: that one splits on
+    query separators and skips any candidate key containing whitespace, which is
+    right for a parsed parameter and wrong for prose.
   - **Server-produced evidence** — `Response.Data`, `Response.Truth`. Key-name
     walk only, via `redactValue`.
+- The note scan covers BOTH the `key=value` and the `key: value` header form. Do
+  not drop the header half as redundant: a pasted `curl` carries the same token
+  twice, once in `-H 'Authorization: …'` and once in `?api_key=…`, so covering
+  only one strips a copy and ships a copy while `redaction.rules` claims a
+  redaction happened. The header removal runs to END OF LINE because an HTTP
+  header value may contain spaces; over-removal is the side to err on.
+- The note scan REPLACES the matched span and keeps the rest of the note. Do not
+  "simplify" it to dropping the whole field: the note is the reporter's own
+  description and a repro with the secret cut out is still a repro. Do not go the
+  other way either and mask in place — the marker must contain no `=` and no `:`,
+  or the cleaned note is re-found on the next pass and `Capture`, which runs
+  `Validate` over its own output, refuses to emit any bundle it ever redacted.
+  `TestRedactReporterNote` asserts that fixed point per case.
+- `reporter_note` was NOT an overlooked field. The plan
+  (`docs/internal/design/4595-wrong-answer-report-capture-plan.md:203`)
+  annotates it "key-name walked like everything else", which a bare string
+  cannot be — it has no key names, and `reporter_note` matches nothing in the
+  sensitive pattern. Treat any "covered by the general rule" annotation on a
+  scalar field as unproven until a test plants a sentinel in it.
 - Structural re-parsing is the DEFAULT for any new free-string field in the
   Query section. `embeddedSensitiveKey` re-parses a value that is itself shaped
   like a query string back into `key=value` pairs and asks the SDK predicate
@@ -81,7 +105,17 @@ read durable fact records itself — callers supply an already-resolved
   `Validate`'s checks — `TestCapture_RedactionCanary`
   (`redaction_canary_test.go`) for what reaches the serialized bundle, and the
   full-egress canary (`redaction_egress_test.go`) for what reaches ANY package
-  output, errors included. A new query-input field or a new error return needs
-  its own planted sentinel in the egress canary.
+  output, errors included. A new reporter-typed field or a new error return needs
+  its own planted sentinel in the egress canary, and
+  `TestReporterInputPlacementSymmetry` needs a placement row: the same bytes in
+  two reporter-typed fields must get the same verdict, which is exactly what
+  `reporter_note` failed before this scan existed.
+- Every canary sentinel today is planted in a VALUE. A credential can also
+  arrive as a KEY — `url.ParseQuery` percent-decodes names, so
+  `?api_key%3Dsk-live-X` yields a parameter named `api_key=sk-live-X`, which
+  `Capture` drops and copies raw into `Redaction.Rules` and which the share-safe
+  gate quotes back in `Validate`'s error. Measured, open, and reproduced in the
+  header comment of `redaction_egress_test.go`. Plant a key sentinel as part of
+  that fix; adding one before it only makes the suite red.
 - Keep this package under the 500-line-per-file cap; split before a file
   approaches it.

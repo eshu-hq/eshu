@@ -15,13 +15,22 @@
 // # Redaction domains
 //
 // Redaction is scoped by where a value came from, not by how it reached the
-// bundle. Reporter-typed query input — Query.Target, all of Query.Params, and
-// Response.Error.Details, which echoes the caller's own selector back — gets
-// the sensitive-key-name walk plus a structural re-parse of any
-// query-string-shaped value at any depth (redactQueryInput). Server-produced
-// evidence — Response.Data and Response.Truth — gets the key-name walk only,
-// because judging its content would strip the answer the bundle exists to
-// carry; see the package README for what that exemption costs.
+// bundle. Reporter-typed input covers Query.Target, all of Query.Params,
+// Response.Error.Details (which echoes the caller's own selector back), and
+// ReporterNote. The first three are structured, so they get the
+// sensitive-key-name walk plus a re-parse of any query-string-shaped value at
+// any depth (redactQueryInput). ReporterNote is free text — the guide asks
+// reporters for a repro, so it commonly holds a pasted curl — and gets a
+// line-by-line scan for a sensitive-named key beside an "=" or a ":"
+// (redactReporterNote). Server-produced evidence — Response.Data and
+// Response.Truth — gets the key-name walk only, because judging its content
+// would strip the answer the bundle exists to carry; see the package README for
+// what that exemption costs.
+//
+// Every one of these rules asks the same question: is there a KEY NAME here
+// that collector.IsSensitiveKeyName flags. What differs between them is where
+// key names are looked for. None of them judges what a value looks like, and no
+// secret-pattern or entropy heuristic belongs in any of them.
 //
 // # Error rule
 //

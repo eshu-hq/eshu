@@ -194,3 +194,94 @@ func TestEmbeddedSensitiveKey(t *testing.T) {
 		})
 	}
 }
+
+// TestRedactReporterNote is the shape-by-shape table for the free-text scan,
+// and the "kept" rows are the honest half: they say what a reporter can paste
+// into --note that this will not find. The scan looks for a credential-shaped
+// KEY beside a separator, so a bare secret sitting in prose passes straight
+// through, and no entropy or secret-pattern guess is made about it.
+//
+// Every row also asserts idempotency. That is not a nicety: Capture writes the
+// cleaned note into the bundle and Validate runs this same function over it
+// again, so a marker that re-triggered the scan would make Capture emit a bundle
+// its own validator rejects.
+func TestRedactReporterNote(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		note string
+		want string
+	}{
+		{
+			name: "url form keeps the rest of the command",
+			note: "curl 'https://h/x?repo=demo&api_key=sk-live-abc'",
+			want: "curl 'https://h/x?repo=demo&[redacted]'",
+		},
+		{
+			name: "two pairs on one line are both removed",
+			note: "GET /x?access_token=abc&page=2&api_key=def",
+			want: "GET /x?[redacted]&page=2&[redacted]",
+		},
+		{
+			name: "header form runs to end of line because a header value may contain spaces",
+			note: "curl -H 'Authorization: Bearer sk-live-abc' https://h/x",
+			want: "curl -H '[redacted]",
+		},
+		{
+			name: "hyphenated header name",
+			note: "  -H \"X-Api-Key: sk-live-abc\"",
+			want: "  -H \"[redacted]",
+		},
+		{
+			name: "json pasted into the note",
+			note: `--params '{"api_key":"sk-live-abc"}'`,
+			want: "--params '{\"[redacted]",
+		},
+		{
+			name: "quoted value after an equals keeps its closing quote",
+			note: `--data 'api_key="sk-live-abc"'`,
+			want: `--data '[redacted]"'`,
+		},
+		{
+			name: "only the offending line is touched",
+			note: "expected the platform team.\nGET /x?api_key=sk-live-abc\nsame on a retry.",
+			want: "expected the platform team.\nGET /x?[redacted]\nsame on a retry.",
+		},
+
+		{name: "prose with no pair is kept", note: "expected the platform team as owner, got []", want: "expected the platform team as owner, got []"},
+		{name: "benign query in prose is kept", note: "tried GET /x?repo=demo&page=2 as well", want: "tried GET /x?repo=demo&page=2 as well"},
+		{name: "purl qualifiers are kept", note: "pkg:deb/debian/openssl@3.0.11-1?arch=amd64&distro=debian-12", want: "pkg:deb/debian/openssl@3.0.11-1?arch=amd64&distro=debian-12"},
+		{name: "a url scheme colon is not a header", note: "see https://eshu.example/api/v0/x", want: "see https://eshu.example/api/v0/x"},
+		{name: "empty note is kept", note: "", want: ""},
+
+		// Stated limits. Saying the scan finds secrets would be a claim nobody
+		// could check; these rows are what the narrow claim actually excludes.
+		{name: "LIMIT bare secret with no key beside it", note: "I authenticated with sk-live-abc", want: "I authenticated with sk-live-abc"},
+		{name: "LIMIT secret in a path segment", note: "GET /x/sk-live-abc/story", want: "GET /x/sk-live-abc/story"},
+		{name: "LIMIT credential under a name the predicate does not match", note: "GET /x?session=sk-live-abc", want: "GET /x?session=sk-live-abc"},
+		// The cost of covering the header form, stated rather than hidden: a
+		// colon after a credential-shaped word in ordinary prose costs the rest
+		// of that line. Redaction.Rules records that something was removed.
+		{name: "COST prose false positive on the header form", note: "no authorization: the call 403s", want: "no [redacted]"},
+		{name: "COST spaced pair in prose", note: "SELECT token = 1 FROM t", want: "SELECT [redacted] FROM t"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, redacted := redactReporterNote(tt.note)
+			if got != tt.want {
+				t.Fatalf("redactReporterNote(%q) = %q, want %q", tt.note, got, tt.want)
+			}
+			if want := tt.note != tt.want; redacted != want {
+				t.Fatalf("redactReporterNote(%q) redacted = %v, want %v", tt.note, redacted, want)
+			}
+			again, changed := redactReporterNote(got)
+			if changed || again != got {
+				t.Fatalf("redactReporterNote is not idempotent: second pass on %q gave %q (changed=%v)", got, again, changed)
+			}
+		})
+	}
+}

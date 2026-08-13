@@ -239,6 +239,13 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		{"query_inputs", func(b *Bundle) {
 			b.Query.Params = map[string]any{"next": "/api/v0/x?api_key=" + egressExplicitParamSentinel}
 		}},
+		// The note mutation uses the header form, which no other check in this
+		// file exercises: the key=value half would also be caught by a scan that
+		// only reused the query-input pair splitter, so a header-shaped pair is
+		// what proves the free-text scan is really running.
+		{"reporter_note", func(b *Bundle) {
+			b.ReporterNote = "curl -H 'Authorization: Bearer " + egressNoteHeaderSentinel + "'"
+		}},
 		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
 	}
 	for _, tc := range cases {

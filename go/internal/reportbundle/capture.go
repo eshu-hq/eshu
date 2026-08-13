@@ -43,6 +43,11 @@ type CaptureInput struct {
 	// Profile is the query profile in effect at capture time, when known.
 	Profile string
 
+	// ReporterNote is the reporter's own description of what they expected.
+	// Capture scans it — it is reporter-typed input like Params, and the guide
+	// asks for a repro, so it commonly holds a pasted curl. Callers must not
+	// pre-redact it; see redactReporterNote for what the scan does and does not
+	// find.
 	ReporterNote string
 
 	// Envelope is the query.ResponseEnvelope returned by the query. Truth is
@@ -123,7 +128,15 @@ func Capture(input CaptureInput) (Bundle, error) {
 
 	redactedError, errorRules := redactErrorEnvelope(input.Envelope.Error)
 
-	rules := dedupeSorted(append(append(append([]string{}, paramRules...), dataRules...), errorRules...))
+	// The note is reporter-typed input like the parameters above, just free text
+	// rather than a parsed query string — see redactReporterNote.
+	reporterNote, noteRedacted := redactReporterNote(input.ReporterNote)
+	var noteRules []string
+	if noteRedacted {
+		noteRules = []string{reporterNoteRule}
+	}
+
+	rules := dedupeSorted(append(append(append(append([]string{}, paramRules...), dataRules...), errorRules...), noteRules...))
 
 	factRefsState := "unavailable"
 	factRefsReason := input.FactRefsReason
@@ -157,7 +170,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 	bundle := Bundle{
 		SchemaVersion: SchemaVersion,
 		CreatedAt:     nowRFC3339UTC(),
-		ReporterNote:  input.ReporterNote,
+		ReporterNote:  reporterNote,
 		Query: CapturedQuery{
 			Surface: input.Surface,
 			Target:  targetPath,

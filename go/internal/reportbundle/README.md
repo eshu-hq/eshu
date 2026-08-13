@@ -59,6 +59,7 @@ The rule is attached to where the data came from, not to how it arrived:
 | Provenance domain | Fields | Treatment |
 | --- | --- | --- |
 | Reporter-typed query input | `query.target`, all of `query.params`, `response.error.details` | key-name walk **plus** the `embeddedSensitiveKey` structural scan, at any depth; unparseable target fails closed |
+| Reporter-typed free text | `reporter_note` | line-by-line scan for a sensitive-named key beside `=` or `:` (`redactReporterNote`); the matched span is replaced, the rest of the note kept |
 | Server-produced evidence | `response.data`, `response.truth` | key-name walk only |
 
 `Capture` merges the target's query string into `query.params` first and then
@@ -77,6 +78,59 @@ needs a reason recorded next to the exemption, not silence.
 The scan finds a `key=value` shape, not secrets. A bare credential under an
 arbitrary name (`?next=sk-live-...`), a double-encoded nested query, and a
 secret in a path segment all still pass.
+
+#### The note is scanned too, and why it is scanned differently
+
+`reporter_note` used to be assigned verbatim. The bytes
+`next=/api/v0/x?api_key=sk-live` were rejected in `query.target` and accepted in
+`reporter_note` — same text, same person typed it, two verdicts decided by which
+field held it. The plan this package implements annotates the field as "key-name
+walked like everything else"
+(`docs/internal/design/4595-wrong-answer-report-capture-plan.md:203`), which was
+never true of a bare string: there are no key names in it to walk, and
+`reporter_note` matches nothing in the sensitive pattern. So the field was not
+overlooked; it was believed covered by a rule that could not apply to it.
+
+The note is where a pasted `curl` lands, because the reporter guide asks for a
+repro. Two shapes are removed, both structural, both asking
+`collector.IsSensitiveKeyName` about the token beside the separator:
+
+- `key=value` — the URL form. The value is cut at the first whitespace, quote,
+  `?`, `&`, or `;`, so `curl 'https://h/x?repo=demo&api_key=sk-live'` becomes
+  `curl 'https://h/x?repo=demo&[redacted]'`.
+- `key: value` — the header form, `-H 'Authorization: Bearer …'` and
+  `-H 'X-Api-Key: …'`. An HTTP header value may contain spaces, so there is no
+  safe inner boundary and the removal runs to the **end of the line**.
+
+The header form is covered because a pasted `curl` carries the same token
+twice — once in the header, once in the URL — and stripping one copy while
+shipping the other would be worse than doing nothing, since the bundle would
+then claim a redaction happened.
+
+The key is removed along with the value, never masked in place. Leaving
+`Authorization:` standing would be re-found on the next pass, and since `Capture`
+runs `Validate` over its own output, it would then refuse to emit any bundle
+whose note had ever been redacted. Idempotency is asserted per case in
+`TestRedactReporterNote`.
+
+The span is replaced rather than the whole note dropped. The note is the
+reporter's own account of what they expected, and a pasted repro with the secret
+cut out is still the repro — dropping the field would cost a maintainer the most
+useful prose in the bundle on a false positive and a true one alike. Every
+removal adds `reporter_note` to `redaction.rules`, so a shortened note is
+accounted for rather than silent.
+
+What the note scan does **not** find, stated so nobody reads more into it:
+
+- A bare secret with no key beside it (`I authenticated with sk-live-abc`).
+- A secret in a path segment, or under a parameter name the sensitive-key
+  predicate does not match.
+- No entropy or secret-pattern heuristic is used, deliberately. "We scan for
+  secrets" is a claim nobody can check; this one is narrow enough to state.
+
+The cost is a false positive on prose: `no authorization: the call 403s` loses
+the rest of that line, and `SELECT token = 1` loses the pair. That trade is a
+shortened note against a live credential on a public issue.
 
 #### Why `response.data` is exempt, and what that costs
 
@@ -152,6 +206,20 @@ by `Capture` or `Validate`, on the success path or the parse-failure path.
 The error half is the part that was missing. Nothing in the suite ever read a
 returned error, which is how `fmt.Errorf("parse query string of target %q", …)`
 echoed the reporter's full endpoint through three review rounds.
+
+`TestReporterInputPlacementSymmetry` is the control the note scan was built
+against: one byte sequence, placed in `query.target` and in `reporter_note`, must
+get the same verdict from `Capture` and from `Validate`. The asymmetry was the
+defect, so symmetry is the guard.
+
+Every sentinel in the egress canary is planted in a **value**, so none of it can
+catch a credential planted in a **key**. That is a measured, open gap —
+`url.ParseQuery` percent-decodes key names, so `?api_key%3Dsk-live-X` becomes a
+parameter literally named `api_key=sk-live-X`, which `Capture` drops and then
+copies verbatim into `redaction.rules`, and which the share-safe gate quotes back
+in `Validate`'s rejection message. The reasoning and the reproduction are in the
+header comment of `redaction_egress_test.go`; closing it needs two decisions this
+package has not taken.
 
 The excerpt and fact sentinels are planted in BOTH variants and
 `IncludePayloads` only decides whether they are expected back out. Planting

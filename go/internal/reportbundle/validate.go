@@ -33,7 +33,26 @@ var ValidationChecks = []string{
 	"bundle_id",
 	"profile_payloads_consistency",
 	"query_inputs",
+	"reporter_note",
 	"share_safe_keys",
+}
+
+// validateReporterNote rejects a bundle whose reporter_note still carries a
+// credential-shaped pair. It calls redactReporterNote, the same function
+// Capture calls, and rejects when that function would have changed something —
+// so the two cannot drift. A separate predicate written to "mirror" the
+// redactor is how the query-input half went wrong the first time: Capture was
+// widened, Validate was not, and a hand-edited bundle passed every check.
+//
+// Validate needs this for the reason it re-checks the query inputs: a
+// maintainer runs --require-public against a file somebody else sent, which may
+// have been hand-edited, written by another tool, or produced before this scan
+// existed.
+func validateReporterNote(bundle Bundle) error {
+	if _, redacted := redactReporterNote(bundle.ReporterNote); redacted {
+		return fmt.Errorf("reporter_note carries a credential-shaped key=value or header pair: free text is never inspected by the share-safe key walk, so it reached the bundle unredacted; recapture the bundle instead of editing it")
+	}
+	return nil
 }
 
 // validateQueryInputs rejects a bundle whose reporter-typed query inputs still
@@ -134,7 +153,9 @@ func embeddedCredentialPaths(prefix string, value any) []string {
 
 // Validate checks a finished Bundle: schema_version fail-closed (mirroring
 // evidencebundle/validate.go:14-15), a required bundle_id, profile↔payloads
-// consistency, the --require-public posture when requested, and the share-safe
+// consistency, the two reporter-typed input scans (query_inputs and
+// reporter_note, both of which read string VALUES the key-name gate cannot
+// see), the --require-public posture when requested, and the share-safe
 // key-name gate — collector.ValidateShareSafeKeys applied to the whole bundle
 // document except the PayloadAttachment section, which is the one place a
 // private-triage bundle is allowed to carry raw excerpt/fact bytes under
@@ -152,6 +173,14 @@ func Validate(bundle Bundle, opts ValidateOptions) error {
 	if bundle.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("schema_version: got %q want %q", bundle.SchemaVersion, SchemaVersion)
 	}
+	// Presence only — the id is deliberately NOT recomputed and compared.
+	// Recomputing is cheap (Validate already marshals the whole bundle a few
+	// lines down), but computeBundleID is deterministic and its inputs are all
+	// in the file, so anyone who edits a bundle can restamp a matching id. It
+	// would defeat no one while rejecting bundles whose only problem is age: a
+	// capture from a build whose Bundle struct had one field fewer serializes
+	// differently and would now fail as "corrupt". Share-safety is what this
+	// gate is for, and a leaked credential is equally leaked under a correct id.
 	if strings.TrimSpace(bundle.BundleID) == "" {
 		return fmt.Errorf("bundle_id is required")
 	}
@@ -172,6 +201,9 @@ func Validate(bundle Bundle, opts ValidateOptions) error {
 		return fmt.Errorf("redaction profile %q is unsupported", profile)
 	}
 	if err := validateQueryInputs(bundle); err != nil {
+		return err
+	}
+	if err := validateReporterNote(bundle); err != nil {
 		return err
 	}
 	if opts.RequirePublic && profile != ProfilePublic {
