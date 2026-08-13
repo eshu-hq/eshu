@@ -140,7 +140,10 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	if containsUnquotedShellListOperator(line) {
 		return "", nil
 	}
-	fields := strings.Fields(strings.TrimSpace(line))
+	fields, ok := splitShellFields(strings.TrimSpace(line))
+	if !ok {
+		return "", nil
+	}
 	if len(fields) == 0 {
 		return "", nil
 	}
@@ -184,6 +187,73 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	}
 	sort.Strings(flags)
 	return strings.Join(commandFields, "/"), flags
+}
+
+func splitShellFields(line string) ([]string, bool) {
+	fields := []string{}
+	var token strings.Builder
+	var quote byte
+	escaped := false
+	started := false
+	flush := func() {
+		if !started {
+			return
+		}
+		fields = append(fields, token.String())
+		token.Reset()
+		started = false
+	}
+	for index := 0; index < len(line); index++ {
+		char := line[index]
+		if escaped {
+			token.WriteByte(char)
+			started = true
+			escaped = false
+			continue
+		}
+		if quote == '\'' {
+			if char == quote {
+				quote = 0
+			} else {
+				token.WriteByte(char)
+			}
+			started = true
+			continue
+		}
+		if char == '\\' {
+			escaped = true
+			started = true
+			continue
+		}
+		if quote == '"' {
+			if char == quote {
+				quote = 0
+			} else {
+				token.WriteByte(char)
+			}
+			started = true
+			continue
+		}
+		if char == '\'' || char == '"' {
+			quote = char
+			started = true
+			continue
+		}
+		if char == ' ' || char == '\t' {
+			flush()
+			continue
+		}
+		token.WriteByte(char)
+		started = true
+	}
+	if quote != 0 {
+		return nil, false
+	}
+	if escaped {
+		token.WriteByte('\\')
+	}
+	flush()
+	return fields, true
 }
 
 func containsUnquotedShellListOperator(line string) bool {

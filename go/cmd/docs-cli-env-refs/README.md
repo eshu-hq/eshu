@@ -11,7 +11,8 @@ skips prose and inline flags, non-shell fences, and logical lines containing an
 unquoted shell-list operator (`|`, `&`, or `;`), including pipelines and `&&`
 lists. It also skips short flags, dynamic flag names, and wildcard
 environment-variable prefixes. Known legacy misses live in
-`scripts/docs-cli-env-refs-baseline.txt`; new misses fail.
+`scripts/docs-cli-env-refs-baseline.txt`; new misses fail. The `-update` mode
+can remove resolved entries, but it refuses to add newly unresolved references.
 
 When a command starts with a root flag before its subcommand, v1 validates the
 leading root flag but deliberately skips later command-local flags on that

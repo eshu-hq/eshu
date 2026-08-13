@@ -109,6 +109,10 @@ test_hostile_command_and_markdown_forms_fail() {
     '```bash' \
     'eshu docs verify "--quoted-invalid"' \
     '```'
+  write_doc "${root}" "quoted-flag-value.md" \
+    '```bash' \
+    'eshu docs verify "--quoted-value-invalid=two words"' \
+    '```'
   write_doc "${root}" "nested-fence.md" \
     '1. Nested example:' \
     '    ```bash' \
@@ -152,6 +156,7 @@ test_hostile_command_and_markdown_forms_fail() {
   fi
   assert_contains "unknown-command.md" "${out}" "unknown command is rejected"
   assert_contains "quoted-flag.md" "${out}" "quoted long flag is checked"
+  assert_contains "quoted-flag-value.md" "${out}" "quoted long flag value with whitespace is checked"
   assert_contains "nested-fence.md" "${out}" "nested shell fence is checked"
   assert_contains "fence-close.md" "${out}" "closing fence suffix does not hide flags"
   assert_contains "fence-close-nbsp.md" "${out}" "non-ASCII fence suffix does not hide flags"
@@ -224,6 +229,20 @@ test_baseline_and_update_are_burn_down_safe() {
   else
     record_fail "baseline update is byte-idempotent"
   fi
+
+  write_doc "${root}" "new-debt.md" 'Use `ESHU_NEW_BASELINE_DEBT`.'
+  cp "${baseline}" "${baseline}.before-growth"
+  if run_verifier "${root}" "${baseline}" "${out}" -update; then
+    record_fail "baseline update rejects new debt"
+  else
+    record_pass "baseline update rejects new debt"
+  fi
+  if cmp -s "${baseline}.before-growth" "${baseline}"; then
+    record_pass "rejected baseline growth leaves the baseline unchanged"
+  else
+    record_fail "rejected baseline growth leaves the baseline unchanged"
+  fi
+  assert_contains "ESHU_NEW_BASELINE_DEBT" "${out}" "baseline growth diagnostic names new debt"
 }
 
 test_malformed_baseline_fails_closed() {
@@ -252,6 +271,7 @@ test_real_tree_matches_committed_baseline() {
   fi
 
   local regenerated="${tmp_root}/regenerated-baseline.txt"
+  cp "${baseline}" "${regenerated}"
   run_verifier "${repo_root}/docs/public" "${regenerated}" "${out}" -update
   if cmp -s "${regenerated}" "${baseline}"; then
     record_pass "committed baseline matches fresh regeneration"

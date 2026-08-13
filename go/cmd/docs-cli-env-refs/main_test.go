@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -100,6 +101,18 @@ func TestFlagsFromEshuCommandKeepsQuotedAndEscapedOperatorsInScope(t *testing.T)
 				t.Fatalf("flagsFromEshuCommand(%q) flags = %#v, want one checked flag", test.line, flags)
 			}
 		})
+	}
+}
+
+func TestFlagsFromEshuCommandKeepsQuotedFlagValuesWithWhitespace(t *testing.T) {
+	t.Parallel()
+
+	command, flags := flagsFromEshuCommand(`eshu docs verify "--not-a-real-flag=two words"`)
+	if command != "docs/verify" {
+		t.Fatalf("flagsFromEshuCommand() command = %q, want docs/verify", command)
+	}
+	if want := []string{"--not-a-real-flag"}; !reflect.DeepEqual(flags, want) {
+		t.Fatalf("flagsFromEshuCommand() flags = %#v, want %#v", flags, want)
 	}
 }
 
@@ -235,5 +248,25 @@ func TestCompareReferencesUsesRegistryAndCLITruth(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unresolvedReferences() = %#v, want %#v", got, want)
+	}
+}
+
+func TestBaselineUpdateRejectsNewDebt(t *testing.T) {
+	t.Parallel()
+
+	existing := map[string]struct{}{
+		referenceKey(reference{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_OLD_DEBT"}): {},
+	}
+	unresolved := []reference{
+		{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_OLD_DEBT"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--new-debt"},
+	}
+
+	err := validateBaselineUpdate(unresolved, existing)
+	if err == nil {
+		t.Fatal("validateBaselineUpdate() error = nil, want new-debt rejection")
+	}
+	if !strings.Contains(err.Error(), "--new-debt") {
+		t.Fatalf("validateBaselineUpdate() error = %q, want new reference named", err)
 	}
 }

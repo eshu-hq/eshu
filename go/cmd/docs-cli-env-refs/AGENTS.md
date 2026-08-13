@@ -4,4 +4,5 @@
   wrapper header unless a failing regression proves a safe expansion.
 - Tests must exercise `envregistry.Default()` and a real built Eshu CLI, not a
   copied flag allowlist.
-- Keep baseline updates deterministic and burn-down-only in normal check mode.
+- Keep baseline updates deterministic and burn-down-only. The `-update` path
+  must reject new debt before rewriting the baseline.

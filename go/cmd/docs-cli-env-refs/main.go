@@ -66,6 +66,13 @@ func run(ctx context.Context, args []string) error {
 	}
 	unresolved := unresolvedReferences(refs, knownFlags)
 	if opts.update {
+		baseline, err := readBaseline(opts.baseline)
+		if err != nil {
+			return err
+		}
+		if err := validateBaselineUpdate(unresolved, baseline); err != nil {
+			return err
+		}
 		if err := writeBaseline(opts.baseline, unresolved); err != nil {
 			return err
 		}
@@ -85,6 +92,22 @@ func run(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: OK: %d reference(s) checked, %d unresolved reference(s) baselined\n", len(refs), len(unresolved))
 	return nil
+}
+
+func validateBaselineUpdate(unresolved []reference, baseline map[string]struct{}) error {
+	newRefs := difference(unresolved, baseline)
+	if len(newRefs) == 0 {
+		return nil
+	}
+	values := make([]string, 0, len(newRefs))
+	for _, ref := range newRefs {
+		value := ref.Value
+		if ref.Kind == referenceKindFlag {
+			value = ref.Command + "::" + value
+		}
+		values = append(values, ref.Document+":"+value)
+	}
+	return fmt.Errorf("baseline update would add %d unresolved reference(s): %s", len(newRefs), strings.Join(values, ", "))
 }
 
 func scanDocs(root string) (refs []reference, resultErr error) {
