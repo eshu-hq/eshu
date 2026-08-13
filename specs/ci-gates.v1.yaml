@@ -844,7 +844,9 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "go/cmd/**"
       - "go/internal/mcp/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "scripts/dev/precommit-go.sh"
@@ -1106,6 +1108,30 @@ gates:
       workflow: static-contract-gates.yml
       job: "Verify docs-refs gate"
     requirements: []
+    ci_only_reason: ""
+
+  - id: docs-cli-env-refs
+    name: Docs CLI and environment reference truth
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/**"
+      - "go/cmd/eshu/**"
+      - "go/internal/envregistry/**"
+      - "go/cmd/docs-cli-env-refs/**"
+      - "scripts/verify-docs-cli-env-refs.sh"
+      - "scripts/test-verify-docs-cli-env-refs.sh"
+      - "scripts/docs-cli-env-refs-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-docs-cli-env-refs.sh"
+      test_command: "bash scripts/test-verify-docs-cli-env-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docs CLI/env refs gate"
+    requirements:
+      - go
     ci_only_reason: ""
 
   - id: query-doc-commit-refs
@@ -2562,6 +2588,7 @@ gates:
       - "scripts/lib/ci-gates-doc-parse.awk"
       - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"

@@ -34,7 +34,7 @@ var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 // there is exactly one place it can go stale. Update this constant (and
 // re-run that test) whenever a registry or workflow change moves the count;
 // do not hand-edit it without doing so.
-const scriptWorkflowSoundSubsetCount = 36
+const scriptWorkflowSoundSubsetCount = 37
 
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {

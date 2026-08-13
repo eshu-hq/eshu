@@ -118,6 +118,13 @@ Any changed Go package under `go/internal` or `go/cmd` must already have
 `doc.go`, `README.md`, and `AGENTS.md`; new collectors and runtime packages
 cannot land without the code-level context future agents and reviewers need.
 
+`verify-docs-cli-env-refs.sh` is the blocking public-doc reference gate for
+concrete `ESHU_*` tokens and command-specific long flags in conservative
+fenced `eshu` shell commands. It uses `internal/envregistry` and a real built
+Eshu CLI rather than copied allowlists. The companion mutation harness is
+`test-verify-docs-cli-env-refs.sh`; known legacy environment debt is grouped
+by page in `docs-cli-env-refs-baseline.txt`.
+
 `verify-okta-saml-live-proof.sh` turns an operator-local Okta SAML proof
 manifest into public-safe JSON and markdown summaries. The manifest can name
 only provider source classes, public SAML API paths, aggregate login/denial
