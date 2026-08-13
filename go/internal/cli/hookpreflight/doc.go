@@ -18,8 +18,10 @@
 // into that hook's response JSON (ClaudePreToolUseOutputForPreflight),
 // since the CLI's first shipped host integration is Claude Code-style.
 //
-// The package reads no cobra flags, no process environment, and prints
-// nothing -- go/cmd/eshu's assistant_hook_preflight.go is the thin cobra
-// wrapper that resolves process state (flags, stdin) and calls in as plain
+// The package reads no cobra flags and no process environment, and writes
+// to no process stream: RenderPreflightText formats the CLI's text output
+// but takes the destination io.Writer from its caller. go/cmd/eshu's
+// assistant_hook_preflight.go is the thin cobra wrapper that resolves
+// process state (flags, stdin), supplies that writer, and calls in as plain
 // values, per the extraction shape settled for issue #6053/#6059.
 package hookpreflight

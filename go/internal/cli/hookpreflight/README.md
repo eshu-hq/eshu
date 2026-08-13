@@ -35,7 +35,8 @@ than to a process stream directly.
   `ClaudePreToolUseSpecificOutput` -- the Claude Code PreToolUse hook JSON
   shapes read from stdin and emitted on `--json`
 - `MergeClaudePreToolUseInput` -- folds a decoded Claude payload into an
-  `Input`, without overriding any field the caller already set via flags
+  `Input`: it always overwrites `Tool` with the payload's tool name, and
+  fills `Trigger` and `RepoPath` only when the caller left them empty
 - `ClaudePreToolUseOutputForPreflight` -- converts an advise `Output` into
   the Claude hook JSON response
 - `RenderPreflightText` -- writes the plain-text decision report the CLI
@@ -54,7 +55,9 @@ in the wrapper via `encoding/json.Encoder`; this package only carries the
 `json` struct tags).
 
 Consumed by `go/cmd/eshu`: `assistant_hook_preflight.go` (the `hook
-preflight` command) is the sole caller.
+preflight` command) is the only production caller.
+`assistant_hook_preflight_bench_test.go` also imports the package, to measure
+`Evaluate` alongside the command wrapper.
 
 ## Telemetry
 

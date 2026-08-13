@@ -10,8 +10,13 @@
    is the file that shows how the two halves fit together.
 4. `docs/public/reference/assistant-fast-path-hooks.md` — the
    `assistant_fast_path_hook.v1` contract this package implements: trigger
-   classes, bounded query shape, 200ms latency budget, and the safe-failure
-   table `Evaluate`'s skip reasons map onto one-for-one.
+   classes, bounded query shape, 200ms latency budget, and the "Safe Failure
+   Modes" table. That table and `Evaluate`'s skip reasons overlap but are not
+   one-for-one: the table has a "Missing endpoint or token reference" row this
+   package has no reason code for (nothing here resolves an endpoint or
+   token), `disallowed_trigger` has no table row of its own (the "Trigger
+   Classes" section carries that rule), and `stale_index` is an *advise*
+   reason, not a skip.
 
 ## Invariants this package enforces
 
@@ -98,11 +103,14 @@
 ## What NOT to change without an ADR
 
 - `Evaluate`'s check order (budget, then host, then enabled, then trigger,
-  then permission, then scope, then freshness) — later checks assume
-  earlier ones already passed, and the docs' safe-failure table
-  (docs/public/reference/assistant-fast-path-hooks.md) documents this as
-  the precedence a caller should expect for which single reason code comes
-  back when multiple conditions are simultaneously ineligible.
+  then permission, then scope, then freshness) — later checks assume earlier
+  ones already passed, and this order alone decides which single reason code
+  comes back when several conditions are ineligible at once. The contract doc
+  (docs/public/reference/assistant-fast-path-hooks.md) does NOT pin this: its
+  "Safe Failure Modes" table gives the required behavior per failure, and its
+  row order is not a precedence. So this source file is the only place the
+  precedence is written down — reordering the switch silently changes which
+  reason a caller sees, with no doc or gate to catch it.
 - `DefaultBudget` (200ms) — this is the contract's documented latency
   budget, not a locally-tunable default; changing it needs the benchmark
   evidence the contract doc requires for any budget change.
