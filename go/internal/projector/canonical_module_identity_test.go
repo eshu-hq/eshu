@@ -98,10 +98,11 @@ func TestExtractImportsKeepsSameNamedModulesPerLanguage(t *testing.T) {
 
 // TestExtractImportsGivesUnknownLanguageItsOwnModule pins the empty-language
 // rule: a module discovered only from files whose language could not be
-// determined gets its own `lang: ”` node. It never merges into a languaged
-// module (that would attribute an unattributable import to a language the
-// evidence does not support), and it cannot multiply, because all
-// unknown-language importers of one name share the single empty-language node.
+// determined gets its own node, one whose `lang` property is the empty string.
+// It never merges into a languaged module (that would attribute an
+// unattributable import to a language the evidence does not support), and it
+// cannot multiply, because all unknown-language importers of one name share
+// that single empty-language node.
 func TestExtractImportsGivesUnknownLanguageItsOwnModule(t *testing.T) {
 	_, modules, quarantined := extractImportsFromFiles([]parsedFileRef{
 		{
@@ -186,4 +187,90 @@ func TestExtractModulesFromEntitiesKeysOnNameAndLanguage(t *testing.T) {
 		moduleIdentity{name: "inheritance", language: "ruby"},
 		moduleIdentity{name: "inheritance", language: "python"},
 	)
+}
+
+// TestBuildCanonicalMaterializationImportsResolveToDeclaredModules pins the
+// invariant the graph writer's phase G silently depends on: every ImportRow
+// must name a (module, language) pair that some ModuleRow in the SAME
+// materialization declares.
+//
+// Phase F MERGEs Module on (name, lang); phase G resolves the edge target with
+// `MATCH (m:Module {name: row.module_name, lang: row.module_language})`. A
+// MATCH that finds nothing produces no row, so the MERGE never runs and the
+// IMPORTS edge is not written -- no error, no log, just a missing edge. That
+// makes a producer that forgets ModuleLanguage invisible until someone counts
+// edges on a live backend, which is exactly how it slipped past the fixtures in
+// the offlinetier live tests.
+//
+// Both producers of Module rows are exercised in one materialization: parsed
+// file imports (extractImportsFromFiles) and content_entity module facts
+// (extractRelationships).
+func TestBuildCanonicalMaterializationImportsResolveToDeclaredModules(t *testing.T) {
+	t.Parallel()
+
+	result, quarantined := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+		importRepositoryFact(),
+		// Same module name from two unrelated ecosystems: two Module nodes.
+		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
+			{"name": "time", "line_number": 3},
+		}),
+		fileFactWithImports("f-py", "client.py", "python", []map[string]any{
+			{"name": "time", "source": "time", "line_number": 1},
+		}),
+		// Same package from two languages of one ecosystem: also two nodes,
+		// which is the trade-off the (name, language) key accepts on purpose.
+		fileFactWithImports("f-ts", "src/app.ts", "typescript", []map[string]any{
+			{"name": "Router", "source": "express", "line_number": 2},
+		}),
+		fileFactWithImports("f-js", "src/app.js", "javascript", []map[string]any{
+			{"name": "Router", "source": "express", "line_number": 2},
+		}),
+		// The other producer: a content_entity import fact.
+		{
+			FactID:   "i-1",
+			ScopeID:  "scope-1",
+			FactKind: "content_entity",
+			Payload: map[string]any{
+				"module_name":     "requests",
+				"imported_module": "requests",
+				"imported_name":   "Session",
+				"relative_path":   "src/client.py",
+				"language":        "python",
+				"line_number":     3,
+			},
+		},
+	})
+	if len(quarantined) != 0 {
+		t.Fatalf("unexpected quarantined facts: %+v", quarantined)
+	}
+
+	// Assert the count first: an empty or short Imports slice would make the
+	// loop below pass while checking nothing.
+	if len(result.Imports) != 5 {
+		t.Fatalf("got %d import rows %+v, want 5 (4 parsed-file + 1 content_entity)",
+			len(result.Imports), result.Imports)
+	}
+
+	declared := moduleRowSet(result.Modules)
+	for _, row := range result.Imports {
+		identity := moduleIdentity{name: row.ModuleName, language: row.ModuleLanguage}
+		if _, ok := declared[identity]; !ok {
+			t.Fatalf("import row %+v targets Module{name=%q, lang=%q}, which no module row declares; "+
+				"phase G would match no node and drop the edge without an error. Declared: %+v",
+				row, row.ModuleName, row.ModuleLanguage, result.Modules)
+		}
+	}
+
+	// And the two same-named pairs really did stay apart, so the invariant
+	// above was checked against a materialization that exercises the split.
+	for _, want := range []moduleIdentity{
+		{name: "time", language: "go"},
+		{name: "time", language: "python"},
+		{name: "express", language: "typescript"},
+		{name: "express", language: "javascript"},
+	} {
+		if _, ok := declared[want]; !ok {
+			t.Fatalf("missing Module{name=%q, lang=%q}; got %+v", want.name, want.language, result.Modules)
+		}
+	}
 }
