@@ -80,6 +80,36 @@ there is no background pipeline stage to instrument.
   as the managed binary is reported `Reused: true` and left untouched,
   unless `Options.Force` is set.
 
+## Performance and observability of the extraction
+
+This package arrived by moving files out of `go/cmd/eshu`, not by changing what
+they do, so there is no before/after measurement to report and claiming one
+would be dishonest. What follows is what was actually established.
+
+No-Regression Evidence: the extraction is behaviour-preserving, proven by
+running the same five invocations against a binary built from the base commit
+and one built from this branch -- `install nornicdb --help`, `graph upgrade
+--help`, `install --help`, a missing-source error path, and a
+conflicting-flags error path. Combined stdout and stderr are byte-identical
+across all five and the exit codes match (0, 0, 0, 1, 1). `go test
+./cmd/eshu/... ./internal/cli/... -count=1` passes, and no `testdata/` path
+appears in the diff, so the golden-corpus gate (B-7, which indexes 20 real
+repositories and compares against a saved snapshot) and the end-to-end
+snapshot (B-12) are untouched.
+
+The one shape change is that `readVersion` is now injected as a
+`VersionReader` parameter instead of being a package-level call. That replaces
+a direct function reference with an indirect one on a path that runs at most a
+few times per `eshu install nornicdb` invocation, each of which already forks a
+subprocess to read a version string. There is no loop and no hot path here; the
+cost is not measurable against a process spawn.
+
+No-Observability-Change: this package emits no metrics, spans, or logs, and the
+move neither added nor removed an instrument. Operator-visible output is
+unchanged, which is what the byte-identical parity captures above demonstrate.
+`ManagedBinaryIfPresent` still returns an unwrapped `os.Stat` error on purpose
+so `os.IsNotExist` keeps matching it -- see the invariant in `AGENTS.md`.
+
 ## Related docs
 
 - `docs/public/reference/graph-backend-installation.md` -- the `eshu install
