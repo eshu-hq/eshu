@@ -272,11 +272,19 @@ Re-running the rebuild recovers it — see
 [If the rebuild is interrupted](#if-the-rebuild-is-interrupted), including the
 warning about what else repeated runs do.
 
-`HANDLES_ROUTE` and `RUNS_IN` used to appear here too, at 2 of 4. They no longer
-do. That shortfall was the verifier snapshotting the graph before the shared edge
-backlog had drained; once it waits for both queues, both families come back
-complete on a single pass. If you are comparing against an older copy of this
-runbook, that is the difference.
+**`HANDLES_ROUTE` and `RUNS_IN` are intermittent.** These connect code symbols to
+`:Endpoint` and `:Workload` nodes that a different domain materializes. Across
+four measured rebuilds they came back at 0, 2, 4, and 0 out of 4. Waiting for the
+shared edge backlog to drain is what makes a complete pass possible at all, but
+it does not guarantee one. Re-running the rebuild recovers them.
+
+**Same-named modules in different languages come back with the wrong language.**
+A `Module` graph node is keyed on its name alone, so one node named `time` serves
+Go and Python both, and its `lang` is whichever writer landed first. A rebuild
+re-runs the writers in a different order, so the language can flip. This is not
+caused by the rebuild — the same collision happens during ordinary indexing — but
+a rebuild is where you will notice it. If you compare module counts before and
+after, expect the totals to match while individual nodes disagree.
 
 **Some of the remaining difference is not the rebuild at all.** Indexing the same
 corpus twice does not produce byte-identical graphs. Three runs of this procedure

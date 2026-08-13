@@ -14,12 +14,16 @@ Where this landed:
   Three pieces of Postgres state outlive a graph wipe and each told the pipeline
   the work was done. Clearing them, scoped to the generations being rebuilt,
   brings every domain back. The shortfall drops to 5 nodes and 26 relationships.
-- **The verifier still exits 1**, and that is the correct outcome. Three things
-  still differ, and **none of them is the rebuild path this PR touches**: a
-  cross-repository `CALLS` edge blocked by the shared-projection readiness gate,
-  an `EvidenceArtifact` set that is not a pure function of the facts, and — as a
-  consequence of the same resolver defect — a pre-wipe reference that is not
-  stable run to run.
+- **The verifier still exits 1**, and that is the correct outcome. What still
+  differs traces to four defects, and **none of them is the rebuild path this PR
+  touches**: the shared-projection readiness gate has no cross-repository key, the
+  resolver's evidence preview reads fact arrival order, `Module` graph nodes are
+  keyed on name alone across every language, and `Environment` moves run to run
+  for reasons nobody has traced.
+- **Two of those are wrong answers users can hit today**, with no disaster
+  recovery involved. A `Module` node named `time` serves Go and Python both, so a
+  Go file can be recorded as importing a Python module. That is worth more than
+  the gate it was found by.
 - **No time bound is claimed.** The issue asks for one. The measurements here
   cannot support one, and the reasons are recorded rather than papered over.
 
@@ -342,14 +346,30 @@ supply one, and the honest thing is to say so rather than promote a number.
 
 What exists:
 
-| Figure | Definition | Runs | Usable as a bound? |
-| --- | --- | --- | --- |
-| 15 s / 20 s / 25 s / 26 s | work queue empty only | 4, at 3 different loads | No — undercounts by the shared-backlog tail |
-| 341 s (5m41s) | both queues terminal | **1** | No — single sample, one load |
+| Figure | Definition | Runs | Load at finish | Usable as a bound? |
+| --- | --- | --- | --- | --- |
+| 15 s / 20 s / 25 s / 26 s | work queue empty only | 4, at 3 loads | 2.41 / 3.78 / 5.19 / 13.20 | No — undercounts by the shared-backlog tail |
+| 341 s (5m41s) | both queues terminal | 1 | not recorded | No — single sample |
+| 311 s (5m11s) | both queues terminal | 1 | **4.49** | No — see below |
 
-The 341 s figure is the only one that measures the whole rebuild. It is one
-sample. A single observation is not a bound, and this repo's own evidence rules
-say so.
+The last row is a fresh run taken for this rebase, deliberately on a quiet
+machine: `load_at_finish=4.49 7.07 8.41`, 67 scopes, 2,517 nodes. It is the
+cleanest measurement on the page and it still is not a bound, for two reasons
+that no amount of care on the machine can fix.
+
+First, it is a different workload from the runs above it: 6,302 `fact_records`
+against their 3,866. Same corpus directory, and main did not touch
+`tests/fixtures/ecosystems` — but main did land twelve commits on cross-scope
+readiness and structural-edge budgeting (#6074, #6078, #6085) between those runs
+and this one. Comparing 311 s against 341 s would be comparing different code
+over different fact volumes and calling the difference a speedup.
+
+Second, and more simply, one run is one run.
+
+What the two whole-operation samples do support is an order of magnitude: this
+operation takes **minutes, not seconds**, on a fixture corpus that indexes in
+well under a minute. If anyone has been sizing a recovery window from the 15-26
+second figures, that is the correction that matters.
 
 Three things would each independently sink a bound derived from these runs:
 
@@ -469,21 +489,30 @@ and only one of them is the rebuild.
 
 ### Disposition: what each failure is, and who has to act
 
-Read this before deciding what to do with the red gate. None of the three is
-fixed by weakening the assertion, and none of them is fixed inside the reset this
-PR ships.
+Read this before deciding what to do with the red gate. Not one of these is fixed
+by weakening the assertion, and not one of them is fixed inside the reset this PR
+ships.
 
 | # | Failure | What it is | Who acts |
 | --- | --- | --- | --- |
 | 1 | One cross-repo `CALLS` edge, 115 of 116 | **Real defect**, outside the rebuild path: the shared-projection readiness gate has no cross-repository key, and the edge write is a silent `MATCH`-only no-op | Owner: either fix the readiness gate, or accept a two-pass DR |
+| 1b | `HANDLES_ROUTE` / `RUNS_IN` intermittent, 0-2-4-0 of 4 | **Real defect**, probably the same gap as 1, but a regression from main's cross-scope readiness work is not ruled out | Owner: rule out #6074/#6085 before assuming it is 1 |
 | 2 | `EvidenceArtifact` under-produced on one pass | **Real defect**, outside the rebuild path: the resolver's five-item evidence preview reads fact arrival order | Owner: schedule the resolver ordering fix; it moves the golden snapshot |
-| 3 | Nondeterministic pre-wipe reference | **Same root cause as 2** for `EvidenceArtifact`; **unexplained** for `Module` and `Environment` | Owner: the assertion cannot pass until 2 lands; the `Module`/`Environment` variance still needs tracing |
+| 3 | `Module` nodes come back with the wrong `lang` | **Real defect, and a live query-truth bug**: `MERGE (m:Module {name})` keys on name alone across all languages, and `coalesce` makes `lang` first-write-wins | Owner: node-identity migration; affects ordinary indexing, not just DR |
+| 4 | Nondeterministic pre-wipe reference | **Downstream of 2 and 3.** `Environment` (2 vs 0) is the one piece still untraced | Owner: the assertion cannot pass until 2 and 3 land |
 
-Two of these are the *same* defect wearing different clothes. Failure 2 and the
-`EvidenceArtifact` half of failure 3 are both the resolver preview ordering,
-proven above. That leaves genuinely three open items, not three independent
-causes: the readiness gate, the resolver ordering, and the untraced
-`Module`/`Environment` variance.
+These are not five independent causes. Failure 2 and the `EvidenceArtifact` half
+of failure 4 are one defect (resolver preview ordering, proven). Failure 3 and
+the `Module` half of failure 4 are one defect (Module node identity, proven).
+Failures 1 and 1b are probably one defect. So the real backlog is **four items**:
+the cross-acceptance-unit readiness gate, the resolver fact ordering, the
+`Module` node key, and the untraced `Environment` variance.
+
+Two of the four — the `Module` key and the resolver ordering — are wrong answers
+users can hit today without ever running a disaster recovery. Neither was visible
+until something re-ran the writers in a different order. That is the most useful
+thing this gate has produced, and it is an argument for keeping it red rather
+than relaxing it.
 
 **The decision this branch cannot make for you.** Failure 1 is the only one with
 a cheap operational answer. A second refinalize recovers the edge — the
@@ -494,8 +523,8 @@ one of:
   acceptance units. Correct, and the larger change.
 - **Declare DR a two-pass operation** in the runbook, and move the verifier's
   assertion to after pass 2. Cheap, and honest, but it makes every recovery pay
-  a second full drain — 341 s became the measured single-pass figure on this
-  corpus, so a two-pass DR roughly doubles it.
+  a second full drain. A single pass measured 311 s and 341 s on this fixture
+  corpus, so a two-pass DR roughly doubles whatever a real corpus costs.
 
 What the owner must NOT do is relax the assertion to "≤ 1 missing edge is fine."
 On this corpus one edge is 100% of the cross-repository calls. The number is
@@ -535,6 +564,31 @@ shows the wait was the whole story:
 
 Once the verifier waits for the shared backlog, both families come back complete
 on a single pass. No ordering fix was needed for them.
+
+#### Correction: that conclusion was drawn from one passing run, and it does not hold
+
+A fourth run, after this branch was rebased onto main, reports **0 of 4** again:
+
+```text
+content-entity:...|health|/data/repos/api-svc/app.py|...||HANDLES_ROUTE||endpoint:...|/api/health|...
+content-entity:...|health|/data/repos/api-svc/app.py|...||RUNS_IN||workload:api-svc|...
+content-entity:...|list_orders|/data/repos/api-svc/app.py|...||HANDLES_ROUTE||endpoint:...|/api/orders|...
+content-entity:...|list_orders|/data/repos/api-svc/app.py|...||RUNS_IN||workload:api-svc|...
+```
+
+So the sequence across four runs is 0 of 4, 2 of 4, 4 of 4, 0 of 4. The
+two-queue wait is necessary — it is what let a run reach 4 of 4 at all — but it
+is **not sufficient**, and "both families come back complete on a single pass"
+was an over-reading of a single green observation. The same mistake this document
+calls out elsewhere.
+
+Treat `HANDLES_ROUTE` and `RUNS_IN` as intermittent, cause not established. Two
+candidates worth separating, neither checked: the same cross-acceptance-unit
+ordering gap as `CALLS` (these edges do span acceptance units, which is why they
+ride the shared path), or a regression from the cross-scope readiness work that
+landed on main between the third run and the fourth (#6074, #6085). Do not
+assume the first without ruling out the second — the fourth run is the first on
+the rebased base.
 
 `CALLS` is different: 115 of 116 in all three runs, reproducible, and unmoved by
 the wait. A second refinalize does recover it (115 → 116), so the missing edge is
@@ -692,10 +746,64 @@ descending, then evidence kind, path, matched value — before the five-item cap
 It changes projected graph truth and therefore the golden snapshot, so it is
 deliberately not part of #4594.
 
-One thing this does **not** explain: `Module` (228 vs 231) and `Environment`
-(2 vs 0) also move between indexing runs, and `Module` is not built from the
-evidence preview. Those have not been traced. Do not assume the resolver fix
-covers them.
+This does **not** explain `Module` or `Environment`, which also move between
+runs and are not built from the evidence preview. `Module` has now been traced
+separately, below. `Environment` (2 vs 0) still has not been.
+
+#### `Module` is a cross-language node collision, and it is a query-truth bug
+
+The rebuild comparison kept reporting `Module` nodes as three out, three in, at
+an unchanged total. Same names, different `lang`. The post-rebase run shows it
+again, four wide:
+
+```text
+missing:  Module||basic|||ruby        extra:  Module||basic|||python
+          Module||inheritance|||ruby          Module||inheritance|||python
+          Module||path|||go                   Module||path|||javascript
+          Module||time|||go                   Module||time|||python
+```
+
+The cause is one line, `storage/cypher/canonical_node_cypher.go:289`:
+
+```cypher
+MERGE (m:Module {name: row.name})
+SET m.lang = coalesce(m.lang, row.language),
+    m.evidence_source = 'projector/canonical'
+```
+
+The node is keyed on `name` **alone**, across every language and every
+repository in the graph. `coalesce(m.lang, row.language)` then makes the language
+first-write-wins. So there is exactly one `Module` node named `time` in the whole
+graph, and whether it is Go's `time` or Python's `time` depends on which writer
+got there first.
+
+The corpus really does contain those collisions — verified, not assumed:
+
+| Module name | Also exists as | Evidence |
+| --- | --- | --- |
+| `time` | Go and Python | `go_comprehensive/goroutines.go:10` `"time"`; `python_comprehensive/decorators.py:4` `import time` |
+| `path` | Go and JavaScript | `go_comprehensive/packages.go:10` `pathpkg "path"`; `javascript_comprehensive/imports.js:7` `require('path')` |
+| `basic`, `inheritance` | Ruby and Python | `ruby_comprehensive/modules_mixins.rb:3-4` `require_relative` |
+
+The consequence is not cosmetic, and it is not about disaster recovery at all.
+The `IMPORTS` edges follow the collapsed node, so the rebuilt graph asserts:
+
+```text
+ruby_comprehensive/modules_mixins.rb  IMPORTS  Module(basic, lang=python)
+go_comprehensive/goroutines.go        IMPORTS  Module(time,  lang=python)
+javascript_comprehensive/imports.js   IMPORTS  Module(path,  lang=javascript)
+```
+
+A Ruby file importing a Python module is a wrong answer to a question a user can
+ask today, and it is wrong in ordinary indexing — the rebuild only made it
+visible, because it re-runs the writers in a different order and flips which
+language wins.
+
+This is the `Module` variance the earlier revision recorded as untraced. It is a
+node-identity defect (`name` is not a unique key for a module), not a rebuild
+defect, and fixing it means putting language — and probably repository — into the
+`Module` key. That changes node identity, so it is a migration and a golden
+snapshot move, and it is deliberately not part of #4594.
 
 Exact identity equality against a snapshot taken from one indexing run cannot
 pass reliably until the resolver ordering is fixed. The assertion was left

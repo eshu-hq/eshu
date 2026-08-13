@@ -179,10 +179,10 @@ repeated runs on one fixed definition at scale-lab size. See the evidence doc's
 
 The rebuild is also not yet exact. One cross-repo `CALLS` edge can come back
 missing on a single pass, because the shared-projection readiness gate waits only
-on the intent's own repository and the edge write is `MATCH`-only. (`HANDLES_ROUTE`
-and `RUNS_IN` were in this list until the gate started waiting on the shared
-backlog; they now return complete on a single pass, and the earlier shortfall was
-the measurement stopping early rather than an ordering bug.)
+on the intent's own repository and the edge write is `MATCH`-only. `HANDLES_ROUTE`
+and `RUNS_IN` are intermittent for a related reason — measured at 0, 2, 4, and 0
+of 4 across four rebuilds. Waiting on the shared backlog is necessary for a
+complete pass but does not guarantee one.
 
 A separate limit applies to any comparison against a pre-wipe snapshot: indexing
 the same corpus is not deterministic. Three runs recorded pre-wipe totals of
