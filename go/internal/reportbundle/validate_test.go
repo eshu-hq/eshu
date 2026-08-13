@@ -176,6 +176,36 @@ func TestValidate_NestedCredentialInTargetParamValueIsRejected(t *testing.T) {
 	}
 }
 
+// TestValidate_EmbeddedCredentialPathNamesTheListElement pins the location
+// Validate reports for a list-valued parameter. A maintainer given
+// "query.params.filters.redirect" has to open the bundle and read every element
+// of that list to find the one that tripped the check; the index is what makes
+// the message actionable, and the path builder already formats indices for a
+// list of objects. It stopped at the parent only when the list held plain
+// strings — the one shape a reporter's repeated parameter actually takes.
+func TestValidate_EmbeddedCredentialPathNamesTheListElement(t *testing.T) {
+	t.Parallel()
+
+	bundle := minimalPublicBundle(t)
+	bundle.Query.Params = map[string]any{
+		"filters": map[string]any{
+			"redirect": []any{
+				"/api/v0/x?page=2",
+				"/api/v0/x?api_key=sk-live-placeholder",
+			},
+		},
+	}
+
+	err := Validate(bundle, ValidateOptions{})
+	if err == nil {
+		t.Fatalf("Validate(list element embedding a sensitive key) error = nil, want rejection")
+	}
+	const want = "query.params.filters.redirect[1]"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("Validate() error = %q, want it to name %q", err.Error(), want)
+	}
+}
+
 // A target query string with no sensitive parameter is not a leak, so Validate
 // accepts it. Rejecting every "?" would fail bundles that carry nothing secret,
 // and the redaction contract this package enforces everywhere else is

@@ -104,7 +104,7 @@ func validateQueryInputs(bundle Bundle) error {
 	offending := make([]string, 0, len(params))
 	for key, value := range params {
 		if isRedactedKeyName(key) || carriesEmbeddedSensitiveKey(value) {
-			offending = append(offending, key)
+			offending = append(offending, safePathSegment(key))
 		}
 	}
 	if len(offending) > 0 {
@@ -123,21 +123,56 @@ func validateQueryInputs(bundle Bundle) error {
 	return nil
 }
 
+// redactedPathSegment stands in for a map key this package will not repeat back
+// to the user. It carries no "=" or ":" and no sensitive word, so a message
+// containing it cannot trip this package's own scans or the share-safe gate.
+const redactedPathSegment = "[redacted-key]"
+
+// safePathSegment returns key when an error message may repeat it, and a fixed
+// marker when it may not.
+//
+// A bundle's parameter names are reporter-typed data, not schema fields, and a
+// name can BE the credential: url.ParseQuery percent-decodes key names, so
+// `--endpoint '/x?api_key%3Dsk-live-...'` parses to one parameter whose name is
+// literally "api_key=sk-live-...". Building a path out of that name and quoting
+// it in a rejection put the credential in a terminal and a CI log — the same
+// egress the bundle beside it was redacted for, and the same defect class this
+// whole check exists to catch, one level up.
+//
+// The test is the package's usual one, asked about the key instead of the
+// value: a key that is itself query-shaped and carries a sensitive-named pair
+// is not repeated. A key that is merely sensitive-NAMED still is — "api_key" is
+// a field name, not a credential, and naming it is the entire value of the
+// message. So the limit is the usual one too: a credential written under a
+// benign-looking name is still repeated. That is the same blind spot the
+// redaction walk has, not a new one, and closing it would mean judging what a
+// value looks like, which this package does not do.
+func safePathSegment(key string) string {
+	if _, found := embeddedSensitiveKey(key); found {
+		return redactedPathSegment
+	}
+	return key
+}
+
 // embeddedCredentialPaths returns the dotted field paths, rooted at prefix,
 // whose value embeds a sensitive-named key. It reports the path rather than the
 // value, per the package error rule: the message has to be actionable in a
-// terminal or a CI log without repeating the credential into one.
+// terminal or a CI log without repeating the credential into one. Map keys go
+// through safePathSegment, because a key is reporter-typed too.
+//
+// The check lives on the string leaf, not on the parent that holds it. Deciding
+// at the parent stopped the path one level short for exactly the shape a
+// repeated parameter takes: a list of strings reported
+// "query.params.filters.redirect" and left a maintainer to read every element to
+// find which one tripped, while the list branch below was already formatting
+// indices for a list of objects. Judging the leaf makes both shapes report the
+// same way, and names every offending element rather than only the first.
 func embeddedCredentialPaths(prefix string, value any) []string {
 	switch typed := value.(type) {
 	case map[string]any:
 		var paths []string
 		for key, child := range typed {
-			path := prefix + "." + key
-			if carriesEmbeddedSensitiveKey(child) {
-				paths = append(paths, path)
-				continue
-			}
-			paths = append(paths, embeddedCredentialPaths(path, child)...)
+			paths = append(paths, embeddedCredentialPaths(prefix+"."+safePathSegment(key), child)...)
 		}
 		return paths
 	case []any:
@@ -146,6 +181,11 @@ func embeddedCredentialPaths(prefix string, value any) []string {
 			paths = append(paths, embeddedCredentialPaths(fmt.Sprintf("%s[%d]", prefix, i), child)...)
 		}
 		return paths
+	case string:
+		if _, found := embeddedSensitiveKey(typed); found {
+			return []string{prefix}
+		}
+		return nil
 	default:
 		return nil
 	}

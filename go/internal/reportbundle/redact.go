@@ -4,6 +4,7 @@
 package reportbundle
 
 import (
+	"net/url"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -63,21 +64,49 @@ const queryPairSeparators = "?&;"
 // depth; and an error envelope's Details echoes a caller selector back. All
 // three are the same object wearing different costumes, which is why this scan
 // is attached to the query-input DOMAIN (see redactQueryInput) rather than to
-// whichever arrival path a reviewer happened to find first. Scanning the
-// DECODED value also covers the percent-encoded form of the same trick.
+// whichever arrival path a reviewer happened to find first.
+//
+// The value is scanned twice: as it arrived, and once percent-decoded. Only the
+// target's query string is decoded upstream, by url.ParseQuery, so
+// "/x%3Fapi_key%3Dsk-live" kept its escapes all the way here when it arrived
+// through --params or a programmatic CaptureInput — no literal "?" and no
+// literal "=" for the split to find, and both Capture and the Validate half
+// that mirrors it waved it through. Which flag the reporter used is not a
+// property of the text, so the decode happens here, not at one arrival point.
 //
 // Deliberate limits, because a caller must not read more into a pass than is
 // there:
 //   - Only a "key=value" shape is detected. A bare secret with no "key=" in
 //     front of it ("?next=sk-live-...") is invisible, as is a secret under an
 //     arbitrary benign name anywhere else in the bundle.
-//   - Only one decoding pass. A double-encoded nested query ("%253F") is not
-//     unwrapped.
+//   - EXACTLY ONE decode, whose result is never fed back in. Re-decoding until
+//     the text stops changing would let a crafted value drive the loop, and
+//     each extra layer describes something the server never received. So
+//     "%253F" unwraps to "%3F" and stops there, undetected.
 //   - A candidate key containing whitespace is skipped, since a real query
 //     key never has one. That keeps prose values ("SELECT token = 1") from
 //     costing a maintainer a parameter, at the price of missing a credential
 //     written with spaces around its "=".
 func embeddedSensitiveKey(value string) (string, bool) {
+	if key, found := scanQueryShapedValue(value); found {
+		return key, true
+	}
+	// QueryUnescape fails on a malformed escape ("%ZZ"); there is nothing to
+	// scan then, and the raw pass above already ran. It also turns "+" into a
+	// space, which can only suppress a match, since a candidate key holding
+	// whitespace is skipped below.
+	decoded, err := url.QueryUnescape(value)
+	if err != nil || decoded == value {
+		return "", false
+	}
+	return scanQueryShapedValue(decoded)
+}
+
+// scanQueryShapedValue is the structural half of embeddedSensitiveKey: it splits
+// one string on the query separators and asks the shared key-name predicate
+// about the left side of each pair. It is a separate function so the raw and
+// decoded passes provably run the same rule.
+func scanQueryShapedValue(value string) (string, bool) {
 	if !strings.ContainsAny(value, queryPairSeparators) && !strings.Contains(value, "=") {
 		return "", false
 	}

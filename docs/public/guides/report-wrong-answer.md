@@ -171,7 +171,10 @@ Five limits, worth knowing before you paste something unusual:
   `no authorization: the call 403s` loses everything after `no`. If your note
   comes back shorter than you wrote it, that is why, and `redaction.rules` says
   so.
-- Double-percent-encoded nesting is unwrapped once, not repeatedly.
+- A percent-encoded parameter (`/x%3Fapi_key%3D...`, the form a browser or an
+  HTTP client writes) is unwrapped one layer before the check, so it is found
+  wherever you typed it. Encode it a second time (`%253F`) and it is not: the
+  unwrap runs exactly one layer, never in a loop.
 - `response.data` is scanned by key name only. Some Eshu routes echo your
   request parameters back inside the answer, so a credential you typed can
   reappear there even though it was dropped from `query.params`. Read the

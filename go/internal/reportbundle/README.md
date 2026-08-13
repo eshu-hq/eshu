@@ -76,8 +76,19 @@ free-string field to the Query section, it is scanned by default; exempting it
 needs a reason recorded next to the exemption, not silence.
 
 The scan finds a `key=value` shape, not secrets. A bare credential under an
-arbitrary name (`?next=sk-live-...`), a double-encoded nested query, and a
-secret in a path segment all still pass.
+arbitrary name (`?next=sk-live-...`) and a secret in a path segment still pass.
+
+Each value is scanned as it arrived and once percent-decoded. Only the target's
+query string is decoded upstream by `url.ParseQuery`, so
+`/x%3Fapi_key%3Dsk-live` reached the scan with its escapes intact when it came
+in through `--params` or a programmatic `CaptureInput`: no literal `?`, no
+literal `=`, nothing for the split to find, and both `Capture` and the
+`Validate` half that mirrors it accepted it. Which flag the reporter used is not
+a property of the text, so the decode happens inside `embeddedSensitiveKey`
+rather than at one arrival point. It runs **exactly one layer** and never feeds
+its own output back in — re-decoding until the text stops changing would let a
+crafted value drive the loop — so a double-encoded nesting (`%253F`) still
+passes.
 
 #### The note is scanned too, and why it is scanned differently
 
@@ -158,7 +169,18 @@ hand-edited `"params":{"next":"/x?api_key=..."}` used to pass every check here.
 ### Errors never echo a value
 
 No user-supplied string is interpolated into an error this package returns.
-Errors name the field (`query.target`, `query.params.next`) and stop there.
+Errors name the field (`query.target`, `query.params.filters.redirect[1]`) and
+stop there.
+
+A parameter NAME is reporter-typed too, and `url.ParseQuery` percent-decodes key
+names, so `--endpoint '/x?api_key%3Dsk-live-...'` produces one parameter whose
+name is literally `api_key=sk-live-...`. Building a path out of that name put
+the credential straight back into the message, which is the defect this whole
+check exists to catch, one level up. `safePathSegment` replaces a key that is
+itself a sensitive `key=value` pair with `[redacted-key]`; a merely
+sensitive-NAMED key such as `api_key` is still named, because that is a field
+name and naming it is the point of the message. The same limit applies as
+everywhere else here — a credential under a benign-looking name is repeated.
 
 These errors land in terminals, CI logs, and pasted bug reports — the same
 places the bundle itself is redacted for, so a message that quoted the target

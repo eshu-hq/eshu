@@ -69,8 +69,19 @@ read durable fact records itself — callers supply an already-resolved
   the next path each time. `Capture` merges every query-input source and scans
   the merged result once, so a new source cannot bypass the scan by
   construction. Keep it that way; do not reintroduce a per-source pre-step.
+- `embeddedSensitiveKey` scans a value twice: as it arrived, and once
+  percent-decoded. `url.ParseQuery` decodes the target's query string upstream
+  and nothing decodes `--params`, so without the second pass the same bytes got
+  two verdicts depending on which flag carried them — the exact asymmetry this
+  package exists to remove. The decode runs EXACTLY ONE layer and never feeds
+  its output back in; do not turn it into a loop, and do not move it to an
+  arrival point.
 - No user-supplied string is interpolated into an error this package returns.
-  Name the field (`query.target`, `query.params.next`), never the value. These
+  Name the field (`query.target`, `query.params.next`), never the value. A
+  parameter NAME is reporter-typed too and can itself be a `key=value` pair, so
+  every dynamic path segment goes through `safePathSegment` before it reaches a
+  message. A merely sensitive-NAMED key (`api_key`) is still named — that is a
+  field name, and naming it is what makes the rejection actionable. These
   errors reach terminals, CI logs, and pasted bug reports — the same places the
   bundle is redacted for. Wrapping `url.ParseQuery`'s error with `%w` is
   allowed because its shapes quote at most a three-byte escape token; the
@@ -110,12 +121,15 @@ read durable fact records itself — callers supply an already-resolved
   `TestReporterInputPlacementSymmetry` needs a placement row: the same bytes in
   two reporter-typed fields must get the same verdict, which is exactly what
   `reporter_note` failed before this scan existed.
-- Every canary sentinel today is planted in a VALUE. A credential can also
-  arrive as a KEY — `url.ParseQuery` percent-decodes names, so
-  `?api_key%3Dsk-live-X` yields a parameter named `api_key=sk-live-X`, which
-  `Capture` drops and copies raw into `Redaction.Rules` and which the share-safe
-  gate quotes back in `Validate`'s error. Measured, open, and reproduced in the
-  header comment of `redaction_egress_test.go`. Plant a key sentinel as part of
-  that fix; adding one before it only makes the suite red.
+- Every canary sentinel in the egress TABLE is planted in a VALUE. A credential
+  can also arrive as a KEY — `url.ParseQuery` percent-decodes names, so
+  `?api_key%3Dsk-live-X` yields a parameter named `api_key=sk-live-X`.
+  `Validate`'s own messages no longer repeat such a key
+  (`TestValidateDoesNotEchoAUserSuppliedKeyName`), but two routes are still
+  open: `Capture` copies the raw name into `Redaction.Rules`, and the share-safe
+  gate in `sdk/go/collector` quotes the key it rejected. Measured and reproduced
+  in the header comment of `redaction_egress_test.go`. Plant a key sentinel in
+  the table as part of the change that closes those; adding one before it only
+  makes the suite red.
 - Keep this package under the 500-line-per-file cap; split before a file
   approaches it.

@@ -153,7 +153,8 @@ func TestRedact_MatchesUnderlyingValidator(t *testing.T) {
 //
 // The "does not fire" cases double as the honest statement of what this does
 // NOT protect against — a bare secret with no key= in front of it is invisible
-// here, and so is one that survived only a single decoding pass.
+// here, and so is one wrapped in more than the single layer of percent-encoding
+// this unwraps.
 func TestEmbeddedSensitiveKey(t *testing.T) {
 	t.Parallel()
 
@@ -167,6 +168,12 @@ func TestEmbeddedSensitiveKey(t *testing.T) {
 		{name: "semicolon separated pair", value: "/api/v0/x?page=2;password=hunter2", want: "password"},
 		{name: "bare pair with no separator", value: "authorization=Bearer-abc", want: "authorization"},
 		{name: "inline content key", value: "/api/v0/x?excerpt=func+Handler", want: "excerpt"},
+		// The escaped forms. url.ParseQuery decodes the target's query string
+		// upstream, so these bytes only survive intact when they arrive through
+		// --params or a programmatic CaptureInput — the route that used to skip
+		// the scan entirely.
+		{name: "percent encoded nested query", value: "/api/v0/x%3Fapi_key%3Dsk-live", want: "api_key"},
+		{name: "percent encoded ampersand pair", value: "/api/v0/x%26access_token%3Dabc", want: "access_token"},
 
 		{name: "benign nested url is kept", value: "/api/v0/x?page=2", want: ""},
 		{name: "plain path is kept", value: "/api/v0/services/checkout/story", want: ""},
@@ -177,7 +184,8 @@ func TestEmbeddedSensitiveKey(t *testing.T) {
 		// Stated limits: neither of these is detected, and pretending
 		// otherwise in a doc comment would be worse than the gap itself.
 		{name: "LIMIT bare secret under a benign name", value: "sk-live-abc", want: ""},
-		{name: "LIMIT double encoded nested query", value: "/api/v0/x%3Fapi_key%3Dsk-live", want: ""},
+		// One decode, not a loop: "%253F" unwraps to "%3F" and stops there.
+		{name: "LIMIT double encoded nested query", value: "/api/v0/x%253Fapi_key%253Dsk-live", want: ""},
 	}
 	for _, tt := range tests {
 		tt := tt

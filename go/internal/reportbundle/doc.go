@@ -19,7 +19,8 @@
 // Response.Error.Details (which echoes the caller's own selector back), and
 // ReporterNote. The first three are structured, so they get the
 // sensitive-key-name walk plus a re-parse of any query-string-shaped value at
-// any depth (redactQueryInput). ReporterNote is free text — the guide asks
+// any depth, as typed and once percent-decoded (redactQueryInput). ReporterNote
+// is free text — the guide asks
 // reporters for a repro, so it commonly holds a pasted curl — and gets a
 // line-by-line scan for a sensitive-named key beside an "=" or a ":"
 // (redactReporterNote). Server-produced evidence — Response.Data and
@@ -37,5 +38,8 @@
 // No user-supplied string is interpolated into an error this package returns.
 // Errors name the field ("query.target", "query.params.next") and never repeat
 // its value: they land in terminals, CI logs, and pasted bug reports, which are
-// the same places the bundle beside them is redacted for.
+// the same places the bundle beside them is redacted for. A parameter name is
+// reporter-typed too, and a name can itself be a "key=value" pair, so the ones
+// that are get replaced with a fixed marker before they reach a message (see
+// safePathSegment).
 package reportbundle
