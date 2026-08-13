@@ -6,12 +6,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/evidpacket"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
 )
 
@@ -50,7 +48,7 @@ missed).`,
 func runEvidencePacketDogfood(cmd *cobra.Command, _ []string) error {
 	path, _ := cmd.Flags().GetString("from")
 	jsonOut, _ := cmd.Flags().GetBool("json")
-	raw, err := readDogfoodBenchmark(cmd.InOrStdin(), path)
+	raw, err := evidpacket.ReadBenchmark(cmd.InOrStdin(), path)
 	if err != nil {
 		return err
 	}
@@ -66,64 +64,10 @@ func runEvidencePacketDogfood(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("write dogfood verdict JSON: %w", err)
 		}
 	} else {
-		renderDogfoodVerdict(cmd.OutOrStdout(), verdict)
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), evidpacket.RenderVerdict(verdict))
 	}
 	if !verdict.Pass {
-		return fmt.Errorf("evidence-packet dogfood FAILED: %s", dogfoodFailureSummary(verdict))
+		return fmt.Errorf("evidence-packet dogfood FAILED: %s", evidpacket.FailureSummary(verdict))
 	}
 	return nil
-}
-
-func readDogfoodBenchmark(stdin io.Reader, path string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" {
-		raw, err := io.ReadAll(stdin)
-		if err != nil {
-			return nil, fmt.Errorf("read dogfood benchmark from stdin: %w", err)
-		}
-		return raw, nil
-	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local benchmark artifact path, not an HTTP request param //nolint:gosec
-	if err != nil {
-		return nil, fmt.Errorf("read dogfood benchmark file %q: %w", path, err)
-	}
-	return raw, nil
-}
-
-func renderDogfoodVerdict(w io.Writer, verdict packetdogfood.Verdict) {
-	header := "Evidence-packet dogfood PASSED"
-	if !verdict.Pass {
-		header = "Evidence-packet dogfood FAILED"
-	}
-	_, _ = fmt.Fprintln(w, header)
-	_, _ = fmt.Fprintf(w, "  run     : %s (%s)\n", quoteIfEmpty(verdict.RunID), verdict.RunKind)
-	_, _ = fmt.Fprintf(w, "  tasks   : %d\n", verdict.TaskCount)
-	_, _ = fmt.Fprintf(w, "  families: %s\n", strings.Join(verdict.Families, ", "))
-	_, _ = fmt.Fprintln(w, strings.Repeat("-", 44))
-	for _, criterion := range verdict.Criteria {
-		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", dogfoodMarker(criterion.Status), criterion.Name, criterion.Detail)
-	}
-}
-
-func dogfoodMarker(status packetdogfood.CriterionStatus) string {
-	switch status {
-	case packetdogfood.CriterionPass:
-		return "[ok]"
-	case packetdogfood.CriterionFail:
-		return "[!!]"
-	default:
-		return "[--]"
-	}
-}
-
-func dogfoodFailureSummary(verdict packetdogfood.Verdict) string {
-	var failures []string
-	for _, criterion := range verdict.Criteria {
-		if criterion.Status == packetdogfood.CriterionFail {
-			failures = append(failures, fmt.Sprintf("%s: %s", criterion.Name, criterion.Detail))
-		}
-	}
-	if len(failures) == 0 {
-		return "unknown failure"
-	}
-	return strings.Join(failures, "; ")
 }

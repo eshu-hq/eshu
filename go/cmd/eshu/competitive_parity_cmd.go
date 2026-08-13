@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/cli/evidpacket"
 	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/competitiveparity"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
@@ -276,7 +277,7 @@ func exerciseEvidencePacketDogfoodFixture(repoRoot string) error {
 	}
 	verdict := packetdogfood.Score(benchmark)
 	if !verdict.Pass {
-		return fmt.Errorf("dogfood fixture failed: %s", dogfoodFailureSummary(verdict))
+		return fmt.Errorf("dogfood fixture failed: %s", evidpacket.FailureSummary(verdict))
 	}
 	return nil
 }
