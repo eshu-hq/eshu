@@ -62,8 +62,8 @@
   which tool answers a resolved scope.
 - **Change what counts as a "safe" scope ID** → edit `scopeSafe`
   (preflight.go). This is the last line of defense against a private
-  absolute path or URL leaking into `Output.Scope.ID`, which then
-  serializes into both the JSON output and the Claude hook
+  absolute path or URL leaking into `Output.Scope.ID`, which the CLI then
+  echoes both in its `scope:` text line and inside the Claude hook
   `additionalContext` string — treat any relaxation here as a publish-safety
   change requiring the same scrutiny as a new output field.
 

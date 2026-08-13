@@ -10,27 +10,32 @@ import (
 	"time"
 )
 
-// schema identifies the JSON contract Output serializes:
-// assistant_fast_path_hook.v1.
+// schema is the assistant_fast_path_hook.v1 identifier stamped into
+// Output.Schema; see Output for what is and is not marshalled.
 const schema = "assistant_fast_path_hook.v1"
 
 // DefaultBudget is the wall-time budget `eshu assistant hook preflight`
 // uses when the caller does not override it with --budget, and the floor
 // normalizeInput applies to any non-positive Input.Budget. Evaluate skips
-// with reasonTimeout once Input.Elapsed exceeds Input.Budget.
+// with reasonTimeout once Input.Elapsed exceeds Input.Budget; that is the
+// first check in its switch, so it wins the reason code over every other
+// ineligible condition.
 const DefaultBudget = 200 * time.Millisecond
 
 // defaultLimit is the result-count limit stamped onto every PlannedCall.
 const defaultLimit = 5
 
-// supportedHostClaude is the only Input.Host value Evaluate advises for;
-// every other host skips with reasonUnsupportedHost.
+// supportedHostClaude is the only Input.Host value Evaluate advises for.
+// Any other host is a skip with reasonUnsupportedHost when no earlier check
+// in Evaluate's switch already decided the reason.
 const supportedHostClaude = "claude"
 
 // Freshness states an Input.Freshness (and Output.Truth.FreshnessState) may
-// carry. FreshnessFresh is the default; freshnessUnavailable skips the
-// preflight entirely, and freshnessStale/freshnessBuilding advise with
-// reasonStaleIndex instead of reasonBoundedPreflight.
+// carry. FreshnessFresh is the default; freshnessUnavailable is a skip with
+// reasonUnavailableContext when no earlier check in Evaluate already decided
+// the reason -- freshness is read last, after scope resolution.
+// freshnessStale and freshnessBuilding still advise, with reasonStaleIndex
+// instead of reasonBoundedPreflight.
 const (
 	FreshnessFresh       = "fresh"
 	freshnessStale       = "stale"
@@ -39,8 +44,9 @@ const (
 )
 
 // Permission states an Input.Permission may carry. PermissionAllowed is the
-// default; permissionDenied skips with reasonPermissionDenied before scope
-// is ever resolved.
+// default; permissionDenied is a skip with reasonPermissionDenied when no
+// earlier check in Evaluate's switch already decided the reason. That check
+// runs before scope resolution, so a denial never reaches Output.Scope.
 const (
 	PermissionAllowed = "allowed"
 	permissionDenied  = "denied"
@@ -88,10 +94,11 @@ type Input struct {
 	Elapsed     time.Duration
 }
 
-// Output is the full preflight decision, serialized as the
-// assistant_fast_path_hook.v1 contract when the CLI is invoked without
-// --json, and used to build the narrower Claude PreToolUse hook JSON
-// (ClaudePreToolUseOutputForPreflight) when it is.
+// Output is the full preflight decision. Its json tags name the
+// assistant_fast_path_hook.v1 fields, but no caller marshals Output today:
+// without --json the CLI renders it as text through RenderPreflightText,
+// and with --json it emits the narrower Claude PreToolUse hook JSON built
+// by ClaudePreToolUseOutputForPreflight.
 type Output struct {
 	Schema      string       `json:"schema"`
 	Decision    string       `json:"decision"`
@@ -124,7 +131,9 @@ type PlannedCall struct {
 }
 
 // Truth labels Output's evidence tier. Every Evaluate result is advisory,
-// local-preflight, and untruncated; FreshnessState mirrors Input.Freshness.
+// local-preflight, and untruncated; FreshnessState carries Input.Freshness
+// after normalizeInput trims and lowercases it (and defaults an empty value
+// to FreshnessFresh).
 type Truth struct {
 	Level          string `json:"level"`
 	Profile        string `json:"profile"`

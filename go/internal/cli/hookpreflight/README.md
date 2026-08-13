@@ -13,9 +13,10 @@ MCP tool call to recommend next -- never running that call itself.
 ## Ownership boundary
 
 This package owns preflight *logic*: normalizing the request, resolving a
-safe scope, picking the recommended tool call, merging Claude's PreToolUse
-JSON, and rendering both the text and Claude-hook-JSON output shapes. It
-does not own process wiring: reading cobra flags, reading stdin, or mapping
+safe scope, picking the recommended tool call, folding in an
+already-decoded Claude PreToolUse payload, rendering the text output, and
+building the Claude hook response value. It does not own process wiring:
+reading cobra flags, reading stdin, decoding or encoding JSON, or mapping
 the result to an exit code. Those stay in
 `go/cmd/eshu/assistant_hook_preflight.go`, the cobra `RunE` wrapper, because
 `go/cmd/eshu` is `package main` and nothing can import it. The wrapper
@@ -26,14 +27,21 @@ than to a process stream directly.
 
 ## Exported surface
 
-- `Input`, `Output`, `Scope`, `PlannedCall`, `Truth` -- the request and the
-  full decision, including the JSON tags the CLI's non-`--json` mode
-  serializes
+- `Input` -- the request `Evaluate` classifies. It is a plain flag carrier
+  with no `json` struct tags; nothing decodes into it
+- `Output`, `Scope`, `PlannedCall`, `Truth` -- the full decision. These
+  carry `json` struct tags naming the `assistant_fast_path_hook.v1` field
+  names, but no production code marshals them: without `--json` the CLI
+  renders `Output` as text, and with `--json` it encodes the narrower
+  `ClaudePreToolUseOutput` instead. The one `json.Marshal(Output)` in the
+  package is in `preflight_test.go`, checking that an unsafe scope ID never
+  reaches the JSON form
 - `Evaluate` -- classifies an `Input` into an `Output`; fails open (skip,
   never an error) rather than blocking the original host action
 - `ClaudePreToolUseInput`, `ClaudePreToolUseOutput`,
   `ClaudePreToolUseSpecificOutput` -- the Claude Code PreToolUse hook JSON
-  shapes read from stdin and emitted on `--json`
+  shapes, and the only ones anything serializes: the wrapper decodes stdin
+  into the first and encodes the second on `--json`
 - `MergeClaudePreToolUseInput` -- folds a decoded Claude payload into an
   `Input`: it always overwrites `Tool` with the payload's tool name, and
   fills `Trigger` and `RepoPath` only when the caller left them empty
@@ -49,10 +57,17 @@ See `doc.go` for the full godoc contract.
 
 ## Dependencies
 
-None internal. The package imports only the standard library
-(`encoding/json` is not imported here -- JSON encoding of `Output` happens
-in the wrapper via `encoding/json.Encoder`; this package only carries the
-`json` struct tags).
+None internal. The non-test files import only `fmt`, `io`, `path/filepath`,
+`strings`, and `time` -- `go list -deps` resolves to 61 standard-library
+packages plus this package itself, and nothing else. `os/exec`, `net/http`,
+and `encoding/json` are not among them: this package runs no binary, opens
+no connection, and does no JSON encoding or decoding outside its own tests
+(the wrapper decodes the stdin payload and encodes the `--json` response;
+`preflight_test.go` marshals an `Output` to check for a leaked path). `os`
+is pulled in transitively by `path/filepath`, but no code here calls it,
+and the four `path/filepath` functions this package does call -- `IsAbs`,
+`Rel`, `Clean`, `ToSlash` -- are pure string operations, so the package
+reads no environment variable and touches no file.
 
 Consumed by `go/cmd/eshu`: `assistant_hook_preflight.go` (the `hook
 preflight` command) is the only production caller.
@@ -75,8 +90,8 @@ graph/Postgres drivers).
   change, not a classification.
 - Scope resolution stops at the first non-empty candidate, in order:
   `repo_path`, `entity_id`, `service`, `workload`, `environment`,
-  `resource`. If that candidate fails `scopeSafe` (an absolute path, a
-  URL, `..`, a backslash, or a character outside
+  `resource`. If that candidate fails `scopeSafe` (an absolute path, a `~`
+  prefix, a URL, `..`, a backslash, or a character outside
   `[A-Za-z0-9._/:-]`), `Evaluate` skips with `reasonBroadScope` rather than
   falling through to the next candidate -- an unsafe first match is not
   silently replaced by a safer later one.
