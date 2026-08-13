@@ -206,7 +206,8 @@ run_parity_matrix() {
 
 # ---------------------------------------------------------------------------
 # filecap-only cases: inputs filecap-all never sees, so there is no parity
-# verdict to compare — only agreement with the CI plugin.
+# verdict to compare — only agreement with the CI plugin, or, for the outside-go/
+# case below, a departure from it that precommit-go.sh documents as deliberate.
 # ---------------------------------------------------------------------------
 test_violation_message() {
 	local repo_dir
@@ -230,6 +231,36 @@ test_non_go_file_is_ignored() {
 	run_gate "${repo_dir}" filecap "go/internal/big/notes.txt"
 	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 900-line non-.go file, got ${GATE_RC}"
 	pass "a non-.go file over the cap is ignored"
+}
+
+# First-party Go outside the go/ module. precommit-go.sh's header block calls
+# this asymmetry deliberate: the hook stages every .go path in the repo, so
+# `filecap` caps sdk/go and tools, while `filecap-all` and the CI plugin only
+# ever look at go/. That makes the local arm the ONLY thing enforcing the repo's
+# 500-line rule out here, which is exactly why it must not be quietly narrowed.
+#
+# Both verdicts are asserted because the claim is about the difference between
+# them. Every other fixture in this file lives under go/, so a one-line
+# `case "${f}" in go/*) ;; *) return 0 ;; esac` at the top of filecap_check_file
+# — the precise narrowing the header block argues against — passed every
+# assertion the harness had before this case existed.
+test_outside_go_module_is_capped_locally_only() {
+	local repo_dir
+	new_repo
+	repo_dir="${REPO_DIR}"
+	write_file "${repo_dir}" 501 "sdk/go/factschema/scratch.go"
+
+	run_gate "${repo_dir}" filecap "sdk/go/factschema/scratch.go"
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "expected rc=1 for a 501-line first-party .go file outside go/, got ${GATE_RC}"
+	assert_contains "sdk/go/factschema/scratch.go"
+	assert_contains "501 lines"
+	pass "a 501-line .go file outside go/ is capped by filecap"
+
+	run_gate "${repo_dir}" filecap-all
+	[[ "${GATE_RC}" == 0 ]] ||
+		fail "expected rc=0 from filecap-all for a file outside its go/ walk, got ${GATE_RC}"
+	pass "filecap-all does not see that file, so the strictness is local-only by design"
 }
 
 # The plugin matches "/testdata/" against an ABSOLUTE path, so a repo-root
@@ -363,10 +394,20 @@ test_mutation_breaks_parity() {
 run_parity_matrix
 test_violation_message
 test_non_go_file_is_ignored
+test_outside_go_module_is_capped_locally_only
 test_leading_segment_is_exempt
 test_missing_file_is_ignored
 test_missing_trailing_newline_counts
 test_mutation_breaks_parity
+
+# Pin the assertion total the way run_parity_matrix pins its case count.
+# Deleting a call from the list above otherwise costs nothing: the runner still
+# exits 0 and still prints "all tests passed", just with a smaller number that
+# nobody is comparing against anything. Update this when you add or remove an
+# assertion, and read a mismatch as "a test stopped running", not as a stale
+# constant to bump.
+[[ "${assertions}" == 22 ]] ||
+	fail "runner made ${assertions} assertions, expected 22 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"

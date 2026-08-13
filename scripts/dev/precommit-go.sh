@@ -106,6 +106,12 @@ go_install_tool() {
 # both passed it, and the only way through was a //nolint:filelength marker that
 # suppresses nothing in CI. Keep the logic here, not in the case arms.
 #
+# The blast radius of that drift, measured with `awk 'END{print NR}'` over
+# `git ls-files 'go/*_test.go'`: 78 of the 6,114 tracked _test.go files under
+# go/ are over 500 lines, and 13 of those are over 1,000. Every one of them was
+# a local-only commit blocker that CI would have accepted, and every marker
+# added to get past it suppressed nothing anywhere.
+#
 # The two arms share the per-file VERDICT but not the INPUT SET, so "parity"
 # below always means "same file -> same answer", never "same set of files".
 # `filecap` gets whatever the pre-commit hook stages, and the go-file-cap hook
