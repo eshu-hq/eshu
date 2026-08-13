@@ -97,6 +97,65 @@ go_install_tool() {
 	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod env -u GOROOT go install "$@"
 }
 
+# ---------------------------------------------------------------------------
+# 500-line file cap. ONE implementation, shared by the `filecap` (changed-files,
+# run by the pre-commit hook and scripts/dev/pre-pr.sh) and `filecap-all`
+# (whole-tree, run by the ci-gates runner) subcommands below. They used to carry
+# separate bodies and drifted: `filecap` had none of the exemptions, so a commit
+# touching any long _test.go file was rejected locally while CI and `filecap-all`
+# both passed it, and the only way through was a //nolint:filelength marker that
+# suppresses nothing in CI. Keep the logic here, not in the case arms.
+# ---------------------------------------------------------------------------
+
+# filecap_skip returns 0 for a Go path the cap intentionally does not apply to,
+# mirroring the authoritative CI plugin's skip()
+# (tools/golangci-lint-filelength/filelength.go): _test.go files, and any path
+# with a `generated`, `vendor`, or `testdata` path SEGMENT.
+#
+# The plugin matches with strings.Contains(path, "/<seg>/") against an ABSOLUTE
+# path, so a segment at the very start still has a separator in front of it.
+# These callers pass repo-RELATIVE paths, where that leading separator is
+# absent — hence the `<seg>/*` alternative beside `*/<seg>/*`. Without it a
+# repo-root `testdata/` tree (this repo has one) would be capped locally and
+# exempt in CI. The `*/<seg>/*` form is otherwise exactly equivalent to the
+# plugin's substring test: `*` in a case pattern matches `/`, and the literal
+# separators anchor the segment so `generated_foo/` and `vendored/` stay capped.
+filecap_skip() {
+	local f="$1"
+	[[ "${f}" == *_test.go ]] && return 0
+	case "${f}" in
+		generated/*|*/generated/*) return 0 ;;
+		vendor/*|*/vendor/*) return 0 ;;
+		testdata/*|*/testdata/*) return 0 ;;
+	esac
+	return 1
+}
+
+# filecap_count_lines counts physical lines the way the plugin's bufio.Scanner
+# does: a final line with no trailing newline still counts. `wc -l` counts
+# newline CHARACTERS, so on such a file it reports one fewer and the local gate
+# would be one line MORE permissive than CI. awk's NR counts the trailing
+# partial line, matching the plugin exactly.
+filecap_count_lines() {
+	awk 'END { print NR }' "$1"
+}
+
+# filecap_check_file evaluates one repo-relative Go path against the cap,
+# printing the violation. Returns 1 on violation, 0 otherwise.
+filecap_check_file() {
+	local f="$1" lines
+	[[ "${f}" == *.go ]] || return 0
+	filecap_skip "${f}" && return 0
+	[[ -f "${repo_root}/${f}" ]] || return 0
+	rg -q 'nolint:filelength' "${repo_root}/${f}" && return 0
+	lines="$(filecap_count_lines "${repo_root}/${f}")"
+	if (( lines > 500 )); then
+		note "${f}: ${lines} lines exceeds the 500-line cap (split it, or //nolint:filelength with a reason)"
+		return 1
+	fi
+	return 0
+}
+
 ensure_golangci() {
 	local bin="${tool_cache_dir}/golangci-lint-${golangci_version}"
 	if [[ ! -x "${bin}" ]]; then
@@ -189,17 +248,15 @@ case "${cmd}" in
 			--allow-parallel-runners --config "${cfg}" "${dirs[@]}" )
 		;;
 	filecap)
-		# 500-line cap (the filelength plugin's job), honouring //nolint:filelength.
+		# 500-line cap (the filelength plugin's job), changed-files variant: the
+		# pre-commit hook (.pre-commit-config.yaml go-file-cap) and
+		# scripts/dev/pre-pr.sh's step_filecap both pass a file list here. Same
+		# verdict as filecap-all on any given file — both go through
+		# filecap_check_file above. Self-tested by
+		# scripts/test-precommit-go-filecap.sh.
 		status=0
 		for f in "$@"; do
-			[[ "${f}" == *.go ]] || continue
-			[[ -f "${repo_root}/${f}" ]] || continue
-			rg -q 'nolint:filelength' "${repo_root}/${f}" && continue
-			lines="$(wc -l < "${repo_root}/${f}")"
-			if (( lines > 500 )); then
-				note "${f}: ${lines} lines exceeds the 500-line cap (split it, or //nolint:filelength with a reason)"
-				status=1
-			fi
+			filecap_check_file "${f}" || status=1
 		done
 		exit "${status}"
 		;;
@@ -315,25 +372,13 @@ case "${cmd}" in
 		;;
 	filecap-all)
 		# Whole-tree 500-line cap over every tracked Go file. This no-arg variant
-		# is what the ci-gates runner invokes (it passes no file list). It mirrors
-		# the authoritative CI plugin's skip() exactly
-		# (tools/golangci-lint-filelength/filelength.go): the cap does NOT apply to
-		# _test.go files or to paths under generated/, vendor/, or testdata/. It
-		# also honours an explicit //nolint:filelength marker.
+		# is what the ci-gates runner invokes (it passes no file list). Shares
+		# filecap_check_file with the `filecap` arm above, which is what mirrors
+		# the authoritative CI plugin's skip()
+		# (tools/golangci-lint-filelength/filelength.go).
 		status=0
 		while IFS= read -r f; do
-			[[ "${f}" == *.go ]] || continue
-			[[ "${f}" == *_test.go ]] && continue
-			case "${f}" in
-				*/generated/*|*/vendor/*|*/testdata/*) continue ;;
-			esac
-			[[ -f "${repo_root}/${f}" ]] || continue
-			rg -q 'nolint:filelength' "${repo_root}/${f}" && continue
-			lines="$(wc -l < "${repo_root}/${f}")"
-			if (( lines > 500 )); then
-				note "${f}: ${lines} lines exceeds the 500-line cap (split it, or //nolint:filelength with a reason)"
-				status=1
-			fi
+			filecap_check_file "${f}" || status=1
 		done < <(git -C "${repo_root}" ls-files 'go/*.go')
 		exit "${status}"
 		;;
