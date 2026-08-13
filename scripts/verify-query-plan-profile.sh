@@ -78,17 +78,28 @@ fi
 # built-in token-lookup indexes; the gate's schema phase creates many more, so
 # an index count still at or below that floor means the profiles never ran.
 #
-# cypher-shell's stderr deliberately stays on this script's stderr instead of
-# being folded into the value: a failure message carrying any digit would parse
-# as a count and fake a pass. A failed read leaves the count empty, which fails.
+# The last line must be the count and nothing else. An earlier version stripped
+# every non-digit out of it instead, which turned any line carrying a digit --
+# a warning, a footer, a driver message on stdout -- into a plausible count and
+# would have passed the gate on it. cypher-shell's stderr also stays on this
+# script's stderr rather than being folded into the value, for the same reason.
+# Anything that is not a bare integer fails here: an unreadable count is not
+# evidence that the profiles ran.
 readonly fresh_database_index_count=2
 index_output="$(docker exec "$container" cypher-shell \
 	-u neo4j -p "$password" --format plain \
 	'SHOW INDEXES YIELD name RETURN count(name) AS indexes' || true)"
-index_count="$(printf '%s\n' "$index_output" | tail -1 | tr -dc '0-9')"
-if [ -z "$index_count" ] || [ "$index_count" -le "$fresh_database_index_count" ]; then
+index_count="$(printf '%s\n' "$index_output" | tail -1 | tr -d '[:space:]')"
+case "$index_count" in
+	'' | *[!0-9]*)
+		printf 'verify-query-plan-profile: reading the index count back from the isolated database gave "%s", which is not a whole number. That is a failed read, not a count, and the live PROFILE test cannot be shown to have run — full output:\n%s\n' \
+			"$index_count" "$index_output" >&2
+		exit 1
+		;;
+esac
+if [ "$index_count" -le "$fresh_database_index_count" ]; then
 	printf 'verify-query-plan-profile: the isolated database holds %s index(es), at or below the %s a fresh database starts with — the live PROFILE test did not run (it most likely skipped because its environment did not reach `go test`)\n' \
-		"${index_count:-no}" "$fresh_database_index_count" >&2
+		"$index_count" "$fresh_database_index_count" >&2
 	exit 1
 fi
 

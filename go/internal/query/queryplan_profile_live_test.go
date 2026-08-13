@@ -100,6 +100,9 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	// could spend the whole budget and the subtests then failed en masse with
 	// the driver's connectivity wording. See queryplan_profile_deadlines_test.go
 	// for the budgets and the measurements behind them.
+	// The wall-clock backstop starts here, before the first graph call, so it
+	// bounds the run an operator actually waits on: connect and schema included.
+	gateStarted := time.Now()
 	connectCtx, cancelConnect := context.WithTimeout(t.Context(), queryplanProfileConnectBudget)
 	defer cancelConnect()
 	connectStarted := time.Now()
@@ -130,14 +133,13 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 	}
 	manifest.Entries = append(manifest.Entries, legacyManifest.Entries...)
 	applyQueryplanProfileSchema(t, session, manifest)
-	profileStarted := time.Now()
 	profiled := 0
 	for _, entry := range manifest.Entries {
 		entry := entry
 		if strings.TrimSpace(entry.Cypher) == "" {
 			continue
 		}
-		if err := queryplanProfileTotalBudgetError(time.Since(profileStarted), profiled); err != nil {
+		if err := queryplanProfileTotalBudgetError(time.Since(gateStarted), profiled); err != nil {
 			t.Fatal(err)
 		}
 		profiled++
@@ -167,16 +169,16 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
 	}
-	profileQueryplanSafeProductionVariants(t, session, profileStarted, profiled)
+	profileQueryplanSafeProductionVariants(t, session, gateStarted, profiled)
 }
 
 // profileQueryplanSafeProductionVariants profiles the safe production Cypher
-// variants. profileStarted and profiled carry the enclosing test's wall-clock
+// variants. gateStarted and profiled carry the enclosing test's wall-clock
 // backstop across both loops, so the gate accounts for one run rather than two.
 func profileQueryplanSafeProductionVariants(
 	t *testing.T,
 	session neo4jdriver.SessionWithContext,
-	profileStarted time.Time,
+	gateStarted time.Time,
 	profiled int,
 ) {
 	t.Helper()
@@ -188,7 +190,7 @@ func profileQueryplanSafeProductionVariants(
 	sort.Strings(names)
 	for _, name := range names {
 		name := name
-		if err := queryplanProfileTotalBudgetError(time.Since(profileStarted), profiled); err != nil {
+		if err := queryplanProfileTotalBudgetError(time.Since(gateStarted), profiled); err != nil {
 			t.Fatal(err)
 		}
 		profiled++
