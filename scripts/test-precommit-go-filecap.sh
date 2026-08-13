@@ -12,13 +12,12 @@
 #
 # "Parity" here means one thing only: the same file gets the same verdict from
 # both bash variants. It does NOT mean they see the same set of files. The
-# pre-commit hook feeds `filecap` every .go path in the repo (types: [go]),
-# while `filecap-all` walks only `git ls-files 'go/*.go'` — so outside go/ the
-# changed-files arm is stricter than CI on purpose. precommit-go.sh's file-cap
-# header block explains why. Nothing below asserts anything about input sets.
-#
-# Every scratch repo is built under mktemp -d with `env -u GIT_*` so the outer
-# repository cannot leak in.
+# pre-commit hook feeds `filecap` every .go path in the repo (types: [go]), while
+# `filecap-all` walks only `git ls-files 'go/*.go'` — so outside go/ the
+# changed-files arm is stricter than CI on purpose, for the reasons in
+# precommit-go.sh's file-cap header block. What each arm does with a LIST of
+# inputs is covered separately by test_every_input_is_checked. Every scratch repo
+# is built under mktemp -d with `env -u GIT_*` so the outer repo cannot leak in.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -59,12 +58,11 @@ git_in() {
 		git -C "${repo_dir}" "$@"
 }
 
-# new_repo sets REPO_DIR to a fresh scratch repo holding a copy of the helper
-# (or of ${1}, used by the mutation check). It sets a global rather than
-# printing, because a command substitution would run it in a subshell and lose
-# the scratch counter, silently reusing one repo for every case.
-# The two workflow stubs exist because precommit-go.sh reads the pinned tool
-# versions out of them at startup.
+# new_repo sets REPO_DIR to a fresh scratch repo holding a copy of the helper (or
+# of ${1}, used by the mutation check). It sets a global rather than printing: a
+# command substitution would run it in a subshell and lose the scratch counter,
+# silently reusing one repo for every case. The two workflow stubs exist because
+# precommit-go.sh reads the pinned tool versions out of them at startup.
 new_repo() {
 	local script_src="${1:-${helper}}"
 	scratch_seq=$((scratch_seq + 1))
@@ -110,31 +108,38 @@ write_file() {
 	git_in "${repo_dir}" commit -q -m "fixture ${rel}"
 }
 
-# run_gate runs one precommit-go.sh subcommand in a scratch repo and sets
-# GATE_RC directly from the process (never through a pipe) plus GATE_OUT.
-# Each run gets its OWN output path. A single shared path would be overwritten
-# by the next run, so in assert_parity a `filecap` failure would dump
-# `filecap-all`'s output and send the reader after the wrong arm.
+# run_gate runs one precommit-go.sh subcommand in a scratch repo and sets GATE_RC
+# directly from the process (never through a pipe) plus GATE_OUT. Each run gets
+# its OWN output path. A single shared path would be overwritten by the next run,
+# so in assert_parity a `filecap` failure would dump `filecap-all`'s output and
+# send the reader after the wrong arm.
+#
+# Set GATE_CWD to run from somewhere other than the repo root; run_gate clears it
+# again so it cannot leak into the next case. Hence the absolute script path, and
+# precommit-go.sh takes repo_root from `git rev-parse --show-toplevel`, so any
+# directory inside the repo works.
 run_gate() {
 	local repo_dir="$1" sub="$2"
 	shift 2
+	local cwd="${GATE_CWD:-${repo_dir}}"
+	GATE_CWD=""
 	gate_seq=$((gate_seq + 1))
 	GATE_OUT="${tmp_root}/gate-${gate_seq}-${sub}.out"
 	set +e
 	(
-		cd "${repo_dir}" &&
+		cd "${cwd}" &&
 			env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR \
-				bash scripts/dev/precommit-go.sh "${sub}" "$@"
+				bash "${repo_dir}/scripts/dev/precommit-go.sh" "${sub}" "$@"
 	) >"${GATE_OUT}" 2>&1
 	GATE_RC=$?
 	set -e
 }
 
 # assert_contains routes through pass() so it lands in the assertion total. When
-# it did not, deleting one call — or replacing the gate's whole violation message
-# with a one-word stub and deleting all seven — left the run green at the pinned
-# number, because the pin counted pass() calls only. The operator-facing message
-# is the thing this gate exists to deliver, so it gets counted guards.
+# it did not, deleting one call — or stubbing out the gate's whole violation
+# message and deleting all seven — left the run green at the pinned number,
+# because the pin counted pass() calls only. That message is what this gate
+# exists to deliver, so it gets counted guards.
 assert_contains() {
 	local needle="$1"
 	rg -q --fixed-strings "${needle}" "${GATE_OUT}" ||
@@ -144,9 +149,9 @@ assert_contains() {
 
 # ---------------------------------------------------------------------------
 # Parity matrix: for each input, `filecap` (changed-files) and `filecap-all`
-# (whole-tree) must reach the SAME verdict, and that verdict must be the
-# expected one. One scratch repo per case so filecap-all's whole-tree exit code
-# is attributable to the single candidate file.
+# (whole-tree) must reach the SAME verdict, and it must be the expected one. One
+# scratch repo per case, so filecap-all's whole-tree exit code is attributable to
+# the single candidate file.
 # ---------------------------------------------------------------------------
 assert_parity() {
 	local label="$1" rel="$2" lines="$3" directive="$4" want_rc="$5"
@@ -193,38 +198,90 @@ run_parity_matrix() {
 		"go/internal/big/testdata/oversize.go" 501 "" 0
 	assert_parity "//nolint:filelength marker is honoured" \
 		"go/internal/big/marked.go" 501 "nolint:filelength" 0
-	# The negative half of that exemption. filecap_check_file greps for the
-	# literal string `nolint:filelength`; widening that pattern to `nolint` — or
-	# to `lint` — exempts any file carrying ANY directive, and 39 non-test .go
-	# files under go/ carry a different `nolint:` one today. The longest,
-	# go/internal/collector/git_source_processing.go, is at 457 lines, so the
-	# widening would hand it 43 lines of headroom nobody asked for and the gate
-	# would never say a word.
+	# The negative half of that exemption, guarded on both sides of the colon,
+	# because widening either side is its own one-token edit. Left of it:
+	# filecap_check_file greps for the literal `nolint:filelength`; shortening
+	# that to `nolint` — or to `lint` — exempts any file carrying ANY directive,
+	# and 39 non-test .go files under go/ carry a different `nolint:` one today.
+	# The longest, go/internal/collector/git_source_processing.go, is at 457
+	# lines, so the widening hands it 43 lines of headroom nobody asked for.
 	assert_parity "an unrelated nolint directive is NOT an exemption" \
 		"go/internal/big/othermarked.go" 501 "nolint:gocyclo" 1
+	# Right of it: dropping the `nolint:` prefix and grepping bare `filelength`
+	# exempts any file that merely says the word — including the plugin's own
+	# source, tools/golangci-lint-filelength/*.go. This fixture carries a real
+	# directive for a DIFFERENT linter and names the plugin in prose.
+	assert_parity "the word filelength without the nolint: prefix is NOT an exemption" \
+		"go/internal/big/prosemention.go" 501 \
+		"nolint:gocyclo // the filelength plugin is not involved" 1
 	assert_parity "exactly 500 lines is legal" \
 		"go/internal/big/boundary500.go" 500 "" 0
 	assert_parity "501 lines is a violation" \
 		"go/internal/big/boundary501.go" 501 "" 1
-	# Prefix-only lookalikes must stay capped: the exemption is a path SEGMENT,
-	# not a substring. This is what the plugin's "/generated/" (with both
-	# separators) buys, and what a bare `*generated*` glob would lose.
+	# Prefix-only lookalikes must stay capped: each exemption is a path SEGMENT,
+	# not a substring. That is what the plugin's "/generated/" (both separators)
+	# buys and a bare `*generated*` glob loses. One per segment, because a widened
+	# glob is a per-segment edit.
 	assert_parity "generated_foo/ is NOT a generated/ segment" \
 		"go/internal/generated_foo/oversize.go" 501 "" 1
 	assert_parity "vendored/ is NOT a vendor/ segment" \
 		"go/internal/vendored/oversize.go" 501 "" 1
+	assert_parity "testdata_foo/ is NOT a testdata/ segment" \
+		"go/internal/testdata_foo/oversize.go" 501 "" 1
+	# The _test.go exemption is a SUFFIX in the plugin (strings.HasSuffix) and a
+	# glob here, so relaxing the glob to `*_test*` exempts load_tester.go,
+	# internal_testing.go, and anything else with `_test` mid-name. No other
+	# fixture puts `_test` anywhere but the end.
+	assert_parity "_test mid-name is not a _test.go suffix" \
+		"go/internal/big/load_tester.go" 501 "" 1
 
 	((parity_cases > 0)) ||
 		fail "parity matrix evaluated 0 cases — the loop proved nothing"
-	[[ "${parity_cases}" == 11 ]] ||
-		fail "parity matrix evaluated ${parity_cases} cases, expected 11"
+	[[ "${parity_cases}" == 14 ]] ||
+		fail "parity matrix evaluated ${parity_cases} cases, expected 14"
 	pass "parity matrix evaluated ${parity_cases} cases"
+}
+
+# Iteration. Every case above hands `filecap` exactly ONE path and puts one .go
+# file in the scratch repo, so nothing above notices if either arm stops after
+# its first candidate. Both production callers pass a list — the go-file-cap hook
+# in .pre-commit-config.yaml forwards every staged .go path, pre-pr.sh's
+# step_filecap forwards its own — and `filecap-all` walks over 2,000 tracked
+# files. Five one-token edits leave the matrix green: `for f in "${1:-}"`, a
+# `status=0` reset inside the loop, a `break` after the first file, a narrowed
+# ls-files pattern, and ls-files piped through `head -1`. So the violation is
+# checked both last in argv (catching a loop that stops early) and first
+# (catching a status variable reset each pass), and go/zzz/ sorts after go/aaa/
+# in ls-files order AND sits outside go/internal/, catching a narrowed walk.
+test_every_input_is_checked() {
+	local repo_dir
+	new_repo
+	repo_dir="${REPO_DIR}"
+	write_file "${repo_dir}" 10 "go/aaa/small.go"
+	write_file "${repo_dir}" 501 "go/zzz/oversize.go"
+
+	run_gate "${repo_dir}" filecap "go/aaa/small.go" "go/zzz/oversize.go"
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "filecap ignored a violation after the first argument (rc=${GATE_RC})"
+	assert_contains "go/zzz/oversize.go"
+	pass "filecap checks every argument the hook stages, not just the first"
+
+	run_gate "${repo_dir}" filecap "go/zzz/oversize.go" "go/aaa/small.go"
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "filecap let a later clean file clear an earlier violation (rc=${GATE_RC})"
+	pass "filecap remembers a violation once a clean file follows it"
+
+	run_gate "${repo_dir}" filecap-all
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "filecap-all ignored a violation after the first ls-files entry (rc=${GATE_RC})"
+	assert_contains "go/zzz/oversize.go"
+	pass "filecap-all walks the whole tree, not just its first entry"
 }
 
 # ---------------------------------------------------------------------------
 # filecap-only cases: inputs filecap-all never sees, so there is no parity
-# verdict to compare — only agreement with the CI plugin, or, for the outside-go/
-# case below, a departure from it that precommit-go.sh documents as deliberate.
+# verdict — only agreement with the CI plugin, or, for the outside-go/ case
+# below, a departure precommit-go.sh documents as deliberate.
 # ---------------------------------------------------------------------------
 test_violation_message() {
 	local repo_dir
@@ -238,6 +295,17 @@ test_violation_message() {
 	assert_contains "split it"
 	assert_contains "//nolint:filelength"
 	pass "violation message names the file, the line count, and both legal exits"
+
+	# Same file, same argv, run from go/ instead of the repo root. The hook stages
+	# repo-relative paths and filecap_check_file resolves them against repo_root
+	# for that reason; drop the `${repo_root}/` prefix and the `[[ -f ]]` guard
+	# misses, so every file passes. Both callers run from the root today.
+	GATE_CWD="${repo_dir}/go"
+	run_gate "${repo_dir}" filecap "go/internal/big/oversize.go"
+	[[ "${GATE_RC}" == 1 ]] ||
+		fail "expected rc=1 when run from a subdirectory, got ${GATE_RC}"
+	assert_contains "501 lines"
+	pass "the verdict does not depend on the caller's working directory"
 }
 
 test_non_go_file_is_ignored() {
@@ -253,14 +321,11 @@ test_non_go_file_is_ignored() {
 # First-party Go outside the go/ module. precommit-go.sh's header block calls
 # this asymmetry deliberate: the hook stages every .go path in the repo, so
 # `filecap` caps sdk/go and tools, while `filecap-all` and the CI plugin only
-# ever look at go/. That makes the local arm the ONLY thing enforcing the repo's
-# 500-line rule out here, which is exactly why it must not be quietly narrowed.
-#
-# Both verdicts are asserted because the claim is about the difference between
-# them. Every other fixture in this file lives under go/, so a one-line
-# `case "${f}" in go/*) ;; *) return 0 ;; esac` at the top of filecap_check_file
-# — the precise narrowing the header block argues against — passed every
-# assertion the harness had before this case existed.
+# look at go/. The local arm is the ONLY thing enforcing the repo's 500-line rule
+# out here, which is why it must not be quietly narrowed. Both verdicts are
+# asserted because the claim is about the difference between them. Every other
+# fixture lives under go/, so `case "${f}" in go/*) ;; *) return 0 ;; esac` at
+# the top of filecap_check_file passed every assertion predating this case.
 test_outside_go_module_is_capped_locally_only() {
 	local repo_dir
 	new_repo
@@ -281,20 +346,16 @@ test_outside_go_module_is_capped_locally_only() {
 }
 
 # The plugin matches "/testdata/" against an ABSOLUTE path, so a repo-root
-# testdata/ tree is exempt in CI. The hook passes repo-RELATIVE paths, where
-# that leading separator is absent; without the `<seg>/*` alternatives the local
-# gate would reject a file CI never even lints. The split is latent, not live:
-# no file in this repo exercises it today. The repo-root testdata/ tree holds
-# two .go files, both _test.go and both under the cap, and there is no repo-root
-# generated/ or vendor/ at all. These fixtures are the only thing holding each
-# alternative in place.
-#
-# Each of the three gets its own written file and its own assertion. An earlier
-# version asserted `generated/` with a path it never created, which meant
-# filecap_check_file returned 0 at its `[[ -f ... ]]` guard before the skip
-# logic ran: the assertion passed with or without the exemption, and the single
-# pass line claimed all three segments were covered. Deleting a leading
-# alternative from filecap_skip must turn this red, one alternative at a time.
+# testdata/ tree is exempt in CI. The hook passes repo-RELATIVE paths, where that
+# leading separator is absent; without the `<seg>/*` alternatives the local gate
+# would reject a file CI never even lints. Latent, not live: the repo-root
+# testdata/ tree holds two .go files, both _test.go and both under the cap, and
+# there is no repo-root generated/ or vendor/ at all. These fixtures are the only
+# thing holding each alternative in place, so each gets its own written file and
+# its own assertion. An earlier version asserted `generated/` with a path it
+# never created, so filecap_check_file returned 0 at its `[[ -f ... ]]` guard
+# before the skip logic ran: the assertion passed either way, and one pass line
+# claimed all three segments.
 test_leading_segment_is_exempt() {
 	local repo_dir
 	new_repo
@@ -318,8 +379,7 @@ test_leading_segment_is_exempt() {
 
 # A path the hook stages but that does not exist on disk (deleted in the same
 # commit, say) must not be a violation. This is what the old generated/ case was
-# accidentally testing; keep it as its own explicit assertion so the guard is
-# covered on purpose rather than by accident.
+# accidentally testing; it gets its own assertion so the guard is on purpose.
 test_missing_file_is_ignored() {
 	local repo_dir
 	new_repo
@@ -330,10 +390,9 @@ test_missing_file_is_ignored() {
 	pass "a staged path with no file on disk is ignored"
 	# The exit code alone does not hold the `[[ -f ]]` guard in place. Delete the
 	# guard and rg and awk both run against a path that is not there: rg reports
-	# an IO error, awk reports "can't open file", awk prints no count, and the
-	# empty count still compares as 0 — so rc stays 0 and the assertion above
-	# passes against the broken script. What breaks is the committer's terminal,
-	# so that is what this asserts.
+	# an IO error, awk says "can't open file" and prints no count, and the empty
+	# count still compares as 0 — so rc stays 0 and the assertion above passes
+	# against a broken script. What breaks is the committer's terminal.
 	[[ ! -s "${GATE_OUT}" ]] ||
 		fail "expected no output for a path with no file on disk (rg/awk errors leaking?)"
 	pass "and the gate stays silent, so no rg or awk error reaches the committer"
@@ -418,6 +477,7 @@ test_mutation_breaks_parity() {
 }
 
 run_parity_matrix
+test_every_input_is_checked
 test_violation_message
 test_non_go_file_is_ignored
 test_outside_go_module_is_capped_locally_only
@@ -426,16 +486,14 @@ test_missing_file_is_ignored
 test_missing_trailing_newline_counts
 test_mutation_breaks_parity
 
-# Pin the assertion total the way run_parity_matrix pins its case count.
-# Deleting a call from the list above otherwise costs nothing: the runner still
-# exits 0 and still prints "all tests passed", just with a smaller number that
-# nobody is comparing against anything. Every assertion increments the counter —
-# assert_contains goes through pass() for exactly that reason — so this number
-# also covers the message checks, not only the test functions. Update it when you
-# add or remove an assertion, and read a mismatch as "a test stopped running",
-# not as a stale constant to bump.
-[[ "${assertions}" == 31 ]] ||
-	fail "runner made ${assertions} assertions, expected 31 — a test function or assertion went missing"
+# Pin the assertion total the way run_parity_matrix pins its case count. Deleting
+# a call from the list above otherwise costs nothing: the runner still exits 0
+# and still prints "all tests passed", with a smaller number nobody compares
+# against anything. Every assertion increments the counter — assert_contains goes
+# through pass() for that reason — so this covers the message checks too. Read a
+# mismatch as "a test stopped running", not as a stale constant to bump.
+[[ "${assertions}" == 41 ]] ||
+	fail "runner made ${assertions} assertions, expected 41 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"
