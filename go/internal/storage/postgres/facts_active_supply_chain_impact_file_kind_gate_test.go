@@ -55,6 +55,8 @@ var supplyChainImpactUngatedIdentityPayloadKeys = []string{
 // (`relative_path`, say) would make the #5237 gate drop rows the ungated query
 // returns, and a forward-only check stays green through it.
 func TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery(t *testing.T) {
+	t.Parallel()
+
 	derived := supplyChainImpactUngatedIdentityKeysInQuery(t, listActiveSupplyChainImpactFactsQuery)
 
 	declared := append([]string(nil), supplyChainImpactUngatedIdentityPayloadKeys...)
@@ -225,6 +227,8 @@ func supplyChainImpactGroupClose(t *testing.T, query string, open int) int {
 // test fails and points at the gate that must be revisited, rather than letting
 // the gate start dropping rows the query used to return.
 func TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey(t *testing.T) {
+	t.Parallel()
+
 	ungated := make(map[string]struct{}, len(supplyChainImpactUngatedIdentityPayloadKeys))
 	for _, key := range supplyChainImpactUngatedIdentityPayloadKeys {
 		ungated[key] = struct{}{}
@@ -257,6 +261,8 @@ func TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey(t *testing.T) {
 // gate every non-npm intent reads and detoasts every `file` payload in every
 // active scope for nothing.
 func TestListActiveSupplyChainImpactFactsGatesFileKindOnFileRepositoryIDs(t *testing.T) {
+	t.Parallel()
+
 	const gate = "AND (fact.fact_kind <> 'file' OR COALESCE(cardinality($10::text[]), 0) > 0)"
 	if !strings.Contains(listActiveSupplyChainImpactFactsQuery, gate) {
 		t.Fatalf("query is missing the #5237 file-kind gate %q", gate)
