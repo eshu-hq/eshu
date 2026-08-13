@@ -3,14 +3,33 @@
 Evidence for #4594. Run on 2026-08-12 with
 `scripts/verify-graph-rebuild-from-facts.sh` against the local Compose stack.
 
-The headline: the rebuild command works, the queue drains clean, and the graph
-comes back **incomplete**. Source-local structure returns exactly. Twelve of
-seventeen reducer materialization domains never re-run, so the graph they build
-stays missing. An operator following the disaster-recovery runbook today gets a
-graph that is short 73 nodes and 384 relationships out of 2,504 and 3,289.
+**Read this first — the document records a diagnosis and then its fix, in that
+order, and the early sections describe a state that no longer holds.**
 
-That is a finding about the product, not about the script. The script asserts the
-contract #4594 asks for, and the contract does not hold yet.
+Where this landed:
+
+- **The original defect is fixed.** A rebuild used to return only source-local
+  structure: twelve of seventeen reducer materialization domains never re-ran,
+  leaving the graph short 73 nodes and 384 relationships out of 2,504 and 3,289.
+  Three pieces of Postgres state outlive a graph wipe and each told the pipeline
+  the work was done. Clearing them, scoped to the generations being rebuilt,
+  brings every domain back. The shortfall drops to 5 nodes and 26 relationships.
+- **The verifier still exits 1**, and that is the correct outcome. Three things
+  still differ, and **none of them is the rebuild path this PR touches**: a
+  cross-repository `CALLS` edge blocked by the shared-projection readiness gate,
+  an `EvidenceArtifact` set that is not a pure function of the facts, and — as a
+  consequence of the same resolver defect — a pre-wipe reference that is not
+  stable run to run.
+- **No time bound is claimed.** The issue asks for one. The measurements here
+  cannot support one, and the reasons are recorded rather than papered over.
+
+The assertions were left alone. They assert the contract #4594 asks for, and the
+contract does not hold yet. What each remaining failure is, and which of them
+needs an owner decision rather than a code change, is in
+[Disposition](#disposition-what-each-failure-is-and-who-has-to-act).
+
+Sections below are in the order they were investigated, so a claim in an early
+section may be corrected in a later one. Every correction is marked.
 
 ## What was run
 
@@ -185,15 +204,37 @@ The mapping to the missing structure is one-to-one:
 - `platform_infra_materialization` owns `Platform` and `PROVISIONS_PLATFORM` —
   `Platform` down 2, edges absent.
 - `deployable_unit_correlation` owns `CORRELATES_DEPLOYABLE_UNIT` — absent.
-- `semantic_entity_materialization` owns `EvidenceArtifact` and
-  `EVIDENCES_REPOSITORY_RELATIONSHIP` — absent.
 - `shell_exec_materialization` owns `EXECUTES`, `CloudAction`, and
   `INVOKES_CLOUD_ACTION` — absent.
 - `sql_relationship_materialization` owns `QUERIES_TABLE`, `HAS_COLUMN`,
   `REFERENCES_TABLE`, `READS_FROM`, `WRITES_TO` — absent.
 
-Every missing family belongs to a domain that did not re-run. No missing family
-belongs to a domain that did.
+Every missing family in that list belongs to a domain that did not re-run, and
+no family in it belongs to a domain that did.
+
+### Correction: `EvidenceArtifact` is not a reducer-domain miss
+
+An earlier revision of this list also claimed `semantic_entity_materialization`
+owns `EvidenceArtifact` and `EVIDENCES_REPOSITORY_RELATIONSHIP`. **That is
+wrong, and it was wrong in a way that pointed at the wrong guard.** Read from
+the writer:
+
+- The nodes are written at `storage/cypher/edge_writer.go:196`, inside
+  `if domain == reducer.DomainRepoDependency`.
+- `DomainRepoDependency` is `"repo_dependency"`, and it is a *shared projection*
+  domain (`reducer/shared_projection.go:16`), not one of the seventeen reducer
+  materialization domains the table above splits.
+- Its intents are emitted by the cross-repo resolver
+  (`reducer/cross_repo_intent_row.go:133` sets
+  `ProjectionDomain: DomainRepoDependency`), which runs under the
+  `deployment_mapping` reducer domain — a domain in the **left** column, one that
+  did produce work.
+
+So `EvidenceArtifact` does not fit the "a reducer domain never re-ran" story at
+all. Its absence traces to guard **2**, completed `shared_projection_intents`,
+which is a different guard with a different fix. The mapping above holds for the
+families it lists; this one family was mis-attributed, and the mis-attribution
+survived because the count table only ever showed the symptom.
 
 ## The fix: reset the dedup state a rebuild has to get past
 
@@ -279,14 +320,60 @@ re-driving the whole catalog.
 All three runs indexed the same corpus and reported 3,866 `fact_records`, so the
 workload matches. What does not match is the machine: the runs sat at loads of
 2.41, 3.78, and 5.19 on 12 CPUs, and rebuild time tracked load as much as it
-tracked the change. Read the direction, not a multiplier — roughly three times
-the reducer work plus ~590 shared intents that previously did nothing, landing
-somewhere around a third to two thirds more wall time on this corpus.
+tracked the change. Read the direction only — roughly three times the reducer
+work plus ~590 shared intents that previously did nothing.
 
-`graph_rebuild_seconds` also under-counts now. It stops when the work queue is
-empty, and the shared backlog can keep running for minutes after that (four, in
-the sample above). A recovery-time objective should be sized against both queues
-draining, not against this number alone.
+**Do not read a multiplier off this table.** Two independent problems make the
+numbers non-comparable, and only one of them was previously recorded:
+
+1. **Three different machine loads.** 2.41, 3.78, and 5.19 on 12 CPUs. A 15 s →
+   25 s movement across a doubling of load is not a measurement of the change.
+2. **Both columns undercount, by an unbounded amount.** Every number in this
+   table was taken before the verifier waited on the shared backlog (the wait
+   landed in `98c42d88b`; the table in `e789a6b1f`). They stop when
+   `fact_work_items` is empty, and the shared queue has been observed running
+   for a further **four minutes** past that point. The undercount is not a fixed
+   offset, so it does not cancel between the two columns.
+
+## Is there a defensible time bound? No.
+
+#4594 asks for a timed DR operation with a stated bound. This branch cannot
+supply one, and the honest thing is to say so rather than promote a number.
+
+What exists:
+
+| Figure | Definition | Runs | Usable as a bound? |
+| --- | --- | --- | --- |
+| 15 s / 20 s / 25 s / 26 s | work queue empty only | 4, at 3 different loads | No — undercounts by the shared-backlog tail |
+| 341 s (5m41s) | both queues terminal | **1** | No — single sample, one load |
+
+The 341 s figure is the only one that measures the whole rebuild. It is one
+sample. A single observation is not a bound, and this repo's own evidence rules
+say so.
+
+Three things would each independently sink a bound derived from these runs:
+
+- **The corpus is a toy.** 1.4 MB, 361 files, 67 scopes, 3,866 facts — the doc's
+  own conditions table calls it "well below the smallest scale-lab slot." A
+  recovery-time objective for a deployment cannot be extrapolated from it. The
+  rebuild is dominated by per-scope queue drain, and scope count is the thing
+  that changes by orders of magnitude in a real deployment.
+- **The definition changed mid-branch**, so the early numbers and the late number
+  are not the same measurement.
+- **The operation may be two passes.** If the owner resolves failure 1 by
+  declaring DR a two-pass operation, the bound roughly doubles. Sizing an RTO
+  before that decision is made would produce a number that is wrong either way.
+
+What an operator can rely on today is a shape, not a number: the rebuild is a
+bounded INSERT of one work item per active scope, followed by the ordinary
+projector and reducer drain, followed by a shared-backlog tail that has been seen
+to idle for minutes and then finish in one burst. The tail is the part nobody
+should size by intuition.
+
+**To turn this into a bound**, someone has to run the two-queue measurement at
+least three times on an unloaded machine at a scale-lab corpus, on one fixed
+definition, after the two-pass question is settled. That is a scale-lab task, not
+something a fixture corpus on a developer laptop can answer.
 
 The cost lands only on refinalize. Ordinary indexing, shard drains, reopens, and
 retries are untouched, which is the whole reason the reset is scoped to the
@@ -380,6 +467,40 @@ rather than stopping at the first queue.
 The verifier still exits 1. The remaining difference has three separate causes,
 and only one of them is the rebuild.
 
+### Disposition: what each failure is, and who has to act
+
+Read this before deciding what to do with the red gate. None of the three is
+fixed by weakening the assertion, and none of them is fixed inside the reset this
+PR ships.
+
+| # | Failure | What it is | Who acts |
+| --- | --- | --- | --- |
+| 1 | One cross-repo `CALLS` edge, 115 of 116 | **Real defect**, outside the rebuild path: the shared-projection readiness gate has no cross-repository key, and the edge write is a silent `MATCH`-only no-op | Owner: either fix the readiness gate, or accept a two-pass DR |
+| 2 | `EvidenceArtifact` under-produced on one pass | **Real defect**, outside the rebuild path: the resolver's five-item evidence preview reads fact arrival order | Owner: schedule the resolver ordering fix; it moves the golden snapshot |
+| 3 | Nondeterministic pre-wipe reference | **Same root cause as 2** for `EvidenceArtifact`; **unexplained** for `Module` and `Environment` | Owner: the assertion cannot pass until 2 lands; the `Module`/`Environment` variance still needs tracing |
+
+Two of these are the *same* defect wearing different clothes. Failure 2 and the
+`EvidenceArtifact` half of failure 3 are both the resolver preview ordering,
+proven above. That leaves genuinely three open items, not three independent
+causes: the readiness gate, the resolver ordering, and the untraced
+`Module`/`Environment` variance.
+
+**The decision this branch cannot make for you.** Failure 1 is the only one with
+a cheap operational answer. A second refinalize recovers the edge — the
+interrupted-rebuild run below did exactly that by accident. So the owner picks
+one of:
+
+- **Fix the readiness gate** so a cross-repository edge waits for both endpoints'
+  acceptance units. Correct, and the larger change.
+- **Declare DR a two-pass operation** in the runbook, and move the verifier's
+  assertion to after pass 2. Cheap, and honest, but it makes every recovery pay
+  a second full drain — 341 s became the measured single-pass figure on this
+  corpus, so a two-pass DR roughly doubles it.
+
+What the owner must NOT do is relax the assertion to "≤ 1 missing edge is fine."
+On this corpus one edge is 100% of the cross-repository calls. The number is
+small because the fixture is small, not because the defect is small.
+
 ### 1. The verifier was snapshotting the graph mid-rebuild
 
 `wait_for_queue_terminal` watched `fact_work_items` only. The shared edge backlog
@@ -421,6 +542,37 @@ one whose endpoints were not both present when its intent drained — a real
 within-rebuild ordering gap, one edge wide on this corpus. The reset restores
 projector→reducer causality but not reducer→reducer ordering, and this is what
 that costs here.
+
+The code path was read to confirm this is the mechanism rather than a plausible
+story fitted to one number. Three things line up:
+
+1. **The write is `MATCH`-only.** `canonical_code_call_edges.go:68` matches both
+   endpoints and merges between them:
+   `MATCH (source:Function|Class|File {uid: ...}) MATCH (target:...) MERGE
+   (source)-[rel:CALLS]->(target)`. A row whose target uid has no node yields
+   zero rows, writes nothing, and raises nothing.
+2. **Nothing re-checks it.** `WriteEdges` returns a report whose `writtenRows` is
+   the count *submitted*, not the count the backend matched, and the runner then
+   unconditionally calls `MarkIntentsCompleted`
+   (`reducer/code_call_projection_runner.go:461`). There is no repair queue on
+   the code-call family, unlike workload materialization.
+3. **The readiness gate only covers the caller's repository.** `code_calls` is
+   gated on canonical-nodes-committed, but the key is built from the intent's own
+   `AcceptanceKey()`, which falls back to `row.RepositoryID`
+   (`reducer/shared_projection.go:264`). No readiness key is ever constructed for
+   the *callee's* repository. The design comment at `shared_projection.go:169`
+   says so outright: "there is no cross-acceptance-unit dependency to wait on the
+   way HANDLES_ROUTE waits on Endpoint materialization."
+
+So a cross-repository `CALLS` intent waits only for its own repository, performs
+a silent no-op write if the other repository is not committed yet, and is marked
+done in the same pass. That is why exactly one edge of 116 is affected on this
+corpus — it is the only cross-repository call in it — and why a second refinalize
+recovers it.
+
+This is a pre-existing defect in the shared-projection readiness model, not
+something the rebuild introduced. Ordinary indexing has the same gap; the rebuild
+only makes it easy to see, because it drains every repository at once.
 
 ### 3. Correction: repeated refinalize converges, it does not inflate
 
@@ -479,15 +631,76 @@ the indexer's own run-to-run variance.
 | 4 | 17 | 12 |
 
 Neither column is stable, so the gap between them is not a fixed number either.
-`semantic_entity_materialization` is the domain behind all of it, and it is the
-same domain that inflates on a repeated refinalize in section 3. One defect
-probably explains both: an `EvidenceArtifact` identity that is not a pure
-function of the facts. That is a hypothesis from four runs, not a diagnosis — the
-identity construction has not been read.
 
-Exact count equality against a snapshot taken from one indexing run cannot pass
-reliably until that is understood. The assertion was left alone: it is the right
-assertion, and the reference under it is what is not yet stable.
+#### The identity construction has now been read, and the defect is located
+
+The previous revision left this as "a hypothesis from four runs, not a diagnosis
+— the identity construction has not been read." It has been read, and the
+hypothesis was right about the symptom and wrong about the place.
+
+The id itself is pure. `repoEvidenceArtifactID`
+(`storage/cypher/edge_writer_row_metadata.go:141`) digests exactly
+`resolved_id`, `evidence_kind`, `path`, `matched_value`, plus a Flux
+namespace/name suffix. No clock, no random, no map iteration.
+
+The impurity is one hop upstream, in what the artifacts are built *from*.
+`aggregateCandidate` (`relationships/resolver.go`) keeps the **first five**
+evidence facts it happens to see as the candidate's `evidence_preview`, and
+nothing sorts `facts` first:
+
+```go
+if len(preview) < 5 {
+    preview = append(preview, map[string]any{...facts[i]...})
+}
+```
+
+`resolvedRelationshipEvidenceArtifacts`
+(`reducer/cross_repo_evidence_artifacts.go:26`) then builds the entire artifact
+set from that preview and returns early when it is empty. So for any candidate
+with more than five evidence facts, **which artifacts exist at all is decided by
+fact arrival order**, and each survivor's `path` and `matched_value` feed the id
+digest.
+
+The order comes from `listEvidenceFactsByGenerationSQL`
+(`storage/postgres/relationship_schema.go`), which is
+`ORDER BY observed_at ASC, evidence_id ASC`. `observed_at` is a single
+`time.Now().UTC()` captured once per `UpsertEvidenceFacts` call
+(`relationship_store.go:202`) and shared by every row in that call, so facts
+written by different insert calls interleave by which call ran first — wall
+clock, not content. Within one call the `evidence_id` tie-break is
+deterministic.
+
+**Proven, not inferred.** `relationships/resolver_evidence_order_independence_test.go`
+feeds one candidate seven facts in two orders. Deleting its `t.Skip` and running
+it fails:
+
+```text
+--- FAIL: TestAggregateCandidateEvidencePreviewIsOrderIndependent (0.00s)
+    evidence_preview depends on input order, so two indexing runs of the same
+    facts produce different candidate details and a different graph.
+    forward:  [TERRAFORM_MODULE_SOURCE TERRAFORM_GITHUB_REPOSITORY
+               HELM_CHART_DEPENDENCY PACKAGE_MANIFEST GITHUB_WORKFLOW_USES]
+    reversed: [SUBMODULE_PIN DOCKERFILE_FROM GITHUB_WORKFLOW_USES
+               PACKAGE_MANIFEST HELM_CHART_DEPENDENCY]
+```
+
+That is the same defect behind the section 3 movement (13 → 19 across passes)
+and behind this section's unstable pre-wipe reference. One cause, two symptoms.
+
+The fix is to order a candidate's facts by a content key — confidence
+descending, then evidence kind, path, matched value — before the five-item cap.
+It changes projected graph truth and therefore the golden snapshot, so it is
+deliberately not part of #4594.
+
+One thing this does **not** explain: `Module` (228 vs 231) and `Environment`
+(2 vs 0) also move between indexing runs, and `Module` is not built from the
+evidence preview. Those have not been traced. Do not assume the resolver fix
+covers them.
+
+Exact identity equality against a snapshot taken from one indexing run cannot
+pass reliably until the resolver ordering is fixed. The assertion was left
+alone: it is the right assertion, and the reference under it is what is not yet
+stable.
 
 ### Caveat on run 4
 

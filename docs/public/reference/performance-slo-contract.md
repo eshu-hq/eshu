@@ -166,12 +166,23 @@ precise multiplier from these two numbers is not.
 
 The 341-second figure is not a regression against the 20-25 second one. It is a
 different measurement: once the gate started waiting for the shared edge backlog
-as well as the work queue, the number finally covers the whole rebuild. Size a
-recovery objective against it, not against the smaller one.
+as well as the work queue, the number finally covers the whole rebuild. Every
+smaller number on this page stops at the first queue and therefore undercounts by
+the backlog tail, which has been observed at four minutes and is not a fixed
+offset.
 
-The rebuild is also not yet exact: `HANDLES_ROUTE`, `RUNS_IN`, and one cross-repo
-`CALLS` edge can come back missing on a single pass because they depend on nodes
-another domain or another repository materializes.
+That makes 341 s the only figure here that measures the whole operation — and it
+is a **single sample at one machine load**. Do not treat it as a bound. It is the
+right order of magnitude for this fixture corpus and nothing more; a bound needs
+repeated runs on one fixed definition at scale-lab size. See the evidence doc's
+"Is there a defensible time bound?" section.
+
+The rebuild is also not yet exact. One cross-repo `CALLS` edge can come back
+missing on a single pass, because the shared-projection readiness gate waits only
+on the intent's own repository and the edge write is `MATCH`-only. (`HANDLES_ROUTE`
+and `RUNS_IN` were in this list until the gate started waiting on the shared
+backlog; they now return complete on a single pass, and the earlier shortfall was
+the measurement stopping early rather than an ordering bug.)
 
 A separate limit applies to any comparison against a pre-wipe snapshot: indexing
 the same corpus is not deterministic. Three runs recorded pre-wipe totals of

@@ -262,14 +262,21 @@ every one of the seventeen reducer domains re-runs.
 
 What is left is small, and it is worth knowing what each piece is.
 
-**Two edge families can come back thin on a single pass.** `HANDLES_ROUTE` and
-`RUNS_IN` connect code symbols to `:Endpoint` and `:Workload` nodes that a
-different domain materializes. One rebuild pass can drain them before those
-targets exist, and the edge query matches nothing rather than waiting. Measured:
-`HANDLES_ROUTE` and `RUNS_IN` came back at 2 of 4, and `CALLS` at 115 of 116.
-Re-running the rebuild recovers all three — see
+**One cross-repository `CALLS` edge can come back missing on a single pass.**
+A call from one repository into another needs both repositories' code nodes
+committed. The shared-projection readiness gate waits only on the calling
+repository, and the edge query matches nothing rather than waiting, so a pass
+that drains the edge before the other repository is rebuilt silently writes
+nothing. Measured: `CALLS` at 115 of 116, reproducible across three runs.
+Re-running the rebuild recovers it — see
 [If the rebuild is interrupted](#if-the-rebuild-is-interrupted), including the
 warning about what else repeated runs do.
+
+`HANDLES_ROUTE` and `RUNS_IN` used to appear here too, at 2 of 4. They no longer
+do. That shortfall was the verifier snapshotting the graph before the shared edge
+backlog had drained; once it waits for both queues, both families come back
+complete on a single pass. If you are comparing against an older copy of this
+runbook, that is the difference.
 
 **Some of the remaining difference is not the rebuild at all.** Indexing the same
 corpus twice does not produce byte-identical graphs. Three runs of this procedure
@@ -284,15 +291,24 @@ The measurement, the per-label counts, and the domain-by-domain breakdown are in
 
 ## How long it takes
 
-20 to 25 seconds for 67 scopes and 3,866 facts on the Compose fixture corpus,
-plus up to about four minutes for the shared edge backlog to finish draining
-after the work queue goes quiet. That corpus is 1.4 MB, so the number shows the
-mechanism runs rather than what a real rebuild costs.
+**There is no published bound, and you should not infer one from this page.**
 
-The rebuild got slower when it started restoring the whole graph: 15 seconds
-before the fix against 20-25 after, because it now re-drives about 1,000 reducer
-work items and 600 shared intents instead of a few hundred rows. That is the
-cost of the layers it now brings back.
+One measured run of the complete operation — both queues terminal — took 341
+seconds (5m41s) for 67 scopes and 3,866 facts on the Compose fixture corpus. That
+is a single sample on a 1.4 MB corpus, which is far below any realistic
+deployment. It shows the mechanism runs. It is not a recovery time objective.
+
+Earlier numbers on this operation (15 s before the fix, 20-25 s after) stopped
+measuring when the work queue emptied, before the shared edge backlog finished.
+That backlog has been seen idling for four minutes and then draining in one
+burst, so those figures undercount the real rebuild by an amount that varies. Do
+not compare them against the 341-second figure — they are not the same
+measurement.
+
+The direction of the fix's cost is solid even though the multiplier is not: the
+rebuild now re-drives about 1,000 reducer work items and 600 shared intents
+instead of a few hundred rows, because it is restoring layers it previously
+skipped.
 
 Size your recovery time objective against a measurement from your own corpus.
 Run `scripts/verify-graph-rebuild-from-facts.sh` against it and use what it
