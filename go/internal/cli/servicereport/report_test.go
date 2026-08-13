@@ -237,3 +237,52 @@ func writeFile(t *testing.T, path, contents string) {
 		t.Fatalf("write test fixture %s: %v", path, err)
 	}
 }
+
+// TestParseServiceStoryResponseNullDataTakesBarePath pins the doc claim that an
+// explicit "data": null falls through to the bare-dossier path.
+//
+// TestParseServiceStoryResponseBareDossier covers the *absent* data key, which
+// is a different input: absent and explicit-null both leave envelope.Data nil,
+// but only a test that sends the null proves the doc's "alike" claim. Without
+// this, changing the guard to check for the key's presence would keep every
+// other test green and silently contradict the comment.
+func TestParseServiceStoryResponseNullDataTakesBarePath(t *testing.T) {
+	t.Parallel()
+
+	dossier, truth, err := ParseServiceStoryResponse([]byte(`{"data": null, "service": "checkout"}`))
+	if err != nil {
+		t.Fatalf("ParseServiceStoryResponse() error = %v, want nil", err)
+	}
+	if truth != nil {
+		t.Errorf("truth = %+v, want nil on the bare path", truth)
+	}
+	// The bare path re-decodes the whole object, so the sibling key survives
+	// and the "data" key is present with a nil value.
+	if got := dossier["service"]; got != "checkout" {
+		t.Errorf("dossier[\"service\"] = %v, want \"checkout\" -- the bare path should re-decode the whole object", got)
+	}
+	if _, ok := dossier["data"]; !ok {
+		t.Errorf("dossier is missing the \"data\" key; got %v -- the bare path decodes the raw object, envelope fields included", dossier)
+	}
+}
+
+// TestSupplyChainSectionWhitespacePathReturnsNil pins the doc claim that a
+// whitespace-only --supply-chain-from is treated as absent, mirroring
+// ReadInput's strings.TrimSpace branch.
+//
+// TestSupplyChainSectionNoPathReturnsNil only exercises "". A guard weakened to
+// `path == ""` would keep that test green and start trying to read a file named
+// "   ", surfacing a confusing read error instead of the documented nil section.
+func TestSupplyChainSectionWhitespacePathReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{" ", "   ", "\t", "\n", " \t\n "} {
+		section, err := SupplyChainSection(path, serviceintel.ReportSubject{ServiceName: "checkout"})
+		if err != nil {
+			t.Errorf("SupplyChainSection(%q) error = %v, want nil", path, err)
+		}
+		if section != nil {
+			t.Errorf("SupplyChainSection(%q) = %+v, want nil -- whitespace is treated as absent", path, section)
+		}
+	}
+}
