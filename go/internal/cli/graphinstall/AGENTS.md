@@ -63,11 +63,13 @@
 
 ## Failure modes and how to debug
 
-- Symptom: `Install` panics instead of returning an error → almost always a
-  test or caller that built an `Options{}` literal without `ReadVersion`.
-  Every `Install`/`ManagedBinaryIfPresent` call in this package's own tests
-  passes `execNornicDBVersion` (install_helpers_test.go); `graph_install_cmd.go`
-  passes `localGraphReadVersion`.
+- Symptom: `Install` returns `graphinstall: Options.ReadVersion is required`
+  (or `ManagedBinaryIfPresent` its equivalent) → almost always a test or
+  caller that built an `Options{}` literal without `ReadVersion`. Both guards
+  run before any other work, so this fails immediately rather than part-way
+  through an install. Every `Install`/`ManagedBinaryIfPresent` call in this
+  package's own tests passes `execNornicDBVersion` (install_helpers_test.go);
+  `graph_install_cmd.go` passes `localGraphReadVersion`.
 - Symptom: a test asserting `os.IsNotExist` on `ManagedBinaryIfPresent`'s
   error starts failing after an edit near the `os.Stat` call → check whether
   the edit added `fmt.Errorf("...: %w", err)` around that specific error;

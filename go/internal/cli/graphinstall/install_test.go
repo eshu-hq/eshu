@@ -416,3 +416,36 @@ func TestInstallNornicDBWithoutSourceRejectsUnsupportedHost(t *testing.T) {
 		t.Fatalf("Install() error = %q, want unsupported host guidance", err.Error())
 	}
 }
+
+// ReadVersion is the seam this package uses instead of shelling out itself:
+// cmd/eshu owns process execution and passes localGraphReadVersion in. Both
+// entry points reject a nil reader before doing any work, so a caller that
+// forgets the field gets a named error rather than a nil dereference part-way
+// through an install that has already touched the filesystem.
+func TestNilVersionReaderIsRejectedBeforeAnyWork(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Install", func(t *testing.T) {
+		t.Parallel()
+		// A From path that does not exist: if the guard did not fire first,
+		// the error would name the missing source instead of the reader.
+		_, err := Install(Options{From: filepath.Join(t.TempDir(), "absent-binary")})
+		if err == nil {
+			t.Fatal("Install() error = nil, want non-nil for a nil ReadVersion")
+		}
+		if !strings.Contains(err.Error(), "ReadVersion") {
+			t.Fatalf("Install() error = %q, want it to name the missing ReadVersion", err.Error())
+		}
+	})
+
+	t.Run("ManagedBinaryIfPresent", func(t *testing.T) {
+		t.Parallel()
+		_, err := ManagedBinaryIfPresent(nil)
+		if err == nil {
+			t.Fatal("ManagedBinaryIfPresent() error = nil, want non-nil for a nil VersionReader")
+		}
+		if !strings.Contains(err.Error(), "VersionReader") {
+			t.Fatalf("ManagedBinaryIfPresent() error = %q, want it to name the missing VersionReader", err.Error())
+		}
+	})
+}
