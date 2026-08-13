@@ -25,21 +25,50 @@ type orphanSweepCandidate struct {
 	observedAt *int64
 }
 
-// orphanSweepKeyExpr renders the read expression for one identity property.
-// Every property after the first goes through coalesce(..., ”) because it may
-// be absent on a node projected by an older release: a canonical Module written
-// before the (name, lang) cutover settled its language with
-// `SET m.lang = coalesce(m.lang, row.language)`, which removes the property
-// outright when the row carried no language. On the pinned backend a bare
-// `n.lang > $cursor_1` never matches such a node, so it would sit outside every
-// page forever -- the same under-deletion the composite key exists to remove.
-// The leading property is always present (it is the MERGE anchor) and is left
-// bare so single-property labels keep byte-identical Cypher.
+// orphanSweepAbsentPropertyValue is what a composite key carries in place of an
+// identity property the node does not have at all. It is deliberately not the
+// empty string, because the empty string is a real language: `MERGE (m:Module
+// {name, lang})` does not match a node with no `lang` property, so a node
+// without one is a different node from `{lang: ”}` and owns a different sweep
+// key.
+//
+// `<` and `>` cannot occur in the only value this default ever stands in for --
+// a Module's `lang`, which is a parser-detected language name such as `go` or
+// `python` -- so no node can hold the sentinel as a real value and collide with
+// an absent one.
+//
+// It sorts after the empty string and before every language name, and the same
+// expression renders it in the S1 ORDER BY, the S1 keyset predicate, the S2
+// connectivity read, and all three key-anchored writes, so the paging order and
+// the Go-side anti-join agree on where an absent property sits.
+const orphanSweepAbsentPropertyValue = "<absent>"
+
+// orphanSweepKeyExpr renders the read expression for one identity property. The
+// leading property is always present (it is the MERGE anchor) and is left bare,
+// so single-property labels keep byte-identical Cypher. Every property after
+// the first is read through coalesce(..., '<absent>'), which does two things:
+//
+//   - Reachability. On the pinned backend a bare `n.lang > $cursor_1` never
+//     matches a node with no `lang` property, so such a node would sit outside
+//     every page forever and could never be swept.
+//   - Identity. An absent property keeps its own key instead of merging into
+//     the empty-language one. Defaulting both to ” gave them a single key, so
+//     a connected `{lang: ”}` node answered the S2 connectivity read for both
+//     and the disconnected lang-less node was read back as connected -- never
+//     marked, never deleted.
+//
+// Eshu's own writers do not create a lang-less canonical Module. Every released
+// Module upsert set the property from a projector.ModuleRow.Language, which is
+// a Go string and therefore never a Cypher null, so the pre-cutover
+// `SET m.lang = coalesce(m.lang, row.language)` never removed it. A lang-less
+// node comes from outside the writer -- hand-run repair Cypher, a partial
+// restore -- which is why the sweep must still reach it and must not fold it
+// into a language it was never given.
 func orphanSweepKeyExpr(property string, position int) string {
 	if position == 0 {
 		return "n." + property
 	}
-	return fmt.Sprintf("coalesce(n.%s, '')", property)
+	return fmt.Sprintf("coalesce(n.%s, '%s')", property, orphanSweepAbsentPropertyValue)
 }
 
 // BuildCandidateOrphanNodesQuery builds the S1 read: every node carrying this
@@ -289,9 +318,13 @@ func (s *OrphanSweepStore) readCandidateOrphanNodes(
 // column for a single-property label, or key_0, key_1, ... for a composite one.
 //
 // Only the anchor value is required to be non-empty. Every later property is
-// projected through coalesce(..., ”), so an empty string there is a real
-// value -- a Module whose language could not be determined owns its own node
-// and must be swept under its own key, not skipped.
+// projected through coalesce(..., '<absent>'), so an empty string there is a
+// real value -- a Module whose language could not be determined owns its own
+// node and must be swept under its own key, not skipped -- and a genuinely
+// absent property arrives as orphanSweepAbsentPropertyValue, distinct from it.
+// A nil column is only reachable from a backend that dropped the coalesce
+// default; it decodes to the same absent value so the two never collapse into
+// one key on that path either.
 func decodeOrphanSweepKeyRow(properties []string, row map[string]any) (orphanSweepKey, error) {
 	if len(properties) == 1 {
 		value, ok := row["key"].(string)
@@ -306,7 +339,7 @@ func decodeOrphanSweepKeyRow(properties []string, row map[string]any) (orphanSwe
 		value, ok := row[column].(string)
 		if !ok {
 			if row[column] == nil && i > 0 {
-				value = ""
+				value = orphanSweepAbsentPropertyValue
 			} else {
 				return nil, fmt.Errorf("unexpected %s type %T", column, row[column])
 			}

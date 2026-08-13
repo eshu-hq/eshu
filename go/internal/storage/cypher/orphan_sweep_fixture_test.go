@@ -6,10 +6,56 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 )
+
+// fakeAbsentProperty marks, inside a seeded key, an identity property the node
+// does not carry at all -- as opposed to carrying it with an empty value.
+//
+// The fixture never resolves it itself. It substitutes whatever coalesce
+// default the statement under test actually emits, so if the production
+// expression stops separating absent from empty, this fixture stops separating
+// them too and the node pair collapses onto one key exactly as it would in the
+// graph. That is what makes a test written against it fail when the separation
+// is reverted, instead of quietly re-deriving the answer.
+const fakeAbsentProperty = "\x1fabsent"
+
+// fakeOrphanCoalesceDefault extracts the literal from the emitted
+// `coalesce(n.<property>, '<default>')` so the fixture reads a node back the
+// way the statement itself does.
+var fakeOrphanCoalesceDefault = regexp.MustCompile(`coalesce\(n\.[a-z_]+, '([^']*)'\)`)
+
+// projectFakeOrphanKey renders a stored key the way cypher reads it back out of
+// the graph. A key with no absent property is returned unchanged, so every
+// single-property label and every present-value composite key is untouched.
+func projectFakeOrphanKey(cypher, stored string) string {
+	if !strings.Contains(stored, fakeAbsentProperty) {
+		return stored
+	}
+	substitute := ""
+	if match := fakeOrphanCoalesceDefault.FindStringSubmatch(cypher); match != nil {
+		substitute = match[1]
+	}
+	return strings.ReplaceAll(stored, fakeAbsentProperty, substitute)
+}
+
+// projectedFakeOrphanKeys returns every stored key for a label paired with the
+// key cypher reads it back as, in stored order, so callers stay deterministic.
+func projectedFakeOrphanKeys(nodes map[string]*fakeOrphanNode, cypher string) (stored, projected []string) {
+	stored = make([]string, 0, len(nodes))
+	for key := range nodes {
+		stored = append(stored, key)
+	}
+	sort.Strings(stored)
+	projected = make([]string, 0, len(stored))
+	for _, key := range stored {
+		projected = append(projected, projectFakeOrphanKey(cypher, key))
+	}
+	return stored, projected
+}
 
 // fakeOrphanGraph is an in-memory anti-join fixture shared by
 // orphan_sweep_test.go, orphan_sweep_cycle_test.go,
@@ -46,9 +92,10 @@ func newFakeOrphanGraph() *fakeOrphanGraph {
 }
 
 // seed stores one node under its identity key. A label whose identity has more
-// properties than the caller supplied is padded with empty values, which is
-// what a real node with the property absent decodes to, so the many existing
-// single-key tests keep meaning what they meant.
+// properties than the caller supplied is padded with empty values -- present
+// and empty, not absent -- so the many existing single-key tests keep meaning
+// what they meant. Use fakeAbsentProperty as a value to seed a node that does
+// not carry that property at all.
 func (g *fakeOrphanGraph) seed(label, key string, connected bool, observedAt *int64) {
 	values := decodeOrphanSweepKey(key)
 	properties, ok := orphanSweepIdentityProperties(OrphanSweepLabel(label))
@@ -132,14 +179,23 @@ func (g *fakeOrphanGraph) Run(_ context.Context, cypher string, params map[strin
 	nodes := g.nodes[label]
 
 	if strings.Contains(cypher, "UNWIND $keys AS candidate_key") && strings.Contains(cypher, "-[r]-(m)") {
-		// S2: connected-keys read.
+		// S2: connected-keys read. Anchored on the key the statement reads a
+		// node back as, so two nodes the statement cannot tell apart answer
+		// for each other here exactly as they would in the graph.
 		g.s2Calls[label]++
-		keys := fakeOrphanParamKeys(params)
-		rows := make([]map[string]any, 0, len(keys))
-		for _, k := range keys {
-			if n, ok := nodes[k]; ok && n.connected {
-				rows = append(rows, fakeOrphanKeyRow(label, k))
+		wanted := make(map[string]bool)
+		for _, k := range fakeOrphanParamKeys(params) {
+			wanted[k] = true
+		}
+		stored, projected := projectedFakeOrphanKeys(nodes, cypher)
+		answered := make(map[string]bool, len(wanted))
+		rows := make([]map[string]any, 0, len(wanted))
+		for i, key := range projected {
+			if !wanted[key] || answered[key] || !nodes[stored[i]].connected {
+				continue
 			}
+			answered[key] = true
+			rows = append(rows, fakeOrphanKeyRow(label, key))
 		}
 		if flips, ok := g.flipConnectedAfterS2Call[fmt.Sprintf("%s:%d", label, g.s2Calls[label])]; ok {
 			for _, k := range flips {
@@ -161,20 +217,25 @@ func (g *fakeOrphanGraph) Run(_ context.Context, cypher string, params map[strin
 		limit = v
 	}
 	cursor := fakeOrphanParamCursor(params)
-	keys := make([]string, 0, len(nodes))
-	for k := range nodes {
-		if k > cursor {
-			keys = append(keys, k)
+	stored, projected := projectedFakeOrphanKeys(nodes, cypher)
+	type candidateRow struct {
+		key  string
+		node *fakeOrphanNode
+	}
+	candidates := make([]candidateRow, 0, len(stored))
+	for i, key := range projected {
+		if key > cursor {
+			candidates = append(candidates, candidateRow{key: key, node: nodes[stored[i]]})
 		}
 	}
-	sort.Strings(keys)
-	rows := make([]map[string]any, 0, len(keys))
-	for _, k := range keys {
+	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].key < candidates[j].key })
+	rows := make([]map[string]any, 0, len(candidates))
+	for _, candidate := range candidates {
 		if len(rows) >= limit {
 			break
 		}
-		n := nodes[k]
-		row := fakeOrphanKeyRow(label, k)
+		n := candidate.node
+		row := fakeOrphanKeyRow(label, candidate.key)
 		if n.observedAt != nil {
 			row["observed_at"] = *n.observedAt
 		} else {
@@ -255,7 +316,20 @@ func (g *fakeOrphanGraph) Execute(_ context.Context, stmt Statement) error {
 		return fmt.Errorf("fakeOrphanGraph.Execute: no known label in cypher: %s", stmt.Cypher)
 	}
 	nodes := g.nodes[label]
-	keys := fakeOrphanParamKeys(stmt.Parameters)
+	// A key-anchored write binds the same coalesce expression the reads do, so
+	// it lands on every node the statement reads back under that key -- which
+	// is exactly how a write reaches, or wrongly reaches, a second node.
+	wanted := make(map[string]bool)
+	for _, k := range fakeOrphanParamKeys(stmt.Parameters) {
+		wanted[k] = true
+	}
+	stored, projected := projectedFakeOrphanKeys(nodes, stmt.Cypher)
+	keys := make([]string, 0, len(wanted))
+	for i, key := range projected {
+		if wanted[key] {
+			keys = append(keys, stored[i])
+		}
+	}
 
 	switch {
 	case strings.Contains(stmt.Cypher, "REMOVE n.eshu_orphan_observed_at_unix"):

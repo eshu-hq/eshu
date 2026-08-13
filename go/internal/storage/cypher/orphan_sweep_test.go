@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -108,7 +109,7 @@ func TestBuildCandidateOrphanNodesQueryUsesPerLabelIdentityKey(t *testing.T) {
 		{OrphanSweepLabelDirectory, "RETURN n.path AS key"},
 		// Module's identity is (name, lang), so it projects both, aliased for
 		// the composite cursor rather than a single `key` column.
-		{OrphanSweepLabelModule, "WITH n.name AS key_0, coalesce(n.lang, '') AS key_1"},
+		{OrphanSweepLabelModule, "WITH n.name AS key_0, coalesce(n.lang, '<absent>') AS key_1"},
 	} {
 		stmt, ok := BuildCandidateOrphanNodesQuery(tc.label, 10, nil)
 		if !ok {
@@ -183,12 +184,19 @@ func TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable(t *testing.T) {
 			if strings.Contains(stmt.Cypher, "UNWIND $keys AS key\n") {
 				t.Fatalf("connected-keys Cypher must not reuse the RETURN alias as the UNWIND variable:\n%s", stmt.Cypher)
 			}
-			wantKeys := "[a b]"
+			// Compared structurally, not through a formatted string: a
+			// composite label's rows are maps, and Go randomizes map
+			// iteration order, so a "%v" rendering of map[key_0:a key_1:]
+			// is not a stable value to assert against.
+			var wantKeys any = []string{"a", "b"}
 			if properties, _ := orphanSweepIdentityProperties(label); len(properties) > 1 {
-				wantKeys = "[map[key_0:a key_1:] map[key_0:b key_1:]]"
+				wantKeys = []map[string]any{
+					{"key_0": "a", "key_1": ""},
+					{"key_0": "b", "key_1": ""},
+				}
 			}
-			if got := stmt.Parameters["keys"]; fmt.Sprintf("%v", got) != wantKeys {
-				t.Fatalf("keys parameter = %#v, want %s", got, wantKeys)
+			if got := stmt.Parameters["keys"]; !reflect.DeepEqual(got, wantKeys) {
+				t.Fatalf("keys parameter = %#v, want %#v", got, wantKeys)
 			}
 		})
 	}

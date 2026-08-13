@@ -50,6 +50,27 @@ func (e *neo4jRetryableError) Retryable() bool { return true }
 // from a reducer readiness backlog that also persists as a retrying row.
 func (e *neo4jRetryableError) FailureClass() string { return GraphWriteTimeoutFailureClass }
 
+// schemaFenceError marks a canonical write refused because the applied graph
+// schema no longer admits this writer (see
+// CanonicalNodeWriter.WithSchemaWriteFence).
+//
+// It is retryable rather than terminal on purpose. The refusal says this
+// process must not write, not that the work is bad: the queue should hold it
+// for a writer the schema does admit, which is the pod that replaces this one.
+// Dead-lettering instead would turn a rolling upgrade into a backlog an
+// operator has to redrive by hand.
+//
+// It carries no FailureClass. The graph-write-timeout class exists for
+// transient driver failures and feeds producer write-timeout backpressure;
+// a schema refusal is neither, and slowing producers would not clear it.
+type schemaFenceError struct {
+	inner error
+}
+
+func (e *schemaFenceError) Error() string   { return e.inner.Error() }
+func (e *schemaFenceError) Unwrap() error   { return e.inner }
+func (e *schemaFenceError) Retryable() bool { return true }
+
 // WrapRetryableNeo4jError inspects err for graph-write failures that are safe
 // to retry from the durable reducer queue. It wraps known retryable Neo4j error
 // codes, driver retry-budget exhaustion, connectivity failures, and the exact

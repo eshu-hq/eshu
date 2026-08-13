@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -63,6 +64,13 @@ func openIngesterCanonicalWriter(
 		return writer, closer, nil
 	}
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Re-checks the applied graph schema marker while this process runs, so a
+	// schema application recorded underneath an already-started ingester stops
+	// its canonical writes instead of only refusing the next one to start.
+	schemaFence, err := graphschemacompat.NewWriteFenceForRuntime(postgres.SQLQueryer(database), getenv)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -173,7 +181,7 @@ func openIngesterCanonicalWriter(
 		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	).WithKustomizeOverlayResolver(
 		ingesterKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
-	)
+	).WithSchemaWriteFence(schemaFence.Check)
 	labelBatchSizes := map[string]int(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {

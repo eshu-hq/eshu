@@ -33,6 +33,7 @@ type CanonicalNodeWriter struct {
 	tfStateOwnershipResolver          TerraformStateOwnershipResolver
 	tfStateConfigMatchResolver        TerraformStateConfigMatchResolver
 	kustomizeOverlayResolver          KustomizeOverlayResolver
+	schemaWriteFence                  func(context.Context) error
 }
 
 type canonicalWritePhase struct {
@@ -87,6 +88,16 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.CanonicalMaterialization) error {
 	if mat.IsEmpty() {
 		return nil
+	}
+
+	// The schema fence runs before any statement is built, so a writer the
+	// applied graph schema has stopped admitting fails here rather than writing
+	// nodes under an identity the current schema no longer uses. See
+	// WithSchemaWriteFence.
+	if w.schemaWriteFence != nil {
+		if err := w.schemaWriteFence(ctx); err != nil {
+			return &schemaFenceError{inner: err}
+		}
 	}
 
 	mat.TerraformStateResources = w.resolveTerraformStateOwnership(ctx, mat.TerraformStateResources)

@@ -91,7 +91,11 @@ func (s *OrphanSweepStore) candidateCursor(label OrphanSweepLabel) orphanSweepKe
 // advanceCursor moves a label's paging cursor past the candidate window just
 // read. A full window (len == limit) resumes past the largest key seen, so the
 // next cycle continues forward; a short window means the end of the label was
-// reached, so the cursor wraps to "" to rescan from the start. The cursor
+// reached, so the cursor is cleared to nil -- the same start-of-label value
+// candidateCursor returns before the first read -- and the next cycle rescans
+// from the beginning. No cursor value is ever the empty string: an unset cursor
+// is nil, and cursorValue is what turns it into the empty-string comparison
+// operand the S1 predicate binds. The cursor
 // advances regardless of orphan state, so a window that is entirely connected
 // still makes forward progress rather than re-reading the same rows forever.
 // sortedKeys must be ascending (the S1 read is ORDER BY the identity key). For

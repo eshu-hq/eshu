@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
+	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -188,6 +189,13 @@ func openProjectorCanonicalWriter(
 			return nil, nil, err
 		}
 	}
+	// Re-checks the applied graph schema marker while this process runs, so a
+	// schema application recorded underneath an already-started projector stops
+	// its canonical writes instead of only refusing the next one to start.
+	schemaFence, err := graphschemacompat.NewWriteFenceForRuntime(postgres.SQLQueryer(database), getenv)
+	if err != nil {
+		return nil, nil, err
+	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
 		return nil, nil, err
@@ -220,7 +228,7 @@ func openProjectorCanonicalWriter(
 		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
-	)
+	).WithSchemaWriteFence(schemaFence.Check)
 	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 
 	return writer,

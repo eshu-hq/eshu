@@ -26,8 +26,8 @@ import (
 //
 // The unit-level siblings in orphan_sweep_composite_key_test.go cover the
 // paging. This test is what proves the emitted Cypher -- the tuple cursor, the
-// map-valued UNWIND rows, and the coalesce(n.lang, ”) comparison -- behaves on
-// the real backend rather than only in the fixture.
+// map-valued UNWIND rows, and the coalesce(n.lang, '<absent>') comparison --
+// behaves on the real backend rather than only in the fixture.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN must point at a NornicDB backend.
 func TestLiveOrphanSweepModuleSameNameDifferentLanguages(t *testing.T) {
@@ -97,15 +97,24 @@ func TestLiveOrphanSweepModuleSameNameDifferentLanguages(t *testing.T) {
 }
 
 // TestLiveOrphanSweepModuleWithNoLanguageIsStillReachable covers the node shape
-// the composite key had to be careful about: a canonical Module projected by a
-// release before the (name, lang) cutover, whose language was settled with
-// `SET m.lang = coalesce(m.lang, row.language)` and therefore has no lang
-// property at all when the row carried none.
+// the composite key had to be careful about: a canonical Module with no `lang`
+// property at all.
 //
-// On the pinned backend a bare `n.lang > $cursor_1` never matches such a node,
-// so it would fall outside every page of the S1 read and never be swept -- the
-// same under-deletion the composite key exists to remove, reintroduced through
-// the back door. The reads and writes compare coalesce(n.lang, ”) instead.
+// No Eshu writer produces one. Every released Module upsert set the property
+// from a projector.ModuleRow.Language, a Go string that reaches Cypher as ”
+// and never as null, so the pre-cutover
+// `SET m.lang = coalesce(m.lang, row.language)` never removed it. Such a node
+// comes from outside the writer -- hand-run repair Cypher, a partial restore --
+// and it is seeded here the same way.
+//
+// On the pinned backend a bare `n.lang > $cursor_1` never matches it, so it
+// would fall outside every page of the S1 read and never be swept -- the same
+// under-deletion the composite key exists to remove, reintroduced through the
+// back door. The reads and writes compare coalesce(n.lang, '<absent>') instead.
+// The default is a value no language can hold, so this node keeps its own key
+// rather than sharing the empty-language one; the pair-wise shape is covered
+// in process by
+// TestOrphanSweepSweepsLangLessModuleBesideConnectedEmptyLanguageOne.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN must point at a NornicDB backend.
 func TestLiveOrphanSweepModuleWithNoLanguageIsStillReachable(t *testing.T) {

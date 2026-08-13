@@ -44,6 +44,12 @@ SET statement_count = EXCLUDED.statement_count,
 // the selected backend.
 var ErrMissingMarker = errors.New("graph schema marker missing")
 
+// ErrIncompatible reports that the applied graph schema does not admit this
+// writer. It is the one outcome that means "stop writing" rather than "the
+// answer could not be read", which is the distinction WriteFence needs to avoid
+// turning an unreachable Postgres into a graph-write outage.
+var ErrIncompatible = errors.New("graph schema incompatible")
+
 // Result describes the schema compatibility decision made during startup.
 type Result struct {
 	Backend                graph.SchemaBackend
@@ -155,7 +161,8 @@ func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.S
 	}
 
 	return Result{}, fmt.Errorf(
-		"graph schema incompatible for backend %s: runtime expects fingerprint %s, latest applied fingerprint is %s; run eshu-bootstrap-data-plane with the matching image before starting graph writers",
+		"%w for backend %s: runtime expects fingerprint %s, latest applied fingerprint is %s; run eshu-bootstrap-data-plane with the matching image before starting graph writers",
+		ErrIncompatible,
 		backend,
 		expected.Fingerprint,
 		appliedFingerprint,

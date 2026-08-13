@@ -39,6 +39,25 @@ changes may declare older writer fingerprints compatible in the marker row.
 Destructive schema changes leave the list empty so stale pods refuse before
 runtime graph writes fail.
 
+That startup check decides whether a writer may **start**. A writer already past
+it keeps writing unless something checks again, and with
+`schemaBootstrap.useHelmHooks=true` the bootstrap Job records the new marker
+while the previous generation of pods is still serving. Canonical writers
+therefore re-read the marker on their write path as well, roughly every 30
+seconds, and refuse a write once the applied marker stops admitting them. The
+refusal is retryable: the work stays in the queue for the pod that replaces
+them, and it appears on a retrying queue row carrying the same expected/applied
+fingerprint message the startup refusal uses. A marker the writer cannot read
+is not a refusal — it holds the last decision, so an unreachable Postgres does
+not stop every writer at once.
+
+This does not reach a writer from a release built before that write-path check
+existed, because its binary never makes the call. Upgrading across a schema
+change that leaves the compatible list empty still means stopping the old
+writers before bootstrap records the marker — scale ingester, projector, and
+resolution engine to zero, run the upgrade, then scale back up — or accepting
+that pods of the outgoing release keep writing until Kubernetes replaces them.
+
 Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
 `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
 hook. Do not attach schema verification to every runtime pod; repeated graph

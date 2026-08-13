@@ -331,6 +331,156 @@ signal that shifts is the existing `GraphOrphanNodeCounts` Module gauge, which
 is the surface the orphan-sweep degradation above reports through, and it needed
 no code change to do so.
 
+## Review follow-ups on the follow-up PR (#6106)
+
+Three findings on the branch above, and what each one changed.
+
+### The fingerprint fences admission, not a writer already running
+
+The fingerprint change decides whether a writer may **start**.
+`RequireCompatible` is called once, in `cmd/reducer/run.go`,
+`cmd/projector/main.go`, and `cmd/ingester/main.go`, before the service loop,
+and nothing looks at the marker again. So emptying the compatible list refuses
+the next pod to start and does nothing about the pods already serving — which,
+with `schemaBootstrap.useHelmHooks=true`, is every pod of the outgoing release,
+because `job-schema-bootstrap.yaml` carries `helm.sh/hook: pre-install,pre-upgrade`.
+The reviewer is right, and the PR's earlier answer treated an admission gate as
+if it were a write fence.
+
+Half of that is now closed and half of it cannot be, so both are stated plainly:
+
+- **Closed.** `graphschemacompat.WriteFence` re-reads the marker on the write
+  path, and `CanonicalNodeWriter.WithSchemaWriteFence` makes every canonical
+  write ask it first. A writer the applied marker stops admitting fails before
+  building a statement instead of writing under an identity the schema no longer
+  describes. The refusal is retryable, so the work waits in the queue for the
+  pod that replaces this one rather than dead-lettering a backlog. Decisions are
+  cached for 30 seconds, so it costs one indexed marker read per writer per
+  interval, not one per write. A marker that cannot be read holds the previous
+  decision — failing closed there would turn one Postgres blip into a
+  simultaneous graph-write outage across every writer, which is worse than the
+  gap being closed.
+- **Not closed, and not closable from here.** A writer built before this fence
+  contains no call to it. Nothing added to this repository changes what that
+  binary does, and no schema object can stop it either: its harmful operation is
+  `MATCH (m:Module {name: row.module_name})`, an ordinary read, and Module
+  cannot take a uniqueness constraint at all because the semantic entity path
+  MERGEs Module on `uid` and shares the label. For the #6102 cutover
+  specifically, the only thing that stops the outgoing pods is stopping them —
+  scale ingester, projector, and resolution engine to zero before bootstrap
+  records the marker. That is now written down in
+  `docs/public/deployment/service-runtimes-bootstrap.md` rather than left to be
+  discovered.
+
+Proven by mutation, on the built code:
+
+```text
+# fence call removed from CanonicalNodeWriter.Write
+--- FAIL: TestCanonicalNodeWriterStopsAtARefusingSchemaFence
+    Write() error = nil, want the schema refusal
+--- FAIL: TestCanonicalNodeWriterWritesWhenTheSchemaFenceAdmits
+
+# fence treats every error as a refusal
+--- FAIL: TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead
+    Check() with the marker unreadable = query graph schema compatibility
+    marker: dial tcp: connection refused, want nil; a database blip is not a
+    refusal
+
+# fence stops caching its decision
+--- FAIL: TestWriteFenceReusesItsDecisionWithinTheInterval
+    Check() 1 error = graph schema incompatible for backend nornicdb...
+```
+
+### An absent Module language is not an empty one
+
+The sweep read every identity property after the anchor through
+`coalesce(n.lang, '')`, which gave a Module with no `lang` property and a Module
+with `lang: ''` the same sweep key. `MERGE (m:Module {name, lang})` does not
+match a node without the property, so those are two nodes, and the writer treats
+them as two. The connected empty-language node then answered the S2
+connectivity read for the pair and the disconnected lang-less one was read back
+as connected: never marked, never deleted, and still counted in
+`GraphOrphanNodeCounts`. The failure only ever runs in the safe direction —
+under-deletion, never a wrong delete — but it is the same masking the composite
+key exists to remove.
+
+The default is now `'<absent>'`, a value the property it stands in for cannot
+hold, and the same expression renders it in the S1 ORDER BY, the S1 keyset
+predicate, the S2 read, and all three key-anchored writes, so the paging order
+and the anti-join agree on where an absent property sits.
+
+The PR's stated reason for the coalesce was wrong and is corrected in the code.
+It claimed the pre-cutover writer's `SET m.lang = coalesce(m.lang, row.language)`
+removed the property when a row carried no language. It cannot:
+`buildModuleStatements` builds every row from `projector.ModuleRow.Language`, a
+Go `string`, which reaches Cypher as `''` and never as null, in the current
+statement and in both earlier ones in this repository's history. A canonical
+Module with no `lang` is not something an Eshu writer produces; it comes from
+outside the writer, which is why the sweep must still reach it and must not fold
+it into a language it was never given.
+
+`TestOrphanSweepSweepsLangLessModuleBesideConnectedEmptyLanguageOne` covers the
+combined upgrade shape the reviewer asked for — one lang-less disconnected node
+beside a same-named connected `lang: ''` node — rather than the two shapes
+separately. The fixture substitutes whatever coalesce default the statement
+under test emits, so reverting the default collapses the pair there too:
+
+```text
+# coalesce default reverted to ''
+--- FAIL: TestOrphanSweepSweepsLangLessModuleBesideConnectedEmptyLanguageOne
+    surviving Module nodes = [["time" ""] ["time" "\x1fabsent"]], want [["time" ""]]
+```
+
+### Two test-quality findings
+
+`TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable` compared
+`fmt.Sprintf("%v", stmt.Parameters["keys"])` against a fixed string. Go
+randomizes map iteration order, so the rendering of a composite label's
+`map[key_0:... key_1:...]` rows is not a stable value and the assertion could
+fail on order alone. It compares the parameter structurally now. Still failable:
+renaming the emitted `key_%d` columns to `k_%d` gives
+
+```text
+--- FAIL: TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable/Module
+    keys parameter = [...{"k_0":"a", "k_1":""}...], want [...{"key_0":"a", "key_1":""}...]
+```
+
+and 20 consecutive runs of the affected tests pass, which a formatted-string
+comparison could not be relied on to do.
+
+`advanceCursor`'s comment said the cursor wraps to `""` at the end of a label.
+The cursor is `nil` there, the same start-of-label value `candidateCursor`
+returns before the first read; `cursorValue` is what turns it into the
+empty-string comparison operand. The comment says that now.
+
+### Cost of the three follow-up fixes
+
+No-Regression Evidence: none of the three changes adds a round trip or a scan.
+The orphan sweep issues exactly the statements it did before — one S1 candidate
+read, chunked S2 connectivity reads, a bounded S2 re-verify only on a sweeping
+cycle, and up to three key-anchored writes — and the coalesce default change is
+one literal inside an expression that was already there, on an already-loaded
+candidate row, with the Module statements still anchored on `name` inline in the
+MATCH pattern so they resolve through `module_name_lookup` rather than scanning
+the label. The schema write fence adds one indexed single-row Postgres read per
+writer per 30-second interval (`graph_schema_applications` by backend, ORDER BY
+applied_at DESC LIMIT 1), not one per write:
+`TestWriteFenceReusesItsDecisionWithinTheInterval` asserts the read count, 1
+across five checks inside an interval and 2 across two. Backend:
+`eshu-nornicdb-pr290:3722b483c02c`. No new Cypher statement is emitted by any of
+the three.
+
+Observability Evidence: no metric, span, or log is added or removed, and the new
+refusal path is not silent. `CanonicalNodeWriter.Write` returns the fence error
+as a retryable projector error, so it lands on the projector queue row with the
+full "graph schema incompatible for backend X: runtime expects fingerprint A,
+latest applied fingerprint is B" message and reaches an operator through the
+existing queue and status surfaces, alongside the identical startup message in
+`runtime.startup.failed`. `docs/public/deployment/service-runtimes-bootstrap.md`
+and `go/internal/graphschemacompat/AGENTS.md` both name that message on a
+retrying row as the signature of a mid-flight refusal, so the 3 AM read is "a
+schema application landed under this pod", not "the graph writer is stuck".
+
 ## Follow-up changes (#6102 review)
 
 The three review follow-ups touch the orphan sweep, the schema fingerprint, and

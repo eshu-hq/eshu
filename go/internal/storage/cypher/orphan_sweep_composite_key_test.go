@@ -53,6 +53,48 @@ func TestOrphanSweepSweepsDisconnectedModuleWithConnectedSameNameSibling(t *test
 	}
 }
 
+// TestOrphanSweepSweepsLangLessModuleBesideConnectedEmptyLanguageOne is the
+// combined upgrade shape: one Module carrying no lang property at all and
+// disconnected, beside a same-named Module whose language is present and empty
+// and still imported.
+//
+// `MERGE (m:Module {name, lang})` does not match a node without the property,
+// so those are two nodes, and the sweep must be able to tell them apart. While
+// both read back through coalesce(n.lang, ”), they shared one key: the
+// connected empty-language node answered the connectivity read for the pair,
+// the lang-less orphan was counted as connected, and it was never marked and
+// never deleted -- residue that could not drain and that kept showing in the
+// GraphOrphanNodeCounts gauge.
+//
+// The fixture substitutes whatever coalesce default the statement under test
+// emits, so reverting that default to ” collapses these two seeds onto one key
+// here as well and this test fails.
+func TestOrphanSweepSweepsLangLessModuleBesideConnectedEmptyLanguageOne(t *testing.T) {
+	t.Parallel()
+
+	graph := newFakeOrphanGraph()
+	graph.seedComposite("Module", []string{"time", fakeAbsentProperty}, false, nil)
+	graph.seedComposite("Module", []string{"time", ""}, true, nil)
+
+	store := NewOrphanSweepStore(graph, graph)
+	clock := time.Unix(1_800_000_000, 0).UTC()
+
+	for cycle := 0; cycle < 2; cycle++ {
+		if _, err := store.SweepOrphanNodes(context.Background(), modulePolicy(clock)); err != nil {
+			t.Fatalf("cycle %d SweepOrphanNodes: %v", cycle+1, err)
+		}
+		clock = clock.Add(2 * time.Second)
+	}
+
+	got := graph.compositeKeyRows("Module")
+	want := [][]string{{"time", ""}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("surviving Module nodes = %q, want %q; a Module with no lang property is a "+
+			"different node from one with an empty lang, and the disconnected one must be swept "+
+			"without touching the connected one", got, want)
+	}
+}
+
 // TestOrphanSweepNeverSweepsConnectedModule is the other direction of the same
 // key change, and the one that must never regress: making the key exact must
 // not turn a connected node into a delete candidate.
@@ -227,9 +269,10 @@ RETURN DISTINCT n.path AS key`
 
 // TestOrphanSweepModuleQueriesCarryBothProperties asserts the Module reads and
 // all three key-anchored writes bind name AND lang. The lang comparison goes
-// through coalesce(n.lang, ”) because a Module projected before the identity
-// cutover can carry no lang property at all, and on the pinned backend a bare
-// `n.lang > $cursor_1` drops such a node from every page.
+// through coalesce(n.lang, '<absent>'): a Module can carry no lang property at
+// all, and on the pinned backend a bare `n.lang > $cursor_1` drops such a node
+// from every page. The default is a value no language can hold, so an absent
+// language keeps its own key instead of sharing the empty-language one.
 func TestOrphanSweepModuleQueriesCarryBothProperties(t *testing.T) {
 	t.Parallel()
 
@@ -241,7 +284,7 @@ func TestOrphanSweepModuleQueriesCarryBothProperties(t *testing.T) {
 	}
 	for _, want := range []string{
 		"n.name > $cursor_0",
-		"n.name = $cursor_0 AND coalesce(n.lang, '') > $cursor_1",
+		"n.name = $cursor_0 AND coalesce(n.lang, '<absent>') > $cursor_1",
 		"RETURN key_0, key_1, observed_at",
 		"ORDER BY key_0, key_1",
 	} {
@@ -282,7 +325,7 @@ func TestOrphanSweepModuleQueriesCarryBothProperties(t *testing.T) {
 		if !strings.Contains(stmt.Cypher, "MATCH (n:Module {name: candidate_key.key_0})") {
 			t.Fatalf("%s does not anchor on the indexed name property:\n%s", name, stmt.Cypher)
 		}
-		if !strings.Contains(stmt.Cypher, "coalesce(n.lang, '') = candidate_key.key_1") {
+		if !strings.Contains(stmt.Cypher, "coalesce(n.lang, '<absent>') = candidate_key.key_1") {
 			t.Fatalf("%s does not bind the language, so it would touch the same-named sibling too:\n%s",
 				name, stmt.Cypher)
 		}
