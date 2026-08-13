@@ -16,9 +16,12 @@ wiring: reading cobra flags or mapping errors to the CLI exit-code contract.
 Those stay in `go/cmd/eshu/graph_install_cmd.go`, the cobra `RunE` wrapper,
 because `go/cmd/eshu` is `package main` and nothing can import it.
 
-It also does not run a binary itself. Verifying that a candidate really is
-NornicDB means invoking `<binary> version`, and that subprocess-execution
-logic belongs to the local_graph process-supervision cluster in
+It does not run the candidate NornicDB binary. (It does run one other
+subprocess: `pkgutil --expand-full`, to expand a darwin `.pkg` install
+source -- archive extraction, not version verification.) Verifying that a
+candidate really is NornicDB means invoking `<binary> version`, and that
+subprocess-execution logic belongs to the local_graph process-supervision
+cluster in
 `go/cmd/eshu` (`readLocalGraphVersion` in `local_graph_process.go`) --
 `docs/internal/design/package-restructure.md` calls that cluster out as a
 real bidirectional cycle that has to move as one unit or not at all, so it
@@ -45,10 +48,15 @@ See `doc.go` for the full godoc contract.
 ## Dependencies
 
 - `internal/eshulocal` -- `ResolveHomeDir`, used to locate Eshu's managed
-  home for the installed binary and manifest paths. It reads `ESHU_HOME`
-  when set, and otherwise falls back to the platform data directory:
-  `~/Library/Application Support/eshu` on macOS, `$XDG_DATA_HOME/eshu` or
-  `~/.local/share/eshu` on Linux, `%LOCALAPPDATA%\eshu` on Windows
+  home for the installed binary and manifest paths. This package passes it
+  both `os.Getenv` and `os.UserHomeDir`, so the variables it can consult are:
+  `ESHU_HOME` when set (used verbatim with `~` expanded, and with **no**
+  `eshu` segment appended, unlike every fallback below); otherwise `HOME`
+  alone on macOS (`~/Library/Application Support/eshu`), `XDG_DATA_HOME`
+  then `HOME` on Linux (`$XDG_DATA_HOME/eshu` or `~/.local/share/eshu`), and
+  `LOCALAPPDATA` then `USERPROFILE` on Windows (`%LOCALAPPDATA%\eshu` or
+  `%USERPROFILE%\AppData\Local\eshu`). `HOME`/`USERPROFILE` count as env
+  reads because that is how `os.UserHomeDir` is defined
 - `internal/query` -- `GraphBackendNornicDB`, the backend name recorded in
   the install manifest
 - `internal/buildinfo` -- `AppVersion`, used to resolve the pinned release

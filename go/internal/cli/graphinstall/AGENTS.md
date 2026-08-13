@@ -18,13 +18,33 @@
 - **No process wiring in this package.** No cobra flags, no `fmt.Print*`.
   `go/cmd/eshu` is `package main`, so nothing can import it — any symbol that
   reads a flag or maps to an exit code has to live in `graph_install_cmd.go`
-  instead. The environment this package does read is install-scoped, not
-  wiring, and there are exactly two reads: `ESHU_NORNICDB_INSTALL_TIMEOUT`
-  (source.go, a download timeout), and the managed-home lookup in install.go,
-  which calls `eshulocal.ResolveHomeDir(os.Getenv, ...)` and so consults
-  `ESHU_HOME` first, then `XDG_DATA_HOME` (Linux) or `LOCALAPPDATA`
-  (Windows). Adding a third env read means moving that read to the wrapper,
-  not extending this list.
+  instead.
+
+  The environment this package reads is install-scoped, not wiring. There are
+  **two call sites**, not two variables — the second resolves a different
+  variable per platform, which is what earlier versions of this list kept
+  getting wrong:
+
+  1. `ESHU_NORNICDB_INSTALL_TIMEOUT` (source.go) — download timeout.
+  2. `eshulocal.ResolveHomeDir(os.Getenv, os.UserHomeDir, runtime.GOOS)`
+     (install.go) — the managed home. `ESHU_HOME` when set, used verbatim
+     with `~` expanded and **no** `eshu` segment appended. Otherwise:
+     `HOME` alone on macOS; `XDG_DATA_HOME` then `HOME` on Linux;
+     `LOCALAPPDATA` then `USERPROFILE` on Windows. `HOME`/`USERPROFILE`
+     count — `os.UserHomeDir` is defined as reading them, and this package
+     passes that callback in itself.
+
+  Three stdlib boundaries also read the environment, so "adding an env read"
+  is not always a visible `os.Getenv`: the download's `http.Client` leaves
+  `Transport` nil so `http.DefaultTransport` honours
+  `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`; `os.MkdirTemp`/`os.CreateTemp` read
+  `TMPDIR`; `exec.Command` resolves through `PATH`.
+
+  A new *deliberate* env read belongs in the wrapper, not here. Before
+  editing this list, re-derive it — `rg 'os\.Getenv|os\.UserHomeDir|exec\.Command|http\.'`
+  over the package — rather than amending the sentence a reviewer complained
+  about. Four rounds of doc corrections on this package were each scoped to
+  one complaint and each exposed the next overclaim.
 - **Never execute a binary.** This package verifies a candidate NornicDB
   binary by calling the `VersionReader` it was handed
   (`Options.ReadVersion` / `ManagedBinaryIfPresent`'s parameter), never by
@@ -60,8 +80,9 @@
   `resolvePinnedReleaseSource` in release_manifest.go, not `Install`. It is
   the single place that reads the embedded/overridden pinned release
   manifest and resolves an OS/arch/headless match.
-- **Change the managed install layout** (`~/.eshu/bin`,
-  `~/.eshu/graph-backends/nornicdb/manifest.json`) → edit
+- **Change the managed install layout** (`<managed home>/bin`,
+  `<managed home>/graph-backends/nornicdb/manifest.json` — resolved per
+  platform, never `~/.eshu`) → edit
   `managedBinaryPath`/`installManifestPath` in install.go. Both call
   `resolveHomeDir`, so a layout change only needs updating in one of these
   two functions plus the path segment, not scattered `filepath.Join` calls.

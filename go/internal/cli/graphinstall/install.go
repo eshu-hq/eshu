@@ -76,7 +76,9 @@ type Result struct {
 }
 
 // installManifest is the on-disk shape persisted at
-// ~/.eshu/graph-backends/nornicdb/manifest.json after a successful install.
+// <managed home>/graph-backends/nornicdb/manifest.json after a successful
+// install. The managed home is resolved per platform -- see the package doc;
+// it is not ~/.eshu on any of them.
 type installManifest struct {
 	Backend      string `json:"backend"`
 	BinaryPath   string `json:"binary_path"`
