@@ -106,19 +106,22 @@
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`).
   If new logic needs something only the wrapper has (a cobra flag, real
   process stdin), add a parameter instead.
-- **Composing the report here.** `serviceintel.Compose` is called directly
-  in the wrapper's `runServiceReport`, next to the JSON/text branch. This
-  package prepares inputs (`ReadInput`, `ParseServiceStoryResponse`,
-  `SupplyChainSection`) and renders the finished report (`RenderReport`) —
-  those four exported functions are its whole surface, and none of them
-  calls `serviceintel.Compose`.
+- **Composing the report here.** This package has no relationship to
+  `serviceintel.Compose`. Its whole surface is four exported functions —
+  `ReadInput`, `ParseServiceStoryResponse`, `SupplyChainSection` prepare
+  inputs, `RenderReport` renders the finished report — and none of them
+  calls `Compose` or `FromServiceStory`. The wrapper's `runServiceReport`
+  composes, next to the JSON/text branch, and passes the result in.
+  Composition is not the CLI's to own either: `Compose` has production
+  callers in `go/internal/serviceintelhttp/handler.go` and
+  `go/internal/answerquality/report_corpus.go` that never touch this
+  package.
 
 ## What NOT to change without an ADR
 
 - Moving report composition (`serviceintel.Compose`) into this package. The
-  current split keeps the JSON-vs-text branch, and the `serviceintel.Compose`
-  call on this path, in the wrapper. That is a claim about the CLI path only:
-  `Compose` has other production callers, in
-  `go/internal/serviceintelhttp/handler.go` and
-  `go/internal/answerquality/report_corpus.go`. Duplicating or relocating the
-  CLI call needs an explicit design decision, not an incidental refactor.
+  current split keeps the JSON-vs-text branch, and the wrapper's own
+  `Compose` call, in `service_report_cmd.go`; this package stays out of
+  composition entirely. Pulling that call in would add a composition site
+  here, alongside the wrapper, `internal/serviceintelhttp`, and
+  `internal/answerquality` — a design decision, not an incidental refactor.

@@ -23,20 +23,19 @@ The wrapper resolves process state (flags, `cmd.InOrStdin()`,
 package returns data and errors, printing only through the `io.Writer` the
 caller supplies to `RenderReport`.
 
-Composing the report is `internal/serviceintel`'s job, and on the
-`service-report` path the calls that drive it stay in the wrapper:
-`runServiceReport` is where `serviceintel.FromServiceStory` and
-`serviceintel.Compose` are called. (Both have other callers elsewhere in the
-repo -- `internal/serviceintelhttp` serves the same report over HTTP, and
-`internal/answerquality` composes reports for its corpus -- so this is a
-statement about the CLI path, not a repo-wide sole-caller claim.) This
-package decodes a captured response into the dossier map and truth envelope
-those calls consume, adapts the optional supply-chain file through
-`serviceintel.FromSupplyChainInventory` -- the one `serviceintel` adapter
-its production code calls -- and renders the finished `serviceintel.Report`.
-No production code here calls `serviceintel.Compose`; the package's tests do,
-to build a real report to render rather than asserting only against a
-hand-built stand-in.
+This package never composes a report. Nothing in it calls
+`serviceintel.Compose` or `serviceintel.FromServiceStory` -- the wrapper's
+`runServiceReport` calls both and hands the finished `serviceintel.Report` to
+`RenderReport`. Composing is `internal/serviceintel`'s job, and it is not the
+CLI's either: `internal/serviceintelhttp` serves the same report over HTTP and
+`internal/answerquality` composes reports for its corpus, neither of them
+going through `go/cmd/eshu` or this package. What this package does is decode
+a captured response into the dossier map and truth envelope those composition
+calls consume, adapt the optional supply-chain file through
+`serviceintel.FromSupplyChainInventory` -- the one `serviceintel` function its
+production code calls -- and render the finished report. (The package's tests
+do call `Compose`, to render a genuinely composed report rather than asserting
+only against a hand-built stand-in.)
 
 ## Exported surface
 
@@ -61,10 +60,11 @@ See `doc.go` for the full godoc contract.
 
 - `internal/serviceintel` -- `FromSupplyChainInventory`, `Report`,
   `ReportSubject`, `SectionInput` and related shapes; this package adapts
-  captured HTTP responses into `serviceintel`'s input types but does not
-  compose the report itself (`serviceintel.Compose` runs in the wrapper's
-  `runServiceReport`, alongside `serviceintel.FromServiceStory`, since both
-  sit next to the mode branch for JSON vs. text output)
+  captured HTTP responses into `serviceintel`'s input types and never composes
+  a report (`serviceintel.Compose` runs in the wrapper's `runServiceReport`
+  alongside `serviceintel.FromServiceStory`, next to the JSON-vs-text branch,
+  and in `internal/serviceintelhttp` and `internal/answerquality`, which do
+  not involve this package at all)
 - `internal/query` -- `query.TruthEnvelope`, decoded from the captured
   response envelope
 - Consumed by `go/cmd/eshu`: the `service-report` command

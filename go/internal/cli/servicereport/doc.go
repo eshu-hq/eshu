@@ -5,13 +5,19 @@
 // service-report`: reading a captured get_service_story (and optional
 // supply-chain inventory) response, decoding it into the inputs
 // internal/serviceintel composes from, and rendering the composed report
-// for a terminal. Composition itself stays in the caller -- on the CLI path
-// serviceintel.FromServiceStory and serviceintel.Compose are called by the
-// cobra wrapper, not by this package's production code. (The package's own
-// tests call both, so RenderReport is exercised against a genuinely composed
-// report and not only a hand-built stand-in.) The one serviceintel adapter
-// this package's production code
-// calls is FromSupplyChainInventory, for the optional supply-chain file.
+// for a terminal.
+//
+// This package never composes a report. Nothing in it calls
+// serviceintel.Compose or serviceintel.FromServiceStory: the cobra wrapper
+// calls both and hands the finished serviceintel.Report to RenderReport.
+// Composition belongs to internal/serviceintel, and it is not the CLI's
+// either -- internal/serviceintelhttp serves the same report over HTTP and
+// internal/answerquality composes reports for its corpus, neither of them
+// going anywhere near this package. The one serviceintel function this
+// package's production code calls is FromSupplyChainInventory, for the
+// optional supply-chain file. (The package's own tests do call Compose, so
+// RenderReport is exercised against a genuinely composed report and not only
+// a hand-built stand-in.)
 //
 // The package reads no cobra flags, resolves no Eshu config or credential
 // from the process environment, and never calls os.Exit. Outside its tests,
