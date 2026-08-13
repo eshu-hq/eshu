@@ -1,0 +1,88 @@
+# Per-file naming-exemption ledger for the directory-size and naming gate
+# (issue #6054). scripts/lib/dirgate-grandfather.tsv pins the CAP check;
+# this file separately pins the NAMING check, one row per already-violating
+# file, deliberately kept apart from the cap ledger:
+#
+#   - a naming exemption is decided by a file's EXACT basename, never by a
+#     directory's aggregate file count. Folding it into a comma-separated
+#     cell on the cap ledger's one-row-per-directory shape made "the list
+#     only shrinks" unenforceable by structure -- nothing stops someone
+#     silently APPENDING a name inside a 27-name cell, and a new name
+#     buried in one mutated mega-line is not visible in a diff the way a
+#     new row is,
+#   - two people fixing naming violations in different files of the same
+#     directory in parallel PRs would conflict on that one shared line;
+#     one row per file lets both prune their own row cleanly, and
+#   - a directory can, in principle, need naming exemptions without ever
+#     being a cap offender -- this file's rows are independent of whether
+#     `dir` also has a row in dirgate-grandfather.tsv, EXCEPT that
+#     tools/golangci-lint-dirgate/grandfather.go's generator currently
+#     requires it (see that script): today every real exemption sits inside
+#     an already cap-grandfathered directory, so a naming-exempt row for a
+#     directory with no cap row is treated as a ledger error rather than
+#     silently accepted.
+#
+# Columns (tab-separated): dir<TAB>file
+#   dir  - package directory path relative to the go/ module root (same key
+#          space as dirgate-grandfather.tsv).
+#   file - the exact qualifying-file basename in `dir` that already
+#          violated the sibling-subpackage naming rule when this row was
+#          pinned (e.g. a name matching a subpackage directory, or that
+#          name plus an underscore prefix -- see naming.go's
+#          detectNamingViolations for the exact rule).
+#
+# A row exempts ONLY that exact file. A brand-new file that also collides
+# with a subpackage name is NEVER covered by another file's row, even in
+# the same directory -- it is reported immediately, regardless of the
+# directory's cap state. This is the fix for the #6054 follow-up defect:
+# the earlier design gated the whole directory's naming check on whether
+# its aggregate count was at or below the cap ledger's pinned peak, which
+# silently swallowed brand-new violations for as long as the epic's
+# move-issues (#6056-#6062) kept shrinking that count -- exactly backwards.
+#
+# HARD FAIL, not a soft note: unlike a cap row that has shrunk below the
+# cap (which scripts/verify-dirgate.sh --all only nudges toward removal),
+# a naming-exempt row whose file has been moved, renamed, or removed --
+# and so no longer exists, or no longer collides with its sibling
+# subpackage -- makes `scripts/verify-dirgate.sh --all` FAIL outright. The
+# PR that fixes the violation must delete this row in the same change;
+# see dirgate_verify_naming_exempt_ledger in scripts/lib/dirgate-core.sh.
+#
+# The list only shrinks: remove a row once its file has actually moved
+# into the sibling subpackage (or been renamed/removed so it no longer
+# collides) -- never add a new row for a violation introduced after #6054
+# landed; that violation must be fixed or given its own justified
+# //nolint:dirgate marker instead.
+#
+# Seeded at #6054 landing (follow-up pass) from the pre-existing tree (see
+# #6053), computed by walking every dirgate-grandfather.tsv directory's
+# qualifying files against detectNamingViolations.
+internal/collector	discovery_advisory.go
+internal/collector	discovery_env.go
+internal/parser	c_language.go
+internal/parser	cpp_language.go
+internal/parser	csharp_language.go
+internal/parser	dart_language.go
+internal/parser	dockerfile_language.go
+internal/parser	elixir_language.go
+internal/parser	gomod_language.go
+internal/parser	gradle_language.go
+internal/parser	groovy_language.go
+internal/parser	hcl_language.go
+internal/parser	java_language.go
+internal/parser	java_metadata_files.go
+internal/parser	javascript_language.go
+internal/parser	json_language.go
+internal/parser	kotlin_language.go
+internal/parser	maven_language.go
+internal/parser	perl_haskell_language.go
+internal/parser	php_language.go
+internal/parser	python_dep_language.go
+internal/parser	python_language.go
+internal/parser	ruby_language.go
+internal/parser	rust_language.go
+internal/parser	scala_language.go
+internal/parser	shared_bridge.go
+internal/parser	sql_language.go
+internal/parser	swift_language.go
+internal/parser	yaml_language.go

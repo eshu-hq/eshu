@@ -114,6 +114,13 @@ repos:
         types: [go]
         pass_filenames: true
 
+      - id: go-dir-gate
+        name: Go directory-size and naming gate
+        entry: scripts/dev/precommit-go.sh dirgate
+        language: script
+        types: [go]
+        pass_filenames: true
+
       - id: go-package-docs
         name: Go package docs (doc.go/README.md/AGENTS.md)
         entry: scripts/verify-package-docs.sh
