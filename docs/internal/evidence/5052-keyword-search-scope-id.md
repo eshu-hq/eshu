@@ -23,6 +23,17 @@ response still advertised the full corpus in `indexed_document_count`, because
 that number comes from a separate statement that never applies the anchor. From
 the outside it was indistinguishable from an empty index.
 
+Root-Cause Evidence: with the rebinding taken back out of the merged code, a
+two-document corpus whose search term appears in both documents answered
+`"results":[]` next to `"indexed_document_count":2`, and the same body carried
+`"anchor":{"kind":"repository","id":"git-repository-scope:repository:r_payments"}`
+— the scope id sitting where the canonical id belongs (Mutation 1 below). The
+persisted half splits the same way in SQL: one query text over one 94-document
+corpus returns 5 rows when the anchor holds the canonical id and 0 when it holds
+the scope id. Neither observation is an end-to-end run, and the SQL one binds
+the anchor by hand rather than through Go; the limits are listed under
+[what this evidence does not cover](#what-this-evidence-does-not-cover).
+
 ## Status: already fixed on main
 
 The fix landed on `main` in **#6076** (`bdfccfa96`), which squash-merged the
@@ -30,8 +41,18 @@ three commits of branch `5052-bm25`. The production change is
 `semanticSearchCanonicalAnchorRequest` in
 `go/internal/query/semantic_search_scope_resolution.go`, which rebinds the
 anchor to the resolved canonical repository id before retrieval runs, plus a
-fail-closed guard in `resolveScope` so a scope-prefixed id can never survive as
+fail-closed guard in `resolveScope` that stops a scope-prefixed id surviving as
 `repositoryID`.
+
+That guarantee holds for a handler that has a `ScopeResolver`. Without one,
+`resolveScope` returns at its first statement and hands the requested id back
+unchanged as `repositoryID` (`semantic_search_scope_resolution.go:51-53`), so a
+scope-prefixed id still reaches the anchor and the rebinding helper has nothing
+to rebind it to — with no resolver there is no mapping. Only local, test, or
+custom wiring takes that path: both services build the handler with a resolver
+(`cmd/api/wiring_router.go:201`, `cmd/mcp-server/wiring_router.go:167`), and
+each has a wiring test that fails if it is nil. The merged `resolveScope` doc
+comment names the same exception.
 
 This document exists because that PR shipped without one. Its numbers lived only
 in a commit message, with no captured exit code or transcript. Everything below
