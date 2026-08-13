@@ -19,18 +19,38 @@ import (
 // and counts calls, so a test can prove the lookup was consulted — or skipped.
 type fixedCrossScopeReadiness struct {
 	ready bool
-	err   error
-	calls int
+	// readyByProducer overrides ready for the named producer domains, so a test
+	// can express the shape the aggregate bool could not: one producer ready
+	// while another is still inside its activation window.
+	readyByProducer map[Domain]bool
+	err             error
+	calls           int
 }
 
 func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
-	context.Context,
-	Domain,
-	string,
-	string,
-) (bool, error) {
+	_ context.Context,
+	consumer Domain,
+	_ string,
+	_ string,
+) (CrossScopeProducerReadinessByDomain, error) {
 	r.calls++
-	return r.ready, r.err
+	if r.err != nil {
+		return nil, r.err
+	}
+	// Built from the real catalog, so a canned answer always covers exactly the
+	// producers the floor is about to ask about — the same contract the
+	// production store owes.
+	readiness := CrossScopeProducerReadinessByDomain{}
+	for _, dependency := range crossScopeDependenciesForRegistration(consumer) {
+		for _, producer := range dependency.ProducerDomains {
+			ready := r.ready
+			if override, named := r.readyByProducer[producer]; named {
+				ready = override
+			}
+			readiness[producer] = ready
+		}
+	}
+	return readiness, nil
 }
 
 // scopeOnlyCICDRunFactLoader implements the base FactLoader and the by-kind
@@ -94,7 +114,13 @@ func runCrossScopeFloor(
 	if err != nil {
 		return err
 	}
-	return crossScopeProducerDeferral(signal, intent, resolved)
+	unready := crossScopeUnreadyProducers(
+		signal, singleProducerResolvedCounts(signal.producerDomains, resolved),
+	)
+	if len(unready) == 0 {
+		return nil
+	}
+	return newCrossScopeProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
 }
 
 // TestReadinessFloorDefersConsumerWhoseProducerScopesHaveNotActivated is the

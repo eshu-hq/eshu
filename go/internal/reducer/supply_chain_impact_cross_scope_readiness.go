@@ -20,9 +20,13 @@ import (
 // Re-reading the clock after the load would let a slow pass push its own intent
 // past the 30-minute bound and commit an answer it should have deferred.
 type supplyChainImpactCrossScopeFloor struct {
-	signal              crossScopeProducerReadinessSignal
-	sampledAt           time.Time
-	producerFactsBefore int
+	signal    crossScopeProducerReadinessSignal
+	sampledAt time.Time
+	// producerFactsBefore is keyed by PRODUCER DOMAIN, because the floor's
+	// decision is per producer. One combined number here would let a producer
+	// fact already sitting in the consumer's own scope offset a different
+	// producer's delta.
+	producerFactsBefore map[Domain]int
 }
 
 // armCrossScopeProducerFloor samples producer readiness before the first
@@ -71,11 +75,19 @@ func (h SupplyChainImpactHandler) armCrossScopeProducerFloor(
 // the loop settles, so a count taken earlier defers exactly the findings that
 // read exists to serve.
 //
-// The count is a DELTA, because supplyChainImpactFactKinds also asks the
+// Each count is a DELTA, because supplyChainImpactFactKinds also asks the
 // intent's OWN scope for both producer fact kinds. An absolute count would let a
 // producer fact sitting in the consumer's own vulnerability scope stand in for
 // one the cross-scope read resolved, and that says nothing about whether the
 // producer's other scopes have activated.
+//
+// The counts are kept PER PRODUCER DOMAIN and compared against that producer's
+// own readiness answer. This domain declares two producers, and a combined
+// count could not tell "each producer answered once" from "one producer
+// answered twice" -- so a pass that resolved container image identity and no
+// deployment context at all used to commit findings with no deployment context
+// (found reviewing #6093, guarded by
+// TestSupplyChainImpactDefersWhenOnlyOneProducerResolved).
 //
 // The returned error is deliberately unwrapped so the durable queue reads the
 // non-counting failure class off it; SupplyChainImpactHandler.Handle passes it
@@ -86,13 +98,16 @@ func (h SupplyChainImpactHandler) crossScopeProducerDeferralAfterLoad(
 	intent Intent,
 	envelopes []facts.Envelope,
 ) error {
-	resolved := countSupplyChainImpactCrossScopeProducerFacts(envelopes) - floor.producerFactsBefore
-	deferral := crossScopeProducerDeferral(floor.signal, intent, resolved)
-	if deferral == nil {
+	resolved := countSupplyChainImpactCrossScopeProducerFacts(envelopes)
+	for producer, before := range floor.producerFactsBefore {
+		resolved[producer] -= before
+	}
+	unready := crossScopeUnreadyProducers(floor.signal, resolved)
+	if len(unready) == 0 {
 		return nil
 	}
-	logCrossScopeProducerNotReadyDefer(ctx, h.Logger, intent, floor.sampledAt, floor.signal.producerDomains)
-	return deferral
+	logCrossScopeProducerNotReadyDefer(ctx, h.Logger, intent, floor.sampledAt, unready)
+	return newCrossScopeProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
 }
 
 // supplyChainImpactProducerFactKindByDomain maps each producer domain
@@ -123,23 +138,28 @@ var supplyChainImpactProducerFactKindByDomain = map[Domain]string{
 }
 
 // countSupplyChainImpactCrossScopeProducerFacts counts the envelopes written by
-// a declared cross-scope producer. The floor reads the DELTA across the
-// active-evidence stages rather than this absolute number, so a producer fact
-// that happened to live in the consumer's own vulnerability scope cannot stand
-// in for one the cross-scope read actually resolved.
-func countSupplyChainImpactCrossScopeProducerFacts(envelopes []facts.Envelope) int {
-	producerKinds := make(map[string]struct{}, len(supplyChainImpactProducerFactKindByDomain))
+// each declared cross-scope producer, keyed by that producer's domain. The floor
+// reads the DELTA across the active-evidence stages rather than these absolute
+// numbers, so a producer fact that happened to live in the consumer's own
+// vulnerability scope cannot stand in for one the cross-scope read actually
+// resolved.
+//
+// Keyed by domain rather than summed, because an envelope carries the identity
+// of the producer that wrote it and a total does not. The floor compares each
+// producer's count against that producer's own readiness answer.
+func countSupplyChainImpactCrossScopeProducerFacts(envelopes []facts.Envelope) map[Domain]int {
+	producerByKind := make(map[string]Domain, len(supplyChainImpactProducerFactKindByDomain))
 	for _, dependency := range crossScopeDependenciesForRegistration(DomainSupplyChainImpact) {
 		for _, producer := range dependency.ProducerDomains {
 			if kind, ok := supplyChainImpactProducerFactKindByDomain[producer]; ok {
-				producerKinds[kind] = struct{}{}
+				producerByKind[kind] = producer
 			}
 		}
 	}
-	resolved := 0
+	resolved := make(map[Domain]int, len(producerByKind))
 	for _, envelope := range envelopes {
-		if _, ok := producerKinds[envelope.FactKind]; ok {
-			resolved++
+		if producer, ok := producerByKind[envelope.FactKind]; ok {
+			resolved[producer]++
 		}
 	}
 	return resolved

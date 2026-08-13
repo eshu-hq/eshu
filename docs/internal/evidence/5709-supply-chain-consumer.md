@@ -203,19 +203,25 @@ path. How often it does not has not been measured.
 ## Cost
 
 `supply_chain_impact` declares two producer domains, so a pass that arms the
-floor runs up to two `ProducerScopeQuiescence` queries rather than the CI/CD
-consumer's one. The probe stops at the first *registered* kind with no
-quiescent-active scope, and a kind this deployment does not register is skipped,
-so two is a ceiling and not a fixed cost.
+floor runs two `ProducerScopeQuiescence` queries rather than the CI/CD
+consumer's one.
+
+Two, not "up to two". The store used to stop at the first registered kind with
+no quiescent-active scope, and per-producer readiness cannot: the producers
+after the miss still need answers of their own. So a deferring pass runs one
+more sub-millisecond indexed probe than it did, on a pass that is about to wait
+anyway, and a committing pass runs the two it always ran. Kinds are still
+deduplicated, so two producers mapping to one collector kind would cost one
+query.
 
 Two kinds also means two conditions to satisfy, so this consumer is strictly more
 likely to defer than the CI/CD one. I have not measured how much more likely.
 That sentence is a reading of `CrossScopeProducersReady`, not a number.
 
-No-Regression Evidence: the floor adds at most two indexed
-`ProducerScopeQuiescence` queries per `supply_chain_impact` pass that has a
-producer-reachable filter dimension, and zero for a pass that does not — the
-nothing-to-look-up gate skips both the probe and the deferral. No existing query
+No-Regression Evidence: the floor adds two indexed `ProducerScopeQuiescence`
+queries per `supply_chain_impact` pass that has a producer-reachable filter
+dimension, and zero for a pass that does not — the nothing-to-look-up gate skips
+both the probe and the deferral. No existing query
 changed shape or predicate. The plan proof for the probe is the Index Scan in
 `docs/internal/evidence/5709-quiescence-probe.md`, unchanged by this change
 because the query is unchanged: same Nested Loop Anti Join, same
@@ -277,6 +283,46 @@ signal can only be staler than the load, never fresher. A producer that activate
 between the sample and the load makes the load read more evidence than the signal
 assumed, and the post-load producer count is what decides.
 
+## Readiness and evidence are tracked per producer
+
+The first version of this floor kept one readiness bool and one resolved count
+for both declared producers, and review caught what that arithmetic cannot say.
+`container_image_identity` publishing twice and `ci_cd_run_correlation`
+publishing nothing produced the same pair of numbers as both producers answering
+once — `ready = false, resolved = 2` — so the floor disarmed and the handler
+durably wrote findings with no deployment context at all. That is the defect
+this floor exists to prevent, arriving through the counting rule instead of the
+timing window.
+
+The rule now compares one producer at a time. `CrossScopeProducersReady` returns
+`CrossScopeProducerReadinessByDomain`, an answer per declared producer, and
+`countSupplyChainImpactCrossScopeProducerFacts` returns a count per producer
+domain, keyed off the fact kind each producer writes. A pass defers while any
+declared producer is both unready and unrepresented in the evidence.
+
+Three consequences worth stating plainly:
+
+- The readiness store no longer stops probing at the first non-quiescent kind.
+  It cannot: the producers after it still need answers of their own. A
+  deferring `supply_chain_impact` pass therefore runs two quiescence probes
+  where it used to run one. `ci_cd_run_correlation`, with a single producer, is
+  unchanged at one. The probe is the shape with a committed `EXPLAIN`
+  (`5709-quiescence-probe.md`, 0.30 ms on the seeded plan), so the cost is one
+  additional sub-millisecond indexed read on a pass that is about to wait
+  anyway.
+- A producer the store says nothing about reads as unready. A store that drops
+  a declared producer costs a bounded deferral instead of a wrong answer, and
+  resolved evidence still disarms it.
+- `ci_cd_run_correlation` reads a dedicated producer reader, so every envelope
+  it gets is that one producer's output and a whole-batch count is
+  unambiguous. `singleProducerResolvedCounts` credits it accordingly, and
+  credits nothing at all if that consumer ever declares a second producer —
+  `TestCICDRunCorrelationDeclaresExactlyOneProducer` fails first if it does.
+
+This narrows one axis of the batch-wide residual window recorded above (which
+producer the evidence came from) and leaves the other exactly where it was
+(which finding in the batch it belonged to).
+
 ## Which guards were proven to guard
 
 Every guard below was run against a deliberately broken production line and
@@ -295,6 +341,10 @@ quoted here.
 | `ci_cd_run_correlation` dropped from the producer fact-kind map | `...ProducerFactKindsCoverEveryDeclaredProducer`, `...CICDCorrelationAlsoDisarmsTheFloor` | `producer domain ci_cd_run_correlation has no fact kind ...: its output would never disarm the floor` |
 | absolute producer count instead of the cross-scope delta | `...IgnoresProducerFactsAlreadyInItsOwnScope` | `want a deferral: only producer facts the CROSS-SCOPE read resolved may disarm the floor` |
 | producer count taken when the until-stable loop settles, before the resolved-digest stage | `...CountsProducerFactsFromTheResolvedDigestStage` | `the producer count must be taken after the resolved-digest stage` |
+| per-producer resolved counts summed back into one aggregate | `TestSupplyChainImpactDefersWhenOnlyOneProducerResolved`, `TestCrossScopeUnreadyProducersEvaluatesEachProducerSeparately` | `Handle() error = <nil>, want a deferral: two envelopes from one producer do not make two producers ready` / `crossScopeUnreadyProducers() = [], want [ci_cd_run_correlation]` |
+| `cross_scope_producer_not_ready` removed from `nonCountingReducerRetryFailureClasses` | `TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget` (live) | `cycle 2: claimed Intent.AttemptCount = 2, want 1 frozen` |
+| readiness store reads a registered-but-unactivated producer scope as ready | the same live proof | `cycle 1: Handle() error = nil, want a deferral while the producer scopes have not activated` |
+| the contention gate's `-run` filter narrowed so the live proofs stop being selected | `TestCrossScopeReadinessProofsRunInTheReducerContentionGate` | `the reducer contention gate's -run filter "..." does not select TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget` |
 
 The ordering row catches two tests rather than one. That is an artefact of how
 the break is written against the extracted helper — re-arming the floor also
@@ -339,10 +389,63 @@ $ git diff --check
 diffcheck_exit=0
 ```
 
-What this does **not** include: no live-Postgres run, no golden-corpus (B-7)
-run, and no measurement of deferral frequency under a real workload. The floor's
-own live proof (`TestProducerScopeQuiescenceLive`) covers the store this change
-reuses unchanged, and nothing in this diff touches that query.
+### The real queue, not a fake
+
+Review made the point the handler tests above cannot settle: this handler returns
+a **non-counting** retry error, and no fake queue can establish that the real
+`fact_work_items` path freezes `attempt_count`, keeps the writer quiet while the
+row waits, hands the row back on the next claim, and still reaches a terminal
+answer. A fake that cannot produce the failing row passes forever. That was a
+fair reading of what this doc claimed, and the claim was larger than the
+evidence.
+
+`TestReducerContentionGateCrossScopeReadiness*` closes it against real
+PostgreSQL. The real `ReducerQueue` Claim/Fail/Ack SQL runs against the real
+`fact_work_items` DDL, the real `CrossScopeProducerReadinessStore` reads real
+`ingestion_scopes` rows through the committed quiescence probe, and the real
+`SupplyChainImpactHandler` produces the real deferral error the queue then
+classifies:
+
+```
+$ ESHU_POSTGRES_DSN=postgres://…@localhost:15693/eshu go test ./internal/storage/postgres/ \
+    -run '^TestReducerContentionGateCrossScopeReadiness' -count=1 -v
+=== RUN   TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget
+--- PASS: TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget (0.25s)
+=== RUN   TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound
+--- PASS: TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound (0.10s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	3.237s
+```
+
+The first drives five claim → handle → `Fail` cycles with both producer scopes
+registered and unactivated. Five is deliberately more than `MaxAttempts = 3`: a
+counting class would have dead-lettered the row by cycle four. It reads the
+durable row back each cycle — `status = retrying`, `failure_class =
+cross_scope_producer_not_ready`, `attempt_count = 1` — and asserts the writer was
+never called. Then it activates the producer scopes, and the same handler against
+the same store commits: writer called once, `Ack` drives the row to `succeeded`
+with `attempt_count` still at 1. The second covers the other terminal path, a
+producer that never activates: a row whose cycle began 45 minutes ago commits on
+its first claim rather than waiting forever in a class that never dead-letters.
+
+Both are DSN-gated and skip on a machine with no database, so a hermetic sibling
+carries the part that must hold everywhere.
+`TestCrossScopeReadinessProofsRunInTheReducerContentionGate` reads
+`.github/workflows/reducer-contention-gate.yml`, confirms it still passes
+`ESHU_POSTGRES_DSN`, and compiles its `-run` filter to check it still selects
+both live proofs. That gate runs a PostgreSQL service on every PR touching
+`go/internal/reducer/**` or `go/internal/storage/postgres/**`, which this change
+does, so the live proofs run in CI rather than skipping there. Narrowing the
+filter fails the hermetic guard, which is the row proving it.
+
+What stays a fake is the handler's **fact source**. Supply-chain evidence arrives
+through a different store than the queue under test, and seeding it would prove
+nothing about `fact_work_items`. Proving the deferral against real fact rows end
+to end needs a full ingest, which belongs to the remote corpus run rather than
+here.
+
+Still not included: no golden-corpus (B-7) run, and no measurement of deferral
+frequency under a real workload.
 
 **The code-coverage report could not be regenerated on this machine.**
 `scripts/generate-code-coverage-report.sh` runs `go test ./...`, and six

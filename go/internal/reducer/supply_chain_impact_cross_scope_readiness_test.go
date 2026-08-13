@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +62,21 @@ func supplyChainImpactIntentUnderTheFloor(cause string) Intent {
 		Cause:          cause,
 		CycleStartedAt: time.Now().Add(-time.Minute),
 		EnqueuedAt:     time.Now().Add(-time.Minute),
+	}
+}
+
+// readinessWithOnlyUnready reports every declared producer ready EXCEPT the
+// named one.
+//
+// The counting tests each isolate ONE producer's rule, and since the floor
+// evaluates producers separately, a test that left the other producer unready
+// would defer for a reason it is not about. Naming the producer under test here
+// keeps the assertion honest: the pass commits or defers on that producer's
+// evidence alone.
+func readinessWithOnlyUnready(unready Domain) *fixedCrossScopeReadiness {
+	return &fixedCrossScopeReadiness{
+		ready:           true,
+		readyByProducer: map[Domain]bool{unready: false},
 	}
 }
 
@@ -295,8 +311,12 @@ func TestSupplyChainImpactWithoutAReadinessSeamDoesNotDefer(t *testing.T) {
 
 // TestSupplyChainImpactStillWritesWhenTheProducerHasCommitted is the companion
 // guard: the floor must not turn a working impact pass into a retry loop.
-// Readiness is deliberately "not ready" here, so a resolved producer envelope
-// has to win on its own rather than because the two agreed.
+//
+// Readiness is deliberately withheld from container_image_identity, so its
+// resolved envelope has to disarm that producer on its own rather than because
+// the readiness store and the load agreed. The OTHER declared producer,
+// ci_cd_run_correlation, reads ready — which is what leaves this a
+// no-deferral case rather than the one-producer-short case below.
 func TestSupplyChainImpactStillWritesWhenTheProducerHasCommitted(t *testing.T) {
 	t.Parallel()
 
@@ -308,9 +328,12 @@ func TestSupplyChainImpactStillWritesWhenTheProducerHasCommitted(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		FactLoader: loader,
+		Writer:     writer,
+		ProducerReadiness: &fixedCrossScopeReadiness{readyByProducer: map[Domain]bool{
+			DomainContainerImageIdentity: false,
+			DomainCICDRunCorrelation:     true,
+		}},
 	}
 
 	if _, err := handler.Handle(
@@ -321,5 +344,70 @@ func TestSupplyChainImpactStillWritesWhenTheProducerHasCommitted(t *testing.T) {
 	}
 	if writer.calls != 1 {
 		t.Fatalf("WriteSupplyChainImpactFindings() calls = %d, want 1", writer.calls)
+	}
+}
+
+// TestSupplyChainImpactDefersWhenOnlyOneProducerResolved is the regression guard
+// for the aggregate-count defect a round of review on #6093 found.
+//
+// supply_chain_impact declares two producers. The floor used to hold ONE
+// readiness bool and ONE resolved count for both of them, so an envelope from
+// either producer satisfied the pair: a pass where container_image_identity had
+// published twice and ci_cd_run_correlation had published nothing read exactly
+// like a pass where both had answered once. The consumer then durably wrote
+// findings with no deployment context at all, which is the #5709 defect wearing
+// a different hat.
+//
+// Two identity envelopes is the shape that makes the arithmetic visible. A
+// count of two "covers" two producers only if you never ask which producer each
+// envelope came from.
+func TestSupplyChainImpactDefersWhenOnlyOneProducerResolved(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: supplyChainImpactArmedScopeFacts(),
+		active: []facts.Envelope{
+			containerImageIdentityImpactFact("image-identity-1", testImpactSubjectDigest, testImpactRepositoryID),
+			containerImageIdentityImpactFact("image-identity-2", testImpactSubjectDigest, testImpactRepositoryID),
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	logs := &bytes.Buffer{}
+	handler := SupplyChainImpactHandler{
+		FactLoader:        loader,
+		Writer:            writer,
+		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		Logger:            slog.New(slog.NewTextHandler(logs, nil)),
+	}
+
+	_, err := handler.Handle(
+		context.Background(),
+		supplyChainImpactIntentUnderTheFloor("only the identity producer answered"),
+	)
+	var notReady crossScopeProducerNotReadyError
+	if !errors.As(err, &notReady) {
+		t.Fatalf(
+			"Handle() error = %#v, want a deferral: two envelopes from one producer do not make two producers ready",
+			err,
+		)
+	}
+	if writer.calls != 0 {
+		t.Fatalf("WriteSupplyChainImpactFindings() calls = %d, want 0 on a deferral", writer.calls)
+	}
+	// The error and the log name the producer that is actually holding this
+	// pass back, and not the one that already answered. An operator reading
+	// either has to be able to tell which upstream to go look at.
+	if !slices.Contains(notReady.producerDomains, DomainCICDRunCorrelation) {
+		t.Fatalf("producerDomains = %v, want the unresolved ci_cd_run_correlation producer", notReady.producerDomains)
+	}
+	if slices.Contains(notReady.producerDomains, DomainContainerImageIdentity) {
+		t.Fatalf(
+			"producerDomains = %v, want container_image_identity omitted: it resolved output on this pass",
+			notReady.producerDomains,
+		)
+	}
+	if got := logs.String(); !strings.Contains(got, string(DomainCICDRunCorrelation)) ||
+		strings.Contains(got, string(DomainContainerImageIdentity)) {
+		t.Fatalf("defer log must name only the blocking producer:\n%s", got)
 	}
 }

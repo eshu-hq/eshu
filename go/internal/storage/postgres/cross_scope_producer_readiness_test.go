@@ -118,12 +118,31 @@ func TestCrossScopeProducerCollectorKindsForResolvesEveryCatalogConsumer(t *test
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := crossScopeProducerCollectorKindsFor(testCase.consumer)
+			got := crossScopeProducerCollectorKinds(crossScopeProducerDomainsFor(testCase.consumer))
 			if !slices.Equal(got, testCase.want) {
-				t.Fatalf("crossScopeProducerCollectorKindsFor(%s) = %v, want %v", testCase.consumer, got, testCase.want)
+				t.Fatalf("collector kinds for %s = %v, want %v", testCase.consumer, got, testCase.want)
 			}
 		})
 	}
+}
+
+// readinessFor is the per-producer answer for one producer domain, plus whether
+// the store said anything about it at all. A store that silently drops a
+// declared producer is the failure this separates from an explicit false: the
+// reducer floor reads a missing entry as unready, so the two look alike from the
+// outside and only this distinction catches the drop.
+func readinessFor(
+	t *testing.T,
+	readiness reducer.CrossScopeProducerReadinessByDomain,
+	producer reducer.Domain,
+) bool {
+	t.Helper()
+
+	ready, answered := readiness[producer]
+	if !answered {
+		t.Fatalf("readiness = %v, want an entry for the declared producer %s", readiness, producer)
+	}
+	return ready
 }
 
 // TestCrossScopeProducerCollectorKindsDeduplicatesAndSorts drives the same
@@ -173,13 +192,13 @@ func TestCrossScopeProducersReadyUsesTheProvenQuiescenceProbe(t *testing.T) {
 	}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
 	)
 	if err != nil {
 		t.Fatalf("CrossScopeProducersReady() error = %v", err)
 	}
-	if !ready {
+	if !readinessFor(t, readiness, reducer.DomainContainerImageIdentity) {
 		t.Fatal("ready = false, want true when the producer scope is quiescent-active")
 	}
 	if len(stub.calls) != 1 {
@@ -214,13 +233,13 @@ func TestCrossScopeProducersReadyIsReadyWhenNoScopeOfTheProducerKindExists(t *te
 	stub := &quiescenceQueryerStub{scopesByKind: map[string][]stubProducerScope{}}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
 	)
 	if err != nil {
 		t.Fatalf("CrossScopeProducersReady() error = %v", err)
 	}
-	if !ready {
+	if !readinessFor(t, readiness, reducer.DomainContainerImageIdentity) {
 		t.Fatal("ready = false, want true: no oci_registry scope is registered, so there is no activation to wait for")
 	}
 	if len(stub.calls) != 1 {
@@ -232,6 +251,11 @@ func TestCrossScopeProducersReadyIsReadyWhenNoScopeOfTheProducerKindExists(t *te
 // per collector kind, not for the consumer as a whole. A two-producer consumer
 // whose first kind is absent must still wait for the second kind's scope to
 // finish, rather than reading one absence as blanket permission to commit.
+//
+// The two producers get OPPOSITE answers here, which is the shape the aggregate
+// bool could not carry: ci_cd_run_correlation is ready because no ci_cd_run
+// scope exists to wait for, and container_image_identity is not because its
+// registered oci_registry scope has not finished.
 func TestCrossScopeProducersReadySkipsOnlyTheAbsentKind(t *testing.T) {
 	t.Parallel()
 
@@ -242,14 +266,17 @@ func TestCrossScopeProducersReadySkipsOnlyTheAbsentKind(t *testing.T) {
 	}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainSupplyChainImpact, "vuln:acme", "gen-1",
 	)
 	if err != nil {
 		t.Fatalf("CrossScopeProducersReady() error = %v", err)
 	}
-	if ready {
-		t.Fatal("ready = true, want false: ci_cd_run is absent, but the registered oci_registry scope has not finished")
+	if readinessFor(t, readiness, reducer.DomainContainerImageIdentity) {
+		t.Fatal("container_image_identity ready = true, want false: its registered oci_registry scope has not finished")
+	}
+	if !readinessFor(t, readiness, reducer.DomainCICDRunCorrelation) {
+		t.Fatal("ci_cd_run_correlation ready = false, want true: no ci_cd_run scope is registered to wait for")
 	}
 	if len(stub.calls) != 2 {
 		t.Fatalf("calls = %d, want 2: an absent kind is skipped, and the remaining kinds are still probed", len(stub.calls))
@@ -273,24 +300,30 @@ func TestCrossScopeProducersReadyDefersWhenNoProducerScopeIsQuiescent(t *testing
 	}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
 	)
 	if err != nil {
 		t.Fatalf("CrossScopeProducersReady() error = %v", err)
 	}
-	if ready {
+	if readinessFor(t, readiness, reducer.DomainContainerImageIdentity) {
 		t.Fatal("ready = true, want false while no producer scope is quiescent-active")
 	}
 }
 
-// TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss
-// covers the multi-producer consumer. Each declared producer kind must be
-// satisfied, and the first miss must short-circuit rather than run the rest.
-func TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss(t *testing.T) {
+// TestCrossScopeProducersReadyAnswersEveryProducerSeparately covers the
+// multi-producer consumer. Every declared producer gets its own answer, and a
+// producer that is not ready no longer stops the store from answering the rest.
+//
+// The short-circuit this replaced was the aggregate bool's only justification
+// for skipping probes, and it is exactly what made the readiness signal
+// unusable per producer: a consumer that stops probing at the first miss cannot
+// say whether its OTHER producer was ready, so the floor had one bool to pair
+// with one evidence count and could not tell the two producers apart.
+func TestCrossScopeProducersReadyAnswersEveryProducerSeparately(t *testing.T) {
 	t.Parallel()
 
-	t.Run("every kind quiescent reports ready", func(t *testing.T) {
+	t.Run("every kind quiescent reports every producer ready", func(t *testing.T) {
 		t.Parallel()
 
 		stub := &quiescenceQueryerStub{
@@ -301,29 +334,26 @@ func TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss(t
 		}
 		store := CrossScopeProducerReadinessStore{DB: stub}
 
-		ready, err := store.CrossScopeProducersReady(
+		readiness, err := store.CrossScopeProducersReady(
 			context.Background(), reducer.DomainSupplyChainImpact, "vuln:acme", "gen-1",
 		)
 		if err != nil {
 			t.Fatalf("CrossScopeProducersReady() error = %v", err)
 		}
-		if !ready {
-			t.Fatal("ready = false, want true when both producer kinds are quiescent-active")
+		for _, producer := range []reducer.Domain{
+			reducer.DomainContainerImageIdentity,
+			reducer.DomainCICDRunCorrelation,
+		} {
+			if !readinessFor(t, readiness, producer) {
+				t.Fatalf("%s ready = false, want true when its producer kind is quiescent-active", producer)
+			}
 		}
 		if len(stub.calls) != 2 {
-			t.Fatalf("calls = %d, want 2, one per declared producer collector kind", len(stub.calls))
-		}
-		for index, want := range [][]string{
-			{string(scope.CollectorCICDRun)},
-			{string(scope.CollectorOCIRegistry)},
-		} {
-			if !slices.Equal(stub.calls[index].kinds, want) {
-				t.Fatalf("call %d bound kinds = %v, want %v", index, stub.calls[index].kinds, want)
-			}
+			t.Fatalf("calls = %d, want 2, one per distinct declared producer collector kind", len(stub.calls))
 		}
 	})
 
-	t.Run("the first non-quiescent kind short-circuits", func(t *testing.T) {
+	t.Run("one non-quiescent kind does not decide the other producer", func(t *testing.T) {
 		t.Parallel()
 
 		stub := &quiescenceQueryerStub{
@@ -334,17 +364,20 @@ func TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss(t
 		}
 		store := CrossScopeProducerReadinessStore{DB: stub}
 
-		ready, err := store.CrossScopeProducersReady(
+		readiness, err := store.CrossScopeProducersReady(
 			context.Background(), reducer.DomainSupplyChainImpact, "vuln:acme", "gen-1",
 		)
 		if err != nil {
 			t.Fatalf("CrossScopeProducersReady() error = %v", err)
 		}
-		if ready {
-			t.Fatal("ready = true, want false when the ci_cd_run producer kind has no quiescent scope")
+		if readinessFor(t, readiness, reducer.DomainCICDRunCorrelation) {
+			t.Fatal("ci_cd_run_correlation ready = true, want false: its registered scope has not finished")
 		}
-		if len(stub.calls) != 1 {
-			t.Fatalf("calls = %d, want 1: the first miss must short-circuit the remaining probes", len(stub.calls))
+		if !readinessFor(t, readiness, reducer.DomainContainerImageIdentity) {
+			t.Fatal("container_image_identity ready = false, want true: its own oci_registry scope is quiescent-active")
+		}
+		if len(stub.calls) != 2 {
+			t.Fatalf("calls = %d, want 2: every declared kind is probed so every producer gets an answer", len(stub.calls))
 		}
 	})
 }
@@ -357,14 +390,14 @@ func TestCrossScopeProducersReadyLeavesUnregisteredConsumersAlone(t *testing.T) 
 
 	store := CrossScopeProducerReadinessStore{DB: nil}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainContainerImageIdentity, "oci_registry:ghcr.io/acme", "gen-1",
 	)
 	if err != nil {
 		t.Fatalf("CrossScopeProducersReady() error = %v", err)
 	}
-	if !ready {
-		t.Fatal("ready = false, want true for a domain the cross-scope catalog does not register")
+	if len(readiness) != 0 {
+		t.Fatalf("readiness = %v, want no producers for a domain the cross-scope catalog does not register", readiness)
 	}
 }
 
@@ -376,14 +409,14 @@ func TestCrossScopeProducersReadyRequiresADatabaseForRegisteredConsumers(t *test
 
 	store := CrossScopeProducerReadinessStore{DB: nil}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
 	)
 	if err == nil {
 		t.Fatal("expected an error when a registered consumer has no database")
 	}
-	if ready {
-		t.Fatal("ready = true alongside an error, want false")
+	if readiness != nil {
+		t.Fatalf("readiness = %v alongside an error, want nil", readiness)
 	}
 }
 
@@ -397,13 +430,13 @@ func TestCrossScopeProducersReadySurfacesQueryErrors(t *testing.T) {
 	stub := &quiescenceQueryerStub{err: fmt.Errorf("connection reset")}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
-	ready, err := store.CrossScopeProducersReady(
+	readiness, err := store.CrossScopeProducersReady(
 		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
 	)
 	if err == nil {
 		t.Fatal("expected the probe error to surface")
 	}
-	if ready {
-		t.Fatal("ready = true alongside an error, want false")
+	if readiness != nil {
+		t.Fatalf("readiness = %v alongside an error, want nil", readiness)
 	}
 }

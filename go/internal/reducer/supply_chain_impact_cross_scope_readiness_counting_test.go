@@ -91,7 +91,7 @@ func TestSupplyChainImpactCICDCorrelationAlsoDisarmsTheFloor(t *testing.T) {
 	handler := SupplyChainImpactHandler{
 		FactLoader:        loader,
 		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		ProducerReadiness: readinessWithOnlyUnready(DomainCICDRunCorrelation),
 	}
 
 	if _, err := handler.Handle(
@@ -146,7 +146,7 @@ func TestSupplyChainImpactDoesNotDeferABatchWhereAnotherFindingResolved(t *testi
 	handler := SupplyChainImpactHandler{
 		FactLoader:        loader,
 		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		ProducerReadiness: readinessWithOnlyUnready(DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(
@@ -298,7 +298,7 @@ func TestSupplyChainImpactCountsProducerFactsFromTheResolvedDigestStage(t *testi
 	handler := SupplyChainImpactHandler{
 		FactLoader:        loader,
 		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		ProducerReadiness: readinessWithOnlyUnready(DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(context.Background(), Intent{
@@ -481,7 +481,7 @@ func TestSupplyChainImpactCountsProducerFactsFromALaterEvidenceRound(t *testing.
 	handler := SupplyChainImpactHandler{
 		FactLoader:        loader,
 		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		ProducerReadiness: readinessWithOnlyUnready(DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(
