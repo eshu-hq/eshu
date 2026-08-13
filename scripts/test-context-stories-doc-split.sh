@@ -147,6 +147,28 @@ heading_line() {
   printf '%s\n' "$output"
 }
 
+# slugify mirrors the MkDocs heading-id rule: lowercase, drop anything outside
+# [a-z0-9 -], spaces to hyphens, collapse hyphen runs, trim the ends. The
+# collapse step is the one that matters here — it is why the em-dash heading
+# "seam — hot-path" produces "seam-hot-path" and not "seam--hot-path". Verified
+# against the id MkDocs actually generated for that heading.
+slugify() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9 -]//g' -e 's/ /-/g' -e 's/-\{2,\}/-/g' -e 's/^-//' -e 's/-$//'
+}
+
+# heading_slug_exists reports whether any ATX heading in the file slugifies to
+# the given fragment.
+heading_slug_exists() {
+  local want="$1" file="$2" line
+  while IFS= read -r line; do
+    line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/^#\{1,6\}[[:space:]]*//')"
+    [ "$(slugify "$line")" = "$want" ] && return 0
+  done < <(rg --no-filename --regexp '^#{2,6} ' "$file")
+  return 1
+}
+
 verify_layout() {
   local root="$1"
   local docs_dir="${root}/docs/public/reference/http-api"
@@ -159,6 +181,7 @@ verify_layout() {
   local ask="${docs_dir}/ask.md"
   local cloud="${docs_dir}/cloud-inventory.md"
   local file lines heading escaped_heading term route actual shared_line stories_line investigation_line
+  local stub_fragment target_file
 
   for file in "$hub" "$stories" "$deployment" "$sessions" "$ask" "$cloud" "$mkdocs" "$route_table"; do
     [ -f "$file" ] || fail "missing ${file#"${root}/"}" || return 1
@@ -205,6 +228,33 @@ verify_layout() {
       "$route_table"; then
       fail "hub stub ${heading} does not link to ${target} within 6 lines"
       return 1
+    fi
+
+    # A link to the right FILE can still land readers at the top of it. #6065
+    # shipped ask.md#answer-narration-status-seam--hot-path-evidence-... with a
+    # double hyphen, because MkDocs collapses the space-emdash-space gap in the
+    # heading to one hyphen. Nothing caught it: this loop checked the
+    # destination only, and `mkdocs build --strict` reports a dangling anchor as
+    # INFO and still exits 0. So resolve every fragment against a real heading.
+    stub_fragment="$(awk -v first="$stub_line" -v target="$target" \
+      'NR > first && NR <= first + 6 && index($0, target) {
+         line = $0
+         if (line !~ /#/) next
+         sub(/^.*#/, "", line)
+         sub(/[)].*$/, "", line)
+         print line
+         exit
+       }' "$route_table")"
+    if [ -n "$stub_fragment" ]; then
+      target_file="${root}/docs/public/reference/${target}"
+      if [ ! -f "$target_file" ]; then
+        fail "hub stub ${heading} links into missing file ${target}"
+        return 1
+      fi
+      if ! heading_slug_exists "$stub_fragment" "$target_file"; then
+        fail "hub stub ${heading} links to #${stub_fragment}, which matches no heading in ${target}"
+        return 1
+      fi
     fi
   done
 
@@ -437,6 +487,15 @@ mutation_root="$(seed_mutation_repo missing-anchor)"
 sed -i.bak '/^## Stories$/d' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "missing legacy heading stub is rejected" "$mutation_root"
+
+# #6065 shipped this fragment with a double hyphen and every gate passed: the
+# stub loop checked the destination file only, and `mkdocs build --strict`
+# reports a dangling anchor as INFO with exit 0. Flip it back and require a
+# failure, so the same broken link cannot return unnoticed.
+mutation_root="$(seed_mutation_repo broken-fragment)"
+sed -i.bak 's|ask.md#answer-narration-status-seam-hot-path|ask.md#answer-narration-status-seam--hot-path|' \
+  "${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "hub fragment that matches no heading is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo duplicate-route)"
 printf '%s\n' 'POST /api/v0/impact/trace-deployment-chain' \
