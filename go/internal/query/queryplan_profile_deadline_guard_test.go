@@ -17,6 +17,9 @@ import (
 // it: whether the gate's phases share a deadline is a property of the code, and
 // a property of the code can be checked on every PR, on any machine, in
 // milliseconds.
+//
+// The source reader this test asserts on lives in
+// queryplan_profile_deadline_guard_ast_test.go.
 const queryplanProfileLiveSourceFile = "queryplan_profile_live_test.go"
 
 // queryplanProfileLiveTestFunc is the gate whose phases must not share a clock.
@@ -27,186 +30,10 @@ const queryplanProfileLiveTestFunc = "TestProductionQueryplanProfilesRejectWhole
 // shared 2-minute budget on its own.
 const queryplanProfileSchemaFunc = "applyQueryplanProfileSchema"
 
-// queryplanProfileCtxScope is what one lexical scope of the live gate does with
-// contexts: which context variables it derives a deadline for from a clock-free
-// parent, which it derives from a parent that may already be running down a
-// clock, and which it hands to the graph driver.
-type queryplanProfileCtxScope struct {
-	derived map[string]bool
-	// chained maps a context variable to the parent it took its deadline from,
-	// when that parent is not a deadline-free root. context.WithTimeout keeps
-	// whichever deadline is EARLIER, so such a context is still on the parent's
-	// clock no matter what budget it was given.
-	chained map[string]string
-	passed  map[string]bool
-	// profileSite counts calls that run a profiled query (Run, Consume). Those
-	// belong in a subtest, never in the gate's own body.
-	profileSite int
-	// driverSite counts every call that hands the driver a context, profiled
-	// query or not. VerifyConnectivity is one: the connect phase talks to the
-	// graph on a deadline like any other phase, so its context is held to the
-	// same rule.
-	driverSite int
-}
-
-// queryplanProfileScopeOf reads one function body's context use, without
-// descending into nested closures: a subtest closure's deadlines are that
-// closure's business, and the enclosing body must not be credited with them.
-func queryplanProfileScopeOf(body *ast.BlockStmt) queryplanProfileCtxScope {
-	scope := queryplanProfileCtxScope{
-		derived: map[string]bool{},
-		chained: map[string]string{},
-		passed:  map[string]bool{},
-	}
-	ast.Inspect(body, func(node ast.Node) bool {
-		switch typed := node.(type) {
-		case *ast.FuncLit:
-			return false
-		case *ast.AssignStmt:
-			name, parent, ok := queryplanProfileDerivedCtxName(typed)
-			switch {
-			case !ok:
-			case queryplanProfileIsDeadlineFreeRoot(parent):
-				scope.derived[name] = true
-			default:
-				scope.chained[name] = queryplanProfileExprLabel(parent)
-			}
-		case *ast.CallExpr:
-			name, profiled, ok := queryplanProfileGraphCallCtxName(typed)
-			if ok {
-				scope.passed[name] = true
-				scope.driverSite++
-				if profiled {
-					scope.profileSite++
-				}
-			}
-		}
-		return true
-	})
-	return scope
-}
-
-// queryplanProfileDerivedCtxName reports the variable an assignment gives a
-// deadline to, and the parent that deadline was derived from, as in
-// `ctx, cancel := context.WithTimeout(parent, budget)`.
-//
-// The parent is returned rather than discarded because it decides whether the
-// deadline is really the scope's own. context.WithTimeout keeps the earlier of
-// the two deadlines, so deriving from a context that already carries one leaves
-// the child on the parent's clock -- the shared-clock defect wearing the shape
-// of a fix.
-func queryplanProfileDerivedCtxName(assign *ast.AssignStmt) (string, ast.Expr, bool) {
-	if len(assign.Rhs) != 1 || len(assign.Lhs) == 0 {
-		return "", nil, false
-	}
-	call, ok := assign.Rhs[0].(*ast.CallExpr)
-	if !ok {
-		return "", nil, false
-	}
-	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return "", nil, false
-	}
-	pkg, ok := selector.X.(*ast.Ident)
-	if !ok || pkg.Name != "context" {
-		return "", nil, false
-	}
-	if selector.Sel.Name != "WithTimeout" && selector.Sel.Name != "WithDeadline" {
-		return "", nil, false
-	}
-	if len(call.Args) != 2 {
-		return "", nil, false
-	}
-	target, ok := assign.Lhs[0].(*ast.Ident)
-	if !ok {
-		return "", nil, false
-	}
-	return target.Name, call.Args[0], true
-}
-
-// queryplanProfileTestingIdents are the receivers whose Context() method is a
-// deadline-free root here: *testing.T's context is cancelled when the test
-// ends and carries no deadline of its own.
-var queryplanProfileTestingIdents = map[string]bool{"t": true, "tb": true}
-
-// queryplanProfileIsDeadlineFreeRoot reports whether an expression is a context
-// root that carries no deadline: `t.Context()`, `context.Background()`, or
-// `context.TODO()`.
-//
-// It fails closed. Anything else -- a variable, a field, a Context() call on
-// some other receiver -- is treated as possibly deadline-carrying, because from
-// the syntax alone it can be. Widening this set is a deliberate act; a rename
-// that lands here makes the guard fail rather than quietly accept a parent it
-// cannot vouch for.
-func queryplanProfileIsDeadlineFreeRoot(parent ast.Expr) bool {
-	call, ok := parent.(*ast.CallExpr)
-	if !ok || len(call.Args) != 0 {
-		return false
-	}
-	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	receiver, ok := selector.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	if receiver.Name == "context" {
-		return selector.Sel.Name == "Background" || selector.Sel.Name == "TODO"
-	}
-	return selector.Sel.Name == "Context" && queryplanProfileTestingIdents[receiver.Name]
-}
-
-// queryplanProfileExprLabel renders an expression the way it reads in source,
-// for the shapes this guard reports on, so a failure names the parent the
-// author actually wrote.
-func queryplanProfileExprLabel(expr ast.Expr) string {
-	switch typed := expr.(type) {
-	case *ast.Ident:
-		return typed.Name
-	case *ast.SelectorExpr:
-		return queryplanProfileExprLabel(typed.X) + "." + typed.Sel.Name
-	case *ast.CallExpr:
-		return queryplanProfileExprLabel(typed.Fun) + "()"
-	default:
-		return "the expression it was given"
-	}
-}
-
-// queryplanProfileGraphCallCtxName reports the context variable handed to a
-// graph driver call, and whether that call runs a profiled query.
-//
-// `session.Run(ctx, ...)` and `result.Consume(ctx)` run profiled queries.
-// `driver.VerifyConnectivity(ctx)` does not, but it still spends a deadline
-// against the graph, so its context is subject to the same rule and is reported
-// with profiled=false. `t.Run(name, func(...))` is neither: it is matched by the
-// closure argument and skipped.
-func queryplanProfileGraphCallCtxName(call *ast.CallExpr) (name string, profiled, ok bool) {
-	selector, isSelector := call.Fun.(*ast.SelectorExpr)
-	if !isSelector {
-		return "", false, false
-	}
-	switch selector.Sel.Name {
-	case "Run", "Consume":
-		profiled = true
-	case queryplanProfileConnectFunc:
-	default:
-		return "", false, false
-	}
-	if len(call.Args) == 2 {
-		if _, isSubtest := call.Args[1].(*ast.FuncLit); isSubtest {
-			return "", false, false
-		}
-	}
-	if len(call.Args) == 0 {
-		return "", false, false
-	}
-	ctx, isIdent := call.Args[0].(*ast.Ident)
-	if !isIdent {
-		return "", false, false
-	}
-	return ctx.Name, profiled, true
-}
+// queryplanProfileConnectFunc is the driver call that opens the gate's first
+// conversation with the graph. The wall-clock backstop has to be running by the
+// time it is made, or the backstop does not cover the gate it claims to.
+const queryplanProfileConnectFunc = "VerifyConnectivity"
 
 // TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines is the guard for the
 // shared-deadline defect: the live gate used to build one 2-minute context and
@@ -216,19 +43,23 @@ func queryplanProfileGraphCallCtxName(call *ast.CallExpr) (name string, profiled
 // container for an exhausted clock.
 //
 // The property is structural, so this asserts it structurally, hermetically,
-// and on every PR. Three things have to hold:
+// and on every PR. Four things have to hold:
 //
 //   - every phase of the gate that talks to the graph derives its own deadline
 //     in its own scope;
 //   - that deadline comes from a parent carrying none, because
 //     context.WithTimeout keeps the earlier of the two and a child of a
 //     deadline-carrying context is still on the parent's clock;
+//   - it is built from the named budget constant written for that phase, not a
+//     literal duration and not a neighbouring phase's constant;
 //   - the wall-clock backstop starts before the first graph call, so it covers
 //     the gate it is documented to bound.
 //
-// The first check alone used to pass on
-// `context.WithTimeout(sharedCtx, queryplanProfileQueryBudget)`, which is the
-// defect back in the door the guard was built to close.
+// Each was added because the previous set passed on the defect. The first alone
+// passed on `context.WithTimeout(sharedCtx, queryplanProfileQueryBudget)`. The
+// first two passed on `context.WithTimeout(t.Context(), 2*time.Minute)`, which
+// is the coarse shared budget this change removed, restored per subtest while
+// every guard stayed green.
 func TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
@@ -252,7 +83,8 @@ func TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines(t *testing.T) {
 		}
 	}
 
-	assertQueryplanProfileScopeOwnsDeadlines(t, queryplanProfileSchemaFunc, queryplanProfileScopeOf(funcs[queryplanProfileSchemaFunc].Body))
+	assertQueryplanProfileScopeOwnsDeadlines(t, queryplanProfileSchemaFunc, queryplanProfileSchemaBudgetName,
+		queryplanProfileScopeOf(funcs[queryplanProfileSchemaFunc].Body))
 
 	// The gate's own body runs the connect phase and nothing else against the
 	// graph: profiled queries belong in subtests, where a failure names one
@@ -262,7 +94,8 @@ func TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines(t *testing.T) {
 		t.Errorf("%s profiles %d quer(ies) in its own body; every profiled query belongs in a subtest that owns a deadline",
 			queryplanProfileLiveTestFunc, liveScope.profileSite)
 	}
-	assertQueryplanProfileScopeOwnsDeadlines(t, queryplanProfileLiveTestFunc+" body", liveScope)
+	assertQueryplanProfileScopeOwnsDeadlines(t, queryplanProfileLiveTestFunc+" body",
+		queryplanProfileConnectBudgetName, liveScope)
 
 	assertQueryplanProfileBackstopStartsWithTheGate(t, funcs[queryplanProfileLiveTestFunc])
 
@@ -275,14 +108,9 @@ func TestQueryplanProfileLiveGatePhasesOwnTheirDeadlines(t *testing.T) {
 			len(subtests), queryplanProfileLiveSourceFile)
 	}
 	for _, scope := range subtests {
-		assertQueryplanProfileScopeOwnsDeadlines(t, "subtest closure", scope)
+		assertQueryplanProfileScopeOwnsDeadlines(t, "subtest closure", queryplanProfileQueryBudgetName, scope)
 	}
 }
-
-// queryplanProfileConnectFunc is the driver call that opens the gate's first
-// conversation with the graph. The wall-clock backstop has to be running by the
-// time it is made, or the backstop does not cover the gate it claims to.
-const queryplanProfileConnectFunc = "VerifyConnectivity"
 
 // assertQueryplanProfileBackstopStartsWithTheGate fails when the clock read by
 // queryplanProfileTotalBudgetError starts after the gate has already begun
@@ -349,62 +177,23 @@ func assertQueryplanProfileBackstopStartsWithTheGate(t *testing.T, fn *ast.FuncD
 	}
 }
 
-// queryplanProfileElapsedSinceVar reports the variable a `time.Since(x)`
-// argument reads its elapsed time from.
-func queryplanProfileElapsedSinceVar(arg ast.Expr) string {
-	call, ok := arg.(*ast.CallExpr)
-	if !ok || len(call.Args) != 1 {
-		return ""
-	}
-	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || selector.Sel.Name != "Since" {
-		return ""
-	}
-	pkg, ok := selector.X.(*ast.Ident)
-	if !ok || pkg.Name != "time" {
-		return ""
-	}
-	source, ok := call.Args[0].(*ast.Ident)
-	if !ok {
-		return ""
-	}
-	return source.Name
-}
-
-// queryplanProfileSubtestScopes returns the context use of every subtest
-// closure in the file that talks to the graph.
-func queryplanProfileSubtestScopes(file *ast.File) []queryplanProfileCtxScope {
-	var scopes []queryplanProfileCtxScope
-	ast.Inspect(file, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok || len(call.Args) != 2 {
-			return true
-		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || selector.Sel.Name != "Run" {
-			return true
-		}
-		closure, ok := call.Args[1].(*ast.FuncLit)
-		if !ok {
-			return true
-		}
-		scope := queryplanProfileScopeOf(closure.Body)
-		if scope.driverSite > 0 {
-			scopes = append(scopes, scope)
-		}
-		return true
-	})
-	return scopes
-}
-
 // assertQueryplanProfileScopeOwnsDeadlines fails when a scope hands the graph
 // driver a context it did not give a deadline of its own -- the exact shape of
-// the shared-clock defect.
-func assertQueryplanProfileScopeOwnsDeadlines(t *testing.T, label string, scope queryplanProfileCtxScope) {
+// the shared-clock defect -- or gives it one built from the wrong budget.
+//
+// wantBudget names the constant this phase's deadline must be built from.
+func assertQueryplanProfileScopeOwnsDeadlines(t *testing.T, label, wantBudget string, scope queryplanProfileCtxScope) {
 	t.Helper()
 	if scope.driverSite == 0 {
 		t.Errorf("%s hands the graph driver no context; this assertion would prove nothing", label)
 		return
+	}
+	if len(scope.opaqueCtx) > 0 {
+		sort.Strings(scope.opaqueCtx)
+		t.Errorf("%s hands the graph driver context expression(s) %v rather than variables this scope gave a "+
+			"deadline to. This reader used to drop such a call and assert on the rest, so a profiled query run on "+
+			"context.Background() -- no deadline at all -- left nothing to fail on. Derive the deadline into a "+
+			"variable with context.WithTimeout and pass that variable.", label, scope.opaqueCtx)
 	}
 	borrowed := make([]string, 0, len(scope.passed))
 	chained := make([]string, 0, len(scope.passed))
@@ -432,4 +221,72 @@ func assertQueryplanProfileScopeOwnsDeadlines(t *testing.T, label string, scope 
 			"from a deadline-free root instead: t.Context(), context.Background(), or context.TODO().",
 			label, chained)
 	}
+	assertQueryplanProfileScopeUsesItsBudget(t, label, wantBudget, scope)
+}
+
+// assertQueryplanProfileScopeUsesItsBudget fails when a phase builds its
+// deadline from anything other than the budget constant written for it.
+//
+// The two checks above pin the shape -- own deadline, deadline-free parent --
+// and TestQueryplanProfileBudgetsAreOrdered pins how the constants relate to
+// each other. Between them sat the gap this closes: nothing read the second
+// argument to context.WithTimeout, so a subtest could be handed a literal
+// `2*time.Minute`, or the schema phase's 3 minutes, and every check stayed
+// green while the per-query budget the measurements justify was gone.
+//
+// It fails closed both ways. An argument that is not one of the named budget
+// constants is rejected on that ground, the way an unrecognised parent already
+// is, and the count of budgets actually read is asserted so the loop cannot
+// come back satisfied having looked at none.
+func assertQueryplanProfileScopeUsesItsBudget(t *testing.T, label, wantBudget string, scope queryplanProfileCtxScope) {
+	t.Helper()
+	want, known := queryplanProfileBudgetConsts[wantBudget]
+	if !known {
+		t.Fatalf("%s: this guard asks for budget %q, which is not one of the live gate's budget constants %v; "+
+			"it would reject every correct deadline", label, wantBudget, queryplanProfileBudgetNames())
+	}
+	names := make([]string, 0, len(scope.passed))
+	for name := range scope.passed {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	checked := 0
+	for _, name := range names {
+		got, derivedHere := scope.budget[name]
+		if !derivedHere {
+			// Reported already: this scope did not give the context a deadline,
+			// so there is no budget of its own to read.
+			continue
+		}
+		checked++
+		if got == wantBudget {
+			continue
+		}
+		if _, isBudgetConst := queryplanProfileBudgetConsts[got]; !isBudgetConst {
+			t.Errorf("%s builds %s's deadline from %s, which is not one of the live gate's budget constants %v. "+
+				"A duration written inline is not covered by the measurements those constants carry and drifts "+
+				"from them silently: use %s (%s).",
+				label, name, got, queryplanProfileBudgetNames(), wantBudget, want)
+			continue
+		}
+		t.Errorf("%s builds %s's deadline from %s, but this phase runs on %s. Each budget was sized against the "+
+			"phase it names and they move independently -- %s is %s today, %s is %s -- so borrowing another "+
+			"phase's number gives this one a limit nothing measured it against.",
+			label, name, got, wantBudget, got, queryplanProfileBudgetConsts[got], wantBudget, want)
+	}
+	if checked == 0 {
+		t.Errorf("%s: no context handed to the graph driver here was given a deadline in this scope, so the "+
+			"%s check read nothing", label, wantBudget)
+	}
+}
+
+// queryplanProfileBudgetNames lists the budget constants in a stable order, for
+// failure messages that have to name the closed set.
+func queryplanProfileBudgetNames() []string {
+	names := make([]string, 0, len(queryplanProfileBudgetConsts))
+	for name := range queryplanProfileBudgetConsts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
