@@ -144,6 +144,13 @@ func probeAuthPosture(client *http.Client, baseURL string) PostureProbeResult {
 // true. Local stdio mode (hosted false) never probes regardless of --auth,
 // since stdio mode carries no credential to select between. An unrecognized
 // --auth value is an error listing the accepted values.
+//
+// probe must be non-nil whenever hosted is true and authFlag is empty or
+// "auto", because that is the one path that calls it; passing nil there
+// panics. Every other combination ignores probe entirely, which is why the
+// tests pass a probe that panics if called -- reaching it proves the
+// no-probe paths regressed. Callers that always probe should pass
+// HostedPostureProbe.
 func ResolveAuthPosture(authFlag string, sharedKey bool, hosted bool, probe func(string) PostureProbeResult, serviceURL string) (PostureProbeResult, error) {
 	if sharedKey {
 		return PostureProbeResult{Posture: PostureSharedKey}, nil
