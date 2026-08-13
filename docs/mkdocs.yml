@@ -403,6 +403,7 @@ nav:
       - Language Support: contributing-language-support.md
     - Roadmap: roadmap.md
     - Contributing: contributing.md
+    - Documentation Style Guide: documentation-style-guide.md
     - Code With Agents: guides/coding-with-agents.md
     - Release Log:
       - Overview: releases/index.md
