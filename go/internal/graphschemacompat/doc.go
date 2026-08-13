@@ -17,4 +17,10 @@
 // records the new marker from a pre-upgrade hook while the previous pods still
 // serve. It caches its decision, so the cost is one indexed marker read per
 // interval rather than one per write.
+//
+// A fence only reaches a writer that asks it. Today that is CanonicalNodeWriter
+// in cmd/ingester and cmd/projector; the writers cmd/reducer builds run
+// unfenced, and are stopped by deployment ordering rather than by this package.
+// See WriteFence for the full list and for what an identity cutover has to
+// check before relying on write-path coverage.
 package graphschemacompat

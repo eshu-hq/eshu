@@ -17,9 +17,9 @@ import (
 // DefaultWriteFenceInterval is how long a WriteFence reuses its last decision
 // before reading the marker again. It bounds two things at once: how long an
 // already-running writer can keep writing after the applied schema stops
-// admitting it, and how often every canonical writer in the deployment re-reads
-// one indexed Postgres row. Thirty seconds is short next to a rolling upgrade's
-// pod-replacement window and long next to a canonical write batch.
+// admitting it, and how often each fenced writer re-reads one indexed Postgres
+// row. Thirty seconds is short next to a rolling upgrade's pod-replacement
+// window and long next to a canonical write batch.
 const DefaultWriteFenceInterval = 30 * time.Second
 
 // WriteFence re-checks the applied graph schema marker while a writer is
@@ -37,9 +37,27 @@ const DefaultWriteFenceInterval = 30 * time.Second
 //
 // A fence closes that on the write path: a canonical write asks the fence
 // first, and a writer the applied schema no longer admits fails instead of
-// writing. What it cannot do is reach a writer from a release that predates the
-// fence, because that binary contains no call to it. Only stopping those pods
-// before bootstrap records the marker does.
+// writing.
+//
+// How far that reaches is narrower than "canonical writers", and the next
+// identity cutover has to check rather than assume. Only CanonicalNodeWriter
+// takes a fence (CanonicalNodeWriter.WithSchemaWriteFence), and only cmd/ingester
+// and cmd/projector wire one; cmd/bootstrap-index deliberately does not, being a
+// one-shot seeder. Every writer cmd/reducer builds runs unfenced -- EdgeWriter,
+// SemanticEntityWriter, SecretsIAMGraphWriter, the specialized cloud, Kubernetes,
+// and IAM writers in cmd/reducer/canonical_graph_writers.go, and the orphan sweep
+// store -- so a marker recorded under a running reducer does not stop its writes.
+//
+// The #6102 Module cutover is unaffected, because no unfenced writer keys a
+// Module node on name: the canonical `MERGE (m:Module {name, lang})` belongs to
+// CanonicalNodeWriter, the reducer's only Module upsert MERGEs on uid, and the
+// orphan sweep already keys Module on (name, lang). An identity change on a
+// label a reducer writer MERGEs on would not be so lucky -- those pods would be
+// checked at startup and keep writing through the whole rollout.
+//
+// Two gaps stay open regardless. A writer from a release that predates the fence
+// contains no call to it, and an unfenced writer has none to make. Only stopping
+// those pods before bootstrap records the marker closes either.
 //
 // Decisions are cached for interval, so the cost is one indexed Postgres read
 // per fence per interval rather than one per write. The mutex is held across
@@ -92,7 +110,7 @@ func NewWriteFenceForRuntime(db postgres.Queryer, getenv func(string) string) (*
 // A marker that cannot be read -- Postgres unreachable, the row gone -- is not
 // a refusal. The startup check already admitted this writer, so an unreadable
 // marker holds the previous decision rather than turning one database blip into
-// a simultaneous graph-write outage across every writer. Only a marker that is
+// a simultaneous graph-write outage across every fenced writer. Only a marker that is
 // readable and says no stops a write.
 func (f *WriteFence) Check(ctx context.Context) error {
 	if f == nil {

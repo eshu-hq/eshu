@@ -130,7 +130,7 @@ func TestWriteFenceReusesItsDecisionWithinTheInterval(t *testing.T) {
 
 // TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead is the failure mode
 // that would be worse than the gap it closes: an unreachable Postgres must not
-// stop every canonical writer in the deployment at once. Only a marker that is
+// stop every fenced writer in the deployment at once. Only a marker that is
 // readable and says no refuses.
 func TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead(t *testing.T) {
 	t.Parallel()
