@@ -18,6 +18,33 @@ import (
 
 const graphSchemaAdoptExistingEnv = "ESHU_GRAPH_SCHEMA_ADOPT_EXISTING"
 
+// graphSchemaForceReapplyEnv makes bootstrap apply graph schema even when the
+// Postgres marker says the current fingerprint is already applied.
+//
+// The marker is a Postgres row (graph_schema_applications), so it describes what
+// Postgres believes about a graph it cannot see. Disaster recovery breaks that
+// assumption on purpose: restoring Postgres and wiping the graph leaves a marker
+// that matches and a graph with nothing in it. Without this flag, bootstrap
+// returns before opening a graph connection and the rebuild writes every node
+// into a backend with no indexes or constraints.
+//
+// It is off by default because the skip is load-bearing on a retained graph:
+// re-running CREATE CONSTRAINT against millions of nodes costs minutes per
+// constraint. Set it only when the graph was wiped or replaced.
+const graphSchemaForceReapplyEnv = "ESHU_GRAPH_SCHEMA_FORCE_REAPPLY"
+
+// graphSchemaForceReapply reports whether the operator asked bootstrap to ignore
+// the Postgres marker and apply graph schema anyway. It accepts the same truthy
+// spellings as the adoption flag so the two read alike in a Compose file.
+func graphSchemaForceReapply(getenv func(string) string) bool {
+	switch strings.ToLower(strings.TrimSpace(getenv(graphSchemaForceReapplyEnv))) {
+	case "1", "true", "t", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 type graphSchemaAdoptionMode int
 
 const (

@@ -6,6 +6,7 @@ package recovery
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -48,6 +49,36 @@ func TestRefinalizeFilterValidateRequiresScopeIDs(t *testing.T) {
 
 	if err := (RefinalizeFilter{}).Validate(); err == nil {
 		t.Fatal("RefinalizeFilter{}.Validate() = nil, want error for empty scope_ids")
+	}
+}
+
+// TestRefinalizeFilterValidateAcceptsAllScopes covers the disaster-recovery
+// entry point. After a Postgres restore an operator does not know the scope IDs
+// — enumerating them by hand is the step that makes a 3 AM rebuild unusable —
+// so AllScopes must validate with no scope list. It is a separate opt-in field
+// rather than "empty means all" precisely so a caller that forgot to populate
+// ScopeIDs still fails closed.
+func TestRefinalizeFilterValidateAcceptsAllScopes(t *testing.T) {
+	t.Parallel()
+
+	if err := (RefinalizeFilter{AllScopes: true}).Validate(); err != nil {
+		t.Fatalf("RefinalizeFilter{AllScopes: true}.Validate() = %v, want nil", err)
+	}
+}
+
+// TestRefinalizeFilterValidateRejectsAllScopesWithScopeIDs keeps the two modes
+// from silently disagreeing. A request carrying both is ambiguous: the operator
+// either wants everything or wants a named subset, and guessing which would
+// rebuild a different set than they asked for.
+func TestRefinalizeFilterValidateRejectsAllScopesWithScopeIDs(t *testing.T) {
+	t.Parallel()
+
+	err := (RefinalizeFilter{AllScopes: true, ScopeIDs: []string{"scope-1"}}).Validate()
+	if err == nil {
+		t.Fatal("RefinalizeFilter{AllScopes, ScopeIDs}.Validate() = nil, want error for ambiguous filter")
+	}
+	if !strings.Contains(err.Error(), "all_scopes") {
+		t.Fatalf("error = %q, want it to name all_scopes", err.Error())
 	}
 }
 
@@ -143,6 +174,31 @@ func TestHandlerRefinalizeDelegatesToStore(t *testing.T) {
 	}
 	if len(result.ScopeIDs) != 3 {
 		t.Fatalf("Refinalize() ScopeIDs = %d, want 3", len(result.ScopeIDs))
+	}
+}
+
+// TestHandlerRefinalizePassesAllScopesToStore proves the handler forwards the
+// all-scopes intent instead of quietly dropping it. Without the flag reaching
+// the store the SQL keeps its scope predicate and a rebuild silently enqueues
+// nothing, which in a DR run reads as "the rebuild finished" with an empty
+// graph.
+func TestHandlerRefinalizePassesAllScopesToStore(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeReplayStore{
+		refinalizeResult: RefinalizeResult{Enqueued: 20},
+	}
+	handler := mustNewHandler(t, store)
+
+	result, err := handler.Refinalize(context.Background(), RefinalizeFilter{AllScopes: true})
+	if err != nil {
+		t.Fatalf("Refinalize(AllScopes) error = %v, want nil", err)
+	}
+	if result.Enqueued != 20 {
+		t.Fatalf("Refinalize(AllScopes) Enqueued = %d, want 20", result.Enqueued)
+	}
+	if !store.refinalizeFilter.AllScopes {
+		t.Fatal("store received AllScopes = false, want true: the all-scopes intent was dropped before the store")
 	}
 }
 

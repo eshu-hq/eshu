@@ -21,6 +21,7 @@ import (
 type stubRecoveryHandler struct {
 	refinalizeResult recovery.RefinalizeResult
 	refinalizeErr    error
+	refinalizeFilter recovery.RefinalizeFilter
 	replayResult     recovery.ReplayResult
 	replayErr        error
 }
@@ -30,7 +31,8 @@ type stubReindexRequester struct {
 	err       error
 }
 
-func (s *stubRecoveryHandler) Refinalize(_ context.Context, _ recovery.RefinalizeFilter) (recovery.RefinalizeResult, error) {
+func (s *stubRecoveryHandler) Refinalize(_ context.Context, filter recovery.RefinalizeFilter) (recovery.RefinalizeResult, error) {
+	s.refinalizeFilter = filter
 	return s.refinalizeResult, s.refinalizeErr
 }
 

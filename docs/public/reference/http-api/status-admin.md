@@ -618,6 +618,32 @@ console or API defect.
   canonical-nodes-committed. It durably re-enqueues projector work for the named
   scopes (re-driving reduce -> readiness -> projection over existing facts, no
   re-clone) and records the action in the durable `admin_replay_requests` ledger.
+  Send `{"all_scopes": true}` instead of `scope_ids` to re-enqueue every active
+  scope holding an active generation. That is the disaster-recovery mode: after
+  restoring Postgres, an operator rebuilding the graph from preserved facts has
+  no scope list. Sending both is rejected, and one idempotency key cannot cover
+  both modes. Procedure:
+  [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
+
+  Alongside `status`, `enqueued`, and `scope_ids`, the response reports what the
+  call cleared so the re-projection can rebuild the whole graph rather than only
+  its source-local layer: `reducer_work_deleted` (succeeded reducer work items
+  removed so the re-projection's enqueue is not deduplicated away),
+  `shared_intents_reopened` (shared projection intents whose `completed_at` was
+  cleared so the partition workers drain them again), and
+  `readiness_phases_cleared` (graph projection phase rows removed, because they
+  outlive a graph wipe and would otherwise assert that canonical nodes are
+  committed for a graph that is empty). On a rebuild after a wipe all three
+  should be non-zero; three zeros mean the rebuild will restore source-local
+  structure and nothing else.
+
+  A retry that returns `duplicate: true` does not carry those three counters.
+  The `admin_replay_requests` ledger persists the enqueue outcome and not the
+  reset counts, so a repeat of an idempotency key that already completed can
+  report what was re-enqueued but not what was cleared. If the original
+  response was lost, read the effect from the queue instead: pending
+  `projector` rows in `fact_work_items`, and `shared_projection_intents` with
+  `completed_at IS NULL`.
 - `GET /api/v0/admin/shared-projection/tuning-report` returns the operator
   tuning report for shared-projection backlog behavior.
 - `POST /api/v0/admin/replay`
@@ -688,12 +714,13 @@ arrives to supersede it. Two mechanisms protect against this:
   Tune it with `ESHU_GENERATION_LIVENESS_*` (enabled, poll interval, activation
   deadline, max recover attempts, batch limit). It is enabled by default.
 - **Operator escape hatch.** `POST /api/v0/admin/recover-generations` re-drives a
-  named set of wedged scopes on demand. Like replay it requires `scope_ids`, an
-  explicit `reason`, and an `idempotency_key`; requires an admin (all-scopes)
-  token; records the action in the durable `admin_replay_requests` ledger; and
-  returns the prior outcome (`duplicate=true`) for a repeated key. It re-enqueues
-  projector work over existing facts — no re-clone — so a wedged scope is driven
-  through canonical-nodes-committed -> completed -> projected.
+  named set of wedged scopes on demand, or every active scope with
+  `all_scopes: true`. Like replay it requires an explicit `reason` and an
+  `idempotency_key`; requires an admin (all-scopes) token; records the action in
+  the durable `admin_replay_requests` ledger; and returns the prior outcome
+  (`duplicate=true`) for a repeated key. It re-enqueues projector work over
+  existing facts — no re-clone — so a wedged scope is driven through
+  canonical-nodes-committed -> completed -> projected.
 
 Observability for wedged generations:
 

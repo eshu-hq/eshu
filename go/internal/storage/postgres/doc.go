@@ -82,7 +82,14 @@
 // round trips without changing idempotency semantics.
 // Exact shared-intent retries preserve completed_at; generation-scoped refresh
 // history prevents an older completion from opening a later generation's
-// repo-wide retract fence when source_run_id is reused.
+// repo-wide retract fence when source_run_id is reused. The one write that
+// clears completed_at is RefinalizeScopeProjections, and only for the
+// generations a disaster-recovery rebuild is replaying: the shared partition
+// workers drain completed_at IS NULL, so a rebuild that could not reopen those
+// rows would restore source-local structure and leave every shared edge family
+// missing. That reset also deletes the succeeded reducer work items and the
+// graph projection phase rows for the same generations, in one transaction with
+// the projector re-enqueue.
 // AdmissionDecisionStore persists reducer-owned correlation admission outcomes
 // and redaction-safe evidence handles under a scope/generation/domain boundary;
 // rejected, ambiguous, stale, hidden, unsupported, and unsafe rows explain why

@@ -407,11 +407,13 @@ func TestRecoveryStoreCountDeadLetterBacklogPropagatesQueryError(t *testing.T) {
 func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-1"}, {"scope-2"}}},
-		},
-	}
+	// scope-3 is named by the caller but absent from the generation read: a scope
+	// with no active generation is filtered out by the read, and the enqueue only
+	// ever sees what the read returned.
+	db := refinalizeFakeDB(
+		[][]any{{"scope-1", "gen-1"}, {"scope-2", "gen-2"}},
+		[][]any{{"scope-1"}, {"scope-2"}},
+	)
 
 	store := NewRecoveryStore(db)
 	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
@@ -431,20 +433,22 @@ func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 		t.Fatalf("result.ScopeIDs = %v, want [scope-1, scope-2]", result.ScopeIDs)
 	}
 
-	if len(db.queries) != 1 {
-		t.Fatalf("query count = %d, want 1", len(db.queries))
+	if len(db.queries) != 2 {
+		t.Fatalf("query count = %d, want 2 (generation read, then enqueue)", len(db.queries))
 	}
-	if !strings.Contains(db.queries[0].query, "INSERT INTO fact_work_items") {
-		t.Fatalf("refinalize query missing INSERT: %s", db.queries[0].query)
+	if !strings.Contains(db.queries[1].query, "INSERT INTO fact_work_items") {
+		t.Fatalf("refinalize query missing INSERT: %s", db.queries[1].query)
 	}
 }
 
 func TestRecoveryStoreRefinalizeScopeProjectionsPropagatesQueryError(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{err: errors.New("connection refused")},
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{err: errors.New("connection refused")},
+			},
 		},
 	}
 
@@ -456,8 +460,17 @@ func TestRecoveryStoreRefinalizeScopeProjectionsPropagatesQueryError(t *testing.
 	if err == nil {
 		t.Fatal("RefinalizeScopeProjections() error = nil, want non-nil")
 	}
-	if !strings.Contains(err.Error(), "refinalize scope projections") {
-		t.Fatalf("error = %q, want 'refinalize scope projections' context", err.Error())
+	// Name the driver error, not just the wrapper. "refinalize scope projections"
+	// also prefixes the missing-Begin error, so asserting only the prefix would
+	// pass on a store that never reached the query at all.
+	if !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("error = %q, want the underlying query error", err.Error())
+	}
+	if !db.rolledBack {
+		t.Fatal("a failed refinalize left its transaction open; the re-enqueue and the rebuild reset must roll back together")
+	}
+	if db.committed {
+		t.Fatal("a failed refinalize committed its transaction")
 	}
 }
 

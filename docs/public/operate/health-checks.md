@@ -83,9 +83,14 @@ Operator sequence:
    because the graph backend cannot start.
 2. Preserve the graph volume or pod logs if the failure needs forensic review.
 3. Recreate only the NornicDB graph data directory or PVC.
-4. Run the data-plane schema bootstrap before projection work resumes.
+4. Run the data-plane schema bootstrap with `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true`
+   before projection work resumes. The flag is required after a wipe: the
+   "schema applied" marker lives in Postgres, so a preserved Postgres makes
+   bootstrap skip the graph entirely.
 5. Re-run bootstrap indexing, replay projection work, or recollect from source
    systems depending on which Postgres facts and workflow rows are available.
+   To rebuild the whole graph from preserved facts, follow
+   [Rebuild the graph from facts](graph-rebuild-from-facts.md).
 6. Verify `GET /api/v0/index-status` reports `status=healthy`,
    `queue.pending=0`, `queue.retrying=0`, `queue.failed=0`, and
    `queue.dead_letter=0`.

@@ -175,23 +175,76 @@ type DrainResult struct {
 
 // RefinalizeFilter constrains which scopes to re-enqueue for projection.
 type RefinalizeFilter struct {
-	// ScopeIDs targets specific ingestion scopes. Required and non-empty.
+	// ScopeIDs targets specific ingestion scopes. Required unless AllScopes is
+	// set.
 	ScopeIDs []string
+
+	// AllScopes re-enqueues every active scope that has an active generation,
+	// with no scope list. It exists for disaster recovery: after a Postgres
+	// restore the operator rebuilding the graph from preserved facts does not
+	// know the scope IDs, and hand-enumerating them is the step that makes a
+	// 3 AM rebuild unusable.
+	//
+	// It is a deliberate opt-in rather than "an empty ScopeIDs means all"
+	// because that reading would turn every caller bug that forgets to populate
+	// ScopeIDs into a full re-projection of the deployment. A caller must say
+	// which mode it means.
+	AllScopes bool
 }
 
-// Validate returns an error if the filter is not usable.
+// Validate returns an error if the filter is not usable. It refuses a filter
+// that sets AllScopes alongside an explicit scope list: that request is
+// ambiguous, and either reading rebuilds a different set than the operator
+// asked for.
 func (f RefinalizeFilter) Validate() error {
+	if f.AllScopes {
+		if len(f.ScopeIDs) > 0 {
+			return errors.New(
+				"refinalize filter cannot set all_scopes together with scope_ids: " +
+					"pick every active scope or a named list, not both",
+			)
+		}
+		return nil
+	}
+
 	if len(f.ScopeIDs) == 0 {
-		return errors.New("refinalize filter requires at least one scope_id")
+		return errors.New("refinalize filter requires at least one scope_id, or all_scopes to re-enqueue every active scope")
 	}
 
 	return nil
 }
 
 // RefinalizeResult captures the outcome of a refinalize operation.
+//
+// Enqueued and ScopeIDs describe the projector work a refinalize queued. The
+// three reset counters describe the downstream dedup state it cleared so that
+// projector work actually rebuilds the whole graph rather than only the
+// source-local part of it. They are reported because "the rebuild ran and the
+// graph is still short" is otherwise invisible: an operator watching a recovery
+// needs to see that the reducer catalog and the shared-projection backlog were
+// re-opened, not just that scopes were re-queued.
 type RefinalizeResult struct {
 	Enqueued int
 	ScopeIDs []string
+
+	// ReducerWorkDeleted counts succeeded reducer work items removed so the
+	// re-projection re-derives them. Re-projection re-emits every reducer intent,
+	// but an identical work_item_id collides with the succeeded row and is
+	// dropped by ON CONFLICT DO NOTHING, so without this the reducer domains
+	// never re-run and the structure they own never comes back.
+	ReducerWorkDeleted int
+
+	// SharedIntentsReopened counts shared projection intents whose completed_at
+	// was cleared. The partition workers only drain completed_at IS NULL, and the
+	// upsert deliberately never reopens a completed row, so a rebuild has to
+	// clear it here or the shared edge families stay missing.
+	SharedIntentsReopened int
+
+	// ReadinessPhasesCleared counts graph projection phase rows removed. Those
+	// rows live in Postgres and survive a graph wipe, so after a wipe they assert
+	// that canonical nodes are committed for a graph that is now empty. Clearing
+	// them re-arms the readiness gates to first-ingest behavior.
+	ReadinessPhasesCleared int
 }
 
 // CollectorGenerationReplayFilter constrains collector generation commit

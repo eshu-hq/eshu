@@ -71,6 +71,7 @@ or GitOps workflow.
 | `DEFAULT_DATABASE` | no | Bolt database name, default `nornic`. |
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m`. |
 | `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker. |
+| `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` | no | Apply graph schema despite a matching marker. For disaster recovery, after the graph was wiped and Postgres kept. |
 
 Existing-schema adoption inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`, then
 fails closed if inspection errors. Unset adoption is opportunistic for NornicDB

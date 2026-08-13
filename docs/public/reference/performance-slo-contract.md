@@ -69,6 +69,7 @@ absolute p95 ceiling. See
 | `memory_high_water_mb` | runtime | Within profile budget, captured for each measured runtime | operator-gated | No committed budget yet |
 | `correlation_fanout_candidates_p95` | correlation | p95 within accepted fixture budget, no fabricated links | operator-gated | No committed budget yet |
 | `graph_query_plan_regression_count` | graph | **Zero** accepted regressions; every known-bad plan signature fails the gate | hermetic gate | `go/internal/queryplan` validator, runs in CI |
+| `graph_rebuild_seconds` | recovery | Within 10% of accepted same-corpus baseline. No absolute target — size your recovery time objective against your own corpus | operator-gated | Measured on the Compose fixture corpus; see [Graph rebuild from facts](#graph-rebuild-from-facts) below |
 
 Three of these are absolute and independent of any baseline: the two
 zero-tolerance queue counts and the zero-regression plan count. The queue pair
@@ -123,6 +124,91 @@ Note for contributors: `specs/scale-benchmark-artifact.sample.json` contains
 metric values that look measured. It is a schema fixture — its `run.id` is
 `scale-bench-sample` and its `run.commit` is all zeroes. Never cite it as
 evidence.
+
+## Graph rebuild from facts
+
+`graph_rebuild_seconds` is the wall-clock cost of Eshu's disaster-recovery
+operation: with Postgres preserved and the graph wiped, how long until the graph
+is rebuilt and the queue is terminal. It is the number an operator sizes a
+recovery time objective against. The procedure it measures is
+[Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md).
+
+The clock starts when `POST /api/v0/admin/recover-generations` with
+`all_scopes: true` returns, and stops when both queues are empty: nothing in
+`fact_work_items` is `pending`, `claimed`, or `running` and nothing sits outside
+`succeeded`/`superseded`, and no `shared_projection_intents` row still has
+`completed_at IS NULL`. Both halves are required. The shared edge backlog drains
+on its own worker cycle, and on a measured rebuild it kept running for four
+minutes after the work queue went quiet, adding 9 relationships. Wipe and schema
+reapply sit outside the measurement: both are operator-paced steps whose cost is
+dominated by volume and container lifecycle, not by Eshu.
+
+Measurements from `scripts/verify-graph-rebuild-from-facts.sh` on 2026-08-12:
+
+| Field | Before #4594 fix | After |
+| --- | --- | --- |
+| `graph_rebuild_seconds` | 15 s | 20-25 s work queue only; 341 s including the shared backlog |
+| Graph rebuilt | 2,431 of 2,504 nodes, 2,905 of 3,289 rels | 2,503 of 2,505 nodes, 3,286 of 3,288 rels |
+| Reducer work re-driven | 335 rows | ~1,034 rows |
+| Shared intents re-drained | 0 | ~600 |
+| Load at completion | 2.41 (1 min) | 5.19 (1 min) |
+| Corpus | `tests/fixtures/ecosystems`, 67 active scopes, 3,866 `fact_records` | same |
+| Backend | NornicDB `eshu-nornicdb-pr290:3722b483c02c` | same |
+| Machine | Apple M4 Pro, 12 logical CPUs, 64 GiB, macOS | same |
+
+Read those numbers with four limits attached.
+
+The corpus is 1.4 MB, well below the smallest scale-lab slot, so it shows the
+mechanism runs rather than what a real rebuild costs. The two runs sat at
+different machine loads (2.41 against 5.19 on 12 CPUs), so part of the 15-to-25
+second difference is the machine, not the change — the direction is solid, a
+precise multiplier from these two numbers is not.
+
+The 341-second figure is not a regression against the 20-25 second one. It is a
+different measurement: once the gate started waiting for the shared edge backlog
+as well as the work queue, the number finally covers the whole rebuild. Every
+smaller number on this page stops at the first queue and therefore undercounts by
+the backlog tail, which has been observed at four minutes and is not a fixed
+offset.
+
+That makes 341 s the only figure here that measures the whole operation — and it
+is a **single sample at one machine load**. Do not treat it as a bound. It is the
+right order of magnitude for this fixture corpus and nothing more; a bound needs
+repeated runs on one fixed definition at scale-lab size. See the evidence doc's
+"Is there a defensible time bound?" section.
+
+The rebuild is also not yet exact. One cross-repo `CALLS` edge can come back
+missing on a single pass, because the shared-projection readiness gate waits only
+on the intent's own repository and the edge write is `MATCH`-only. `HANDLES_ROUTE`
+and `RUNS_IN` are intermittent for a related reason — measured at 0, 2, 4, and 0
+of 4 across four rebuilds. Waiting on the shared backlog is necessary for a
+complete pass but does not guarantee one.
+
+A separate limit applies to any comparison against a pre-wipe snapshot: indexing
+the same corpus is not deterministic. Three runs recorded pre-wipe totals of
+2,506/3,294, 2,504/3,289, and 2,505/3,288. Treat a couple of nodes of difference
+as indexer noise before reading it as a rebuild regression. Full breakdown in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+
+There is deliberately no absolute target. Rebuild time scales with fact volume
+and graph write throughput, and a fixture corpus predicts nothing about an
+896-repository deployment. Measure your own corpus with the same script and size
+your recovery objective against that. What the row does commit to is the relative
+rule: a same-corpus rebuild that regresses more than 10 percent against your
+accepted baseline is a regression to investigate.
+
+No-Regression Evidence: first measurement of this operation — 26 s for 67 scopes
+and 3,866 `fact_records` on NornicDB `eshu-nornicdb-pr290:3722b483c02c`, queue
+terminal with zero retrying and zero dead-letter rows, full conditions and
+per-label graph counts in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. No prior baseline
+exists to regress against; the rebuild path adds a bounded INSERT of one work
+item per active scope and no read-path query.
+
+No-Observability-Change: the rebuild reuses the existing projector queue metrics,
+`GET /api/v0/index-status`, and the `admin_replay_requests` ledger. The single
+new signal is the `bootstrap.graph.force_reapply` warning log emitted when an
+operator overrides the graph-schema marker.
 
 ## Named baselines
 

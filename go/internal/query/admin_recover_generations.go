@@ -12,12 +12,18 @@ import (
 )
 
 // recoverGenerationsRequest is the operator recovery request body. It re-drives
-// a named set of wedged scopes through reduce -> readiness -> projection over
-// existing facts without a full re-clone. reason and idempotency_key are
-// mandatory so the action is auditable and safe under retries and concurrent
-// delivery.
+// wedged scopes through reduce -> readiness -> projection over existing facts
+// without a full re-clone. reason and idempotency_key are mandatory so the
+// action is auditable and safe under retries and concurrent delivery.
+//
+// The request names either a scope set or, with all_scopes, the whole
+// deployment. all_scopes is the disaster-recovery mode: rebuilding the graph
+// from preserved Postgres facts after a restore, when the operator has no scope
+// list to type. See the DR runbook in
+// docs/public/operate/graph-rebuild-from-facts.md.
 type recoverGenerationsRequest struct {
 	ScopeIDs       []string `json:"scope_ids"`
+	AllScopes      bool     `json:"all_scopes"`
 	Reason         string   `json:"reason"`
 	IdempotencyKey string   `json:"idempotency_key"`
 }
@@ -64,8 +70,12 @@ func (h *AdminHandler) recoverGenerations(w http.ResponseWriter, r *http.Request
 	auth, _ := AuthContextFromContext(r.Context())
 	correlationID := safeAuditCorrelationID(documentationCorrelationID(r))
 
-	if len(req.ScopeIDs) == 0 {
-		WriteError(w, http.StatusBadRequest, "scope_ids is required and must name at least one wedged scope")
+	if req.AllScopes && len(req.ScopeIDs) > 0 {
+		WriteError(w, http.StatusBadRequest, "all_scopes cannot be combined with scope_ids: rebuild every active scope or name a list, not both")
+		return
+	}
+	if !req.AllScopes && len(req.ScopeIDs) == 0 {
+		WriteError(w, http.StatusBadRequest, "scope_ids is required and must name at least one wedged scope, or set all_scopes to rebuild every active scope from preserved facts")
 		return
 	}
 	if req.Reason == "" {
@@ -87,7 +97,7 @@ func (h *AdminHandler) recoverGenerations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	fingerprint := recoverGenerationsFingerprint(req.ScopeIDs)
+	fingerprint := recoverGenerationsFingerprint(req.ScopeIDs, req.AllScopes)
 	claim, err := h.Store.ClaimReplayIdempotency(r.Context(), req.IdempotencyKey, fingerprint, h.now())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "recover-generations idempotency: "+err.Error())
@@ -98,7 +108,10 @@ func (h *AdminHandler) recoverGenerations(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := h.Recovery.Refinalize(r.Context(), recovery.RefinalizeFilter{ScopeIDs: req.ScopeIDs})
+	result, err := h.Recovery.Refinalize(r.Context(), recovery.RefinalizeFilter{
+		ScopeIDs:  req.ScopeIDs,
+		AllScopes: req.AllScopes,
+	})
 	if err != nil {
 		// The durable enqueue failed before completion; leave the ledger row
 		// in_progress so a retry surfaces a 409 rather than re-driving blindly.
@@ -112,12 +125,19 @@ func (h *AdminHandler) recoverGenerations(w http.ResponseWriter, r *http.Request
 	}
 
 	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", auth, correlationID)
+	// The three reset counts are the operator's evidence that this rebuild will
+	// restore the whole graph rather than only its source-local layer. Without
+	// them, a rebuild that re-queues every scope and still comes back short looks
+	// identical to one that worked, until someone counts the edges.
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"status":          "recovered",
-		"enqueued":        result.Enqueued,
-		"scope_ids":       result.ScopeIDs,
-		"idempotency_key": req.IdempotencyKey,
-		"duplicate":       false,
+		"status":                   "recovered",
+		"enqueued":                 result.Enqueued,
+		"scope_ids":                result.ScopeIDs,
+		"reducer_work_deleted":     result.ReducerWorkDeleted,
+		"shared_intents_reopened":  result.SharedIntentsReopened,
+		"readiness_phases_cleared": result.ReadinessPhasesCleared,
+		"idempotency_key":          req.IdempotencyKey,
+		"duplicate":                false,
 	})
 }
 
@@ -135,7 +155,11 @@ func (h *AdminHandler) respondDuplicateRecoverGenerations(
 ) {
 	if claim.Fingerprint != "" && claim.Fingerprint != fingerprint {
 		h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "recover_generations_idempotency_key_reused", auth, correlationID)
-		WriteError(w, http.StatusConflict, "idempotency_key was already used with different scope_ids")
+		// The fingerprint covers both the scope list and the all_scopes flag, so
+		// this also fires when a key from a scoped recovery is reused for a
+		// whole-deployment rebuild. Name both, or an operator reads "different
+		// scope_ids" on a request that carried none.
+		WriteError(w, http.StatusConflict, "idempotency_key was already used with a different scope_ids list or all_scopes setting")
 		return
 	}
 	if claim.Status != replayRequestStatusCompleted {
@@ -155,6 +179,16 @@ func (h *AdminHandler) respondDuplicateRecoverGenerations(
 // recoverGenerationsFingerprint derives a stable, non-sensitive fingerprint of a
 // recovery request from its scope set so a reused idempotency key with a
 // different scope set is rejected rather than silently treated as a duplicate.
-func recoverGenerationsFingerprint(scopeIDs []string) string {
-	return replayRequestFingerprint(scopeIDs, "", "recover_generations", "", 0, false)
+//
+// allScopes changes the stage component rather than riding in the (empty) scope
+// list, so an all-scopes rebuild and a scoped recovery can never collide on one
+// fingerprint. Without that split, a key that already recovered two scopes would
+// answer a whole-deployment rebuild with the two-scope outcome and report
+// success while the rest of the graph stayed unbuilt.
+func recoverGenerationsFingerprint(scopeIDs []string, allScopes bool) string {
+	stage := "recover_generations"
+	if allScopes {
+		stage = "recover_generations_all_scopes"
+	}
+	return replayRequestFingerprint(scopeIDs, "", stage, "", 0, false)
 }

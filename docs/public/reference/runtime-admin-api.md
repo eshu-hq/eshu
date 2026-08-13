@@ -223,7 +223,28 @@ and `limit`. The response includes `status`, `stage`, `replayed`, and
 `work_item_ids`.
 
 `POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
-response includes `status`, `enqueued`, and `scope_ids`.
+response includes `status`, `enqueued`, and `scope_ids`, plus
+`reducer_work_deleted`, `shared_intents_reopened`, and
+`readiness_phases_cleared`.
+
+Those three counts are not bookkeeping. Re-enqueueing a scope's projector work
+alone rebuilds only what the projector owns; the reducer domains behind it stay
+deduplicated against their existing `succeeded` rows and never re-run. So a
+refinalize also clears that dedup state for exactly the generations it
+re-projects: it deletes the succeeded reducer work items, reopens the scope's
+completed shared projection intents, and drops its graph projection phase rows so
+the readiness gates re-arm. Claimed and running work is left alone, as are
+`dead_letter` and `failed` rows, which belong to `POST /admin/replay`.
+
+This route has no all-scopes mode, and that is deliberate. The routes on this
+page carry no authentication of their own — they are protected by not exposing
+the admin port — so an unscoped re-projection of the whole deployment would be
+one unauthenticated request away for anyone who reached that port. The
+whole-deployment rebuild used in disaster recovery lives on the authenticated
+API instead, as `POST /api/v0/admin/recover-generations` with `all_scopes`,
+where it needs an admin token and leaves a row in the `admin_replay_requests`
+ledger. See
+[Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md).
 
 `POST /admin/replay-collector-generations` marks collector generation commit
 failures for source-level replay. The request accepts required

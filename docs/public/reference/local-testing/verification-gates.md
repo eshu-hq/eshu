@@ -166,7 +166,43 @@ acceptance evidence.
 ./scripts/verify_admin_refinalize_compose.sh
 ./scripts/verify_graph_analysis_compose.sh
 ./scripts/verify_correlation_dsl_compose.sh
+./scripts/verify-graph-rebuild-from-facts.sh
 ```
+
+`verify-graph-rebuild-from-facts.sh` runs the disaster-recovery procedure rather
+than a single behavior: it indexes the corpus, snapshots the identity of every
+node and edge, wipes the graph volume with Postgres preserved, reapplies graph
+schema, rebuilds every scope from the surviving facts, and asserts the rebuilt
+identities are the same set. The per-label and per-type counts it prints are for
+readability; nothing is asserted on them. It then repeats the rebuild with the
+workers killed partway through to show a restart converges. Both passes always
+run — a mismatch in the first is reported and the run continues, so the
+resumability proof is not lost to it — and the run exits non-zero at the end if
+either pass differed. It prints `graph_rebuild_seconds` for the SLO row. Set
+`ESHU_DR_SKIP_INTERRUPT=true` to run the timed pass only. Reads the procedure
+being tested: [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
+
+It waits on two queues before comparing: `fact_work_items` and the shared edge
+backlog in `shared_projection_intents`. The second one drains on its own worker
+cycle and has been measured still running four minutes after the first went
+quiet, so a comparison made on the first alone reports edges as missing that were
+simply not written yet.
+
+It asserts a bidirectional set difference on node and edge identities, not a
+count comparison, so a failure names the exact nodes and edges that are missing
+or extra rather than reporting a delta of three. Before comparing, it refuses any
+snapshot whose keys cannot tell things apart — empty, null, or nothing but the
+separators the identity concatenation added — because such a file diffs clean
+against any other such file. `scripts/test-verify-graph-rebuild-from-facts.sh`
+exercises that refusal without Docker.
+
+**This gate does not pass today**, and that is a known state rather than a broken
+environment. A single rebuild pass under-produces two families — one `CALLS` edge
+and part of the `EvidenceArtifact` family — and indexing the same corpus twice
+does not produce the same graph, so the snapshot it compares against moves
+between runs. Each cause, with counts, is in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. Do not treat a red
+result here as a regression without diffing it against that breakdown first.
 
 For a no-credential proof of additional lanes against public, unauthenticated
 endpoints (CISA KEV, FIRST EPSS, OSV, public npm), use the public-collector

@@ -112,6 +112,13 @@ services:
       # Fresh Compose deployments let bootstrap-index bulk-load content before
       # restoring the exact trigram indexes. Existing indexes are never dropped.
       ESHU_DEFER_CONTENT_SEARCH_INDEXES: "true"
+      # Disaster recovery only. The "graph schema is applied" marker is a
+      # Postgres row, so wiping the graph while keeping Postgres leaves a marker
+      # that still matches and schema bootstrap becomes a no-op. Set this to
+      # "true" for the one run that follows a graph wipe, then unset it: on a
+      # retained graph, re-running CREATE CONSTRAINT costs minutes per
+      # constraint. See docs/public/operate/graph-rebuild-from-facts.md.
+      ESHU_GRAPH_SCHEMA_FORCE_REAPPLY: ${ESHU_GRAPH_SCHEMA_FORCE_REAPPLY:-false}
     depends_on:
       nornicdb:
         condition: service_healthy
