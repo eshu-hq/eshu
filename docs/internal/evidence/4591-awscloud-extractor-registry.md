@@ -2,9 +2,40 @@
 
 Issue [#4591](https://github.com/eshu-hq/eshu/issues/4591) asks `awscloud` to
 converge on the per-resource-type extractor registry `gcpcloud` already uses.
-Its acceptance is one scanner per PR with byte-identical fact output proven by
+Its acceptance was one scanner per PR with byte-identical fact output proven by
 fixture parity. That sequencing only works if the registry exists first, so this
 change lands the registry alone and migrates no scanner.
+
+## Correction: the scanner migrations this planned are not the work
+
+Recorded after the fact, so the plan above is not followed by mistake.
+
+The per-scanner migration sequence this evidence describes is wrong, and would
+have produced a run of changes that alter nothing while passing their own
+parity check. `ExtractContext.Data` is a `json.RawMessage`, a raw per-resource
+provider payload. AWS scanners never hold one: their clients return typed Go
+structs, and each scanner already fills `Attributes` and `CorrelationAnchors`
+per resource type straight into a `ResourceObservation` that reaches a fact
+envelope through `NewResourceEnvelope`. Migrating a scanner would mean
+marshalling a typed struct back to JSON so an extractor could parse it again,
+and because nothing dispatches through `resourceExtractors`, fact output could
+not change either way. Fixture parity would pass because nothing happened.
+
+The registry is kept, because AWS Config ingestion is planned and is the
+producer it fits: a Config `configurationItem` carries a `configuration` blob of
+raw per-resource-type JSON, the same shape Cloud Asset Inventory hands
+`gcpcloud`, and one parse loop over that feed needs per-resource-type dispatch.
+Extractors get registered when that lane lands.
+
+Worth stating plainly, since #4591's premise rested on it: the cross-provider
+contract already matches. `facts.Envelope`, stable IDs, the fact-kind registry
+with a JSON Schema per kind, redaction rules, and the
+`attributes` + `correlation_anchors` + typed-relationships convention are shared
+by `aws_resource` and `gcp_cloud_resource` alike, and the payload-typing work
+#4591 named as its prerequisite (#4568) is closed. Nothing downstream can tell
+whether attributes were filled by a registered extractor or a scanner function.
+What differs upstream is the input: one generic feed for `gcpcloud`, typed SDK
+calls per service for `awscloud`.
 
 No-Regression Evidence: nothing is registered, so no scanner reaches the new
 code. `extractResourceAttributes` returns `handled=false` with a nil error and a
@@ -21,10 +52,10 @@ existing file is modified.
 
 Benchmark Evidence: none is meaningful for this change and none is claimed. A
 registry with zero registrations has no measurable hot path — the only new work
-executable today is a map lookup that no production caller performs. The
-per-scanner migrations that follow are where fact-output parity and cost matter,
-and #4591 already binds each of those to fixture parity in its own PR. Measuring
-an empty registry would manufacture a number rather than establish one.
+executable today is a map lookup that no production caller performs. Measuring
+an empty registry would manufacture a number rather than establish one. Cost
+becomes measurable when the AWS Config lane dispatches through it on a real
+feed, and belongs to that change.
 
 Observability Evidence: this change registers no metric, span, or log line. Its
 row in `docs/public/observability/telemetry-coverage.md` carries the
@@ -34,9 +65,45 @@ emission — `eshu_dp_aws_resources_emitted_total` and
 (`go/internal/collector/awscloud/awsruntime/source.go:177`), plus
 `eshu_dp_facts_emitted_total` and `eshu_dp_facts_committed_total` from the fact
 commit row (`go/internal/collector/git_source_processing.go:217`). Those stay
-correct through the migrations, because moving where attributes are built does
-not change what is emitted or how it is committed.
+correct when the AWS Config lane registers extractors, because extraction fills
+attributes on the existing observation path rather than changing what is emitted
+or how it is committed.
 `bash scripts/verify-telemetry-coverage.sh` exits 0.
+
+## The relationship type is lossless
+
+Codex raised on #6073 that `ResourceRelationshipObservation` named endpoints by
+ARN only, so converting one into the existing `RelationshipObservation` would
+drop an ID-only endpoint — or leave a subnet or security-group ID sitting in an
+ARN field, which is a wrong value in a typed field rather than a missing one.
+
+Aiming the registry at AWS Config sharpened that. Config names relationship
+endpoints as `resourceId` plus `resourceType` and frequently supplies no ARN, so
+the first extractor written against that feed would have hit it.
+
+The review offered two fixes: document the constraint, or add the missing fields
+before any extractor depends on the type. This takes the second, because nothing
+is registered yet so widening the struct costs nothing, while a documented trap
+stays a trap. `SourceResourceID`, `TargetResourceID`, and `Attributes` close the
+gap. The three `RelationshipObservation` fields with no counterpart —
+`Boundary`, `SourceURI`, `SourceRecordID` — are envelope provenance the caller
+supplies, not extraction output.
+
+No-Regression Evidence: the losslessness test was proven to fail first. Removing
+`TargetResourceID` reports `ResourceRelationshipObservation is missing
+TargetResourceID; converting to RelationshipObservation would lose it`;
+restored, it passes. It also fails if a field is added without recording its
+`RelationshipObservation` counterpart, and if a rename on
+`RelationshipObservation` breaks a recorded mapping. Full package green:
+`cd go && go test ./internal/collector/awscloud/ -count=1`, ok.
+
+Benchmark Evidence: none is claimed, and none is measurable. This adds three
+fields to a struct with no production caller — the registry is still empty and
+still unwired, so there is no path to measure. Cost belongs to the AWS Config
+lane (#6088) that first populates these fields on a real feed.
+
+No-Observability-Change: no metric, span, or log line. The type is not on any
+emission path.
 
 ## Design decision recorded here so it is not re-opened
 
@@ -58,7 +125,8 @@ Written failing-first against undefined symbols, then implemented:
 - round-trip: a registered extractor's `Attributes` and `CorrelationAnchors`
   survive dispatch
 - an unregistered type is `handled=false` with a nil error and a zero value —
-  the property that makes the migration incremental
+  the property that lets the Config lane add extractors one resource type at a
+  time without stranding the types it has not covered yet
 - an extractor error is wrapped so it names its resource type, asserted against
   a payload carrying a fake password to prove the resource data does not leak
   into the error string

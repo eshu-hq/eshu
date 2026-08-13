@@ -6,14 +6,17 @@ package awscloud
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
 
-// The registry is the convergence point issue #4591 asks awscloud to adopt from
-// gcpcloud: one extractor per resource type, registered from that type's own
-// file, so parallel type additions never collide in a shared parser switch.
-// These tests pin the contract before any scanner migrates onto it.
+// The registry dispatches one extractor per resource type, registered from that
+// type's own file, so parallel type additions never collide in a shared parser
+// switch. Its producer is the AWS Config lane (#6088), not the service scanners
+// — see the header comment in extractor.go for why. These tests pin the contract
+// before that lane registers anything.
 
 func TestRegisterResourceExtractorRoundTrips(t *testing.T) {
 	const resourceType = "AWS::Test::RoundTrip"
@@ -48,8 +51,8 @@ func TestRegisterResourceExtractorRoundTrips(t *testing.T) {
 
 // An unregistered type must be handled=false with no error, so the parser keeps
 // emitting its bounded base observation for types that carry no typed depth.
-// This is what makes the migration incremental: unmigrated scanners are
-// unaffected.
+// That is what lets the Config lane add extractors one resource type at a time
+// without stranding the types it has not covered yet.
 func TestExtractResourceAttributesUnregisteredIsNotAnError(t *testing.T) {
 	got, handled, err := extractResourceAttributes(ExtractContext{ResourceType: "AWS::Test::NeverRegistered"})
 	if err != nil {
@@ -140,4 +143,89 @@ func TestRegisterResourceExtractorPanicsOnWiringMistakes(t *testing.T) {
 		}()
 		RegisterResourceExtractor(resourceType, valid)
 	})
+}
+
+// The registry is deliberately empty until AWS Config ingestion exists to feed
+// it. That is a comment in extractor.go, and a comment does not fail a build, so
+// this asserts it.
+//
+// A registration landing here before the Config lane means someone migrated a
+// service scanner into the registry. That change cannot alter fact output —
+// nothing dispatches through resourceExtractors — so its own fixture-parity
+// review would pass while the migration did nothing. The scanners already emit
+// typed depth through ResourceObservation; see the header comment in
+// extractor.go for why they are not this registry's producer.
+//
+// When the AWS Config lane lands and registers real extractors, delete this
+// test in that PR. Changing it deliberately is the point; tripping over it is
+// the warning.
+func TestResourceExtractorRegistryIsEmptyUntilConfigLaneExists(t *testing.T) {
+	if len(resourceExtractors) != 0 {
+		registered := make([]string, 0, len(resourceExtractors))
+		for resourceType := range resourceExtractors {
+			registered = append(registered, resourceType)
+		}
+		sort.Strings(registered)
+		t.Fatalf("resourceExtractors has %d registration(s) %v, want none until the AWS Config "+
+			"lane feeds this registry; a scanner migration here changes no fact output",
+			len(registered), registered)
+	}
+}
+
+// ResourceRelationshipObservation must stay lossless against the existing
+// RelationshipObservation contract in types.go. Codex raised this on PR #6073:
+// the type originally named endpoints by ARN only, so converting it to a
+// RelationshipObservation would drop ID-only endpoints, or worse, leave a
+// subnet or security-group ID sitting in an ARN field. AWS Config — the feed
+// this registry exists for (#6088) — names relationship endpoints as resourceId
+// plus resourceType and often supplies no ARN at all, so that gap would have
+// been hit by the first extractor written.
+//
+// Each field below states the RelationshipObservation field it preserves. The
+// three RelationshipObservation fields with no counterpart here (Boundary,
+// SourceURI, SourceRecordID) are envelope provenance the caller supplies, not
+// extraction output.
+func TestResourceRelationshipObservationIsLosslessAgainstRelationshipObservation(t *testing.T) {
+	t.Parallel()
+
+	// field in ResourceRelationshipObservation -> field it preserves in RelationshipObservation
+	preserves := map[string]string{
+		"SourceARN":          "SourceARN",
+		"SourceResourceID":   "SourceResourceID",
+		"SourceResourceType": "", // no counterpart; RelationshipObservation has no source type
+		"RelationshipType":   "RelationshipType",
+		"TargetARN":          "TargetARN",
+		"TargetResourceID":   "TargetResourceID",
+		"TargetResourceType": "TargetType",
+		"Attributes":         "Attributes",
+	}
+
+	extraction := reflect.TypeOf(ResourceRelationshipObservation{})
+	got := make(map[string]bool, extraction.NumField())
+	for i := 0; i < extraction.NumField(); i++ {
+		got[extraction.Field(i).Name] = true
+	}
+	for name := range preserves {
+		if !got[name] {
+			t.Errorf("ResourceRelationshipObservation is missing %s; converting to "+
+				"RelationshipObservation would lose it", name)
+		}
+		delete(got, name)
+	}
+	for name := range got {
+		t.Errorf("ResourceRelationshipObservation gained field %s with no recorded "+
+			"RelationshipObservation counterpart; add one to `preserves` deliberately", name)
+	}
+
+	// The counterparts must actually exist on RelationshipObservation, so a rename
+	// there fails here instead of silently breaking conversion later.
+	target := reflect.TypeOf(RelationshipObservation{})
+	for name, counterpart := range preserves {
+		if counterpart == "" {
+			continue
+		}
+		if _, ok := target.FieldByName(counterpart); !ok {
+			t.Errorf("RelationshipObservation has no field %s (preserved by %s)", counterpart, name)
+		}
+	}
 }

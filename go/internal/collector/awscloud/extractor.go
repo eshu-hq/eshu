@@ -9,12 +9,10 @@ import (
 	"strings"
 )
 
-// This file is the awscloud half of the typed-depth extractor registry that
-// issue #4591 asks this package to converge on, mirroring
-// go/internal/collector/gcpcloud/extractor.go. The shape is deliberately the
-// same so a contributor who has written a GCP extractor can write an AWS one
-// without relearning the pattern: one resource type per file, registered from
-// that file's init, dispatched through a map rather than a shared switch.
+// This file is the awscloud half of the typed-depth extractor registry, mirroring
+// go/internal/collector/gcpcloud/extractor.go: one resource type per file,
+// registered from that file's init, dispatched through a map rather than a
+// shared switch.
 //
 // The types are declared here rather than shared with gcpcloud on purpose.
 // gcpcloud's ExtractContext is CAI-shaped (full resource name, asset type,
@@ -24,9 +22,35 @@ import (
 // surfaces whose identity models differ, for the sake of three field names.
 // Two small declarations that can drift independently are the cheaper trade.
 //
-// Nothing is registered yet. This lands the registry alone so the first scanner
-// migration is a single-file change reviewed against fixture parity, per the
-// one-scanner-per-PR acceptance on #4591.
+// # What feeds this, and what does not
+//
+// Nothing is registered yet, and the service scanners under services/ are NOT
+// the producer this registry is waiting for. ExtractContext.Data is a
+// json.RawMessage: a raw per-resource provider payload. Scanners never hold one.
+// Their clients return typed Go structs (services/accessanalyzer/types.go, for
+// example, declares ListAnalyzers(context.Context) ([]Analyzer, error)), and
+// each scanner already fills Attributes and CorrelationAnchors per resource type
+// directly into a ResourceObservation, which reaches a fact envelope through
+// NewResourceEnvelope. That is a complete typed-depth path, and it is the one in
+// production.
+//
+// So do NOT migrate a service scanner into this registry. Nothing dispatches
+// through resourceExtractors today, so such a change cannot alter fact output —
+// a fixture-parity review would pass because nothing happened, not because the
+// migration was faithful. Feeding an extractor would also mean marshalling a
+// typed SDK struct back into JSON so the extractor could unmarshal it again.
+//
+// The producer this registry exists for is AWS Config ingestion, which is
+// planned but not built. A Config configurationItem carries a `configuration`
+// blob of raw per-resource-type JSON, the same shape Cloud Asset Inventory hands
+// gcpcloud, and one parse loop over that feed genuinely needs per-resource-type
+// dispatch. Register extractors when that lane lands. Until then this registry
+// stays empty on purpose.
+//
+// gcpcloud shows the intended wiring: its parse loop calls the registry from
+// applyTypedDepth (gcpcloud/parse.go) and copies the result onto its own
+// ResourceObservation. The extraction is a fill step for the observation
+// contract, never a replacement for it. The AWS Config lane should do the same.
 
 // AttributeExtraction is the bounded, redaction-safe typed-depth output of a
 // per-resource-type extractor. It carries:
@@ -48,21 +72,41 @@ type AttributeExtraction struct {
 }
 
 // ResourceRelationshipObservation is one typed provider relationship between
-// two AWS resources, named by ARN. It is an observation, not a resolved edge:
-// the target may live in another account or region, or may not be indexed at
-// all, and the reducer decides what to materialize.
+// two AWS resources. It is an observation, not a resolved edge: the target may
+// live in another account or region, or may not be indexed at all, and the
+// reducer decides what to materialize.
+//
+// An endpoint may be named by ARN, by resource ID, or by both, and at least one
+// must be set. Resource ID matters because AWS Config — the feed this registry
+// exists for — names relationship endpoints as resourceId plus resourceType and
+// frequently supplies no ARN. Carrying both, plus per-relationship Attributes,
+// keeps this type lossless against RelationshipObservation (types.go), so
+// converting one to the other cannot silently drop an endpoint or strand a
+// resource ID in an ARN field.
 type ResourceRelationshipObservation struct {
-	// SourceARN is the ARN of the owning resource.
+	// SourceARN is the ARN of the owning resource; empty when the provider named
+	// the source only by resource ID.
 	SourceARN string
+	// SourceResourceID is the provider resource ID of the owning resource, for
+	// endpoints the provider names without an ARN.
+	SourceResourceID string
 	// SourceResourceType is the resource type of the source.
 	SourceResourceType string
 	// RelationshipType is the bounded provider relationship type.
 	RelationshipType string
-	// TargetARN is the ARN of the related resource, preserved verbatim.
+	// TargetARN is the ARN of the related resource, preserved verbatim; empty
+	// when the provider named the target only by resource ID.
 	TargetARN string
+	// TargetResourceID is the provider resource ID of the related resource, such
+	// as a subnet or security-group ID that carries no ARN.
+	TargetResourceID string
 	// TargetResourceType is the resource type of the target when the provider
-	// states it; empty when the ARN alone is what the provider gave us.
+	// states it; empty when the endpoint alone is what the provider gave us.
 	TargetResourceType string
+	// Attributes carries bounded relationship-specific control-plane fields. It
+	// holds the same redaction contract as AttributeExtraction.Attributes: never
+	// secrets, data-plane content, or raw provider bodies.
+	Attributes map[string]any
 }
 
 // ExtractContext is the bounded input handed to a per-resource-type extractor.
@@ -128,11 +172,11 @@ func HasResourceExtractor(resourceType string) bool {
 
 // extractResourceAttributes dispatches to the registered extractor for the
 // context resource type. It returns handled=false (with no error) when no
-// extractor is registered, so the scanner keeps emitting the bounded base
-// observation for resource types without typed depth — which is what lets the
-// migration proceed one scanner at a time. A registered extractor's error is
-// wrapped so the caller can attribute it to the resource type without leaking
-// resource data.
+// extractor is registered, so a caller keeps its bounded base observation for
+// resource types that carry no typed depth. That is what lets the AWS Config
+// lane (#6088) add extractors one resource type at a time without stranding the
+// types it has not covered yet. A registered extractor's error is wrapped so the
+// caller can attribute it to the resource type without leaking resource data.
 func extractResourceAttributes(ctx ExtractContext) (AttributeExtraction, bool, error) {
 	extractor, ok := lookupResourceExtractor(ctx.ResourceType)
 	if !ok {
