@@ -77,6 +77,17 @@ func (r *Registry) Validate(repoRoot string) []error {
 // zero files today and still be a valid future-proofing trigger.
 func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 	var errs []error
+	// Resolved once: repoRoot is constant for the whole run, and resolving it
+	// per trigger repeated the same filesystem walk for every literal trigger
+	// in the registry. A repoRoot that will not resolve is a property of the
+	// caller's tree rather than of any one trigger, so it is not reported
+	// per-trigger; falling back to the unresolved root still compares two
+	// paths and only loses the ability to see through a symlinked root, which
+	// makes the containment check stricter, never weaker.
+	resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		resolvedRoot = repoRoot
+	}
 	for _, trigger := range g.Triggers {
 		if !isLiteralTrigger(trigger) {
 			continue
@@ -139,15 +150,6 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 				g.ID, trigger, full, err,
 			))
 			continue
-		}
-		// A repoRoot that will not resolve is the caller's tree, not a property
-		// of this trigger, so it is not reported per-trigger. Falling back to
-		// the unresolved root still compares two paths; it only loses the
-		// ability to see through a symlinked root, which would make this check
-		// stricter, never weaker.
-		resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
-		if err != nil {
-			resolvedRoot = repoRoot
 		}
 		if !isWithinRoot(resolvedRoot, resolved) {
 			errs = append(errs, fmt.Errorf(
