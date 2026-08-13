@@ -14,8 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // The #5789 starvation regression, at scale, against real rows.
@@ -63,18 +61,9 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live per-digest starvation proof")
 	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
-	t.Cleanup(func() { _ = db.Close() })
-
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
+	db, _ := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestStarvationCorpus(t, ctx, db)
 	store := NewPostgresCloudResourceListStore(db)
 
@@ -145,23 +134,26 @@ func starvationDigest(i int) string {
 // describes: one digest on a large fleet, plus many ordinary digests. All rows
 // are current, authorized, and non-tombstoned, so freshness and authorization
 // cannot be what excludes anything — only the candidate bound can.
+//
+// db must come from openRuntimeDigestFixtureDB: these are ordinary tables and
+// they land in that helper's private schema.
 func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	total := starvationHotDigestResources + starvationOtherDigests*20
 	statements := []string{
-		`CREATE TEMP TABLE ingestion_scopes (
+		`CREATE TABLE ingestion_scopes (
           scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,
           active_generation_id text
         )`,
-		`CREATE TEMP TABLE scope_generations (
+		`CREATE TABLE scope_generations (
           generation_id text PRIMARY KEY, scope_id text NOT NULL, status text NOT NULL
         )`,
-		`CREATE TEMP TABLE fact_records (
+		`CREATE TABLE fact_records (
           fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
           is_tombstone boolean NOT NULL
         )`,
-		`CREATE TEMP TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
+		`CREATE TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
 		`INSERT INTO ingestion_scopes VALUES ('scope:allowed','repository','repository:allowed','generation:allowed')`,
 		`INSERT INTO scope_generations VALUES ('generation:allowed','scope:allowed','active')`,
 		fmt.Sprintf(`INSERT INTO fact_records
@@ -214,22 +206,12 @@ func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sq
 // The request carries eligibilityDecoyDigests unseeded digests alongside the
 // real one so the shared budget lands on its floor. Without them the bound is
 // 200 and no fixture this size can reach it, which would leave the test unable
-// to fail against a bound-before-filter query (Copilot review).
+// to fail against a bound-before-filter query.
 func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live eligible-rows-only proof")
 	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
-	t.Cleanup(func() { _ = db.Close() })
-
 	digest := starvationDigest(1)
 	digests := make([]string, 0, eligibilityDecoyDigests+1)
 	digests = append(digests, digest)
@@ -252,6 +234,7 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
+	db, _ := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestEligibilityCorpus(t, ctx, db, ineligible)
 	store := NewPostgresCloudResourceListStore(db)
 
@@ -280,22 +263,25 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 // caller passes a count above the per-digest bound so those rows alone can
 // exhaust it. Ordering is what makes the test sharp: the ineligible rows are the
 // ones a naive bound would consume.
+//
+// db must come from openRuntimeDigestFixtureDB: these are ordinary tables and
+// they land in that helper's private schema.
 func seedRuntimeDigestEligibilityCorpus(t *testing.T, ctx context.Context, db *sql.DB, ineligible int) {
 	t.Helper()
 
 	statements := []string{
-		`CREATE TEMP TABLE ingestion_scopes (
+		`CREATE TABLE ingestion_scopes (
           scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,
           active_generation_id text
         )`,
-		`CREATE TEMP TABLE scope_generations (
+		`CREATE TABLE scope_generations (
           generation_id text PRIMARY KEY, scope_id text NOT NULL, status text NOT NULL
         )`,
-		`CREATE TEMP TABLE fact_records (
+		`CREATE TABLE fact_records (
           fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
           is_tombstone boolean NOT NULL
         )`,
-		`CREATE TEMP TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
+		`CREATE TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
 		`INSERT INTO ingestion_scopes VALUES ('scope:allowed','repository','repository:allowed','generation:allowed')`,
 		`INSERT INTO scope_generations VALUES ('generation:allowed','scope:allowed','active')`,
 		fmt.Sprintf(`INSERT INTO fact_records

@@ -438,4 +438,54 @@ else
   exit 1
 fi
 
+# Regression: with neither ESHU_MEASUREMENT_CITATIONS_BASE nor GITHUB_BASE_REF
+# set -- the shape every test above bypasses by pinning HEAD~1 -- the base must
+# be the merge base with origin/main. A HEAD~1 default scopes the gate to the
+# last commit, so an uncited measurement claim added in an earlier commit
+# escapes whenever the tip commit is innocuous. Gives the fixture a real
+# origin/main by cloning it at the initial commit, then branching away.
+case_mb="$(init_repo case-merge-base)"
+git -C "${case_mb}" branch -M main
+git clone -q --bare "${case_mb}" "${case_mb}-origin"
+git -C "${case_mb}" remote add origin "${case_mb}-origin"
+git -C "${case_mb}" fetch -q origin
+git -C "${case_mb}" checkout -q -b feature
+printf '# New Finding\n\nThe repro failed 7/30 trials.\n' \
+  >"${case_mb}/docs/internal/evidence/uncited-finding.md"
+git -C "${case_mb}" add .
+git -C "${case_mb}" commit -q -m 'branch commit A: uncited trials claim'
+printf '# readme\n' >"${case_mb}/README.md"
+git -C "${case_mb}" add .
+git -C "${case_mb}" commit -q -m 'branch commit B: readme touch'
+if env -u ESHU_MEASUREMENT_CITATIONS_BASE -u GITHUB_BASE_REF \
+    ESHU_MEASUREMENT_CITATIONS_REPO_ROOT="${case_mb}" "${verifier}" \
+    >"${gate_out}" 2>"${gate_err}"; then
+  printf '[merge-base local fallback] expected the gate to FAIL: the uncited\n' >&2
+  printf 'claim is in an earlier commit and the tip commit is innocuous. A pass\n' >&2
+  printf 'means the base fell back to HEAD~1 and scoped to the last commit.\n' >&2
+  sed -n '1,120p' "${gate_out}" >&2
+  exit 1
+fi
+
+# The widened window must not fire on a branch with no measurement claim.
+case_mb_clean="$(init_repo case-merge-base-clean)"
+git -C "${case_mb_clean}" branch -M main
+git clone -q --bare "${case_mb_clean}" "${case_mb_clean}-origin"
+git -C "${case_mb_clean}" remote add origin "${case_mb_clean}-origin"
+git -C "${case_mb_clean}" fetch -q origin
+git -C "${case_mb_clean}" checkout -q -b feature
+printf '# docs only\n' >"${case_mb_clean}/README.md"
+git -C "${case_mb_clean}" add .
+git -C "${case_mb_clean}" commit -q -m 'branch commit A: docs only'
+printf '# docs only, again\n' >"${case_mb_clean}/README.md"
+git -C "${case_mb_clean}" add .
+git -C "${case_mb_clean}" commit -q -m 'branch commit B: docs only'
+if ! env -u ESHU_MEASUREMENT_CITATIONS_BASE -u GITHUB_BASE_REF \
+    ESHU_MEASUREMENT_CITATIONS_REPO_ROOT="${case_mb_clean}" "${verifier}" \
+    >"${gate_out}" 2>"${gate_err}"; then
+  printf '[merge-base local fallback] expected a docs-only branch to PASS\n' >&2
+  sed -n '1,120p' "${gate_err}" >&2
+  exit 1
+fi
+
 printf 'verify-measurement-citations tests passed\n'

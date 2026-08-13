@@ -26,7 +26,7 @@ and validator.
 
 ## Redaction contract
 
-Redaction is key-name based, reusing the SAME rule
+Redaction decides by key name, reusing the SAME rule
 `sdk/go/collector`'s fact emission path enforces
 (`collector.IsSensitiveKeyName`, a thin exported wrapper over the unexported
 `sensitiveQueryPattern` / `redactionSafePayloadKeys` / `validatePayloadKeys` in
@@ -48,6 +48,51 @@ values, which the key-name walk never inspects).
 public-profile bundle that would trip the gate is a bug, not something the CLI
 silently ships.
 
+### Values are invisible to the key-name rule
+
+Because both the redaction walk and `collector.ValidateShareSafeKeys` judge key
+NAMES, neither ever reads a string value. Any field that carries user input as
+a bare string is therefore outside the gate's reach, and has to be handled by
+name before it lands in a bundle.
+
+`Query.Target` is the case that bit us: `eshu report capture` puts whatever
+follows `--endpoint` into it, so `--endpoint "/path?api_key=sk-live-..."` used
+to place a live credential in a bundle stamped `public` whose own validation
+passed. `SplitTargetQuery` (exported, also used by the CLI to build the request
+URL) splits the query string off and `Capture` folds its parameters into
+`Params`, where the ordinary redaction walk sees them as keys. Benign
+parameters survive the split, because a bundle that drops the query it captured
+cannot be reproduced.
+
+Splitting on the first `?` is not enough on its own, and the first version of
+this fix stopped there. Two cases got past it:
+
+- `?api_key=...&bad=%ZZ` — `net/url` rejects the whole query string. Returning
+  no parameters looked cautious and was not: `Validate` saw nothing sensitive
+  and passed the bundle with the credential still sitting in `query.target`.
+  `SplitTargetQuery` now returns an error and both callers refuse the target.
+  `Capture` refuses rather than emptying the query, because the CLI builds its
+  request URL from the same split and a stripped query would file the answer to
+  a request the reporter never made.
+- `?next=/api/v0/x?api_key=...` — `net/url` treats the second `?` as an
+  ordinary character, so this parses to one parameter named `next` carrying the
+  credential in its value. `embeddedSensitiveKey` re-parses a query-shaped
+  value back into `key=value` pairs and asks the same SDK predicate about those
+  keys; `Capture` drops the whole parameter and records its name, `Validate`
+  rejects it.
+
+That second rule finds a `key=value` shape, not secrets. A bare credential
+under an arbitrary name (`?next=sk-live-...`), a double-encoded nested query, or
+a secret in a path segment all still pass. The contract is key names — now
+including key names found inside a target parameter's value.
+
+`Validate` re-checks all of this independently (`target_query_string` in
+`ValidationChecks`) rather than trusting that `Capture` produced the file — a
+maintainer runs `--require-public` against bundles other people send them.
+
+If you add another free-string field to `Bundle`, ask what happens when a user
+pastes a credential into it. The share-safe gate will not catch it.
+
 `--include-payloads` (private-triage only) attaches raw citation excerpts and
 resolved fact envelopes verbatim under `Bundle.Payloads`; every other section
 of the bundle is still redacted and re-validated. `reportbundle.Validate`
@@ -61,11 +106,18 @@ Focused package gate:
 cd go && go test ./internal/reportbundle -count=1
 ```
 
-The redaction canary (`TestCapture_RedactionCanary` in `capture_test.go`) is
-the acceptance-criterion test: it plants sensitive-shaped key names with
-unique sentinel values in query params, response data, and (private-triage
-only) fact payloads, then asserts the serialized default bundle's BYTES never
-contain a sentinel value — not merely that the keys were renamed.
+The redaction canary (`TestCapture_RedactionCanary` in
+`redaction_canary_test.go`) is the acceptance-criterion test: it plants
+sensitive-shaped key names with unique sentinel values in query params,
+response data, citation excerpts, and fact payloads, then asserts the
+serialized default bundle's BYTES never contain a sentinel value — not merely
+that the keys were renamed.
+
+The excerpt and fact sentinels are planted in BOTH variants and
+`IncludePayloads` only decides whether they are expected back out. Planting
+them only in the private-triage variant, as this file first did, left the
+public assertion checking for bytes that were never in its input, so a
+regression inlining payloads by default would have passed.
 
 CLI integration is covered by:
 

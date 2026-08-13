@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -84,7 +86,18 @@ var nowRFC3339UTC = func() string {
 // posture the Slice 1 plan requires: a capture tool must not silently emit a
 // bundle that trips its own share-safe gate.
 func Capture(input CaptureInput) (Bundle, error) {
-	redactedParams, paramRules := redactValue(copyParams(input.Params))
+	targetPath, targetParams, err := SplitTargetQuery(input.Target)
+	if err != nil {
+		// Refusing, rather than emptying the query. Nothing can separate a
+		// secret from the rest of an unparseable blob, and the CLI derives the
+		// request URL from this same split — a "redact the whole query" path
+		// would issue a different request than the reporter ran and then file
+		// the answer to it as their bug report.
+		return Bundle{}, fmt.Errorf("query.target is unusable: %w (fix the endpoint and recapture; an unparseable query string cannot be redacted parameter by parameter)", err)
+	}
+	targetParams, nestedRules := dropNestedCredentialParams(targetParams)
+
+	redactedParams, paramRules := redactValue(mergeTargetParams(input.Params, targetParams))
 	// copyParams always yields a map[string]any and redactValue's map branch
 	// returns a map[string]any, so this holds by construction; the checked
 	// assertion fails loudly rather than silently substituting nil params if a
@@ -106,7 +119,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 
 	redactedError, errorRules := redactErrorEnvelope(input.Envelope.Error)
 
-	rules := dedupeSorted(append(append(append([]string{}, paramRules...), dataRules...), errorRules...))
+	rules := dedupeSorted(append(append(append(append([]string{}, paramRules...), nestedRules...), dataRules...), errorRules...))
 
 	factRefsState := "unavailable"
 	factRefsReason := input.FactRefsReason
@@ -143,7 +156,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 		ReporterNote:  input.ReporterNote,
 		Query: CapturedQuery{
 			Surface: input.Surface,
-			Target:  input.Target,
+			Target:  targetPath,
 			Method:  input.Method,
 			Params:  emptyMapIfNil(redactedParamsMap),
 			Profile: input.Profile,
@@ -220,6 +233,130 @@ func computeBundleID(bundle Bundle) (string, error) {
 		return "", fmt.Errorf("decode bundle for bundle_id: %w", err)
 	}
 	return canonicalDigest(doc)
+}
+
+// SplitTargetQuery separates a target into its bare path and the parameters
+// carried in its query string, decoded into the same map[string]any shape
+// Params uses so both go through one redaction walk.
+//
+// This exists because every redaction rule in this package matches on object
+// KEY names, and the fail-closed gate (collector.ValidateShareSafeKeys) does
+// too — neither ever inspects a string value. Target is a plain string, and
+// `eshu report capture` puts whatever follows --endpoint into it verbatim, so
+// `--endpoint "/path?api_key=sk-live-..."` used to place a live credential in a
+// bundle stamped "public" that passed its own validation. Splitting the query
+// string out converts those values back into keys, where the redactor can see
+// them.
+//
+// The parameters are kept rather than discarded: a maintainer reproducing a
+// wrong answer needs to know what was asked, and a bundle that silently drops
+// half its inputs is a worse report. Only the sensitive-named ones are removed,
+// by the same walk that handles Params.
+//
+// A query string net/url cannot parse is an ERROR, not an empty result. The
+// first version of this function returned no parameters in that case, which
+// looked conservative and was the opposite: the credential stayed in the target
+// string while Validate, finding no parameters to judge, reported nothing
+// sensitive and let `--require-public` accept the bundle. Callers fail closed
+// on the error instead — see Capture and validateTargetQuery.
+//
+// The parse is faithful: sensitive parameters are returned like any other, and
+// deciding what may be recorded is the caller's job. `eshu report capture` needs
+// the real parameters to issue the reporter's actual request; only the bundle
+// is redacted.
+//
+// Exported so `eshu report capture` can apply the same split to the path it
+// issues the HTTP request against, keeping the request URL and the recorded
+// bundle derived from one function instead of two rules that drift.
+func SplitTargetQuery(target string) (string, map[string]any, error) {
+	path, rawQuery, found := strings.Cut(target, "?")
+	if !found || strings.TrimSpace(rawQuery) == "" {
+		return path, nil, nil
+	}
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return path, nil, fmt.Errorf("parse query string of target %q: %w", target, err)
+	}
+	params := make(map[string]any, len(values))
+	for key, list := range values {
+		switch len(list) {
+		case 0:
+			continue
+		case 1:
+			params[key] = list[0]
+		default:
+			repeated := make([]any, len(list))
+			for i, item := range list {
+				repeated[i] = item
+			}
+			params[key] = repeated
+		}
+	}
+	return path, params, nil
+}
+
+// dropNestedCredentialParams removes any target query-string parameter whose
+// VALUE carries an embedded sensitive key=value pair, returning the surviving
+// parameters plus the names of the ones it dropped (for Redaction.Rules).
+//
+// strings.Cut splits the target on the first "?" only, and net/url treats a
+// later "?" as an ordinary value character. So `?next=/api/v0/x?api_key=sk-live`
+// parses to a single parameter named "next" holding the credential inside its
+// value, where neither the key walk nor the share-safe gate can see it. The
+// parameter is dropped whole — the same treatment a sensitive-NAMED parameter
+// gets — and recorded by its own name, so the bundle still says something went
+// missing.
+//
+// The dropped name, not the embedded one, is what lands in Redaction.Rules:
+// "next" is the parameter that is no longer there, which is what a maintainer
+// reading the manifest is trying to account for.
+func dropNestedCredentialParams(params map[string]any) (map[string]any, []string) {
+	if len(params) == 0 {
+		return params, nil
+	}
+	kept := make(map[string]any, len(params))
+	var dropped []string
+	for key, value := range params {
+		if carriesEmbeddedSensitiveKey(value) {
+			dropped = append(dropped, key)
+			continue
+		}
+		kept[key] = value
+	}
+	return kept, dropped
+}
+
+// carriesEmbeddedSensitiveKey reports whether a parsed query-string parameter
+// value embeds a sensitive-named key. A repeated parameter is flagged when any
+// of its values is.
+func carriesEmbeddedSensitiveKey(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		_, found := embeddedSensitiveKey(typed)
+		return found
+	case []any:
+		for _, item := range typed {
+			if carriesEmbeddedSensitiveKey(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// mergeTargetParams folds query-string parameters into a copy of the
+// caller-supplied params. An explicitly supplied parameter wins on a name
+// collision: it is the more deliberate input, and overwriting it would make the
+// bundle misreport what was asked.
+func mergeTargetParams(params, fromTarget map[string]any) map[string]any {
+	merged := copyParams(params)
+	for key, value := range fromTarget {
+		if _, exists := merged[key]; exists {
+			continue
+		}
+		merged[key] = value
+	}
+	return merged
 }
 
 func copyParams(params map[string]any) map[string]any {

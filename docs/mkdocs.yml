@@ -62,6 +62,7 @@ nav:
       - Run The Proof Suite: guides/run-the-proof-suite.md
       - Add An Odù: guides/add-an-odu.md
       - Debug A Failing Gate: guides/debug-a-failing-gate.md
+      - Report A Wrong Answer: guides/report-wrong-answer.md
     - Supply-Chain Traceability: supply-chain-traceability.md
     - Supply-Chain Demo Runbook: guides/supply-chain-demo.md
     - Starter Prompts: guides/starter-prompts.md

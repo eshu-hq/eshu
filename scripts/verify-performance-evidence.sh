@@ -22,6 +22,32 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
     base="origin/$GITHUB_BASE_REF"
   fi
 fi
+# Fall back to the merge base with origin/main, NOT HEAD~1. `make pre-pr` runs
+# this gate with neither GITHUB_BASE_REF nor an explicit override set, and a
+# HEAD~1 default narrows the window to the last commit alone. A branch that
+# changes hot-path Cypher, graph writes, queues, or leases in an earlier commit
+# and ends on an innocuous docs or generated-file commit then reports "no hot
+# Cypher/concurrency/runtime files changed" and exits 0 -- the gate passes
+# without checking what it claims to check. Observed on a real branch: HEAD~1
+# saw 1 file and passed; merge-base with origin/main saw 26 and found the
+# hot-path changes. verify-root-cause-evidence.sh already names this exact
+# false pass as the reason it does not default to HEAD~1.
+if [ -z "$base" ]; then
+  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
+    # A merge base equal to HEAD means HEAD is already an ancestor of
+    # origin/main, so the branch contributes no commits of its own and the
+    # merge-base window would be empty -- strictly narrower than HEAD~1, which
+    # would make this gate weaker than before. Leave `base` unset so the HEAD~1
+    # fallback below still gives a non-empty window.
+    if [ -n "$merge_base" ] &&
+      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
+      base="$merge_base"
+    fi
+  fi
+fi
+# Last resort only: a shallow clone whose merge base is unreachable, a checkout
+# with no origin remote, or a fresh fixture repo in a test harness.
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"
