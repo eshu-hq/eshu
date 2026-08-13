@@ -53,6 +53,25 @@ type ClaimedWorkItem struct {
 	Claim    Claim
 }
 
+// RunAdmission reports what one guarded scheduled-run admission did.
+//
+// The two counts are different questions and an operator needs both. Targets
+// missing from EligibleTargets were dropped by the open-target guard because a
+// non-terminal run already covers them, which is the benign duplicate skip that
+// makes running more than one coordinator safe. Rows missing from
+// InsertedWorkItems cleared that guard and were still refused by the database --
+// a partial unique index covering a narrower tuple than the guard compares --
+// which is planned work that never reached the queue. Collapsing the two into
+// one number reports lost work as a harmless duplicate (#4586).
+type RunAdmission struct {
+	// EligibleTargets counts planned work items that no non-terminal run and no
+	// earlier row of the same run already covered.
+	EligibleTargets int
+	// InsertedWorkItems counts the rows the work-item table actually accepted.
+	// This is the work an operator can find in the queue.
+	InsertedWorkItems int
+}
+
 // CompletenessState captures one reducer-facing completion checkpoint for a
 // workflow run.
 type CompletenessState struct {

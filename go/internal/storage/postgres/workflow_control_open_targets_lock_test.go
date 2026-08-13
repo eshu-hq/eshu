@@ -70,14 +70,37 @@ func (r *orderedStatementRecorder) QueryContext(_ context.Context, query string,
 	return &next, nil
 }
 
+// Commit, Rollback, and their readers take the same mutex the statement
+// recording does. Nothing in this file drives the recorder from two goroutines
+// today, but a recorder whose fields are half-guarded is a race waiting for the
+// first concurrent reuse, and the race detector would report it there rather
+// than here.
 func (r *orderedStatementRecorder) Commit() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.committed = true
 	return nil
 }
 
 func (r *orderedStatementRecorder) Rollback() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.rolledBack = true
 	return nil
+}
+
+// didCommit reports whether the recorded transaction committed.
+func (r *orderedStatementRecorder) didCommit() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.committed
+}
+
+// didRollBack reports whether the recorded transaction rolled back.
+func (r *orderedStatementRecorder) didRollBack() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.rolledBack
 }
 
 // indexOfStatement returns the position of the first recorded statement
@@ -91,6 +114,20 @@ func (r *orderedStatementRecorder) indexOfStatement(needle string) int {
 		}
 	}
 	return -1
+}
+
+// argsOfStatements returns the arguments of every recorded statement containing
+// needle, in the order the statements were issued.
+func (r *orderedStatementRecorder) argsOfStatements(needle string) []any {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var args []any
+	for _, statement := range r.statements {
+		if strings.Contains(statement.query, needle) {
+			args = append(args, statement.args...)
+		}
+	}
+	return args
 }
 
 func workflowPlanningLockFixture(t *testing.T) (workflow.Run, []workflow.WorkItem) {
@@ -151,10 +188,10 @@ func TestWorkflowControlStoreGuardedRunTakesPlanningLockBeforeReadingTargets(t *
 	if lockAt > insertAt {
 		t.Fatalf("planning lock taken at statement %d, work-item insert at %d: the lock must cover the insert too", lockAt, insertAt)
 	}
-	if !recorder.committed {
+	if !recorder.didCommit() {
 		t.Fatal("the guard did not commit; the advisory lock is transaction-scoped, so it only covers work that commits")
 	}
-	if recorder.rolledBack {
+	if recorder.didRollBack() {
 		t.Fatal("the guard rolled back an admission it reported as enqueued")
 	}
 }
@@ -185,12 +222,7 @@ func TestWorkflowControlStoreGuardedRunLocksTheKeyDerivedFromCollectorInstance(t
 		t.Fatalf("two targets of one collector instance derived different lock keys (%d and %d); competing coordinators would not contend", want, other)
 	}
 
-	var lockArgs []any
-	for _, statement := range recorder.statements {
-		if strings.Contains(statement.query, "pg_advisory_xact_lock") {
-			lockArgs = append(lockArgs, statement.args...)
-		}
-	}
+	lockArgs := recorder.argsOfStatements("pg_advisory_xact_lock")
 	if len(lockArgs) != 1 {
 		t.Fatalf("advisory lock argument count = %d, want one key for one collector instance", len(lockArgs))
 	}
@@ -204,6 +236,10 @@ func TestWorkflowControlStoreGuardedRunLocksTheKeyDerivedFromCollectorInstance(t
 // accepts one row -- the shape a partial unique index produces. The guard used
 // to return the planned count, so the coordinator logged two work items
 // enqueued when one existed.
+//
+// Both halves are asserted: the admitted count still has to say two, or the
+// coordinator blames the open-target guard for a row the database refused and
+// logs lost work as a harmless duplicate skip.
 func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T) {
 	t.Parallel()
 
@@ -219,11 +255,51 @@ func TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted(t *testing.T)
 	store := NewWorkflowControlStore(recorder)
 	run, items := workflowPlanningLockFixture(t)
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if inserted != 1 {
-		t.Fatalf("inserted = %d, want 1: the count must be rows the database accepted, not the %d targets planned (#4586)", inserted, len(items))
+	if admission.InsertedWorkItems != 1 {
+		t.Fatalf("InsertedWorkItems = %d, want 1: the count must be rows the database accepted, not the %d targets planned (#4586)",
+			admission.InsertedWorkItems, len(items))
+	}
+	if admission.EligibleTargets != len(items) {
+		t.Fatalf("EligibleTargets = %d, want %d: the open-target guard admitted both targets, and reporting fewer blames it for a row the database dropped (#4586)",
+			admission.EligibleTargets, len(items))
+	}
+}
+
+// TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected pins the
+// bound the insert count is narrowed under. One INSERT ... ON CONFLICT DO
+// NOTHING cannot write more rows than it was handed, so a larger count is a
+// broken number rather than one to hand to an operator -- and keeping it inside
+// 0..len(batch) is what makes the int64-to-int narrowing safe on any platform.
+func TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected(t *testing.T) {
+	t.Parallel()
+
+	recorder := &orderedStatementRecorder{
+		rows: []queueFakeRows{
+			{rows: [][]any{{false}}},
+			{rows: [][]any{{0}, {1}}},
+		},
+		// Planning lock, run insert, then a work-item batch claiming it wrote
+		// three rows for two supplied items.
+		execRows: []int64{1, 1, 3},
+	}
+	store := NewWorkflowControlStore(recorder)
+	run, items := workflowPlanningLockFixture(t)
+
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
+	if err == nil {
+		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = nil (admission = %+v), want a rejected rows-affected count", admission)
+	}
+	if !strings.Contains(err.Error(), "rows affected 3 is outside 0..2") {
+		t.Fatalf("error = %v, want the out-of-range rows-affected count named", err)
+	}
+	if admission.InsertedWorkItems != 0 || admission.EligibleTargets != 0 {
+		t.Fatalf("admission = %+v, want a zero admission alongside the error", admission)
+	}
+	if recorder.didCommit() {
+		t.Fatal("the guard committed a transaction whose insert count it could not trust")
 	}
 }

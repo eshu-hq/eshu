@@ -30,56 +30,58 @@ const workflowGuardedRunCreateMaxAttempts = 3
 // whose collector target is not already represented by a non-terminal run or
 // the same deterministic schedule run.
 //
-// It returns the number of work-item rows the database actually accepted, which
-// can be lower than the number of eligible targets when a unique index drops one
-// at insert time. Callers may treat a returned count below len(items) as work
-// that was skipped, and it is safe to run more than one coordinator against this
-// method: see the read-then-write race described at the advisory lock below.
+// It reports both halves of the admission separately: the targets that cleared
+// the open-target guard, and the rows the database actually accepted. Those
+// differ when a unique index drops a row the guard admitted, and the difference
+// is lost work rather than a skipped duplicate, so callers must not collapse the
+// two (see workflow.RunAdmission). It is safe to run more than one coordinator
+// against this method: see the read-then-write race described at the advisory
+// lock below.
 func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
-) (int, error) {
+) (workflow.RunAdmission, error) {
 	if s.db == nil {
-		return 0, fmt.Errorf("workflow control store database is required")
+		return workflow.RunAdmission{}, fmt.Errorf("workflow control store database is required")
 	}
 	if s.beginner == nil {
-		return 0, fmt.Errorf("workflow control store transaction support is required")
+		return workflow.RunAdmission{}, fmt.Errorf("workflow control store transaction support is required")
 	}
 	if err := run.Validate(); err != nil {
-		return 0, fmt.Errorf("create guarded workflow run: %w", err)
+		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: %w", err)
 	}
 	for _, item := range items {
 		if err := item.Validate(); err != nil {
-			return 0, fmt.Errorf("create guarded workflow run: %w", err)
+			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: %w", err)
 		}
 	}
 	if len(items) == 0 {
-		return 0, nil
+		return workflow.RunAdmission{}, nil
 	}
 
 	var lastErr error
 	for attempt := 1; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
-		inserted, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items)
+		admission, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items)
 		if err == nil {
-			return inserted, nil
+			return admission, nil
 		}
 		lastErr = err
 		if !isRetryableWorkflowReconciliationError(err) || attempt >= workflowGuardedRunCreateMaxAttempts {
 			break
 		}
 	}
-	return 0, lastErr
+	return workflow.RunAdmission{}, lastErr
 }
 
 func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
-) (int, error) {
+) (workflow.RunAdmission, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("create guarded workflow run: begin transaction: %w", err)
+		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: begin transaction: %w", err)
 	}
 	rollback := tx.Rollback
 	defer func() { _ = rollback() }()
@@ -114,40 +116,41 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	// TestWorkflowControlStoreGuardedRunTakesPlanningLockBeforeReadingTargets,
 	// which fails if the lock is removed OR merely moved after the read.
 	if err := lockWorkflowOpenTargets(ctx, tx, items); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	terminal, err := s.workflowRunIsTerminal(ctx, tx, run.RunID)
 	if err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	if terminal {
 		if err := tx.Commit(); err != nil {
-			return 0, fmt.Errorf("create guarded workflow run: commit terminal-run skip: %w", err)
+			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit terminal-run skip: %w", err)
 		}
 		rollback = func() error { return nil }
-		return 0, nil
+		return workflow.RunAdmission{}, nil
 	}
 	eligible, err := s.workItemsWithoutOpenTargets(ctx, tx, run.RunID, items)
 	if err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	if len(eligible) == 0 {
 		if err := tx.Commit(); err != nil {
-			return 0, fmt.Errorf("create guarded workflow run: commit skipped transaction: %w", err)
+			return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit skipped transaction: %w", err)
 		}
 		rollback = func() error { return nil }
-		return 0, nil
+		return workflow.RunAdmission{}, nil
 	}
 	if err := s.createRunWithExecutor(ctx, tx, run); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
-	// Count rows the database accepted, not targets we planned. The INSERT ends
-	// in ON CONFLICT DO NOTHING and workflow_work_items carries partial unique
-	// indexes, so a planned target can be dropped at insert time. Reporting
-	// len(eligible) here told the coordinator every target was enqueued, which
-	// suppressed its "skipped duplicate workflow work" log and left an operator
-	// reading an enqueued count for work that does not exist (#4586).
-	var inserted int64
+	// Count rows the database accepted alongside the targets the guard admitted.
+	// The INSERT ends in ON CONFLICT DO NOTHING and workflow_work_items carries
+	// partial unique indexes, so a planned target can still be dropped at insert
+	// time. Reporting len(eligible) as the enqueued count told the coordinator
+	// every target landed, which left an operator reading an enqueued count for
+	// work that does not exist; reporting only the insert count would instead
+	// blame the open-target guard for a row the database refused (#4586).
+	admission := workflow.RunAdmission{EligibleTargets: len(eligible)}
 	for i := 0; i < len(eligible); i += workflowEnqueueBatchSize {
 		end := i + workflowEnqueueBatchSize
 		if end > len(eligible) {
@@ -155,15 +158,15 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 		}
 		batchInserted, err := s.enqueueWorkItemBatchWithExecutor(ctx, tx, eligible[i:end])
 		if err != nil {
-			return 0, err
+			return workflow.RunAdmission{}, err
 		}
-		inserted += batchInserted
+		admission.InsertedWorkItems += batchInserted
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
+		return workflow.RunAdmission{}, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
 	}
 	rollback = func() error { return nil }
-	return int(inserted), nil
+	return admission, nil
 }
 
 func lockWorkflowOpenTargets(ctx context.Context, executor Executor, items []workflow.WorkItem) error {

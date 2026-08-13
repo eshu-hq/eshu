@@ -189,6 +189,53 @@ it across batches. Both tests were written first and failed on the old code:
 
 Both pass after the change.
 
+### Reporting the two shortfalls separately
+
+Returning only the accepted-row count fixes the number and breaks the reason.
+The coordinator logs one line, `workflow coordinator skipped duplicate workflow
+work` with `reason=target_already_planned`, whenever the returned count is below
+what it planned. Feed it the insert count and every row a unique index refused
+gets reported as a target some other run already owns — lost work, filed as a
+harmless duplicate. Codex caught this on the PR.
+
+The guard now returns both numbers (`workflow.RunAdmission`): the targets that
+cleared the open-target read, and the rows the insert accepted. The coordinator
+logs the gap it actually saw. A target the guard dropped stays the Info
+duplicate-skip line; a row the guard admitted and the database refused is a
+Warn, `workflow coordinator lost admitted workflow work at insert`, with
+`reason=insert_conflict_dropped_row` and a `dropped_work_items` count.
+
+Both new tests were written first and fail when the production line is broken.
+Collapsing the condition back to the single count (`admission.InsertedWorkItems
+< len(authorizedItems)`) reproduces the exact misreport:
+
+```
+--- FAIL: TestCreateWorkflowWorkIfNoOpenTargetsReportsInsertConflictSeparately (0.00s)
+    service_test.go:434: logs = {"level":"INFO","msg":"workflow coordinator skipped duplicate workflow work",...,"skipped_work_items":0,"reason":"target_already_planned"}
+        , want no already-planned reason: the guard admitted both targets, so nothing was skipped as a duplicate (#4586)
+```
+
+Dropping the eligible count in the store (`workflow.RunAdmission{}` instead of
+`{EligibleTargets: len(eligible)}`) fails the hermetic and the live test:
+
+```
+--- FAIL: TestWorkflowControlStoreGuardedRunReportsRowsActuallyInserted (0.00s)
+    workflow_control_open_targets_lock_test.go:267: EligibleTargets = 0, want 2: the open-target guard admitted both targets, and reporting fewer blames it for a row the database dropped (#4586)
+--- FAIL: TestWorkflowGuardedRunCreateAdmitsOneTargetForConcurrentCoordinatorsLive (1.77s)
+    workflow_control_open_targets_lock_live_test.go:198: iteration 1: admitted sum = 0 (0 + 0), want exactly 1 target past the open-target guard
+```
+
+One INSERT with `ON CONFLICT DO NOTHING` cannot write more rows than it was
+handed, so the batch helper checks `RowsAffected` against the batch size before
+narrowing it to `int`. That keeps the value inside a range `int` holds on any
+platform, and a driver reporting anything else is a broken count rather than a
+number to pass to an operator. Removing the check:
+
+```
+--- FAIL: TestWorkflowControlStoreGuardedRunRejectsImpossibleRowsAffected (0.00s)
+    workflow_control_open_targets_lock_test.go:294: CreateRunWithWorkItemsIfNoOpenTargets() error = nil (admission = {EligibleTargets:2 InsertedWorkItems:3}), want a rejected rows-affected count
+```
+
 ## Limits
 
 State these next to any claim built on this page.
@@ -211,8 +258,9 @@ tenant, workspace, subject class, policy revision hash, and acceptance unit.
 Neither is a subset of the other. When two repositories share one Terraform state
 object, the index collapses two rows the guard considers distinct targets, and
 one repository's work silently disappears. The accounting fix makes that visible
-in the coordinator log instead of invisible; it does not fix the collapse. That
-needs its own measurement and its own change.
+in the coordinator log — as a warning about a dropped insert, not as a duplicate
+skip — instead of invisible; it does not fix the collapse. That needs its own
+measurement and its own change.
 
 **Phase skew is an owner decision, not a bug.** Arm A3: with run A terminal, a
 coordinator in a later phase can start the next collection for the same target
@@ -237,11 +285,18 @@ concern at coordinator tick rates. The lock is the shipped behavior, not new
 serialization: this change adds tests and an accurate count, and does not narrow
 concurrency anywhere.
 
-Observability Evidence: the accounting fix is what restores an existing operator
-signal. `workflow coordinator skipped duplicate workflow work`
-(`go/internal/coordinator/scheduled_work.go`) fires when the guard reports fewer
-enqueued items than were planned, carrying `collector_kind`,
+Observability Evidence: the accounting fix restores an existing operator signal
+and splits it in two, because the two shortfalls need different responses.
+`workflow coordinator skipped duplicate workflow work` (Info,
+`go/internal/coordinator/scheduled_work.go`) still fires when the open-target
+guard drops a planned target, carrying `collector_kind`,
 `collector_instance_id`, `planned_work_items`, `enqueued_work_items`,
-`skipped_work_items`, and `reason=target_already_planned`. It could not fire for
-an insert dropped by a unique index, because the guard reported those as
-enqueued. It now can. No metric, span, or knob was added or renamed.
+`skipped_work_items`, and `reason=target_already_planned` — an open run already
+owns that target, which is the guard working. `workflow coordinator lost
+admitted workflow work at insert` (Warn) is new and fires when the database
+refuses a row the guard admitted, carrying the same identity fields plus
+`admitted_work_items`, `dropped_work_items`, and
+`reason=insert_conflict_dropped_row` — that one is work nobody will collect, and
+it points at the `terraform_state` index collapse described above. Before this
+change neither line could fire for a dropped insert, because the guard counted
+those as enqueued. No metric, span, or knob was added or renamed.

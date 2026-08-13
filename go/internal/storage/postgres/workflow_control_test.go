@@ -137,11 +137,11 @@ func TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget(t *testing.T) {
 		UpdatedAt:           now,
 	}
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if got, want := inserted, 0; got != want {
+	if got, want := admission.InsertedWorkItems, 0; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	for _, exec := range db.execs {
@@ -191,11 +191,11 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 		UpdatedAt:           now,
 	}
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if got, want := inserted, 1; got != want {
+	if got, want := admission.InsertedWorkItems, 1; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	var insertedRun bool
@@ -247,11 +247,11 @@ func TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction(t *testing.T) 
 	db := &fakeTransactionalDB{txs: []*fakeTx{firstTx, secondTx}}
 	store := NewWorkflowControlStore(db)
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want retry success", err)
 	}
-	if got, want := inserted, 1; got != want {
+	if got, want := admission.InsertedWorkItems, 1; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	if got, want := db.beginCalls, 2; got != want {
@@ -294,11 +294,11 @@ func TestWorkflowControlStoreGuardedRunRetryLimitUsesExactAttemptCount(t *testin
 	db := &fakeTransactionalDB{txs: txs}
 	store := NewWorkflowControlStore(db)
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err == nil {
 		t.Fatal("CreateRunWithWorkItemsIfNoOpenTargets() error = nil, want final deadlock")
 	}
-	if got, want := inserted, 0; got != want {
+	if got, want := admission.InsertedWorkItems, 0; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	if got, want := db.beginCalls, workflowGuardedRunCreateMaxAttempts; got != want {
@@ -341,11 +341,11 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 		awsScheduledWorkItem(run.RunID, "s3", now),
 	}
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, items)
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if got, want := inserted, 2; got != want {
+	if got, want := admission.InsertedWorkItems, 2; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 
@@ -448,11 +448,11 @@ func TestWorkflowControlStoreGuardedRunSkipsSameRunTargetReplay(t *testing.T) {
 		UpdatedAt:           now,
 	}
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if got, want := inserted, 0; got != want {
+	if got, want := admission.InsertedWorkItems, 0; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	for _, exec := range db.execs {

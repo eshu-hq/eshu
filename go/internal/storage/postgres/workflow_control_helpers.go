@@ -16,7 +16,7 @@ import (
 
 const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
-func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) (int64, error) {
+func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) (int, error) {
 	return s.enqueueWorkItemBatchWithExecutor(ctx, s.db, items)
 }
 
@@ -27,11 +27,17 @@ func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items [
 // Callers that report an enqueued count to an operator MUST use this number
 // rather than len(items): a dropped row that still counts as enqueued shows up
 // as work an operator can see in the logs but not in the queue (#4586).
+//
+// One INSERT ... ON CONFLICT DO NOTHING can never write more rows than it was
+// given, so the accepted count is checked against len(items) before it is
+// narrowed to int. That keeps the return within a range int always holds, and a
+// driver reporting anything outside it is a broken count rather than a number to
+// pass on to an operator.
 func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	ctx context.Context,
 	executor Executor,
 	items []workflow.WorkItem,
-) (int64, error) {
+) (int, error) {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
 	var values strings.Builder
 
@@ -92,7 +98,15 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	if err != nil {
 		return 0, fmt.Errorf("enqueue workflow work item batch (%d items): read rows affected: %w", len(items), err)
 	}
-	return inserted, nil
+	if inserted < 0 || inserted > int64(len(items)) {
+		return 0, fmt.Errorf(
+			"enqueue workflow work item batch (%d items): rows affected %d is outside 0..%d",
+			len(items),
+			inserted,
+			len(items),
+		)
+	}
+	return int(inserted), nil
 }
 
 func (s *WorkflowControlStore) execClaimMutation(

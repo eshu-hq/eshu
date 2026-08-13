@@ -155,18 +155,18 @@ func TestWorkflowGuardedRunCreateAdmitsOneTargetForConcurrentCoordinatorsLive(t 
 
 		var wg sync.WaitGroup
 		start := make(chan struct{})
-		enqueued := make([]int, 2)
+		admissions := make([]workflow.RunAdmission, 2)
 		errs := make([]error, 2)
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
 			<-start
-			enqueued[0], errs[0] = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, runA, itemsA)
+			admissions[0], errs[0] = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, runA, itemsA)
 		}()
 		go func() {
 			defer wg.Done()
 			<-start
-			enqueued[1], errs[1] = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, runB, itemsB)
+			admissions[1], errs[1] = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, runB, itemsB)
 		}()
 		close(start)
 		wg.Wait()
@@ -188,11 +188,15 @@ WHERE collector_instance_id = $1 AND scope_id = $2`,
 		if pending != 1 || total != 1 {
 			duplicates++
 			t.Errorf("iteration %d: rows = %d, pending = %d, want 1 and 1; two coordinators admitted the same target twice (returned enqueued %d and %d)",
-				iteration, total, pending, enqueued[0], enqueued[1])
+				iteration, total, pending, admissions[0].InsertedWorkItems, admissions[1].InsertedWorkItems)
 		}
-		if got := enqueued[0] + enqueued[1]; got != 1 {
+		if got := admissions[0].InsertedWorkItems + admissions[1].InsertedWorkItems; got != 1 {
 			t.Errorf("iteration %d: enqueued sum = %d (%d + %d), want exactly 1 admitted target",
-				iteration, got, enqueued[0], enqueued[1])
+				iteration, got, admissions[0].InsertedWorkItems, admissions[1].InsertedWorkItems)
+		}
+		if got := admissions[0].EligibleTargets + admissions[1].EligibleTargets; got != 1 {
+			t.Errorf("iteration %d: admitted sum = %d (%d + %d), want exactly 1 target past the open-target guard",
+				iteration, got, admissions[0].EligibleTargets, admissions[1].EligibleTargets)
 		}
 	}
 	if duplicates > 0 {
@@ -254,18 +258,18 @@ func TestWorkflowGuardedRunCreateWaitsOnPlanningLockBeforeReadingTargetsLive(t *
 	}
 
 	guardDone := make(chan struct{})
-	var guardEnqueued int
+	var guardAdmission workflow.RunAdmission
 	var guardErr error
 	go func() {
 		defer close(guardDone)
-		guardEnqueued, guardErr = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, lateRun, lateItems)
+		guardAdmission, guardErr = store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, lateRun, lateItems)
 	}()
 
 	if err := waitForWorkflowPlanningLockWaiter(ctx, db, lockKey, 20*time.Second); err != nil {
 		select {
 		case <-guardDone:
-			t.Fatalf("the guard finished (enqueued = %d, err = %v) without ever waiting on the collector-instance planning lock: it read planned targets outside the lock, which is the #4586 duplicate-admission race: %v",
-				guardEnqueued, guardErr, err)
+			t.Fatalf("the guard finished (admission = %+v, err = %v) without ever waiting on the collector-instance planning lock: it read planned targets outside the lock, which is the #4586 duplicate-admission race: %v",
+				guardAdmission, guardErr, err)
 		default:
 		}
 		t.Fatalf("no backend waited on the collector-instance planning lock: %v", err)
@@ -293,8 +297,8 @@ func TestWorkflowGuardedRunCreateWaitsOnPlanningLockBeforeReadingTargetsLive(t *
 	if guardErr != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", guardErr)
 	}
-	if guardEnqueued != 0 {
-		t.Fatalf("enqueued = %d, want 0: the competing coordinator's open target committed before the lock was released", guardEnqueued)
+	if guardAdmission.EligibleTargets != 0 || guardAdmission.InsertedWorkItems != 0 {
+		t.Fatalf("admission = %+v, want a zero admission: the competing coordinator's open target committed before the lock was released", guardAdmission)
 	}
 
 	var total int
@@ -355,7 +359,7 @@ func TestWorkflowGuardedRunCreateReportsRowsActuallyInsertedLive(t *testing.T) {
 	}
 	items := []workflow.WorkItem{newItem("repository:eshu-4586-a"), newItem("repository:eshu-4586-b")}
 
-	enqueued, err := store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, items)
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, items)
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
@@ -369,8 +373,15 @@ func TestWorkflowGuardedRunCreateReportsRowsActuallyInsertedLive(t *testing.T) {
 	if rows != 1 {
 		t.Fatalf("work item rows = %d, want 1: the terraform_state candidate index should have dropped the second acceptance unit; if it did not, this test no longer exercises the accounting gap", rows)
 	}
-	if enqueued != rows {
-		t.Fatalf("enqueued = %d, actual rows = %d: the guard reported work an operator cannot find in the queue, and the coordinator's \"skipped duplicate workflow work\" log never fires (#4586)", enqueued, rows)
+	if admission.InsertedWorkItems != rows {
+		t.Fatalf("InsertedWorkItems = %d, actual rows = %d: the guard reported work an operator cannot find in the queue (#4586)", admission.InsertedWorkItems, rows)
+	}
+	// The index dropped the row, not the open-target guard. Both acceptance
+	// units have to show as admitted, or the coordinator reports lost work under
+	// "target_already_planned" -- a duplicate skip that never happened.
+	if admission.EligibleTargets != len(items) {
+		t.Fatalf("EligibleTargets = %d, want %d: the open-target guard admitted both acceptance units and the index dropped one at insert (#4586)",
+			admission.EligibleTargets, len(items))
 	}
 }
 
@@ -389,6 +400,10 @@ func waitForWorkflowPlanningLockWaiter(
 	unsigned := uint64(key) // #nosec G115 -- the lock key is an intentional bit-reinterpret; both halves are read back unsigned
 	classID := int64(unsigned >> 32)
 	objID := int64(unsigned & 0xFFFFFFFF)
+
+	// One ticker for the whole poll rather than a timer per iteration.
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
 
 	deadline := time.Now().Add(budget)
 	for {
@@ -412,7 +427,7 @@ WHERE locktype = 'advisory'
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(25 * time.Millisecond):
+		case <-ticker.C:
 		}
 	}
 }

@@ -89,9 +89,9 @@ func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
-) (int, error) {
+) (workflow.RunAdmission, error) {
 	if f.createRunErr != nil {
-		return 0, f.createRunErr
+		return workflow.RunAdmission{}, f.createRunErr
 	}
 	eligible := make([]workflow.WorkItem, 0, len(items))
 	for _, item := range items {
@@ -101,15 +101,16 @@ func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
 		eligible = append(eligible, item)
 	}
 	if len(eligible) == 0 {
-		return 0, nil
+		return workflow.RunAdmission{}, nil
 	}
 	if err := f.CreateRun(ctx, run); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
 	if err := f.EnqueueWorkItems(ctx, eligible); err != nil {
-		return 0, err
+		return workflow.RunAdmission{}, err
 	}
-	return len(eligible), nil
+	// This fake has no unique index, so every admitted target lands.
+	return workflow.RunAdmission{EligibleTargets: len(eligible), InsertedWorkItems: len(eligible)}, nil
 }
 
 func fakeStoreHasOpenWorkItem(existing []workflow.WorkItem, candidate workflow.WorkItem) bool {

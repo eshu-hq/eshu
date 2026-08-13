@@ -61,11 +61,11 @@ func TestWorkflowControlStoreGuardedRunSkipsTerminalSameRunReplay(t *testing.T) 
 		UpdatedAt:           now,
 	}
 
-	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	admission, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
 	if err != nil {
 		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want nil", err)
 	}
-	if got, want := inserted, 0; got != want {
+	if got, want := admission.InsertedWorkItems, 0; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
 	for _, exec := range db.execs {
