@@ -77,19 +77,99 @@ func (r *Registry) Validate(repoRoot string) []error {
 // zero files today and still be a valid future-proofing trigger.
 func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 	var errs []error
+	// Resolved once: repoRoot is constant for the whole run, and resolving it
+	// per trigger repeated the same filesystem walk for every literal trigger
+	// in the registry. A repoRoot that will not resolve is a property of the
+	// caller's tree rather than of any one trigger, so it is not reported
+	// per-trigger; falling back to the unresolved root still compares two
+	// paths and only loses the ability to see through a symlinked root, which
+	// makes the containment check stricter, never weaker.
+	resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		resolvedRoot = repoRoot
+	}
 	for _, trigger := range g.Triggers {
 		if !isLiteralTrigger(trigger) {
 			continue
 		}
 		full := filepath.Join(repoRoot, filepath.FromSlash(trigger))
-		if _, err := os.Stat(full); os.IsNotExist(err) {
+		// path/filepath.Join concatenates every non-empty element with a
+		// separator and then Cleans the result. Two consequences, and reviewers
+		// have twice guessed the second one backwards, so both are spelled out:
+		//
+		//	Join("/repo", "../etc/passwd") == "/etc/passwd"    // Clean resolves ".." -- ESCAPES
+		//	Join("/repo", "/etc/passwd")   == "/repo/etc/passwd" // absolute is NOT a reset -- stays inside
+		//
+		// Discarding everything before a later absolute element is Python's
+		// os.path.join and Node's path.join, not Go's -- an easy cross-language
+		// mix-up. So only the traversal case can leave repoRoot; an absolute
+		// trigger just fails the existence check like any other bad path.
+		//
+		// Stat-ing an escaped path would let a malformed trigger "exist"
+		// against an unrelated host file and pass the very staleness check this
+		// function adds. Treat an escaping trigger as a failure of its own,
+		// naming it, rather than silently stat-ing outside the tree.
+		if !isWithinRoot(repoRoot, full) {
 			errs = append(errs, fmt.Errorf(
-				"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
-				g.ID, trigger, full,
+				"gate %q: trigger %q resolves to %q, outside the repository root %q — a trigger must name a path inside the repo",
+				g.ID, trigger, full, repoRoot,
+			))
+			continue
+		}
+		// Every stat outcome is accounted for. Treating only IsNotExist as a
+		// finding and letting every other error fall through would pass a
+		// trigger this function never actually validated — a permission denial
+		// or a symlink loop's ELOOP would read as "present". That is the same
+		// fail-open shape the existence check itself was added to remove.
+		if _, err := os.Stat(full); err != nil {
+			if os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf(
+					"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
+					g.ID, trigger, full,
+				))
+				continue
+			}
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q names %q, which could not be checked: %w — an unverifiable trigger must not read as present",
+				g.ID, trigger, full, err,
+			))
+			continue
+		}
+		// isWithinRoot above is lexical, and os.Stat follows symlinks, so a
+		// committed symlink pointing out of the tree (dir -> /etc) would let a
+		// lexically-contained trigger like "dir/passwd" satisfy the existence
+		// check against a host file — the staleness check silently failing
+		// open, which is the defect class this gate exists to remove. Resolving
+		// happens only after the path is known to exist, because
+		// EvalSymlinks errors on a missing path and would otherwise mask the
+		// clearer stale-trigger message above.
+		resolved, err := filepath.EvalSymlinks(full)
+		if err != nil {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q names %q, whose symlinks could not be resolved: %w — containment cannot be confirmed, so the trigger must not pass silently",
+				g.ID, trigger, full, err,
+			))
+			continue
+		}
+		if !isWithinRoot(resolvedRoot, resolved) {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q resolves through a symlink to %q, outside the repository root %q — a trigger must name a path inside the repo",
+				g.ID, trigger, resolved, resolvedRoot,
 			))
 		}
 	}
 	return errs
+}
+
+// isWithinRoot reports whether cleaned path full sits inside root. It is used to
+// reject registry triggers that escape the repository via "..", which would
+// otherwise be stat-checked against unrelated host files.
+func isWithinRoot(root, full string) bool {
+	rel, err := filepath.Rel(root, full)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // checkScript verifies that the leading script path in a local command exists

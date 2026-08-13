@@ -6,6 +6,7 @@ package cigates_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -330,5 +331,146 @@ func TestValidate_AccumulatesErrors(t *testing.T) {
 	errs := reg.Validate(root)
 	if len(errs) < 2 {
 		t.Errorf("expected at least 2 errors (one per gate), got %d: %v", len(errs), errs)
+	}
+}
+
+// TestValidate_LiteralTriggerEscapingRootFails pins the containment guard added
+// for a review finding: filepath.Join cleans its result, so a trigger carrying
+// ".." resolves outside the repository (Join("/repo", "../etc/passwd") is
+// "/etc/passwd"). Stat-ing that would let a malformed trigger "exist" against an
+// unrelated host file and pass the staleness check checkTriggerPathsExist adds.
+func TestValidate_LiteralTriggerEscapingRootFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"../etc/passwd"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	if len(errs) == 0 {
+		t.Fatal("Validate() returned no errors; a trigger resolving outside the repository root must fail, or a malformed trigger can satisfy the existence check against an unrelated host file")
+	}
+	var found bool
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "outside the repository root") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one naming the escaping trigger", errs)
+	}
+}
+
+// TestValidate_LiteralTriggerEscapingRootViaSymlinkFails pins the symlink half
+// of the containment guard. isWithinRoot compares paths lexically, but os.Stat
+// follows symlinks, so a committed symlink pointing out of the tree lets a
+// lexically-contained trigger satisfy the existence check against a host file —
+// the staleness check failing open, which is the defect class this gate removes.
+// A ".."-free trigger reaches the stat, so the lexical check alone cannot catch
+// this.
+func TestValidate_LiteralTriggerEscapingRootViaSymlinkFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+
+	// outside/ stands in for any directory the repo does not own. The symlink
+	// is inside the repo and its trigger path carries no "..", so only symlink
+	// resolution can tell that "escape/secret.txt" leaves the tree.
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Skipf("Symlink() error = %v; platform does not support symlinks", err)
+	}
+
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"escape/secret.txt"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	var found bool
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "through a symlink") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one reporting the trigger resolving out of the tree through a symlink; without it the trigger stats an unrelated host file and the staleness check passes", errs)
+	}
+}
+
+// TestValidate_LiteralTriggerUncheckableFails pins the remaining fail-open
+// paths. A trigger whose existence cannot be determined at all — here a
+// self-referential symlink, which makes both os.Stat and EvalSymlinks return
+// ELOOP rather than IsNotExist — must be reported. Treating only IsNotExist as
+// a finding and letting other errors fall through would let a trigger this
+// function never validated read as present, which is the fail-open shape the
+// existence check exists to remove.
+func TestValidate_LiteralTriggerUncheckableFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+
+	// loop -> loop. Neither stat nor symlink resolution can terminate, so this
+	// is neither "exists" nor "does not exist".
+	if err := os.Symlink("loop", filepath.Join(root, "loop")); err != nil {
+		t.Skipf("Symlink() error = %v; platform does not support symlinks", err)
+	}
+
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"loop"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	var found bool
+	for _, err := range errs {
+		msg := err.Error()
+		if strings.Contains(msg, "could not be checked") || strings.Contains(msg, "could not be resolved") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one reporting a trigger whose existence could not be determined; without it an unverifiable trigger silently reads as present", errs)
 	}
 }

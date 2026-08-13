@@ -146,6 +146,28 @@ else
 	record_fail "standalone CLI entry point zero-match (code=${code}, expected non-zero)"
 fi
 
+# ── 7. A package with NO test files must not count as a match ──
+# `go test -list` prints "?   <pkg>  [no test files]" for such a package. That
+# line is neither blank nor `ok`-prefixed, so an earlier version of the guard
+# counted it as one match and a min_matches=1 caller passed after its only test
+# file moved away — the exact false green this helper exists to prevent.
+
+notest_root="${tmp_root}/notestpkg"
+mkdir -p "${notest_root}/nt"
+printf 'module example.com/nt\n\ngo 1.21\n' > "${notest_root}/go.mod"
+printf 'package nt\n\n// Thing does nothing.\nfunc Thing() {}\n' > "${notest_root}/nt/nt.go"
+
+set +e
+( cd "${notest_root}" && . "${repo_root}/scripts/lib/go-test-run-guard.sh" && \
+	go_test_run_guard 1 '.*' -- ./nt -count=1 ) >"${tmp_root}/last-stdout" 2>&1
+code=$?
+set -e
+if [ "${code}" -ne 0 ]; then
+	record_pass "a package with no test files does not satisfy min_matches"
+else
+	record_fail "no-test-files package counted as a match (code=${code}, expected non-zero)"
+fi
+
 printf '\ntest-go-test-run-guard: %d/%d passed\n' "${PASS}" "${TOTAL}"
 if [ "${FAIL}" -gt 0 ]; then
 	exit 1

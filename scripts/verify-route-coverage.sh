@@ -109,6 +109,12 @@ print_failure() {
   failures=$((failures + 1))
 }
 
+# Both branches below exclude testdata/. The git-diff branch is the one CI
+# actually takes, so an exclusion applied only to the fallback would leave the
+# real path unguarded while a fallback-driven test still passed (#6055 review
+# finding). git diff has always listed nested paths, so a non-test .go fixture
+# under testdata/ would be scanned as a route and reported UNCOVERED — loud
+# rather than false-green, but wrong either way.
 get_changed_files() {
   if [ -n "$base" ] && git -C "$repo_root" rev-parse --verify "$base" >/dev/null 2>&1; then
     (git -C "$repo_root" diff --name-only --diff-filter=AM -z "$base" HEAD -- \
@@ -117,13 +123,18 @@ get_changed_files() {
        "$query_dir" "$api_dir" 2>/dev/null
      git -C "$repo_root" diff --name-only --diff-filter=AM -z --cached -- \
        "$query_dir" "$api_dir" 2>/dev/null) \
-    | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep '\.go$' | \
+    | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep -v '/testdata/' | grep '\.go$' | \
     while IFS= read -r f; do [ -n "$f" ] && echo "${repo_root}/${f}"; done
   else
     # Recursive (not -maxdepth 1, #6055): a handler that moved into a
     # subdirectory of query_dir/api_dir must still be found when no base ref
     # is available and every route is being checked.
-    rg --files --glob '*.go' --glob '!*_test.go' "$query_dir" "$api_dir" 2>/dev/null
+    # !testdata/** for the same reason parseReducerDir and globFilesRecursive
+    # exclude it in this PR: filepath/`find -maxdepth 1` never crossed into a
+    # subdirectory, so making this recursive newly exposes fixture handlers that
+    # must not be treated as real routes.
+    rg --files --glob '*.go' --glob '!*_test.go' --glob '!**/testdata/**' \
+      "$query_dir" "$api_dir" 2>/dev/null
   fi
 }
 
@@ -131,6 +142,15 @@ while IFS= read -r gofile; do
   [ -z "$gofile" ] && continue
   file_rel="${gofile#$repo_root/}"
   file_stem="$(basename "$gofile" .go)"
+  # handler_dir scopes the test-existence search to the handler's own
+  # directory tree (not the whole of query_dir/api_dir, #6055 review finding):
+  # searching the full trees let a test in an unrelated SIBLING package
+  # satisfy coverage for a handler it cannot possibly exercise, as long as the
+  # test function's name happened to fuzzily match the derived search word
+  # (e.g. a coincidental TestRepoNew in query/b covering an untested handler
+  # in query/a). The lookup itself is depth-limited to handler_dir; the
+  # reasoning for that is at the rg call below, next to the flag.
+  handler_dir="$(dirname "$gofile")"
   while IFS= read -r line; do
     handle=$(echo "$line" | sed -n 's/.*HandleFunc("\([^"]*\)".*[. ]\([a-zA-Z][a-zA-Z0-9]*\)).*/\1|\2/p')
     if [ -z "$handle" ]; then
@@ -152,12 +172,18 @@ while IFS= read -r gofile; do
       # "SAMLHandler", matching the "SAML" acronym in the handler struct
       # name). An exact-case search would false-positive as "uncovered" on
       # any acronym-bearing handler/route even when a matching test exists.
-      # Recursive (not --max-depth 1, #6055): a handler and its test commonly
-      # move together into the same subdirectory, and a depth-limited search
-      # would otherwise report a real, moved test as missing.
+      # EXACTLY the handler's own directory, not a recursive walk below it.
+      # A Go package is one directory, so a test that can actually exercise
+      # this handler is in the same directory -- either the same package or
+      # its external <pkg>_test. Recursing admitted a DIFFERENT package: a
+      # handler at query/repo.go was satisfied by query/child/x_test.go
+      # containing a fuzzily matching TestRepoNew (#6055 review finding).
+      # The "handler and test moved together" case this originally recursed
+      # for is already covered, because when both move, handler_dir IS the
+      # new directory.
       if rg -qi "func Test\w*${word}\w*\(" \
-           --glob '*_test.go' \
-           "$query_dir" "$api_dir" 2>/dev/null; then
+           --glob '*_test.go' --glob '!**/testdata/**' --max-depth 1 \
+           "$handler_dir" 2>/dev/null; then
         found=1
         break
       fi
