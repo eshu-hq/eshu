@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -338,6 +339,69 @@ func TestBaselineMembershipRejectsAtomicDebtAddition(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "ESHU_ATOMIC_NEW_DEBT") {
 		t.Fatalf("validateBaselineMembership() error = %q, want new debt named", err)
+	}
+}
+
+func TestFrozenCeilingRejectsGrowthPastCodeOwnedCount(t *testing.T) {
+	t.Parallel()
+
+	ceiling := make(map[string]struct{}, frozenCeilingReferenceCount+1)
+	for index := 0; index <= frozenCeilingReferenceCount; index++ {
+		ceiling[fmt.Sprintf("reference-%d", index)] = struct{}{}
+	}
+	err := validateFrozenCeiling(ceiling)
+	if err == nil {
+		t.Fatal("validateFrozenCeiling() error = nil, want growth rejection")
+	}
+	if !strings.Contains(err.Error(), "code-owned reference count") {
+		t.Fatalf("validateFrozenCeiling() error = %q, want authority named", err)
+	}
+}
+
+func TestFrozenCeilingRejectsSameCountMembershipReplacement(t *testing.T) {
+	t.Parallel()
+
+	ceiling := make(map[string]struct{}, frozenCeilingReferenceCount)
+	for index := 0; index < frozenCeilingReferenceCount; index++ {
+		ceiling[fmt.Sprintf("replacement-%d", index)] = struct{}{}
+	}
+	err := validateFrozenCeiling(ceiling)
+	if err == nil {
+		t.Fatal("validateFrozenCeiling() error = nil, want membership rejection")
+	}
+	if !strings.Contains(err.Error(), "code-owned digest") {
+		t.Fatalf("validateFrozenCeiling() error = %q, want digest authority named", err)
+	}
+}
+
+func TestFrozenCeilingRejectsRemovedMembership(t *testing.T) {
+	t.Parallel()
+
+	ceiling := make(map[string]struct{}, frozenCeilingReferenceCount-1)
+	for index := 0; index < frozenCeilingReferenceCount-1; index++ {
+		ceiling[fmt.Sprintf("remaining-%d", index)] = struct{}{}
+	}
+	err := validateFrozenCeiling(ceiling)
+	if err == nil {
+		t.Fatal("validateFrozenCeiling() error = nil, want immutable membership rejection")
+	}
+	if !strings.Contains(err.Error(), "code-owned") {
+		t.Fatalf("validateFrozenCeiling() error = %q, want code-owned authority named", err)
+	}
+}
+
+func TestCeilingMembershipDigestPreservesFieldBoundaries(t *testing.T) {
+	t.Parallel()
+
+	left := "env\x00a:b\x00\x00c"
+	right := "env\x00a\x00b:\x00c"
+	if strings.ReplaceAll(left, "\x00", ":") != strings.ReplaceAll(right, "\x00", ":") {
+		t.Fatal("fixture does not reproduce the old lossy colon encoding")
+	}
+	leftDigest := ceilingMembershipDigest(map[string]struct{}{left: {}})
+	rightDigest := ceilingMembershipDigest(map[string]struct{}{right: {}})
+	if leftDigest == rightDigest {
+		t.Fatalf("boundary-aware digests collide: %s", leftDigest)
 	}
 }
 

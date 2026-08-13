@@ -1,6 +1,7 @@
 # scripts/docs-cli-env-refs-ceiling.txt
 #
 # Frozen #6023 initial-debt membership ceiling.
+# Code-owned authority: exactly 772 references plus a canonical membership digest.
 # The mutable baseline may remove these entries but may never add entries
 # outside this set. Do not regenerate this file from current docs.
 # Format: <env|flag> <docs/public-relative-page> <sorted-comma-separated-references>.

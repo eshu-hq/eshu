@@ -50,7 +50,11 @@ complete command-local coverage.
 Known legacy misses live in `scripts/docs-cli-env-refs-baseline.txt`. The frozen
 `scripts/docs-cli-env-refs-ceiling.txt` records the initial #6023 debt set, so
 adding the same unresolved reference to both a page and the mutable baseline
-still fails. Update mode can remove resolved entries but cannot add debt, and
+still fails. An exact code-owned count and canonical membership digest pin the
+immutable ceiling at the original 772 references. Adding, removing, or replacing
+ceiling membership fails even if the documentation and mutable baseline change
+in the same patch. Only the mutable baseline burns down: update mode can remove
+resolved entries but cannot add debt, and
 malformed baseline or ceiling files fail closed. A root-command flag is stored
 as `<root>::--flag` so baseline updates can be read back without losing its
 command scope.

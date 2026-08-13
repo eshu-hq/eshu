@@ -8,6 +8,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,8 +24,10 @@ import (
 )
 
 const (
-	defaultCLITimeout        = 2 * time.Minute
-	rootCommandBaselineToken = "<root>"
+	defaultCLITimeout             = 2 * time.Minute
+	frozenCeilingReferenceCount   = 772
+	frozenCeilingMembershipSHA256 = "9656cdce1e9588b02a520f847a1ee2eafc7220de7ebba0aa7a266da87d2d82ec"
+	rootCommandBaselineToken      = "<root>"
 )
 
 type options struct {
@@ -79,6 +83,9 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("read baseline ceiling: %w", err)
 	}
+	if err := validateFrozenCeiling(ceiling); err != nil {
+		return err
+	}
 	if err := validateBaselineMembership(baseline, ceiling); err != nil {
 		return err
 	}
@@ -101,6 +108,36 @@ func run(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: OK: %d reference(s) checked, %d unresolved reference(s) baselined\n", len(refs), len(unresolved))
 	return nil
+}
+
+func validateFrozenCeiling(ceiling map[string]struct{}) error {
+	if len(ceiling) != frozenCeilingReferenceCount {
+		return fmt.Errorf(
+			"frozen initial-debt ceiling differs from its code-owned reference count: got %d references, want %d",
+			len(ceiling), frozenCeilingReferenceCount,
+		)
+	}
+	digest := ceilingMembershipDigest(ceiling)
+	if digest != frozenCeilingMembershipSHA256 {
+		return fmt.Errorf("frozen initial-debt ceiling membership differs from its code-owned digest")
+	}
+	return nil
+}
+
+func ceilingMembershipDigest(ceiling map[string]struct{}) string {
+	keys := make([]string, 0, len(ceiling))
+	for key := range ceiling {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	hasher := sha256.New()
+	var size [8]byte
+	for _, key := range keys {
+		binary.BigEndian.PutUint64(size[:], uint64(len(key)))
+		_, _ = hasher.Write(size[:])
+		_, _ = hasher.Write([]byte(key))
+	}
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
 func validateBaselineMembership(baseline map[string]struct{}, ceiling map[string]struct{}) error {

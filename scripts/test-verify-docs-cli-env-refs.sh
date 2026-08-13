@@ -40,7 +40,7 @@ run_verifier() {
   local baseline="$2"
   local out="$3"
   shift 3
-  local ceiling="${ESHU_TEST_BASELINE_CEILING_PATH:-${baseline}}"
+  local ceiling="${ESHU_TEST_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cli-env-refs-ceiling.txt}"
   ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
     ESHU_DOCS_CLI_ENV_BASELINE_PATH="${baseline}" \
     ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH="${ceiling}" \
@@ -223,17 +223,12 @@ test_baseline_and_update_are_burn_down_safe() {
   local root="${tmp_root}/baseline/docs/public"
   local baseline="${tmp_root}/baseline/baseline.txt"
   local out="${tmp_root}/baseline.out"
-  write_doc "${root}" "guide.md" \
-    'Use `ESHU_NOT_REGISTERED`.' \
-    '```console' \
-    '$ eshu docs verify --not-a-real-flag' \
-    '$ eshu --root-leading-invalid docs verify' \
-    '```'
+  write_doc "${root}" "contributing-language-support.md" \
+    'Use `ESHU_PARSE_WORKERS`.'
   mkdir -p "$(dirname "${baseline}")"
   printf '%s\n' \
     '# baseline' \
-    'env guide.md ESHU_NOT_REGISTERED' \
-    'flag guide.md <root>::--root-leading-invalid,docs/verify::--not-a-real-flag' >"${baseline}"
+    'env contributing-language-support.md ESHU_PARSE_WORKERS' >"${baseline}"
   if run_verifier "${root}" "${baseline}" "${out}"; then
     record_pass "baselined unknown references pass"
   else
@@ -263,6 +258,21 @@ test_baseline_and_update_are_burn_down_safe() {
     record_fail "rejected baseline growth leaves the baseline unchanged"
   fi
   assert_contains "ESHU_NEW_BASELINE_DEBT" "${out}" "baseline growth diagnostic names new debt"
+
+  write_doc "${root}" "contributing-language-support.md" 'No unresolved references.'
+  write_doc "${root}" "new-debt.md" 'No unresolved references.'
+  cp "${repo_root}/scripts/docs-cli-env-refs-ceiling.txt" "${baseline}.ceiling-before"
+  run_verifier "${root}" "${baseline}" "${out}" -update
+  if rg --quiet '^(env|flag) ' "${baseline}"; then
+    record_fail "mutable baseline burns down after references resolve"
+  else
+    record_pass "mutable baseline burns down after references resolve"
+  fi
+  if cmp -s "${baseline}.ceiling-before" "${repo_root}/scripts/docs-cli-env-refs-ceiling.txt"; then
+    record_pass "baseline burn-down leaves frozen ceiling unchanged"
+  else
+    record_fail "baseline burn-down leaves frozen ceiling unchanged"
+  fi
 }
 
 test_malformed_baseline_fails_closed() {
@@ -283,18 +293,77 @@ test_malformed_baseline_fails_closed() {
 test_atomic_baseline_growth_fails() {
   local root="${tmp_root}/atomic-growth/docs/public"
   local baseline="${tmp_root}/atomic-growth/baseline.txt"
-  local ceiling="${tmp_root}/atomic-growth/ceiling.txt"
   local out="${tmp_root}/atomic-growth.out"
   write_doc "${root}" "guide.md" 'Use `ESHU_ATOMIC_NEW_DEBT`.'
   mkdir -p "$(dirname "${baseline}")"
   printf 'env guide.md ESHU_ATOMIC_NEW_DEBT\n' >"${baseline}"
-  : >"${ceiling}"
-  if ESHU_TEST_BASELINE_CEILING_PATH="${ceiling}" run_verifier "${root}" "${baseline}" "${out}"; then
+  if run_verifier "${root}" "${baseline}" "${out}"; then
     record_fail "atomic docs and baseline debt addition fails"
   else
     record_pass "atomic docs and baseline debt addition fails"
   fi
   assert_contains "ESHU_ATOMIC_NEW_DEBT" "${out}" "atomic baseline growth diagnostic names new debt"
+}
+
+test_frozen_ceiling_growth_fails() {
+  local root="${tmp_root}/ceiling-growth/docs/public"
+  local baseline="${tmp_root}/ceiling-growth/baseline.txt"
+  local ceiling="${tmp_root}/ceiling-growth/ceiling.txt"
+  local out="${tmp_root}/ceiling-growth.out"
+  write_doc "${root}" "guide.md" 'Use `ESHU_CEILING_GROWTH_DEBT`.'
+  mkdir -p "$(dirname "${baseline}")"
+  printf 'env guide.md ESHU_CEILING_GROWTH_DEBT\n' >"${baseline}"
+  cp "${repo_root}/scripts/docs-cli-env-refs-ceiling.txt" "${ceiling}"
+  printf 'env guide.md ESHU_CEILING_GROWTH_DEBT\n' >>"${ceiling}"
+  if ESHU_TEST_BASELINE_CEILING_PATH="${ceiling}" run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "frozen ceiling growth fails"
+  else
+    record_pass "frozen ceiling growth fails"
+  fi
+  assert_contains "code-owned reference count" "${out}" "ceiling growth diagnostic names frozen authority"
+}
+
+test_frozen_ceiling_shrink_plus_injection_fails() {
+  local root="${tmp_root}/ceiling-replacement/docs/public"
+  local baseline="${tmp_root}/ceiling-replacement/baseline.txt"
+  local ceiling="${tmp_root}/ceiling-replacement/ceiling.txt"
+  local out="${tmp_root}/ceiling-replacement.out"
+  write_doc "${root}" "guide.md" 'Use `ESHU_CEILING_REPLACEMENT_DEBT`.'
+  mkdir -p "$(dirname "${baseline}")"
+  printf 'env guide.md ESHU_CEILING_REPLACEMENT_DEBT\n' >"${baseline}"
+  awk '
+    $0 == "env contributing-language-support.md ESHU_PARSE_WORKERS" { next }
+    $0 == "env deploy/eks/index.md ESHU_MCP_URL" { next }
+    { print }
+  ' "${repo_root}/scripts/docs-cli-env-refs-ceiling.txt" >"${ceiling}"
+  printf 'env guide.md ESHU_CEILING_REPLACEMENT_DEBT\n' >>"${ceiling}"
+  if ESHU_TEST_BASELINE_CEILING_PATH="${ceiling}" run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "shrunk frozen ceiling with injected debt fails"
+  else
+    record_pass "shrunk frozen ceiling with injected debt fails"
+  fi
+  assert_contains "code-owned" "${out}" "shrink-plus-injection diagnostic names code-owned authority"
+}
+
+test_frozen_ceiling_same_count_replacement_fails() {
+  local root="${tmp_root}/ceiling-same-count/docs/public"
+  local baseline="${tmp_root}/ceiling-same-count/baseline.txt"
+  local ceiling="${tmp_root}/ceiling-same-count/ceiling.txt"
+  local out="${tmp_root}/ceiling-same-count.out"
+  write_doc "${root}" "guide.md" 'Use `ESHU_CEILING_SAME_COUNT_DEBT`.'
+  mkdir -p "$(dirname "${baseline}")"
+  printf 'env guide.md ESHU_CEILING_SAME_COUNT_DEBT\n' >"${baseline}"
+  awk '
+    $0 == "env contributing-language-support.md ESHU_PARSE_WORKERS" { next }
+    { print }
+  ' "${repo_root}/scripts/docs-cli-env-refs-ceiling.txt" >"${ceiling}"
+  printf 'env guide.md ESHU_CEILING_SAME_COUNT_DEBT\n' >>"${ceiling}"
+  if ESHU_TEST_BASELINE_CEILING_PATH="${ceiling}" run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "same-count frozen ceiling replacement fails"
+  else
+    record_pass "same-count frozen ceiling replacement fails"
+  fi
+  assert_contains "code-owned digest" "${out}" "same-count replacement diagnostic names digest authority"
 }
 
 test_real_tree_matches_committed_baseline() {
@@ -326,6 +395,9 @@ test_precision_exclusions_pass
 test_baseline_and_update_are_burn_down_safe
 test_malformed_baseline_fails_closed
 test_atomic_baseline_growth_fails
+test_frozen_ceiling_growth_fails
+test_frozen_ceiling_same_count_replacement_fails
+test_frozen_ceiling_shrink_plus_injection_fails
 test_real_tree_matches_committed_baseline
 
 if [[ "${FAIL}" -ne 0 ]]; then
