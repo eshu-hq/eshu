@@ -80,6 +80,9 @@ WHERE fact.fact_kind IN (
   -- graph_id/graph_kind/is_dependency/language). That premise is pinned by
   -- TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey, which fails
   -- loudly if a contract change ever adds one of those keys to a file fact.
+  -- TestSupplyChainImpactFileKindGateLive then runs the whole page statement
+  -- against real Postgres with $10 empty, NULL, and populated, and fails if
+  -- the gate changes the rows or stops saving the detoast traffic.
   AND (fact.fact_kind <> 'file' OR COALESCE(cardinality($10::text[]), 0) > 0)
   AND generation.status = 'active'
   AND (

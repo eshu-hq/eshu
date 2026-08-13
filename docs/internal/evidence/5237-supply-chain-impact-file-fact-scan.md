@@ -136,6 +136,60 @@ hypothetical third-party writer. Such a fact would in any case be ignored
 downstream — `addSupplyChainImpactIndexEntry` has no `case factKindFile`, and
 the three reachability builders key on `repo_id`.
 
+## Committed reproduction
+
+`TestSupplyChainImpactFileKindGateLive`
+(`go/internal/storage/postgres/facts_active_supply_chain_impact_file_kind_gate_live_test.go`)
+is a checked-in, shrunk-down version of the harness the headline table came
+from: the same statement and the same differential, 800 `file` facts instead of
+448,000, and buffer counts rather than wall-clock medians, so it stays honest on
+a shared machine. It builds an isolated schema from the real migrations, seeds
+those 800 `file` facts with out-of-line payloads across two repository scopes
+plus the OSV evidence a Maven intent asks for, and runs
+`listActiveSupplyChainImpactFactPagesQuery` — the statement the reducer actually
+executes, with all 21 placeholders bound the way
+`loadActiveSupplyChainImpactFactPagePair` binds them — against the same
+statement with the gate line cut out of the constant at runtime.
+
+It asserts the two claims this change is accepted on: the result sets are
+identical with `$10` empty, `$10` NULL, and `$10` populated (and the populated
+case still returns the JS/TS file rows), and with `$10` empty the shipped
+statement uses less than a tenth of the ungated statement's buffers.
+
+```bash
+docker run -d --rm --name eshu-5237-pg \
+  -e POSTGRES_USER=eshu -e POSTGRES_PASSWORD=change-me -e POSTGRES_DB=eshu \
+  -p 15237:5432 postgres:17-alpine
+
+cd go && ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@localhost:15237/eshu?sslmode=disable' \
+  go test ./internal/storage/postgres -run TestSupplyChainImpactFileKindGateLive -count=1 -v
+```
+
+Observed on Postgres 17 (2026-08-13):
+
+```
+--- PASS: TestSupplyChainImpactFileKindGateLive (5.20s)
+    --- PASS: .../maven_intent_binds_an_empty_$10 (0.16s)
+    --- PASS: .../driver_binds_$10_as_NULL (0.16s)
+    --- PASS: .../npm_intent_binds_a_populated_$10 (0.29s)
+    800 file facts across 2 repository scopes, Maven intent (empty $10):
+    shipped buffers=152, ungated buffers=98552 (648x)
+```
+
+The test earns its keep against three mutations of the shipped conjunct, each
+run on this corpus:
+
+| Mutation of the gate | Result |
+| --- | --- |
+| removed entirely | FAIL — conjunct appears 0 times, want 1 |
+| `AND (fact.fact_kind <> 'file')` (no `$10` escape) | FAIL — npm case: shipped returns 2 rows, ungated 802 |
+| `... COALESCE(cardinality($10::text[]), 0) >= 0` (always true) | FAIL — shipped buffers=98552, ungated=98552 (1x) |
+
+Without the buffer assertion the third mutation passes: an always-true gate is
+exact, and only the mechanism check notices it does nothing. Without the
+result-set differential the second mutation passes the buffer check with room to
+spare while silently dropping every file row an npm intent needs.
+
 ## Measurements
 
 Postgres 16 in a throwaway container, isolated schema, real table shapes plus
@@ -155,7 +209,9 @@ Performance Evidence:
 The headline before/after was taken by ONE test binary against ONE seeded
 corpus, so the only difference between the rows is the conjunct itself: the
 `before` row runs the shipped query with the gate string removed again by
-substitution.
+substitution. That harness was throwaway and produced the seconds below; the
+committed test above reproduces its mechanism and its exactness at 1/560th the
+row count.
 
 | Maven intent | EXPLAIN exec | Wall median (n=5) | Spread | Rows | Buffers |
 | --- | ---: | ---: | --- | ---: | ---: |
