@@ -12,9 +12,12 @@
 // snippets always reference a credential by env-var name, and every
 // credential-bearing type documents which posture it applies to.
 //
-// The package is process-neutral: it reads no cobra flags, no process
-// environment (other than the RFC 9728 discovery probe's own short-timeout
-// HTTP client), and prints nothing. go/cmd/eshu's mcp_setup_cmd.go is the
+// The package is process-neutral in the sense that matters here: it reads no
+// cobra flags, resolves no Eshu config or credential from the process
+// environment, and prints nothing. It does touch the environment twice, both
+// incidental to that boundary -- os.UserHomeDir in DescribeWriteTarget, to
+// shorten a path for display, and the RFC 9728 discovery probe's own
+// short-timeout HTTP client. go/cmd/eshu's mcp_setup_cmd.go is the
 // thin cobra wrapper that resolves process state -- flags, the shared
 // *APIClient, and output streams -- and passes it in as parameters or as the
 // HealthProber/QueryProber interfaces this package exports. This split is

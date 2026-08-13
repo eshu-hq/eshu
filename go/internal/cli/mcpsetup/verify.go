@@ -73,14 +73,16 @@ type QueryProber interface {
 	Smoke() error
 }
 
-// toolLister returns the visible MCP tool names. The local binary embeds the
-// read-only tool surface, so verification reuses it directly.
+// toolLister returns the visible MCP tool definitions. The local binary embeds
+// the read-only tool surface, so verification reuses it directly. Only the
+// count is used, to prove the surface is non-empty.
 type toolLister func() []mcp.ToolDefinition
 
-// RunVerification executes the staged checks. snippet is the generated config
-// (empty means generation failed). health and query may be nil when there is no
-// endpoint to probe (those stages are then skipped, not failed). tools must be
-// non-nil; it returns the visible tool surface. querySkipReason overrides the
+// RunVerification executes the staged checks and returns the report. snippet is
+// the generated config (empty means generation failed). health and query may be
+// nil when there is no endpoint to probe (those stages are then skipped, not
+// failed). tools supplies the visible tool surface; a nil tools fails the
+// tools-visible stage rather than panicking. querySkipReason overrides the
 // skipped first-query stage's detail: the caller passes a posture-specific
 // reason (for example "OAuth is interactive" for SSO, or "set ESHU_MCP_TOKEN"
 // for token posture without a personal token) so a hosted skip does not

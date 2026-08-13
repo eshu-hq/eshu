@@ -11,14 +11,19 @@
 
 ## Invariants this package enforces
 
-- **No process wiring in this package.** No cobra flags, no `os.Getenv`
-  reads of process env beyond the discovery probe's own dedicated HTTP
-  client, no `fmt.Print*`. `go/cmd/eshu` is `package main`, so nothing can
-  import it — any symbol that reads a flag, resolves `*APIClient` via
-  `resolveConfigValue`, or maps to an exit code has to live in
-  `mcp_setup_cmd.go` instead. If you find yourself wanting to call
-  `cmd.Flags()` or `os.Getenv` for anything other than the RFC 9728 probe
-  client timeout, that logic belongs in the wrapper, not here.
+- **No process wiring in this package.** No cobra flags, no env reads that
+  resolve Eshu config or a credential, no `fmt.Print*`. `go/cmd/eshu` is
+  `package main`, so nothing can import it — any symbol that reads a flag,
+  resolves `*APIClient` via `resolveConfigValue`, or maps to an exit code has
+  to live in `mcp_setup_cmd.go` instead. If you find yourself wanting to call
+  `cmd.Flags()` or read a credential out of the environment, that logic
+  belongs in the wrapper, not here.
+
+  Two env touches already live here and are deliberate, so do not "fix" them:
+  `os.UserHomeDir` in `DescribeWriteTarget` (`write.go`), which only shortens
+  a path for display, and the RFC 9728 discovery probe's own dedicated HTTP
+  client. Neither resolves configuration or a credential, which is the line
+  this invariant actually draws.
 - **Never emit a raw secret.** `RedactToken` and `TokenReference` are the
   only sanctioned paths for putting a credential-adjacent string into
   rendered output, and neither ever returns the raw value. A new snippet

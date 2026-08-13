@@ -105,8 +105,9 @@ func WriteMCPServerConfig(p *Platform, req SetupRequest, targetPath string) erro
 }
 
 // DefaultWriteTarget resolves the default config file path for a writable
-// platform. It honors HOME via os.UserHomeDir for user-scoped targets and uses
-// the current working directory for project-scoped targets.
+// platform. Every current target is a project-scoped relative path, resolved
+// against the working directory by the caller; no target is user-scoped, so
+// this reads no environment.
 func DefaultWriteTarget(p *Platform) (string, error) {
 	switch p.Name {
 	case "claude":
