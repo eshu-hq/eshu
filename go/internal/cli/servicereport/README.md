@@ -34,9 +34,9 @@ package decodes a captured response into the dossier map and truth envelope
 those calls consume, adapts the optional supply-chain file through
 `serviceintel.FromSupplyChainInventory` -- the one `serviceintel` adapter
 its production code calls -- and renders the finished `serviceintel.Report`.
-No production code here calls `serviceintel.Compose`; `report_test.go` does,
-to build a real report to render rather than asserting against a hand-built
-stand-in.
+No production code here calls `serviceintel.Compose`; the package's tests do,
+to build a real report to render rather than asserting only against a
+hand-built stand-in.
 
 ## Exported surface
 
@@ -79,10 +79,13 @@ instrument.
 ## Gotchas / invariants
 
 - `ReadInput` treats all-whitespace stdin as an error (no usable `--from`
-  path was given and stdin carried nothing), rather than falling through to
-  a silent empty-dossier report. The emptiness check applies to stdin only:
-  an empty file at a real `--from` path is returned as empty bytes and fails
-  a step later, at decode.
+  path was given and stdin carried nothing). It is not there to stop a silent
+  empty-dossier report -- empty bytes never get that far, because
+  `ParseServiceStoryResponse` cannot decode them. It is there for the message:
+  the operator gets `no service-story response provided; pass --from or pipe
+  JSON on stdin` instead of `unexpected end of JSON input`. The check applies
+  to stdin only, so an empty file at a real `--from` path is returned as empty
+  bytes and fails a step later, at decode, with the unhelpful message.
 - A whitespace-only `--from` path reads stdin. `ReadInput` branches on
   `strings.TrimSpace(path) != ""`, so `--from "   "` never opens a file --
   it is the one case where a non-empty flag value behaves as if the flag
@@ -91,12 +94,24 @@ instrument.
   supply-chain file, so both captured inputs accept the same
   envelope-or-bare-object shape.
 - `RenderReport` is a terminal-formatting function only, and it is the sole
-  producer of the text output. The JSON output path (`--json`) does not call
-  it -- the wrapper marshals `serviceintel.Report` directly so the JSON
-  shape stays exactly what `serviceintel` produces. The text form is a lossy
-  projection: `schema`, the report-level `truth` envelope, and the
-  report-level aggregated `limitations` appear in the JSON and not in the
-  text.
+  producer of `service-report`'s text output. The JSON output path (`--json`)
+  does not call it -- the wrapper marshals `serviceintel.Report` directly so
+  the JSON shape stays exactly what `serviceintel` produces.
+- The text form prints a fixed subset of the report, not all of it: the
+  subject label (service name, plus service id in parentheses when both are
+  set), the report-level `supported` / `partial` / `truth_class`, each
+  section's `status`, `title`, and its answer's `summary`,
+  `unsupported_reasons` and `limitations`, each recommended next call's label
+  (the first of `tool`, `route`, `playbook` that is set) and `reason`, and
+  each suggested investigation's `basis`, `reason`, next-call label and
+  `expected_truth_class`. **Everything else the JSON carries is absent from
+  the text by design** -- `schema`, the report-level `truth` envelope and
+  aggregated `limitations`, `subject.repo_id` and `subject.repo_name`, each
+  section's `kind`, each next call's `arguments`, each investigation's `id`,
+  `section` and `evidence_basis`, and every other field of a section's answer
+  packet, `evidence_handles` included. `TestRenderReportJSONKeyContract` pins
+  that classification key by key, so a field added to `serviceintel.Report`
+  fails the test until somebody classifies it.
 - `RenderReport` returns nothing and discards its `io.Writer`'s write
   errors, so a broken stdout does not fail `service-report`.
 

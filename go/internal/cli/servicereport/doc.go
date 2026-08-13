@@ -7,9 +7,10 @@
 // internal/serviceintel composes from, and rendering the composed report
 // for a terminal. Composition itself stays in the caller -- on the CLI path
 // serviceintel.FromServiceStory and serviceintel.Compose are called by the
-// cobra wrapper, not by this package's production code. (report_test.go
-// calls both, to render a real composed report instead of a hand-built
-// stand-in.) The one serviceintel adapter this package's production code
+// cobra wrapper, not by this package's production code. (The package's own
+// tests call both, so RenderReport is exercised against a genuinely composed
+// report and not only a hand-built stand-in.) The one serviceintel adapter
+// this package's production code
 // calls is FromSupplyChainInventory, for the optional supply-chain file.
 //
 // The package reads no cobra flags, resolves no Eshu config or credential
@@ -23,14 +24,25 @@
 // process wiring. No production code here touches os.Stdin or os.Stdout by
 // name, writes a file, opens a network connection, or executes a
 // subprocess. The tests do write files, into t.TempDir, to build the
-// captured-response fixtures they feed back in.
+// captured-response fixtures they feed back in; that is fixture setup, not
+// package surface.
 //
 // ReadInput returns an error in three cases: the file read failed, the stdin
 // read failed, or stdin was read and turned out to be empty or all
-// whitespace. The path parameter is tested with strings.TrimSpace, so a
+// whitespace. That last check is there for the message, not to prevent an
+// empty report -- empty bytes fail at decode either way; see ReadInput's own
+// documentation. The path parameter is tested with strings.TrimSpace, so a
 // whitespace-only --from is treated as no path at all and stdin is read
 // instead -- the file is never opened. SupplyChainSection applies the same
 // TrimSpace test before deciding whether to read its file.
+//
+// RenderReport prints a fixed subset of the composed report -- the subject
+// label, the report-level supported/partial/truth_class, per-section
+// status/title/summary/unsupported_reasons/limitations, the next-call labels
+// and reasons, and the suggested investigations. Everything else the --json
+// output carries is absent from the text by design, so the two modes are not
+// meant to agree field for field. RenderReport's documentation lists the
+// subset, and TestRenderReportJSONKeyContract pins it key by key.
 //
 // go/cmd/eshu's service_report_cmd.go is the thin cobra wrapper that
 // resolves flags (--from, --supply-chain-from, --json), passes process stdin

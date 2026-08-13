@@ -21,11 +21,15 @@ import (
 // path -- a --from of "   " reads stdin and never opens a file.
 //
 // It returns an error in three cases: the file read failed, the stdin read
-// failed, or stdin was read and turned out to be empty or all whitespace --
-// a silent empty report would otherwise print as an unsupported dossier with
-// no explanation. That emptiness check covers stdin only. An empty file at a
-// real path comes back as empty bytes and fails later, when
-// ParseServiceStoryResponse cannot decode it.
+// failed, or stdin was read and turned out to be empty or all whitespace.
+//
+// The emptiness check is not what keeps an empty report from printing: empty
+// bytes never get as far as a report, because ParseServiceStoryResponse cannot
+// decode them. What the check buys is a message an operator can act on -- "no
+// service-story response provided; pass --from or pipe JSON on stdin" instead
+// of "unexpected end of JSON input". It covers stdin only, so an empty file at
+// a real path still comes back as empty bytes and still fails a step later at
+// decode, with the unhelpful message.
 func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
 		data, err := os.ReadFile(path) // #nosec G304 -- a caller-supplied path parameter; the CLI wrapper sources it from an operator flag (--from), not an HTTP request param
@@ -94,11 +98,28 @@ func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope
 // returns nothing and discards w's write errors, so a failed terminal write
 // does not fail the command.
 //
-// The text view is a lossy projection of the report: it omits Schema, the
-// report-level Truth envelope, and the report-level aggregated Limitations,
-// all of which the JSON output carries. The JSON output (serviceintel.Report
-// marshaled directly by the caller) is therefore the machine-readable source
-// of truth, and this function is the only producer of the text form.
+// The text form is a fixed subset of the report, not a rendering of all of it.
+// It prints the subject label (service name, plus service id in parentheses
+// when both are set); the report-level Supported, Partial, and TruthClass; for
+// each section its Status, Title, and its answer's Summary,
+// UnsupportedReasons, and Limitations; for each recommended next call its
+// label -- the first of Tool, Route, Playbook that is set -- and Reason; and
+// for each suggested investigation its Basis, Reason, next-call label, and
+// ExpectedTruthClass.
+//
+// Everything else the JSON carries is absent by design. That includes Schema,
+// the report-level Truth envelope, and the report-level aggregated Limitations
+// -- and also Subject.RepoID and Subject.RepoName, each section's Kind, each
+// next call's Arguments, each investigation's ID, Section, and EvidenceBasis,
+// and every other field of a section's AnswerPacket, EvidenceHandles included.
+// So a field visible under --json and missing from the text is a bug only when
+// it is in the printed subset above. TestRenderReportJSONKeyContract pins the
+// whole classification key by key, and fails on a report field nobody has
+// classified yet.
+//
+// The JSON output (serviceintel.Report marshaled directly by the caller) is
+// therefore the machine-readable source of truth, and this function is the
+// only producer of `eshu service-report`'s text form.
 func RenderReport(w io.Writer, report serviceintel.Report) {
 	_, _ = fmt.Fprintf(w, "Service intelligence report: %s\n", reportSubjectLabel(report.Subject))
 	_, _ = fmt.Fprintf(w, "  supported=%t partial=%t truth_class=%s\n\n", report.Supported, report.Partial, report.TruthClass)
