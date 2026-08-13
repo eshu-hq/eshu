@@ -4,13 +4,17 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/admin"
 )
+
+// The `eshu admin` command tree. This file owns only process wiring: the
+// cobra commands, their flags, reading those flags, building the *APIClient,
+// and printing the decoded response. What each subcommand actually asks the
+// API for -- endpoint, request body, and the replay safety checks -- lives in
+// go/internal/cli/admin, which go/cmd/eshu cannot host because this is
+// `package main` and cannot grow subdirectories (issue #6059, epic #6053).
 
 var adminCmd = &cobra.Command{
 	Use:   "admin",
@@ -138,13 +142,11 @@ func runAdminReindex(cmd *cobra.Command, args []string) error {
 	ingester, _ := cmd.Flags().GetString("ingester")
 	scope, _ := cmd.Flags().GetString("scope")
 	force, _ := cmd.Flags().GetBool("force")
-	client := apiClientFromCmd(cmd)
-	var result any
-	err := client.Post("/api/v0/admin/reindex", map[string]any{
-		"ingester": ingester,
-		"scope":    scope,
-		"force":    force,
-	}, &result)
+	result, err := admin.Reindex(apiClientFromCmd(cmd), admin.ReindexInput{
+		Ingester: ingester,
+		Scope:    scope,
+		Force:    force,
+	})
 	if err != nil {
 		return err
 	}
@@ -153,9 +155,8 @@ func runAdminReindex(cmd *cobra.Command, args []string) error {
 }
 
 func runAdminTuningReport(cmd *cobra.Command, args []string) error {
-	client := apiClientFromCmd(cmd)
-	var result any
-	if err := client.Get("/api/v0/admin/shared-projection/tuning-report", &result); err != nil {
+	result, err := admin.TuningReport(apiClientFromCmd(cmd))
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -167,19 +168,13 @@ func runAdminFactsList(cmd *cobra.Command, args []string) error {
 	repoID, _ := cmd.Flags().GetString("repository-id")
 	runID, _ := cmd.Flags().GetString("source-run-id")
 	limit, _ := cmd.Flags().GetInt("limit")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{"limit": limit}
-	if status != "" {
-		body["status"] = status
-	}
-	if repoID != "" {
-		body["repository_id"] = repoID
-	}
-	if runID != "" {
-		body["source_run_id"] = runID
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/work-items/query", body, &result); err != nil {
+	result, err := admin.ListWorkItems(apiClientFromCmd(cmd), admin.ListWorkItemsInput{
+		Status:       status,
+		RepositoryID: repoID,
+		SourceRunID:  runID,
+		Limit:        limit,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -190,16 +185,12 @@ func runAdminFactsDecisions(cmd *cobra.Command, args []string) error {
 	repoID, _ := cmd.Flags().GetString("repository-id")
 	runID, _ := cmd.Flags().GetString("source-run-id")
 	limit, _ := cmd.Flags().GetInt("limit")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{"limit": limit}
-	if repoID != "" {
-		body["repository_id"] = repoID
-	}
-	if runID != "" {
-		body["source_run_id"] = runID
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/decisions/query", body, &result); err != nil {
+	result, err := admin.ListDecisions(apiClientFromCmd(cmd), admin.ListDecisionsInput{
+		RepositoryID: repoID,
+		SourceRunID:  runID,
+		Limit:        limit,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -216,71 +207,33 @@ func runAdminFactsReplay(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	limit, _ := cmd.Flags().GetInt("limit")
 
-	if strings.TrimSpace(reason) == "" {
-		return fmt.Errorf("--reason is required and must explain why the replay is safe")
-	}
-	if strings.TrimSpace(idempotencyKey) == "" {
-		generated, err := newReplayIdempotencyKey()
-		if err != nil {
-			return err
-		}
-		idempotencyKey = generated
-	}
-
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{
-		"limit":           limit,
-		"reason":          reason,
-		"idempotency_key": idempotencyKey,
-		"force":           force,
-	}
-	if workItemID != "" {
-		body["work_item_ids"] = []string{workItemID}
-	}
-	if scopeID != "" {
-		body["scope_id"] = scopeID
-	}
-	if stage != "" {
-		body["stage"] = stage
-	}
-	if failureClass != "" {
-		body["failure_class"] = failureClass
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/replay", body, &result); err != nil {
+	result, err := admin.Replay(apiClientFromCmd(cmd), admin.ReplayInput{
+		WorkItemID:     workItemID,
+		ScopeID:        scopeID,
+		Stage:          stage,
+		FailureClass:   failureClass,
+		Reason:         reason,
+		IdempotencyKey: idempotencyKey,
+		Force:          force,
+		Limit:          limit,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
 	return nil
 }
 
-// newReplayIdempotencyKey returns a random key so repeated CLI invocations do
-// not accidentally collide while a single invocation stays retry-safe.
-func newReplayIdempotencyKey() (string, error) {
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("generate idempotency key: %w", err)
-	}
-	return "cli-replay-" + hex.EncodeToString(buf), nil
-}
-
 func runAdminFactsDeadLetter(cmd *cobra.Command, args []string) error {
 	workItemID, _ := cmd.Flags().GetString("work-item-id")
 	repoID, _ := cmd.Flags().GetString("repository-id")
 	note, _ := cmd.Flags().GetString("note")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{}
-	if workItemID != "" {
-		body["work_item_id"] = workItemID
-	}
-	if repoID != "" {
-		body["repository_id"] = repoID
-	}
-	if note != "" {
-		body["note"] = note
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/dead-letter", body, &result); err != nil {
+	result, err := admin.DeadLetter(apiClientFromCmd(cmd), admin.DeadLetterInput{
+		WorkItemID:   workItemID,
+		RepositoryID: repoID,
+		Note:         note,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -290,16 +243,11 @@ func runAdminFactsDeadLetter(cmd *cobra.Command, args []string) error {
 func runAdminFactsSkip(cmd *cobra.Command, args []string) error {
 	workItemID, _ := cmd.Flags().GetString("work-item-id")
 	note, _ := cmd.Flags().GetString("note")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{}
-	if workItemID != "" {
-		body["work_item_id"] = workItemID
-	}
-	if note != "" {
-		body["note"] = note
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/skip", body, &result); err != nil {
+	result, err := admin.Skip(apiClientFromCmd(cmd), admin.SkipInput{
+		WorkItemID: workItemID,
+		Note:       note,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -309,16 +257,11 @@ func runAdminFactsSkip(cmd *cobra.Command, args []string) error {
 func runAdminFactsBackfill(cmd *cobra.Command, args []string) error {
 	repoID, _ := cmd.Flags().GetString("repository-id")
 	runID, _ := cmd.Flags().GetString("source-run-id")
-	client := apiClientFromCmd(cmd)
-	body := map[string]any{}
-	if repoID != "" {
-		body["repository_id"] = repoID
-	}
-	if runID != "" {
-		body["source_run_id"] = runID
-	}
-	var result any
-	if err := client.Post("/api/v0/admin/backfill", body, &result); err != nil {
+	result, err := admin.Backfill(apiClientFromCmd(cmd), admin.BackfillInput{
+		RepositoryID: repoID,
+		SourceRunID:  runID,
+	})
+	if err != nil {
 		return err
 	}
 	printJSON(result)
@@ -327,9 +270,8 @@ func runAdminFactsBackfill(cmd *cobra.Command, args []string) error {
 
 func runAdminFactsReplayEvents(cmd *cobra.Command, args []string) error {
 	limit, _ := cmd.Flags().GetInt("limit")
-	client := apiClientFromCmd(cmd)
-	var result any
-	if err := client.Post("/api/v0/admin/replay-events/query", map[string]any{"limit": limit}, &result); err != nil {
+	result, err := admin.ListReplayEvents(apiClientFromCmd(cmd), limit)
+	if err != nil {
 		return err
 	}
 	printJSON(result)

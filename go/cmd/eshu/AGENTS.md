@@ -65,10 +65,14 @@
 
 ## Common changes and how to scope them
 
-- **Add a new `admin` subcommand** → add a `cobra.Command` in `admin.go`,
-  wire it to `adminCmd` or `adminFactsCmd`, call `apiClientFromCmd` for
-  authenticated requests. Why: `admin.go` owns the full admin subcommand tree;
-  scattering admin commands into other files makes auditing harder.
+- **Add a new `admin` subcommand** → put the request shaping (endpoint,
+  request body, validation) in `go/internal/cli/admin`, then add a
+  `cobra.Command` in `admin.go`, wire it to `adminCmd` or `adminFactsCmd`,
+  and have its `RunE` read the flags, call `apiClientFromCmd`, and
+  `printJSON` the result. Why: `admin.go` owns the full admin subcommand
+  tree, so scattering admin commands into other files makes auditing harder;
+  the endpoint and body are the decision worth testing and live outside
+  `package main` (issue #6059, epic #6053).
 
 - **Add a new `graph` subcommand** → add a `cobra.Command` to `graph.go`'s
   `init()` and add its `run*` func in the same file, but put the behaviour it
@@ -146,7 +150,11 @@
 - **Business logic in subcommand `RunE` functions** — `RunE` functions should
   call `apiClientFromCmd`, `procexec.Exec`, or a delegating helper. Domain logic
   (graph writes, fact queries, schema checks) belongs in the `internal/*`
-  packages that own those surfaces.
+  packages that own those surfaces. `go/internal/cli/<family>` is where a
+  command family's own logic goes when no other package owns it — see
+  `internal/cli/admin` and `internal/cli/mcpsetup`. This package is
+  `package main` and cannot grow subdirectories, so that is the only place
+  it can go.
 
 - **Direct driver or Postgres calls in this package** — this binary is a CLI
   dispatcher. It must not open Postgres or graph driver connections except

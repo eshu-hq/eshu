@@ -21,8 +21,9 @@ import (
 // Retrieval and reset only ever happen through the `eshu admin
 // initial-credential` / `reset-initial-credential` CLI, never through the
 // API process, so those two events live in
-// go/cmd/eshu/admin_initial_credential_audit.go instead — cmd/api and
-// cmd/eshu are separate main packages and cannot share unexported code.
+// go/internal/cli/admin/credential_audit.go instead. This file is in
+// `package main` and cannot be imported, so the two sides stay separate
+// implementations.
 // Every event below carries only bounded metadata (event kind via
 // ReasonCode, tenant/workspace, timestamp, and key_id via CorrelationID) —
 // never the generated plaintext password, recovery code, or sealed
