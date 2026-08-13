@@ -380,6 +380,19 @@ func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
 // anchor the key-based connected-keys read and the clear/mark/sweep writes.
 // These mirror the canonical writers' MERGE identity: Repository/Platform/
 // EvidenceArtifact use `id`, File/Directory use `path`, Module uses `name`.
+//
+// Module is the one label whose key is NOT its full identity. The canonical
+// import writer MERGEs on (name, lang) -- a Go `time` and a Python `time` are
+// different modules -- so two nodes in this sweep's class can share the key.
+// The Go-side anti-join keys connectivity by this single string, so a
+// same-named pair is treated as connected when EITHER node has a relationship.
+// That direction is deliberate and safe: the sweep never deletes a connected
+// node, and never deletes a disconnected node whose same-named sibling is
+// connected. The cost is that such a sibling is not swept; it stays counted in
+// GraphOrphanNodeCounts, so it surfaces as a Module orphan count that does not
+// drain rather than as wrong query truth. Making it exact needs a composite key
+// across the S1/S2 reads and the three key-anchored writes.
+// TestLiveOrphanSweepModuleSameNameDifferentLanguages pins this behavior.
 func orphanSweepIdentityKey(label OrphanSweepLabel) (string, bool) {
 	switch label {
 	case OrphanSweepLabelRepository, OrphanSweepLabelPlatform, OrphanSweepLabelEvidenceArtifact:

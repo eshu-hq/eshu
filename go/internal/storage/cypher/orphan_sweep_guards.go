@@ -10,8 +10,8 @@ package cypher
 
 // orphanSweepClassPredicate restricts a sweep to the single node class its
 // label owns, for labels whose identity key is not unique across node classes.
-// Module.name is shared: canonical imported modules are MERGEd on {name} (no
-// uid), while semantic module entities are MERGEd on {uid} and also carry a
+// Module.name is shared: canonical imported modules are MERGEd on (name, lang)
+// (no uid), while semantic module entities are MERGEd on {uid} and also carry a
 // name. The orphan sweep owns only the canonical imports, so it restricts to
 // `n.uid IS NULL`; without this, a connected same-name semantic module would
 // mask a canonical orphan in S2 and the key-anchored writes would target the

@@ -116,18 +116,37 @@ type EntityRow struct {
 }
 
 // ModuleRow carries the canonical properties for a Module node.
+//
+// Name and Language together are the node's identity. A Go `time` and a Python
+// `time` are unrelated modules that happen to share a name, so they are two
+// nodes; two repositories importing the same Go `time` still share one node,
+// which is the cross-repository dependency link the graph exists to provide.
+// Language is deliberately part of the key rather than a first-writer-wins
+// property: keying on Name alone produced one global node per name whose
+// language was decided by projection batch order.
+//
+// An empty Language is a value, not a wildcard. A module discovered only from
+// files whose language could not be determined gets its own `lang: ”` node and
+// never merges into a languaged one. That bounds the unknown-language case to
+// at most one extra node per module name.
 type ModuleRow struct {
 	Name     string
 	Language string
 }
 
 // ImportRow captures one File -> Module IMPORTS edge.
+//
+// ModuleLanguage is the importing file's language, and it is what resolves the
+// edge's target to the right Module node now that Module identity is
+// (name, language). Without it the edge statement would match every same-named
+// module and attach the file to all of them.
 type ImportRow struct {
-	FilePath     string
-	ModuleName   string
-	ImportedName string
-	Alias        string
-	LineNumber   int
+	FilePath       string
+	ModuleName     string
+	ModuleLanguage string
+	ImportedName   string
+	Alias          string
+	LineNumber     int
 }
 
 // ParameterRow captures one Function -> Parameter HAS_PARAMETER edge.

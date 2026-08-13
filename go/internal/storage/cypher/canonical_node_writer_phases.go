@@ -276,12 +276,15 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 		rows := make([]map[string]any, len(mat.Imports))
 		for i, imp := range mat.Imports {
 			rows[i] = map[string]any{
-				"file_path":     imp.FilePath,
-				"module_name":   imp.ModuleName,
-				"imported_name": imp.ImportedName,
-				"alias":         imp.Alias,
-				"line_number":   imp.LineNumber,
-				"generation_id": mat.GenerationID,
+				"file_path": imp.FilePath,
+				// module_name and module_language together resolve the target
+				// Module node; see canonicalNodeImportEdgeCypher.
+				"module_name":     imp.ModuleName,
+				"module_language": imp.ModuleLanguage,
+				"imported_name":   imp.ImportedName,
+				"alias":           imp.Alias,
+				"line_number":     imp.LineNumber,
+				"generation_id":   mat.GenerationID,
 			}
 		}
 		stmts = append(stmts, buildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)

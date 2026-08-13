@@ -302,16 +302,45 @@ SET rel.evidence_source = 'projector/canonical',
 
 // --- Phase F: Module Cypher ---
 
+// canonicalNodeModuleUpsertCypher MERGEs the import-graph Module node on
+// (name, lang), which is its identity: a Go `time` and a Python `time` are
+// unrelated modules that share a name, while two repositories importing the
+// same Go `time` share one node. Repository and scope are deliberately NOT in
+// the key -- that shared node IS the cross-repository dependency link, and the
+// relationships catalog records the same intent by marking IMPORTS
+// targetAttributable=false (Module carries no tenant attribution).
+//
+// Keying on name alone minted one global node per name and left the language
+// to `coalesce(m.lang, row.language)`. That is not merely first-writer-wins:
+// measured against the pinned NornicDB build, an UNWIND batch carrying both
+// languages evaluated every row's SET against the pre-batch property snapshot,
+// so the LAST row won and the stamped language tracked batch order. The graph
+// then asserted that a Go file imports a Python module, and a query filtering
+// `(m:Module {name: 'time', lang: 'go'})` silently missed every Go importer.
+//
+// The MERGE stays on the schema hot path with the existing single-property
+// `module_name_lookup` index: NornicDB's findMergeNode prefers an exact
+// composite index, then a unique constraint, then the smallest single-property
+// index candidate set, and only falls back to a label scan when NONE of those
+// matched. The name index still serves the anchor, and the candidate set is
+// identical to the pre-change lookup, so the row is filtered on lang in Go
+// rather than scanned for. Module cannot take a uniqueness constraint on name
+// (the semantic entity path MERGEs Module on uid and shares this label), which
+// is why the index, not a constraint, is the anchor.
 const canonicalNodeModuleUpsertCypher = `UNWIND $rows AS row
-MERGE (m:Module {name: row.name})
-SET m.lang = coalesce(m.lang, row.language),
-    m.evidence_source = 'projector/canonical'`
+MERGE (m:Module {name: row.name, lang: row.language})
+SET m.evidence_source = 'projector/canonical'`
 
 // --- Phase G: Structural edge Cypher ---
 
+// canonicalNodeImportEdgeCypher wires each file to the module it imports. The
+// target is resolved on the full (name, lang) Module identity, using the
+// importing file's own language: matching on name alone would resolve every
+// same-named module and attach one file to all of them, which is a worse
+// accuracy failure than the collapsed node it replaced.
 const canonicalNodeImportEdgeCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
-MATCH (m:Module {name: row.module_name})
+MATCH (m:Module {name: row.module_name, lang: row.module_language})
 MERGE (f)-[r:IMPORTS]->(m)
 SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = row.line_number,
     r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
