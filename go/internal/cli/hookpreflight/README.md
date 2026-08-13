@@ -102,12 +102,21 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down.
-  `doc_lockstep_test.go` and `doc_lockstep_behavior_test.go` pin the struct
-  tags and their wire names, the import set, the
-  `assistant_fast_path_hook.v1` literal, the reason-code precedence, and the
-  trigger classes described here, so a code change that makes a sentence
-  above false fails a test rather than quietly aging into fiction.
+- The claims on this page are tested, not just written down. Three lockstep
+  files pin them, and a code change that makes one of the sentences above
+  false fails a test rather than quietly aging into fiction:
+  `doc_lockstep_test.go` pins the struct tags and their wire names, the
+  import set, the `assistant_fast_path_hook.v1` literal, and the three reason
+  codes the contract doc names; `doc_lockstep_behavior_test.go` pins the
+  reason-code precedence, that no skip publishes a scope, and the trigger
+  classes; `doc_lockstep_source_test.go` reads the source declarations, so
+  the json-tagged struct set and the accepted trigger classes are complete
+  inventories rather than hand-written samples, and the only calls the
+  production files make are `fmt.Fprintf`/`fmt.Sprintf` and the four pure
+  `path/filepath` functions named above. The last one is what backs this
+  section's "touches no file" claim: `path/filepath` is on the import
+  allow-list, so `Glob`, `WalkDir`, `Abs`, and `EvalSymlinks` would all clear
+  the import check on their own.
 
 ## Related docs
 

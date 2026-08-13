@@ -4,7 +4,6 @@
 package hookpreflight
 
 import (
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -166,8 +165,8 @@ func TestDocLockstepSkipCarriesNoScope(t *testing.T) {
 			wantReason: reasonTimeout,
 		},
 	}
-	if len(cases) == 0 {
-		t.Fatal("no skip paths to check; the assertion would be vacuous")
+	if len(cases) < 3 {
+		t.Fatalf("skip paths = %d, want one per path that can reach skip() with a scope in hand", len(cases))
 	}
 
 	for _, tc := range cases {
@@ -185,30 +184,75 @@ func TestDocLockstepSkipCarriesNoScope(t *testing.T) {
 	}
 }
 
+// documentedTriggers is the set AGENTS.md and the contract doc's "Trigger
+// Classes" section permit: source file read, text or symbol search (which this
+// package splits into read/search/grep), glob discovery, editor symbol lookup,
+// and prompt-visible requests. Sorted, for a stable failure message.
+func documentedTriggers() []string {
+	return []string{"glob", "grep", "prompt", "read", "search", "symbol"}
+}
+
+// contractDocTriggerClaims are the "Trigger Classes" bullets and the
+// exclusion sentence documentedTriggers is a transcription of. They are pinned
+// so an edit to the contract doc alone fails here too -- otherwise the code
+// and this file could agree while the doc they both claim to follow says
+// something else.
+func contractDocTriggerClaims() []string {
+	return []string{
+		"- source file read",
+		"- text or symbol search",
+		"- glob/file discovery",
+		"- editor symbol lookup",
+		"- prompt-visible requests for blast radius",
+		"must not run for write, edit, format, delete, commit, push, shell,",
+	}
+}
+
 // TestDocLockstepAllowedTriggersMatchDoc pins the trigger classes
-// triggerAllowed accepts against the set the contract doc's "Trigger Classes"
-// section permits: source file read, text or symbol search (which this package
-// splits into read/search/grep), glob discovery, editor symbol lookup, and
-// prompt-visible requests. Adding a class without updating that doc fails
-// here. Sorted for a stable failure message.
+// triggerAllowed accepts against documentedTriggers, and documentedTriggers
+// against the contract doc's own wording.
+//
+// It reads the accepted classes out of triggerAllowed's case clause rather
+// than probing a candidate list. A probe list can only ever contain classes
+// someone already thought of, so it catches a removal and misses the addition
+// AGENTS.md names as this package's most common change: a newly accepted class
+// is not in the list, never gets probed, and the comparison still passes.
 func TestDocLockstepAllowedTriggersMatchDoc(t *testing.T) {
 	t.Parallel()
 
-	documented := []string{"glob", "grep", "prompt", "read", "search", "symbol"}
-	candidates := append([]string{}, documented...)
-	candidates = append(candidates, "edit", "write", "bash", "")
+	documented := documentedTriggers()
+	clauses, accepted, err := scanTrueCaseValues(".", "triggerAllowed")
+	if err != nil {
+		t.Fatalf("read triggerAllowed's accepted classes: %v", err)
+	}
+	if clauses == 0 || len(accepted) == 0 {
+		t.Fatalf("found %d true-returning case clauses carrying %d classes; the assertion would be vacuous", clauses, len(accepted))
+	}
+	if strings.Join(accepted, ",") != strings.Join(documented, ",") {
+		t.Errorf("triggerAllowed accepts %v, docs name %v; update docs/public/reference/assistant-fast-path-hooks.md's Trigger Classes section in the same change", accepted, documented)
+	}
 
-	var allowed []string
-	for _, trigger := range candidates {
-		if triggerAllowed(trigger) {
-			allowed = append(allowed, trigger)
+	// The source scan says which literals the case clause carries; this says
+	// the function actually answers for them, and refuses the classes the
+	// contract doc rules out.
+	for _, trigger := range documented {
+		if !triggerAllowed(trigger) {
+			t.Errorf("triggerAllowed(%q) = false, but it is a documented class", trigger)
 		}
 	}
-	sort.Strings(allowed)
-	if len(allowed) == 0 {
-		t.Fatal("no trigger was allowed; the assertion would be vacuous")
+	for _, trigger := range []string{"edit", "write", "bash", ""} {
+		if triggerAllowed(trigger) {
+			t.Errorf("triggerAllowed(%q) = true; the contract doc rules this class out", trigger)
+		}
 	}
-	if strings.Join(allowed, ",") != strings.Join(documented, ",") {
-		t.Errorf("triggerAllowed accepts %v, docs name %v; update docs/public/reference/assistant-fast-path-hooks.md's Trigger Classes section in the same change", allowed, documented)
+
+	for _, claim := range contractDocTriggerClaims() {
+		missing, err := docsMissingLiteral(contractDocDir, []string{contractDocName}, claim)
+		if err != nil {
+			t.Fatalf("read %s: %v", contractDocName, err)
+		}
+		for _, name := range missing {
+			t.Errorf("%s no longer says %q; documentedTriggers transcribes that section, so change both or neither", name, claim)
+		}
 	}
 }

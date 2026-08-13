@@ -50,8 +50,11 @@
   (claude.go) if a Claude tool name should map to it. Update
   docs/public/reference/assistant-fast-path-hooks.md's "Trigger Classes"
   section in the same PR — that doc is the contract, not just a reference.
-  `TestDocLockstepAllowedTriggersMatchDoc` fails until the pinned list there
-  matches, so the doc update cannot be forgotten.
+  `TestDocLockstepAllowedTriggersMatchDoc` reads the accepted classes out of
+  `triggerAllowed`'s case clause with a `go/ast` walk, so a class you add is
+  seen whether or not anyone thought to probe for it, and it also pins the
+  contract doc's own "Trigger Classes" wording. Adding the case, dropping a
+  case, or editing that section alone each fail it.
 - **Add a new scope kind** → add a candidate to `scopeFromInput`
   (preflight.go) and a case to `plannedCallForScope` choosing which MCP tool
   answers it. Both must change together: a scope kind with no
@@ -84,13 +87,19 @@
   it does not fall through to the `service` field. This is deliberate (see
   Invariants above), not a bug.
 - Symptom: a `TestDocLockstep*` test fails after a code change → the change
-  made a sentence in `README.md`, `doc.go`, this file, or a `preflight.go`
-  constant comment false. `doc_lockstep_test.go` pins the structural claims
-  (which structs carry `json` tags and under what wire names, which packages
-  the non-test files import, the `assistant_fast_path_hook.v1` literal) and
-  `doc_lockstep_behavior_test.go` pins the behavioral ones (reason-code
-  precedence, that no skip publishes a scope or planned call, the trigger
-  classes). Fix the doc or the code — do not relax the assertion. These
+  made a sentence in `README.md`, `doc.go`, this file, the contract doc, or a
+  `preflight.go` constant comment false. `doc_lockstep_test.go` pins the
+  structural claims (which structs carry `json` tags and under what wire
+  names, which packages the non-test files import, the
+  `assistant_fast_path_hook.v1` literal, the three reason codes the contract
+  doc's "Safe Failure Modes" table names), `doc_lockstep_behavior_test.go`
+  pins the behavioral ones (reason-code precedence, that no skip publishes a
+  scope or planned call, the trigger classes), and
+  `doc_lockstep_source_test.go` walks the source with `go/ast` for the claims
+  a hand-written list cannot carry: the full set of json-tagged structs, the
+  accepted trigger classes, and that the only `fmt` and `path/filepath` calls
+  in production files are `Fprintf`/`Sprintf` and `IsAbs`/`Rel`/`Clean`/
+  `ToSlash`. Fix the doc or the code — do not relax the assertion. These
   exist because four rounds of hand-edited doc corrections on this package
   each fixed the reported sentence and left the next one standing.
 - Symptom: `TestAssistantHookPreflightBenchmarkCasesCoverContract`
@@ -105,6 +114,13 @@
   `io.Writer` parameter; nothing in this package calls `fmt.Print*` to a
   process stream. `fmt.Print*` belongs only in
   `go/cmd/eshu/assistant_hook_preflight.go`.
+  `TestDocLockstepProductionCallsStayPure` allows only `fmt.Fprintf` and
+  `fmt.Sprintf` in the production files, so a stray `Println` fails there.
+- **Reaching the filesystem through `path/filepath`.** The four functions used
+  (`IsAbs`, `Rel`, `Clean`, `ToSlash`) are pure string operations, and the same
+  test allows only those four. `Glob`, `Abs`, `WalkDir`, and `EvalSymlinks`
+  live in the same already-imported package and would clear the import check on
+  their own — that is exactly why the call-level pin exists.
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`).
   If new logic needs something only the wrapper has (a cobra flag, stdin),
   add a parameter instead.
@@ -120,9 +136,13 @@
   comes back when several conditions are ineligible at once. The contract doc
   (docs/public/reference/assistant-fast-path-hooks.md) does NOT pin this: its
   "Safe Failure Modes" table gives the required behavior per failure, and its
-  row order is not a precedence. So this source file is the only place the
-  precedence is written down — reordering the switch silently changes which
-  reason a caller sees, with no doc or gate to catch it.
+  row order is not a precedence. So `preflight.go` is the only place the
+  precedence is written down, and `TestDocLockstepReasonPrecedence`
+  (doc_lockstep_behavior_test.go) is the only thing that holds it there —
+  every one of its cases is ineligible for several reasons at once, so
+  reordering the switch fails it. That test is the gate; it is not a substitute
+  for the ADR, because it will happily pin whatever order you put in front of
+  it once you edit the expectations too.
 - `DefaultBudget` (200ms) — this is the contract's documented latency
   budget, not a locally-tunable default; changing it needs the benchmark
   evidence the contract doc requires for any budget change.

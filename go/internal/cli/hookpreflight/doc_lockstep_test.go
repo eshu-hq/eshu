@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // This file pins the claims README.md, doc.go, AGENTS.md, and the in-source
@@ -35,6 +36,20 @@ import (
 // The two filesystem-backed checks (imports, doc literals) are split into a
 // pure scanner plus a caller, so the negative test can run the same scanner
 // over a fixture directory and prove it reports what it should.
+//
+// doc_lockstep_source_test.go carries the scanners that read declarations out
+// of the source. Every hand-written list in this file is an inventory those
+// scanners prove complete; without them a list catches a removal and misses an
+// addition.
+
+// contractDocDir and contractDocName locate the contract doc from the package
+// directory. The reason codes and trigger classes pinned here are its wording,
+// not this package's own invention, so the assertions read it directly rather
+// than trusting a transcription.
+const (
+	contractDocDir  = "../../../../docs/public/reference"
+	contractDocName = "assistant-fast-path-hooks.md"
+)
 
 // docJSONFieldNames pins the wire name of every json-tagged field in the
 // package, hardcoded rather than read back off the struct, so a renamed tag
@@ -76,6 +91,9 @@ func docJSONFieldNames() map[string]map[string]string {
 }
 
 // docTaggedStructs maps each pinned type name to a zero value to reflect over.
+// TestDocLockstepTaggedStructsAreDiscovered asserts these keys are exactly the
+// json-tagged structs the source declares, so the pair cannot agree with each
+// other while both miss a type.
 func docTaggedStructs() map[string]any {
 	return map[string]any{
 		"Output":                         Output{},
@@ -329,6 +347,78 @@ func TestDocLockstepSchemaLiteral(t *testing.T) {
 	}
 	for _, name := range missing {
 		t.Errorf("%s does not mention the %s contract literal", name, literal)
+	}
+}
+
+// TestDocLockstepReasonCodeWireValues pins the three reason codes the contract
+// doc's "Safe Failure Modes" table names as required behavior, spelled out as
+// literals on both sides.
+//
+// TestDocLockstepReasonPrecedence covers the ordering, but it compares
+// out.Reason against the constant, so renaming a constant's value moves the
+// expectation with it and the suite stays green while the wire contract
+// changes. This asserts the value itself, the way the schema literal is
+// asserted, and checks the doc still names it.
+func TestDocLockstepReasonCodeWireValues(t *testing.T) {
+	t.Parallel()
+
+	const narrowScope = "services/api/handler.go"
+	cases := []struct {
+		name  string
+		input Input
+		want  string
+		// row is the whole "Safe Failure Modes" row, not the bare code:
+		// eshu_hook_timeout also appears in the latency section, so a bare
+		// literal search stays green when the row itself is rewritten.
+		row string
+	}{
+		{
+			name: "timeout",
+			input: Input{
+				Host: supportedHostClaude, Enabled: true, Trigger: "read",
+				RepoPath: narrowScope, Budget: DefaultBudget,
+				Elapsed: DefaultBudget + time.Millisecond,
+			},
+			want: "eshu_hook_timeout",
+			row:  "| Timeout | Fail open and report `eshu_hook_timeout`. |",
+		},
+		{
+			name: "permission_denied",
+			input: Input{
+				Host: supportedHostClaude, Enabled: true, Trigger: "read",
+				RepoPath: narrowScope, Permission: permissionDenied,
+				Budget: DefaultBudget,
+			},
+			want: "eshu_permission_denied",
+			row:  "| Permission denied | Report `eshu_permission_denied` without exposing",
+		},
+		{
+			name: "unavailable_context",
+			input: Input{
+				Host: supportedHostClaude, Enabled: true, Trigger: "read",
+				RepoPath: narrowScope, Freshness: freshnessUnavailable,
+				Budget: DefaultBudget,
+			},
+			want: "eshu_mcp_unavailable",
+			row:  "report `eshu_mcp_unavailable` if the host supports diagnostic output",
+		},
+	}
+	if len(cases) != 3 {
+		t.Fatalf("reason-code cases = %d, want one per code the Safe Failure Modes table names", len(cases))
+	}
+
+	for _, tc := range cases {
+		out := Evaluate(tc.input)
+		if out.Reason != tc.want {
+			t.Errorf("%s: Output.Reason = %q, want the contract's %q", tc.name, out.Reason, tc.want)
+		}
+		missing, err := docsMissingLiteral(contractDocDir, []string{contractDocName}, tc.row)
+		if err != nil {
+			t.Fatalf("read %s: %v", contractDocName, err)
+		}
+		for _, name := range missing {
+			t.Errorf("%s no longer carries the %s row %q", name, tc.want, tc.row)
+		}
 	}
 }
 
