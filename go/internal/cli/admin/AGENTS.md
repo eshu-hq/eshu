@@ -25,15 +25,26 @@
   needs a flag, an env var, or stdout, that part belongs in `go/cmd/eshu`,
   not here — this is the rule the whole extraction rests on (issue #6059,
   epic #6053).
-  - The two `_test.go` files are the deliberate exception: they read
-    `ESHU_POSTGRES_DSN` to skip their real-Postgres proofs, and
-    `credential_test.go` calls `t.Setenv` for `ESHU_POSTGRES_DSN` and
-    `ESHU_AUTH_SECRET_ENC_KEY`.
+  - `credential_test.go` and `credential_audit_test.go` are the deliberate
+    exception: they read `ESHU_POSTGRES_DSN` to skip their real-Postgres
+    proofs, and `credential_test.go` calls `t.Setenv` for
+    `ESHU_POSTGRES_DSN` and `ESHU_AUTH_SECRET_ENC_KEY`.
+    `credential_invariant_test.go` reads no environment and needs no
+    database.
 - **Every credential operation is audited.** The audit helpers are
   unexported and called inside `RetrieveInitialCredential` /
   `ResetInitialCredential`, so no caller can retrieve or reset without
   recording the attempt. Both outcomes are recorded — a failed retrieval
   (already consumed, wrong key) is as security-relevant as a successful one.
+  `credential_invariant_test.go` is the guard: it drives both exported
+  functions against a fake `pgstorage.ExecQueryer` and asserts the audit
+  `INSERT` reached the connection, success and failure. Deleting either
+  audit call makes those four tests fail by name. Do not weaken them into
+  assertions on a stubbed appender — going through the real
+  `pgstorage.GovernanceAuditStore` is what keeps
+  `governanceaudit.NormalizeEvent` in the path, and a rejected event is
+  indistinguishable from a missing one because `Append`'s error is
+  discarded.
 - **Audit events carry a key id and nothing else identifying.** No
   plaintext password, recovery code, or sealed ciphertext ever reaches an
   event. `TestAuditBootstrapCredentialEventsNoPlaintextLeak` guards this.
@@ -43,11 +54,20 @@
 - **Errors from `Client` are returned verbatim.** They already carry the
   operator's context (`API error 404: <body>` for an HTTP status,
   `request failed: Post "http://host/path": dial tcp …` for a transport
-  failure) and `cmd/eshu` prints them straight to stderr. Leaving
-  `package main` cost these returns the `go/cmd/*` exemption in
-  `go/.golangci.yml`'s `wrapcheck` config, so each carries its own
-  `//nolint:wrapcheck` with that reason. Wrapping would prepend a second
-  prefix to what the operator already reads, not add context.
+  failure) and `cmd/eshu` prints them straight to stderr. Wrapping would
+  prepend a second prefix to what the operator already reads, not add
+  context, so each return carries its own `//nolint:wrapcheck`.
+  - The reason those nine need a `//nolint` at all is the `Client`
+    interface. `wrapcheck` reports an error returned from an *interface*
+    method; the identical call in `package main` went to the concrete
+    same-package `(*APIClient).Post` and was never reported. Running
+    `wrapcheck` over the pre-extraction tree with no exemption of any kind
+    gives 364 issues under `go/cmd/eshu` and zero on any admin file, and
+    restoring `go/cmd/*` in `ignore-package-globs` leaves all nine here.
+    So do not "fix" a new one by editing `go/.golangci.yml` — an exemption
+    would silence it for a reason that is not the cause and would not
+    generalize. Either keep the verbatim return with its `//nolint`, or
+    decide the error genuinely needs context and wrap it.
 
 ## Common changes and how to scope them
 
@@ -82,9 +102,15 @@
   `ResetBootstrapCredential` returned `ErrBootstrapCredentialNotFound`; the
   admin was seeded from `ESHU_ADMIN_USERNAME`/`PASSWORD`, or
   `ESHU_AUTH_BOOTSTRAP_MODE` is sso-only/disabled.
+- Symptom: `eshu admin reset-initial-credential` reports
+  `cannot recover the original username` → cause: `--username` was omitted
+  (its default is empty, which is the normal case) and the fallback that
+  reads the username off the prior envelope also failed, because that
+  credential was consumed, already reset, or sealed under a different key.
+  Pass `--username`.
 - Symptom: the credential tests skip → cause: `ESHU_POSTGRES_DSN` is unset.
-  The unit tests still run; the round-trip and audit-persistence proofs need
-  a real Postgres.
+  `credential_invariant_test.go` and the other unit tests still run; the
+  round-trip and audit-persistence proofs need a real Postgres.
 
 ## Anti-patterns specific to this package
 

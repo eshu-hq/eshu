@@ -23,8 +23,8 @@
 // from it: ESHU_AUTH_SECRET_ENC_KEY, ESHU_AUTH_BOOTSTRAP_MODE, and
 // ESHU_ADMIN_USERNAME/PASSWORD appear in operator-facing error text, and
 // ESHU_POSTGRES_DSN appears only in comments pointing at the wrapper that
-// reads it. Two _test.go files do read ESHU_POSTGRES_DSN, to skip their
-// real-Postgres proofs when no DSN is set.
+// reads it. Two of the package's _test.go files do read ESHU_POSTGRES_DSN,
+// to skip their real-Postgres proofs when no DSN is set.
 //
 // go/cmd/eshu/admin.go and go/cmd/eshu/admin_initial_credential.go are the
 // cobra wrappers that resolve all of that process state — flags, the shared

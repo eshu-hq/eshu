@@ -46,10 +46,16 @@ What that boundary means concretely, verified against the non-test source:
 - **`Client` errors are returned verbatim.** They already read as operator
   guidance — `API error 404: <body>` for an HTTP status, or
   `request failed: Post "http://host/path": dial tcp …` for a transport
-  failure — and `cmd/eshu` prints them straight to stderr. These returns lost
-  `go/.golangci.yml`'s `go/cmd/*` `wrapcheck` exemption when they left
-  `package main`, so each carries a `//nolint:wrapcheck` naming that reason
-  rather than a wrap that would print the context twice.
+  failure — and `cmd/eshu` prints them straight to stderr. Each carries a
+  `//nolint:wrapcheck` rather than a wrap that would print the context twice.
+  What makes them reportable is the `Client` interface, not a lost exemption:
+  `wrapcheck` flags an error returned from an *interface* method, and the
+  same call in `package main` went to the concrete same-package
+  `(*APIClient).Post`, which it never flags. Measured — `wrapcheck` over the
+  pre-extraction tree with every exemption removed reports 364 issues under
+  `go/cmd/eshu` and zero on any admin file, and putting `go/cmd/*` back into
+  `ignore-package-globs` still leaves all nine here, since this package is
+  not under `go/cmd/`.
 - **Network calls: none of its own.** HTTP requests go through the `Client`
   interface the caller supplies; Postgres statements go through the
   `pgstorage.ExecQueryer` the caller supplies. Base URL, API key, timeout,
@@ -62,11 +68,12 @@ What that boundary means concretely, verified against the non-test source:
   replacement password and recovery code, and the replacement MFA factor id.
   `bcrypt.GenerateFromPassword` draws its salt from the same source.
 
-Test files are the one exception and are deliberately out of that boundary:
+Two test files are the deliberate exception to that boundary:
 `credential_test.go` and `credential_audit_test.go` read
 `ESHU_POSTGRES_DSN` to decide whether to skip their real-Postgres proofs,
 and `credential_test.go` also calls `t.Setenv` for `ESHU_POSTGRES_DSN` and
-`ESHU_AUTH_SECRET_ENC_KEY`.
+`ESHU_AUTH_SECRET_ENC_KEY`. `credential_invariant_test.go` reads no
+environment and needs no database.
 
 ## Exported surface
 
@@ -102,7 +109,9 @@ Shared:
 The audit helpers and their four reason codes are deliberately unexported:
 they are reached only through `RetrieveInitialCredential` and
 `ResetInitialCredential`, so an admin credential operation cannot happen
-without its audit event.
+without its audit event. `credential_invariant_test.go` is what holds that:
+it drives both exported functions against a fake connection and reads the
+audit `INSERT` back out, on the success path and the failure path.
 
 See `doc.go` for the godoc-rendered contract.
 
@@ -138,9 +147,14 @@ an audit failure never fails the credential operation.
 - **A blank `ReplayInput.IdempotencyKey` is filled in, not left empty.** A
   fresh random key per invocation keeps a retried single invocation safe
   without letting two separate invocations collide.
-- **Empty string fields are omitted from request bodies; numeric and boolean
-  fields are always sent.** An unset filter must not narrow a query, but
-  `limit` and `force` carry the CLI's flag defaults.
+- **Empty string fields are omitted from request bodies — everywhere except
+  `Reindex`. Numeric and boolean fields are always sent.** An unset filter
+  must not narrow a query, but `limit` and `force` carry the CLI's flag
+  defaults. `Reindex` sends `ingester` and `scope` unconditionally, empty or
+  not, because the endpoint's defaults are the CLI's (`--ingester` defaults
+  to `repository`, `--scope` to `workspace`), so an empty value only arrives
+  when an operator types one. `eshu admin reindex --ingester "" --scope ""`
+  posts `{"force":true,"ingester":"","scope":""}`.
 - **A reset always installs a NEW MFA factor row** rather than reusing the
   old one, so a login racing the reset can never read a factor whose hash
   has not been committed.
@@ -152,9 +166,18 @@ an audit failure never fails the credential operation.
   a `keyID`, so widening them is the change a reviewer should question.
 - **`BootstrapCredentialPayload` is live secret material.** Callers print it
   once and never persist it.
+- **`reset-initial-credential` without `--username` is the normal case, not
+  an error path.** The flag defaults to empty; `ResetInitialCredential` then
+  opens the prior envelope to carry the username forward and only refuses
+  when that also fails (already consumed, or sealed under a different key).
+- **A nil `ExecQueryer` silently disables the audit appender.** `cmd/eshu`
+  always passes an open `pgstorage.SQLDB`, so nothing reaches that branch
+  today; it exists because every other governance-audit call site in this
+  codebase degrades the same way rather than failing the primary operation.
 
 ## Related docs
 
 - `go/cmd/eshu/README.md` — the CLI binary and its subcommand groups
-- `docs/public/reference/http-api.md` — the admin endpoints this package
-  calls
+- `docs/public/reference/http-api/status-admin.md` — the admin endpoints this
+  package calls. All nine live there; `docs/public/reference/http-api.md`
+  became a 175-line index with none of them when #6065 split the hub.

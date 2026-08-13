@@ -16,8 +16,9 @@ import (
 // Bootstrap admin credential CLI durable audit events (issue #4963
 // acceptance criterion: "Bootstrap mode choice, generation, retrieval, and
 // reset are durable audit events (values excluded)"). Retrieval and reset
-// only ever happen through this CLI (`eshu admin initial-credential` /
-// `reset-initial-credential`), never through the API process, so their
+// only ever happen through the `eshu admin initial-credential` /
+// `reset-initial-credential` commands, whose logic this package holds, never
+// through the API process, so their
 // audit events live here rather than in
 // go/cmd/api/seed_initial_admin_audit.go, which covers the two events the
 // API process itself observes: mode choice and credential generation at
@@ -36,7 +37,7 @@ const (
 )
 
 // newAdminCredentialAuditAppender builds the durable governance-audit
-// appender from the CLI's own Postgres handle. appender is nil only when db
+// appender from the Postgres handle the caller supplies. appender is nil only when db
 // is nil (defensive; every real call site always has an open connection),
 // matching every other governance-audit call site in this codebase (see
 // go/cmd/api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
