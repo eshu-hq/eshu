@@ -10,11 +10,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
-// modIdentModuleName is a module name that genuinely exists in more than one
-// language in the corpus: Go's standard `time` package and Python's `time`
-// module are unrelated modules that happen to share a name. `path` (Go and
-// JavaScript) and `basic` (Ruby and Python) collide the same way.
-const modIdentModuleName = "time"
+// modIdentModuleName stands in for a module name that genuinely exists in more
+// than one language: Go's standard `time` package and Python's `time` module
+// are unrelated modules that happen to share a name, and `path` (Go and
+// JavaScript) and `basic` (Ruby and Python) collide the same way. The suffix
+// makes the name synthetic on purpose. This test's cleanup deletes every
+// :Module carrying the name, and a bare "time" would take real corpus nodes
+// with it the first time someone points ESHU_CYPHER_BOLT_DSN at a shared
+// backend. Nothing in the identity being proven depends on the literal string.
+const modIdentModuleName = "time-6102-modident"
 
 const (
 	modIdentGoFilePath     = "/eshu-test/modident/go/main.go"
