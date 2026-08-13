@@ -33,7 +33,7 @@ concluded a fact.
 | Registered **producers** | `container_image_identity`, `ci_cd_run_correlation` | same catalog |
 | Activation-driven re-enqueue (design point 2) | **EXISTS and is wired in production** | `CrossScopeCompletionEdges()` derives edges from the catalog; reducer ACK inserts `cross_scope_completion_events` (`reducer_queue_batch.go:254`); `CrossScopeCompletionRunner` + `NewCrossScopeCompletionStore` are wired at `cmd/reducer/main.go:453`; the golden-corpus gate asserts the ledger drains |
 | Readiness-defer error type + class | **Exists**, enrolled non-counting | `cross_scope_readiness.go`, `reducer_queue_readiness_sql.go:41` |
-| Any handler that RETURNS the readiness error | **Both catalog consumers**: `ci_cd_run_correlation` since the readiness floor landed, `supply_chain_impact` since it was wired. It was NONE when this table was first written, which is what the rest of this doc reasons from | `cross_scope_readiness_floor.go` for the shared helpers, `supply_chain_impact_cross_scope_readiness.go` for the second consumer's producer-owned counting rule |
+| Any handler that RETURNS the readiness error | **Both catalog consumers**: `ci_cd_run_correlation` since the readiness floor landed, `supply_chain_impact` since it was wired. It was NONE when this table was first written, which is what the rest of this doc reasons from | `cross_scope_readiness_floor.go` for the shared helpers, `supply_chain_impact_evidence_load.go` for the second consumer's producer-owned counting rule |
 
 So **design point 2 is built**, not missing. The remaining gap was narrower and
 more specific than the issue or my first draft implied: only the readiness-defer

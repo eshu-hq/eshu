@@ -63,10 +63,22 @@ and `crossScopeProducerDeferralAfterLoad` runs immediately after the
 peer-identity stage, which is the last stage that can return producer output.
 One `time.Now()` reading is carried between them on a small
 `supplyChainImpactCrossScopeFloor` value, so a slow load cannot push the intent
-past its own 30-minute bound. Both helpers live in
-`supply_chain_impact_cross_scope_readiness.go` rather than inline, because
-inlining them pushed `loadSupplyChainImpactEvidence` to 154 lines and `funlen`
-caps it at 150.
+past its own 30-minute bound. Both helpers are separate functions rather than
+inline, because inlining them pushed `loadSupplyChainImpactEvidence` to 154
+lines and `funlen` caps it at 150.
+
+They sit in `supply_chain_impact_evidence_load.go`, alongside the pipeline that
+is their only production caller, rather than in a file of their own.
+`internal/reducer` is pinned at 538 files in
+`scripts/lib/dirgate-grandfather.tsv`, and that ledger's header says a count
+bump is `NEVER` for "absorbing a file THIS change is adding". The ledger names
+splitting the directory as the better exit, but also records that it does not
+compile yet for reducer: these helpers need `Domain`, `Intent` and the
+`SupplyChainImpactHandler` receiver, which are exactly the root types the
+acyclic-boundary prerequisite in
+[package-restructure.md](../design/package-restructure.md) has to hoist first.
+So the content moved into its consumer, which leaves the directory at its
+pinned count and digest and the host file at 414 lines, under the 500-line cap.
 
 **The registration passes the seam through**
 (`defaults_additive_domains_supply_chain.go`), and `cmd/reducer` already builds

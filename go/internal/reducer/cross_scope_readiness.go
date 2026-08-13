@@ -25,8 +25,8 @@ import (
 // CrossScopeProducerReadiness before its cross-scope load and returns
 // crossScopeProducerNotReadyError when the load resolved no producer output and
 // the producer scopes have not activated (cross_scope_readiness_floor.go, and
-// supply_chain_impact_cross_scope_readiness.go for the second consumer's
-// producer-owned counting rule).
+// supply_chain_impact_evidence_load.go for the second consumer's producer-owned
+// counting rule).
 //
 // Being in crossScopeDependencyCatalog is not what gates a consumer. Each
 // handler opts in by calling the floor helpers and carrying the seam through its
