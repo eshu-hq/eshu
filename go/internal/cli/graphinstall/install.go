@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package graphinstall
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,32 +16,51 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 const (
-	managedNornicDBBinaryName = "nornicdb-headless"
+	managedBinaryName = "nornicdb-headless"
 )
 
 var (
-	graphResolveHomeDir = func() (string, error) {
+	resolveHomeDir = func() (string, error) {
 		return eshulocal.ResolveHomeDir(os.Getenv, os.UserHomeDir, runtime.GOOS)
 	}
-	graphInstallNow = time.Now
+	installNow = time.Now
 )
 
-type installNornicDBOptions struct {
-	Context context.Context
-	From    string
-	SHA256  string
-	Force   bool
-	Full    bool
+// VersionReader reports the version string a NornicDB binary prints in
+// response to `<binary> version`. graphinstall never executes a binary
+// itself: running a subprocess is owned by the local_graph process-supervision
+// cluster in go/cmd/eshu (readLocalGraphVersion in local_graph_process.go),
+// which is out of scope for this extraction (package-restructure.md calls it
+// out as a real bidirectional cycle that moves as one unit or not at all).
+// Callers supply their real implementation through Options.ReadVersion and
+// ManagedBinaryIfPresent so this package can verify an install without a
+// process-execution dependency of its own.
+type VersionReader func(binaryPath string) (string, error)
+
+// Options are the resolved inputs to Install. From selects the source: a
+// local binary/archive/package path, a download URL, or empty to resolve the
+// pinned release manifest for the running Eshu version. ReadVersion is
+// required; Install returns an error immediately if it is nil.
+type Options struct {
+	Context     context.Context
+	From        string
+	SHA256      string
+	Force       bool
+	Full        bool
+	ReadVersion VersionReader
 }
 
-type installNornicDBResult struct {
+// Result reports what Install did: whether a binary was installed or an
+// existing one reused, and the resolved backend/version/checksum/manifest
+// metadata. JSON tags are a stable wire contract -- `eshu install nornicdb`
+// prints Result as-is, so field names must not change independently of that
+// CLI output.
+type Result struct {
 	Installed    bool   `json:"installed"`
 	Reused       bool   `json:"reused"`
 	Backend      string `json:"backend"`
@@ -57,7 +75,9 @@ type installNornicDBResult struct {
 	InstalledAt  string `json:"installed_at"`
 }
 
-type nornicDBInstallManifest struct {
+// installManifest is the on-disk shape persisted at
+// ~/.eshu/graph-backends/nornicdb/manifest.json after a successful install.
+type installManifest struct {
 	Backend      string `json:"backend"`
 	BinaryPath   string `json:"binary_path"`
 	Version      string `json:"version"`
@@ -70,53 +90,24 @@ type nornicDBInstallManifest struct {
 	Headless     bool   `json:"headless"`
 }
 
-func runInstallNornicDB(cmd *cobra.Command, args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("eshu install nornicdb accepts flags only, got %d argument(s)", len(args))
+// Install verifies opts.From (or the pinned release manifest when From is
+// empty) and copies the resulting NornicDB binary into Eshu's managed home,
+// writing an install manifest alongside it. It reuses the existing managed
+// binary in place -- without rewriting it -- when the requested source
+// already resolves to the same version and checksum, unless opts.Force is
+// set.
+func Install(opts Options) (Result, error) {
+	if opts.ReadVersion == nil {
+		return Result{}, fmt.Errorf("graphinstall: Options.ReadVersion is required")
 	}
-	from, err := cmd.Flags().GetString("from")
-	if err != nil {
-		return err
-	}
-	expectedSHA, err := cmd.Flags().GetString("sha256")
-	if err != nil {
-		return err
-	}
-	force, err := cmd.Flags().GetBool("force")
-	if err != nil {
-		return err
-	}
-	full, err := cmd.Flags().GetBool("full")
-	if err != nil {
-		return err
-	}
-	if full && strings.TrimSpace(from) != "" {
-		return errors.New("--full is reserved for future no-argument release installs; install full NornicDB binaries with --from")
-	}
-
-	result, err := installNornicDB(installNornicDBOptions{
-		Context: cmd.Context(),
-		From:    from,
-		SHA256:  expectedSHA,
-		Force:   force,
-		Full:    full,
-	})
-	if err != nil {
-		return err
-	}
-	printJSON(result)
-	return nil
-}
-
-func installNornicDB(opts installNornicDBOptions) (installNornicDBResult, error) {
 	if opts.Context == nil {
 		opts.Context = context.Background()
 	}
 	sourceRef := strings.TrimSpace(opts.From)
 	if sourceRef == "" {
-		resolvedSource, resolvedSHA, err := resolvePinnedNornicDBReleaseSource(!opts.Full)
+		resolvedSource, resolvedSHA, err := resolvePinnedReleaseSource(!opts.Full)
 		if err != nil {
-			return installNornicDBResult{}, err
+			return Result{}, err
 		}
 		sourceRef = resolvedSource
 		if strings.TrimSpace(opts.SHA256) == "" {
@@ -124,80 +115,90 @@ func installNornicDB(opts installNornicDBOptions) (installNornicDBResult, error)
 		}
 	}
 
-	source, err := prepareNornicDBInstallSource(opts.Context, sourceRef)
+	source, err := prepareInstallSource(opts.Context, sourceRef, opts.ReadVersion)
 	if err != nil {
-		return installNornicDBResult{}, err
+		return Result{}, err
 	}
 	defer func() {
 		_ = source.Close()
 	}()
 
 	if expected := strings.ToLower(strings.TrimSpace(opts.SHA256)); expected != "" && expected != source.SourceSHA256 {
-		return installNornicDBResult{}, fmt.Errorf("sha256 mismatch for %q: got %s, want %s", source.SourcePath, source.SourceSHA256, expected)
+		return Result{}, fmt.Errorf("sha256 mismatch for %q: got %s, want %s", source.SourcePath, source.SourceSHA256, expected)
 	}
 
-	targetPath, err := managedNornicDBBinaryPath()
+	targetPath, err := managedBinaryPath()
 	if err != nil {
-		return installNornicDBResult{}, err
+		return Result{}, err
 	}
-	manifestPath, err := nornicDBInstallManifestPath()
+	manifestPath, err := installManifestPath()
 	if err != nil {
-		return installNornicDBResult{}, err
+		return Result{}, err
 	}
 
-	if source.SourceKind == nornicDBInstallSourceLocalBinary && samePath(source.LocalBinaryPath, targetPath) {
-		return writeNornicDBInstallManifest(targetPath, manifestPath, source, true)
+	if source.SourceKind == sourceLocalBinary && samePath(source.LocalBinaryPath, targetPath) {
+		return writeInstallManifest(targetPath, manifestPath, source, true)
 	}
 	if _, err := os.Stat(targetPath); err == nil && !opts.Force {
-		existingVersion, versionErr := localGraphReadVersion(targetPath)
+		existingVersion, versionErr := opts.ReadVersion(targetPath)
 		existingSHA, checksumErr := sha256File(targetPath)
 		if versionErr == nil && checksumErr == nil && existingVersion == source.Version && existingSHA == source.BinarySHA256 {
-			return writeNornicDBInstallManifest(targetPath, manifestPath, source, true)
+			return writeInstallManifest(targetPath, manifestPath, source, true)
 		}
-		return installNornicDBResult{}, fmt.Errorf("managed nornicdb binary already exists at %q; pass --force to replace it", targetPath)
+		return Result{}, fmt.Errorf("managed nornicdb binary already exists at %q; pass --force to replace it", targetPath)
 	} else if err != nil && !os.IsNotExist(err) {
-		return installNornicDBResult{}, fmt.Errorf("stat managed nornicdb binary %q: %w", targetPath, err)
+		return Result{}, fmt.Errorf("stat managed nornicdb binary %q: %w", targetPath, err)
 	}
 
 	if err := copyExecutableFile(source.LocalBinaryPath, targetPath); err != nil {
-		return installNornicDBResult{}, err
+		return Result{}, err
 	}
-	return writeNornicDBInstallManifest(targetPath, manifestPath, source, false)
+	return writeInstallManifest(targetPath, manifestPath, source, false)
 }
 
-func managedNornicDBBinaryPath() (string, error) {
-	homeDir, err := graphResolveHomeDir()
+func managedBinaryPath() (string, error) {
+	homeDir, err := resolveHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homeDir, "bin", managedNornicDBBinaryName), nil
+	return filepath.Join(homeDir, "bin", managedBinaryName), nil
 }
 
-func nornicDBInstallManifestPath() (string, error) {
-	homeDir, err := graphResolveHomeDir()
+func installManifestPath() (string, error) {
+	homeDir, err := resolveHomeDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(homeDir, "graph-backends", "nornicdb", "manifest.json"), nil
 }
 
-func managedNornicDBBinaryIfPresent() (string, error) {
-	path, err := managedNornicDBBinaryPath()
+// ManagedBinaryIfPresent returns the path to the managed NornicDB binary if
+// Eshu has one installed and it still passes version verification via
+// readVersion. It returns an error satisfying os.IsNotExist when no managed
+// binary is installed, matching os.Stat's contract for the same case.
+// go/cmd/eshu's local_graph_process.go is the sole external caller, wiring
+// readLocalGraphVersion as readVersion when resolving which NornicDB binary
+// to run.
+func ManagedBinaryIfPresent(readVersion VersionReader) (string, error) {
+	if readVersion == nil {
+		return "", fmt.Errorf("graphinstall: ManagedBinaryIfPresent requires a non-nil VersionReader")
+	}
+	path, err := managedBinaryPath()
 	if err != nil {
 		return "", err
 	}
 	if _, err := os.Stat(path); err != nil {
-		return "", err
+		return "", err //nolint:wrapcheck // callers (resolveNornicDBBinary) depend on os.IsNotExist(err) matching the raw *PathError; wrapping with %w would break that detection.
 	}
-	if _, err := localGraphReadVersion(path); err != nil {
+	if _, err := readVersion(path); err != nil {
 		return "", fmt.Errorf("verify managed nornicdb binary %q: %w", path, err)
 	}
 	return path, nil
 }
 
-func writeNornicDBInstallManifest(targetPath, manifestPath string, source preparedNornicDBInstallSource, reused bool) (installNornicDBResult, error) {
-	installedAt := graphInstallNow().UTC().Format(time.RFC3339Nano)
-	manifest := nornicDBInstallManifest{
+func writeInstallManifest(targetPath, manifestPath string, source preparedInstallSource, reused bool) (Result, error) {
+	installedAt := installNow().UTC().Format(time.RFC3339Nano)
+	manifest := installManifest{
 		Backend:      string(query.GraphBackendNornicDB),
 		BinaryPath:   targetPath,
 		Version:      source.Version,
@@ -211,13 +212,13 @@ func writeNornicDBInstallManifest(targetPath, manifestPath string, source prepar
 	}
 	content, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return installNornicDBResult{}, fmt.Errorf("encode nornicdb install manifest: %w", err)
+		return Result{}, fmt.Errorf("encode nornicdb install manifest: %w", err)
 	}
 	content = append(content, '\n')
 	if err := atomicWriteFile(manifestPath, content, 0o600); err != nil {
-		return installNornicDBResult{}, err
+		return Result{}, err
 	}
-	return installNornicDBResult{
+	return Result{
 		Installed:    true,
 		Reused:       reused,
 		Backend:      manifest.Backend,

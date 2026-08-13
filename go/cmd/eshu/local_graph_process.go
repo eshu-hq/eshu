@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -109,7 +110,7 @@ func resolveNornicDBBinary() (string, error) {
 		}
 		return raw, nil
 	}
-	if binaryPath, err := managedNornicDBBinaryIfPresent(); err == nil {
+	if binaryPath, err := graphinstall.ManagedBinaryIfPresent(localGraphReadVersion); err == nil {
 		return binaryPath, nil
 	} else if !os.IsNotExist(err) {
 		return "", err

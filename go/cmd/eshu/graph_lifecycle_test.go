@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 554 lines, pre-existing (553 before this change): table-driven graph lifecycle tests (start/stop/upgrade) that were already over the cap before the #6059 graphinstall extraction touched two call sites here for the graphinstall.Options/Result rename. Splitting this file is out of scope for that extraction; track it separately.
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -466,9 +467,9 @@ func TestRunGraphUpgradeRequiresStoppedOwner(t *testing.T) {
 	graphProcessAlive = func(pid int) bool {
 		return pid == 42
 	}
-	graphInstallNornicDB = func(opts installNornicDBOptions) (installNornicDBResult, error) {
+	graphInstallNornicDB = func(opts graphinstall.Options) (graphinstall.Result, error) {
 		t.Fatal("graphInstallNornicDB called while owner was live")
-		return installNornicDBResult{}, nil
+		return graphinstall.Result{}, nil
 	}
 
 	cmd := &cobra.Command{}
@@ -511,10 +512,10 @@ func TestRunGraphUpgradeInstallsWithForceWhenStopped(t *testing.T) {
 	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
 		return eshulocal.OwnerRecord{}, os.ErrNotExist
 	}
-	var gotOptions installNornicDBOptions
-	graphInstallNornicDB = func(opts installNornicDBOptions) (installNornicDBResult, error) {
+	var gotOptions graphinstall.Options
+	graphInstallNornicDB = func(opts graphinstall.Options) (graphinstall.Result, error) {
 		gotOptions = opts
-		return installNornicDBResult{
+		return graphinstall.Result{
 			Installed:  true,
 			BinaryPath: "/eshu/bin/nornicdb-headless",
 			Version:    "v1.0.43",
