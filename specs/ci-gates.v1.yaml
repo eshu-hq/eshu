@@ -1301,9 +1301,9 @@ gates:
     blocking: false
     triggers:
       - "docs/public/operate/mcp-client-auth.md"
-      - "go/cmd/eshu/mcp_setup_doc_lockstep_test.go"
-      - "go/cmd/eshu/mcp_setup_snippet.go"
-      - "go/cmd/eshu/mcp_setup.go"
+      - "go/internal/cli/mcpsetup/doc_lockstep_test.go"
+      - "go/internal/cli/mcpsetup/snippet.go"
+      - "go/internal/cli/mcpsetup/setup.go"
       - "scripts/verify-mcp-client-auth-doc.sh"
       - "scripts/test-verify-mcp-client-auth-doc.sh"
       - "specs/ci-gates.v1.yaml"
@@ -1881,6 +1881,7 @@ gates:
     triggers:
       - "go/cmd/replay-coverage-gate/**"
       - "go/cmd/eshu/**"
+      - "go/internal/cli/**"
       - "go/internal/replaycoverage/**"
       - "go/internal/cigates/**"
       - "go/internal/query/**"

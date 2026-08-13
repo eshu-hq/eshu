@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"net/http"
@@ -24,7 +24,7 @@ func TestProbeAuthPosture(t *testing.T) {
 	tests := []struct {
 		name        string
 		handler     http.HandlerFunc
-		wantPosture mcpAuthPosture
+		wantPosture AuthPosture
 		wantIssuers []string
 		wantClient  string
 		wantWarning bool
@@ -39,7 +39,7 @@ func TestProbeAuthPosture(t *testing.T) {
 					"eshu_preregistered_client_id": "eshu-mcp-client"
 				}`))
 			},
-			wantPosture: postureSSO,
+			wantPosture: PostureSSO,
 			wantIssuers: []string{"https://idp.example.com/oauth2/aus123"},
 			wantClient:  "eshu-mcp-client",
 			wantWarning: false,
@@ -49,7 +49,7 @@ func TestProbeAuthPosture(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 			},
-			wantPosture: postureToken,
+			wantPosture: PostureToken,
 			wantWarning: false,
 		},
 		{
@@ -57,7 +57,7 @@ func TestProbeAuthPosture(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 			},
-			wantPosture: postureToken,
+			wantPosture: PostureToken,
 			wantWarning: true,
 		},
 		{
@@ -66,7 +66,7 @@ func TestProbeAuthPosture(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("not json"))
 			},
-			wantPosture: postureToken,
+			wantPosture: PostureToken,
 			wantWarning: true,
 		},
 		{
@@ -75,7 +75,7 @@ func TestProbeAuthPosture(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(`{"resource": "https://eshu.example.com/mcp", "authorization_servers": []}`))
 			},
-			wantPosture: postureToken,
+			wantPosture: PostureToken,
 			wantWarning: true,
 		},
 	}
@@ -111,8 +111,8 @@ func TestProbeAuthPostureConnectionRefused(t *testing.T) {
 	// Port 1 is a privileged/unassigned port; nothing listens there, so the
 	// dial fails immediately with connection refused.
 	got := probeAuthPosture(probeTestClient(3*time.Second), "http://127.0.0.1:1")
-	if got.Posture != postureToken {
-		t.Fatalf("Posture = %v, want postureToken on connection refused", got.Posture)
+	if got.Posture != PostureToken {
+		t.Fatalf("Posture = %v, want PostureToken on connection refused", got.Posture)
 	}
 	if strings.TrimSpace(got.Warning) == "" {
 		t.Fatal("expected a non-empty warning on connection refused")
@@ -129,8 +129,8 @@ func TestProbeAuthPostureTimeout(t *testing.T) {
 	defer server.Close()
 
 	got := probeAuthPosture(probeTestClient(50*time.Millisecond), server.URL)
-	if got.Posture != postureToken {
-		t.Fatalf("Posture = %v, want postureToken on timeout", got.Posture)
+	if got.Posture != PostureToken {
+		t.Fatalf("Posture = %v, want PostureToken on timeout", got.Posture)
 	}
 	if strings.TrimSpace(got.Warning) == "" {
 		t.Fatal("expected a non-empty warning on timeout")
@@ -140,101 +140,101 @@ func TestProbeAuthPostureTimeout(t *testing.T) {
 func TestResolveAuthPosture(t *testing.T) {
 	t.Parallel()
 
-	panicProbe := func(string) postureProbeResult {
+	panicProbe := func(string) PostureProbeResult {
 		panic("probe must not be called for this case")
 	}
 
 	t.Run("explicit sso never probes", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("sso", false, true, panicProbe, "https://eshu.example.com")
+		got, err := ResolveAuthPosture("sso", false, true, panicProbe, "https://eshu.example.com")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureSSO {
-			t.Fatalf("Posture = %v, want postureSSO", got.Posture)
+		if got.Posture != PostureSSO {
+			t.Fatalf("Posture = %v, want PostureSSO", got.Posture)
 		}
 	})
 
 	t.Run("explicit token never probes", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("token", false, true, panicProbe, "https://eshu.example.com")
+		got, err := ResolveAuthPosture("token", false, true, panicProbe, "https://eshu.example.com")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureToken {
-			t.Fatalf("Posture = %v, want postureToken", got.Posture)
+		if got.Posture != PostureToken {
+			t.Fatalf("Posture = %v, want PostureToken", got.Posture)
 		}
 	})
 
 	t.Run("explicit shared-key never probes", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("shared-key", false, true, panicProbe, "https://eshu.example.com")
+		got, err := ResolveAuthPosture("shared-key", false, true, panicProbe, "https://eshu.example.com")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureSharedKey {
-			t.Fatalf("Posture = %v, want postureSharedKey", got.Posture)
+		if got.Posture != PostureSharedKey {
+			t.Fatalf("Posture = %v, want PostureSharedKey", got.Posture)
 		}
 	})
 
 	t.Run("--shared-key bool wins over --auth auto without probing", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("auto", true, true, panicProbe, "https://eshu.example.com")
+		got, err := ResolveAuthPosture("auto", true, true, panicProbe, "https://eshu.example.com")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureSharedKey {
-			t.Fatalf("Posture = %v, want postureSharedKey", got.Posture)
+		if got.Posture != PostureSharedKey {
+			t.Fatalf("Posture = %v, want PostureSharedKey", got.Posture)
 		}
 	})
 
 	t.Run("auto with local stdio never probes and defaults token", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("auto", false, false, panicProbe, "")
+		got, err := ResolveAuthPosture("auto", false, false, panicProbe, "")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureToken {
-			t.Fatalf("Posture = %v, want postureToken", got.Posture)
+		if got.Posture != PostureToken {
+			t.Fatalf("Posture = %v, want PostureToken", got.Posture)
 		}
 	})
 
 	t.Run("auto with hosted calls probe and returns its result", func(t *testing.T) {
 		t.Parallel()
 		called := false
-		probe := func(url string) postureProbeResult {
+		probe := func(url string) PostureProbeResult {
 			called = true
 			if url != "https://eshu.example.com" {
 				t.Fatalf("probe called with url = %q, want https://eshu.example.com", url)
 			}
-			return postureProbeResult{Posture: postureSSO, Issuers: []string{"https://idp.example.com"}}
+			return PostureProbeResult{Posture: PostureSSO, Issuers: []string{"https://idp.example.com"}}
 		}
-		got, err := resolveAuthPosture("auto", false, true, probe, "https://eshu.example.com")
+		got, err := ResolveAuthPosture("auto", false, true, probe, "https://eshu.example.com")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
 		if !called {
 			t.Fatal("expected probe to be called for auto+hosted")
 		}
-		if got.Posture != postureSSO {
-			t.Fatalf("Posture = %v, want postureSSO", got.Posture)
+		if got.Posture != PostureSSO {
+			t.Fatalf("Posture = %v, want PostureSSO", got.Posture)
 		}
 	})
 
 	t.Run("empty --auth defaults to auto behavior", func(t *testing.T) {
 		t.Parallel()
-		got, err := resolveAuthPosture("", false, false, panicProbe, "")
+		got, err := ResolveAuthPosture("", false, false, panicProbe, "")
 		if err != nil {
 			t.Fatalf("error = %v, want nil", err)
 		}
-		if got.Posture != postureToken {
-			t.Fatalf("Posture = %v, want postureToken", got.Posture)
+		if got.Posture != PostureToken {
+			t.Fatalf("Posture = %v, want PostureToken", got.Posture)
 		}
 	})
 
 	t.Run("invalid --auth value errors listing accepted values", func(t *testing.T) {
 		t.Parallel()
-		_, err := resolveAuthPosture("bogus", false, true, panicProbe, "https://eshu.example.com")
+		_, err := ResolveAuthPosture("bogus", false, true, panicProbe, "https://eshu.example.com")
 		if err == nil {
 			t.Fatal("error = nil, want non-nil for invalid --auth value")
 		}

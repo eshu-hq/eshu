@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"strings"
@@ -10,7 +10,7 @@ import (
 
 // TestDocLockstepLiterals pins the exact literal strings
 // docs/public/operate/mcp-client-auth.md's client matrix embeds -- hardcoded
-// here rather than built from the mcpTokenEnvVar/apiKeyEnvVar constants, so a
+// here rather than built from the MCPTokenEnvVar/APIKeyEnvVar constants, so a
 // future rename of either constant's VALUE without an accompanying doc update
 // fails this test. scripts/verify-mcp-client-auth-doc.sh greps the doc itself
 // for the same four literals; together the two sides form the lockstep guard
@@ -21,10 +21,10 @@ func TestDocLockstepLiterals(t *testing.T) {
 
 	t.Run("token posture env var reference", func(t *testing.T) {
 		t.Parallel()
-		out := renderForTest(t, "claude", mcpSetupRequest{
-			Mode:       modeHostedHTTP,
+		out := renderForTest(t, "claude", SetupRequest{
+			Mode:       ModeHostedHTTP,
 			ServiceURL: "https://your-eshu-host",
-			Posture:    postureToken,
+			Posture:    PostureToken,
 		})
 		if !strings.Contains(out, "${ESHU_MCP_TOKEN}") {
 			t.Fatalf("token posture output missing literal ${ESHU_MCP_TOKEN}:\n%s", out)
@@ -33,10 +33,10 @@ func TestDocLockstepLiterals(t *testing.T) {
 
 	t.Run("hosted endpoint path", func(t *testing.T) {
 		t.Parallel()
-		out := renderForTest(t, "generic", mcpSetupRequest{
-			Mode:       modeHostedHTTP,
+		out := renderForTest(t, "generic", SetupRequest{
+			Mode:       ModeHostedHTTP,
 			ServiceURL: "https://your-eshu-host",
-			Posture:    postureToken,
+			Posture:    PostureToken,
 		})
 		if !strings.Contains(out, "/mcp/message") {
 			t.Fatalf("hosted output missing literal /mcp/message endpoint path:\n%s", out)
@@ -45,10 +45,10 @@ func TestDocLockstepLiterals(t *testing.T) {
 
 	t.Run("codex bearer_token_env_var literal", func(t *testing.T) {
 		t.Parallel()
-		out := renderForTest(t, "codex", mcpSetupRequest{
-			Mode:       modeHostedHTTP,
+		out := renderForTest(t, "codex", SetupRequest{
+			Mode:       ModeHostedHTTP,
 			ServiceURL: "https://your-eshu-host",
-			Posture:    postureToken,
+			Posture:    PostureToken,
 		})
 		if !strings.Contains(out, `bearer_token_env_var = "ESHU_MCP_TOKEN"`) {
 			t.Fatalf("codex output missing literal bearer_token_env_var = \"ESHU_MCP_TOKEN\":\n%s", out)
@@ -57,10 +57,10 @@ func TestDocLockstepLiterals(t *testing.T) {
 
 	t.Run("shared-key warning first line", func(t *testing.T) {
 		t.Parallel()
-		out := renderForTest(t, "claude", mcpSetupRequest{
-			Mode:       modeHostedHTTP,
+		out := renderForTest(t, "claude", SetupRequest{
+			Mode:       ModeHostedHTTP,
 			ServiceURL: "https://your-eshu-host",
-			Posture:    postureSharedKey,
+			Posture:    PostureSharedKey,
 		})
 		if !strings.Contains(out, "WARNING: the shared ESHU_API_KEY is an admin/dev credential: full AllScopes") {
 			t.Fatalf("shared-key output missing literal warning first line:\n%s", out)

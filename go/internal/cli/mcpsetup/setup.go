@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package mcpsetup
 
 import (
 	"fmt"
@@ -12,34 +12,34 @@ import (
 // mcpServerKey is the server name Eshu registers in every MCP client config.
 const mcpServerKey = "eshu"
 
-// apiKeyEnvVar is the environment variable name an MCP client should reference
+// APIKeyEnvVar is the environment variable name an MCP client should reference
 // for the legacy shared admin/dev bearer token (shared-key posture). Setup
 // emits this reference instead of the raw secret whenever the target client
 // supports env-var interpolation.
-const apiKeyEnvVar = "ESHU_API_KEY" // #nosec G101 -- apiKeyEnvVar holds an env-var name, not a secret value
+const APIKeyEnvVar = "ESHU_API_KEY" // #nosec G101 -- APIKeyEnvVar holds an env-var name, not a secret value
 
-// mcpTokenEnvVar is the per-user bearer token env var emitted in token
+// MCPTokenEnvVar is the per-user bearer token env var emitted in token
 // posture (the default): a personal token issued from the console (Profile ->
 // API tokens, issue #5164), scoped to that engineer's own grants rather than
 // the shared admin/dev key. See docs/public/mcp/index.md for the documented
 // client-side contract this name already establishes (issue #5169, F-8).
-const mcpTokenEnvVar = "ESHU_MCP_TOKEN" // #nosec G101 -- mcpTokenEnvVar holds an env-var name, not a secret value
+const MCPTokenEnvVar = "ESHU_MCP_TOKEN" // #nosec G101 -- MCPTokenEnvVar holds an env-var name, not a secret value
 
-// mcpSetupMode selects between local stdio launch and hosted HTTP transport.
-type mcpSetupMode int
+// SetupMode selects between local stdio launch and hosted HTTP transport.
+type SetupMode int
 
 const (
-	// modeLocalStdio configures the client to spawn `eshu mcp start` over stdio.
-	modeLocalStdio mcpSetupMode = iota
-	// modeHostedHTTP configures the client to reach a hosted HTTP MCP endpoint
+	// ModeLocalStdio configures the client to spawn `eshu mcp start` over stdio.
+	ModeLocalStdio SetupMode = iota
+	// ModeHostedHTTP configures the client to reach a hosted HTTP MCP endpoint
 	// using an env-var reference for the bearer token when supported.
-	modeHostedHTTP
+	ModeHostedHTTP
 )
 
-// mcpSetupRequest carries the resolved inputs for snippet generation.
-type mcpSetupRequest struct {
+// SetupRequest carries the resolved inputs for snippet generation.
+type SetupRequest struct {
 	// Mode picks local stdio or hosted HTTP transport.
-	Mode mcpSetupMode
+	Mode SetupMode
 	// ServiceURL is the hosted MCP endpoint base, used only in hosted mode.
 	ServiceURL string
 	// APIKey is the resolved legacy shared bearer token (shared-key posture
@@ -49,10 +49,10 @@ type mcpSetupRequest struct {
 	// never read this field: neither carries a raw secret through the CLI.
 	APIKey string
 	// Posture selects token (default), SSO, or shared-key credential wiring
-	// for hosted snippets. The zero value is postureToken, deliberately: any
+	// for hosted snippets. The zero value is PostureToken, deliberately: any
 	// call site that forgets to set it (including old tests) gets the new
 	// safe default, not the shared key.
-	Posture mcpAuthPosture
+	Posture AuthPosture
 	// Issuers names the IdP(s) advertised by the discovery probe
 	// (authorization_servers). Feeds SSO-posture guidance notes only.
 	Issuers []string
@@ -62,8 +62,8 @@ type mcpSetupRequest struct {
 	PreregisteredClientID string
 }
 
-// mcpPlatform describes how one MCP client is configured.
-type mcpPlatform struct {
+// Platform describes how one MCP client is configured.
+type Platform struct {
 	// Name is the canonical platform identifier accepted by --platform.
 	Name string
 	// Aliases are alternate accepted spellings for Name.
@@ -81,7 +81,7 @@ type mcpPlatform struct {
 	// this platform.
 	Writable bool
 	// snippet renders the platform-specific config text for a request.
-	snippet func(req mcpSetupRequest) (string, error)
+	snippet func(req SetupRequest) (string, error)
 	// notes are short post-snippet guidance lines.
 	notes []string
 }
@@ -89,8 +89,8 @@ type mcpPlatform struct {
 // mcpPlatformRegistry returns the supported platform table keyed by canonical
 // name. The registry is the single source of truth for snippet shape, target
 // file, and token-handling capability.
-func mcpPlatformRegistry() map[string]*mcpPlatform {
-	platforms := []*mcpPlatform{
+func mcpPlatformRegistry() map[string]*Platform {
+	platforms := []*Platform{
 		{
 			Name:                "claude",
 			Aliases:             []string{"claude-code", "claudecode"},
@@ -155,7 +155,7 @@ func mcpPlatformRegistry() map[string]*mcpPlatform {
 		},
 	}
 
-	registry := make(map[string]*mcpPlatform, len(platforms))
+	registry := make(map[string]*Platform, len(platforms))
 	for _, p := range platforms {
 		registry[p.Name] = p
 		for _, alias := range p.Aliases {
@@ -165,9 +165,9 @@ func mcpPlatformRegistry() map[string]*mcpPlatform {
 	return registry
 }
 
-// supportedPlatformNames returns the sorted canonical platform names for error
+// SupportedPlatformNames returns the sorted canonical platform names for error
 // messages and help output.
-func supportedPlatformNames() []string {
+func SupportedPlatformNames() []string {
 	seen := make(map[string]struct{})
 	for _, p := range mcpPlatformRegistry() {
 		seen[p.Name] = struct{}{}
@@ -180,10 +180,10 @@ func supportedPlatformNames() []string {
 	return names
 }
 
-// resolvePlatform looks up a platform by canonical name or alias. Lookup is
+// ResolvePlatform looks up a platform by canonical name or alias. Lookup is
 // case-insensitive. An unknown platform yields an error listing supported
 // names.
-func resolvePlatform(raw string) (*mcpPlatform, error) {
+func ResolvePlatform(raw string) (*Platform, error) {
 	key := strings.ToLower(strings.TrimSpace(raw))
 	if key == "" {
 		key = "generic"
@@ -193,13 +193,13 @@ func resolvePlatform(raw string) (*mcpPlatform, error) {
 		return p, nil
 	}
 	return nil, fmt.Errorf("unsupported platform %q: supported platforms are %s",
-		raw, strings.Join(supportedPlatformNames(), ", "))
+		raw, strings.Join(SupportedPlatformNames(), ", "))
 }
 
-// redactToken masks a bearer token for display. It never returns the raw token.
+// RedactToken masks a bearer token for display. It never returns the raw token.
 // A short token is fully masked; a longer token keeps a 4-character prefix so an
 // operator can recognize which key is configured without exposing it.
-func redactToken(token string) string {
+func RedactToken(token string) string {
 	t := strings.TrimSpace(token)
 	if t == "" {
 		return ""
@@ -210,19 +210,19 @@ func redactToken(token string) string {
 	return t[:4] + strings.Repeat("*", len(t)-4)
 }
 
-// tokenReference returns the value to embed for a hosted bearer token
-// referenced by envVar (apiKeyEnvVar for shared-key posture, mcpTokenEnvVar
+// TokenReference returns the value to embed for a hosted bearer token
+// referenced by envVar (APIKeyEnvVar for shared-key posture, MCPTokenEnvVar
 // for token posture). When the platform supports env-var references it
 // returns the ${envVar} reference and never the secret. Otherwise it returns
 // a masked placeholder built from secret (when known) and the caller emits
 // out-of-band injection guidance. secret is empty for token posture, which
 // never resolves a raw personal token through the CLI in the first place.
-func tokenReference(p *mcpPlatform, envVar, secret string) string {
+func TokenReference(p *Platform, envVar, secret string) string {
 	if p.SupportsEnvVarToken {
 		return "${" + envVar + "}"
 	}
 	if strings.TrimSpace(secret) == "" {
 		return "<set " + envVar + " out of band>"
 	}
-	return redactToken(secret)
+	return RedactToken(secret)
 }

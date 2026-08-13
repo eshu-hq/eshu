@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
 // verifyPostureServer records what the auth-enforced query route
@@ -59,7 +61,7 @@ func newVerifyPostureServer(t *testing.T, indexStatus401 bool) *verifyPostureSer
 func TestRunMCPSetupVerifyTokenPosturePrefersMcpToken(t *testing.T) {
 	const sharedKey = "eshu_shared_ADMIN_key_TESTONLY"       // #nosec G101 -- test fixture value, not a real secret
 	const personalToken = "eshu_pat_PERSONAL_token_TESTONLY" // #nosec G101 -- test fixture value, not a real secret
-	t.Setenv(mcpTokenEnvVar, personalToken)
+	t.Setenv(mcpsetup.MCPTokenEnvVar, personalToken)
 
 	vps := newVerifyPostureServer(t, false)
 	cmd := newSetupCmd()
@@ -97,7 +99,7 @@ func TestRunMCPSetupVerifyTokenPosturePrefersMcpToken(t *testing.T) {
 // skip reason names ESHU_MCP_TOKEN.
 func TestRunMCPSetupVerifyTokenPostureNoTokenSkipsQuery(t *testing.T) {
 	const sharedKey = "eshu_shared_ADMIN_key_TESTONLY" // #nosec G101 -- test fixture value, not a real secret
-	t.Setenv(mcpTokenEnvVar, "")                       // explicitly unset the personal token
+	t.Setenv(mcpsetup.MCPTokenEnvVar, "")              // explicitly unset the personal token
 
 	vps := newVerifyPostureServer(t, false)
 	cmd := newSetupCmd()
@@ -117,8 +119,8 @@ func TestRunMCPSetupVerifyTokenPostureNoTokenSkipsQuery(t *testing.T) {
 	if vps.indexStatusHits != 0 {
 		t.Fatalf("token posture without ESHU_MCP_TOKEN must not probe the auth-enforced route (shared key leak); hits=%d auth=%q", vps.indexStatusHits, vps.indexStatusAuth)
 	}
-	if !strings.Contains(out, mcpTokenEnvVar) {
-		t.Fatalf("skipped-query reason should name %s:\n%s", mcpTokenEnvVar, out)
+	if !strings.Contains(out, mcpsetup.MCPTokenEnvVar) {
+		t.Fatalf("skipped-query reason should name %s:\n%s", mcpsetup.MCPTokenEnvVar, out)
 	}
 	if !strings.Contains(out, "[--] first query successful") {
 		t.Fatalf("first-query stage should be marked skipped ([--]):\n%s", out)

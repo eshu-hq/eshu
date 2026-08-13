@@ -19,6 +19,7 @@ on:
     paths:
       - 'go/cmd/replay-coverage-gate/**'
       - 'go/cmd/eshu/**'
+      - 'go/internal/cli/**'
       - 'go/internal/replaycoverage/**'
       - 'go/internal/cigates/**'
       - 'go/internal/query/**'

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
@@ -60,7 +61,7 @@ embedding the secret.`,
 		RunE: runHostedSetup,
 	}
 	hostedCmd.Flags().Bool("json", false, "Write the hosted-setup result as a canonical JSON envelope")
-	hostedCmd.Flags().String("platform", "", "Emit a hosted MCP setup snippet for this assistant client: "+strings.Join(supportedPlatformNames(), ", "))
+	hostedCmd.Flags().String("platform", "", "Emit a hosted MCP setup snippet for this assistant client: "+strings.Join(mcpsetup.SupportedPlatformNames(), ", "))
 	hostedCmd.Flags().String("repository", "", "Require this repository to be present in the indexed scope")
 	addRemoteFlags(hostedCmd)
 	rootCmd.AddCommand(hostedCmd)

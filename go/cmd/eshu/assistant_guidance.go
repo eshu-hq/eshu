@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
@@ -355,7 +356,7 @@ func renderAssistantInstall(root string, results []platformResult, verify bool) 
 		return err
 	}
 	fmt.Print(renderAssistantVerifyReport(report))
-	if !report.allOK() {
+	if !report.AllOK() {
 		return fmt.Errorf("assistant ritual verification failed")
 	}
 	return nil
@@ -380,7 +381,7 @@ func renderAssistantStatus(root string, results []platformResult, verify bool) e
 		return err
 	}
 	fmt.Print(renderAssistantVerifyReport(report))
-	if !report.allOK() {
+	if !report.AllOK() {
 		return fmt.Errorf("assistant ritual verification failed")
 	}
 	return nil
@@ -389,24 +390,24 @@ func renderAssistantStatus(root string, results []platformResult, verify bool) e
 // assistantRitualVerification builds the verification report for
 // `assistant status --verify`. It checks committed guidance state first, then
 // reuses the local stdio MCP setup verification seam for safe tool visibility.
-func assistantRitualVerification(results []platformResult) (verifyReport, error) {
-	report := verifyReport{
-		Stages: []stageResult{assistantGuidanceStage(results)},
+func assistantRitualVerification(results []platformResult) (mcpsetup.VerifyReport, error) {
+	report := mcpsetup.VerifyReport{
+		Stages: []mcpsetup.StageResult{assistantGuidanceStage(results)},
 	}
-	p, err := resolvePlatform("generic")
+	p, err := mcpsetup.ResolvePlatform("generic")
 	if err != nil {
-		return verifyReport{}, err
+		return mcpsetup.VerifyReport{}, err
 	}
-	snippet, err := renderSetupSnippet(p, mcpSetupRequest{Mode: modeLocalStdio})
+	snippet, err := mcpsetup.RenderSetupSnippet(p, mcpsetup.SetupRequest{Mode: mcpsetup.ModeLocalStdio})
 	if err != nil {
-		return verifyReport{}, err
+		return mcpsetup.VerifyReport{}, err
 	}
-	mcpReport := runVerification(snippet, mcp.ReadOnlyTools, nil, nil, "")
+	mcpReport := mcpsetup.RunVerification(snippet, mcp.ReadOnlyTools, nil, nil, "")
 	report.Stages = append(report.Stages, mcpReport.Stages...)
 	return report, nil
 }
 
-func assistantGuidanceStage(results []platformResult) stageResult {
+func assistantGuidanceStage(results []platformResult) mcpsetup.StageResult {
 	current := 0
 	for _, r := range results {
 		if r.status == blockCurrent {
@@ -414,14 +415,14 @@ func assistantGuidanceStage(results []platformResult) stageResult {
 		}
 	}
 	ok := len(results) > 0 && current == len(results)
-	return stageResult{
-		Stage:  verifyStage("guidance installed"),
+	return mcpsetup.StageResult{
+		Stage:  mcpsetup.VerifyStage("guidance installed"),
 		OK:     ok,
 		Detail: fmt.Sprintf("%d/%d platform guidance blocks current", current, len(results)),
 	}
 }
 
-func renderAssistantVerifyReport(report verifyReport) string {
+func renderAssistantVerifyReport(report mcpsetup.VerifyReport) string {
 	var b strings.Builder
 	b.WriteString("\nAssistant ritual verification\n")
 	for _, s := range report.Stages {
