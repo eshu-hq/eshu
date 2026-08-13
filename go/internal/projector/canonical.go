@@ -126,9 +126,10 @@ type EntityRow struct {
 // language was decided by projection batch order.
 //
 // An empty Language is a value, not a wildcard. A module discovered only from
-// files whose language could not be determined gets its own `lang: ”` node and
-// never merges into a languaged one. That bounds the unknown-language case to
-// at most one extra node per module name.
+// files whose language could not be determined gets its own node, one whose
+// `lang` property is the empty string, and it never merges into a languaged
+// one. That bounds the unknown-language case to at most one extra node per
+// module name.
 type ModuleRow struct {
 	Name     string
 	Language string

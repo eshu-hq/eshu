@@ -46,10 +46,20 @@ var schemaConstraints = []string{
 	// tries an exact composite index, then a unique constraint, then the
 	// smallest single-property index candidate set, and only scans the label
 	// when none matched: the name index serves the anchor and lang is compared
-	// on the candidates. A composite (name, lang) index would narrow the
-	// candidate set further, but it would be this schema's first composite
-	// non-unique index and it buys nothing measurable here -- the candidate
-	// set is the same one the pre-(name, lang) MERGE already looked up.
+	// on the candidates.
+	//
+	// A composite (name, lang) index is not an option here, and the reason is
+	// not preference. On the pinned backend a two-property CREATE INDEX is
+	// registered as a property index keyed by label plus its FIRST property
+	// (storage.SchemaManager.AddPropertyIndex), and an existing key wins: with
+	// module_name_lookup already holding Module:name, the (name, lang)
+	// statement returns success and registers nothing. Reproduced through the
+	// Bolt driver against eshu-nornicdb-pr290:3722b483c02c -- after issuing it,
+	// SHOW INDEXES still lists only module_name_lookup, while the same
+	// statement with the properties reversed, ON (m.lang, m.name), takes the
+	// free Module:lang key and appears immediately. So the composite index
+	// would be DDL that provably does nothing; see
+	// docs/internal/evidence/module-node-identity-name-and-language.md.
 	"CREATE INDEX module_name_lookup IF NOT EXISTS FOR (m:Module) ON (m.name)",
 	"CREATE CONSTRAINT struct_cpp IF NOT EXISTS FOR (cstruct: Struct) REQUIRE (cstruct.name, cstruct.path, cstruct.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT enum_cpp IF NOT EXISTS FOR (cenum: Enum) REQUIRE (cenum.name, cenum.path, cenum.line_number) IS UNIQUE",

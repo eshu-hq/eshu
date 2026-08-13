@@ -116,7 +116,7 @@ type OrphanSweepStore struct {
 	// re-scans from the beginning. The mutex keeps it safe if a store is ever
 	// shared across goroutines.
 	cursorMu sync.Mutex
-	cursors  map[OrphanSweepLabel]string
+	cursors  map[OrphanSweepLabel]orphanSweepKey
 }
 
 // NewOrphanSweepStore returns a graph orphan sweep store.
@@ -201,11 +201,11 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 		return out, err
 	}
 
-	candidateKeys := make([]string, 0, len(candidates))
+	candidateKeys := make([]orphanSweepKey, 0, len(candidates))
 	for _, c := range candidates {
 		candidateKeys = append(candidateKeys, c.key)
 	}
-	sort.Strings(candidateKeys)
+	sortOrphanSweepKeys(candidateKeys)
 	// Advance the cursor before any early return so an all-connected window
 	// still makes forward progress next cycle rather than re-reading the same
 	// rows. An empty window wraps the cursor to the label start.
@@ -225,19 +225,20 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 	}
 	connected := make(map[string]bool, len(connectedKeys))
 	for _, k := range connectedKeys {
-		connected[k] = true
+		connected[k.encode()] = true
 	}
 
 	marked := make(map[string]bool, len(candidates))
 	observedAt := make(map[string]int64, len(candidates))
 	orphans := make(map[string]bool, len(candidates))
 	for _, c := range candidates {
+		encoded := c.key.encode()
 		if c.observedAt != nil {
-			marked[c.key] = true
-			observedAt[c.key] = *c.observedAt
+			marked[encoded] = true
+			observedAt[encoded] = *c.observedAt
 		}
-		if !connected[c.key] {
-			orphans[c.key] = true
+		if !connected[encoded] {
+			orphans[encoded] = true
 		}
 	}
 	out.orphanCount = int64(len(orphans))
@@ -285,11 +286,11 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 	}
 	reconnected := make(map[string]bool, len(reverifyConnected))
 	for _, k := range reverifyConnected {
-		reconnected[k] = true
+		reconnected[k.encode()] = true
 	}
-	finalSweep := make([]string, 0, len(toSweep))
+	finalSweep := make([]orphanSweepKey, 0, len(toSweep))
 	for _, k := range toSweep {
-		if !reconnected[k] {
+		if !reconnected[k.encode()] {
 			finalSweep = append(finalSweep, k)
 		}
 	}
@@ -323,9 +324,9 @@ func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[strin
 	counts := make(map[string]int64, len(labels))
 	for _, label := range labels {
 		// GraphOrphanNodeCounts is a read-only gauge, not the paging sweep, so
-		// it always reads the first bounded window (cursor "") rather than
+		// it always reads the first bounded window (nil cursor) rather than
 		// advancing the sweep's cursor.
-		candidates, err := s.readCandidateOrphanNodes(ctx, label, limit, "")
+		candidates, err := s.readCandidateOrphanNodes(ctx, label, limit, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -333,22 +334,22 @@ func (s *OrphanSweepStore) GraphOrphanNodeCounts(ctx context.Context) (map[strin
 			counts[string(label)] = 0
 			continue
 		}
-		keys := make([]string, 0, len(candidates))
+		keys := make([]orphanSweepKey, 0, len(candidates))
 		for _, c := range candidates {
 			keys = append(keys, c.key)
 		}
-		sort.Strings(keys)
+		sortOrphanSweepKeys(keys)
 		connectedKeys, err := s.readConnectedKeys(ctx, label, keys)
 		if err != nil {
 			return nil, err
 		}
 		connected := make(map[string]bool, len(connectedKeys))
 		for _, k := range connectedKeys {
-			connected[k] = true
+			connected[k.encode()] = true
 		}
 		var orphanCount int64
 		for _, k := range keys {
-			if !connected[k] {
+			if !connected[k.encode()] {
 				orphanCount++
 			}
 		}
@@ -376,33 +377,30 @@ func orphanLabelMatch(label OrphanSweepLabel) (string, bool) {
 	}
 }
 
-// orphanSweepIdentityKey returns the per-label identity property used to
-// anchor the key-based connected-keys read and the clear/mark/sweep writes.
-// These mirror the canonical writers' MERGE identity: Repository/Platform/
-// EvidenceArtifact use `id`, File/Directory use `path`, Module uses `name`.
+// orphanSweepIdentityProperties returns the per-label identity properties used
+// to anchor the key-based connected-keys read and the clear/mark/sweep writes.
+// They mirror the canonical writers' MERGE identity exactly: Repository/
+// Platform/EvidenceArtifact use `id`, File/Directory use `path`, and Module
+// uses (name, lang) because a canonical import Module is MERGEd on both -- a Go
+// `time` and a Python `time` are different modules that share a name.
 //
-// Module is the one label whose key is NOT its full identity. The canonical
-// import writer MERGEs on (name, lang) -- a Go `time` and a Python `time` are
-// different modules -- so two nodes in this sweep's class can share the key.
-// The Go-side anti-join keys connectivity by this single string, so a
-// same-named pair is treated as connected when EITHER node has a relationship.
-// That direction is deliberate and safe: the sweep never deletes a connected
-// node, and never deletes a disconnected node whose same-named sibling is
-// connected. The cost is that such a sibling is not swept; it stays counted in
-// GraphOrphanNodeCounts, so it surfaces as a Module orphan count that does not
-// drain rather than as wrong query truth. Making it exact needs a composite key
-// across the S1/S2 reads and the three key-anchored writes.
-// TestLiveOrphanSweepModuleSameNameDifferentLanguages pins this behavior.
-func orphanSweepIdentityKey(label OrphanSweepLabel) (string, bool) {
+// Module is the only label with more than one property, and the only one whose
+// emitted Cypher therefore differs in shape (see BuildCandidateOrphanNodesQuery
+// and orphan_sweep_writes.go). Keying Module on `name` alone made two nodes
+// share one entry in the Go-side anti-join, so a disconnected module counted as
+// connected whenever a same-named sibling was imported: it was never swept, and
+// it stayed in the GraphOrphanNodeCounts gauge as an orphan count that could
+// not drain.
+func orphanSweepIdentityProperties(label OrphanSweepLabel) ([]string, bool) {
 	switch label {
 	case OrphanSweepLabelRepository, OrphanSweepLabelPlatform, OrphanSweepLabelEvidenceArtifact:
-		return "id", true
+		return []string{"id"}, true
 	case OrphanSweepLabelFile, OrphanSweepLabelDirectory:
-		return "path", true
+		return []string{"path"}, true
 	case OrphanSweepLabelModule:
-		return "name", true
+		return []string{"name", "lang"}, true
 	default:
-		return "", false
+		return nil, false
 	}
 }
 
@@ -448,21 +446,27 @@ func normalizePositiveInt(value int, defaultValue int) int {
 }
 
 // sortedKeysWhere returns the keys of set for which predicate is true, sorted
-// ascending for deterministic write ordering and testable output.
-func sortedKeysWhere(set map[string]bool, predicate func(string) bool) []string {
-	out := make([]string, 0, len(set))
+// ascending for deterministic write ordering and testable output. The set is
+// keyed by the encoded identity key, so the returned slice is decoded back into
+// property tuples for the key-anchored writes.
+func sortedKeysWhere(set map[string]bool, predicate func(string) bool) []orphanSweepKey {
+	encoded := make([]string, 0, len(set))
 	for k := range set {
 		if predicate(k) {
-			out = append(out, k)
+			encoded = append(encoded, k)
 		}
 	}
-	sort.Strings(out)
+	sort.Strings(encoded)
+	out := make([]orphanSweepKey, 0, len(encoded))
+	for _, k := range encoded {
+		out = append(out, decodeOrphanSweepKey(k))
+	}
 	return out
 }
 
 // boundedKeys caps keys at limit (or defaultOrphanSweepBatchLimit when limit
 // is non-positive), preserving the input (already sorted) order.
-func boundedKeys(keys []string, limit int) []string {
+func boundedKeys(keys []orphanSweepKey, limit int) []orphanSweepKey {
 	if limit <= 0 {
 		limit = defaultOrphanSweepBatchLimit
 	}

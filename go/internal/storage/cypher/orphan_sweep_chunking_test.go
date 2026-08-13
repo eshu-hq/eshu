@@ -39,7 +39,7 @@ func TestReadConnectedKeysIssuesOneRoundTripAtOrBelowChunkSize(t *testing.T) {
 		keys[i] = fmt.Sprintf("key-%d", i)
 	}
 
-	got, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, keys)
+	got, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, singleOrphanKeys(keys))
 	if err != nil {
 		t.Fatalf("readConnectedKeys() error = %v, want nil", err)
 	}
@@ -70,7 +70,7 @@ func TestReadConnectedKeysChunksAboveChunkSizeAndUnionsResults(t *testing.T) {
 		keys[i] = fmt.Sprintf("key-%d", i)
 	}
 
-	got, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, keys)
+	got, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, singleOrphanKeys(keys))
 	if err != nil {
 		t.Fatalf("readConnectedKeys() error = %v, want nil", err)
 	}
@@ -88,7 +88,7 @@ func TestReadConnectedKeysChunksAboveChunkSizeAndUnionsResults(t *testing.T) {
 		t.Fatalf("union of connected keys = %d, want %d (no keys dropped or duplicated)", len(got), total)
 	}
 	seen := make(map[string]bool, len(got))
-	for _, k := range got {
+	for _, k := range flattenOrphanKeys(got) {
 		if seen[k] {
 			t.Fatalf("connected keys contain duplicate %q", k)
 		}
@@ -111,7 +111,7 @@ func TestReadConnectedKeysChunkPropagatesReaderErrorMidway(t *testing.T) {
 	for i := range keys {
 		keys[i] = fmt.Sprintf("key-%d", i)
 	}
-	if _, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, keys); err == nil {
+	if _, err := store.readConnectedKeys(context.Background(), OrphanSweepLabelFile, singleOrphanKeys(keys)); err == nil {
 		t.Fatal("readConnectedKeys() error = nil, want propagated reader error from a later chunk")
 	}
 }

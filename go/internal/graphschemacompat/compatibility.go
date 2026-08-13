@@ -44,6 +44,12 @@ SET statement_count = EXCLUDED.statement_count,
 // the selected backend.
 var ErrMissingMarker = errors.New("graph schema marker missing")
 
+// ErrIncompatible reports that the applied graph schema does not admit this
+// writer. It is the one outcome that means "stop writing" rather than "the
+// answer could not be read", which is the distinction WriteFence needs to avoid
+// turning an unreachable Postgres into a graph-write outage.
+var ErrIncompatible = errors.New("graph schema incompatible")
+
 // Result describes the schema compatibility decision made during startup.
 type Result struct {
 	Backend                graph.SchemaBackend
@@ -150,16 +156,31 @@ func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.S
 		AppliedFingerprint:     appliedFingerprint,
 		CompatibleFingerprints: compatible,
 	}
-	if appliedFingerprint == expected.Fingerprint || slices.Contains(compatible, expected.Fingerprint) {
+	if writerAdmitted(expected.Fingerprint, appliedFingerprint, compatible) {
 		return result, nil
 	}
 
 	return Result{}, fmt.Errorf(
-		"graph schema incompatible for backend %s: runtime expects fingerprint %s, latest applied fingerprint is %s; run eshu-bootstrap-data-plane with the matching image before starting graph writers",
+		"%w for backend %s: runtime expects fingerprint %s, latest applied fingerprint is %s; run eshu-bootstrap-data-plane with the matching image before starting graph writers",
+		ErrIncompatible,
 		backend,
 		expected.Fingerprint,
 		appliedFingerprint,
 	)
+}
+
+// writerAdmitted is the whole admission decision: a writer expecting
+// writerFingerprint may write against the applied schema only when the applied
+// schema is the one it was built for, or when that applied schema explicitly
+// records the writer's fingerprint as compatible.
+//
+// It is a named function rather than an inline condition so a test can drive
+// the real decision for a writer built from a different release -- the
+// rolling-upgrade case, which RequireCompatible cannot reach on its own because
+// it always computes the expected fingerprint from the running binary. See
+// module_identity_fence_test.go.
+func writerAdmitted(writerFingerprint, appliedFingerprint string, compatible []string) bool {
+	return appliedFingerprint == writerFingerprint || slices.Contains(compatible, writerFingerprint)
 }
 
 func schemaBackendForRuntime(backend runtimecfg.GraphBackend) (graph.SchemaBackend, error) {

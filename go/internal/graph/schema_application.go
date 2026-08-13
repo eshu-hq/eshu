@@ -14,7 +14,8 @@ import (
 type SchemaApplication struct {
 	// Backend is the graph schema dialect covered by this application.
 	Backend SchemaBackend
-	// Fingerprint is the stable digest of backend plus ordered schema DDL.
+	// Fingerprint is the stable digest of backend, ordered schema DDL, and the
+	// graph write-identity contract.
 	Fingerprint string
 	// StatementCount records the number of DDL statements included in the digest.
 	StatementCount int
@@ -23,9 +24,68 @@ type SchemaApplication struct {
 	CompatibleFingerprints []string
 }
 
+// graphWriteIdentityContract records the canonical MERGE identities graph
+// writers key on that no DDL statement describes. It is hashed into the schema
+// fingerprint so a writer whose identity contract disagrees with the applied
+// one is refused before it writes.
+//
+// Why the digest needs this at all. The fingerprint decides whether an older
+// writer may write against the applied schema, and a writer is unsafe when its
+// write identity disagrees with the current one, not only when its DDL does.
+// Issue #6102 is the case that proved it: moving the canonical import-graph
+// Module key from {name} to {name, lang} changes no DDL, so an old pod computed
+// the same digest, was admitted during a rolling upgrade, and its name-only
+// `MATCH (m:Module {name: row.module_name})` bound both the Go and the Python
+// node -- attaching a Go file's IMPORTS edge to the Python module. The edge
+// survives the rollout: the canonical refresh only deletes IMPORTS edges for
+// the file paths a generation projects, so a file that never changes again
+// keeps it.
+//
+// Adding a line here is a fence, not a note. Change a canonical writer's
+// MERGE/MATCH identity, add the line, and give the resulting fingerprint no
+// compatible predecessors in graphSchemaCompatibleFingerprints.
+var graphWriteIdentityContract = []string{
+	// Canonical import-graph Module (#6102). See
+	// canonicalNodeModuleUpsertCypher and canonicalNodeImportEdgeCypher in
+	// go/internal/storage/cypher. Semantic Module entities are unaffected:
+	// they MERGE on uid, which the uid uniqueness constraint already records
+	// as DDL.
+	"Module=name,lang",
+}
+
+// graphWriteIdentityDigestSection separates the write-identity contract from
+// the DDL statements inside the fingerprint digest, so an identity line can
+// never be mistaken for a schema statement and so introducing the section moves
+// the digest on its own.
+const graphWriteIdentityDigestSection = "graph-write-identity-contract"
+
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests, now including the #5458 RegistryEvent /
+	// current schema digests. They now cover the graphWriteIdentityContract
+	// section as well as the DDL, which is what moved them for the #6102 Module
+	// (name, lang) identity cutover -- that change adds no DDL, so before the
+	// section existed an older writer computed the identical digest and was
+	// admitted.
+	//
+	// This bump is NOT additive, and it deliberately lists no compatible
+	// predecessors (see graphSchemaCompatibleFingerprints). A writer on the
+	// previous release resolves an import-edge target by module name alone, so
+	// once both language nodes exist it binds the wrong one. It must stop
+	// before writing, not write a graph an operator then has to repair.
+	//
+	// The DDL itself is byte-identical to the pre-cutover schema recorded in
+	// graphSchemaNeo4jPreModuleIdentityFingerprint below, so bootstrap applies
+	// exactly the same statements it did before.
+	graphSchemaNeo4jFingerprint    = "fb55804c8e91a393be08c56f4c637fe1171d8c82e23fa24135eb543c92c19838"
+	graphSchemaNornicDBFingerprint = "27e278562803233a078fc381d92c27223f940325cc5770cfd303fa852cff8a3f"
+
+	// graphSchemaNeo4jPreModuleIdentityFingerprint and its NornicDB peer are the
+	// digests an older writer computes: the same DDL, hashed before the
+	// write-identity contract joined the digest. They are recorded so the
+	// compatibility gate can prove such a writer is refused, and they are
+	// deliberately absent from the current fingerprint's compatible list.
+	//
+	// This schema carries the #5458 RegistryEvent /
 	// PackageRegistryRegistryEvent uid uniqueness constraints
 	// (uidConstraintLabels). A #5820 P2 review found no query anywhere in the
 	// repo filtering PackageArtifact by version_id or package_id, and the same
@@ -36,14 +96,14 @@ const (
 	// never carried a registry_event_version_id/registry_event_package_id
 	// lookup index pair; only the uid constraint was added
 	// (schema_tables_indexes.go's NOTE documents the same decision for
-	// PackageArtifact). The bump is additive: a writer running the predecessor
-	// schema creates no RegistryEvent nodes, so the new constraint never
+	// PackageArtifact). That bump was additive: a writer running its
+	// predecessor creates no RegistryEvent nodes, so the constraint never
 	// applies to it, and the predecessor
 	// (graphSchemaNeo4jPreRegistryEventFingerprint /
 	// graphSchemaNornicDBPreRegistryEventFingerprint, the #5458 PackageArtifact
-	// tip below) stays compatible.
-	graphSchemaNeo4jFingerprint    = "8cb1b9c85e5e60690f69af2f35b227af357474845dcec947c8e53be66a1d2647"
-	graphSchemaNornicDBFingerprint = "d2f02330a087a4ece09cb9f81505909b1afbff48719e056c461ae776ceacd9bc"
+	// tip below) stayed compatible with it.
+	graphSchemaNeo4jPreModuleIdentityFingerprint    = "8cb1b9c85e5e60690f69af2f35b227af357474845dcec947c8e53be66a1d2647"
+	graphSchemaNornicDBPreModuleIdentityFingerprint = "d2f02330a087a4ece09cb9f81505909b1afbff48719e056c461ae776ceacd9bc"
 
 	// graphSchemaNeo4jPreRegistryEventFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #5458 RegistryEvent /
@@ -262,15 +322,32 @@ const (
 	graphSchemaNornicDBPreSqlMigrationFingerprint = "cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69"
 )
 
+// graphSchemaPreModuleIdentityFingerprints maps a backend to the digest an
+// older writer computes immediately before the #6102 Module (name, lang)
+// identity cutover. PreModuleIdentitySchemaApplication reads it.
+var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
+	SchemaBackendNeo4j:    graphSchemaNeo4jPreModuleIdentityFingerprint,
+	SchemaBackendNornicDB: graphSchemaNornicDBPreModuleIdentityFingerprint,
+}
+
 // graphSchemaCompatibleFingerprints lists additive predecessor schema
 // fingerprints that older graph writers may safely use after bootstrap records
-// the current marker. The key is the current (latest) schema fingerprint; the
-// value lists predecessor fingerprints whose writers stay compatible.
-// Destructive schema changes and schema changes coupled to new reducer domains
-// must not list predecessors.
+// the current marker. The key is the schema fingerprint that was applied; the
+// value lists predecessor fingerprints whose writers stay compatible with it.
+// Destructive schema changes, schema changes coupled to new reducer domains,
+// and write-identity cutovers must not list predecessors.
+//
+// The current fingerprint maps to an empty list on purpose: the #6102 Module
+// (name, lang) cutover changes what a writer MERGEs on, and a writer on any
+// earlier release resolves an import-edge target by module name alone. The
+// pre-cutover entry below is retained, keyed by that schema's own fingerprint
+// rather than the current one, so it can never be reached by the current
+// lookup. It records what that schema admitted, and the fence tests drive the
+// real admission decision with it.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {
+		graphSchemaNeo4jFingerprint: {},
+		graphSchemaNeo4jPreModuleIdentityFingerprint: {
 			graphSchemaNeo4jPreRegistryEventFingerprint,
 			graphSchemaNeo4jPreArtifactFingerprint,
 			graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
@@ -291,7 +368,8 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {
+		graphSchemaNornicDBFingerprint: {},
+		graphSchemaNornicDBPreModuleIdentityFingerprint: {
 			graphSchemaNornicDBPreRegistryEventFingerprint,
 			graphSchemaNornicDBPreArtifactFingerprint,
 			graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
@@ -323,6 +401,24 @@ func SchemaApplicationForBackend(backend SchemaBackend) (SchemaApplication, erro
 		return SchemaApplication{}, err
 	}
 
+	fingerprint := graphSchemaFingerprint(backend, statements, graphWriteIdentityContract)
+	compatible := append([]string(nil), graphSchemaCompatibleFingerprints[backend][fingerprint]...)
+	if compatible == nil {
+		compatible = []string{}
+	}
+	return SchemaApplication{
+		Backend:                backend,
+		Fingerprint:            fingerprint,
+		StatementCount:         len(statements),
+		CompatibleFingerprints: compatible,
+	}, nil
+}
+
+// graphSchemaFingerprint digests backend, the ordered DDL statements, and the
+// write-identity contract into the value RequireCompatible compares. It takes
+// the identity contract as an argument so a test can digest a historical
+// contract without mutating package state.
+func graphSchemaFingerprint(backend SchemaBackend, statements, identities []string) string {
 	hasher := sha256.New()
 	_, _ = hasher.Write([]byte(string(backend)))
 	_, _ = hasher.Write([]byte{0})
@@ -330,8 +426,33 @@ func SchemaApplicationForBackend(backend SchemaBackend) (SchemaApplication, erro
 		_, _ = hasher.Write([]byte(statement))
 		_, _ = hasher.Write([]byte{0})
 	}
+	_, _ = hasher.Write([]byte(graphWriteIdentityDigestSection))
+	_, _ = hasher.Write([]byte{0})
+	for _, identity := range identities {
+		_, _ = hasher.Write([]byte(identity))
+		_, _ = hasher.Write([]byte{0})
+	}
+	return hex.EncodeToString(hasher.Sum(nil))
+}
 
-	fingerprint := hex.EncodeToString(hasher.Sum(nil))
+// PreModuleIdentitySchemaApplication returns the schema application an older
+// writer computes immediately before the #6102 Module (name, lang) identity
+// cutover: the fingerprint that writer expects, and the predecessors that
+// schema admitted.
+//
+// It exists so the compatibility gate can prove -- against the real admission
+// decision rather than a restatement of it -- that such a writer is refused
+// once the cutover schema is applied. Intended for tests and static contract
+// checks only, like MustSchemaApplicationForBackend.
+func PreModuleIdentitySchemaApplication(backend SchemaBackend) (SchemaApplication, error) {
+	statements, err := SchemaStatementsForBackend(backend)
+	if err != nil {
+		return SchemaApplication{}, err
+	}
+	fingerprint, ok := graphSchemaPreModuleIdentityFingerprints[backend]
+	if !ok {
+		return SchemaApplication{}, fmt.Errorf("no pre-module-identity fingerprint for backend %s", backend)
+	}
 	compatible := append([]string(nil), graphSchemaCompatibleFingerprints[backend][fingerprint]...)
 	if compatible == nil {
 		compatible = []string{}

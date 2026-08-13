@@ -44,11 +44,12 @@ func importEdgeCleanup(ctx context.Context, t *testing.T, exec liveExecutor) {
 		{`MATCH (f:File) WHERE f.repo_id = $repo_id DETACH DELETE f`, map[string]any{"repo_id": importEdgeRepoID}},
 		{`MATCH (d:Directory) WHERE d.repo_id = $repo_id DETACH DELETE d`, map[string]any{"repo_id": importEdgeRepoID}},
 		{`MATCH (r:Repository {id: $repo_id}) DETACH DELETE r`, map[string]any{"repo_id": importEdgeRepoID}},
-		// Module nodes are global -- MERGEd on name alone, with no repo_id -- so
-		// this test uses names no real repository imports, and deletes only
+		// Module nodes are global -- MERGEd on (name, lang), with no repo_id --
+		// so this test uses names no real repository imports, and deletes only
 		// those. Cleaning up by a real module name ("fmt", "express") would
 		// detach unrelated repositories' import edges on any shared or reused
-		// backend.
+		// backend, and matching on the name alone would take every language's
+		// node with it.
 		{`MATCH (m:Module) WHERE m.name IN $names DETACH DELETE m`, map[string]any{"names": []any{"5691-test-express", "5691-test-fmt"}}},
 	}
 	for _, s := range stmts {
@@ -81,10 +82,14 @@ func importEdgeMaterialization(generationID string, first bool, imports []projec
 	}
 }
 
+// importEdgeRows carries ModuleLanguage on every row, matching the Language on
+// the Module rows above. Module identity is (name, lang), so the edge statement
+// resolves its target on both properties; a row that named the module but not
+// its language would match no node and the edge would simply not be written.
 func importEdgeRows() []projector.ImportRow {
 	return []projector.ImportRow{
-		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ImportedName: "Router", Alias: "R", LineNumber: 2},
-		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ImportedName: "", LineNumber: 4},
+		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ModuleLanguage: "typescript", ImportedName: "Router", Alias: "R", LineNumber: 2},
+		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ModuleLanguage: "go", ImportedName: "", LineNumber: 4},
 	}
 }
 

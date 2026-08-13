@@ -4,10 +4,12 @@
 
 1. `README.md` - package purpose and compatibility contract.
 2. `compatibility.go` - marker query and startup refusal logic.
-3. `go/internal/graph/schema_application.go` - fingerprint and compatibility
+3. `write_fence.go` - the same decision re-checked on the write path of a
+   process that is already running.
+4. `go/internal/graph/schema_application.go` - fingerprint and compatibility
    source.
-4. `go/cmd/bootstrap-data-plane/main.go` - normal marker writer.
-5. `go/cmd/bootstrap-index/graph_schema.go` - direct bootstrap-index
+5. `go/cmd/bootstrap-data-plane/main.go` - normal marker writer.
+6. `go/cmd/bootstrap-index/graph_schema.go` - direct bootstrap-index
    marker-missing initializer.
 
 ## Invariants this package enforces
@@ -20,6 +22,10 @@
   row for the selected backend, not any historical row.
 - **Explicit compatibility** - only an exact fingerprint match or a latest row
   listing the writer's fingerprint in `compatible_fingerprints` may pass.
+- **A read failure is not a refusal** - `WriteFence` stops a write only on a
+  marker it read successfully that says no. Do not make it fail closed on a
+  query error: every canonical writer would stop together on one Postgres blip,
+  and the startup check already admitted the process.
 
 ## Common changes and how to scope them
 
@@ -38,6 +44,11 @@
   and writing the marker before it opens the projection writer.
 - Startup refusal with `graph schema incompatible` means the latest schema
   marker is not exact and did not declare the writer fingerprint compatible.
+- The same message on a *retrying* projector queue row, from a process that
+  started fine, is the `WriteFence` refusing a write mid-flight: a schema
+  application landed underneath this pod. The work stays queued for the pod that
+  replaces it. The fence reaches only writers built with it, so a release older
+  than the fence still has to be stopped before bootstrap records the marker.
 
 ## Anti-patterns specific to this package
 

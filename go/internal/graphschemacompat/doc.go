@@ -10,4 +10,11 @@
 // after strict graph DDL or adoption succeeds. It does not inspect the graph
 // backend at runtime, so steady-state pods avoid repeated SHOW CONSTRAINTS or
 // SHOW INDEXES scans on large retained graph stores.
+//
+// RequireCompatible answers for a writer that is starting. WriteFence carries
+// the same decision onto the write path of a writer that is already running,
+// for the case a schema application is recorded underneath it -- a Helm upgrade
+// records the new marker from a pre-upgrade hook while the previous pods still
+// serve. It caches its decision, so the cost is one indexed marker read per
+// interval rather than one per write.
 package graphschemacompat

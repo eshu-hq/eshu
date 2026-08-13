@@ -39,6 +39,27 @@ type importIdentity struct {
 // the same Go `time` still shares one. It mirrors the writer's
 // `MERGE (m:Module {name, lang})` key exactly, so the in-process dedupe cannot
 // collapse two modules the graph would have kept apart.
+//
+// The key splits on language even when the two languages belong to one
+// ecosystem, and that is a deliberate accepted cost, not an oversight. The
+// corpus collisions this fixes are unambiguous -- `time` and `os` (Go and
+// Python), `path` (Go and JavaScript), `basic` (Ruby and Python) are genuinely
+// different modules. But `typescript` and `javascript` are separate language
+// strings (internal/parser/registry_definitions.go), so a TypeScript file and a
+// JavaScript file importing the same npm package now point at two nodes where
+// they used to share one, and the shared node was the cross-repository link.
+//
+// Two things bound what that costs today. The import read surface already
+// separated them: `directImportRowsCypher` and `packageImportRowsCypher`
+// (internal/query/code_import_dependencies_queries.go) project
+// `coalesce(source_file.language, source_file.lang, target_module.lang)`, which
+// takes the importing FILE's language first, so a .ts importer and a .js
+// importer of one package have always been reported as two rows. And no read
+// path anchors on a Module node and walks back to its importers -- every import
+// query starts at Repository -> File -[:IMPORTS]-> Module -- so nothing
+// currently traverses the shared node the split gives up. Re-linking the two
+// would mean an ecosystem key rather than a language key, which is a different
+// design than this one.
 type moduleIdentity struct {
 	name     string
 	language string

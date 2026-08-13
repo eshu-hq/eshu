@@ -21,6 +21,58 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
+			// Empty on purpose. The #6102 Module (name, lang) identity cutover
+			// changes what canonical writers MERGE on, so no earlier writer may
+			// write against this schema: an older one resolves an import-edge
+			// target by module name alone and binds whichever language node it
+			// finds. What that schema itself admitted is retained under
+			// graphSchemaNeo4jPreModuleIdentityFingerprint and asserted by
+			// TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted.
+			compatible: []string{},
+		},
+		{
+			name:        "nornicdb",
+			backend:     SchemaBackendNornicDB,
+			fingerprint: graphSchemaNornicDBFingerprint,
+			compatible:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			app, err := SchemaApplicationForBackend(tt.backend)
+			if err != nil {
+				t.Fatalf("SchemaApplicationForBackend(%q) error = %v, want nil", tt.backend, err)
+			}
+			if app.Fingerprint != tt.fingerprint {
+				t.Fatalf("Fingerprint = %q, want %q; update the schema compatibility decision before accepting the new schema fingerprint", app.Fingerprint, tt.fingerprint)
+			}
+			if !slices.Equal(app.CompatibleFingerprints, tt.compatible) {
+				t.Fatalf("CompatibleFingerprints = %#v, want %#v", app.CompatibleFingerprints, tt.compatible)
+			}
+		})
+	}
+}
+
+// TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted keeps the
+// pre-#6102 compatibility history honest. The cutover schema admits nobody, but
+// the schema it replaced admitted a long additive chain, and that record is
+// what the compatibility fence test drives the real admission decision with.
+func TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		backend     SchemaBackend
+		fingerprint string
+		compatible  []string
+	}{
+		{
+			name:        "neo4j",
+			backend:     SchemaBackendNeo4j,
+			fingerprint: graphSchemaNeo4jPreModuleIdentityFingerprint,
 			// The #5458 registry_event slice's RegistryEvent/
 			// PackageRegistryRegistryEvent uid constraint is additive: an older
 			// writer creates no RegistryEvent nodes, so the new constraint
@@ -100,7 +152,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
-			fingerprint: graphSchemaNornicDBFingerprint,
+			fingerprint: graphSchemaNornicDBPreModuleIdentityFingerprint,
 			compatible: []string{
 				graphSchemaNornicDBPreRegistryEventFingerprint,
 				graphSchemaNornicDBPreArtifactFingerprint,
@@ -129,15 +181,52 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			app, err := SchemaApplicationForBackend(tt.backend)
+			app, err := PreModuleIdentitySchemaApplication(tt.backend)
 			if err != nil {
-				t.Fatalf("SchemaApplicationForBackend(%q) error = %v, want nil", tt.backend, err)
+				t.Fatalf("PreModuleIdentitySchemaApplication(%q) error = %v, want nil", tt.backend, err)
 			}
 			if app.Fingerprint != tt.fingerprint {
-				t.Fatalf("Fingerprint = %q, want %q; update the schema compatibility decision before accepting the new schema fingerprint", app.Fingerprint, tt.fingerprint)
+				t.Fatalf("Fingerprint = %q, want %q", app.Fingerprint, tt.fingerprint)
 			}
 			if !slices.Equal(app.CompatibleFingerprints, tt.compatible) {
 				t.Fatalf("CompatibleFingerprints = %#v, want %#v", app.CompatibleFingerprints, tt.compatible)
+			}
+		})
+	}
+}
+
+// TestWriteIdentityContractMovesTheFingerprintWithoutMovingTheDDL is the
+// mechanism check behind the #6102 fence. The identity cutover ships no DDL
+// change, so the digest is the only thing that can tell an old writer apart
+// from a new one. This asserts the contract is genuinely an input to the digest
+// -- digest the same statements without it and the fingerprint moves -- while
+// the statements bootstrap applies stay exactly as they were.
+func TestWriteIdentityContractMovesTheFingerprintWithoutMovingTheDDL(t *testing.T) {
+	t.Parallel()
+
+	for _, backend := range []SchemaBackend{SchemaBackendNeo4j, SchemaBackendNornicDB} {
+		t.Run(string(backend), func(t *testing.T) {
+			t.Parallel()
+
+			statements, err := SchemaStatementsForBackend(backend)
+			if err != nil {
+				t.Fatalf("SchemaStatementsForBackend(%q) error = %v, want nil", backend, err)
+			}
+
+			app, err := SchemaApplicationForBackend(backend)
+			if err != nil {
+				t.Fatalf("SchemaApplicationForBackend(%q) error = %v, want nil", backend, err)
+			}
+			if got := graphSchemaFingerprint(backend, statements, graphWriteIdentityContract); got != app.Fingerprint {
+				t.Fatalf("graphSchemaFingerprint = %q, want the applied fingerprint %q", got, app.Fingerprint)
+			}
+			if got := graphSchemaFingerprint(backend, statements, nil); got == app.Fingerprint {
+				t.Fatalf("fingerprint %q is unchanged when the identity contract is emptied; "+
+					"the contract is not an input to the digest, so nothing fences a stale writer", got)
+			}
+			if app.StatementCount != len(statements) {
+				t.Fatalf("StatementCount = %d, want %d; the identity contract must not add DDL",
+					app.StatementCount, len(statements))
 			}
 		})
 	}

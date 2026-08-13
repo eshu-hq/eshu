@@ -3,7 +3,11 @@
 
 package cypher
 
-import "go.opentelemetry.io/otel/trace"
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/trace"
+)
 
 // This file holds CanonicalNodeWriter's With* builder options, split out of
 // canonical_node_writer.go to stay under the repo's 500-line file cap. See
@@ -16,6 +20,35 @@ func (w *CanonicalNodeWriter) WithTracer(tracer trace.Tracer) *CanonicalNodeWrit
 		return nil
 	}
 	w.tracer = tracer
+	return w
+}
+
+// WithSchemaWriteFence makes every canonical write ask check first, and fail
+// without writing when it says no.
+//
+// The graph schema compatibility gate otherwise runs once, at process startup.
+// A writer admitted then keeps writing across a schema application recorded
+// underneath it -- a Helm upgrade records the new marker from a pre-upgrade
+// hook while the previous pods are still serving, and a rollback records an
+// older marker under newer pods. Neither is visible to a check that only runs
+// before the service loop, and the write that follows can be one this schema no
+// longer describes: the #6102 Module identity cutover is the case that proved
+// it, where a name-only writer attached a Go file's IMPORTS edge to the Python
+// module and the edge outlived the rollout.
+//
+// The refusal is retryable, so the work stays in the queue for a writer that is
+// admitted rather than dead-lettering a backlog the operator still wants
+// projected. Optional: a nil check (the default) leaves the startup gate as the
+// only fence, which is what every test constructing a writer directly gets, and
+// what cmd/bootstrap-index keeps -- it is a one-shot seeder that applies or
+// adopts the schema itself and exits, so there is no long-running window for a
+// marker to change underneath it. cmd/ingester and cmd/projector wire a real
+// one. See graphschemacompat.WriteFence for the caching read behind it.
+func (w *CanonicalNodeWriter) WithSchemaWriteFence(check func(context.Context) error) *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.schemaWriteFence = check
 	return w
 }
 

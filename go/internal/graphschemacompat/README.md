@@ -25,6 +25,11 @@ See `doc.go` for the godoc package contract.
   `graph.SchemaApplication`.
 - `ErrMissingMarker` lets callers distinguish an absent marker from an
   incompatible latest marker without string matching.
+- `ErrIncompatible` marks the one outcome that means "stop writing", so a caller
+  can separate it from a marker it simply could not read.
+- `WriteFence` / `NewWriteFence` / `NewWriteFenceForRuntime` re-check the marker
+  while a writer is already running, for callers that want the decision to reach
+  a write in flight rather than only a process starting up.
 - `Result` reports the expected fingerprint, latest applied fingerprint, and
   compatibility list used in the decision.
 
@@ -37,6 +42,11 @@ See `doc.go` for the godoc package contract.
   `Rows` interfaces.
 
 ## Telemetry
+
+This package emits no metrics or spans. A `WriteFence` refusal surfaces where
+the write failed: the canonical writer returns it as a retryable projector
+error, so it lands on the queue row with the full expected/applied fingerprint
+message and shows up in existing queue and status telemetry.
 
 This package emits no metrics or spans. Callers surface startup refusal through
 their existing `runtime.startup.failed` structured log, and Postgres
@@ -59,6 +69,18 @@ instrumented adapters.
   or after bootstrap adoption proves the existing graph schema is complete.
 - The check reads Postgres only. It deliberately avoids `SHOW CONSTRAINTS` and
   `SHOW INDEXES` during steady-state pod startup.
+- `RequireCompatible` decides admission for a writer that is *starting*. A
+  writer already past it keeps writing across a marker recorded underneath it,
+  which is the normal shape of a Helm upgrade: the schema-bootstrap Job is a
+  pre-upgrade hook, so it records the new marker while the previous generation
+  of pods is still serving. `WriteFence` is what carries the decision onto the
+  write path. It cannot reach a writer from a release built before the fence
+  existed -- that binary never calls it -- so an identity cutover still needs
+  those pods stopped before bootstrap records the marker.
+- A `WriteFence` refuses only on a marker it read successfully that says no. An
+  unreadable marker holds the previous decision, because failing closed there
+  would turn one Postgres blip into a graph-write outage across every writer at
+  once.
 - Direct bootstrap-index startup may recover from `ErrMissingMarker` by applying
   the strict graph schema. Long-lived graph writers should return the error and
   let deployment ordering run `eshu-bootstrap-data-plane`.

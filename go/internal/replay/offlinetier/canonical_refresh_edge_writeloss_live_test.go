@@ -102,7 +102,9 @@ func TestRefreshFileImportEdgesGraphTruth(t *testing.T) {
 		{Path: filePath, RelativePath: "dir-a/importer.go", Name: "importer.go", Language: "go", RepoID: refreshRepoID, DirPath: refreshRepoPath + "/dir-a"},
 	}
 	gen1.Modules = []projector.ModuleRow{{Name: "p0-5652-followup-module", Language: "go"}}
-	gen1.Imports = []projector.ImportRow{{FilePath: filePath, ModuleName: "p0-5652-followup-module", ImportedName: "followupmod", LineNumber: 1}}
+	// ModuleLanguage must match the Module row's Language: the edge resolves its
+	// target on the full (name, lang) Module identity.
+	gen1.Imports = []projector.ImportRow{{FilePath: filePath, ModuleName: "p0-5652-followup-module", ModuleLanguage: "go", ImportedName: "followupmod", LineNumber: 1}}
 
 	if err := writer.Write(ctx, gen1); err != nil {
 		t.Fatalf("write gen1: %v", err)

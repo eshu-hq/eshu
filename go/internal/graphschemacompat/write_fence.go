@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package graphschemacompat
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/graph"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+// DefaultWriteFenceInterval is how long a WriteFence reuses its last decision
+// before reading the marker again. It bounds two things at once: how long an
+// already-running writer can keep writing after the applied schema stops
+// admitting it, and how often every canonical writer in the deployment re-reads
+// one indexed Postgres row. Thirty seconds is short next to a rolling upgrade's
+// pod-replacement window and long next to a canonical write batch.
+const DefaultWriteFenceInterval = 30 * time.Second
+
+// WriteFence re-checks the applied graph schema marker while a writer is
+// already running, instead of only when it starts.
+//
+// RequireCompatible runs once, at process startup, before the service loop.
+// That admits or refuses a writer that is asking to start, and nothing after
+// it looks at the marker again -- so a writer that was admitted keeps writing
+// across a schema change recorded underneath it. During a Helm upgrade the
+// schema-bootstrap Job is a pre-upgrade hook, so it records the new marker
+// while the previous generation of ingester, projector, and reducer pods is
+// still serving. The same gap is open in the other direction on a rollback,
+// where an older bootstrap re-records an older marker under pods from the newer
+// release.
+//
+// A fence closes that on the write path: a canonical write asks the fence
+// first, and a writer the applied schema no longer admits fails instead of
+// writing. What it cannot do is reach a writer from a release that predates the
+// fence, because that binary contains no call to it. Only stopping those pods
+// before bootstrap records the marker does.
+//
+// Decisions are cached for interval, so the cost is one indexed Postgres read
+// per fence per interval rather than one per write. The mutex is held across
+// that read on purpose: concurrent writers coalesce onto the single in-flight
+// check rather than each issuing their own.
+type WriteFence struct {
+	db       postgres.Queryer
+	backend  graph.SchemaBackend
+	interval time.Duration
+	now      func() time.Time
+
+	mu        sync.Mutex
+	checkedAt time.Time
+	refusal   error
+}
+
+// NewWriteFence returns a fence over backend's marker. An interval at or below
+// zero falls back to DefaultWriteFenceInterval.
+func NewWriteFence(db postgres.Queryer, backend graph.SchemaBackend, interval time.Duration) *WriteFence {
+	if interval <= 0 {
+		interval = DefaultWriteFenceInterval
+	}
+	return &WriteFence{db: db, backend: backend, interval: interval}
+}
+
+// NewWriteFenceForRuntime builds a fence for the backend selected by
+// ESHU_GRAPH_BACKEND. It returns a nil fence, and no error, for the runtime
+// profiles that have no graph schema marker to check at all -- the same
+// profiles RequireCompatibleForRuntime skips. A nil fence admits every write,
+// so callers can wire the result unconditionally.
+func NewWriteFenceForRuntime(db postgres.Queryer, getenv func(string) string) (*WriteFence, error) {
+	if graphCompatibilityDisabled(getenv) {
+		return nil, nil
+	}
+	runtimeBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return nil, err
+	}
+	backend, err := schemaBackendForRuntime(runtimeBackend)
+	if err != nil {
+		return nil, err
+	}
+	return NewWriteFence(db, backend, DefaultWriteFenceInterval), nil
+}
+
+// Check reports whether this writer may still write. It returns nil when the
+// applied schema admits the writer, and the ErrIncompatible error from
+// RequireCompatible when it does not.
+//
+// A marker that cannot be read -- Postgres unreachable, the row gone -- is not
+// a refusal. The startup check already admitted this writer, so an unreadable
+// marker holds the previous decision rather than turning one database blip into
+// a simultaneous graph-write outage across every writer. Only a marker that is
+// readable and says no stops a write.
+func (f *WriteFence) Check(ctx context.Context) error {
+	if f == nil {
+		return nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	now := f.clock()
+	if !f.checkedAt.IsZero() && now.Sub(f.checkedAt) < f.interval {
+		return f.refusal
+	}
+
+	_, err := RequireCompatible(ctx, f.db, f.backend)
+	// checkedAt advances even when the read failed, so an unreachable Postgres
+	// costs one query per interval rather than one per write.
+	f.checkedAt = now
+	switch {
+	case err == nil:
+		f.refusal = nil
+	case errors.Is(err, ErrIncompatible):
+		f.refusal = err
+	}
+	return f.refusal
+}
+
+func (f *WriteFence) clock() time.Time {
+	if f.now != nil {
+		return f.now()
+	}
+	return time.Now()
+}

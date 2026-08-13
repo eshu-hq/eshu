@@ -82,36 +82,7 @@ func TestCanonicalNodeWriterWritePhaseOrder(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		RepoID:       "repo-1",
-		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
-			RepoID:    "repo-1",
-			Name:      "my-repo",
-			Path:      "/repos/my-repo",
-			LocalPath: "/repos/my-repo",
-			RemoteURL: "https://github.com/org/my-repo",
-			RepoSlug:  "org/my-repo",
-			HasRemote: true,
-		},
-		Directories: []projector.DirectoryRow{
-			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
-		},
-		Files: []projector.FileRow{
-			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
-		},
-		Entities: []projector.EntityRow{
-			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 10, Language: "go", RepoID: "repo-1"},
-		},
-		Modules: []projector.ModuleRow{
-			{Name: "fmt", Language: "go"},
-		},
-		Imports: []projector.ImportRow{
-			{FilePath: "/repos/my-repo/src/main.go", ModuleName: "fmt", ImportedName: "fmt", LineNumber: 3},
-		},
-	}
+	mat := phaseOrderMaterialization()
 
 	err := writer.Write(context.Background(), mat)
 	if err != nil {
@@ -225,8 +196,15 @@ func TestCanonicalNodeWriterWriteReportsSequentialPhaseOnFailure(t *testing.T) {
 		Files: []projector.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
+		// The module row and the import row's language are not load-bearing for
+		// the error this test forces, but a fixture that declares an import
+		// with no module and no language is the exact shape that broke the
+		// live-tier proofs, and fixtures get copied.
+		Modules: []projector.ModuleRow{
+			{Name: "fmt", Language: "go"},
+		},
 		Imports: []projector.ImportRow{
-			{FilePath: "/repos/my-repo/src/main.go", ModuleName: "fmt", ImportedName: "fmt", LineNumber: 3},
+			{FilePath: "/repos/my-repo/src/main.go", ModuleName: "fmt", ModuleLanguage: "go", ImportedName: "fmt", LineNumber: 3},
 		},
 	}
 

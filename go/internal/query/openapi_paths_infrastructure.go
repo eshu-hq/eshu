@@ -306,7 +306,7 @@ const openAPIPathsInfrastructure = `
                         "properties": {
                           "source_id": {"type": "string"},
                           "source_name": {"type": "string"},
-                          "target_id": {"type": "string"},
+                          "target_id": {"type": "string", "description": "Canonical target endpoint identity. Usually the target's id or uid; for verbs whose target has neither, it is the target's own identity key. IMPORTS targets a Module identified by (name, language) and so reads name@language, e.g. time@go, with an empty suffix (time@) when the language could not be determined."},
                           "target_name": {"type": "string"},
                           "evidence": {"type": "string"},
                           "source_tool": {"type": "string"}

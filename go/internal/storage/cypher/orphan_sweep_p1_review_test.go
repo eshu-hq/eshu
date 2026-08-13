@@ -65,7 +65,7 @@ func TestOrphanSweepPagesPastAllConnectedWindow(t *testing.T) {
 func TestOrphanSweepWritesReapplyOwnershipAndMarkerGuard(t *testing.T) {
 	t.Parallel()
 
-	clear, ok := BuildClearOrphanMarkerStatement(OrphanSweepLabelRepository, []string{"r1"})
+	clear, ok := BuildClearOrphanMarkerStatement(OrphanSweepLabelRepository, singleOrphanKeys([]string{"r1"}))
 	if !ok {
 		t.Fatal("BuildClearOrphanMarkerStatement ok = false")
 	}
@@ -78,7 +78,7 @@ func TestOrphanSweepWritesReapplyOwnershipAndMarkerGuard(t *testing.T) {
 		}
 	}
 
-	mark, ok := BuildMarkOrphanNodesStatement(OrphanSweepLabelRepository, []string{"r1"}, 100)
+	mark, ok := BuildMarkOrphanNodesStatement(OrphanSweepLabelRepository, singleOrphanKeys([]string{"r1"}), 100)
 	if !ok {
 		t.Fatal("BuildMarkOrphanNodesStatement ok = false")
 	}
@@ -91,7 +91,7 @@ func TestOrphanSweepWritesReapplyOwnershipAndMarkerGuard(t *testing.T) {
 		}
 	}
 
-	sweep, ok := BuildSweepOrphanNodesStatement(OrphanSweepLabelRepository, []string{"r1"}, 500)
+	sweep, ok := BuildSweepOrphanNodesStatement(OrphanSweepLabelRepository, singleOrphanKeys([]string{"r1"}), 500)
 	if !ok {
 		t.Fatal("BuildSweepOrphanNodesStatement ok = false")
 	}
@@ -117,21 +117,21 @@ func TestOrphanSweepWritesReapplyOwnershipAndMarkerGuard(t *testing.T) {
 func TestModuleAntiJoinRestrictsToCanonicalImportClass(t *testing.T) {
 	t.Parallel()
 
-	s1, _ := BuildCandidateOrphanNodesQuery(OrphanSweepLabelModule, 10, "")
+	s1, _ := BuildCandidateOrphanNodesQuery(OrphanSweepLabelModule, 10, nil)
 	if !strings.Contains(s1.Cypher, "n.uid IS NULL") {
 		t.Fatalf("Module S1 missing class predicate:\n%s", s1.Cypher)
 	}
-	s2, _ := BuildConnectedKeysQuery(OrphanSweepLabelModule, []string{"index"})
+	s2, _ := BuildConnectedKeysQuery(OrphanSweepLabelModule, singleOrphanKeys([]string{"index"}))
 	if !strings.Contains(s2.Cypher, "n.uid IS NULL") {
 		t.Fatalf("Module S2 missing class predicate:\n%s", s2.Cypher)
 	}
-	sweep, _ := BuildSweepOrphanNodesStatement(OrphanSweepLabelModule, []string{"index"}, 0)
+	sweep, _ := BuildSweepOrphanNodesStatement(OrphanSweepLabelModule, singleOrphanKeys([]string{"index"}), 0)
 	if !strings.Contains(sweep.Cypher, "n.uid IS NULL") {
 		t.Fatalf("Module sweep missing class predicate:\n%s", sweep.Cypher)
 	}
 
 	// A unique-key label (File) must NOT carry the class predicate.
-	fileS2, _ := BuildConnectedKeysQuery(OrphanSweepLabelFile, []string{"/a"})
+	fileS2, _ := BuildConnectedKeysQuery(OrphanSweepLabelFile, singleOrphanKeys([]string{"/a"}))
 	if strings.Contains(fileS2.Cypher, "n.uid IS NULL") {
 		t.Fatalf("File S2 wrongly restricted to a class predicate:\n%s", fileS2.Cypher)
 	}
