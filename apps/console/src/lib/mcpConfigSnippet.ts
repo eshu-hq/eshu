@@ -1,7 +1,7 @@
 // lib/mcpConfigSnippet.ts — builds a ready-to-paste MCP client config for a
 // freshly created API token (issue #5164). Mirrors the shape
 // `eshu mcp setup --hosted` already prints
-// (go/cmd/eshu/mcp_setup_snippet.go hostedServerEntry/mcpServersJSONSnippet):
+// (go/internal/cli/mcpsetup/snippet.go hostedServerEntry/mcpServersJSONSnippet):
 // the standard { "mcpServers": { "eshu": {...} } } object, an "http" entry
 // pointed at /mcp/message, and — critically — the Authorization header
 // references the ${ESHU_API_KEY} env var rather than embedding the raw
