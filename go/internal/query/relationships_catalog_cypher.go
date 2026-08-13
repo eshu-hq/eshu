@@ -34,6 +34,22 @@ type relationshipVerbEntry struct {
 	// byte-identical to the pre-#5369 shape, preserving the query-plan gate's
 	// pinned cypher_sha256 for every unaffected entry.
 	targetIdentityProperty string
+	// targetIdentityExpr overrides the whole target_id projection with a literal
+	// Cypher expression, for a target whose identity is more than one property
+	// and so cannot be expressed by reordering targetIdentityProperty.
+	//
+	// IMPORTS is the only entry that needs it (#6102). Canonical import Modules
+	// carry no id and no uid, so the default coalesce resolved to the module
+	// name; once Module identity became (name, lang), a Go `time` and a Python
+	// `time` are two nodes that both projected target_id "time" and a caller
+	// could not tell the edges apart.
+	//
+	// When set it replaces the target_id projection only. The ORDER BY
+	// tie-breaker is deliberately left on the default: ORDER BY over a CASE
+	// expression is not honoured on the pinned NornicDB build, so putting the
+	// expression there would move the query-plan gate's pinned hash for a sort
+	// that does not happen. See relationships_catalog_import_target_id_test.go.
+	targetIdentityExpr string
 	// evidence is the human-facing source/evidence label shown on the verb tile.
 	evidence string
 	// detail is a one-line description of what the edge means.
@@ -86,7 +102,11 @@ type relationshipVerbEntry struct {
 var relationshipVerbCatalog = []relationshipVerbEntry{
 	// code layer
 	{verb: "CALLS", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Call graph", detail: "Function invokes another function", targetAttributable: true},
-	{verb: "IMPORTS", layer: "code", sourceLabel: "File", sourceProperty: "path", evidence: "Module imports", detail: "File imports a module or symbol"},
+	// IMPORTS targets a Module, whose canonical import identity is (name, lang)
+	// and which carries no id or uid, so target_id is language-qualified rather
+	// than the bare name (#6102). See targetIdentityExpr for why the concat is
+	// guarded on both operands and why the ORDER BY tie-breaker is untouched.
+	{verb: "IMPORTS", layer: "code", sourceLabel: "File", sourceProperty: "path", targetIdentityExpr: importsTargetIdentityExpr, evidence: "Module imports", detail: "File imports a module or symbol"},
 	{verb: "INHERITS", layer: "code", sourceLabel: "Class", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Class inherits from a base type", targetAttributable: true},
 	{verb: "REFERENCES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Symbol references", detail: "Symbol references another symbol", targetAttributable: true},
 	{verb: "OVERRIDES", layer: "code", sourceLabel: "Function", sourceProperty: "uid", evidence: "Type hierarchy", detail: "Method overrides a base method", targetAttributable: true},
@@ -298,8 +318,28 @@ func coalesceExpr(variable string, properties []string) string {
 	return "coalesce(" + strings.Join(parts, ", ") + ")"
 }
 
+// importsTargetIdentityExpr is the language-qualified target_id projection for
+// IMPORTS. Both guards are required by the pinned NornicDB build, where string
+// concatenation does not propagate null:
+//
+//   - t.lang goes through its own coalesce, because a Module written before the
+//     identity cutover can have no lang property and `t.name + '@' + t.lang`
+//     would project the literal "time@<nil>" rather than null.
+//   - The whole concat sits behind a CASE that yields NULL for a missing name,
+//     because otherwise a target with only a path projects "<nil>@" instead of
+//     falling through the coalesce to t.path.
+//
+// A semantic Module adopted by the canonical MERGE carries a uid and still
+// resolves to it, so that value is unchanged.
+const importsTargetIdentityExpr = "coalesce(t.id, t.uid, " +
+	"CASE WHEN t.name IS NULL THEN NULL ELSE t.name + '@' + coalesce(t.lang, '') END, " +
+	"t.path)"
+
 // targetIdentityCoalesce builds the target_id RETURN projection expression.
 func targetIdentityCoalesce(entry relationshipVerbEntry) string {
+	if entry.targetIdentityExpr != "" {
+		return entry.targetIdentityExpr
+	}
 	return coalesceExpr("t", targetIdentityCoalesceProperties(entry))
 }
 

@@ -985,6 +985,29 @@ tile now also carries a `source_tools` breakdown.
 slice of concrete edges for one catalog verb. Edges now surface a `source_tool`
 field, and the request accepts a `source_tool` filter.
 
+### target_id for IMPORTS is language-qualified
+
+`IMPORTS` targets a `Module`, and a Module's canonical import identity is
+`(name, language)` — Go's `time` and Python's `time` are unrelated modules that
+share a name. Those are two nodes in the graph, and they used to project the
+same `target_id`, `time`, because canonical import Modules carry no `id` or
+`uid` and the field fell back to the bare name. A caller could not tell the two
+edges apart.
+
+`target_id` now reads `name@language` for those edges:
+
+| edge target | before | after |
+| --- | --- | --- |
+| `Module{name: "time", lang: "go"}` | `time` | `time@go` |
+| `Module{name: "time", lang: "python"}` | `time` | `time@python` |
+| `Module{name: "time"}` (language undetermined) | `time` | `time@` |
+| a Module carrying a `uid` | its `uid` | its `uid`, unchanged |
+
+`target_name` is unchanged and still carries the bare module name, so a caller
+that only displays a label needs no change. A caller that keys, joins, or
+deduplicates on `target_id` for `IMPORTS` will see the new form. No other verb's
+`target_id` moves.
+
 Both routes require the local-authoritative profile or higher; lower profiles
 receive `501 unsupported_capability`. When the graph backend is not wired the
 routes return `503`.
