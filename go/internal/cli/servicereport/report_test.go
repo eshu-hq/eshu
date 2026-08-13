@@ -73,9 +73,37 @@ func TestReadInputFromStdin(t *testing.T) {
 	}
 }
 
+// TestReadInputEmptyStdinErrors pins the empty-stdin message verbatim. The
+// check exists for the message, not to stop an empty report from printing:
+// empty bytes never reach a report, because ParseServiceStoryResponse cannot
+// decode them (TestParseServiceStoryResponseEmptyInputFailsAtDecode shows what
+// the operator would get instead). Both halves of that rationale are stated in
+// doc.go and README.md, so both are pinned here.
 func TestReadInputEmptyStdinErrors(t *testing.T) {
-	if _, err := ReadInput(strings.NewReader("   "), ""); err == nil {
+	_, err := ReadInput(strings.NewReader("   "), "")
+	if err == nil {
 		t.Fatalf("expected an error for empty stdin with no --from path")
+	}
+	const want = "no service-story response provided; pass --from or pipe JSON on stdin"
+	if err.Error() != want {
+		t.Fatalf("ReadInput empty-stdin message = %q, want %q", err.Error(), want)
+	}
+}
+
+// TestParseServiceStoryResponseEmptyInputFailsAtDecode is the other half of
+// ReadInput's empty-stdin rationale: whitespace-only input does not fall
+// through to a silent empty report, it fails at decode with a message that
+// says nothing useful to an operator. That is what ReadInput's check replaces.
+func TestParseServiceStoryResponseEmptyInputFailsAtDecode(t *testing.T) {
+	for _, input := range []string{"", "   ", "\n\t "} {
+		_, _, err := ParseServiceStoryResponse([]byte(input))
+		if err == nil {
+			t.Fatalf("expected a decode error for %q, got a usable dossier", input)
+		}
+		const want = "decode service-story response: unexpected end of JSON input"
+		if err.Error() != want {
+			t.Fatalf("ParseServiceStoryResponse(%q) error = %q, want %q", input, err.Error(), want)
+		}
 	}
 }
 
