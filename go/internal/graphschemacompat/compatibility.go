@@ -150,7 +150,7 @@ func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.S
 		AppliedFingerprint:     appliedFingerprint,
 		CompatibleFingerprints: compatible,
 	}
-	if appliedFingerprint == expected.Fingerprint || slices.Contains(compatible, expected.Fingerprint) {
+	if writerAdmitted(expected.Fingerprint, appliedFingerprint, compatible) {
 		return result, nil
 	}
 
@@ -160,6 +160,20 @@ func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.S
 		expected.Fingerprint,
 		appliedFingerprint,
 	)
+}
+
+// writerAdmitted is the whole admission decision: a writer expecting
+// writerFingerprint may write against the applied schema only when the applied
+// schema is the one it was built for, or when that applied schema explicitly
+// records the writer's fingerprint as compatible.
+//
+// It is a named function rather than an inline condition so a test can drive
+// the real decision for a writer built from a different release -- the
+// rolling-upgrade case, which RequireCompatible cannot reach on its own because
+// it always computes the expected fingerprint from the running binary. See
+// module_identity_fence_test.go.
+func writerAdmitted(writerFingerprint, appliedFingerprint string, compatible []string) bool {
+	return appliedFingerprint == writerFingerprint || slices.Contains(compatible, writerFingerprint)
 }
 
 func schemaBackendForRuntime(backend runtimecfg.GraphBackend) (graph.SchemaBackend, error) {
