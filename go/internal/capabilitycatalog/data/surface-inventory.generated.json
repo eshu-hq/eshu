@@ -2366,6 +2366,11 @@
     },
     {
       "category": "command",
+      "name": "docs-cli-env-refs",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "eshu",
       "readiness": "implemented"
     },
