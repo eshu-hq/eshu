@@ -33,9 +33,14 @@ const (
 	PostureSharedKey
 )
 
+// postureExplicitValues lists the --auth values that resolve a posture without
+// probing. It is the recovery advice an operator gets when auto-detection
+// cannot run, so it deliberately omits "auto".
+const postureExplicitValues = "sso, token, or shared-key"
+
 // postureProbeAcceptedValues lists the --auth flag values ResolveAuthPosture
 // accepts, used both for parsing and for the invalid-value error message.
-const postureProbeAcceptedValues = "auto, sso, token, or shared-key"
+const postureProbeAcceptedValues = "auto, " + postureExplicitValues
 
 // oauthProtectedResourceProbeDoc is the subset of the RFC 9728 OAuth
 // Protected Resource Metadata document (query.OAuthProtectedResourceMetadata)
@@ -145,13 +150,13 @@ func probeAuthPosture(client *http.Client, baseURL string) PostureProbeResult {
 // since stdio mode carries no credential to select between. An unrecognized
 // --auth value is an error listing the accepted values.
 //
-// probe must be non-nil for exactly one combination: sharedKey false, hosted
-// true, and authFlag empty or "auto". That is the only branch that calls it,
-// and passing nil there panics. sharedKey true returns before the switch, so
-// it needs no probe even in hosted "auto" mode. Every other combination
-// ignores probe entirely, which is why the tests pass a probe that panics if
-// called -- reaching it proves a no-probe path regressed. Callers that always
-// probe should pass HostedPostureProbe.
+// probe is required for exactly one combination: sharedKey false, hosted true,
+// and authFlag empty or "auto". That is the only branch that calls it, and a
+// nil probe there is an error, not a panic. sharedKey true returns before the
+// switch, so it needs no probe even in hosted "auto" mode. Every other
+// combination ignores probe entirely, which is why the tests pass a probe that
+// panics if called -- reaching it proves a no-probe path regressed. Callers
+// that always probe should pass HostedPostureProbe.
 func ResolveAuthPosture(authFlag string, sharedKey bool, hosted bool, probe func(string) PostureProbeResult, serviceURL string) (PostureProbeResult, error) {
 	if sharedKey {
 		return PostureProbeResult{Posture: PostureSharedKey}, nil
@@ -172,6 +177,9 @@ func ResolveAuthPosture(authFlag string, sharedKey bool, hosted bool, probe func
 	case "auto":
 		if !hosted {
 			return PostureProbeResult{Posture: PostureToken}, nil
+		}
+		if probe == nil {
+			return PostureProbeResult{}, fmt.Errorf("cannot auto-detect the auth posture: hosted setup was started without a discovery probe; re-run with an explicit --auth value (%s)", postureExplicitValues)
 		}
 		return probe(serviceURL), nil
 	default:

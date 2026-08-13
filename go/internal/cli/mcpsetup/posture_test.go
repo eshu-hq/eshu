@@ -244,4 +244,57 @@ func TestResolveAuthPosture(t *testing.T) {
 			}
 		}
 	})
+
+	// The hosted "auto" branch is the only one that calls probe. Before the
+	// guard it dereferenced a nil probe and panicked, which is a poor contract
+	// for an exported function: a caller that forgets the argument gets a stack
+	// trace instead of the error return the signature already offers.
+	t.Run("hosted auto with a nil probe errors instead of panicking", func(t *testing.T) {
+		t.Parallel()
+		got, err := ResolveAuthPosture("auto", false, true, nil, "https://eshu.example.com")
+		if err == nil {
+			t.Fatal("error = nil, want non-nil when probe is nil on the hosted auto branch")
+		}
+		if !strings.Contains(err.Error(), "probe") {
+			t.Fatalf("error %q does not name the missing probe argument", err.Error())
+		}
+		// The error must also tell the operator how to get moving again,
+		// the way the invalid --auth error does. Spelled out rather than
+		// compared against the constant, so rewording the constant cannot
+		// quietly keep this assertion true.
+		if want := "sso, token, or shared-key"; !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not offer the explicit --auth values %q", err.Error(), want)
+		}
+		// The result returned alongside the error must stay the safe zero
+		// value. Handing back PostureSharedKey here would wire the legacy
+		// shared admin key into a config on a path that failed.
+		if got.Posture != PostureToken {
+			t.Fatalf("Posture = %v on the error return, want the PostureToken zero value", got.Posture)
+		}
+	})
+
+	// The guard must not fire on branches that never call probe -- a nil probe
+	// is legitimate for every one of them, and erroring there would break real
+	// callers that pass nil deliberately.
+	t.Run("nil probe is fine on every branch that does not probe", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name     string
+			authFlag string
+			shared   bool
+			hosted   bool
+		}{
+			{"explicit sso", "sso", false, true},
+			{"explicit token", "token", false, true},
+			{"explicit shared-key", "shared-key", false, true},
+			{"shared-key flag wins over auto", "auto", true, true},
+			{"auto in local stdio mode", "auto", false, false},
+			{"empty auth in local stdio mode", "", false, false},
+		}
+		for _, tc := range cases {
+			if _, err := ResolveAuthPosture(tc.authFlag, tc.shared, tc.hosted, nil, "https://eshu.example.com"); err != nil {
+				t.Fatalf("%s: error = %v, want nil with a nil probe", tc.name, err)
+			}
+		}
+	})
 }
