@@ -5,6 +5,7 @@ package servicereport
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
+
+// errReader fails every Read with a non-EOF error, standing in for a stdin
+// stream that dies part-way through instead of ending cleanly.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
 
 const sampleServiceStoryEnvelope = `{
   "data": {
@@ -69,6 +76,37 @@ func TestReadInputFromStdin(t *testing.T) {
 func TestReadInputEmptyStdinErrors(t *testing.T) {
 	if _, err := ReadInput(strings.NewReader("   "), ""); err == nil {
 		t.Fatalf("expected an error for empty stdin with no --from path")
+	}
+}
+
+// TestReadInputWhitespacePathReadsStdin pins the branch condition in
+// ReadInput: strings.TrimSpace decides whether a file is opened, so a
+// whitespace-only --from path never touches the filesystem and stdin is read
+// instead. This is the trap the package docs call out.
+func TestReadInputWhitespacePathReadsStdin(t *testing.T) {
+	got, err := ReadInput(strings.NewReader(sampleServiceStoryEnvelope), "   ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != sampleServiceStoryEnvelope {
+		t.Fatalf("a whitespace-only path must fall through to stdin, got %q", got)
+	}
+}
+
+// TestReadInputStdinReadErrorPropagates covers ReadInput's third error return:
+// io.ReadAll failing on its own, which is neither the file read failing nor
+// stdin arriving empty.
+func TestReadInputStdinReadErrorPropagates(t *testing.T) {
+	sentinel := errors.New("stdin stream broke")
+	_, err := ReadInput(errReader{err: sentinel}, "")
+	if err == nil {
+		t.Fatalf("expected an error when the stdin reader itself fails")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("ReadInput must wrap the underlying stdin read error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "read service-story response from stdin") {
+		t.Fatalf("expected the stdin-read message, got %v", err)
 	}
 }
 
