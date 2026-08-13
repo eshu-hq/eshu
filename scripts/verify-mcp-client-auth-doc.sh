@@ -4,10 +4,10 @@
 # docs/public/operate/mcp-client-auth.md drops one of the literal strings its
 # client matrix promises (issue #5169, F-8).
 #
-# This is one half of the lockstep guard: go/cmd/eshu's
+# This is one half of the lockstep guard: go/internal/cli/mcpsetup's
 # TestDocLockstepLiterals pins the same four literals against the ACTUAL
 # `eshu mcp setup` rendered output (hardcoded, not built from the
-# mcpTokenEnvVar/apiKeyEnvVar constants, so a constant-value rename without a
+# MCPTokenEnvVar/APIKeyEnvVar constants, so a constant-value rename without a
 # doc update fails that test too). This script checks the doc's own copy of
 # the same literals. Neither side alone catches a rename in only one place;
 # together they do -- cheap and honest per the design's own framing, not a
