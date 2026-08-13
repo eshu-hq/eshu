@@ -76,9 +76,9 @@
         "note": "all parsed function definitions across the corpus"
       },
       "Module": {
-        "min": 20,
+        "min": 44,
         "max": 5000,
-        "note": "Global Module nodes the import extractor mints as IMPORTS targets (#5691). They are MERGEd on name alone, so one node is shared by every repository importing it; the corpus fixtures import 42 distinct modules. This label had no count assertion at all before, which is how it stayed at zero unnoticed."
+        "note": "Global Module nodes the import extractor mints as IMPORTS targets (#5691). They are MERGEd on (name, lang), so one node is shared by every repository importing that module in that language -- the cross-repository dependency link -- while a Go `time` and a Python `time` stay separate nodes. Found while working #4594: the key used to be the name alone, which minted ONE global node per name and let `coalesce(m.lang, row.language)` settle its language by projection batch order, so the graph asserted that a Go file imports a Python module. Floor raised 20 -> 44 with that change. 44 is the measured number of distinct (module name, importing-file language) pairs the staged corpus produces, obtained by running the production parser (parser.DefaultRegistry + Engine.ParsePath) and the production extractor (extractImportsFromFiles) over the exact scripts/lib/golden-corpus-fixtures.sh corpus: 42 distinct names, 44 pairs, 2 names imported from two languages (`os` and `time`, both Go and Python). It is a true floor because semantic declaration Module nodes (uid-keyed, same label) only add to the total. What this floor catches is a projection collapse, NOT the identity itself: with only two colliding names in this corpus the identity delta is +2, too small for a count range to isolate. The identity is proven directly against the pinned NornicDB backend by TestLiveCanonicalModuleIdentityIsNameAndLanguage (go/internal/storage/cypher) and by the exact-query trace harness in testdata/nornicdb/eshu_exact_module_identity_trace_test.go."
       },
       "WorkloadInstance": {
         "min": 4,

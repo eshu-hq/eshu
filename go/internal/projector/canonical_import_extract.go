@@ -33,11 +33,27 @@ type importIdentity struct {
 	moduleName string
 }
 
+// moduleIdentity is the identity of one import-graph Module node: its name and
+// the language it belongs to. A Go `time` and a Python `time` are unrelated
+// modules that share a name, so they are two nodes; every repository importing
+// the same Go `time` still shares one. It mirrors the writer's
+// `MERGE (m:Module {name, lang})` key exactly, so the in-process dedupe cannot
+// collapse two modules the graph would have kept apart.
+type moduleIdentity struct {
+	name     string
+	language string
+}
+
 // importAccumulator folds the parser's per-symbol import entries for one
 // (file, module) pair into the properties their shared edge can honestly carry.
 type importAccumulator struct {
 	filePath   string
 	moduleName string
+
+	// moduleLanguage is the importing file's language, which resolves the
+	// edge's target to the right Module node. Every entry folded into one
+	// accumulator comes from the same file, so it never varies within one.
+	moduleLanguage string
 
 	// importedName and alias hold the agreed value across every folded entry;
 	// nameConflict / aliasConflict record that the entries disagreed, in which
@@ -90,7 +106,7 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 	}
 
 	folded := make(map[importIdentity]*importAccumulator, len(files))
-	moduleLanguages := make(map[string]string)
+	modules := make(map[moduleIdentity]struct{})
 	var quarantined []quarantinedFact
 
 	for _, file := range files {
@@ -126,22 +142,23 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 			acc, known := folded[identity]
 			if !known {
 				acc = &importAccumulator{
-					filePath:     filePath,
-					moduleName:   moduleName,
-					importedName: importedName,
-					alias:        alias,
-					lineNumber:   lineNumber,
-					order:        len(folded),
+					filePath:       filePath,
+					moduleName:     moduleName,
+					moduleLanguage: fileLanguage,
+					importedName:   importedName,
+					alias:          alias,
+					lineNumber:     lineNumber,
+					order:          len(folded),
 				}
 				folded[identity] = acc
-				recordModuleLanguage(moduleLanguages, moduleName, fileLanguage)
+				modules[moduleIdentity{name: moduleName, language: fileLanguage}] = struct{}{}
 				continue
 			}
 			acc.fold(importedName, alias, lineNumber)
 		}
 	}
 
-	return importRowsFrom(folded), moduleRowsFromLanguages(moduleLanguages), quarantined
+	return importRowsFrom(folded), moduleRowsFrom(modules), quarantined
 }
 
 // fold merges one more parser entry into an existing (file, module) edge.
@@ -172,11 +189,12 @@ func importRowsFrom(folded map[importIdentity]*importAccumulator) []ImportRow {
 	rows := make([]ImportRow, 0, len(accs))
 	for _, acc := range accs {
 		row := ImportRow{
-			FilePath:     acc.filePath,
-			ModuleName:   acc.moduleName,
-			ImportedName: acc.importedName,
-			Alias:        acc.alias,
-			LineNumber:   acc.lineNumber,
+			FilePath:       acc.filePath,
+			ModuleName:     acc.moduleName,
+			ModuleLanguage: acc.moduleLanguage,
+			ImportedName:   acc.importedName,
+			Alias:          acc.alias,
+			LineNumber:     acc.lineNumber,
 		}
 		if acc.nameConflict {
 			row.ImportedName = ""
@@ -218,66 +236,63 @@ func normalizeImportEntry(entry codegraphv1.Import) (moduleName, importedName, a
 	return moduleName, importedName, strings.TrimSpace(entry.Alias), lineNumber, true
 }
 
-// recordModuleLanguage keeps one language per imported module, chosen
-// order-independently: a module imported from files in more than one language
-// (a TypeScript and a JavaScript file importing the same package) would
-// otherwise take whichever file fact happened to arrive first, making the
-// projected Module.lang depend on envelope ordering. Smallest non-empty
-// language wins; an unknown file language never displaces a known one.
-func recordModuleLanguage(moduleLanguages map[string]string, moduleName, fileLanguage string) {
-	current, known := moduleLanguages[moduleName]
-	switch {
-	case !known, current == "":
-		moduleLanguages[moduleName] = fileLanguage
-	case fileLanguage != "" && fileLanguage < current:
-		moduleLanguages[moduleName] = fileLanguage
-	}
-}
-
-// moduleRowsFromLanguages turns the deduped module-name set into ModuleRow
+// moduleRowsFrom turns the deduped (name, language) module set into ModuleRow
 // entries in a stable order, so two projections of the same generation write
 // the same batch and a golden snapshot diff stays meaningful.
-func moduleRowsFromLanguages(moduleLanguages map[string]string) []ModuleRow {
-	if len(moduleLanguages) == 0 {
+//
+// There is deliberately no language tie-break here. The previous version had
+// one -- a module seen from files in more than one language kept the smallest
+// non-empty language -- because Module identity was the name alone and one
+// language had to be chosen. Under (name, language) identity there is nothing
+// to choose: each language gets its own row and its own node.
+func moduleRowsFrom(modules map[moduleIdentity]struct{}) []ModuleRow {
+	if len(modules) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(moduleLanguages))
-	for name := range moduleLanguages {
-		names = append(names, name)
+	rows := make([]ModuleRow, 0, len(modules))
+	for identity := range modules {
+		rows = append(rows, ModuleRow{Name: identity.name, Language: identity.language})
 	}
-	sort.Strings(names)
-
-	rows := make([]ModuleRow, 0, len(names))
-	for _, name := range names {
-		rows = append(rows, ModuleRow{Name: name, Language: moduleLanguages[name]})
-	}
+	sortModuleRows(rows)
 	return rows
 }
 
+// sortModuleRows orders module rows by (name, language) so the projected batch
+// is deterministic across runs of the same generation.
+func sortModuleRows(rows []ModuleRow) {
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Name != rows[j].Name {
+			return rows[i].Name < rows[j].Name
+		}
+		return rows[i].Language < rows[j].Language
+	})
+}
+
 // mergeImportModules appends the modules an import extraction discovered to the
-// materialization's existing Module set, skipping any name already present so
-// the entity-derived and import-derived module sets do not double-write.
+// materialization's existing Module set, skipping any (name, language) pair
+// already present so the entity-derived and import-derived module sets do not
+// double-write.
+//
+// The dedupe key is the full node identity, not the name. Keying on name alone
+// dropped every discovered module whose name an earlier row already carried, so
+// a Python `time` imported by one repository never reached the writer once a Go
+// `time` had been declared -- the same collision the writer had, one layer up,
+// where fixing only the Cypher would have left it in place.
 func mergeImportModules(existing []ModuleRow, discovered []ModuleRow) []ModuleRow {
 	if len(discovered) == 0 {
 		return existing
 	}
-	at := make(map[string]int, len(existing))
-	for i, m := range existing {
-		at[m.Name] = i
+	seen := make(map[moduleIdentity]struct{}, len(existing))
+	for _, m := range existing {
+		seen[moduleIdentity{name: m.Name, language: m.Language}] = struct{}{}
 	}
 	for _, m := range discovered {
-		index, known := at[m.Name]
-		if !known {
-			at[m.Name] = len(existing)
-			existing = append(existing, m)
+		identity := moduleIdentity{name: m.Name, language: m.Language}
+		if _, known := seen[identity]; known {
 			continue
 		}
-		// The entity-derived row wins on identity, but not on evidence: when it
-		// carries no language and the importing file does, keep the language
-		// rather than discarding the only attribution available.
-		if existing[index].Language == "" && m.Language != "" {
-			existing[index].Language = m.Language
-		}
+		seen[identity] = struct{}{}
+		existing = append(existing, m)
 	}
 	return existing
 }

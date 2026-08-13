@@ -189,9 +189,9 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 		}
 
 		// Module and Parameter have dedicated write phases (F and G) that use
-		// different MERGE keys (name for Module, composite key for Parameter).
-		// Writing them through the generic entity phase (E) which MERGEs by
-		// uid would violate their uniqueness constraints.
+		// different MERGE keys ((name, lang) for Module, a composite key for
+		// Parameter). Writing them through the generic entity phase (E) which
+		// MERGEs by uid would violate their uniqueness constraints.
 		if label == "Module" || label == "Parameter" {
 			continue
 		}
@@ -275,7 +275,7 @@ func extractEntityMetadata(payload map[string]any) map[string]any {
 // facts, so this function bridges the gap.
 func extractModulesFromEntities(envelopes []facts.Envelope) []ModuleRow {
 	entityFacts := FilterEntityFacts(envelopes)
-	seen := make(map[string]struct{})
+	seen := make(map[moduleIdentity]struct{})
 	var rows []ModuleRow
 
 	for i := range entityFacts {
@@ -295,12 +295,16 @@ func extractModulesFromEntities(envelopes []facts.Envelope) []ModuleRow {
 			continue
 		}
 
-		if _, ok := seen[entityName]; ok {
-			continue // dedupe by name — Module MERGE key is name
-		}
-		seen[entityName] = struct{}{}
-
 		language, _ := payloadString(p, "language")
+		// Dedupe on the full Module MERGE key (name, lang), not on name: a
+		// Ruby `basic` and a Python `basic` are two nodes, and dropping the
+		// second by name would silently lose one of them.
+		identity := moduleIdentity{name: entityName, language: language}
+		if _, ok := seen[identity]; ok {
+			continue
+		}
+		seen[identity] = struct{}{}
+
 		rows = append(rows, ModuleRow{
 			Name:     entityName,
 			Language: language,
@@ -314,10 +318,12 @@ func extractModulesFromEntities(envelopes []facts.Envelope) []ModuleRow {
 // parameter, class member, and nested function payload patterns. All file
 // paths are repo-qualified via mat.RepoPath to match canonical File/Entity paths.
 func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterialization) {
-	// Seed the seen set with modules already extracted from entity facts.
-	moduleSeen := make(map[string]struct{}, len(mat.Modules))
+	// Seed the seen set with modules already extracted from entity facts. The
+	// key is the full (name, lang) Module identity, so a second language's
+	// module of the same name is still emitted.
+	moduleSeen := make(map[moduleIdentity]struct{}, len(mat.Modules))
 	for _, m := range mat.Modules {
-		moduleSeen[m.Name] = struct{}{}
+		moduleSeen[moduleIdentity{name: m.Name, language: m.Language}] = struct{}{}
 	}
 	repoPath := mat.RepoPath
 
@@ -338,11 +344,13 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 				modName = importedModule
 			}
 
-			// Track modules (deduped by name).
+			language, _ := payloadString(p, "language")
+
+			// Track modules (deduped on the full (name, lang) identity).
 			if modName != "" {
-				if _, ok := moduleSeen[modName]; !ok {
-					moduleSeen[modName] = struct{}{}
-					language, _ := payloadString(p, "language")
+				identity := moduleIdentity{name: modName, language: language}
+				if _, ok := moduleSeen[identity]; !ok {
+					moduleSeen[identity] = struct{}{}
 					mat.Modules = append(mat.Modules, ModuleRow{
 						Name:     modName,
 						Language: language,
@@ -366,11 +374,12 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 			}
 
 			mat.Imports = append(mat.Imports, ImportRow{
-				FilePath:     filePath,
-				ModuleName:   importModule,
-				ImportedName: importedName,
-				Alias:        alias,
-				LineNumber:   lineNumber,
+				FilePath:       filePath,
+				ModuleName:     importModule,
+				ModuleLanguage: language,
+				ImportedName:   importedName,
+				Alias:          alias,
+				LineNumber:     lineNumber,
 			})
 		}
 

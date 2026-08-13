@@ -1,0 +1,54 @@
+HARNESS=testdata/nornicdb/eshu_exact_module_identity_trace_test.go
+NORNICDB_SHA=3722b483c02c38a8e046d198f8768f200f31023c
+HARNESS_SHA256=561f61179f5bcf5d27c80791795c98293b6f8344b550407b5947dca1353c98d0
+ESHU_QUERY_SOURCE=go/internal/storage/cypher/canonical_node_cypher.go
+ESHU_QUERY_SOURCE_BLOB=01bd07e32c2f0e45ca7437d052bf222edad6a574
+CMD=ESHU_ROOT=<eshu-worktree> go test -tags nolocalllm ./pkg/cypher -run '^TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath$' -count=1 -v
+
+# github.com/orneryd/nornicdb/pkg/cypher.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath
+=== RUN   TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath/module-upsert
+    eshu_exact_module_identity_trace_test.go:175: canonicalNodeModuleUpsertCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:true UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+=== RUN   TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath/import-edge
+    eshu_exact_module_identity_trace_test.go:175: canonicalNodeImportEdgeCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:false UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+--- PASS: TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath (0.01s)
+    --- PASS: TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath/module-upsert (0.00s)
+    --- PASS: TestEshuExactModuleIdentityQueriesUseIndexedMergeHotPath/import-edge (0.00s)
+PASS
+ok  	github.com/orneryd/nornicdb/pkg/cypher	0.572s
+EXIT=0
+
+BENCH_CMD=ESHU_ROOT=<eshu-worktree> GOMAXPROCS=1 go test -tags nolocalllm ./pkg/cypher -run '^$' -bench '^BenchmarkEshuModuleUpsertMergeKey$' -benchtime=300x -count=5
+
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/legacy-name-only         	     300	     47902 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/legacy-name-only         	     300	     42830 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/legacy-name-only         	     300	     43692 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/legacy-name-only         	     300	     42064 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/legacy-name-only         	     300	     40914 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/name-and-lang            	     300	     22403 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/name-and-lang            	     300	     22407 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/name-and-lang            	     300	     22979 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/name-and-lang            	     300	     22552 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=1/name-and-lang            	     300	     23615 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/legacy-name-only        	     300	     44449 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/legacy-name-only        	     300	     44364 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/legacy-name-only        	     300	     44950 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/legacy-name-only        	     300	     42222 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/legacy-name-only        	     300	     42494 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/name-and-lang           	     300	     24382 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/name-and-lang           	     300	     24291 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/name-and-lang           	     300	     25003 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/name-and-lang           	     300	     24225 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=25/name-and-lang           	     300	     23617 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/legacy-name-only       	     300	     48657 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/legacy-name-only       	     300	     46522 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/legacy-name-only       	     300	     46164 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/legacy-name-only       	     300	     45590 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/legacy-name-only       	     300	     46012 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/name-and-lang          	     300	     28332 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/name-and-lang          	     300	     27642 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/name-and-lang          	     300	     27692 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/name-and-lang          	     300	     27518 ns/op
+BenchmarkEshuModuleUpsertMergeKey/candidates=200/name-and-lang          	     300	     26684 ns/op
+EXIT=0
