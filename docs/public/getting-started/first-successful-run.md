@@ -1,420 +1,208 @@
 <!-- docs-catalog
 title: First Successful Run
 description: Gets a new reader to one working runtime, one indexed repository, and one useful answer.
-type: tutorial
+type: how-to
 audience: new-user
 time: 5 minutes
 entrypoint: true
 landing: false
 -->
 
-# First Successful Run
+# Choose your first successful run
 
-Use this guide for your first five minutes with Eshu: one working runtime, one
-indexed repository, one proof that indexing finished, and one useful answer.
+Use this guide to reach one useful answer from one indexed repository with the
+runtime you already have or plan to start.
+`eshu first-run` detects a reachable API, local binaries, or Docker Compose. It
+verifies the runtime, indexes the target or reuses a drained index, waits for
+indexing completeness, and runs a bounded query. It does not start a runtime.
 
-`eshu first-run` automates that loop. It detects the runtime shape (a reachable
-API, local binaries, or Docker Compose), verifies the runtime, indexes a target
-repository (or reuses one already indexed), waits for indexing **completeness**
-rather than process health, runs one bounded query, and prints next steps. It
-reports success only when a bounded query returns an answer.
+## Before you begin
 
-## Pick one path
+Choose the path that matches the service you will use:
 
-There are three first-five-minutes paths. Each ends at the same place: one
-useful answer. Pick the row that matches what you are doing.
+| Path | Choose it when |
+| --- | --- |
+| [Local Compose](#run-with-local-compose) | You want the full API and MCP stack in containers. |
+| [Local binaries](#run-with-local-binaries) | You are developing Eshu from a checkout. |
+| [Hosted service](#connect-to-a-hosted-service) | An operator already runs Eshu for you. |
 
-| Path | Choose when | Runtime |
-| --- | --- | --- |
-| [Local Compose](#path-1-local-compose) | You are evaluating Eshu and want the full product stack with the HTTP API and MCP service running together. | Containers for Postgres, the graph backend, schema, bootstrap indexing, API, MCP, ingester, and reducer. |
-| [Local binaries](#path-2-local-binaries) | You are developing Eshu from a checkout or testing `eshu graph start`. | The local `eshu` owner with embedded Postgres, embedded NornicDB, ingester, and reducer. |
-| [Hosted service](#path-3-hosted-service) | A deployed Eshu service already exists and you want an assistant or CLI to connect to it. | A remote API and MCP endpoint you reach over HTTPS with a bearer token. |
+Health only proves that a process is alive. The selected path is complete when
+the index is ready and a bounded query returns. See [Health checks](../operate/health-checks.md)
+for the distinction between `/healthz`, `/readyz`, and indexing readiness.
 
-The first two paths run Eshu on your machine for local development. The third
-connects to a hosted, deployable Eshu that someone has already operated. Keep
-that distinction in mind: local paths start a runtime; the hosted path only
-connects to one.
+## Run with local Compose
 
-## Readiness is not health
+1. From the Eshu checkout, expose the host directory that contains the
+   repository and select the repository by name:
 
-This is the single most important idea in onboarding.
+   ```bash
+   export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
+   export ESHU_REPOSITORY_RULES_JSON='{"exact":["payments-api"]}'
+   export ESHU_API_KEY="local-compose-token"
+   docker compose up -d
+   ```
 
-- **Health** (`/healthz`) tells you whether processes are alive.
-- **Readiness** (`/readyz`) and index completeness tell you whether indexed
-  data is ready for questions.
+   Replace `$HOME/src` and `payments-api` with your own values. Wait until the
+   API at `http://localhost:8080` is healthy.
+2. Run the guided check inside the Compose API service. The container uses the
+   canonical mounted repository path and the same stores as the running stack:
 
-Green health does **not** mean indexing is done. `eshu first-run` and
-`eshu hosted-setup` both wait for indexing completeness, not for `/healthz`, and
-they only report success when a bounded query actually returns. Never treat a
-green health check as "ready to ask questions."
+   ```bash
+   docker compose exec eshu eshu first-run /fixtures/payments-api
+   ```
 
----
+3. Confirm the result from the same service container:
 
-## Path 1: Local Compose
+   ```bash
+   docker compose exec eshu eshu index-status
+   docker compose exec eshu eshu list
+   docker compose exec eshu eshu stats payments-api
+   ```
 
-The fastest full-product path. Compose starts Postgres, NornicDB, schema
-bootstrap, bootstrap indexing, the API on `http://localhost:8080`, the MCP
-service on `http://localhost:8081`, the ingester, and the reducer.
+## Run with local binaries
 
-### 1. Pick repositories to index
-
-Point Eshu at a parent directory that contains Git repositories:
-
-```bash
-export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
-export ESHU_REPOSITORY_RULES_JSON='{"exact":["eshu"]}'
-export ESHU_API_KEY="local-compose-token"
-```
-
-`ESHU_FILESYSTEM_HOST_ROOT` must be an absolute path visible to Docker. The
-repository rule values are directory names under that root. Setting
-`ESHU_API_KEY` makes host CLI and `curl` examples use the same bearer token as
-the Compose API and MCP services.
-
-### 2. Run first-run
-
-From the repository root:
+Install the local commands and put them on `PATH`:
 
 ```bash
-eshu first-run
-```
-
-`first-run` detects the Compose file, starts the stack if needed, waits for
-indexing completeness, and runs one bounded query. Add `--report` to print a
-redacted evidence summary, or `--no-start` to verify an already-running stack
-without starting anything.
-
-If you prefer to drive Compose yourself, run `docker compose up --build` in one
-terminal and leave it running, then use `eshu first-run --no-start` to prove
-readiness and ask the first question.
-
-### 3. Ask a first CLI question
-
-Compose defaults the API to `http://localhost:8080`.
-
-```bash
-eshu index-status
-eshu list
-eshu stats eshu
-```
-
-If `eshu stats eshu` does not match your selector, use the exact repository name
-or path from `eshu list`.
-
-### 4. Connect MCP and ask an assistant
-
-Point your MCP client at the Compose MCP service or generate a client snippet.
-See [Set up MCP for your client](#set-up-mcp-for-your-client). Then ask a narrow
-first prompt:
-
-```text
-Use Eshu. List the indexed repositories, then explain what Eshu knows about the
-eshu repository with file and symbol evidence.
-```
-
----
-
-## Path 2: Local binaries
-
-Use this path when you are developing Eshu or testing `eshu graph start`. It
-starts embedded Postgres, embedded NornicDB, the ingester, and the reducer under
-one local Eshu owner.
-
-### 1. Install the helper binaries
-
-```bash
-git clone https://github.com/eshu-hq/eshu.git
-cd eshu
 ./scripts/install-local-binaries.sh
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-The installer is required because `go install .../cmd/eshu@latest` installs only
-the `eshu` binary, not the `eshu-api`, `eshu-ingester`, `eshu-reducer`,
-`eshu-mcp-server`, and other helper binaries local service mode expects on
-`PATH`. See [Local binaries](../run-locally/local-binaries.md) for the full list.
+Keep the following three processes in separate terminals so the foreground
+services remain running while the guided check executes.
 
-### 2. Run first-run
+### Terminal 1: start the local owner
 
 ```bash
-eshu first-run
+eshu graph start --workspace-root "$PWD"
 ```
 
-From a checkout with no reachable API, `first-run` detects the local-binaries
-shape, starts the local owner, waits for indexing completeness, and runs one
-bounded query. Pass a path to index a different repository:
-`eshu first-run /path/to/repo`.
-
-If you want to manage the owner yourself, run
-`eshu graph start --workspace-root "$PWD"` in one terminal, then
-`eshu first-run --no-start` in another.
-
-### 3. Ask a first CLI question
-
-Read-side CLI commands such as `eshu list`, `eshu stats`, and `eshu analyze`
-call the HTTP API. Run `eshu-api` separately, or use Compose, when you need those
-API-backed commands. The bounded query that `first-run` runs uses the same API.
-
-### 4. Connect MCP locally
+### Terminal 2: start the HTTP API
 
 ```bash
-eshu mcp start --workspace-root "$PWD"
+eshu api start
 ```
 
-This attaches MCP over stdio to the running local owner. Run on its own (without
-`eshu first-run` or `eshu graph start` first), `eshu mcp start` boots its own
-owner on the `local_authoritative` profile by default — embedded Postgres,
-NornicDB, reducer, and ingester in one binary — so graph-backed questions like
-"who calls this function?" work on a fresh install. Add
-`--profile local_lightweight` for the faster Postgres-only owner. See
-[Local MCP](../run-locally/mcp-local.md) and
-[Set up MCP for your client](#set-up-mcp-for-your-client).
-
----
-
-## Path 3: Hosted service
-
-Use this path when a deployed Eshu service already exists and you only need to
-connect to it. You connect over HTTPS with a bearer token; you do not start a
-runtime.
-
-### 1. Resolve the endpoint and token
-
-Provide the deployed endpoint and a bearer token through flags or environment.
-Use placeholders for your own values; never paste a real hostname or token into
-shared notes.
+### Terminal 3: run the guided check
 
 ```bash
-export ESHU_SERVICE_URL="https://eshu.example.com"
-export ESHU_API_KEY="${ESHU_API_KEY}"
+eshu first-run .
 ```
 
-### 2. Run hosted-setup
+Use `eshu first-run --no-start .` when you want the error message to record
+that safe mode was requested. The command only verifies in either mode. Confirm
+the result with `eshu list` and `eshu stats <repo>`.
+
+See [Local binaries](../run-locally/local-binaries.md) for runtime ownership,
+ports, and recovery details.
+
+## Connect to a hosted service
+
+1. Get the HTTPS endpoint and bearer token from the service operator, then keep
+   the token in the environment rather than a shell history or config file:
+
+   ```bash
+   export ESHU_SERVICE_URL="https://eshu.example.com"
+   export ESHU_API_KEY="<token>"
+   ```
+
+2. Verify health, readiness, indexed scope, MCP visibility, and one bounded
+   query:
+
+   ```bash
+   eshu hosted-setup --platform codex --repository payments-api
+   ```
+
+   Add `--json` for the canonical scripting envelope.
+3. Query the hosted service through the same remote settings:
+
+   ```bash
+   eshu list --service-url https://eshu.example.com
+   eshu stats payments-api --service-url https://eshu.example.com
+   ```
+
+See [Hosted onboarding](../deployment/hosted-onboarding.md) for team repository
+rules and operator handoff.
+
+## Connect an assistant for the selected runtime
+
+Follow only the instruction for the path you chose.
+
+### Local Compose
+
+Connect Codex to the Compose MCP service over HTTP. The `--hosted` flag selects
+the remote HTTP transport even though this service runs on your machine.
+`--auth shared-key` reads the local `ESHU_API_KEY` exported above.
 
 ```bash
-eshu hosted-setup
+eshu mcp setup --hosted --platform codex --service-url http://localhost:8081 --auth shared-key
 ```
 
-`hosted-setup` runs ordered, individually reported checks against the deployed
-service: `/healthz`, `/readyz` (which also proves authentication), status and
-index readiness, MCP tool visibility, and one bounded query. It reports
-**connected** only when the bounded query actually returns; health alone is
-never success. It names the specific reason a connection is not yet usable
-(unavailable auth, an empty or stale index, a missing repository scope, partial
-readiness, or an unavailable MCP surface). The raw bearer token is never
-printed.
+### Local binaries
 
-Useful flags:
-
-- `--repository <name>` requires that repository to be present in the indexed
-  scope before reporting success.
-- `--platform <name>` also emits a hosted MCP setup snippet for an assistant
-  client. The snippet references `${ESHU_API_KEY}` rather than embedding the
-  secret.
-- `--json` writes the canonical envelope for scripting.
+Generate a Codex configuration that launches the local stdio MCP process:
 
 ```bash
-eshu hosted-setup --platform claude --repository eshu
+eshu mcp setup --platform codex
 ```
 
-### 3. Ask a first CLI question against the hosted service
+### Hosted service
 
-```bash
-eshu list --service-url "$ESHU_SERVICE_URL"
-eshu stats eshu --service-url "$ESHU_SERVICE_URL"
+Hosted readers: use the MCP snippet emitted by `eshu hosted-setup` in the
+hosted steps above. Do not rerun either local setup command.
+
+After you apply the configuration for your path, ask a narrow question that
+requests its evidence:
+
+```text
+Use Eshu. List the indexed repositories, then explain what Eshu knows about
+payments-api. Include the files and symbols that support the answer.
 ```
 
-`--service-url` and `--api-key` override the resolved endpoint and token when
-you are not using environment variables. Then connect an assistant with
-[Set up MCP for your client](#set-up-mcp-for-your-client) and ask the same narrow
-first prompt as the local paths.
+The answer should name the indexed repository and cite concrete graph or
+content evidence. If it does not, confirm the scope with `eshu list`, wait for
+`eshu index-status` to report a drained index, and ask again.
 
----
+## Troubleshoot a failed run
 
-## Set up MCP for your client
+| Symptom | What to do |
+| --- | --- |
+| API is unreachable | Start the chosen runtime, check its health, then rerun `eshu first-run`. |
+| Compose cannot see the repository | Check that `ESHU_FILESYSTEM_HOST_ROOT` mounts the parent directory at `/fixtures`, then rerun `docker compose exec eshu eshu first-run /fixtures/payments-api`. |
+| Local commands are missing | Rerun `./scripts/install-local-binaries.sh` and update `PATH`. |
+| API returns 401 or 403 | Make the client and server `ESHU_API_KEY` values match. |
+| Health is green but the answer is stale | Wait for `eshu index-status` to drain; do not treat health as readiness. |
+| No repository matches | Run `eshu scan <path>`, correct the selector, and check `eshu list`. |
+| MCP tools are missing | Run `eshu mcp setup --verify`, then restart the client. |
 
-`eshu mcp setup` prints platform-specific MCP client configuration. By default it
-prints a safe snippet and **writes nothing**. Use `--write` to merge the `eshu`
-server entry into the platform config (preserving existing servers and keys), and
-`--verify` to run staged checks.
-
-```bash
-eshu mcp setup --platform claude
-```
-
-| Client | Command | Where the snippet goes | `--write` |
-| --- | --- | --- | --- |
-| Codex CLI | `eshu mcp setup --platform codex` | `~/.codex/config.toml` under `[mcp_servers.eshu]` | Print only |
-| Claude Code | `eshu mcp setup --platform claude` | `.mcp.json` (project) or `~/.claude.json` (user) | Supported |
-| Cursor | `eshu mcp setup --platform cursor` | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global) | Supported |
-| VS Code | `eshu mcp setup --platform vscode` | `.vscode/mcp.json` (`servers` key) | Supported |
-| Generic | `eshu mcp setup --platform generic` | Your client's `mcpServers` configuration | Print only |
-
-`--platform generic` is the default. For a hosted service, add `--hosted` with a
-resolved `--service-url`:
-
-```bash
-eshu mcp setup --platform claude --hosted --service-url https://eshu.example.com
-```
-
-Hosted setup never embeds the raw bearer token. Clients that support env-var
-references receive a `${ESHU_API_KEY}` reference, so export the variable before
-launching the client. After editing a client config, fully restart the client so
-it reloads the server list, then verify:
-
-```bash
-eshu mcp setup --platform claude --verify
-```
-
-`--verify` runs four independent stages so a reachable endpoint is never reported
-as a successful query: config generated, client reachable, tools visible, first
-query successful.
-
-### Install project-scoped assistant guidance (optional)
-
-`eshu assistant install` writes a clearly delimited managed block that tells AI
-assistants to prefer Eshu's bounded MCP/API tools and respect Eshu truth labels.
-It never disturbs other content in your instruction files.
-
-```bash
-eshu assistant install
-eshu assistant status
-eshu assistant uninstall
-```
-
-Restrict to one assistant with `--platform claude|codex|cursor`. See
-[Assistant Guidance Install](../reference/assistant-guidance.md).
-
----
-
-## Read the first-run report
-
-Add evidence flags to capture what the run proved:
-
-```bash
-eshu first-run --report
-eshu first-run --report --report-out first-run-evidence.md
-eshu first-run --report-out first-run-evidence.json --report-format json
-```
-
-You can also regenerate the artifact offline from a saved envelope:
-
-```bash
-eshu first-run --json > first-run.json
-eshu first-run report --from first-run.json --format md
-```
-
-The report states the indexing state as exactly one of `complete`, `partial`,
-`stale`, or `failed`. This label is derived from the readiness verdict and the
-completeness the run proved, never invented from process health; an unknown or
-empty completeness collapses to `failed` so the packet never overstates truth.
-The outcome is `succeeded` only when a bounded query returned, otherwise
-`incomplete`.
-
-Redaction is mandatory and applied before any value enters the report:
-credentials embedded in endpoints become `redacted`, the selected repository is
-reduced to its final path element, and tokens are never recorded. Artifacts are
-written with owner-only (`0600`) permissions. See
-[First-Run Evidence](../reference/first-run-evidence.md) for the full section
-table.
-
-To score a run against the onboarding success criteria, pass the envelope to the
-benchmark, which rejects "first answers" that are health-only:
-
-```bash
-eshu first-run --json | eshu first-run-benchmark --path local_compose
-```
-
-See [First five minutes benchmark](../reference/local-testing/first-five-minutes-benchmark.md).
-
----
+For deeper recovery, use [Troubleshooting](../operate/troubleshooting.md), the
+[MCP guide](../guides/mcp-guide.md), or [Index repositories](../use/index-repositories.md).
 
 ## Prove the stack is working with an evidence bundle
 
-`eshu first-run --report` proves that one bounded query answered. To check the
-stack more broadly — how much it actually indexed, whether the queue is
-backed up, whether a semantic provider is configured — export a live evidence
-bundle and read specific fields from it:
+Export a live evidence bundle when you need stack-wide repository, queue, and
+provider state beyond the first bounded answer:
 
 ```bash
 eshu evidence bundle export --live --out evidence-bundle.json
-```
-
-`--live` composes the bundle from the running stack's status endpoints instead
-of from fixtures, so the numbers reflect what your stack actually indexed. It
-works against any of the three paths above; point it at the same endpoint your
-CLI is already using (`--service-url` and `--api-key` for the hosted path).
-Because the status endpoints it reads are stack-wide, `--live` cannot be
-combined with `--scope`.
-
-Read these fields to answer "is this actually working":
-
-| Field | What it tells you |
-| --- | --- |
-| `contents.pipeline_state.repository_count` | How many repositories the stack has indexed. A `0` still shows up here; it is not hidden. The status route returns the same `0` for "genuinely empty" and "graph query failed," so a matching `repository_count` entry is added to `missing_evidence` to flag the number as ambiguous rather than definitive. |
-| `contents.pipeline_state.health_state` and `contents.pipeline_state.queue` | Overall health (`healthy`, `degraded`, `progressing`, or `stalled`) plus reducer/ingest queue depth — `outstanding`, `overdue_claims`, `dead_letter` — so a backed-up queue shows as a number, not a guess. |
-| `contents.semantic_provider_state` | Whether a semantic/LLM provider is configured and its state. A stack with no provider configured reports that as a state (`unavailable`, reason `provider_not_configured`), not as a failure. |
-| `missing_evidence` | Named gaps the bundle cannot fill from the status routes it reads. Always includes `fact_counts` (no status endpoint exposes per-kind fact counts), `freshness`, and `runtime_profile`; adds `repository_count` when that count came back `0`. |
-
-Validate the bundle before trusting or sharing it:
-
-```bash
 eshu evidence bundle validate --from evidence-bundle.json
 ```
 
-A few things this bundle does not claim. `redaction.rules` names what was
-*screened* (`screened_private_endpoints` and similar) — pattern matching that
-recognizes known shapes, not proof that no private data survived. Treat a
-passing bundle as screened, not certified, and review it yourself before
-sending it outside your organization. `validation.status` reads `passed` only
-because the exporter ran validation and got a clean result before writing the
-file; a bundle you *receive* could have been hand-edited afterward, since
-anyone holding the file can recompute `bundle_id` to match. Re-run
-`eshu evidence bundle validate --from <file>` yourself on any bundle someone
-else sends you rather than trusting the `passed` already in it.
+The live export reads status endpoints, so it cannot be combined with
+`--scope`. Treat its redaction result as a screen for known private-data shapes,
+not a guarantee that a bundle is safe to publish. Review the file before you
+share it. See [Evidence bundles](../reference/evidence-bundle.md) for field and
+truth-label details.
 
-See [Portable Evidence Bundle](../reference/evidence-bundle.md) for the full
-field reference.
+## Clean up
 
----
+If this guide had you start Compose, run `docker compose down`. If it started the
+local owner, stop `eshu api start` with Ctrl-C and run
+`eshu graph stop --workspace-root "$PWD"`. Leave a hosted service or a runtime
+that was already running alone.
 
-## Ask a first assistant question
+## Continue from here
 
-Once a client is connected, start with a narrow prompt:
-
-```text
-Use Eshu. List the indexed repositories, then explain what Eshu knows about the
-eshu repository with file and symbol evidence.
-```
-
-Then try:
-
-```text
-Use Eshu. Find the HTTP API entry point and show the files that wire health,
-status, and query routes.
-```
-
-For more examples, see [Starter Prompts](../guides/starter-prompts.md).
-
----
-
-## Troubleshooting
-
-When `eshu first-run` or `eshu hosted-setup` cannot finish, it classifies the
-failure and prints concrete recovery steps plus a docs link. The underlying
-root-cause error is always preserved. Common classes:
-
-| Symptom | Likely class | Recovery | More detail |
-| --- | --- | --- | --- |
-| Compose services are not running or unhealthy | Compose unhealthy | `docker compose up -d`, then `docker compose ps`; re-run `eshu first-run` once the API is healthy. | [Docker Compose](../run-locally/docker-compose.md) |
-| Docker cannot see the repository paths | Docker repo paths | Mount the host path under `volumes` in the compose file; confirm the target resolves inside the container; re-run. | [Docker Compose](../run-locally/docker-compose.md) |
-| `eshu-*` helper binaries missing from `PATH` | Binaries missing | Build with `cd go && make build`, add them to `PATH`, then re-run. | [Local Testing](../reference/local-testing.md) |
-| API rejects the request as unauthorized (401/403) | Auth mismatch | Export a matching `ESHU_API_KEY`; confirm the server's configured key matches the client. | [HTTP API](../reference/http-api.md) |
-| Health green but answers are stale or indexing still building | Indexing not ready | Wait for the queue to drain (`eshu index-status`), raise the budget with `eshu first-run --timeout 30m`, re-run once indexing completes. | [Health checks](../operate/health-checks.md) |
-| Queue has failed, retrying, or dead-letter work | Queue failed work | Inspect with `eshu index-status`, resolve or retry the blocked items, re-run once the queue drains. | [Troubleshooting](../operate/troubleshooting.md) |
-| No repositories match the selector | No repositories | Index one with `eshu scan <path>`, widen or correct the selector, confirm with `eshu list`. | [Index repositories](../use/index-repositories.md) |
-| MCP endpoint points at the API instead of the MCP service | MCP endpoint is API | Point the client at the MCP path (e.g. `/mcp/message`) or use `eshu mcp start` for stdio; re-run `eshu mcp setup`. | [MCP Guide](../guides/mcp-guide.md) |
-| Assistant config exists but the eshu tools are not visible | Assistant tools hidden | Fully restart the assistant, confirm the config is in the path the client reads, re-run `eshu mcp setup --verify`. | [MCP Guide](../guides/mcp-guide.md) |
-
-For deeper local diagnostics, run `eshu doctor`. See
-[CLI: System And Configuration](../reference/cli-system.md).
+- [Ask code questions](../use/code-questions.md)
+- [Trace infrastructure](../use/trace-infrastructure.md)
+- [Connect MCP](../mcp/index.md)

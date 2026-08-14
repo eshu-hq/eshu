@@ -7,12 +7,12 @@ entrypoint: true
 landing: false
 -->
 
-# Index Repositories
+# Index repositories
 
 Indexing turns source code, infrastructure files, docs, and deployment config
 into Eshu facts, content, and graph relationships.
 
-## Choose A Path
+## Choose an indexing path
 
 | Path | Use it when |
 | --- | --- |
@@ -20,7 +20,7 @@ into Eshu facts, content, and graph relationships.
 | Host CLI into Compose stores | Compose is already running and you want to index another checkout from your terminal. |
 | Local Eshu service | You are using `eshu graph start` for one workspace-local development service. |
 
-## Docker Compose Bootstrap
+## Bootstrap with Docker Compose
 
 ```bash
 export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
@@ -32,7 +32,7 @@ docker compose up --build
 Use this when you want API, MCP, ingester, reducer, Postgres, and graph backend
 running together.
 
-## Host CLI Into Compose Stores
+## Host CLI into Compose stores
 
 Start Compose:
 
@@ -75,7 +75,7 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 If you use `docker-compose.neo4j.yml`, set `ESHU_GRAPH_BACKEND=neo4j` and use
 database `neo4j`.
 
-## Local Eshu Service
+## Start a local Eshu service
 
 ```bash
 ./scripts/install-local-binaries.sh
@@ -86,7 +86,7 @@ eshu graph start --workspace-root "$PWD"
 
 See [Local binaries](../run-locally/local-binaries.md).
 
-## Check Results
+## Verify the indexed repositories
 
 ```bash
 eshu index-status
@@ -96,7 +96,7 @@ eshu stats
 
 Compose defaults to API `http://localhost:8080`.
 
-## Exclude Local Noise
+## Exclude local noise
 
 Eshu skips common cache and dependency directories by default, including `.git`,
 `.terraform`, `.terragrunt-cache`, `.pulumi`, `node_modules`, `vendor`, and
