@@ -38,6 +38,21 @@ The scorer records pass/fail rows for:
 | `follow_up_usefulness` | Required next calls are present, especially for partial or truncated answers. |
 | `publish_safety` | Evidence contains no private paths, hostnames, credentials, raw addresses, or sensitive excerpts. |
 
+`publish_safety` covers a connection string carrying a password in its userinfo
+on any scheme or none (`bolt://`, `postgres://`, `redis://`, and the bare
+`svc:PW@host/tool` form), IPv4 and IPv6 raw addresses, and a password assignment
+written with either `=` or `:`.
+
+A `publish_safety` failure names the field it found the value in — for example
+`unsafe publishable evidence in api result answer_summary`, or `unsafe run
+metadata in run_id` — and never prints the value. It cannot: the detail is
+echoed to stdout, returned in the command's error, serialized into `--json`, and
+copied into the suggested follow-up issue body, so printing it there would
+publish exactly what the criterion refused. For the same reason, a `run_id` that
+itself fails the scan is replaced in the verdict by
+`[redacted: run_id failed publish safety]`. Search your own evidence file at the
+named field to find the value.
+
 ## Capture And Score
 
 The scorer is offline by design. It does not call API or MCP endpoints itself;

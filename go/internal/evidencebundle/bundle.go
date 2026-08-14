@@ -24,13 +24,31 @@ var (
 	// Go network errors report a bare "host:port" with no scheme, so the
 	// scheme-anchored pattern above misses them entirely. Requiring the port
 	// keeps this from firing on ordinary dotted text such as a version string.
-	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
+	//
+	// The left boundary rules out a host spelled as the tail of a longer token
+	// ("notlocalhost:80"), so it excludes the characters that can continue a
+	// hostname: letters, digits, dot, hyphen. A colon cannot appear in a
+	// hostname label, and excluding it let every colon-delimited shape through
+	// -- a labelled diagnostic ("upstream:db.internal:5432"), a scope handle
+	// ("repo:db.internal"), and an IPv4-mapped IPv6 address
+	// ("::ffff:10.0.5.3"). The pre-existing cases all read "dial tcp <host>",
+	// so the character before the host was always a space and the gap never
+	// showed.
+	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
 	// Addresses that locate a stack even without a port. The host:port rule
 	// above cannot cover these: a collector reason reads "instance 10.0.5.3 is
 	// unreachable" with no port at all, and a Kubernetes service name is a
 	// locating hostname in its own right. Kept separate so the port-bearing rule
-	// stays narrow enough not to fire on ordinary dotted text.
-	privateAddressPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|f[cd][0-9a-f]{2}:[0-9a-f:]*[0-9a-f]|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local)`)
+	// stays narrow enough not to fire on ordinary dotted text. Same left
+	// boundary as above, and for the same reason.
+	privateAddressPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local)`)
+	// Unique-local IPv6, split out of the rule above because it is the one
+	// alternative whose left boundary must keep excluding the colon. A hextet
+	// is separated by colons, so allowing one before "fd12" would reject the
+	// public address 2001:db8:fd12::1 on the strength of a middle hextet.
+	// Bracketed unique-local addresses with a port are covered by
+	// privateHostPortPattern instead.
+	privateULAv6Pattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])f[cd][0-9a-f]{2}:[0-9a-f:]*[0-9a-f]`)
 	// Credential-bearing URL, by shape rather than by known value. The shared
 	// registry only matches its own synthetic canaries, so a real secret an
 	// operator's status text happens to carry passed straight through. Requires

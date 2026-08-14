@@ -100,6 +100,12 @@ const (
 // ReportEvidenceVersion is the service intelligence report scorecard schema.
 const ReportEvidenceVersion = "service-intelligence-report-scorecard/v1"
 
+// RedactedRunID replaces a run id that itself failed the publish-safety scan.
+// Verdict.RunID is printed in the CLI header and serialized into the --json
+// artifact, so carrying the offending value there would publish exactly what
+// the scorecard refused. The publish-safety criterion names the field instead.
+const RedactedRunID = "[redacted: run_id failed publish safety]"
+
 // CriterionStatus is the outcome of a scored criterion.
 type CriterionStatus string
 

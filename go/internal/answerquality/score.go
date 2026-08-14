@@ -31,6 +31,16 @@ func Score(evidence Evidence) Verdict {
 		RunID:   evidence.RunID,
 		Pass:    true,
 	}
+	// The run id is copied into the verdict, printed in the CLI header, and
+	// serialized into the --json artifact. Refusing to echo it in the finding
+	// while carrying it here would be half a fix, so an unsafe run id is
+	// replaced by an explicit marker; the publish-safety criterion below names
+	// the field. The marker rather than an empty string because the field is
+	// omitempty and the CLI renders an absent run id as its first-run
+	// placeholder "<repo>", which reads as a run id rather than as a refusal.
+	if answerguardrail.UnsafeString(verdict.RunID) {
+		verdict.RunID = RedactedRunID
+	}
 	verdict.Criteria = append(verdict.Criteria, scoreFamilyCoverage(evidence))
 	for _, prompt := range evidence.Prompts {
 		score := scorePrompt(prompt)
@@ -69,9 +79,39 @@ func Score(evidence Evidence) Verdict {
 	return verdict
 }
 
+// locatedString pairs a publishable value with a locator naming where it came
+// from. It exists so a publish-safety failure can say WHERE the unsafe value
+// was without saying WHAT it was, which is the contract
+// answerguardrail.Finding documents for itself ("without echoing the unsafe
+// value") and this package used to break.
+type locatedString struct {
+	// Where names the field, and for a captured result its surface, in a form
+	// an operator can search their own evidence file for.
+	Where string
+	Value string
+}
+
+// firstUnsafeLocation returns the locator of the first value the shared
+// publish-safety scanner rejects, or the empty string when all are safe. It
+// deliberately returns the locator and never the value: a scorecard detail is
+// printed to stdout, returned in the CLI's error to stderr, serialized into the
+// --json verdict, and copied verbatim into a generated GitHub issue body, so a
+// detail that quoted the value would publish exactly what the scorer refused.
+func firstUnsafeLocation(values []locatedString) string {
+	for _, value := range values {
+		if answerguardrail.UnsafeString(value.Value) {
+			return value.Where
+		}
+	}
+	return ""
+}
+
 func aggregatePublishSafety(evidence Evidence, scores []PromptScore) CriterionScore {
-	if unsafe := answerguardrail.FirstUnsafeString([]string{evidence.RunID, evidence.EshuCommit}); unsafe != "" {
-		return fail(CriterionPublishSafety, "unsafe run metadata: "+unsafe)
+	if where := firstUnsafeLocation([]locatedString{
+		{Where: "run_id", Value: evidence.RunID},
+		{Where: "eshu_commit", Value: evidence.EshuCommit},
+	}); where != "" {
+		return fail(CriterionPublishSafety, "unsafe run metadata in "+where)
 	}
 	return aggregatePromptCriterion(CriterionPublishSafety, scores)
 }
@@ -260,8 +300,8 @@ func scoreFollowUpUsefulness(prompt PromptResult) CriterionScore {
 }
 
 func scorePublishSafety(prompt PromptResult) CriterionScore {
-	if unsafe := answerguardrail.FirstUnsafeString(promptStrings(prompt)); unsafe != "" {
-		return fail(CriterionPublishSafety, "unsafe publishable evidence: "+unsafe)
+	if where := firstUnsafeLocation(promptLocatedStrings(prompt)); where != "" {
+		return fail(CriterionPublishSafety, "unsafe publishable evidence in "+where)
 	}
 	return pass(CriterionPublishSafety, "evidence contains only redacted publishable strings")
 }
@@ -331,22 +371,39 @@ func requiredNextCalls(prompt PromptResult) []string {
 	return nil
 }
 
-func promptStrings(prompt PromptResult) []string {
-	values := []string{prompt.ID, string(prompt.Family), prompt.Prompt, prompt.ExpectedTruthClass}
-	values = append(values, prompt.RequiredNextCalls...)
-	values = append(values, prompt.AcceptableLimitations...)
+// promptLocatedStrings returns every publishable string one captured prompt
+// carries, each labelled with the field it came from so a publish-safety
+// failure can point an operator at the row in their own evidence file without
+// reprinting its contents.
+func promptLocatedStrings(prompt PromptResult) []locatedString {
+	values := []locatedString{
+		{Where: "prompt id", Value: prompt.ID},
+		{Where: "prompt family", Value: string(prompt.Family)},
+		{Where: "prompt text", Value: prompt.Prompt},
+		{Where: "expected_truth_class", Value: prompt.ExpectedTruthClass},
+	}
+	values = appendLocated(values, "required_next_calls", prompt.RequiredNextCalls)
+	values = appendLocated(values, "acceptable_limitations", prompt.AcceptableLimitations)
 	for _, result := range prompt.Results {
-		values = append(
-			values,
-			string(result.Surface),
-			result.AnswerSummary,
-			result.TruthClass,
-			result.Freshness,
+		surface := string(result.Surface)
+		values = append(values,
+			locatedString{Where: "result surface", Value: surface},
+			locatedString{Where: surface + " result answer_summary", Value: result.AnswerSummary},
+			locatedString{Where: surface + " result truth_class", Value: result.TruthClass},
+			locatedString{Where: surface + " result freshness", Value: result.Freshness},
 		)
-		values = append(values, result.CitationHandles...)
-		values = append(values, result.Limitations...)
-		values = append(values, result.NextCalls...)
-		values = append(values, narrationStrings(result.Narration)...)
+		values = appendLocated(values, surface+" result citation_handles", result.CitationHandles)
+		values = appendLocated(values, surface+" result limitations", result.Limitations)
+		values = appendLocated(values, surface+" result next_calls", result.NextCalls)
+		values = appendLocated(values, surface+" result narration", narrationStrings(result.Narration))
+	}
+	return values
+}
+
+// appendLocated labels every value in a slice with one shared locator.
+func appendLocated(values []locatedString, where string, raw []string) []locatedString {
+	for _, value := range raw {
+		values = append(values, locatedString{Where: where, Value: value})
 	}
 	return values
 }

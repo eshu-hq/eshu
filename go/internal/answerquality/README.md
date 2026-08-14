@@ -14,6 +14,25 @@ capture answers from the real surfaces, redact them, then pass the evidence to
 `Score`. That keeps private paths, hostnames, credentials, raw addresses, and
 sensitive excerpts out of versioned artifacts.
 
+## A publish-safety failure names the field, never the value
+
+`publish_safety` is the one criterion whose input is, by definition, something
+that must not be published. Its `Detail` therefore names where the value was
+found (`unsafe publishable evidence in api result answer_summary`) and never
+what it was. This is the same contract `answerguardrail.Finding` documents for
+itself, and the reason it matters here is that a `CriterionScore.Detail` is not
+a local diagnostic: it is printed to stdout, returned in the CLI's error to
+stderr, serialized into the `--json` verdict, and copied verbatim into a
+generated `FollowUpIssue` body.
+
+`Verdict.RunID` follows the same rule. A run id that itself fails the scan is
+replaced by `RedactedRunID`, because the CLI prints it in the scorecard header
+and it is carried in the JSON artifact.
+
+Use `locatedString` and `firstUnsafeLocation` when adding a value to the
+screened set, not `answerguardrail.FirstUnsafeString` — the latter returns the
+value, which is what this contract exists to keep out of the output.
+
 ## Evidence
 
 `EvidenceVersion` is `answer-quality-scorecard/v1`. A complete run must include

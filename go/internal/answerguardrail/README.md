@@ -54,6 +54,20 @@ their own logs, status, responses, or scorecards.
   answer that introduces a new operational token.
 - The scanner is intentionally conservative and deterministic. Do not add
   network, filesystem, or provider-dependent checks here.
+- `UnsafeString` runs on a publish path, so its rules are tuned against false
+  positives as hard as against coverage: an answer it wrongly withholds is its
+  own outage. Each rule's comment in `guardrail.go` names what it deliberately
+  does not catch. Two limits worth knowing before relying on it:
+  - an all-hex identifier pair such as `abc::def` is shape-identical to a
+    compressed IPv6 address and is rejected; and
+  - only `password` gets a colon-spelled rule. `token`, `secret`, and `api_key`
+    keep their `=` form only, because real resource types end in those words
+    (`aws_appsync_api_key`, `aws_secretsmanager_secret`) and a colon rule on
+    them would reject honest answers.
+- Every regex is gated on a cheap substring check. That is a performance
+  contract, not a style choice — see `UnsafeString`'s comment for the measured
+  6.5x it prevents — so re-run `BenchmarkUnsafeStringHonestCorpus` if a gate
+  changes.
 
 ## Related docs
 
