@@ -24,6 +24,149 @@
 # Like its sibling libraries this is a plain function library, not a script
 # (no `set -euo pipefail`; see ifa_fault_injection_driver.sh's identical note).
 
+# ifa_fault_sha256_stdin prints the lowercase SHA-256 of stdin on both the
+# macOS development host and the Ubuntu CI runner.
+ifa_fault_sha256_stdin() {
+	if command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 | awk '{print $1}'
+	elif command -v sha256sum >/dev/null 2>&1; then
+		sha256sum | awk '{print $1}'
+	else
+		return 1
+	fi
+}
+
+# ifa_fault_write_repo_node_identities maps graphdump's content-addressed node
+# IDs to stable logical identities for the repository plus one explicitly
+# mutable delta path and its directory ancestors. graphdump hashes the sorted,
+# two-space-indented {labels,props} record including its trailing newline;
+# `jq -S` emits the same byte shape. Direct intermediate files keep jq/hash
+# errors observable. Nodes outside that path remain raw and exact.
+ifa_fault_write_repo_node_identities() {
+	local graph_dump="$1" repo_id="$2" mutable_relative_path="$3"
+	local mutable_absolute_path="$4" output="$5"
+	local node_records="${output}.nodes.jsonl" identity_rows="${output}.rows.jsonl"
+	jq -c --arg repo_id "${repo_id}" \
+		--arg mutable_relative_path "${mutable_relative_path}" \
+		--arg mutable_absolute_path "${mutable_absolute_path}" '
+		if ((.nodes | type) != "array") or ((.edges | type) != "array") then
+			error("graph dump must contain nodes and edges arrays")
+		else
+			.nodes[]
+			| . as $node
+			| select(
+				$node.props.repo_id? == $repo_id
+				or $node.props.repository_id? == $repo_id
+				or $node.props.id? == $repo_id
+				or $node.props.uid? == $repo_id
+			)
+			| select(
+				($node.labels | index("Repository")) != null
+				or $node.props.relative_path? == $mutable_relative_path
+				or $node.props.path? == $mutable_absolute_path
+				or (
+					(($node.labels | index("Directory")) != null)
+					and (($mutable_absolute_path | startswith(($node.props.path? // "") + "/")))
+				)
+			)
+		end
+	' "${graph_dump}" >"${node_records}" || return 2
+	: >"${identity_rows}"
+	local node_record node_hash node_identity
+	while IFS= read -r node_record; do
+		node_hash="$(printf '%s\n' "${node_record}" | jq -S . | ifa_fault_sha256_stdin)" \
+			|| return 2
+		node_identity="$(printf '%s\n' "${node_record}" | jq -c '
+			if ((.props.uid? // "") | length) > 0 then
+				{labels: .labels, uid: .props.uid}
+			elif ((.labels | index("Directory")) != null)
+				and (((.props.path? // "") | length) > 0) then
+				{labels: .labels, path: .props.path}
+			elif ((.labels | index("Repository")) != null)
+				and ((((.props.id? // .props.repo_id? // "")) | length) > 0) then
+				{labels: .labels, repo_id: (.props.id // .props.repo_id)}
+			else
+				error("mutable repository node lacks a stable logical identity")
+			end
+		')" || return 2
+		jq -nc --arg hash "${node_hash}" --argjson identity "${node_identity}" \
+			'{hash: $hash, identity: $identity}' >>"${identity_rows}" || return 2
+	done <"${node_records}"
+	jq -s 'reduce .[] as $row ({}; .[$row.hash] = $row.identity)' \
+		"${identity_rows}" >"${output}" || return 2
+}
+
+# ifa_fault_write_collateral_edges writes the graph edge set outside the SQL
+# and code-call families, which the cell asserts independently against exact
+# expected fixtures. SQL generation 2 legitimately changes node properties,
+# replacing content hashes on SQL-repository CONTAINS/REPO_CONTAINS endpoints.
+# Replace only those repository-attributed hashes with stable labels+uid (or
+# the Repository's repo_id), preserving exact attachment topology as well as
+# relationship type, cardinality, and properties.
+ifa_fault_write_collateral_edges() {
+	local graph_dump="$1" repo_identities="$2" output="$3"
+	local sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
+	local code_call_types='["CALLS","INSTANTIATES","REFERENCES","USES_METACLASS"]'
+	jq -S --slurpfile repo_identities "${repo_identities}" \
+		--argjson sql_types "${sql_types}" \
+		--argjson code_call_types "${code_call_types}" '
+		if ((.nodes | type) != "array") or ((.edges | type) != "array") then
+			error("graph dump must contain nodes and edges arrays")
+		else
+			.edges
+			| map(
+				. as $edge
+				| select($sql_types | index($edge.type) | not)
+				| select($code_call_types | index($edge.type) | not)
+				| ($repo_identities[0][$edge.from] // null) as $from_identity
+				| ($repo_identities[0][$edge.to] // null) as $to_identity
+				| if (
+					($edge.type == "CONTAINS" or $edge.type == "REPO_CONTAINS")
+					and ($from_identity != null or $to_identity != null)
+				) then
+					$edge
+					| if $from_identity != null then .from = $from_identity else . end
+					| if $to_identity != null then .to = $to_identity else . end
+				else
+					$edge
+				end
+			)
+			| sort
+		end
+	' "${graph_dump}" >"${output}" || return 2
+}
+
+# ifa_fault_compare_collateral_edges returns 0 for exact collateral parity, 1
+# for a real difference, and 2 for jq/hash/diff failure. It deliberately does
+# not absorb SQL or code-call exactness: their dedicated assertions run first.
+ifa_fault_compare_collateral_edges() {
+	local baseline_dump="$1" changed_dump="$2" output_dir="$3"
+	local sql_repo_id="${4:-repo-ifa-sql-family}"
+	local mutable_relative_path="${5:-db/schema.sql}"
+	local mutable_absolute_path="${6:-/repo/db/schema.sql}"
+	local baseline_identities="${output_dir}/baseline-sql-repo-node-identities.json"
+	local changed_identities="${output_dir}/changed-sql-repo-node-identities.json"
+	local baseline_edges="${output_dir}/baseline-collateral-edges.json"
+	local changed_edges="${output_dir}/changed-collateral-edges.json"
+	local diff_output="${output_dir}/collateral-edges.diff"
+	ifa_fault_write_repo_node_identities \
+		"${baseline_dump}" "${sql_repo_id}" \
+		"${mutable_relative_path}" "${mutable_absolute_path}" \
+		"${baseline_identities}" || return 2
+	ifa_fault_write_repo_node_identities \
+		"${changed_dump}" "${sql_repo_id}" \
+		"${mutable_relative_path}" "${mutable_absolute_path}" \
+		"${changed_identities}" || return 2
+	ifa_fault_write_collateral_edges \
+		"${baseline_dump}" "${baseline_identities}" "${baseline_edges}" || return 2
+	ifa_fault_write_collateral_edges \
+		"${changed_dump}" "${changed_identities}" "${changed_edges}" || return 2
+	local diff_rc=0
+	diff -u "${baseline_edges}" "${changed_edges}" >"${diff_output}" || diff_rc=$?
+	[[ "${diff_rc}" -le 1 ]] || return 2
+	return "${diff_rc}"
+}
+
 # cell_duplicatedelivery (#5544 cell 6) proves the materialization write path
 # is idempotent under redelivery: the same work item delivered twice must
 # converge to the same graph, not double-write edges or dead-letter.
@@ -137,13 +280,43 @@ cell_deltaretract() {
 	# identifies relationship endpoints by the digest of every endpoint
 	# property, so those legitimate updates replace the apparent hashes of the
 	# SQL repository's CONTAINS and REPO_CONTAINS edges. A whole-graph
-	# "everything except the nine SQL types" comparison therefore cannot
-	# distinguish expected SQL ownership churn from damage in another repo.
-	# Reassert the covered unaffected family through its stable, hand-derived
-	# edge identities instead. This fails on a dropped, duplicated, or spurious
-	# code-call edge without globally ignoring structural relationship types.
+	# "everything except the nine SQL types" comparison therefore cannot use
+	# raw endpoint hashes. Reassert code calls through their stable, hand-derived
+	# edge identities, then compare the remaining graph through the scoped stable
+	# endpoint mapping below. This fails on dropped, duplicated, spurious, or
+	# wrongly attached edges without globally ignoring structural edge types.
 	ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "delta-retract: SQL generation 2 changed the code-call family's five-edge exact set"
+
+	# The SQL-v2 and code-call assertions above own their relationship families.
+	# Compare every remaining edge exactly, except that content-addressed endpoint
+	# hashes on the Repository plus db/schema.sql and its Directory ancestors are
+	# replaced by stable logical identities after proving ownership in each dump.
+	# Preserved paths such as cmd/api/handlers.go stay raw and exact. The records
+	# retain topology, type, count, and properties, so attachment swaps,
+	# containment loss/addition, and out-of-scope property churn still fail; no
+	# unrelated CONTAINS or REPO_CONTAINS edge is ignored.
+	command -v jq >/dev/null 2>&1 \
+		|| die "delta-retract: jq is required for fail-closed collateral graph comparison"
+	if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
+		die "delta-retract: shasum or sha256sum is required to attribute SQL-owned containment endpoints"
+	fi
+	local collateral_rc=0
+	ifa_fault_compare_collateral_edges \
+		"${work_dir}/graph-baseline.dump" \
+		"${work_dir}/graph-deltaretract.dump" \
+		"${work_dir}" \
+		"repo-ifa-sql-family" \
+		"db/schema.sql" \
+		"/repo/db/schema.sql" || collateral_rc=$?
+	if [[ "${collateral_rc}" -eq 1 ]]; then
+		printf 'delta-retract: graph collateral changed outside the exact SQL and code-call families:\n' >&2
+		cat "${work_dir}/collateral-edges.diff" >&2
+		die "delta-retract: SQL generation 2 changed unrelated graph truth; do not widen the family allowlists"
+	fi
+	[[ "${collateral_rc}" -eq 0 ]] \
+		|| die "delta-retract: collateral graph comparison failed (status ${collateral_rc}); refusing to report parity"
+	printf 'delta-retract: collateral graph edge set unchanged outside exact SQL/code-call assertions\n'
 
 	teardown_cell deltaretract
 	wall_times[deltaretract]=$(( $(date +%s) - cell_start ))

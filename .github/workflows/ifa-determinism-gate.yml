@@ -25,8 +25,11 @@ on:
       - 'go/cmd/reducer/main.go'
       - 'go/internal/reducer/code_call*.go'
       - 'go/internal/reducer/service*.go'
+      - 'go/internal/reducer/shared_projection*.go'
       - 'go/internal/storage/cypher/*code_call*.go'
       - 'go/internal/storage/cypher/edge_writer.go'
+      - 'go/internal/storage/cypher/canonical_retract.go'
+      - 'go/internal/storage/cypher/edge_writer_retract*.go'
       - 'go/internal/content/writer.go'
       - 'go/internal/projector/canonical_entity_identity.go'
       # The determinism matrix drives the Tier-2 synth-multiscope cassette

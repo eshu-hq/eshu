@@ -227,6 +227,7 @@ require_lib "redelivery counts what it actually wrote (CTE, not a second SELECT)
 require_delivery_cells_multiline "delta-retract drives gen 2 through the shared helper" $'ifa_det_run_sql_delta_live \\\n\t\t1 "${bin_dir}" "${sql_delta_cassette}"'
 
 require_delivery_cells_multiline "delta-retract reasserts the unaffected code-call family exactly" $'ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}"'
+require_delivery_cells "delta-retract compares collateral graph truth outside exactly asserted families" 'ifa_fault_compare_collateral_edges'
 require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
 require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
 require "gate defines the delta expected-edge set" "sql_delta_expected_edges="
