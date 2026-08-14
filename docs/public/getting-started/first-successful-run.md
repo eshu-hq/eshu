@@ -16,8 +16,8 @@ runtime you already have or plan to start.
 verifies the runtime, indexes the target or reuses a drained index, waits for
 indexing completeness, and runs a bounded query. It does not start a runtime.
 `--no-start` does not change startup behavior: `first-run` never starts a
-runtime in either mode. The flag only makes a failed verification record that
-you requested verify-only mode.
+runtime. The flag only changes the failure hint so it records that verify-only
+mode was requested.
 
 ## Before you begin
 
