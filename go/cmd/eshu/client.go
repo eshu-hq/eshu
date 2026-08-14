@@ -95,6 +95,24 @@ func (c *APIClient) PostEnvelope(path string, body, result any) error {
 func (c *APIClient) do(method, path string, body, result any, accept string) error {
 	url := c.BaseURL + path
 
+	// The request URL is the one string here that concentrates secrets: the
+	// configured base URL may carry userinfo credentials, and callers append a
+	// query string built from caller-supplied parameters (api keys, tokens).
+	// net/http embeds that whole URL in the errors below, so every transport
+	// failure has to be redacted before it reaches a terminal or a CI log.
+	//
+	// safePath is the value substituted in its place. Everything a secret can
+	// ride on is dropped: the base URL (and with it any userinfo) and the query
+	// string. What remains is the bare endpoint path, which is also what a
+	// reader needs to act on the failure.
+	//
+	// Residual, deliberately not covered: the path SEGMENTS are echoed
+	// verbatim. A caller that puts a secret in the path itself rather than in
+	// the query or a header still prints it. That boundary is the same one the
+	// rest of the CLI assumes, and narrowing further would leave an error no
+	// operator could act on.
+	safePath, _, _ := strings.Cut(path, "?")
+
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -106,7 +124,11 @@ func (c *APIClient) do(method, path string, body, result any, accept string) err
 
 	req, err := http.NewRequest(method, url, bodyReader)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		// This is the worse of the two leaking sites. http.NewRequest returns
+		// url.Parse's *url.Error unchanged, and that one carries the RAW URL --
+		// net/http's stripPassword only runs inside Client.Do, so a URL that
+		// fails to parse prints the userinfo PASSWORD in cleartext.
+		return fmt.Errorf("create request: %w", requestErrorWithoutURL(err, safePath))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if accept != "" {
@@ -118,7 +140,11 @@ func (c *APIClient) do(method, path string, body, result any, accept string) err
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		// Client.Do wraps the failure in a *url.Error whose URL has been through
+		// stripPassword. That masks the userinfo password only -- the username
+		// and the ENTIRE query string survive, so this still leaks without the
+		// redaction below.
+		return fmt.Errorf("request failed: %w", requestErrorWithoutURL(err, safePath))
 	}
 	defer func() {
 		_ = resp.Body.Close()

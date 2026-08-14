@@ -252,8 +252,32 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 // and the reader still learns what actually failed (connection refused, TLS
 // handshake, timeout). Those carry host:port, never the query string.
 //
-// Not covered: a server that echoes the request URL back inside a 4xx/5xx
-// response body, which arrives as apiHTTPError.Body rather than a *url.Error.
+// APIClient.do calls this on both of its *url.Error sites, so every caller of
+// the client gets the redaction rather than only the report commands. The two
+// sites leak differently and one is worse than the transport case above:
+//
+//   - http.HTTPClient.Do returns a *url.Error whose URL went through net/http's
+//     stripPassword, which masks the userinfo password but keeps the username
+//     and the whole query string.
+//   - http.NewRequest returns url.Parse's *url.Error unchanged. stripPassword
+//     never runs on that path, so an unparseable URL prints the userinfo
+//     PASSWORD in cleartext.
+//
+// The report-command call sites below are kept as a second layer, and hold the
+// line if the client path ever regresses. In the shape actually measured -- a
+// refused connection -- they no longer do anything: the client's rewrite leaves
+// an error that is not a *url.Error, so errors.As does not match and the error
+// is returned untouched. This helper is idempotent regardless, so a shape that
+// does nest a *url.Error inside another one is simply redacted twice.
+//
+// Not covered:
+//   - a server that echoes the request URL back inside a 4xx/5xx response body,
+//     which arrives as apiHTTPError.Body rather than a *url.Error.
+//   - urlErr.Err itself, which is preserved verbatim. A url.EscapeError renders
+//     the offending three-character escape sequence (`invalid URL escape
+//     "%ZZ"`), so a secret containing a malformed escape can surface that
+//     fragment. Host and port also survive by design, since an operator cannot
+//     diagnose a connection failure without them.
 func requestErrorWithoutURL(err error, safePath string) error {
 	var urlErr *url.Error
 	if !errors.As(err, &urlErr) {
