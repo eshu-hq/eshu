@@ -27,19 +27,21 @@ import (
 // switch scanner cannot see: who is allowed to write a Trigger field and with
 // what, and that Evaluate's switch still consults triggerAllowed itself.
 //
-// These scanners are not the whole guard, and after four rounds of adding a
-// rule per newly-found spelling it is worth saying why. They read syntax, so
-// they answer for the spellings they recognize and nothing else: a Trigger
-// written through a pointer taken inside Evaluate is a *ast.StarExpr on the
-// left of the assignment and no `.Trigger` selector appears there at all.
-// Recognizing that shape would buy one more spelling and leave the next one.
+// These scanners are not the whole guard. They read syntax, so they answer for
+// the spellings they recognize and nothing else: a Trigger written through a
+// pointer taken inside Evaluate is a *ast.StarExpr on the left of the
+// assignment, with no `.Trigger` selector there at all.
 // TestDocLockstepEvaluateAdvisesExactlyTheAllowedTriggers
-// (doc_lockstep_trigger_equivalence_test.go) is what actually closes the set:
-// it compares Evaluate's advise set against triggerAllowed's accept set over
-// every short trigger, so any rewrite fails on the behaviour regardless of how
-// it is written. What that comparison cannot see is a widening applied to both
-// sides at once, which is exactly what these scanners and the switch scanner
-// hold. Keep all three: none subsumes another.
+// (doc_lockstep_trigger_equivalence_test.go) compares Evaluate's advise set
+// against triggerAllowed's accept set, so a rewrite fails on the behaviour
+// rather than on its spelling -- but only for the triggers and request shapes
+// that comparison is run over, and three measured remaps evaded it by sitting
+// outside both. An earlier version of this comment said the pointer shape was
+// covered there and not worth a rule here; that was wrong, and
+// doc_lockstep_trigger_alias_test.go now carries the rule.
+// What the comparison cannot see at all is a widening applied to both sides at
+// once, which is what these scanners and the switch scanner hold. Keep all
+// four: none subsumes another.
 
 // triggerWriteShape names the RHS forms a Trigger field may be written from.
 type triggerWriteShape string

@@ -89,22 +89,58 @@
   (doc_lockstep_trigger_equivalence_test.go): on a request eligible in every
   other respect, `Evaluate` advises for exactly the triggers `triggerAllowed`
   accepts, compared over every string of up to four lowercase characters, every
-  string literal the production files declare, and every documented class. It
-  asserts the behaviour, so it does not care how the rewrite is written — which
-  matters, because four earlier generations of this guard each read one more
-  spelling of the source and each was evaded by the next one. Do not answer a
-  new evasion by teaching the source scanners another shape; check first
-  whether the equivalence already fails on it, and if it does not, ask why the
-  property is wrong rather than adding a rule.
+  string literal the production files declare, every documented class, every
+  string one character edit away from one of those, and — for the named classes
+  and their neighbourhood — each of the 27 other request shapes in
+  `triggerAxisVariants`. It asserts the behaviour, so it does not care how the
+  rewrite is written.
+  It is still a property over a bounded sample, though, and the bound is where
+  it fails. When a new evasion slips through, work the bound first: is the class
+  it widens outside the swept set, or is the request it needs outside
+  `triggerAxisVariants`? Widen the sweep or the axis set before concluding the
+  property itself is wrong. Answering each new evasion with one more
+  source-scanner spelling is what the four earlier generations did and it did
+  not converge — but the cheap structural belt in
+  `doc_lockstep_trigger_alias_test.go` stays regardless, because all three
+  remaps that have escaped the sample so far were written through a pointer to
+  the field.
   `doc_lockstep_trigger_path_test.go` still holds the source side, and is not
   redundant: it catches the one case the equivalence cannot see, a widening
   applied to `triggerAllowed` and to `Evaluate` at the same time.
+  `doc_lockstep_trigger_axes_test.go` holds the sample that equivalence runs
+  over — the neighbourhood alphabet, the request shapes, and a literal pin on
+  the two sweep constants — and `doc_lockstep_trigger_alias_test.go` refuses the
+  pointer writes the writer scan cannot see.
 - **Change which Claude tools fire the hook** → edit `triggerFromClaudeTool`
   (claude.go). `TestDocLockstepClaudeToolTriggerClasses`
   (doc_lockstep_publish_safety_test.go) drives every tool the contract doc's
   exclusion sentence names through `MergeClaudePreToolUseInput` and `Evaluate`
   and requires each to come back as a skip with an empty `additionalContext`,
   so remapping `Bash` into a read-family class fails there.
+  That test enumerates tool *names*, and the contract doc's exclusion sentence
+  is about command *families* — `NotebookEdit` is in no list, and a case mapping
+  it to `read` published a full advisory for a notebook write with the suite
+  green. Two properties in the same file close that gap:
+  `TestDocLockstepExcludedToolFamiliesNeverReachAReadClass` builds names out of
+  each excluded verb (`NotebookEdit`, `MultiWrite`, `pre-commit`, `push_file`,
+  …) and requires every one to skip, and
+  `TestDocLockstepClaudeToolTranslationsAreEnumerated` compares the mapping's
+  *translations* — a case whose class differs from the tool's own lowercased
+  name — against `claudeToolTriggerClasses`, taking the candidate names from the
+  production files' string literals. Adding a case means adding its row and
+  deleting a case means deleting the row; the comparison fails both ways. It
+  compares behavior rather than syntax, so a case returning a computed class
+  fails it exactly as a literal one does.
+- **Claim support for another host** → don't, unless the contract doc's
+  Implementation Gate is satisfied for that host. `supportedHostClaude`
+  (preflight.go) is the whole accepted set, and
+  `TestDocLockstepEvaluateAdvisesForExactlyOneHost`
+  (doc_lockstep_gate_inputs_test.go) holds it as an equality over a swept host
+  rather than as a list of hosts refused today — accepting `cursor` alongside
+  `claude` passed everything before that test existed, and put `"host":
+  "cursor"` on the wire under a doc that lists Cursor as guidance-only.
+  `TestDocLockstepSupportedHostBoundaryDoc` pins the doc's own table, row counts
+  included, so a family moved between tiers fails too.
 - **Add a new scope kind** → add a candidate to `scopeFromInput`
   (preflight.go) and a case to `plannedCallForScope` choosing which MCP tool
   answers it. Both must change together: a scope kind with no
@@ -129,14 +165,29 @@
   `[A-Za-z0-9._/:-]` too — so deleting either explicit check changes no
   decision and no test can go red on it. The character-class loop is what
   actually holds those two; treat it accordingly.
-  `repoRelativePath`'s `strings.HasPrefix(rel, "..")` guard (claude.go) is the
-  same shape one layer earlier: dropping it lets an absolute `file_path`
-  outside the payload's `cwd` become `../etc/passwd` in `Input.RepoPath`, and
-  `scopeSafe` still refuses it, so no decision moves.
-  `TestDocLockstepRepoRelativePathRefusesEscapes`
-  (doc_lockstep_advisory_test.go) asserts the function directly, because that
-  is the only level it can go red at — do not "simplify" it into a test through
-  `Evaluate`.
+  The class itself is pinned by
+  `TestDocLockstepScopeIDCharacterClassIsExact` (doc_lockstep_gate_inputs_test.go),
+  which sweeps every ASCII code point plus a few beyond it through `Evaluate`
+  and compares the result against README.md's `[A-Za-z0-9._/:-]` sentence. One
+  input per rejection kind could not do that: the character-class input in
+  `documentedScopeRejections` carries a space as well as a `$`, so adding `$` to
+  the allowed switch left that table green while `services/api/$SECRET.go` was
+  published into `additionalContext`.
+  `repoRelativePath`'s `strings.HasPrefix(rel, "..")` guard (claude.go) is a
+  layer earlier, and this file used to call it the same shape. It is not.
+  Dropping it lets an absolute `file_path` outside the payload's `cwd` become
+  `../etc/passwd` in `Input.RepoPath`; `scopeSafe` refuses that, so nothing
+  unsafe is published either way — but a non-empty unsafe `repo_path` stops
+  scope resolution at the first candidate, so a request that also set `service`
+  moves from advise on `service=checkout` to a `broad_scope` skip. Measured both
+  ways, guard present and dropped. Two tests hold it:
+  `TestDocLockstepRepoRelativePathRefusesEscapes` (doc_lockstep_advisory_test.go)
+  at the function, where every branch is visible, and
+  `TestDocLockstepEscapingToolPathDoesNotDisplaceALaterScope` in the same file
+  through `Evaluate`. Keep both. The reusable lesson is in how the wrong claim
+  was reached: the original probe set `repo_path` as the only scope field, which
+  is the one shape where the guard is inert, and a probe that cannot tell inert
+  from load-bearing is not a measurement.
 
 ## Failure modes and how to debug
 
@@ -173,11 +224,17 @@
   shape that walk depends on (with its fixture drive in
   `doc_lockstep_switch_fixtures_test.go`),
   `doc_lockstep_trigger_equivalence_test.go` compares `Evaluate`'s advise set
-  against `triggerAllowed`'s accept set,
+  against `triggerAllowed`'s accept set (with the sample it sweeps, and the pins
+  on that sample, in `doc_lockstep_trigger_axes_test.go`, and the pointer-alias
+  belt in `doc_lockstep_trigger_alias_test.go`),
   `doc_lockstep_trigger_path_test.go` pins the path the trigger takes to reach
   that switch (fixtures in `doc_lockstep_trigger_path_fixtures_test.go`),
   `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`
-  rejections and the Claude tool-to-class mapping,
+  rejections, the Claude tool-to-class mapping, the excluded command families,
+  and that the mapping's translations are all enumerated,
+  `doc_lockstep_gate_inputs_test.go` pins the two acceptance gates that are not
+  the trigger — the single supported host and the exact scope-ID character
+  class —
   `doc_lockstep_advisory_test.go` pins what an emitted advisory says — the
   truth labels, the disclaimer sentence, the MCP tool per scope kind, and
   `repoRelativePath`'s escape refusal — and

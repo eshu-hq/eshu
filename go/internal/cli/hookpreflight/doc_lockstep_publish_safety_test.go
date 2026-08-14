@@ -268,3 +268,146 @@ func TestDocLockstepClaudeToolExclusionSentenceIsIntact(t *testing.T) {
 		t.Fatalf("an expired budget gave reason %q, want %q; the masking check above assumes this ordering", out.Reason, reasonTimeout)
 	}
 }
+
+// excludedToolFamilyVerbs is the contract doc's exclusion sentence read the way
+// it is written -- as command families, not as tool names. The mapping tests
+// above enumerate names, and a host names its tools whatever it likes:
+// NotebookEdit is in none of those lists, and a `case "notebookedit"` returning
+// a read class produced a 324-character advisory for a notebook write with the
+// whole suite green. Enumerating one more name would have left the next one.
+func excludedToolFamilyVerbs() []string {
+	return []string{"write", "edit", "format", "delete", "commit", "push", "shell", "secret", "provider", "deployment"}
+}
+
+// decoratedToolNames spells verb the ways a host actually names a tool in that
+// family: alone, cased, prefixed, suffixed, and separated. These are shapes a
+// real tool name takes, not an exhaustive set -- the point is that none of them
+// may reach a read class, whichever one a host picks.
+func decoratedToolNames(verb string) []string {
+	capitalized := strings.ToUpper(verb[:1]) + verb[1:]
+	names := []string{verb, capitalized, strings.ToUpper(verb), " " + capitalized + " "}
+	for _, prefix := range []string{"Notebook", "Multi", "Web", "Bulk"} {
+		names = append(names, prefix+capitalized)
+	}
+	for _, suffix := range []string{"File", "Tool", "Notebook"} {
+		names = append(names, capitalized+suffix)
+	}
+	return append(names, verb+"_file", "pre_"+verb, verb+"-file", "pre-"+verb)
+}
+
+// TestDocLockstepExcludedToolFamiliesNeverReachAReadClass pins the exclusion
+// sentence as the family rule it states. Every name built from an excluded verb
+// must come back a skip with no published context, whatever the host called the
+// tool.
+func TestDocLockstepExcludedToolFamiliesNeverReachAReadClass(t *testing.T) {
+	t.Parallel()
+
+	// The control first: this request advises when its tool is a read-family
+	// one, so a skip below is the family rule and not an unrelated ineligible
+	// field.
+	control := Input{Host: supportedHostClaude, Enabled: true, RepoPath: narrowRepoScope, Budget: DefaultBudget}
+	MergeClaudePreToolUseInput(&control, ClaudePreToolUseInput{HookEventName: "PreToolUse", ToolName: "Read"})
+	if Evaluate(control).Decision != DecisionAdvise {
+		t.Fatal("the Read control did not advise; every assertion below would hold for a request that never advises")
+	}
+
+	verbs := excludedToolFamilyVerbs()
+	if len(verbs) != 10 {
+		t.Fatalf("excluded family verbs = %d, want the 10 the contract doc's exclusion sentence names", len(verbs))
+	}
+
+	checked := 0
+	for _, verb := range verbs {
+		for _, tool := range decoratedToolNames(verb) {
+			input := Input{Host: supportedHostClaude, Enabled: true, RepoPath: narrowRepoScope, Budget: DefaultBudget}
+			MergeClaudePreToolUseInput(&input, ClaudePreToolUseInput{HookEventName: "PreToolUse", ToolName: tool})
+			out := Evaluate(input)
+
+			if triggerAllowed(input.Trigger) {
+				t.Errorf("tool %q maps to trigger class %q, which triggerAllowed accepts; the contract doc says the hook must not run for %s commands", tool, input.Trigger, verb)
+			}
+			if out.Decision != decisionSkip || out.Reason != reasonDisallowedTrigger {
+				t.Errorf("tool %q: decision=%q reason=%q, want skip/%s", tool, out.Decision, out.Reason, reasonDisallowedTrigger)
+			}
+			if context := ClaudePreToolUseOutputForPreflight(out).HookSpecificOutput.AdditionalContext; context != "" {
+				t.Errorf("tool %q: additionalContext = %q, want empty; a %s-family tool must get no hook output", tool, context, verb)
+			}
+			checked++
+		}
+	}
+	if checked != len(verbs)*len(decoratedToolNames("edit")) {
+		t.Fatalf("evaluated %d tool names, want %d", checked, len(verbs)*len(decoratedToolNames("edit")))
+	}
+}
+
+// toolClassTranslation reports the class tool maps to and whether that is a
+// translation rather than the documented default. triggerFromClaudeTool's
+// default hands back the tool's own lowercased name, so a name equal to a
+// trigger class advises without anything having translated it; a translation is
+// the function deciding that one name means a different class.
+func toolClassTranslation(tool string) (class string, translated bool) {
+	class = triggerFromClaudeTool(tool)
+	return class, class != strings.ToLower(strings.TrimSpace(tool))
+}
+
+// TestDocLockstepClaudeToolTranslationsAreEnumerated pins claudeToolTriggerClasses
+// as a complete list of the translations triggerFromClaudeTool performs, not a
+// sample of them.
+//
+// It compares two sets. One is every string literal the production files
+// declare, run through the mapping and kept when the mapping translated it --
+// a new `case` has to name its tool, and that name lands in a literal. The
+// other is the pinned table, filtered the same way. A new translation into a
+// read class fails on the first set carrying a name the second does not; a
+// pinned row whose case was deleted fails the other way round.
+//
+// This is the reason the check is not a source scan: triggerFromClaudeTool
+// returns strings from an expression default, so the closed-switch scanner
+// cannot read it, and teaching a scanner one more shape is what the four
+// earlier generations of the trigger guard each did.
+func TestDocLockstepClaudeToolTranslationsAreEnumerated(t *testing.T) {
+	t.Parallel()
+
+	literals, err := sourceStringLiterals(".")
+	if err != nil {
+		t.Fatalf("read the package's string literals: %v", err)
+	}
+	if len(literals) == 0 {
+		t.Fatal("found no string literals in the production files; this comparison would be vacuous")
+	}
+
+	fromSource := map[string]string{}
+	for _, literal := range literals {
+		if class, translated := toolClassTranslation(literal); translated {
+			fromSource[strings.ToLower(strings.TrimSpace(literal))] = class
+		}
+	}
+
+	advises, rejects := claudeToolTriggerClasses()
+	fromTable := map[string]string{}
+	for _, tools := range []map[string]string{advises, rejects} {
+		for tool := range tools {
+			if class, translated := toolClassTranslation(tool); translated {
+				fromTable[strings.ToLower(strings.TrimSpace(tool))] = class
+			}
+		}
+	}
+	if len(fromTable) == 0 {
+		t.Fatal("no pinned tool name translates to a different class; the comparison would be vacuous")
+	}
+
+	for tool, class := range fromSource {
+		want, pinned := fromTable[tool]
+		switch {
+		case !pinned:
+			t.Errorf("the production files name %q, which triggerFromClaudeTool translates to class %q, and claudeToolTriggerClasses does not list it; a tool the docs never named is deciding whether the hook runs", tool, class)
+		case want != class:
+			t.Errorf("tool %q translates to class %q, pinned as %q", tool, class, want)
+		}
+	}
+	for tool, class := range fromTable {
+		if _, found := fromSource[tool]; !found {
+			t.Errorf("claudeToolTriggerClasses pins %q as translating to %q, but no production string literal carries that name; restore the case or drop the row", tool, class)
+		}
+	}
+}

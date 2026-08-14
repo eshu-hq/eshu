@@ -112,6 +112,34 @@ func TestDocLockstepREADMENamesEveryLockstepFile(t *testing.T) {
 	if want := strings.Count(string(readme), "doc_lockstep_"); want < len(entries) {
 		t.Errorf("README.md mentions doc_lockstep_ %d times for %d files; a listed file was dropped from the directory", want, len(entries))
 	}
+
+	// The numeral in the same sentence. An unlisted new file fails the loop
+	// above, but a listed one does not, and the sentence goes on quoting the
+	// old count -- which is the boundary claim itself, stated as a number.
+	if len(entries) >= len(lockstepCountWords) {
+		t.Fatalf("%d lockstep files, and lockstepCountWords spells only %d; extend it", len(entries), len(lockstepCountWords))
+	}
+	want := lockstepCountWords[len(entries)] + " lockstep"
+	if !strings.Contains(string(readme), want) {
+		t.Errorf("README.md does not say %q for the %d lockstep files on disk; the sentence that calls the list a boundary quotes the count, so the count has to move with the directory", want, len(entries))
+	}
+	for count, word := range lockstepCountWords {
+		if count == len(entries) {
+			continue
+		}
+		if stale := word + " lockstep"; strings.Contains(string(readme), stale) {
+			t.Errorf("README.md still says %q while %d lockstep files are on disk", stale, len(entries))
+		}
+	}
+}
+
+// lockstepCountWords spells the counts README.md's boundary sentence can carry,
+// index by index, so the assertion above can name the word the directory
+// implies rather than checking that some number is present.
+var lockstepCountWords = []string{
+	"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+	"Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen",
+	"Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty",
 }
 
 // TestDocLockstepOccurrenceCounterReportsARewrittenMention is the negative

@@ -27,17 +27,42 @@ import (
 //
 // So this file stops describing how the code may be written and asserts what
 // it must do: for a request that is eligible in every other respect, Evaluate
-// advises for exactly the triggers triggerAllowed accepts. Any rewrite between
-// Input.Trigger and the gate breaks that equality no matter how it is spelled,
-// because it moves one side and not the other. What it cannot see is a widening
-// applied consistently to both -- triggerAllowed itself accepting a new class,
-// which keeps the equality true -- and that is the case the two source scanners
-// were built for. The three files are complements, not layers: none of them
-// subsumes another, and removing any one leaves a live hole.
+// advises for exactly the triggers triggerAllowed accepts. A rewrite between
+// Input.Trigger and the gate breaks that equality however it is spelled,
+// because it moves one side and not the other.
+//
+// It is a property over a bounded sample, not a proof, and the bounds are where
+// it fails. Two of them, both measured green before the arms below existed:
+//
+//	a class outside the swept set. The exhaustive arm stops at four characters
+//	and the neighbourhood arm one edit from a named class, so a remap reaching
+//	further -- `if len(t) > 4 && triggerAllowed(t[:4]) { t = t[:4] }` -- is only
+//	caught because "readx" happens to sit one edit from "read".
+//	a request outside the swept axes. A gate keyed on another field
+//	(`if input.Permission == "elevated" { input.Trigger = "read" }`) leaves the
+//	equality true for every trigger on the baseline request and false only for
+//	requests this test never builds. That is what triggerAxisVariants is for.
+//
+// And it cannot see a widening applied consistently to both sides --
+// triggerAllowed itself accepting a new class, which keeps the equality true --
+// which is the case the two source scanners were built for. The three files are
+// complements, not layers: none subsumes another, and removing any one leaves a
+// live hole. Widening the sweep or the axis set is the first thing to try when
+// an evasion slips through, not concluding the property is wrong.
 //
 // The sweep is exhaustive rather than a candidate list. A hand-written list can
 // only hold classes someone already thought of, which is the failure mode
 // AGENTS.md names as this package's most common change.
+//
+// The exhaustive arm stops at four characters, and that ceiling is a real gap:
+// every documented class is four to six characters, so most plausible new class
+// names fall outside it. The literal arm was meant to cover the rest, on the
+// reasoning that a remap has to name the class it widens -- which is false for a
+// remap that computes the class instead of naming it.
+// `if p := &normalized.Trigger; strings.HasPrefix(*p, "read") { *p = "read" }`
+// names only "read", and every class it widens (read_file, readonly, readx) is
+// five characters or more and appears in no literal. A HasSuffix variant behaves
+// the same way. Arm four is for that shape.
 
 // triggerSweepAlphabet and triggerSweepMaxLen bound the exhaustive arm: every
 // string over this alphabet up to this length is compared. The alphabet is
@@ -69,9 +94,7 @@ func eligibleExceptTrigger() Input {
 // eligible request. This is the production side of the equivalence: it goes
 // through the real Evaluate, not a reimplementation of its switch.
 func evaluateAdvises(trigger string) bool {
-	input := eligibleExceptTrigger()
-	input.Trigger = trigger
-	return Evaluate(input).Decision == DecisionAdvise
+	return evaluateAdvisesWith(eligibleExceptTrigger(), trigger)
 }
 
 // sourceStringLiterals returns every distinct string literal the non-test files
@@ -201,6 +224,71 @@ func TestDocLockstepEvaluateAdvisesExactlyTheAllowedTriggers(t *testing.T) {
 		check(trigger)
 	}
 
+	// Arm four: every string one character edit away from one of those named
+	// classes. This is the arm that sees a remap computed from a class's own
+	// text rather than spelled out -- a prefix, suffix, or substring test names
+	// only the class it maps onto, so arm two finds no literal for the classes
+	// it widens, and they are longer than arm one reaches.
+	neighbours := oneEditNeighbourhood(named)
+	present := make(map[string]bool, len(neighbours))
+	for _, neighbour := range neighbours {
+		present[neighbour] = true
+	}
+	for _, base := range named {
+		// The one-character-longer strings on either side are what this arm
+		// exists for, so they are asserted by name. A neighbourhood that
+		// generated only the bases back, or nothing at all, would otherwise
+		// pass every comparison below.
+		for _, want := range []string{base + "x", "x" + base} {
+			if !present[want] {
+				t.Fatalf("the one-edit neighbourhood of %q does not contain %q; a prefix- or suffix-keyed remap of that class would go unnoticed", base, want)
+			}
+		}
+	}
+	for _, trigger := range neighbours {
+		check(trigger)
+	}
+
+	// The axes. Every arm above varies the trigger on one request shape and
+	// fixes the other ten fields, so a gate keyed on one of them is invisible to
+	// all four. Each variant re-runs the named classes and their neighbourhood
+	// -- the exhaustive arm is not repeated, because a gate keyed on another
+	// field admits whole classes at once and those are the classes it admits.
+	reduced := append(append([]string{}, named...), neighbours...)
+	variants := triggerAxisVariants()
+	if len(variants) < 20 {
+		t.Fatalf("axis variants = %d, want the permission-by-freshness cross product plus the scope, host, tool and budget shapes", len(variants))
+	}
+	variantCompared, variantMismatched := 0, 0
+	for _, variant := range variants {
+		// Each variant is an advising request in its own right, or the
+		// comparison below holds for a shape that never advises.
+		if !evaluateAdvisesWith(variant.Input, "read") {
+			t.Fatalf("%s: does not advise for trigger \"read\"; that variant would compare two constants", variant.Name)
+		}
+		if evaluateAdvisesWith(variant.Input, "edit") {
+			t.Errorf("%s: advises for trigger \"edit\", which the contract doc rules out", variant.Name)
+		}
+		for _, trigger := range reduced {
+			variantCompared++
+			got := evaluateAdvisesWith(variant.Input, trigger)
+			if got == triggerAllowed(trigger) {
+				continue
+			}
+			variantMismatched++
+			if variantMismatched <= 8 {
+				t.Errorf("%s, trigger %q: Evaluate advises=%v, triggerAllowed=%v; a request field other than the trigger is deciding which classes get an advisory",
+					variant.Name, trigger, got, triggerAllowed(trigger))
+			}
+		}
+	}
+	if variantMismatched > 8 {
+		t.Errorf("%d trigger/variant pairs disagreed in total; the first 8 are named above", variantMismatched)
+	}
+	if want := len(variants) * len(reduced); variantCompared != want {
+		t.Errorf("axis arm compared %d trigger/variant pairs, want %d", variantCompared, want)
+	}
+
 	for _, bad := range reported {
 		t.Errorf("trigger %q: Evaluate advises=%v, triggerAllowed=%v; something between Input.Trigger and the gate rewrote the class, so which classes get an advisory is no longer what triggerAllowed says",
 			bad.trigger, bad.advises, triggerAllowed(bad.trigger))
@@ -217,7 +305,8 @@ func TestDocLockstepEvaluateAdvisesExactlyTheAllowedTriggers(t *testing.T) {
 	if advised == 0 {
 		t.Errorf("no trigger out of %d advised; the comparison held only because Evaluate never advises", compared)
 	}
-	t.Logf("compared %d triggers (%d exhaustive, %d source literals, %d named classes); %d advised", compared, sweptExhaustively, len(literals), len(named), advised)
+	t.Logf("compared %d triggers (%d exhaustive, %d source literals, %d named classes, %d one-edit neighbours); %d advised. %d further comparisons over %d request shapes",
+		compared, sweptExhaustively, len(literals), len(named), len(neighbours), advised, variantCompared, len(variants))
 }
 
 // expectedSweepSize is the number of strings over triggerSweepAlphabet of

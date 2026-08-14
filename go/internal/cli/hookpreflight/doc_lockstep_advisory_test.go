@@ -137,16 +137,21 @@ func TestDocLockstepPlannedCallToolPerScopeKind(t *testing.T) {
 // contract: an absolute tool path is published only when it resolves inside the
 // payload's cwd.
 //
-// This one is asserted at the function rather than through Evaluate on purpose,
-// and the reason is worth writing down. Dropping the `strings.HasPrefix(rel,
-// "..")` guard changes the merged Input.RepoPath from "" to "../etc/passwd",
-// but every Evaluate decision holds: scopeSafe refuses "..", so the request
-// still skips with reasonBroadScope and publishes nothing. Measured on a full
-// disk copy, 2026-08-13 -- the two probes agree, and only the merged RepoPath
-// moves. So this is a second independent check on the same escape, in the shape
-// of the `~` and `\` clauses README.md already flags: real, and unable to move
-// a decision on its own. A test through Evaluate could not go red on it, which
-// is exactly why this one is not written that way.
+// It is asserted at the function because that is where the whole contract is
+// visible: seven branches, several of which no single Evaluate input separates.
+// It is NOT, as an earlier version of this comment claimed, the only level the
+// guard can go red at. That claim came from a probe that set repo_path as the
+// sole scope field, which is the one request shape where dropping the guard
+// really is inert -- the merged RepoPath moves from "" to "../etc/passwd" and
+// both versions skip with reasonBroadScope. With a later scope field also set
+// it moves a decision, because scopeFromInput stops at the first non-empty
+// candidate: measured 2026-08-13 on a disk copy outside the worktree, guard
+// present gives advise/bounded_preflight/scope=service:checkout with a
+// 297-character advisory, and guard dropped gives skip/broad_scope with no
+// scope and an empty string. TestDocLockstepEscapingToolPathDoesNotDisplaceALaterScope
+// below is that pin. A probe that exercises only the shape where a clause is
+// inert cannot tell inert from load-bearing, which is how the wrong claim got
+// written down three times.
 func TestDocLockstepRepoRelativePathRefusesEscapes(t *testing.T) {
 	t.Parallel()
 
@@ -180,5 +185,75 @@ func TestDocLockstepRepoRelativePathRefusesEscapes(t *testing.T) {
 	}
 	if published != 2 {
 		t.Errorf("%d of %d cases produced a repo path, want 2; if none does, the refusals above prove only that the function returns empty for everything", published, len(cases))
+	}
+}
+
+// TestDocLockstepEscapingToolPathDoesNotDisplaceALaterScope pins
+// repoRelativePath's `..` guard where a caller can see it: an absolute
+// file_path that resolves outside the payload's cwd must leave Input.RepoPath
+// empty, so a scope the caller did set still resolves.
+//
+// The pair is the assertion, the way TestDocLockstepScopeResolutionIsFirstMatch
+// pairs its two inputs. The escaping case alone would also pass for a merge
+// that never filled RepoPath at all; the second case proves the merge does fill
+// it when the path legitimately resolves, so the first case is about the guard
+// and not about a dead code path.
+func TestDocLockstepEscapingToolPathDoesNotDisplaceALaterScope(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		filePath string
+		wantKind string
+		wantID   string
+		wantDesc string
+	}{
+		{
+			name:     "escaping_path_leaves_the_service_scope_standing",
+			filePath: "/etc/passwd",
+			wantKind: "service",
+			wantID:   "checkout",
+			wantDesc: "the path resolves outside cwd, so RepoPath stays empty and service is the first non-empty candidate",
+		},
+		{
+			name:     "resolving_path_becomes_the_first_candidate",
+			filePath: "/repo/services/api/handler.go",
+			wantKind: "repo_path",
+			wantID:   "services/api/handler.go",
+			wantDesc: "the path resolves inside cwd, so RepoPath is filled and outranks service",
+		},
+	}
+	if len(cases) != 2 {
+		t.Fatalf("scope-displacement cases = %d; the pair is the assertion -- the escaping case alone cannot tell a refused path from a merge that fills nothing", len(cases))
+	}
+
+	for _, tc := range cases {
+		input := Input{
+			Host: supportedHostClaude, Enabled: true,
+			Service: "checkout", Budget: DefaultBudget,
+		}
+		MergeClaudePreToolUseInput(&input, ClaudePreToolUseInput{
+			HookEventName: "PreToolUse",
+			ToolName:      "Read",
+			CWD:           "/repo",
+			ToolInput:     map[string]any{"file_path": tc.filePath},
+		})
+		out := Evaluate(input)
+
+		if out.Decision != DecisionAdvise {
+			t.Errorf("%s: decision = %q reason = %q, want advise (%s)", tc.name, out.Decision, out.Reason, tc.wantDesc)
+			continue
+		}
+		if out.Scope == nil || out.Scope.Kind != tc.wantKind || out.Scope.ID != tc.wantID {
+			t.Errorf("%s: Output.Scope = %+v, want %s=%s (%s)", tc.name, out.Scope, tc.wantKind, tc.wantID, tc.wantDesc)
+			continue
+		}
+		context := ClaudePreToolUseOutputForPreflight(out).HookSpecificOutput.AdditionalContext
+		if !strings.Contains(context, tc.wantKind+"="+tc.wantID) {
+			t.Errorf("%s: additionalContext does not carry %s=%s; that string is what Claude receives\ngot: %s", tc.name, tc.wantKind, tc.wantID, context)
+		}
+		if strings.Contains(context, "..") || strings.Contains(context, "passwd") {
+			t.Errorf("%s: additionalContext carries an escaped path: %s", tc.name, context)
+		}
 	}
 }

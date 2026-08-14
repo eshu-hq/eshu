@@ -109,7 +109,7 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Eleven lockstep
+- The claims on this page are tested, not just written down. Fourteen lockstep
   files pin them, so a code change that makes one of the sentences above false
   fails a test rather than quietly aging into fiction. Each names what it
   covers, and the list is the boundary — a claim not in it is not pinned:
@@ -134,7 +134,18 @@ graph/Postgres drivers).
     request that is eligible in every other respect, `Evaluate` advises for
     exactly the triggers `triggerAllowed` accepts. This is what "the trigger
     reaches that switch unrewritten" actually means, and it is asserted as a
-    property rather than as a shape, so a remap fails it however it is spelled
+    property rather than as a shape, so a remap fails it however it is spelled —
+    within the sample it is checked over, which is the part to keep in mind: a
+    remap can still evade it by reaching a class the sweep does not generate, or
+    by keying on a request field the sweep holds fixed
+  - `doc_lockstep_trigger_axes_test.go` — what that sample is: the alphabet the
+    one-edit neighbourhood is built from, the request shapes the comparison is
+    repeated on, and a literal pin on the two constants the exhaustive arm's
+    coverage rests on, since the size check alone agrees with any value they take
+  - `doc_lockstep_trigger_alias_test.go` — the belt under both: no production
+    function takes the address of a `Trigger` field or writes through a
+    dereferenced pointer, which is the one shape the writer scan below cannot
+    see and the shape all three known sample-escaping remaps were written in
   - `doc_lockstep_trigger_path_test.go` and
     `doc_lockstep_trigger_path_fixtures_test.go` — the source half of the same
     claim: which functions may write a `Trigger` field and from what, and that
@@ -142,13 +153,23 @@ graph/Postgres drivers).
     normalized rather than a twin or a rewritten copy. It catches the case the
     equivalence test cannot see, a widening applied to both sides at once
   - `doc_lockstep_publish_safety_test.go` — one input per `scopeSafe`
-    rejection kind listed above reaches `Evaluate` and publishes nothing, and
-    every Claude tool the contract doc excludes comes back as a skip
+    rejection kind listed above reaches `Evaluate` and publishes nothing, every
+    Claude tool the contract doc excludes comes back as a skip, no tool name
+    built from an excluded command family reaches a read class whatever the host
+    calls it, and the tool-to-class translations are a complete list rather than
+    a sample: any production string literal the mapping translates into a
+    different class has to be one of the pinned names
+  - `doc_lockstep_gate_inputs_test.go` — the two acceptance gates that are not
+    the trigger, each pinned as a property rather than as a list of values that
+    fail today: `Evaluate` advises for exactly one host, and for exactly the
+    scope-ID characters the class above names, swept character by character
   - `doc_lockstep_advisory_test.go` — what an advisory says once it is emitted:
     the `advisory`/`local_preflight` truth labels in both the `Output` and the
     published string, the "advisory context only" disclaimer sentence, which
     MCP tool answers each scope kind, and `repoRelativePath` refusing a tool
-    path that resolves outside the payload's `cwd`
+    path that resolves outside the payload's `cwd` — at the function, and again
+    through `Evaluate`, where an escaping path must leave a scope the caller did
+    set standing
   - `doc_lockstep_literal_test.go` — how many times each package doc quotes
     the contract name, so rewriting one of several mentions is not silent
 
@@ -158,10 +179,12 @@ graph/Postgres drivers).
 
   - The `~` and `\` rejections in `scopeSafe` overlap the character-class
     check, so deleting either changes no decision — the character class is what
-    holds them. `repoRelativePath`'s `..` guard is the same shape: dropping it
-    changes the merged `Input.RepoPath` to `../etc/passwd`, but `scopeSafe`
-    still refuses it, so no decision moves. The pin on it is at the function,
-    which is the only level it can go red at.
+    holds them, and it is now swept character by character rather than sampled.
+    `repoRelativePath`'s `..` guard was described here as the same shape, on a
+    probe that set `repo_path` as the sole scope field. That is the one request
+    shape where it is inert. With a later scope field set it moves a decision,
+    because scope resolution stops at the first non-empty candidate — so it is
+    pinned through `Evaluate` as well as at the function.
   - The trigger-class comparison is against a transcription of the contract
     doc's "Trigger Classes" bullets, not against the class names themselves, so
     adding a class to both the code and that transcription with the doc
