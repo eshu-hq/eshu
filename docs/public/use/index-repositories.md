@@ -97,8 +97,9 @@ For the workspace-local owner, generate the Codex MCP configuration:
 eshu mcp setup --platform codex
 ```
 
-Open the target repository as the Codex workspace, restart Codex, and ask it to
-call `get_index_status` with `{}`. When the status is `healthy`, call
+Copy the printed `[mcp_servers.eshu]` block into `~/.codex/config.toml`. Then
+open the target repository as the Codex workspace, restart Codex, and ask it
+to call `get_index_status` with `{}`. When the status is `healthy`, call
 `list_indexed_repositories` with `{"limit": 25, "offset": 0}` and confirm that
 the bounded page contains the repository.
 
