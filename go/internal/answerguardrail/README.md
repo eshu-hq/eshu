@@ -92,7 +92,7 @@ their own logs, status, responses, or scorecards.
   screens the whole joined model answer, and `answerquality` screens evidence
   values taken from indexed repository content. An earlier version restarted the
   regex at each value it classified, which cost 713ms on a 32KB run of
-  assignments against 1.19ms for one pass. `valueTokenClass` is what makes one
+  assignments against 1.19ms for one pass. `valueCharClass` is what makes one
   pass sufficient — it stops the capture at the separator, leaving it in place as
   the next match's left boundary — so re-run
   `BenchmarkUnsafeStringPasswordRunTogetherScale` across all three of its sizes

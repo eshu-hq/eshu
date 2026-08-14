@@ -327,15 +327,15 @@ classifier's own character set — which closes the same hole in one
 
 The round-three objection to narrowing was that it copies the "what a type name
 can hold" set into the regex and leaves a second copy in `leadingValueToken`.
-Putting the set in one `const` answers it: `valueTokenClass` is the only copy,
+Putting the set in one `const` answers it: `valueCharClass` is the only copy,
 the pattern interpolates it, and `leadingValueToken` is deleted rather than left
 to drift.
 
 ```go
-const valueTokenClass = `a-z0-9_.\-*&\[\]`
+const valueCharClass = `a-z0-9_.\-*&\[\]`
 
 var passwordAssignmentPattern = regexp.MustCompile(
-	`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([` + valueTokenClass + `]*)`,
+	`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([` + valueCharClass + `]*)`,
 )
 ```
 

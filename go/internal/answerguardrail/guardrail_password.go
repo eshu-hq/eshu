@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// valueTokenClass is the set of characters a password assignment's value may
+// valueCharClass is the set of characters a password assignment's value may
 // carry and still be classifiable as a type name, a count, or a placeholder:
 // lowercase letters, digits, and the punctuation those spellings use --
 // "[]byte", "*string", "my_type", "pkg.Type", "kebab-case".
@@ -19,7 +19,7 @@ import (
 // whitespace, a quote, or a comma and trimmed the result down to this same set
 // in a separate Go function; the set then existed twice, in two spellings, with
 // nothing keeping them in step.
-const valueTokenClass = `a-z0-9_.\-*&\[\]`
+const valueCharClass = `a-z0-9_.\-*&\[\]`
 
 // passwordAssignmentPattern covers the YAML, log-line, and JSON spelling of a
 // password assignment. The fragment list in UnsafeString spells "password=" and
@@ -44,7 +44,7 @@ const valueTokenClass = `a-z0-9_.\-*&\[\]`
 //
 // The trailing group captures the assigned value, because the keyword alone
 // does not say a credential is being assigned -- see passwordAssignmentIsUnsafe,
-// which classifies it. The capture is valueTokenClass, so it ends at the first
+// which classifies it. The capture is valueCharClass, so it ends at the first
 // character a type name or a count cannot hold. That is what lets one pass find
 // every assignment in the string: the separator between two run-together
 // assignments is by definition a character the capture stops at, so it is still
@@ -52,7 +52,7 @@ const valueTokenClass = `a-z0-9_.\-*&\[\]`
 //
 // Matched against the already-lowercased copy, so it carries no (?i).
 var passwordAssignmentPattern = regexp.MustCompile(
-	`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([` + valueTokenClass + `]*)`,
+	`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([` + valueCharClass + `]*)`,
 )
 
 // passwordDeclarationValues are the assigned values that make a "password:" line
