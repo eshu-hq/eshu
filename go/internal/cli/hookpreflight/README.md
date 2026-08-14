@@ -109,7 +109,7 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Fifteen lockstep
+- The claims on this page are tested, not just written down. Sixteen lockstep
   files pin them, so a code change that makes one of the sentences above false
   fails a test rather than quietly aging into fiction. Each names what it
   covers, and the list is the boundary — a claim not in it is not pinned:
@@ -179,6 +179,13 @@ graph/Postgres drivers).
     path that resolves outside the payload's `cwd` — at the function, and again
     through `Evaluate`, where an escaping path must leave a scope the caller did
     set standing
+  - `doc_lockstep_scope_kind_test.go` — the membership under the
+    tool-per-scope-kind claim above: the kinds `scopeFromInput` offers and the kinds
+    `plannedCallForScope` names a case for are both read out of the source, and
+    have to be the same set. A seventh kind added with no case of its own fails
+    here instead of being quietly answered by the default tool, and so does
+    deleting the case for a kind that still has a candidate. It compares
+    membership only — see the bound below on which tool a case names
   - `doc_lockstep_evaluate_switch_test.go` — the condition each of `Evaluate`'s
     five eligibility clauses tests, pinned to the one thing `AGENTS.md` says it
     tests. This is the guard against acceptance widened *inside* an existing
@@ -222,9 +229,13 @@ graph/Postgres drivers).
     doc's "Trigger Classes" bullets, not against the class names themselves, so
     adding a class to both the code and that transcription with the doc
     untouched passes; updating the doc is a rule in `AGENTS.md`, not a gate.
-  - `scopeFromInput`'s candidate *membership* — adding or removing a scope
-    kind. The order is pinned (`TestDocLockstepScopeResolutionIsFirstMatch`);
-    which kinds are on the list is not.
+  - Which MCP tool a *new* scope kind's case names. Candidate membership is
+    pinned now — `TestDocLockstepEveryScopeKindNamesItsPlannedCall` requires
+    every kind `scopeFromInput` offers to name a tool in a case of its own — but
+    that the tool named is the right one for the kind is compared against a
+    hand-written expectation only for the six kinds
+    `TestDocLockstepPlannedCallToolPerScopeKind` lists. A seventh kind whose
+    case named `get_service_story` left the whole suite green.
   - The positional-literal rule's package-qualifier arm (`pkg.Type{…}`) is
     implemented but has never been exercised, because it is unreachable in this
     package by construction: such a literal needs an import exposing a

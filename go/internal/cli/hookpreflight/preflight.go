@@ -284,10 +284,23 @@ func scopeSafe(scope Scope) bool {
 	return true
 }
 
+// plannedCallForScope picks the bounded MCP tool call that answers scope.
+//
+// Every kind scopeFromInput can produce names its own case, including the two
+// answered by get_code_relationship_story: leaving them to the default made
+// "which tool answers this kind" invisible for exactly the kinds nobody had
+// chosen a tool for, which is the shape a seventh kind would arrive in.
+// TestDocLockstepEveryScopeKindNamesItsPlannedCall reads both lists out of this
+// file and fails when they disagree, so a new candidate with no case here is a
+// red test rather than a silent get_code_relationship_story. The default is the
+// fallback for a Scope no candidate produced, which nothing in this package
+// does today.
 func plannedCallForScope(scope Scope, budget time.Duration) *PlannedCall {
-	tool := "get_code_relationship_story"
+	var tool string
 	argKey := scope.Kind
 	switch scope.Kind {
+	case "repo_path", "entity_id":
+		tool = "get_code_relationship_story"
 	case "service":
 		tool = "get_service_story"
 	case "workload", "environment":
@@ -295,6 +308,8 @@ func plannedCallForScope(scope Scope, budget time.Duration) *PlannedCall {
 	case "resource":
 		tool = "investigate_resource"
 		argKey = "resource_handle"
+	default:
+		tool = "get_code_relationship_story"
 	}
 	return &PlannedCall{
 		Tool:      tool,

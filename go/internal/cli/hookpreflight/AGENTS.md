@@ -178,6 +178,29 @@
   `plannedCallForScope` case falls through to the default
   `get_code_relationship_story` tool, which is silently wrong for a kind
   that needs its own tool.
+  That rule is enforced now, not only written here.
+  `TestDocLockstepEveryScopeKindNamesItsPlannedCall`
+  (doc_lockstep_scope_kind_test.go) reads the candidate kinds out of
+  `scopeFromInput`'s `[]Scope` literal and the cased kinds out of
+  `plannedCallForScope`'s switch, and requires the two to be the same set — so
+  a seventh candidate with no case is red, and so is deleting a case for a kind
+  that still has a candidate. Reordering either list is not, which is why the
+  comparison is over sets: the candidate order is a different claim, held by
+  `TestDocLockstepScopeResolutionIsFirstMatch`.
+  This is why every kind names its tool in its own case, including the two
+  answered by `get_code_relationship_story` — a case clause with no `tool =`
+  in it is a finding, because a kind left to the default reads in a diff
+  exactly like one somebody chose a tool for. Keep the `default` clause too;
+  it is the fallback for a `Scope` no candidate produced, and without it
+  `tool` would be the empty string for one. Both shapes are load-bearing for
+  the scan: replacing the candidate slice or the switch with a table lookup
+  means teaching the scanner that shape in the same PR, not deleting the test.
+  What that test does **not** check is *which* tool a case names: point
+  `resource` at `get_service_story` and it stays green.
+  `TestDocLockstepPlannedCallToolPerScopeKind` (doc_lockstep_advisory_test.go)
+  is what holds the mapping, and it drives a hand-written list of the six kinds
+  — so a seventh kind's tool is pinned only once you add its row there as well.
+  Add that row in the same PR.
 - **Change the recommended MCP tool for a scope kind** → edit
   `plannedCallForScope` only. Do not touch `scopeFromInput`'s field order —
   that is the priority a multi-field request resolves by, not related to
@@ -271,7 +294,10 @@
   clauses actually tests,
   `doc_lockstep_advisory_test.go` pins what an emitted advisory says — the
   truth labels, the disclaimer sentence, the MCP tool per scope kind, and
-  `repoRelativePath`'s escape refusal — and
+  `repoRelativePath`'s escape refusal —
+  `doc_lockstep_scope_kind_test.go` pins the scope-kind membership under that
+  tool-per-kind claim, comparing the kinds `scopeFromInput` offers against the
+  kinds `plannedCallForScope` cases for, and
   `doc_lockstep_literal_test.go` counts the contract-name mentions in the
   package docs rather than checking each file has one, and checks README.md's
   per-file list still names every lockstep file on disk. Fix the doc or the code
