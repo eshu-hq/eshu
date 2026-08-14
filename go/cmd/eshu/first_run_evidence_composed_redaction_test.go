@@ -403,3 +403,33 @@ func TestFirstRunReportReEmitRedactsComposedStrings(t *testing.T) {
 		assertNoSentinels(t, "first-run report re-emit ("+format+")", out.String())
 	}
 }
+
+// TestRedactEndpointDelegatesTheQueryWalkForTheDifferential is the bridge that
+// lets internal/reportbundle's differential stand for the production endpoint
+// walk.
+//
+// That differential compares redactFreeText against urlredact.Query, because
+// package main is not importable from another package. This test closes the gap
+// from the other side: over the identical rows, redactEndpoint must remove
+// exactly the fragments Query removes. redactEndpoint adds URL parsing, the
+// userinfo rule and the fragment rule around Query and touches no query
+// boundary, so if that ever stops being true this goes red rather than the
+// differential quietly measuring a walk the artifact does not use.
+func TestRedactEndpointDelegatesTheQueryWalkForTheDifferential(t *testing.T) {
+	cases := urlredact.DifferentialCases()
+	if len(cases) == 0 {
+		t.Fatal("the differential is empty, so this test would pass vacuously")
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			endpoint := redactEndpoint("http://127.0.0.1:8080/x?" + tc.Input)
+			query := urlredact.Query(tc.Input, evidenceRedactedMarker)
+			for _, secret := range tc.Secrets {
+				if strings.Contains(endpoint, secret) != strings.Contains(query, secret) {
+					t.Fatalf("redactEndpoint and urlredact.Query disagree on a fragment of %q", tc.Input)
+				}
+			}
+		})
+	}
+}
