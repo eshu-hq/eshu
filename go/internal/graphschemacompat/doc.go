@@ -19,8 +19,12 @@
 // interval rather than one per write.
 //
 // A fence only reaches a writer that asks it. Today that is CanonicalNodeWriter
-// in cmd/ingester and cmd/projector; the writers cmd/reducer builds run
-// unfenced, and are stopped by deployment ordering rather than by this package.
-// See WriteFence for the full list and for what an identity cutover has to
-// check before relying on write-path coverage.
+// in cmd/ingester and cmd/projector; every writer cmd/reducer builds runs
+// unfenced, and so does the one cmd/bootstrap-index builds. Deployment ordering
+// does not close that gap. It decides when a writer may start, not whether one
+// already running stops: under the Helm pre-upgrade hook the schema Job records
+// the marker while the outgoing pods still serve at their configured replicas.
+// Stopping those writers is a manual step. See WriteFence for the coverage
+// list, and AGENTS.md for the reducer writer inventory and the node identities
+// it keys on.
 package graphschemacompat

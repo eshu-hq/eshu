@@ -57,13 +57,59 @@ leans on it. Only `CanonicalNodeWriter` accepts a fence
 
 - **Fenced** - `cmd/ingester` (`wiring_canonical_writer_open.go`) and
   `cmd/projector` (`runtime_wiring.go`).
-- **Unfenced on purpose** - `cmd/bootstrap-index` (`wiring.go`), a one-shot
-  seeder that applies or adopts the schema itself and exits.
-- **Unfenced** - every writer `cmd/reducer` builds: `EdgeWriter`,
-  `SemanticEntityWriter`, `SecretsIAMGraphWriter`, the specialized cloud,
-  Kubernetes, and IAM writers in `cmd/reducer/canonical_graph_writers.go`, and
-  the orphan sweep store. A marker recorded under a running reducer does not
-  stop its writes.
+- **Unfenced on purpose** - `cmd/bootstrap-index` (`wiring.go:248`), a one-shot
+  seeder that applies or adopts the schema itself and exits. It builds a
+  `CanonicalNodeWriter` with no `WithSchemaWriteFence`, so a run that overlaps a
+  schema upgrade keeps writing past its own startup check.
+- **Unfenced** - every writer `cmd/reducer` builds. A marker recorded under a
+  running reducer stops none of them.
+
+### The reducer writer inventory
+
+Regenerate it rather than trusting the prose; the list below is what this
+command returned:
+
+```bash
+rg -n 'sourcecypher\.New|graphowner\.New' go/cmd/reducer --glob '!*_test.go'
+```
+
+| Construction site | Writer |
+| --- | --- |
+| `main.go:360` | `EdgeWriter` (shared-projection edges, every domain) |
+| `endpoint_presence_wiring.go:90` | a second `EdgeWriter` |
+| `neo4j_wiring.go:252,260` | `SemanticEntityWriter` / `SemanticEntityWriterWithCanonicalNodeRows` |
+| `secrets_iam_graph_wiring.go:63` | `SecretsIAMGraphWriter` |
+| `graph_orphan_sweep_wiring.go:27` | `OrphanSweepStore` |
+| `canonical_graph_writers.go:78-127` | every field of the `canonicalGraphWriters` struct |
+
+That last row used to be described here as "the specialized cloud, Kubernetes,
+and IAM writers", which under-counted it: the struct also holds
+`incidentRoutingEvidence`, `codeTaintEvidence`, `codeInterprocEvidence`,
+`provenanceEdge`, `crossplaneSatisfiedByEdge`, `observabilityCoverageEdge`, and
+`s3ExternalPrincipalGrant`. Read the struct definition at
+`canonical_graph_writers.go:17-68` for the current set. The `graphowner` gates
+wrapping several of them emit no Cypher of their own, so they add no identity
+surface.
+
+### The node identities those writers key on
+
+Every node MERGE an unfenced reducer writer performs is keyed on `uid`, with
+five exceptions. Each is named, because a bare count is not checkable:
+
+| Label | Key | Statement | Writer |
+| --- | --- | --- | --- |
+| `Repository` | `id` | `canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
+| `EvidenceArtifact` | `id` | `canonical_relationships.go:278` | `EdgeWriter` |
+| `CloudAction` | `id` | `canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
+| `CodeownerTeam` | `ref` | `canonical_codeowners_edges.go:34` | `EdgeWriter` |
+| `Environment` | `name` | `canonical_relationships.go:311`, `kubernetes_namespace_node_writer.go:89` | `EdgeWriter`, `KubernetesNamespaceNodeWriter` |
+
+Paths are relative to `go/internal/storage/cypher`. Re-derive with
+`rg -n 'MERGE \(\w+:' go/internal/storage/cypher --glob '!*_test.go'`, then trace
+each constant to the writer that issues it. `Environment` is the sharpest case:
+`CanonicalNodeWriter` and an unfenced reducer writer MERGE the same label on the
+same key, so an identity change there is fenced on one side of a rollout and not
+the other.
 
 The #6102 Module cutover is unaffected: no unfenced writer keys a Module node on
 name. `MERGE (m:Module {name, lang})` belongs to `CanonicalNodeWriter`, the
@@ -73,9 +119,13 @@ sweep already keys Module on `(name, lang)`.
 
 A future cutover on a label a reducer writer MERGEs on gets no such protection -
 those pods would be checked at startup only and keep writing through the
-rollout. Two gaps stay open either way: a release older than the fence contains
-no call to it, and an unfenced writer has none to make. Both need those pods
-stopped before bootstrap records the marker.
+rollout. Deployment ordering does not help: it decides when a writer may start,
+not whether one already running stops. Two gaps stay open either way: a release
+older than the fence contains no call to it, and an unfenced writer has none to
+make. Both need those pods stopped before bootstrap records the marker.
+
+The full working is in
+`docs/internal/evidence/module-node-identity-6106-review-follow-ups.md`.
 
 ## Anti-patterns specific to this package
 

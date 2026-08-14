@@ -77,10 +77,18 @@ existing queue and status telemetry.
   cutover leans on it. Only `CanonicalNodeWriter` accepts one, and only
   `cmd/ingester` and `cmd/projector` wire it; `cmd/bootstrap-index` skips it on
   purpose as a one-shot seeder. Every writer `cmd/reducer` builds runs unfenced
-  (`EdgeWriter`, `SemanticEntityWriter`, `SecretsIAMGraphWriter`, the
-  specialized cloud/Kubernetes/IAM writers, the orphan sweep store), so a marker
-  recorded under a running reducer does not stop its writes. `AGENTS.md` carries
-  the full list and why the #6102 Module cutover is unaffected by the gap.
+  — `EdgeWriter` (built twice), `SemanticEntityWriter`, `SecretsIAMGraphWriter`,
+  the `OrphanSweepStore`, and every field of `cmd/reducer`'s
+  `canonicalGraphWriters` struct — so a marker recorded under a running reducer
+  does not stop its writes. `AGENTS.md` carries the constructor-level inventory,
+  the command that regenerates it, the five labels those writers MERGE on a key
+  that is not `uid`, and why the #6102 Module cutover is unaffected.
+- Deployment ordering does not substitute for the fence. It decides when a
+  writer may start, not whether one already running stops: the Helm schema Job
+  is a pre-upgrade hook, so it records the marker while the outgoing
+  resolution-engine pods are still serving, and Compose's `depends_on` gate is
+  likewise a start condition. The stop procedure is manual and lives in
+  `docs/public/deployment/service-runtimes-bootstrap.md`.
 - Two gaps stay open. A writer from a release built before the fence never calls
   it, and an unfenced writer has no call to make. An identity cutover still
   needs both stopped before bootstrap records the marker.
