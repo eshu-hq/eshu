@@ -23,6 +23,10 @@ const (
 	leakSentinelMCP = "LEAKSENTINEL-2"
 	// leakSentinelTarget stands in for a private path segment in the repo target.
 	leakSentinelTarget = "LEAKSENTINEL-3"
+	// leakSentinelQuery stands in for a credential passed as a URL query
+	// parameter. The other three sentinels sit in userinfo or a path segment, so
+	// no assertion here could vary the query-string axis and it stayed open.
+	leakSentinelQuery = "LEAKSENTINEL-4"
 )
 
 // composedLeakFixture builds a failed first-run result whose credential-bearing
@@ -38,7 +42,7 @@ func composedLeakFixture(t *testing.T) (firstRunResult, string, string) {
 	t.Helper()
 
 	apiBase := "http://svcuser:" + leakSentinelAPI + "@127.0.0.1:59413"
-	mcpEndpoint := "http://mcpuser:" + leakSentinelMCP + "@127.0.0.1:59413/api/v0"
+	mcpEndpoint := "http://mcpuser:" + leakSentinelMCP + "@127.0.0.1:59413/api/v0?token=" + leakSentinelQuery
 	repoTarget := "/home/" + leakSentinelTarget + "/work/repo"
 
 	// The classifier resolves the MCP endpoint through the real config seam
@@ -87,10 +91,64 @@ func composedLeakFixture(t *testing.T) (firstRunResult, string, string) {
 // a failure message cannot itself become a leak.
 func assertNoSentinels(t *testing.T, surface, body string) {
 	t.Helper()
-	for _, sentinel := range []string{leakSentinelAPI, leakSentinelMCP, leakSentinelTarget} {
+	for _, sentinel := range []string{leakSentinelAPI, leakSentinelMCP, leakSentinelTarget, leakSentinelQuery} {
 		if strings.Contains(body, sentinel) {
 			t.Errorf("%s leaks %s through a composed string", surface, sentinel)
 		}
+	}
+}
+
+// TestRedactEndpointDropsSensitiveQueryValues pins both halves of the query
+// rule: a parameter whose NAME collector.IsSensitiveKeyName flags loses its
+// value, and every other parameter survives so an operator can still tell which
+// target the report is describing.
+//
+// The predicate is shared with internal/reportbundle rather than restated here,
+// so the two packages cannot drift on what counts as a sensitive key.
+func TestRedactEndpointDropsSensitiveQueryValues(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "sensitive parameter loses its value",
+			raw:  "http://127.0.0.1:8080/x?api_key=" + leakSentinelQuery,
+			want: "http://127.0.0.1:8080/x?api_key=redacted",
+		},
+		{
+			name: "benign parameters are kept so the target stays recognizable",
+			raw:  "http://127.0.0.1:8080/x?repo=demo&token=" + leakSentinelQuery + "&page=2",
+			want: "http://127.0.0.1:8080/x?repo=demo&token=redacted&page=2",
+		},
+		{
+			name: "userinfo and query are both closed on the same URL",
+			raw:  "http://u:" + leakSentinelAPI + "@127.0.0.1:8080/x?access_token=" + leakSentinelQuery,
+			want: "http://redacted@127.0.0.1:8080/x?access_token=redacted",
+		},
+		{
+			name: "a benign query is untouched",
+			raw:  "http://127.0.0.1:8080/x?repo=demo&page=2",
+			want: "http://127.0.0.1:8080/x?repo=demo&page=2",
+		},
+		{
+			name: "no query at all",
+			raw:  "http://127.0.0.1:8080/api/v0",
+			want: "http://127.0.0.1:8080/api/v0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redactEndpoint(tt.raw)
+			if got != tt.want {
+				t.Fatalf("redactEndpoint(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+			// The report can be re-rendered from a saved envelope, so the
+			// redacted form has to be a fixed point.
+			if again := redactEndpoint(got); again != got {
+				t.Fatalf("redactEndpoint is not idempotent: second pass on %q gave %q", got, again)
+			}
+		})
 	}
 }
 

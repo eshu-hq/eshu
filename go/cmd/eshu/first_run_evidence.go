@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // evidenceIndexingState names whether the first-run proved indexing reached a
@@ -233,11 +234,25 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-// redactEndpoint returns a display-safe form of an endpoint URL. Any embedded
-// userinfo (user:password@) is stripped because it can carry a token or
-// password; the scheme, host, and path remain so the operator can still
-// recognize the target. A value that does not parse as a URL is masked through
-// mcpsetup.RedactToken so a credential-looking string never survives verbatim.
+// evidenceRedactedMarker is the placeholder this file substitutes for a removed
+// credential, in userinfo and in a query value alike. It carries no separator,
+// so a redacted endpoint stays a fixed point when the report is re-rendered
+// from a saved envelope.
+const evidenceRedactedMarker = "redacted"
+
+// redactEndpoint returns a display-safe form of an endpoint URL. A URL can carry
+// a credential in two places and both are closed here: embedded userinfo
+// (user:password@) and a query parameter with a credential-shaped name. The
+// scheme, host, path, and every other query parameter remain so the operator can
+// still recognize the target. A value that does not parse as a URL is masked
+// through mcpsetup.RedactToken so a credential-looking string never survives
+// verbatim.
+//
+// The query half was open until it was measured: "could not reach
+// http://127.0.0.1:8080/x?api_key=<credential>" came out of the first-run scrub
+// verbatim, while the same credential in userinfo was removed. Stage one of
+// scrubEvidenceText could not help — redactEvidenceValue returned such a URL
+// unchanged, so the substitution was skipped as a no-op.
 func redactEndpoint(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -248,9 +263,38 @@ func redactEndpoint(raw string) string {
 		return mcpsetup.RedactToken(trimmed)
 	}
 	if parsed.User != nil {
-		parsed.User = url.User("redacted")
+		parsed.User = url.User(evidenceRedactedMarker)
 	}
+	parsed.RawQuery = redactQueryCredentials(parsed.RawQuery)
 	return parsed.String()
+}
+
+// redactQueryCredentials replaces the value of every query parameter whose name
+// collector.IsSensitiveKeyName flags, keeping the name, the other parameters,
+// and their original order so the endpoint stays recognizable.
+//
+// It asks the collector predicate rather than restating the rule, so this
+// package and internal/reportbundle cannot drift on what a sensitive key is.
+// The walk splits on "&" by hand instead of using url.ParseQuery and Encode:
+// that pair sorts the parameters and re-encodes the ones it kept, which would
+// rewrite an endpoint the operator has to match against their own config.
+func redactQueryCredentials(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	pairs := strings.Split(rawQuery, "&")
+	for i, pair := range pairs {
+		name, _, _ := strings.Cut(pair, "=")
+		decoded, err := url.QueryUnescape(name)
+		if err != nil {
+			decoded = name
+		}
+		if !collector.IsSensitiveKeyName(decoded) {
+			continue
+		}
+		pairs[i] = name + "=" + evidenceRedactedMarker
+	}
+	return strings.Join(pairs, "&")
 }
 
 // redactPath returns a display-safe form of a filesystem path target. Absolute
@@ -298,7 +342,7 @@ const evidenceMinReplaceableLen = 8
 //
 // Stage one replaces each known raw value with the same redacted form the
 // corresponding report field carries, so a composed string and the field it was
-// built from never disagree. Stage two strips the userinfo from any absolute URL
+// built from never disagree. Stage two runs redactEndpoint over any absolute URL
 // still present, which catches endpoints this call site does not know about —
 // for example one wrapped into a transport error, or one restored from a saved
 // envelope where the original inputs are no longer available.
@@ -306,6 +350,18 @@ const evidenceMinReplaceableLen = 8
 // Stage two is what makes the guard survive a new renderer or a new composed
 // string: text reaching the report is cleaned on the way in, not at each
 // rendering surface.
+//
+// What it does NOT do, stated because the gap it replaces was found by reading
+// this comment and believing it. Both stages redact URL-shaped and path-shaped
+// values only:
+//
+//   - A credential in an absolute URL is removed from the userinfo and from any
+//     query parameter with a credential-shaped name. A credential in a PATH
+//     SEGMENT survives, and so does one under a parameter name
+//     collector.IsSensitiveKeyName does not match.
+//   - A bare secret with no URL and no known raw value around it
+//     ("token is sk-live-abc") is invisible. Nothing here judges what a value
+//     looks like; it recognizes structure.
 func scrubEvidenceText(text string, rawValues []string) string {
 	if strings.TrimSpace(text) == "" {
 		return text

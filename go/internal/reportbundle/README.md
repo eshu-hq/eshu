@@ -183,14 +183,18 @@ before its `:`, so the bundle records `encode oidc [redacted]` and lists
 `response_error_message`. A maintainer loses that sentence; the alternative is
 shipping the class of message likeliest to have a real secret in it.
 
-One thing this scan does cover that a sibling scrub does not: a credential
-carried as a **query parameter**. `https://host/mcp?token=…` inside a message or
-a note keeps the URL and loses the pair. `redactEndpoint`
-(`cmd/eshu/first_run_evidence.go:236`) strips a URL's userinfo and keeps its
-query string, so the same URL survives intact there. Neither closes the other's
-gap, and the reverse gap applies here: free text has no userinfo rule, so
-`https://alice:s3cr3t@host` passes this scan — the token left of the `:` is
-`alice`, which no sensitive-key rule matches.
+A credential carried as a **query parameter** is covered. `https://host/mcp?token=…`
+inside a message or a note keeps the URL and loses the pair. `redactEndpoint`
+(`cmd/eshu/first_run_evidence.go`) used to keep that query string intact; it now
+drops a sensitive parameter's value as well, and it asks the same
+`collector.IsSensitiveKeyName` predicate this package does, so the two cannot
+drift on which names count.
+
+The gap that remains is the reverse one, and it is here: free text has no
+userinfo rule, so `https://alice:s3cr3t@host` passes this scan untouched. The
+token left of the `:` is `alice`, which no sensitive-key rule matches. A
+structured field gets that case from `redactEndpoint`; a note or an error
+message does not.
 
 #### Why `response.data` is exempt, and what that costs
 

@@ -182,14 +182,13 @@ func noteValueStart(line string, sep int) int {
 // the narrow claim this makes is the one the README and the reporter guide
 // state.
 //
-// What IS covered, stated because a sibling scrub in this repo is not: a
-// credential carried as a QUERY PARAMETER is found here. The "key=value" rule
+// A credential carried as a QUERY PARAMETER is found here. The "key=value" rule
 // matches anywhere on the line, so a message or note holding
-// "https://host/mcp?token=<credential>" keeps the URL and loses the pair. That
-// is worth naming because redactEndpoint in cmd/eshu/first_run_evidence.go:236
-// strips a URL's userinfo and keeps its query string, so the same URL survives
-// intact there; this scan does not inherit that gap, and neither closes the
-// other's.
+// "https://host/mcp?token=<credential>" keeps the URL and loses the pair. The
+// sibling scrub in cmd/eshu/first_run_evidence.go used to keep that query string
+// intact; redactEndpoint there now drops a sensitive parameter's value too, and
+// it asks the same collector.IsSensitiveKeyName predicate this file does, so the
+// two cannot disagree about which names count.
 //
 // Deliberate limits, the same ones embeddedSensitiveKey carries:
 //   - A bare secret with no key in front of it ("I used sk-live-abc") is
