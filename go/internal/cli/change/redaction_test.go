@@ -131,9 +131,10 @@ func optionsCarrying(marked string) Options {
 // silently -- the run stays green and the coverage shrinks. Reflection is what
 // notices, so a field added to Options later fails here until it is planted.
 //
-// The two slice fields are covered by the changed-file assertions in
-// TestOperatorInputNeverReachesRendering, and the three int fields can carry
-// neither a sentinel nor a name.
+// That accounts for 13 of Options' 19 fields. The two slice fields are covered
+// by the changed-file assertions in TestOperatorInputNeverReachesRendering, and
+// the three int fields and the JSON bool can carry neither a sentinel nor a
+// name.
 func TestOptionsCarryingPlantsEveryStringField(t *testing.T) {
 	t.Parallel()
 

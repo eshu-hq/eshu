@@ -39,16 +39,16 @@ const (
 // caller that maps a kind onto something else can prove it covered all of them.
 //
 // It exists because nothing else notices a missing arm. go/cmd/eshu's
-// changeExitCode ends in a
-// default that answers 1, and go/.golangci.yml sets
+// changeExitCode ends in a default that answers 1, and go/.golangci.yml sets
 // default-signifies-exhaustive, so the exhaustive linter treats that switch as
 // complete no matter which kinds it lists. A new kind added without its arm
 // would fall to the default, and a hand-written test table cannot notice a kind
 // it does not mention. TestChangeExitCodeMapping walks this slice instead.
 //
-// Add a new kind here as well as to the const block. Nothing enforces that
-// pairing -- this slice sits next to the constants so the two are hard to
-// separate, and keeping them together is the one manual step left.
+// Add a new kind here as well as to the const block.
+// TestKindsListsEveryDeclaredConstant parses this file and fails when the two
+// lists disagree, so a constant that never reaches this slice is caught here
+// rather than passing silently through the walk above.
 func Kinds() []FailureKind {
 	return []FailureKind{KindInvalidArgument, KindEnvelope, KindFreshness, KindIncomplete}
 }

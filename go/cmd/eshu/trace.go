@@ -380,10 +380,8 @@ func traceExitCode(code string) int {
 	}
 }
 
-// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`,
-// `eshu map`, component_api, and the freshness family. change.ErrorCodeFromTransport
-// is a copy of it that `eshu change` uses; TestTransportErrorCodeParity fails
-// when an edit here does not reach that copy.
+// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`, `eshu map`,
+// component_api, and freshness. change.ErrorCodeFromTransport is its copy; TestTransportErrorCodeParity pins the pair.
 func traceErrorCodeFromTransport(err error) string {
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		return "backend_unavailable"

@@ -472,7 +472,7 @@ func TestTransportErrorCodeParity(t *testing.T) {
 		}
 	}
 	if len(cases) != 11 {
-		t.Fatalf("parity table has %d rows, want 11; add the row and say why rather than editing this number", len(cases))
+		t.Fatalf("parity table has %d rows, want 11; move this number only alongside a row you added, and say which behavior the new row pins", len(cases))
 	}
 
 	for _, tc := range cases {

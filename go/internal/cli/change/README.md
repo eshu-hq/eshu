@@ -84,7 +84,9 @@ owned by `go/cmd/eshu/change_impact.go`.
   `KindEnvelope` through the shared table. `TestChangeExitCodeMapping` fails if
   that stops being true. It also walks `Kinds()`, so a kind added without its
   arm fails there instead of falling to the default exit code and reading as
-  correct.
+  correct. `TestKindsListsEveryDeclaredConstant` parses `failure.go` so that
+  walk cannot be short a kind: a constant declared but never added to `Kinds()`
+  fails in `change` before it can hide from the mapping test.
 - **`ErrorCodeFromTransport` checks the message before the status.** A retry
   wrapper can carry the last response's status while the real answer is that
   the backend was unreachable. `TestErrorCodeFromTransportPrecedence`'s

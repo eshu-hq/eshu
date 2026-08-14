@@ -6,6 +6,10 @@ package change
 import (
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
 	"testing"
 )
 
@@ -287,6 +291,81 @@ func TestEnvelopeFromTransportError(t *testing.T) {
 	}
 	if got := EnvelopeFromTransportError(nil); got.Error != nil {
 		t.Fatalf("EnvelopeFromTransportError(nil) = %+v, want a zero Envelope", got)
+	}
+}
+
+// TestKindsListsEveryDeclaredConstant closes the const-to-slice gap that
+// failure.go used to describe as the one manual step left.
+//
+// Everything downstream of Kinds() is only as complete as Kinds() itself.
+// TestChangeExitCodeMapping walks it to prove changeExitCode covers every kind,
+// so a fifth FailureKind added to the const block alone left both packages at
+// `ok`: the new kind was invisible to the walk, and the exhaustive linter reads
+// changeExitCode's default as complete whatever it lists. Reflection cannot see
+// constants, so reading the source is the only way to compare the two lists.
+//
+// The values are compared, not just counted, so a duplicate entry in Kinds()
+// cannot make the totals agree while a real kind is missing.
+func TestKindsListsEveryDeclaredConstant(t *testing.T) {
+	t.Parallel()
+
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, "failure.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse failure.go: %v", err)
+	}
+
+	declared := map[string]string{}
+	for _, decl := range parsed.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			// A const spec with no explicit type leaves Type nil, and the
+			// assertion reports false for that rather than panicking.
+			if ident, ok := valueSpec.Type.(*ast.Ident); !ok || ident.Name != "FailureKind" {
+				continue
+			}
+			for i, name := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					t.Fatalf("FailureKind constant %s has no value; this parse cannot read the const block", name.Name)
+				}
+				literal, ok := valueSpec.Values[i].(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					t.Fatalf("FailureKind constant %s is not a string literal; teach this test the new shape", name.Name)
+				}
+				value, err := strconv.Unquote(literal.Value)
+				if err != nil {
+					t.Fatalf("unquote %s value %s: %v", name.Name, literal.Value, err)
+				}
+				declared[value] = name.Name
+			}
+		}
+	}
+
+	// An empty parse would agree with an empty Kinds() and pass while guarding
+	// nothing, so the count has to be proven non-zero before it is compared.
+	if len(declared) == 0 {
+		t.Fatal("found no FailureKind constants in failure.go; the walk matched nothing and every assertion below is vacuous")
+	}
+	t.Logf("evaluated %d declared FailureKind constants", len(declared))
+
+	returned := map[string]bool{}
+	for _, kind := range Kinds() {
+		returned[string(kind)] = true
+	}
+	for value, name := range declared {
+		if !returned[value] {
+			t.Fatalf("failure.go declares %s = %q but Kinds() omits it; add it to Kinds() and give changeExitCode its arm", name, value)
+		}
+	}
+	if len(returned) != len(declared) {
+		t.Fatalf("Kinds() returns %d distinct values, failure.go declares %d; the two lists have diverged", len(returned), len(declared))
 	}
 }
 

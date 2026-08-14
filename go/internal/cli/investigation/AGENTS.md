@@ -36,14 +36,31 @@
   The `//nolint:wrapcheck` on each `Fetch*` return is deliberate: without it the
   linter pushes you toward a wrap that rewrites CLI output.
 
-  Do not read that as "this would be exempt back under `cmd/`".
-  `wrapcheck.ignore-package-globs` matches the package the error **comes
-  from**, not the package the code **sits in**. An unwrapped error originating
-  in a `go/cmd/*` package is ignored wherever it is returned; code that merely
-  lives under `cmd/` gets nothing. `go/cmd/eshu` is `package main` and nothing
-  can import it, so it is never the origin package for anyone either, which
-  leaves that glob doing nothing at all for this family. Moving code is not a
-  way out of a wrapcheck finding.
+  These three findings *would* disappear if the code moved back under `cmd/`,
+  so do not defend them on the grounds that wrapcheck would follow the code. It
+  would not follow, for two separate reasons.
+
+  First, wrapcheck reads the package differently depending on what is being
+  called, and the rule people usually quote is not the one that applies here:
+
+  - A call on a **concrete** type is matched against the package the error
+    **comes from**. `wrapcheck.ignore-package-globs` lists
+    `github.com/eshu-hq/eshu/go/cmd/*`, so an error originating inside a
+    `go/cmd/*` package is ignored wherever it is returned, and an `os.ReadFile`
+    error is still reported wherever the calling code sits.
+  - A call on an **interface** method is matched against the package that
+    **declares the method**. `Client` is declared in this package next to the
+    `Fetch*` functions, so origin and location are the same package here, and
+    the `go/cmd/*` glob covers these calls the moment the file moves under
+    `cmd/`.
+
+  Second, `go/.golangci.yml` also carries a plain `path: 'cmd/'` exclusion that
+  switches wrapcheck off for every file under `cmd/` no matter where the error
+  came from. Either mechanism alone is enough.
+
+  The real reason this code stays here is that `go/cmd/eshu` is `package main`
+  and cannot export `Client` to anybody — which is the whole point of the
+  extraction. Three `//nolint` directives are what that costs.
 
 - **Server text never enters the artifact.** An envelope `error.message` and a
   transport error string go to stderr through the CLI error only. The refusal
