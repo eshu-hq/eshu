@@ -248,11 +248,10 @@ const evidenceRedactedMarker = "redacted"
 // through mcpsetup.RedactToken so a credential-looking string never survives
 // verbatim.
 //
-// The query half was open until it was measured: "could not reach
-// http://127.0.0.1:8080/x?api_key=<credential>" came out of the first-run scrub
-// verbatim, while the same credential in userinfo was removed. Stage one of
-// scrubEvidenceText could not help — redactEvidenceValue returned such a URL
-// unchanged, so the substitution was skipped as a no-op.
+// The query half was open until measured: "could not reach
+// http://127.0.0.1:8080/x?api_key=<credential>" came out verbatim while the same
+// credential in userinfo was removed. scrubEvidenceText's stage one could not
+// help — redactEvidenceValue returned such a URL unchanged, so it was skipped.
 func redactEndpoint(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -327,11 +326,6 @@ var evidenceEmbeddedURLPattern = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9+.\\-]*:/
 // restored afterwards so "reachable at http://host:1/x." keeps its full stop.
 const evidenceURLTrailingPunctuation = ".,;:!?)]}"
 
-// evidenceMinReplaceableLen is the shortest non-URL raw value that stage one
-// will substitute inside free-form text. Below this a path is both too short to
-// be worth redacting and long enough to collide with unrelated substrings.
-const evidenceMinReplaceableLen = 8
-
 // scrubEvidenceText makes a composed, free-form string safe for an operator
 // artifact.
 //
@@ -351,17 +345,11 @@ const evidenceMinReplaceableLen = 8
 // string: text reaching the report is cleaned on the way in, not at each
 // rendering surface.
 //
-// What it does NOT do, stated because the gap it replaces was found by reading
-// this comment and believing it. Both stages redact URL-shaped and path-shaped
-// values only:
-//
-//   - A credential in an absolute URL is removed from the userinfo and from any
-//     query parameter with a credential-shaped name. A credential in a PATH
-//     SEGMENT survives, and so does one under a parameter name
-//     collector.IsSensitiveKeyName does not match.
-//   - A bare secret with no URL and no known raw value around it
-//     ("token is sk-live-abc") is invisible. Nothing here judges what a value
-//     looks like; it recognizes structure.
+// Both stages recognize structure; neither judges what a value looks like. In an
+// absolute URL a credential is removed from the userinfo and from any query
+// parameter with a credential-shaped name. One in a PATH SEGMENT, one under a
+// parameter name collector.IsSensitiveKeyName does not match, and a bare secret
+// with no key beside it ("token is sk-live-abc") all survive.
 func scrubEvidenceText(text string, rawValues []string) string {
 	if strings.TrimSpace(text) == "" {
 		return text
@@ -376,11 +364,14 @@ func scrubEvidenceText(text string, rawValues []string) string {
 		if redacted == raw {
 			continue
 		}
-		// A short path substring would rewrite unrelated text (replacing "/a"
-		// would corrupt "/api/v0"), so only substitute values distinctive enough
-		// to identify. URLs are always distinctive; short paths carry nothing
-		// worth redacting, and stage two still covers any URL inside them.
-		if !strings.Contains(raw, "://") && len(raw) < evidenceMinReplaceableLen {
+		// Substitute only values distinctive enough to identify; a bare "/a"
+		// would corrupt "/api/v0". URLs always qualify. For a path the gate is
+		// structural, because a raw byte length let "/u/bob" (6 bytes) stay whole
+		// in composed text while SelectedTarget one field over already showed
+		// ".../bob" — the username leak redactPath exists to prevent, readable on
+		// the same artifact.
+		replaceablePath := strings.HasPrefix(raw, "/") && strings.Count(raw, "/") >= 2
+		if !strings.Contains(raw, "://") && !replaceablePath {
 			continue
 		}
 		scrubbed = strings.ReplaceAll(scrubbed, raw, redacted)
@@ -444,21 +435,47 @@ func scrubEvidenceDiagnostic(d *onboardingDiagnostic, rawValues []string) *onboa
 	return &scrubbed
 }
 
-// scrubEvidenceTruth returns a copy of the truth metadata with every string
-// value scrubbed. The truth vocabulary is a bounded label set today, so this is
-// a guard against a future label that carries an endpoint rather than a fix for
-// an observed leak.
+// scrubEvidenceTruth returns a copy of the truth metadata with every reachable
+// string scrubbed, at any depth.
+//
+// It walked only the top level at first, on the reasoning that the truth
+// vocabulary is a bounded label set. That reasoning does not hold on the re-emit
+// path: firstRunResultFromEnvelope decodes an operator-supplied envelope into
+// map[string]any, so the nesting is whatever that JSON carried, and a string one
+// level down went into the artifact verbatim.
 func scrubEvidenceTruth(truth map[string]any, rawValues []string) map[string]any {
 	if truth == nil {
 		return nil
 	}
 	out := make(map[string]any, len(truth))
 	for k, v := range truth {
-		if s, ok := v.(string); ok {
-			out[k] = scrubEvidenceText(s, rawValues)
-			continue
-		}
-		out[k] = v
+		out[k] = scrubEvidenceValue(v, rawValues)
 	}
 	return out
+}
+
+// scrubEvidenceValue scrubs every string reachable inside a decoded JSON value,
+// recursing through objects and arrays and returning anything else unchanged.
+// It mirrors reportbundle.redactValue so the two artifact walks have the same
+// shape, and it copies rather than mutating because the caller's firstRunResult
+// stays raw for the run's own error reporting.
+func scrubEvidenceValue(value any, rawValues []string) any {
+	switch typed := value.(type) {
+	case string:
+		return scrubEvidenceText(typed, rawValues)
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for k, v := range typed {
+			out[k] = scrubEvidenceValue(v, rawValues)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, v := range typed {
+			out[i] = scrubEvidenceValue(v, rawValues)
+		}
+		return out
+	default:
+		return value
+	}
 }

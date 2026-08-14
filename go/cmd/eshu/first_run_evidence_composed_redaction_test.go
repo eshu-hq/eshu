@@ -216,6 +216,95 @@ func TestEvidenceRedactsComposedNextCommandTarget(t *testing.T) {
 	assertNoSentinels(t, "terminal next commands", term.String())
 }
 
+// TestEvidenceRedactsShortAbsoluteRepoTarget proves a short absolute path is
+// substituted inside composed text, not just in the field that carries it.
+//
+// The substitution used to be gated on raw byte length. "/u/bob" is six bytes,
+// so it stayed whole inside the composed next-step command while SelectedTarget
+// one field over already showed ".../bob" — the two disagreed on the same
+// artifact, and the username redactPath exists to hide was readable in one of
+// them. The gate is structural now: absolute, with at least two separators.
+func TestEvidenceRedactsShortAbsoluteRepoTarget(t *testing.T) {
+	const shortTarget = "/u/bob"
+
+	result := successEvidenceResult()
+	result.RepoTarget = shortTarget
+	result.NextSteps = firstRunNextSteps(result, firstRunRuntimeDetection{Shape: firstRunShapeExistingAPI})
+
+	report := buildFirstRunEvidence(result, nil)
+	if report.SelectedTarget != ".../bob" {
+		t.Fatalf("SelectedTarget = %q, want %q; the fixture no longer isolates the composed path",
+			report.SelectedTarget, ".../bob")
+	}
+
+	for _, command := range report.NextCommands {
+		if strings.Contains(command, shortTarget) {
+			t.Errorf("next command %q keeps the raw absolute target while SelectedTarget shows %q",
+				command, report.SelectedTarget)
+		}
+	}
+
+	md, err := renderEvidenceMarkdown(report)
+	if err != nil {
+		t.Fatalf("renderEvidenceMarkdown: %v", err)
+	}
+	if strings.Contains(md, shortTarget) {
+		t.Errorf("markdown artifact keeps the raw absolute target %q", shortTarget)
+	}
+}
+
+// TestEvidenceScrubsNestedTruthValues proves the truth metadata is scrubbed at
+// every depth. The scrub read only top-level strings, so a credential one level
+// down, or inside an array, went into the artifact verbatim.
+//
+// It is reachable, not hypothetical: `eshu first-run report` decodes an
+// operator-supplied envelope into map[string]any, so whatever nesting that JSON
+// carries is what the scrub walks. The test drives that command rather than
+// calling the helper, so it proves the path an operator actually takes.
+func TestEvidenceScrubsNestedTruthValues(t *testing.T) {
+	const (
+		nestedSentinel = "LEAKSENTINEL-5"
+		arraySentinel  = "LEAKSENTINEL-6"
+		deepSentinel   = "LEAKSENTINEL-7"
+	)
+	endpoint := func(sentinel string) string {
+		return "http://svcuser:" + sentinel + "@127.0.0.1:59413/x"
+	}
+
+	result := successEvidenceResult()
+	result.Truth = map[string]any{
+		"level":  "exact",
+		"source": map[string]any{"endpoint": endpoint(nestedSentinel)},
+		"notes":  []any{"answered from " + endpoint(arraySentinel)},
+		"probes": []any{map[string]any{"target": endpoint(deepSentinel)}},
+	}
+
+	raw, err := json.Marshal(map[string]any{"data": result, "truth": result.Truth, "error": nil})
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+
+	sentinels := []string{nestedSentinel, arraySentinel, deepSentinel}
+	for _, format := range []string{evidenceFormatMarkdown, evidenceFormatJSON} {
+		cmd := newFirstRunReportCmd()
+		out := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetIn(bytes.NewReader(raw))
+		if err := cmd.Flags().Set("format", format); err != nil {
+			t.Fatalf("Set(format=%s): %v", format, err)
+		}
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("Execute(format=%s): %v", format, err)
+		}
+		for _, sentinel := range sentinels {
+			if strings.Contains(out.String(), sentinel) {
+				t.Errorf("first-run report re-emit (%s) leaks %s from nested truth metadata", format, sentinel)
+			}
+		}
+	}
+}
+
 // TestEvidenceArtifactOnDiskRedactsComposedStrings proves the 0600 artifact an
 // operator hands to support carries no credential in its composed strings.
 func TestEvidenceArtifactOnDiskRedactsComposedStrings(t *testing.T) {
