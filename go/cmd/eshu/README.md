@@ -73,7 +73,8 @@ artifact wrapper, and the share-safe scope rules live in
     writes and validates deterministic `evidence_bundle.v1` snapshots with
     share-safe packet, catalog, freshness, missing-evidence, and reproduce
     handles, and with `--live` composes that snapshot from a running stack's
-    status routes (`evidence_bundle_cmd.go`, `evidence_bundle_live.go`); `competitive-parity validate` runs the #3265 gate (`competitive_parity_cmd.go`); `report` renders the deterministic offline `operator_digest.v1` model for an explicit share-safe scope and can
+    status routes (`evidence_bundle_cmd.go`, wrapping
+    `internal/cli/evbundle`); `competitive-parity validate` runs the #3265 gate (`competitive_parity_cmd.go`); `report` renders the deterministic offline `operator_digest.v1` model for an explicit share-safe scope and can
     write a shareable `operator_digest_artifact.v1` JSON wrapper, with
     unsupported sections and fixed-template follow-up questions until live
     bounded read surfaces are connected. `operator_digest_cmd.go` is the cobra

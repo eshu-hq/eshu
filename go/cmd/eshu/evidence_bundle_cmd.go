@@ -4,16 +4,19 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
+	"github.com/eshu-hq/eshu/go/internal/cli/evbundle"
 )
+
+// evidenceBundleLiveNow is time.Now, overridable in tests for a deterministic
+// Identity.CreatedAt. It lives here rather than in internal/cli/evbundle
+// because the package takes the fetch time as a parameter and never reads a
+// clock of its own.
+var evidenceBundleLiveNow = time.Now
 
 func init() {
 	rootCmd.AddCommand(newEvidenceCommand())
@@ -90,41 +93,23 @@ func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("scope") {
 			return fmt.Errorf("--scope cannot be combined with --live: the status routes a live bundle reads are stack-wide, so a repository-scoped label would misattribute other repositories' evidence")
 		}
-		// Empty scope makes BuildLiveBundle use its stack-wide identity.
-		return runEvidenceBundleExportLive(cmd, "", outPath)
+		// Empty scope makes the live export use its stack-wide identity.
+		raw, err := evbundle.ExportLive(apiClientFromCmd(cmd), "", evidenceBundleLiveNow())
+		if err != nil {
+			return err
+		}
+		return evbundle.WriteBundle(cmd.OutOrStdout(), raw, outPath)
 	}
 
 	scope, err := cmd.Flags().GetString("scope")
 	if err != nil {
 		return err
 	}
-	bundle := evidencebundle.BuildDemoBundle(evidencebundle.DemoBundleOptions{ScopeID: scope})
-	if err := evidencebundle.Validate(bundle); err != nil {
-		return fmt.Errorf("validate generated evidence bundle: %w", err)
-	}
-	// Stamp only now that Validate actually returned nil.
-	bundle = evidencebundle.StampValidation(bundle)
-	raw, err := evidencebundle.RenderJSON(bundle)
+	raw, err := evbundle.ExportDemo(scope)
 	if err != nil {
 		return err
 	}
-	return writeEvidenceBundleOutput(cmd, raw, outPath)
-}
-
-// writeEvidenceBundleOutput writes rendered bundle JSON to outPath when set,
-// otherwise to the command's stdout. Shared by the demo and --live export
-// paths.
-func writeEvidenceBundleOutput(cmd *cobra.Command, raw []byte, outPath string) error {
-	if strings.TrimSpace(outPath) != "" {
-		if err := os.WriteFile(outPath, raw, 0o600); err != nil {
-			return fmt.Errorf("write evidence bundle: %w", err)
-		}
-		return nil
-	}
-	if _, err := cmd.OutOrStdout().Write(raw); err != nil {
-		return fmt.Errorf("write evidence bundle: %w", err)
-	}
-	return nil
+	return evbundle.WriteBundle(cmd.OutOrStdout(), raw, outPath)
 }
 
 func runEvidenceBundleValidate(cmd *cobra.Command, _ []string) error {
@@ -132,33 +117,9 @@ func runEvidenceBundleValidate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := readEvidenceBundleInput(cmd.InOrStdin(), from)
+	raw, err := evbundle.ReadBundleInput(cmd.InOrStdin(), from)
 	if err != nil {
 		return err
 	}
-	var bundle evidencebundle.Bundle
-	if err := json.Unmarshal(raw, &bundle); err != nil {
-		return fmt.Errorf("decode evidence bundle: %w", err)
-	}
-	if err := evidencebundle.Validate(bundle); err != nil {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "evidence bundle validation: failed")
-		return err
-	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "evidence bundle validation: passed")
-	return nil
-}
-
-func readEvidenceBundleInput(in io.Reader, path string) ([]byte, error) {
-	if strings.TrimSpace(path) != "" {
-		raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local validation path, not an HTTP request param //nolint:gosec
-		if err != nil {
-			return nil, fmt.Errorf("read evidence bundle: %w", err)
-		}
-		return raw, nil
-	}
-	raw, err := io.ReadAll(in)
-	if err != nil {
-		return nil, fmt.Errorf("read evidence bundle stdin: %w", err)
-	}
-	return raw, nil
+	return evbundle.ValidateBundle(cmd.OutOrStdout(), raw)
 }

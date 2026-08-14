@@ -199,7 +199,7 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 // answer different questions -- how much work is gated overall, versus which
 // domain is worst -- and are not meant to reconcile (see
 // evidencebundle.PipelineDomainBacklogSnapshot's Blocked doc). It mirrors
-// cmd/eshu's countBlockedQueueEntries (evidence_bundle_live.go), operating on
+// internal/cli/evbundle's countBlockedQueueEntries (status.go), operating on
 // the typed status.QueueBlockage this package already has instead of a
 // JSON-decoded copy.
 func sumQueueBlockedCounts(blockages []status.QueueBlockage) int {
