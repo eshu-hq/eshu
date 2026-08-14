@@ -224,9 +224,23 @@ func redactFreeText(text string) (string, bool) {
 // redactFreeTextLine applies the header rule first, because it removes the
 // rest of the line and so subsumes any "key=value" pair sitting after the
 // header name on it.
+//
+// The header rule subsumes only what follows the header name. The text BEFORE
+// it still needs the pair walk, because the canonical pasted curl carries both
+// shapes on one line:
+//
+//	curl 'https://h/x?token=AAA' -H 'X-Api-Key: BBB'
+//
+// Truncating at the header and returning the prefix untouched left "token=AAA"
+// in the bundle. Worse, it left the text still dirty, so the next pass removed
+// the pair and the scan was no longer idempotent — and Validate runs that next
+// pass. Capture rejected its own output ("captured bundle failed its own
+// share-safe validation gate") and the reporter got no bundle at all, which is
+// exactly the failure capture.go's #5059 note says this package must not cause.
 func redactFreeTextLine(line string) (string, bool) {
 	if start, found := sensitiveHeaderKeyStart(line); found {
-		return line[:start] + freeTextMarker, true
+		prefix, _ := redactNoteKeyValuePairs(line[:start])
+		return prefix + freeTextMarker, true
 	}
 	return redactNoteKeyValuePairs(line)
 }

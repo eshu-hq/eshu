@@ -242,6 +242,17 @@ func TestRedactReporterNote(t *testing.T) {
 			want: "  -H \"[redacted]",
 		},
 		{
+			// The canonical pasted curl: a credential in the query string AND one
+			// in a header, on the same line. The header rule truncates the line, so
+			// the pairs in front of the header only get cleaned if the prefix is
+			// scanned too. Before that fix the query credential survived the first
+			// pass and was removed on the second, which also broke idempotency and
+			// made Capture reject its own bundle.
+			name: "query pair before a sensitive header is removed on the first pass",
+			note: "curl 'https://h/x?token=AAA' -H 'X-Api-Key: BBB'",
+			want: "curl 'https://h/x?[redacted]' -H '[redacted]",
+		},
+		{
 			name: "json pasted into the note",
 			note: `--params '{"api_key":"sk-live-abc"}'`,
 			want: "--params '{\"[redacted]",

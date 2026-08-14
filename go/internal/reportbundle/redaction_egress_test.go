@@ -61,6 +61,8 @@ const (
 	egressNoteHeaderSentinel    = "EGRESS-NOTE-HEADER-c419d7"
 	egressNoteAPIKeyHeaderToken = "EGRESS-NOTE-XAPIKEY-38fb6c"
 	egressNoteSecondLineToken   = "EGRESS-NOTE-LINE2-7d0aa4"
+	egressNoteMixedQueryToken   = "EGRESS-NOTE-MIXED-QUERY-3fa612"
+	egressNoteMixedHeaderToken  = "EGRESS-NOTE-MIXED-HEADER-8c04de"
 )
 
 // assertNoEgress is the whole point of this file: it concatenates every channel
@@ -243,6 +245,18 @@ func egressCases() []egressCase {
 			target:    "/api/v0/services/checkout/story",
 			note:      "expected the platform team as owner.\nrepro: GET /api/v0/x?access_token=" + egressNoteSecondLineToken,
 			sentinels: []string{egressNoteSecondLineToken},
+		},
+		{
+			// Both shapes on one line, which is what a real pasted curl looks
+			// like. The header rule truncates the line, so the query pair in
+			// front of it is only cleaned if the prefix is scanned too. It was
+			// not, and the leftover pair made the scan non-idempotent: Validate
+			// re-ran it, saw the text change, and Capture refused to emit the
+			// bundle at all. The reporter got nothing.
+			name:      "reporter note pastes a curl carrying a credential in both the query and a header",
+			target:    "/api/v0/services/checkout/story",
+			note:      "curl 'https://eshu.example/api/v0/x?token=" + egressNoteMixedQueryToken + "' -H 'X-Api-Key: " + egressNoteMixedHeaderToken + "'",
+			sentinels: []string{egressNoteMixedQueryToken, egressNoteMixedHeaderToken},
 		},
 	}
 }
