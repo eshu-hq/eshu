@@ -83,12 +83,19 @@ func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
 		"password: string, password: hunter2": true,
 		"password: hunter2, password: string": true,
 		// The same pair with no space or comma between the two assignments.
-		// Every separator here is a character a type name cannot hold, so the
-		// regex swallows both assignments in ONE match and the value classifier
-		// trims back to the honest prefix. The scan has to resume at the end of
-		// that trimmed token rather than at the end of the match, or the
-		// credential sitting inside it is never looked at. The last row is the
-		// swap control: it passed before this fix, and only in that order.
+		// Every separator here is a character the capture class stops at, so one
+		// FindAllStringSubmatch pass sees both: the separator is still sitting
+		// there to serve as the next match's left boundary.
+		//
+		// These rows guard that multi-match scan, NOT the capture class. Widening
+		// the class back leaves them all green -- the swallowed run
+		// "string;password:hunter2" is not a declaration value, so the classifier
+		// still answers true. They go red when the scan is cut to the leftmost
+		// match, which is row 5 of the mutation table in
+		// docs/internal/evidence/publish-safety-screen-shape-coverage.md.
+		//
+		// The last row is the swap control: its leftmost assignment is the
+		// credential, so it passed before this fix and only in that order.
 		"password:string;password:hunter2":  true,
 		"password:int|password:hunter2":     true,
 		"password:3;password:hunter2":       true,
@@ -161,6 +168,16 @@ func BenchmarkUnsafeStringPasswordRunTogetherScale(b *testing.B) {
 		if passwordAssignmentIsUnsafe(value) {
 			b.Fatalf("size %d input is not publish-safe, so the scan short-circuits "+
 				"and the benchmark is measuring the wrong path", size)
+		}
+		// The claim is about the assignment COUNT, and neither guard above pins
+		// it: one assignment padded out to size satisfies both, leaving the
+		// benchmark green while it measures nothing about growth. The unit is 16
+		// bytes, so size/32 is half the real count and leaves room for the
+		// generator to change shape without going red for the wrong reason.
+		if n := len(passwordAssignmentPattern.FindAllStringSubmatchIndex(value, -1)); n < size/32 {
+			b.Fatalf("size %d built %d assignments, want at least %d; the input is "+
+				"padded rather than back-to-back, so the benchmark is measuring the wrong path",
+				size, n, size/32)
 		}
 		b.Run(fmt.Sprintf("%dB", size), func(b *testing.B) {
 			b.SetBytes(int64(size))
