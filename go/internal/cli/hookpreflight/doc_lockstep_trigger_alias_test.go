@@ -126,6 +126,14 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 
 	for _, name := range names {
 		for _, decl := range parsed[name].Decls {
+			// Package-level declarations get the same rules. Every scanner in
+			// this package used to walk function bodies only, which is how a
+			// `var readAlias = Input{Trigger: "read"}` at package scope went
+			// unlooked-at while a function copied the class out of it.
+			if genDecl, isGen := decl.(*ast.GenDecl); isGen {
+				findings = append(findings, compositeLitFindings(genDecl, name, packageLevelWriter, carrying)...)
+				continue
+			}
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if !ok || funcDecl.Body == nil {
 				continue
@@ -155,25 +163,42 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 						}
 					}
 				case *ast.CompositeLit:
-					typeName := compositeLitTypeName(typed)
-					if !carrying[typeName] || len(typed.Elts) == 0 {
-						return true
-					}
-					for _, element := range typed.Elts {
-						if _, keyed := element.(*ast.KeyValueExpr); !keyed {
-							findings = append(findings, triggerAliasFinding{
-								File: name, Func: funcName,
-								Detail: "builds a " + typeName + " without naming its fields",
-							})
-							break
-						}
-					}
+					findings = append(findings, compositeLitFindings(typed, name, funcName, carrying)...)
+					return false
 				}
 				return true
 			})
 		}
 	}
 	return functions, findings, nil
+}
+
+// compositeLitFindings reports every positional composite literal of a
+// Trigger-carrying type inside node. It is shared by the function-body walk and
+// the package-level one so the two cannot drift.
+func compositeLitFindings(node ast.Node, file, owner string, carrying map[string]bool) []triggerAliasFinding {
+	var findings []triggerAliasFinding
+	ast.Inspect(node, func(inner ast.Node) bool {
+		lit, isLit := inner.(*ast.CompositeLit)
+		if !isLit {
+			return true
+		}
+		typeName := compositeLitTypeName(lit)
+		if !carrying[typeName] || len(lit.Elts) == 0 {
+			return true
+		}
+		for _, element := range lit.Elts {
+			if _, keyed := element.(*ast.KeyValueExpr); !keyed {
+				findings = append(findings, triggerAliasFinding{
+					File: file, Func: owner,
+					Detail: "builds a " + typeName + " without naming its fields",
+				})
+				break
+			}
+		}
+		return true
+	})
+	return findings
 }
 
 // TestDocLockstepNoPointerAliasToATrigger is the positive half: no production
@@ -246,13 +271,20 @@ func TestDocLockstepTriggerAliasScannerReportsPointerWrites(t *testing.T) {
 			wantFindings: 0,
 		},
 		{
+			name: "a_package_level_positional_alias",
+			body: "type Input struct {\n\tHost string\n\tTrigger string\n}\n\n" +
+				"var readAlias = Input{\"claude\", \"read\"}\n\n" +
+				"func normalizeInput(input Input) Input { return input }\n",
+			wantFindings: 1,
+		},
+		{
 			name: "a_positional_literal_of_another_type_is_ignored",
 			body: "type Scope struct {\n\tKind string\n\tID string\n}\n\n" +
 				"func narrow() Scope {\n\treturn Scope{\"repo_path\", \"services/api\"}\n}\n",
 			wantFindings: 0,
 		},
 	}
-	if len(cases) < 8 {
+	if len(cases) < 9 {
 		t.Fatalf("alias fixtures = %d, want one per measured evasion plus the controls that must stay quiet", len(cases))
 	}
 

@@ -87,6 +87,24 @@ func TestDocLockstepTriggerPathScannersReportRewrites(t *testing.T) {
 			wantBad: 1,
 		},
 		{
+			name: "a_package_level_alias_holds_the_class",
+			body: "var readAlias = Input{Trigger: \"read\"}\n\n" +
+				"func normalizeInput(input Input) Input {\n" +
+				"\tinput.Trigger = strings.ToLower(strings.TrimSpace(input.Trigger))\n" +
+				"\tif strings.HasPrefix(input.Trigger, \"read\") {\n\t\tinput.Trigger = readAlias.Trigger\n\t}\n\treturn input\n}\n\n" +
+				baseOut + "\n" + claudeMerge,
+			// Two: the package-level literal itself, and normalizeInput reading
+			// a Trigger off an object it does not own.
+			wantBad: 2,
+		},
+		{
+			name: "a_permitted_writer_copies_from_another_object",
+			body: "func normalizeInput(input Input) Input {\n" +
+				"\tother := Input{}\n\tinput.Trigger = strings.ToLower(other.Trigger)\n\treturn input\n}\n\n" +
+				baseOut + "\n" + claudeMerge,
+			wantBad: 1,
+		},
+		{
 			name: "a_method_named_like_a_permitted_writer",
 			body: "func normalizeInput(input Input) Input {\n" +
 				"\tinput.Trigger = strings.TrimSpace(input.Trigger)\n\treturn input\n}\n\n" +
@@ -96,7 +114,7 @@ func TestDocLockstepTriggerPathScannersReportRewrites(t *testing.T) {
 			wantBad: 1,
 		},
 	}
-	if len(writeCases) < 7 {
+	if len(writeCases) < 9 {
 		t.Fatalf("trigger-write cases = %d, want one per shape that rewrites a class outside triggerAllowed", len(writeCases))
 	}
 

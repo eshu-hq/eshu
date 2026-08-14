@@ -85,6 +85,13 @@
   field of the variable it bound `normalizeInput`'s result to. A remap anywhere
   along that path changes which classes get an advisory while `triggerAllowed`
   stays byte-identical for a reader to check.
+  "Lowercase and trim" is held to the *object* as well as the field: a permitted
+  writer may normalize a `Trigger` read off its own receiver or parameters, and
+  nothing else. `input.Trigger = readAlias.Trigger`, with a package-level
+  `Input{Trigger: "read"}` behind it, looks like a normalization at the
+  assignment and is a remap decided somewhere no reader of the function can see
+  — and because it sits in `normalizeInput`, the rewritten class goes onto the
+  wire too, so the advisory names a class the caller never sent.
   What holds it is `TestDocLockstepEvaluateAdvisesExactlyTheAllowedTriggers`
   (doc_lockstep_trigger_equivalence_test.go): on a request eligible in every
   other respect, `Evaluate` advises for exactly the triggers `triggerAllowed`

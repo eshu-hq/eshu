@@ -27,6 +27,15 @@ import (
 // switch scanner cannot see: who is allowed to write a Trigger field and with
 // what, and that Evaluate's switch still consults triggerAllowed itself.
 //
+// "With what" means the object as well as the field. Checking only that the RHS
+// named a field called Trigger let a permitted writer copy the class off
+// something else entirely: `input.Trigger = readAlias.Trigger`, with a
+// package-level `var readAlias = Input{Trigger: "read"}`, satisfied
+// shapeNormalize and widened the accepted set with the whole suite green -- and
+// the literal itself was invisible because every scanner here walked function
+// bodies only. Both halves are closed now: shapeNormalize binds the receiver to
+// the writer's own parameters, and the walk covers package-level declarations.
+//
 // These scanners are not the whole guard. They read syntax, so they answer for
 // the spellings they recognize and nothing else: a Trigger written through a
 // pointer taken inside Evaluate is a *ast.StarExpr on the left of the
@@ -105,12 +114,40 @@ func selectorAfterPureNormalizers(expr ast.Expr) (receiver, field string, ok boo
 	return ident.Name, selector.Sel.Name, true
 }
 
-// matchesTriggerWriteShape reports whether rhs is the form want describes.
-func matchesTriggerWriteShape(rhs ast.Expr, want triggerWriteShape) bool {
+// ownedIdents is the set of names a function may legitimately read a Trigger
+// off: its own receiver and parameters. Anything else -- a package-level
+// variable, a value built in the function, a value returned by a call -- is a
+// different object, and copying a Trigger off it is a remap wearing the shape
+// of a normalization.
+func ownedIdents(fn *ast.FuncDecl) map[string]bool {
+	owned := map[string]bool{}
+	fields := []*ast.Field{}
+	if fn.Recv != nil {
+		fields = append(fields, fn.Recv.List...)
+	}
+	if fn.Type != nil && fn.Type.Params != nil {
+		fields = append(fields, fn.Type.Params.List...)
+	}
+	for _, field := range fields {
+		for _, name := range field.Names {
+			owned[name.Name] = true
+		}
+	}
+	return owned
+}
+
+// matchesTriggerWriteShape reports whether rhs is the form want describes,
+// given the names writer owns.
+func matchesTriggerWriteShape(rhs ast.Expr, want triggerWriteShape, owned map[string]bool) bool {
 	switch want {
 	case shapeNormalize:
-		_, field, ok := selectorAfterPureNormalizers(rhs)
-		return ok && field == "Trigger"
+		receiver, field, ok := selectorAfterPureNormalizers(rhs)
+		// The receiver is checked, not just the field name. Without that,
+		// `input.Trigger = readAlias.Trigger` reads as a normalization of the
+		// caller's own trigger while it is a package-level constant being
+		// copied in -- the class is decided somewhere no reader of this
+		// function can see, and the rewritten value goes onto the wire.
+		return ok && field == "Trigger" && owned[receiver]
 	case shapeClaudeTool:
 		call, ok := rhs.(*ast.CallExpr)
 		if !ok || len(call.Args) != 1 {
@@ -127,9 +164,18 @@ func matchesTriggerWriteShape(rhs ast.Expr, want triggerWriteShape) bool {
 	}
 }
 
+// packageLevelWriter is the Func name recorded for a Trigger written outside
+// any function body. docTriggerWriters never lists it, so such a write is
+// always a finding -- which is the point: every scanner here used to walk
+// function bodies only, so `var readAlias = Input{Trigger: "read"}` at package
+// scope was never looked at, and a function could then copy the class out of it
+// in a shape that read as a normalization.
+const packageLevelWriter = "<package level>"
+
 // scanTriggerWrites reports every assignment to a `.Trigger` field and every
 // `Trigger:` element of a composite literal in dir's non-test files, judged
-// against allowed.
+// against allowed. Package-level declarations are walked too, not just function
+// bodies.
 func scanTriggerWrites(dir string, allowed map[string]triggerWriteShape) (writes []triggerWrite, err error) {
 	_, parsed, _, err := parseNonTestGoFiles(dir)
 	if err != nil {
@@ -143,11 +189,28 @@ func scanTriggerWrites(dir string, allowed map[string]triggerWriteShape) (writes
 
 	for _, name := range names {
 		for _, decl := range parsed[name].Decls {
+			if genDecl, isGen := decl.(*ast.GenDecl); isGen {
+				ast.Inspect(genDecl, func(node ast.Node) bool {
+					pair, isPair := node.(*ast.KeyValueExpr)
+					if !isPair {
+						return true
+					}
+					if key, isIdent := pair.Key.(*ast.Ident); isIdent && key.Name == "Trigger" {
+						writes = append(writes, triggerWrite{
+							File: name, Func: packageLevelWriter,
+							RHS: exprText(pair.Value),
+						})
+					}
+					return true
+				})
+				continue
+			}
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if !ok || funcDecl.Body == nil {
 				continue
 			}
 			funcName := funcDisplayName(funcDecl)
+			owned := ownedIdents(funcDecl)
 			record := func(rhs ast.Expr) {
 				want, permitted := allowed[funcName]
 				writes = append(writes, triggerWrite{
@@ -156,7 +219,7 @@ func scanTriggerWrites(dir string, allowed map[string]triggerWriteShape) (writes
 					RHS:       exprText(rhs),
 					Want:      want,
 					Permitted: permitted,
-					OK:        permitted && matchesTriggerWriteShape(rhs, want),
+					OK:        permitted && matchesTriggerWriteShape(rhs, want, owned),
 				})
 			}
 			ast.Inspect(funcDecl.Body, func(node ast.Node) bool {
