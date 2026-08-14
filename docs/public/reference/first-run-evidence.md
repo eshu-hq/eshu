@@ -44,10 +44,20 @@ The endpoint and target fields are rewritten like this:
 
 - An API or MCP endpoint loses any embedded `user:password@` credential, and
   loses the value of any query parameter whose name looks like a credential
-  (`token`, `api_key`, `access_token`, `authorization`, and similar). Each is
-  replaced with `redacted`. The scheme, host, path, and every other parameter
-  stay, so you can still tell which target the report describes. An endpoint
-  that does not parse as a URL is masked entirely.
+  (`token`, `api_key`, `access_token`, `authorization`, and similar), replaced
+  with `redacted`. "Any" means any: pairs are separated by `?`, `&` or `;`, so a
+  second query string nested inside a parameter value
+  (`?next=/v0/y?api_key=…`) is walked too, and a percent-encoded name
+  (`api%5Fkey`) is decoded before the match. A parameter with no value at all
+  (`?token` or `?token=`) is left alone rather than shown as `token=redacted`,
+  which would report a credential the URL never carried.
+- The **fragment** — everything after `#` — is dropped whole. A fragment never
+  reaches the server, so it tells you nothing about which target the report
+  describes, and it is where an OAuth implicit-grant callback puts its token
+  (`https://app.example.com/cb#access_token=…`).
+- The scheme, host, path, and every other query parameter stay, so you can still
+  tell which target the report describes. An endpoint that does not parse as a
+  URL is masked entirely.
 - The selected repository target is reduced to its final path element
   (`.../<name>`) so an absolute host path does not leak your username or your
   private directory layout.

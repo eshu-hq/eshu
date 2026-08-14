@@ -185,10 +185,18 @@ shipping the class of message likeliest to have a real secret in it.
 
 A credential carried as a **query parameter** is covered. `https://host/mcp?token=…`
 inside a message or a note keeps the URL and loses the pair. `redactEndpoint`
-(`cmd/eshu/first_run_evidence.go`) used to keep that query string intact; it now
-drops a sensitive parameter's value as well, and it asks the same
-`collector.IsSensitiveKeyName` predicate this package does, so the two cannot
-drift on which names count.
+(`cmd/eshu/first_run_evidence.go`) does the same for a structured endpoint
+field.
+
+Sharing `collector.IsSensitiveKeyName` is what stops the two walks drifting on
+which NAMES count. It said nothing about where a pair ENDS, and that is where
+they did drift: this package ended a value at `?`, `&` or `;`, `redactEndpoint`
+split on `&` alone, and a comment claiming the two could not disagree was read
+as covering both. Three credentials shipped through the gap —
+`?a=1;token=…`, `?next=/v0/y?api_key=…`, `?redirect_uri=/cb?access_token=…`.
+The separators now live once, in `internal/urlredact`, and both walks are driven
+through one shared corpus (`urlredact.BoundaryCases`) that records every row
+either walk cannot handle, with its reason.
 
 The gap that remains is the reverse one, and it is here: free text has no
 userinfo rule, so `https://alice:s3cr3t@host` passes this scan untouched. The

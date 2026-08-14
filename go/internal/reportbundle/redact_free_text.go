@@ -184,11 +184,20 @@ func noteValueStart(line string, sep int) int {
 //
 // A credential carried as a QUERY PARAMETER is found here. The "key=value" rule
 // matches anywhere on the line, so a message or note holding
-// "https://host/mcp?token=<credential>" keeps the URL and loses the pair. The
-// sibling scrub in cmd/eshu/first_run_evidence.go used to keep that query string
-// intact; redactEndpoint there now drops a sensitive parameter's value too, and
-// it asks the same collector.IsSensitiveKeyName predicate this file does, so the
-// two cannot disagree about which names count.
+// "https://host/mcp?token=<credential>" keeps the URL and loses the pair.
+// redactEndpoint in cmd/eshu/first_run_evidence.go does the same for a
+// structured endpoint field.
+//
+// Sharing collector.IsSensitiveKeyName is what keeps the two walks from
+// drifting on which NAMES count. It says nothing about where a pair ENDS, and
+// the previous version of this comment claimed the two "cannot disagree" as if
+// it did. They did disagree: this file ended a value at freeTextValueTerminators
+// (which include "?", "&" and ";") while redactEndpoint split on "&" alone, so
+// "?a=1;token=<credential>", "?next=/v0/y?api_key=<credential>" and
+// "?redirect_uri=/cb?access_token=<credential>" all reached an operator
+// artifact whole. The separators are now defined once, in
+// internal/urlredact.PairSeparators, and both walks are driven through the one
+// shared corpus in urlredact.BoundaryCases.
 //
 // Deliberate limits, the same ones embeddedSensitiveKey carries:
 //   - A bare secret with no key in front of it ("I used sk-live-abc") is
