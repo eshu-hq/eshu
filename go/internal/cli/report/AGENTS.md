@@ -34,6 +34,15 @@
   with a character class or a regular expression. A boundary class that
   included a colon is how a private host reached a bundle stamped
   `redaction.rules: screened_private_endpoints` elsewhere in this repository.
+
+  `net/url` only finds userinfo inside an authority, and a value only has an
+  authority after `//`. `svc:PASSWORD@host:5432/tool` has none, so the check
+  passed a pasted password. `targetAuthority` re-parses that shape as
+  `"//"+value` and asks `net/url` again; `opaqueHasAuthority`'s `@` test only
+  picks which values are worth re-parsing, and decides nothing about what a
+  credential is. Keep it that way — and keep `checkTargetCredentials` and
+  `safeErrorPath` reading through the same function, because the gap above was
+  open in both at once.
 - **An error never repeats the offending value.** These messages reach
   terminals, CI logs and pasted bug reports — the same egress the bundle beside
   them is redacted for. Name the flag or the field instead.
@@ -50,7 +59,7 @@
   `CaptureOptions`, decode or validate it inside `CaptureBundle`, and wire the
   flag in `go/cmd/eshu/report_cmd.go`. If it can hold an endpoint, a target, a
   token or a DSN, add it to `checkTargetCredentials`' call sites and to the
-  boundary-varied canary in `redaction_test.go`.
+  boundary-varied canary in `credential_canary_test.go`.
 - **Change what a bundle records or how a field is redacted** → that is
   `internal/reportbundle`, not here. This package supplies inputs.
 - **Change the validation verdict lines** → `ValidateBundle`. The failed line
@@ -63,8 +72,10 @@
 ## Failure modes and how to debug
 
 - Symptom: capture refuses a target the reporter insists is fine → check
-  whether `url.Parse` reports userinfo on it. An `@` in a path segment is
-  accepted (there is a test); an `@` after `scheme://…:` is not.
+  whether `url.Parse` reports userinfo on it, and whether `targetAuthority`
+  re-parsed it first. An `@` in a path segment is accepted (there is a test);
+  an `@` in an authority is not, whether or not the value was written with a
+  `//`.
 - Symptom: a credential appears in the operator's terminal on a failed capture
   → check which error shape carried it. A `*url.Error` goes through
   `requestErrorWithoutURL`; an HTTP 4xx/5xx body does not, and cannot be
@@ -85,7 +96,9 @@
 - **Testing redaction with a sentinel that only ever follows a space.** The
   character in front of a secret is what the last several defects hid behind.
   Vary it, and assert on the bytes written to disk as well as the returned
-  bytes.
+  bytes. `credential_canary_test.go` is that sweep; its last case is a positive
+  control that fails if the sweep ever stops reading a real capture, because an
+  absence assertion over nothing passes.
 - **Stripping a credential instead of refusing one.** A bundle that quietly
   drops half of what the reporter asked misreports the query under
   investigation.

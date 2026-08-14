@@ -30,7 +30,8 @@ func removedCommandError(command, guidance string) error {
 }
 
 // traceBool returns parent[key] as a bool, or false when the key is missing or
-// holds another type.
+// holds another type. It is copied into go/internal/cli/freshness/values.go --
+// edit both.
 //
 // It is here rather than next to its sibling readers in trace.go for two
 // reasons worth knowing before moving it again. It was declared in

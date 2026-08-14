@@ -82,9 +82,18 @@ Errors are returned for the wrapper to print.
 - **`net/url` decides what an authority is.** An `@` inside a path segment
   (`/api/v0/owners/dev@example.com/services`) is not userinfo and still works.
   Do not replace this with a character rule.
+- **Userinfo counts with or without the `//`.** `svc:PASSWORD@host:5432/tool`
+  parses as scheme `svc` plus an opaque body, with no authority for `net/url`
+  to find userinfo in, so a bare `parsed.User != nil` test read a pasted
+  password as a clean target. `targetAuthority` re-parses such a value as
+  `"//"+value` and asks `net/url` again — the check is still `net/url`'s, the
+  rewrite only gives it an authority to look at. The refusal and the
+  error-message redaction both go through it, so they cannot drift apart.
 - **What the target rules do not cover:** a credential under a benign parameter
   name (`internal/reportbundle`'s own documented limit), a full URL pasted
   inside a path segment (not an authority, so `net/url` reports no userinfo),
+  an `@` after the first `/` of an opaque target (`svc:name/dev@example.com`)
+  or in a target with neither a scheme nor a `//` (`dev@example.com/services`),
   and a server that echoes the request URL inside a 4xx/5xx body — that arrives
   as `go/cmd/eshu`'s `apiHTTPError`, which `internal/cli` cannot read.
 - **`requestErrorWithoutURL` re-checks the path `CaptureBundle` already

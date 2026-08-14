@@ -112,6 +112,26 @@ func TestCaptureBundle_RefusesTargetCarryingURLCredentials(t *testing.T) {
 				Endpoint: "https://svc:" + credentialSentinel + "@api.internal:8080/api/v0/x?repo=demo%2Fservice",
 			},
 		},
+		{
+			// The same credential written without "//". net/url reports this
+			// as scheme "svc" with the rest in Opaque and User nil, so the
+			// guard's original parsed.User test passed it straight through:
+			// the password landed in query.target of a bundle stamped
+			// "profile": "public", "rules": [].
+			name:     "tool carries userinfo written without //",
+			wantFlag: "--tool",
+			opts: CaptureOptions{
+				Endpoint: "/api/v0/services/checkout/story",
+				Tool:     "svc:" + credentialSentinel + "@mcp.internal:5432/tool",
+			},
+		},
+		{
+			name:     "endpoint carries userinfo written without //",
+			wantFlag: "--endpoint",
+			opts: CaptureOptions{
+				Endpoint: "svc:" + credentialSentinel + "@api.internal:5432/api/v0/services/checkout/story",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -165,6 +185,41 @@ func TestCaptureBundle_AcceptsBenignAtSignInPath(t *testing.T) {
 	}
 	if result.Bundle.Query.Target != endpoint {
 		t.Errorf("Query.Target = %q, want the benign path recorded unchanged", result.Bundle.Query.Target)
+	}
+}
+
+// TestCheckTargetCredentials_AcceptsTargetsWithoutAnAuthority pins the other
+// side of the refusal: the guard re-reads a "//"-less target as an authority,
+// and that rewrite must not turn ordinary targets into credentials. A tool
+// name such as `mcp:tool/name` parses as a scheme plus a rootless path, and
+// reading it as an authority would make "mcp" a host and "tool" a port.
+//
+// The last two cases are the documented boundary, not an oversight: an "@"
+// after the first "/" of an opaque target, or in a target with no scheme at
+// all, reads as the path it looks like — the same rule that keeps
+// `/api/v0/owners/dev@example.com/services` working.
+func TestCheckTargetCredentials_AcceptsTargetsWithoutAnAuthority(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "plain tool name", value: "wrong_answer_story"},
+		{name: "tool name with a scheme and a rootless path", value: "mcp:tool/name"},
+		{name: "endpoint path", value: "/api/v0/services/checkout/story"},
+		{name: "@ in a path segment", value: "/api/v0/owners/dev@example.com/services"},
+		{name: "@ after the first / of an opaque target", value: "mcp:tool/dev@example.com"},
+		{name: "@ in a target with no scheme and no //", value: "dev@example.com/services"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := checkTargetCredentials("--tool", tt.value); err != nil {
+				t.Errorf("checkTargetCredentials(%q) = %v, want nil", tt.value, err)
+			}
+		})
 	}
 }
 
@@ -248,6 +303,9 @@ func TestSafeErrorPath(t *testing.T) {
 		{name: "plain path is untouched", path: "/api/v0/x", want: "/api/v0/x"},
 		{name: "path-segment @ is untouched", path: "/api/v0/owners/dev@example.com/x", want: "/api/v0/owners/dev@example.com/x"},
 		{name: "userinfo is replaced", path: "https://svc:" + credentialSentinel + "@db.internal/x", want: "https://redacted@db.internal/x"},
+		{name: "userinfo written without // is replaced", path: "svc:" + credentialSentinel + "@db.internal:5432/x", want: "redacted@db.internal:5432/x"},
+		{name: "a rootless path is not read as an authority", path: "mcp:tool/name", want: "mcp:tool/name"},
+		{name: "userinfo that cannot be re-read is replaced wholesale", path: "svc:" + credentialSentinel + "@db.internal:notaport/x", want: "[unparseable endpoint]"},
 		{name: "unparseable path is replaced wholesale", path: "http://host/x\x7f" + credentialSentinel, want: "[unparseable endpoint]"},
 	}
 	for _, tt := range tests {

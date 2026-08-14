@@ -103,13 +103,19 @@ func (e *TargetCredentialError) Error() string {
 //
 // net/url decides what an authority is, so an "@" inside a path segment
 // (`/api/v0/owners/dev@example.com/services`) is untouched. A hand-written
-// character rule is exactly what has been wrong here before.
+// character rule is exactly what has been wrong here before. targetAuthority
+// is what makes net/url the decider for the "//"-less spelling too.
 //
 // Not covered: a full URL pasted INSIDE a path segment
 // (`/api/v0/x/https://svc:pw@host/y`) is not an authority component, so net/url
-// reports no userinfo and the value passes. An unparseable target is refused
-// instead of passed, because nothing can separate a credential from a string
-// that cannot be taken apart.
+// reports no userinfo and the value passes. Neither is an "@" that follows the
+// first "/" of an opaque target (`svc:name/dev@example.com`), by the same rule
+// that keeps the path-segment case above working. A target with no scheme and
+// no "//" at all (`dev@example.com/services`) is read as the relative path it
+// looks like, so it passes too. An unparseable target is refused instead of
+// passed, because nothing can separate a credential from a string that cannot
+// be taken apart — including one that only becomes unparseable once its
+// authority is read as an authority.
 //
 // The error names the flag and never repeats the value, per the same rule
 // internal/reportbundle states in its doc.go: these messages reach terminals,
@@ -120,7 +126,7 @@ func checkTargetCredentials(flag, value string) error {
 	if trimmed == "" {
 		return nil
 	}
-	parsed, err := url.Parse(trimmed)
+	parsed, _, err := targetAuthority(trimmed)
 	if err != nil {
 		return &TargetCredentialError{
 			Flag:   flag,
@@ -134,6 +140,57 @@ func checkTargetCredentials(flag, value string) error {
 		}
 	}
 	return nil
+}
+
+// targetAuthority parses value into the URL whose authority component answers
+// "does this carry userinfo", and reports whether value had to be rewritten to
+// get an authority at all.
+//
+// url.Parse only looks for userinfo inside an authority, and a value only has
+// an authority after "//". `svc:PASSWORD@h.internal:5432/tool` has none:
+// net/url returns scheme "svc", Opaque "PASSWORD@h.internal:5432/tool" and
+// User nil, so testing parsed.User read a password in plain sight as no
+// credential at all. Re-parsing the value as "//"+value asks net/url the same
+// question about the authority the reporter actually wrote, which keeps
+// net/url — not a character rule — the thing that decides what userinfo is.
+//
+// The rewrite is skipped unless opaqueHasAuthority says there is one, because
+// it turns a rootless path into a host: an opaque target with no "@" in front
+// of its first "/" (a tool name such as `mcp:tool/name`) carries no userinfo
+// under any reading, and rewriting it can fail on a value that was never a
+// credential.
+func targetAuthority(value string) (parsed *url.URL, rewritten bool, err error) {
+	parsed, err = url.Parse(value)
+	if err != nil {
+		return nil, false, fmt.Errorf("parse target: %w", err)
+	}
+	if !opaqueHasAuthority(parsed.Opaque) {
+		return parsed, false, nil
+	}
+	authority, err := url.Parse("//" + value)
+	if err != nil {
+		return nil, true, fmt.Errorf("parse target authority: %w", err)
+	}
+	return authority, true, nil
+}
+
+// opaqueHasAuthority reports whether an opaque URL body (everything after
+// "scheme:" when no "//" follows it) begins with something shaped like an
+// authority: an "@" ahead of the first "/".
+//
+// This only selects whether there is an authority worth handing back to
+// net/url. It decides nothing about what a credential is — that stays with
+// net/url, which is why the "@" after the first "/" is left alone rather than
+// treated as a boundary of its own.
+func opaqueHasAuthority(opaque string) bool {
+	if opaque == "" {
+		return false
+	}
+	authority := opaque
+	if slash := strings.IndexByte(opaque, '/'); slash >= 0 {
+		authority = opaque[:slash]
+	}
+	return strings.IndexByte(authority, '@') >= 0
 }
 
 // CaptureBundle issues the reporter's query, composes the wrong_answer_report.v1
@@ -314,8 +371,13 @@ func requestErrorWithoutURL(err error, safePath string) error {
 // already reporting a failure, and the host and path are what a reader needs to
 // fix it. A path net/url cannot parse is replaced wholesale, since a string that
 // cannot be taken apart cannot have a credential separated out of it.
+//
+// It reads userinfo through the same targetAuthority the refusal uses, so the
+// two cannot disagree about what a credential is. They did once: the
+// "//"-less spelling passed the refusal and then arrived here, where the same
+// parsed.User test left it in the message verbatim.
 func safeErrorPath(path string) string {
-	parsed, err := url.Parse(path)
+	parsed, rewritten, err := targetAuthority(path)
 	if err != nil {
 		return "[unparseable endpoint]"
 	}
@@ -325,6 +387,13 @@ func safeErrorPath(path string) string {
 		return path
 	}
 	parsed.User = url.User("redacted")
+	if rewritten {
+		// Drop the "//" targetAuthority added, so the message keeps the
+		// spelling the reporter typed. The scheme goes with the userinfo it
+		// turned out to be part of: in `svc:PASSWORD@host/x`, "svc" is the
+		// username.
+		return strings.TrimPrefix(parsed.String(), "//")
+	}
 	return parsed.String()
 }
 

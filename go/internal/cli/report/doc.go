@@ -24,18 +24,25 @@
 //     TargetCredentialError before any request goes out, as is a target net/url
 //     cannot parse. Userinfo sits before the "?", so reportbundle's rules —
 //     which all match an object key name — have no key to match and once let a
-//     password reach query.target of a bundle stamped public and passed.
+//     password reach query.target of a bundle stamped public and passed. Both
+//     spellings count: `https://svc:pw@host/tool` and the "//"-less
+//     `svc:pw@host/tool`, which net/url reports as a scheme plus an opaque
+//     body with no authority and therefore no userinfo to find.
 //   - A transport failure has the request URL replaced by the endpoint path,
-//     and that path has its own userinfo stripped.
+//     and that path has its own userinfo stripped — through the same reader,
+//     so the refusal and the redaction cannot disagree about what a credential
+//     is.
 //
 // It does NOT cover: a credential written under a benign parameter name
 // (reportbundle's own documented limit); a full URL pasted inside a path
 // segment, which is not an authority component and so carries no userinfo as
-// far as net/url is concerned; or a server that echoes the request URL back
-// inside a 4xx/5xx response body, which arrives as go/cmd/eshu's apiHTTPError
-// and cannot be read from internal/cli. The request itself is deliberately
-// unredacted — the answer under investigation is the one the reporter's own
-// credential returns.
+// far as net/url is concerned; an "@" after the first "/" of an opaque target
+// (`svc:name/dev@example.com`) or in a target with neither a scheme nor a "//"
+// (`dev@example.com/services`), both of which read as paths for the same
+// reason; or a server that echoes the request URL back inside a 4xx/5xx
+// response body, which arrives as go/cmd/eshu's apiHTTPError and cannot be
+// read from internal/cli. The request itself is deliberately unredacted — the
+// answer under investigation is the one the reporter's own credential returns.
 //
 // # Boundary
 //

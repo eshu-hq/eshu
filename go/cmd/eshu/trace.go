@@ -415,6 +415,7 @@ func writeTraceJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
+// traceMap/traceSlice/traceString/traceInt are copied into go/internal/cli/freshness/values.go -- edit both.
 func traceMap(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil
