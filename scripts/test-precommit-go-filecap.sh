@@ -298,6 +298,13 @@ run_parity_matrix() {
 # can see it, and a committer would fix one file per commit cycle. go/zzz/ also
 # sits outside go/internal/, catching a narrowed ls-files pattern, and `head -1`
 # on that walk leaves only go/aaa.
+#
+# The limit of four fixtures, stated so nobody reads a green run as more than it
+# is: a walk truncated at any N above 4 (`head -20`) looks identical to a
+# complete walk here, and would look identical at any fixture count short of the
+# real tree's 12,392. Building 13,000 scratch files to close that is not worth
+# the runtime, so it stays a review-time check — the shape to reject is a bound
+# on the walk at all, not a particular N.
 test_every_input_is_checked() {
 	local repo_dir tail_fixture="go/zzz/tail.go" last_tracked
 	new_repo
