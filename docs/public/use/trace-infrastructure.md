@@ -12,6 +12,11 @@ landing: false
 Use this path when you need to understand what deploys a service, what
 resources it uses, or what might break when infrastructure changes.
 
+Before you begin, start Eshu and index the repositories and infrastructure
+evidence you want to trace. The CLI examples require the `eshu` binary on
+`PATH` and a reachable API; Local Compose serves it at
+`http://localhost:8080` by default.
+
 ## Choose a starting point
 
 Start with one of these:

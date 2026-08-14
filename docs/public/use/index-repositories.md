@@ -12,6 +12,19 @@ landing: false
 Indexing turns source code, infrastructure files, docs, and deployment config
 into Eshu facts, content, and graph relationships.
 
+## Before you begin
+
+Run the Compose commands from the Eshu checkout with Docker Compose installed.
+Keep the repositories you want to index under the directory you set as
+`ESHU_FILESYSTEM_HOST_ROOT`.
+
+The host CLI and local-service paths also require the Eshu binaries on `PATH`:
+
+```bash
+./scripts/install-local-binaries.sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
 ## Choose an indexing path
 
 | Path | Use it when |
@@ -65,22 +78,12 @@ Use `index` when you only need to launch `eshu-bootstrap-index`:
 eshu index .
 ```
 
-Both commands require local binaries on `PATH`:
-
-```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-```
-
 If you use `docker-compose.neo4j.yml`, set `ESHU_GRAPH_BACKEND=neo4j` and use
 database `neo4j`.
 
 ## Start a local Eshu service
 
 ```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-
 eshu graph start --workspace-root "$PWD"
 ```
 

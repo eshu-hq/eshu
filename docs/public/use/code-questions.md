@@ -12,6 +12,10 @@ landing: false
 Start with a symbol, file, repository, or phrase. Eshu works best when the
 question names the thing you want to inspect.
 
+Before using the CLI examples, start an Eshu API and index the repository you
+want to query. Local Compose serves the API at `http://localhost:8080` by
+default. The `eshu` CLI must also be installed and available on `PATH`.
+
 ## Ask from the CLI
 
 These commands call the HTTP API:
@@ -24,9 +28,6 @@ eshu analyze deps shared-auth-lib
 eshu analyze dead-code --repo payments-api
 eshu stats payments-api
 ```
-
-If you are running locally, start Docker Compose or another API process first.
-The local Compose API defaults to `http://localhost:8080`.
 
 Use `--repo` or `--repo-id` on relationship commands when a symbol name is
 common across repositories.
