@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -320,12 +321,12 @@ func TestLocalHostEnvHonorsRuntimeConfig(t *testing.T) {
 	})
 
 	t.Run("authoritative sets graph backend", func(t *testing.T) {
-		originalEnviron := eshuEnviron
-		eshuEnviron = func() []string {
+		originalEnviron := procexec.Environ
+		procexec.Environ = func() []string {
 			return []string{"ESHU_DISABLE_NEO4J=true"}
 		}
 		t.Cleanup(func() {
-			eshuEnviron = originalEnviron
+			procexec.Environ = originalEnviron
 		})
 
 		got := localHostEnv("dsn", localHostRuntimeConfig{

@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
@@ -323,11 +324,11 @@ func (o scanOptions) BootstrapEnv() []string {
 	if strings.TrimSpace(o.DiscoveryReport) != "" {
 		overrides["ESHU_DISCOVERY_REPORT"] = o.DiscoveryReport
 	}
-	base := eshuEnviron()
+	base := procexec.Environ()
 	if len(o.RuntimeEnv) > 0 {
 		base = append([]string(nil), o.RuntimeEnv...)
 	}
-	return mergeEnvironment(base, overrides)
+	return procexec.MergeEnvironment(base, overrides)
 }
 
 func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err error) error {

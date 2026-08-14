@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -64,7 +65,7 @@ func startProcessLocalNornicDB(ctx context.Context, layout eshulocal.Layout) (*m
 	}
 	cmd := exec.Command(binaryPath, args...) // #nosec G204 -- binaryPath is resolved via resolveNornicDBBinary from PATH/env; args are program-constructed constants and formatted port numbers
 	cmd.Args = append([]string{binaryPath}, args...)
-	cmd.Env = mergeEnvironment(eshuEnviron(), map[string]string{
+	cmd.Env = procexec.MergeEnvironment(procexec.Environ(), map[string]string{
 		"NORNICDB_ADDRESS":          localNornicDBBindAddress,
 		"NORNICDB_BOLT_PORT":        fmt.Sprintf("%d", boltPort),
 		"NORNICDB_HTTP_PORT":        fmt.Sprintf("%d", httpPort),

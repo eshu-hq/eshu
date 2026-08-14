@@ -9,14 +9,19 @@
    and `gotchas-local-runtime-and-graph.md`
 2. `go/cmd/eshu/root.go` — `rootCmd`, persistent flags (`--database`,
    `--visual`), and root subcommand registration
-3. `go/cmd/eshu/service.go` — `runMCPStart`, `runAPIStart`, `eshuExec`,
-   `eshuExecutable`; how the binary execs runtime processes
+3. `go/cmd/eshu/service.go` — `runMCPStart`, `runAPIStart`, `procexec.Exec`,
+   `procexec.Executable`; how the binary execs runtime processes
 4. `go/cmd/eshu/basic.go` — indexing subcommands (`index`, `list`, `watch`,
    `query`, `stats`); `runIndex` delegates to `eshu-bootstrap-index` via
    `indexLookPath`
 5. `go/cmd/eshu/graph.go` — `graph` subcommand tree, `graphStatusOutput`,
    `graphStatusForLayout`, `runGraphStart`, `runGraphStop`
-6. `go/internal/cli/` — where command logic that is not process wiring lives,
+6. `go/internal/cli/procexec` — the shared re-exec seam: `procexec.Executable`,
+   `procexec.Getwd`, `procexec.LookPath`, `procexec.Exec`, `procexec.Environ`,
+   `procexec.CleanExecutableArg0`, `procexec.MergeEnvironment`. Every command
+   family here that hands the process over to another binary goes through it,
+   and its `AGENTS.md` carries the substitution rules tests must follow
+7. `go/internal/cli/` — where command logic that is not process wiring lives,
    because this directory is `package main`. `eshu report`'s digest and
    artifact logic is in `go/internal/cli/opdigest`; read that package's
    `AGENTS.md` before changing `operator_digest_cmd.go`.
@@ -32,7 +37,7 @@
   process exec'd in the same process.
 - **Service-launch via `syscall.Exec`** — `eshu mcp start` (stdio path),
   `eshu api start`, and `eshu graph start` replace the current process image via
-  `eshuExec` (backed by `syscall.Exec`). No Eshu logic runs after the exec
+  `procexec.Exec` (backed by `syscall.Exec`). No Eshu logic runs after the exec
   point. Enforced in `service.go` and `graph.go`.
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
@@ -116,7 +121,7 @@
 ## Anti-patterns specific to this package
 
 - **Business logic in subcommand `RunE` functions** — `RunE` functions should
-  call `apiClientFromCmd`, `eshuExec`, or a delegating helper. Domain logic
+  call `apiClientFromCmd`, `procexec.Exec`, or a delegating helper. Domain logic
   (graph writes, fact queries, schema checks) belongs in the `internal/*`
   packages that own those surfaces.
 
@@ -133,7 +138,7 @@
 
 - The `local-host watch` and `local-host mcp-stdio` subcommand contract — the
   `eshu mcp start` and `eshu graph start` paths hard-code these subcommand names
-  when calling `eshuExec`; renaming them silently breaks both flows.
+  when calling `procexec.Exec`; renaming them silently breaks both flows.
 - The `--database` flag name and its effect on `ESHU_RUNTIME_DB_TYPE` — external
   scripts and the local-authoritative profile depend on this flag; see
   `docs/public/reference/cli-reference.md`.

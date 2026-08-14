@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -233,15 +234,15 @@ func TestRunGraphLogsReturnsMissingLogGuidance(t *testing.T) {
 func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	originalGetwd := graphGetwd
 	originalBuildLayout := graphBuildLayout
-	originalExecutable := eshuExecutable
-	originalExec := eshuExec
-	originalEnviron := eshuEnviron
+	originalExecutable := procexec.Executable
+	originalExec := procexec.Exec
+	originalEnviron := procexec.Environ
 	t.Cleanup(func() {
 		graphGetwd = originalGetwd
 		graphBuildLayout = originalBuildLayout
-		eshuExecutable = originalExecutable
-		eshuExec = originalExec
-		eshuEnviron = originalEnviron
+		procexec.Executable = originalExecutable
+		procexec.Exec = originalExec
+		procexec.Environ = originalEnviron
 	})
 
 	workspaceRoot := t.TempDir()
@@ -257,17 +258,17 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 			LogsDir:       filepath.Join(workspaceRoot, ".eshu-logs"),
 		}, nil
 	}
-	eshuExecutable = func() (string, error) {
+	procexec.Executable = func() (string, error) {
 		return "/usr/local/bin/eshu", nil
 	}
-	eshuEnviron = func() []string {
+	procexec.Environ = func() []string {
 		return []string{"ESHU_QUERY_PROFILE=local_lightweight"}
 	}
 	wantErr := errors.New("exec sentinel")
 	var gotBinary string
 	var gotArgs []string
 	var gotEnv []string
-	eshuExec = func(binary string, args []string, env []string) error {
+	procexec.Exec = func(binary string, args []string, env []string) error {
 		gotBinary = binary
 		gotArgs = append([]string(nil), args...)
 		gotEnv = append([]string(nil), env...)
@@ -310,92 +311,6 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	}
 	if envValue(gotEnv, "ESHU_LOCAL_LOG_DIR") != filepath.Join(resolvedWorkspaceRoot, ".eshu-logs") {
 		t.Fatalf("ESHU_LOCAL_LOG_DIR = %q, want workspace log dir", envValue(gotEnv, "ESHU_LOCAL_LOG_DIR"))
-	}
-}
-
-func TestResolveNornicDBBinaryPrefersHeadlessBinary(t *testing.T) {
-	originalLookPath := localGraphLookPath
-	originalReadVersion := localGraphReadVersion
-	t.Cleanup(func() {
-		localGraphLookPath = originalLookPath
-		localGraphReadVersion = originalReadVersion
-	})
-	t.Setenv("ESHU_HOME", t.TempDir())
-	t.Setenv("ESHU_NORNICDB_BINARY", "")
-
-	localGraphLookPath = func(file string) (string, error) {
-		switch file {
-		case "nornicdb-headless":
-			return "/eshu/bin/nornicdb-headless", nil
-		case "nornicdb":
-			return "/eshu/bin/nornicdb", nil
-		default:
-			return "", errors.New("unexpected binary lookup")
-		}
-	}
-	localGraphReadVersion = func(binaryPath string) (string, error) {
-		return "v1.0.42", nil
-	}
-
-	got, err := resolveNornicDBBinary()
-	if err != nil {
-		t.Fatalf("resolveNornicDBBinary() error = %v, want nil", err)
-	}
-	if got != "/eshu/bin/nornicdb-headless" {
-		t.Fatalf("resolveNornicDBBinary() = %q, want headless path", got)
-	}
-}
-
-func TestResolveNornicDBBinaryAllowsExplicitFullBinary(t *testing.T) {
-	originalReadVersion := localGraphReadVersion
-	t.Cleanup(func() {
-		localGraphReadVersion = originalReadVersion
-	})
-	t.Setenv("ESHU_NORNICDB_BINARY", "/opt/nornicdb")
-	localGraphReadVersion = func(binaryPath string) (string, error) {
-		return "v1.0.42", nil
-	}
-
-	got, err := resolveNornicDBBinary()
-	if err != nil {
-		t.Fatalf("resolveNornicDBBinary() error = %v, want nil", err)
-	}
-	if got != "/opt/nornicdb" {
-		t.Fatalf("resolveNornicDBBinary() = %q, want explicit path", got)
-	}
-}
-
-func TestResolveNornicDBBinaryRejectsInvalidExplicitBinary(t *testing.T) {
-	originalReadVersion := localGraphReadVersion
-	t.Cleanup(func() {
-		localGraphReadVersion = originalReadVersion
-	})
-	t.Setenv("ESHU_NORNICDB_BINARY", "/tmp/not-nornicdb")
-	localGraphReadVersion = func(binaryPath string) (string, error) {
-		return "", errors.New("unexpected output")
-	}
-
-	_, err := resolveNornicDBBinary()
-	if err == nil {
-		t.Fatal("resolveNornicDBBinary() error = nil, want non-nil")
-	}
-	if !strings.Contains(err.Error(), "verify nornicdb binary") {
-		t.Fatalf("resolveNornicDBBinary() error = %q, want verification failure", err.Error())
-	}
-}
-
-func TestParseNornicDBVersionOutputRequiresNornicDBPrefix(t *testing.T) {
-	got, err := parseNornicDBVersionOutput("NornicDB v1.0.42\n")
-	if err != nil {
-		t.Fatalf("parseNornicDBVersionOutput() error = %v, want nil", err)
-	}
-	if got != "v1.0.42" {
-		t.Fatalf("parseNornicDBVersionOutput() = %q, want %q", got, "v1.0.42")
-	}
-
-	_, err = parseNornicDBVersionOutput("not nornicdb\n")
-	if err == nil {
-		t.Fatal("parseNornicDBVersionOutput() error = nil, want non-nil")
 	}
 }
 
