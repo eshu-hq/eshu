@@ -50,18 +50,27 @@ supply-chain expectation that a tag represents one fixed artifact.
 
 ### 3.1 Base Image Digest Pinning
 
-All three `FROM` directives in `Dockerfile` carry a `@sha256:...` suffix.
-Buildx resolves the tag to a manifest-list (index) digest, so each platform
-pull gets the correct platform image without ambiguity.
+Every `FROM` in `Dockerfile` that pulls an external image carries a
+`@sha256:...` suffix. Buildx resolves the tag to a manifest-list (index)
+digest, so each platform pull gets the correct platform image without
+ambiguity. Three distinct external images are pinned; `alpine:3.21` is the
+base for the production stage and for both E2E mock stages, all at the same
+digest.
 
 | Stage | Image | Pinned digest |
 |-------|-------|---------------|
 | xx helper | `tonistiigi/xx:1.5.0` | `sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f` |
-| builder | `golang:1.26-alpine` | `sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648` |
+| builder | `golang:1.26.6-alpine` | `sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df` |
 | production | `alpine:3.21` | `sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d` |
 
-Digests are verified against the Docker Hub API at PR time. A periodic workflow
-should refresh these digests when upstream images release security patches.
+No CI job checks these digests, and none checks that this table still matches
+`Dockerfile`. Both are edited by hand, so a pin bump has to change the
+`Dockerfile` line and this row together. The build does enforce one thing: a
+pinned digest must resolve, and buildx fails closed if the registry stops
+serving it, so a rotted pin cannot quietly fall back to a floating tag. That
+is all it enforces. The builder row here sat at 1.26.4 through two toolchain
+bumps before anyone caught it. A periodic workflow should refresh these
+digests when upstream images release security patches.
 
 ### 3.2 Deterministic Go Compilation
 
