@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package assistantguidance
 
-// assistantPlatform identifies a supported assistant whose project-scoped
-// instruction file Eshu can manage.
-type assistantPlatform struct {
-	// id is the stable lowercase selector used on the command line.
-	id string
-	// label is the human-facing platform name.
-	label string
-	// relPath is the project-relative instruction file Eshu writes into.
-	relPath string
-	// commit reports whether the target file is normally committed to the repo,
+// Platform identifies a supported assistant whose project-scoped instruction
+// file Eshu can manage.
+type Platform struct {
+	// ID is the stable lowercase selector used on the command line.
+	ID string
+	// Label is the human-facing platform name.
+	Label string
+	// RelPath is the project-relative instruction file Eshu writes into.
+	RelPath string
+	// Commit reports whether the target file is normally committed to the repo,
 	// which controls whether install prints a `git add` hint for it.
-	commit bool
+	Commit bool
 }
 
-// supportedPlatforms lists every assistant Eshu can install guidance for. The
+// SupportedPlatforms lists every assistant Eshu can install guidance for. The
 // order is stable so status and install output is deterministic.
 //
 // File conventions (current as of this writing):
@@ -27,34 +27,40 @@ type assistantPlatform struct {
 //
 // CLAUDE.md and AGENTS.md are commit-worthy. The Cursor rule file is also
 // commit-worthy so teammates share the same guidance.
-func supportedPlatforms() []assistantPlatform {
-	return []assistantPlatform{
-		{id: "claude", label: "Claude Code", relPath: "CLAUDE.md", commit: true},
-		{id: "codex", label: "Codex / AGENTS.md", relPath: "AGENTS.md", commit: true},
-		{id: "cursor", label: "Cursor", relPath: ".cursor/rules/eshu.mdc", commit: true},
+func SupportedPlatforms() []Platform {
+	return []Platform{
+		{ID: "claude", Label: "Claude Code", RelPath: "CLAUDE.md", Commit: true},
+		{ID: "codex", Label: "Codex / AGENTS.md", RelPath: "AGENTS.md", Commit: true},
+		{ID: "cursor", Label: "Cursor", RelPath: ".cursor/rules/eshu.mdc", Commit: true},
 	}
 }
 
-// lookupPlatform returns the platform with the given id and whether it is
+// LookupPlatform returns the platform with the given id and whether it is
 // supported. Unsupported ids let callers surface a clear error.
-func lookupPlatform(id string) (assistantPlatform, bool) {
-	for _, p := range supportedPlatforms() {
-		if p.id == id {
+func LookupPlatform(id string) (Platform, bool) {
+	for _, p := range SupportedPlatforms() {
+		if p.ID == id {
 			return p, true
 		}
 	}
-	return assistantPlatform{}, false
+	return Platform{}, false
 }
 
-// guidanceBody returns the managed-block body for a platform. The body is shared
-// across platforms today; the parameter exists so platform-specific framing
-// (for example Cursor MDC front matter) can be added without changing callers.
+// GuidanceBody returns the managed-block body for a platform. The body is
+// shared across platforms today; the parameter exists so platform-specific
+// framing (for example Cursor MDC front matter) can be added without changing
+// callers.
+//
+// The body is a pure function of the platform: it is assembled from package
+// constants only, so no operator-supplied value -- not the --path root, not the
+// --platform filter, not the surrounding file's own content -- can reach the
+// bytes written inside the managed block.
 //
 // The body deliberately tells assistants to prefer bounded Eshu MCP/API tools
 // before broad raw-file search for graph-backed questions, gives concrete first
 // prompts, and warns about Eshu truth labels, freshness, and missing evidence.
-func guidanceBody(p assistantPlatform) string {
-	if p.id == "cursor" {
+func GuidanceBody(p Platform) string {
+	if p.ID == "cursor" {
 		// Cursor MDC rules carry YAML front matter that controls when the rule
 		// applies. `alwaysApply: true` makes the guidance available in every
 		// request without a glob trigger.
