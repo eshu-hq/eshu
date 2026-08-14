@@ -168,11 +168,17 @@ The credential is cut out of the sentence and the sentence is kept, listed as
 is scanned the same way, because it is your own `X-Correlation-ID` header when
 you sent one.
 
-Five limits, worth knowing before you paste something unusual:
+Six limits, worth knowing before you paste something unusual:
 
 - The rule matches credential-shaped key **names**. A secret sitting in a
   parameter named something innocuous, with no `key=` in front of it, is not
   detected.
+- A credential in the **user info** part of a URL is not detected in free text.
+  In `https://alice:s3cr3t@host/x` the name to the left of the `:` is `alice`,
+  which is not credential-shaped, so the password after it is stored as you
+  wrote it. A URL sitting in a structured field is handled elsewhere and does
+  lose its user info; a URL inside your note or inside a returned error message
+  does not.
 - The same goes for your note. `sk-live-abc` written in a sentence, or sitting
   in a URL path rather than a parameter, is stored as you wrote it. Nothing here
   guesses whether a piece of text looks like a secret; it only recognises a

@@ -37,18 +37,48 @@ renders the same redacted report.
 
 ## Redaction
 
-Redaction is mandatory and applied before any value enters the report model, so
-both the terminal summary and the on-disk artifact are safe to share:
+Every value is scrubbed before it enters the report model, so the terminal
+summary and the on-disk artifact carry the same redacted text.
 
-- API and MCP endpoints have any embedded `user:password@` credentials replaced
-  with `redacted`; an endpoint that does not parse as a URL is masked entirely.
+The endpoint and target fields are rewritten like this:
+
+- An API or MCP endpoint loses any embedded `user:password@` credential, and
+  loses the value of any query parameter whose name looks like a credential
+  (`token`, `api_key`, `access_token`, `authorization`, and similar). Each is
+  replaced with `redacted`. The scheme, host, path, and every other parameter
+  stay, so you can still tell which target the report describes. An endpoint
+  that does not parse as a URL is masked entirely.
 - The selected repository target is reduced to its final path element
-  (`.../<name>`) so an absolute host path does not leak a username or private
-  layout.
-- Tokens and bearer secrets are never recorded; only redacted references appear.
+  (`.../<name>`) so an absolute host path does not leak your username or your
+  private directory layout.
 
-Artifacts are written with owner-only (`0600`) permissions because they may
-still contain endpoint hostnames.
+The free-text fields go through the same pass, and it rewrites them.
+`readiness`, `query_summary`, `truth` (at every depth, including values nested
+inside objects and arrays), the diagnosis summary, its preserved cause, its
+recovery steps, `next_commands`, and `docs_links` are all scrubbed. An endpoint
+or repository path that was composed into one of those sentences comes out in
+the same redacted form as the field it was built from.
+
+That has a cost, and it lands on the commands. A suggested next command is
+rewritten along with everything else, so `eshu story /home/alice/work/repo` is
+recorded as `eshu story .../repo`. Read `next_commands` as a description of
+what to run against your own paths, not as lines to paste.
+
+### What redaction does not catch
+
+The rules recognize structure: a URL, an absolute path, a credential-shaped
+parameter name. Nothing here judges whether a piece of text looks like a
+secret, so these reach the artifact as written:
+
+- A credential in a URL **path segment**, such as
+  `https://host/x/sk-live-abc/story`.
+- A credential under a parameter name the rule does not match, such as
+  `?session=sk-live-abc`.
+- A bare secret in prose with no key beside it, such as
+  `authenticated with sk-live-abc`.
+
+Artifacts are written with owner-only (`0600`) permissions because they still
+contain endpoint hostnames.
 
 ## Indexing state
 
