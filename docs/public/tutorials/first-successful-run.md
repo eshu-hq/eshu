@@ -21,7 +21,7 @@ result.
 
 ## Before you begin
 
-Indexing time varies with repository size, enabled materializers, and the local
+Indexing time varies with repository size, enabled indexing features, and the local
 machine. Continue from status evidence rather than an elapsed-time estimate.
 You need:
 
