@@ -520,12 +520,18 @@ explanation is wrong. A fixed per-call cost cannot produce it. For
 64 only when `F` is zero, so any fixed overhead pushes a measured ratio *below*
 the prediction rather than above it.
 
-What does move it is per-byte cost rising with the working set. Round four's own
-column shows it on a scan whose growth is linear: 43.3 MB/s at 4KB against
-27.5 MB/s at 32KB and 27.1 MB/s at 128KB. Bytes get about 1.6x more expensive
-once the input stops fitting in L1, and the quadratic scan pays that same
-steepening on top of its own growth. Round four holds about 27 MB/s from 32KB
-up, so its cost tracks the input length.
+What does move it is per-byte cost rising once the working set outgrows the
+nearest cache. Round four's own column shows the effect on a scan whose growth
+is linear: 43.3 MB/s at 4KB against 27.5 MB/s at 32KB and 27.1 MB/s at 128KB, so
+bytes get about 1.6x dearer across that step. That 1.6x is a floor on what round
+three pays, not the same number — round four streams each byte once, while round
+three re-traverses the whole remaining string per assignment, so it is far more
+exposed to losing cache reuse. Taking 1.6x as the whole story would predict
+64 x 1.572 = 101x, against 213x measured; closing that needs bytes about 3.3x
+dearer, which a repeated-traversal scan can pay and a single pass cannot. The
+three points here do not pin that down, which is why the quadratic claim rests
+on the 32KB-to-128KB pair. Round four holds about 27 MB/s from 32KB up, so its
+cost tracks the input length.
 
 This was reachable, not a hang — the round-three scan always terminated. The
 committed benchmark now reads across three sizes for exactly this reason: a scan
