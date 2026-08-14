@@ -353,15 +353,34 @@ func TestCaptureKeepsTheNoteAroundAPercentEncodedCredential(t *testing.T) {
 	}
 }
 
-// TestCaptureLeavesAnUnrelatedContinuationLineAlone is the false-positive guard
-// on the line-continuation rule. A backslash at the end of a line only carries a
-// redaction forward when that line's removal ran all the way to its end, so
-// ordinary prose that happens to end in one keeps the line after it.
-func TestCaptureLeavesAnUnrelatedContinuationLineAlone(t *testing.T) {
+// TestCaptureStopsAContinuationAtAValueThatEndedMidLine is the false-positive
+// guard on the line-continuation rule, pointed at the mechanism rather than
+// past it.
+//
+// A backslash carries a redaction onto the next line only when the removal ran
+// to the very end of the line it was on. A wrapped `curl` is exactly where both
+// halves matter: every line of it ends in a backslash, and only the one holding
+// a bare header value has no boundary of its own.
+//
+// The note this replaced was "the path was C:\" over two lines of prose. That
+// note produced no redaction on its first line, so the continuation decision was
+// never taken, and the test stayed green with the redaction's own end-of-line
+// check deleted and with the flag hard-wired true. Here the first `--token=`
+// line IS redacted and its value ends at the space before the backslash, so
+// dropping either half turns the two lines after it into bare markers.
+func TestCaptureStopsAContinuationAtAValueThatEndedMidLine(t *testing.T) {
 	t.Parallel()
 
-	note := "the path was C:\\\n" +
-		"and the second line is prose I want to keep."
+	const sentinel = "SYMMETRY-MIDLINE-CONTINUATION-8ad2f4"
+	note := "cmd \\\n" +
+		"  --token=" + sentinel + " \\\n" +
+		"  --repo=demo \\\n" +
+		"  --page=2"
+	want := "cmd \\\n" +
+		"  [redacted] \\\n" +
+		"  --repo=demo \\\n" +
+		"  --page=2"
+
 	bundle, err := Capture(CaptureInput{
 		Surface:      "api",
 		Target:       "/api/v0/services/checkout/story",
@@ -372,11 +391,14 @@ func TestCaptureLeavesAnUnrelatedContinuationLineAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Capture() error = %v, want nil", err)
 	}
-	if bundle.ReporterNote != note {
-		t.Errorf("ReporterNote was altered.\n got: %s\nwant: %s", bundle.ReporterNote, note)
+	if strings.Contains(bundle.ReporterNote, sentinel) {
+		t.Errorf("ReporterNote kept the credential: %s", bundle.ReporterNote)
 	}
-	if containsRule(bundle.Redaction.Rules, "reporter_note") {
-		t.Errorf("Redaction.Rules = %v, want no reporter_note entry for an untouched note", bundle.Redaction.Rules)
+	if bundle.ReporterNote != want {
+		t.Errorf("ReporterNote\n got: %q\nwant: %q", bundle.ReporterNote, want)
+	}
+	if !containsRule(bundle.Redaction.Rules, "reporter_note") {
+		t.Errorf("Redaction.Rules = %v, want a reporter_note entry for a shortened note", bundle.Redaction.Rules)
 	}
 }
 
