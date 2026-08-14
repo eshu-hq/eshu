@@ -88,6 +88,19 @@ See [Local binaries](../run-locally/local-binaries.md).
 
 ## Verify the indexed repositories
 
+For the workspace-local owner, generate the Codex MCP configuration:
+
+```bash
+eshu mcp setup --platform codex
+```
+
+Open the target repository as the Codex workspace, restart Codex, and ask it to
+call `get_index_status` with `{}`. When the status is `healthy`, call
+`list_indexed_repositories` with `{"limit": 25, "offset": 0}` and confirm that
+the bounded page contains the repository.
+
+For Local Compose or another API-backed runtime, use the CLI:
+
 ```bash
 eshu index-status
 eshu list

@@ -43,7 +43,7 @@ nav:
     - Windows Setup: getting-started/windows-setup.md
   - Tutorials:
     - Overview: tutorials/index.md
-    - First Successful Run: tutorials/first-successful-run.md
+    - Local Compose First Run: tutorials/first-successful-run.md
     - Trace a Vulnerable Dependency: tutorials/trace-vulnerable-dependency.md
     - Ask Eshu From An Assistant: tutorials/ask-from-assistant.md
     - Index Repositories: tutorials/index-repositories.md

@@ -15,6 +15,9 @@ runtime you already have or plan to start.
 `eshu first-run` detects a reachable API, local binaries, or Docker Compose. It
 verifies the runtime, indexes the target or reuses a drained index, waits for
 indexing completeness, and runs a bounded query. It does not start a runtime.
+`--no-start` does not change startup behavior: `first-run` never starts a
+runtime in either mode. The flag only makes a failed verification record that
+you requested verify-only mode.
 
 ## Before you begin
 
@@ -23,7 +26,7 @@ Choose the path that matches the service you will use:
 | Path | Choose it when |
 | --- | --- |
 | [Local Compose](#run-with-local-compose) | You want the full API and MCP stack in containers. |
-| [Local binaries](#run-with-local-binaries) | You are developing Eshu from a checkout. |
+| [Local binaries](#run-with-local-binaries) | You are developing from a checkout and want to query its workspace-local owner through MCP. |
 | [Hosted service](#connect-to-a-hosted-service) | An operator already runs Eshu for you. |
 
 Health only proves that a process is alive. The selected path is complete when
@@ -68,30 +71,23 @@ Install the local commands and put them on `PATH`:
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-Keep the following three processes in separate terminals so the foreground
-services remain running while the guided check executes.
-
-### Terminal 1: start the local owner
+Generate a Codex configuration for the local stdio MCP process:
 
 ```bash
-eshu graph start --workspace-root "$PWD"
+eshu mcp setup --platform codex
 ```
 
-### Terminal 2: start the HTTP API
+Apply the printed configuration. Open the target repository as the Codex
+workspace before you restart Codex; the generated `eshu mcp start` command uses
+the client process's working directory to select the workspace. It starts or
+attaches to that workspace's local owner. The owner provides embedded Postgres,
+embedded NornicDB, ingestion, and reduction without a separate HTTP API
+process.
 
-```bash
-eshu api start
-```
-
-### Terminal 3: run the guided check
-
-```bash
-eshu first-run .
-```
-
-Use `eshu first-run --no-start .` when you want the error message to record
-that safe mode was requested. The command only verifies in either mode. Confirm
-the result with `eshu list` and `eshu stats <repo>`.
+Ask Codex to use Eshu and list the indexed repositories for the current
+workspace. The API-backed `eshu first-run`, `eshu list`, and `eshu stats`
+commands do not attach to this owner. Use the [Local Compose](#run-with-local-compose)
+path when you need the exact `first-run` workflow or other HTTP API commands.
 
 See [Local binaries](../run-locally/local-binaries.md) for runtime ownership,
 ports, and recovery details.
@@ -117,8 +113,8 @@ ports, and recovery details.
 3. Query the hosted service through the same remote settings:
 
    ```bash
-   eshu list --service-url https://eshu.example.com
-   eshu stats payments-api --service-url https://eshu.example.com
+   eshu list
+   eshu stats payments-api
    ```
 
 See [Hosted onboarding](../deployment/hosted-onboarding.md) for team repository
@@ -140,11 +136,8 @@ eshu mcp setup --hosted --platform codex --service-url http://localhost:8081 --a
 
 ### Local binaries
 
-Generate a Codex configuration that launches the local stdio MCP process:
-
-```bash
-eshu mcp setup --platform codex
-```
+Use the Codex configuration generated in the local-binary steps above. Do not
+run either HTTP setup command for the stdio owner.
 
 ### Hosted service
 
@@ -160,20 +153,28 @@ payments-api. Include the files and symbols that support the answer.
 ```
 
 The answer should name the indexed repository and cite concrete graph or
-content evidence. If it does not, confirm the scope with `eshu list`, wait for
-`eshu index-status` to report a drained index, and ask again.
+content evidence. Verify it with the surface for your selected runtime:
+
+- For local binaries, ask Codex to call `get_index_status` with `{}`, then call
+  `list_indexed_repositories` with `{"limit": 25, "offset": 0}`. Continue when
+  the status is `healthy` and the bounded page includes the target repository.
+- For Local Compose, rerun `docker compose exec eshu eshu index-status` and
+  `docker compose exec eshu eshu list`.
+- For a hosted service, rerun `eshu hosted-setup --platform codex --repository
+  payments-api` and `eshu list`; the exported `ESHU_SERVICE_URL` and
+  `ESHU_API_KEY` select that service.
+
+If local status is `progressing`, follow its reasons and wait for it to drain.
+If it is `degraded` or `stalled`, use the diagnostics below before asking
+again.
 
 ## Troubleshoot a failed run
 
-| Symptom | What to do |
-| --- | --- |
-| API is unreachable | Start the chosen runtime, check its health, then rerun `eshu first-run`. |
-| Compose cannot see the repository | Check that `ESHU_FILESYSTEM_HOST_ROOT` mounts the parent directory at `/fixtures`, then rerun `docker compose exec eshu eshu first-run /fixtures/payments-api`. |
-| Local commands are missing | Rerun `./scripts/install-local-binaries.sh` and update `PATH`. |
-| API returns 401 or 403 | Make the client and server `ESHU_API_KEY` values match. |
-| Health is green but the answer is stale | Wait for `eshu index-status` to drain; do not treat health as readiness. |
-| No repository matches | Run `eshu scan <path>`, correct the selector, and check `eshu list`. |
-| MCP tools are missing | Run `eshu mcp setup --verify`, then restart the client. |
+| Path | Symptom | What to do |
+| --- | --- | --- |
+| Local Compose | API is unreachable, or the repository is missing or stale | Run `docker compose ps` and fix unhealthy services. Check the `/fixtures` mount and selector, then rerun the container-executed `first-run`, `index-status`, and `list` commands. |
+| Local binaries | Commands or MCP repository status are missing | Reinstall local binaries if needed. Reapply `eshu mcp setup --platform codex`, restart Codex in the target workspace, then call `get_index_status` and bounded `list_indexed_repositories` again. |
+| Hosted | The API returns 401 or 403, or the repository is missing or stale | Make the client and server `ESHU_API_KEY` values match. Rerun `eshu hosted-setup --platform codex --repository payments-api`, then `eshu list`. |
 
 For deeper recovery, use [Troubleshooting](../operate/troubleshooting.md), the
 [MCP guide](../guides/mcp-guide.md), or [Index repositories](../use/index-repositories.md).
@@ -196,10 +197,9 @@ truth-label details.
 
 ## Clean up
 
-If this guide had you start Compose, run `docker compose down`. If it started the
-local owner, stop `eshu api start` with Ctrl-C and run
-`eshu graph stop --workspace-root "$PWD"`. Leave a hosted service or a runtime
-that was already running alone.
+If this guide had you start Compose, run `docker compose down`. Closing Codex
+ends the stdio MCP session created by the local-binary path. Leave a hosted
+service or a runtime that was already running alone.
 
 ## Continue from here
 

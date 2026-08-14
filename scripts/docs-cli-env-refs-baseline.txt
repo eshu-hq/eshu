@@ -98,5 +98,4 @@ env tutorials/first-successful-run.md ESHU_FILESYSTEM_HOST_ROOT,ESHU_REPOSITORY_
 env tutorials/index-repositories.md ESHU_FILESYSTEM_HOST_ROOT,ESHU_REPOSITORY_RULES_JSON
 env tutorials/trace-vulnerable-dependency.md ESHU_SRC
 env use/index-repositories.md ESHU_FILESYSTEM_HOST_ROOT,ESHU_REPOSITORY_RULES_JSON
-flag getting-started/first-successful-run.md list::--service-url,stats::--service-url
 flag reference/reading-answers.md find/name::--json
