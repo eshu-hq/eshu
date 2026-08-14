@@ -1642,9 +1642,15 @@ gates:
       - "go/go.sum"
       - "go/**/*.go"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/test-precommit-go-toolchain-isolation.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh govulncheck"
-      test_command: ""
+      # Self-test mirror: precommit-go.sh installs its scanners from the repo
+      # root, where no go.mod is visible, so a GOROOT leaked by a
+      # toolchain-switched parent made every install fail to compile and this
+      # gate died before govulncheck ran. The self-test is hermetic (it fakes
+      # `go`), so it needs no network and no real toolchain.
+      test_command: "bash scripts/test-precommit-go-toolchain-isolation.sh"
     ci:
       workflow: security-scan.yml
       job: "govulncheck (Go vulnerability database)"

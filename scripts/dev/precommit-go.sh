@@ -70,11 +70,38 @@ collect_dirs() {
 	done < <(go_dirs "$@")
 }
 
+# go_install_tool installs one pinned tool binary into the shared tool cache.
+#
+# The `env -u GOROOT` is load-bearing, not defensive noise. When go.mod's `go`
+# directive is newer than the host `go` binary (go.mod pins 1.26.6 since #6112;
+# a developer host may still be on 1.26.5), GOTOOLCHAIN=auto re-execs the
+# downloaded newer toolchain, and that switched process exports GOROOT to every
+# child it spawns — including the ci-gates runner, which shells each gate
+# command out through /bin/sh with the environment it inherited.
+#
+# These installs deliberately run from the CALLER's working directory, which for
+# every gate path is the repo root. There is no go.mod there, so the host `go`
+# never sees the 1.26.6 directive and never switches toolchains: it builds with
+# the 1.26.5 driver against the inherited 1.26.6 GOROOT, and every package fails
+# with `compile: version "go1.26.6" does not match go tool version "go1.26.5"`.
+# The gate then dies on the INSTALL, before the scanner ever runs.
+#
+# Clearing GOROOT restores the self-consistent host toolchain the design note
+# above already intends. The `go` calls that run inside go/ (capability-inventory,
+# nancy-local's `go list`) need no such treatment: they see the directive, switch
+# to 1.26.6, and their driver and GOROOT agree.
+#
+# scripts/test-precommit-go-toolchain-isolation.sh is the regression guard;
+# removing `env -u GOROOT` from any call site turns it red.
+go_install_tool() {
+	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod env -u GOROOT go install "$@"
+}
+
 ensure_golangci() {
 	local bin="${tool_cache_dir}/golangci-lint-${golangci_version}"
 	if [[ ! -x "${bin}" ]]; then
 		note "installing golangci-lint ${golangci_version} (one-time, local toolchain)"
-		GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
+		go_install_tool \
 			"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${golangci_version}" \
 			|| die "failed to install golangci-lint ${golangci_version}"
 		mv "${tool_cache_dir}/golangci-lint" "${bin}"
@@ -86,7 +113,7 @@ ensure_gosec() {
 	local bin="${tool_cache_dir}/gosec-${gosec_version}"
 	if [[ ! -x "${bin}" ]]; then
 		note "installing gosec ${gosec_version} (one-time, local toolchain)"
-		GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
+		go_install_tool \
 			"github.com/securego/gosec/v2/cmd/gosec@${gosec_version}" \
 			|| die "failed to install gosec ${gosec_version}"
 		mv "${tool_cache_dir}/gosec" "${bin}"
@@ -101,7 +128,7 @@ ensure_govulncheck() {
 	# cache makes a no-change reinstall fast, and this keeps the local advisory
 	# database tooling in lockstep with CI instead of silently drifting stale.
 	note "installing govulncheck@latest (local toolchain)"
-	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
+	go_install_tool \
 		"golang.org/x/vuln/cmd/govulncheck@latest" \
 		|| die "failed to install govulncheck"
 	printf '%s' "${bin}"
@@ -112,7 +139,7 @@ ensure_nancy() {
 	# Always reinstall @latest (see ensure_govulncheck) to match CI and avoid
 	# freezing a stale nancy in the cache.
 	note "installing nancy@latest (local toolchain)"
-	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
+	go_install_tool \
 		"github.com/sonatype-nexus-community/nancy@latest" \
 		|| die "failed to install nancy"
 	printf '%s' "${bin}"
