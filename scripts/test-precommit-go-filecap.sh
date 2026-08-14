@@ -147,6 +147,38 @@ assert_contains() {
 	pass "gate output contains: ${needle}"
 }
 
+# assert_equal, assert_rc, and assert_silent keep the comparison and the pass()
+# inside ONE helper. That is the only shape the pinned total at the bottom can
+# police: it notices a check that stopped running only when removing the check
+# also removes a pass(). Exit-code and silence checks used to be written as bare
+# `[[ ... ]] || fail` lines with a separate pass() beside them, so deleting the
+# comparison left the total untouched — and two of them were the only thing
+# standing between a real defect and a green run (the argv `status=0` reset in
+# test_every_input_is_checked, and the `[[ -f ]]` guard in
+# test_missing_file_is_ignored).
+#
+# What the pin does not police, before or after this: a check that still runs
+# but was weakened in place. No suite detects its own assertions being relaxed
+# by an editor. That is what the mutation runs in the PR body are for.
+assert_equal() {
+	local got="$1" want="$2" claim="$3"
+	[[ "${got}" == "${want}" ]] || fail "${claim} — got '${got}', wanted '${want}'"
+	pass "${claim}"
+}
+
+# assert_rc checks the exit code of the last run_gate.
+assert_rc() {
+	assert_equal "${GATE_RC}" "$1" "$2"
+}
+
+# assert_silent checks that the last run_gate printed nothing on either stream.
+# A gate that reaches the right verdict while spraying rg or awk errors at the
+# committer is still broken, and no exit code shows it.
+assert_silent() {
+	[[ ! -s "${GATE_OUT}" ]] || fail "$1 — the gate printed output"
+	pass "$1"
+}
+
 # ---------------------------------------------------------------------------
 # Parity matrix: for each input, `filecap` (changed-files) and `filecap-all`
 # (whole-tree) must reach the SAME verdict, and it must be the expected one. One
@@ -168,21 +200,18 @@ assert_parity() {
 	all_out="${GATE_OUT}"
 
 	parity_cases=$((parity_cases + 1))
-	if [[ "${changed_rc}" != "${all_rc}" ]]; then
-		# Dump the arm that produced the unexpected verdict, not whichever ran
-		# last.
-		if [[ "${changed_rc}" == "${want_rc}" ]]; then
-			GATE_OUT="${all_out}"
-		else
-			GATE_OUT="${changed_out}"
-		fi
-		fail "${label}: parity broken — filecap rc=${changed_rc}, filecap-all rc=${all_rc} for ${rel}"
-	fi
-	if [[ "${changed_rc}" != "${want_rc}" ]]; then
+	# Point GATE_OUT at the arm that produced the unexpected verdict, not
+	# whichever ran last, before the agreement check can fail.
+	if [[ "${changed_rc}" == "${want_rc}" ]]; then
+		GATE_OUT="${all_out}"
+	else
 		GATE_OUT="${changed_out}"
-		fail "${label}: rc=${changed_rc}, wanted ${want_rc} for ${rel}"
 	fi
-	pass "parity ${label} (${rel}, ${lines} lines) -> rc=${want_rc} on both variants"
+	assert_equal "${changed_rc}" "${all_rc}" \
+		"parity ${label}: filecap and filecap-all agree on ${rel}"
+	GATE_OUT="${changed_out}"
+	assert_equal "${changed_rc}" "${want_rc}" \
+		"parity ${label} (${rel}, ${lines} lines) -> rc=${want_rc} on both variants"
 }
 
 run_parity_matrix() {
@@ -235,11 +264,10 @@ run_parity_matrix() {
 	assert_parity "_test mid-name is not a _test.go suffix" \
 		"go/internal/big/load_tester.go" 501 "" 1
 
-	((parity_cases > 0)) ||
-		fail "parity matrix evaluated 0 cases — the loop proved nothing"
-	[[ "${parity_cases}" == 14 ]] ||
-		fail "parity matrix evaluated ${parity_cases} cases, expected 14"
-	pass "parity matrix evaluated ${parity_cases} cases"
+	# An exact count, not a `> 0` floor: the floor cannot tell a dropped case
+	# from a full matrix, and the exact count subsumes it. Read a mismatch as "a
+	# case stopped running", not as a stale constant to bump.
+	assert_equal "${parity_cases}" 14 "parity matrix evaluated all 14 cases"
 }
 
 # Iteration and accumulation. Every case above hands `filecap` one path and puts
@@ -247,9 +275,10 @@ run_parity_matrix() {
 # after its first candidate, forgets an earlier violation, or stops REPORTING
 # after the first one. Both production callers pass a list — the go-file-cap hook
 # in .pre-commit-config.yaml forwards every staged .go path, pre-pr.sh's
-# step_filecap forwards its own — and `filecap-all` walks over 2,000 tracked
-# files. Four fixtures, because the ordering that catches one defect hides
-# another:
+# step_filecap forwards its own — and `filecap-all` walks every tracked
+# `go/*.go` path (`git ls-files 'go/*.go' | awk 'END{print NR}'` said 12,392 the
+# day this was written). Four fixtures, because the ordering that catches one
+# defect hides another:
 #
 #   go/aaa/small.go      10 lines, clean, sorts FIRST in git ls-files order
 #   go/zzz/oversize.go  501 lines, violation
@@ -260,46 +289,45 @@ run_parity_matrix() {
 # `for f in "${1:-}"`), and a violation first catches a `status=0` reset on each
 # pass. A CLEAN file sorting last is what catches that reset on the WHOLE-TREE
 # arm: with the only violation last in ls-files order, a reset still left status
-# at 1 and filecap-all exited 1 for the wrong reason. Two violations, both
-# asserted by path, catch an arm that quits at the first one (`|| exit 1`, or a
-# bare call under `set -e`) — rc stays 1 there, so no rc check can see it, and a
-# committer would fix one file per commit cycle. go/zzz/ also sits outside
-# go/internal/, catching a narrowed ls-files pattern, and `head -1` on that walk
-# leaves only go/aaa.
+# at 1 and filecap-all exited 1 for the wrong reason. That detector rests
+# entirely on sort order, so the order is asserted below rather than assumed —
+# renaming the fixture to go/zzz/aaa_tail.go silently hands the reset mutant a
+# green run, and the name is a variable so the rename cannot miss the assertion.
+# Two violations, both asserted by path, catch an arm that quits at the first one
+# (`|| exit 1`, or a bare call under `set -e`) — rc stays 1 there, so no rc check
+# can see it, and a committer would fix one file per commit cycle. go/zzz/ also
+# sits outside go/internal/, catching a narrowed ls-files pattern, and `head -1`
+# on that walk leaves only go/aaa.
 test_every_input_is_checked() {
-	local repo_dir
+	local repo_dir tail_fixture="go/zzz/tail.go" last_tracked
 	new_repo
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 10 "go/aaa/small.go"
 	write_file "${repo_dir}" 501 "go/zzz/oversize.go"
 	write_file "${repo_dir}" 501 "go/zzz/oversize2.go"
-	write_file "${repo_dir}" 10 "go/zzz/tail.go"
+	write_file "${repo_dir}" 10 "${tail_fixture}"
+
+	last_tracked="$(git_in "${repo_dir}" ls-files 'go/*.go' | tail -1)"
+	assert_equal "${last_tracked}" "${tail_fixture}" \
+		"the clean fixture sorts last in the whole-tree walk, which is what makes a status reset visible"
 
 	run_gate "${repo_dir}" filecap "go/aaa/small.go" "go/zzz/oversize.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "filecap ignored a violation after the first argument (rc=${GATE_RC})"
+	assert_rc 1 "filecap checks every argument the hook stages, not just the first"
 	assert_contains "go/zzz/oversize.go"
-	pass "filecap checks every argument the hook stages, not just the first"
 
 	run_gate "${repo_dir}" filecap "go/zzz/oversize.go" "go/aaa/small.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "filecap let a later clean file clear an earlier violation (rc=${GATE_RC})"
-	pass "filecap remembers a violation once a clean file follows it"
+	assert_rc 1 "filecap remembers a violation once a clean file follows it"
 
 	run_gate "${repo_dir}" filecap \
 		"go/zzz/oversize.go" "go/aaa/small.go" "go/zzz/oversize2.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "filecap dropped a violation from a mixed argv (rc=${GATE_RC})"
+	assert_rc 1 "filecap keeps every violation in a mixed argv"
 	assert_contains "go/zzz/oversize.go"
 	assert_contains "go/zzz/oversize2.go"
-	pass "filecap names every violation in argv, not only the first"
 
 	run_gate "${repo_dir}" filecap-all
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "filecap-all cleared a violation found before the last file (rc=${GATE_RC})"
+	assert_rc 1 "filecap-all keeps a violation found before the last file"
 	assert_contains "go/zzz/oversize.go"
 	assert_contains "go/zzz/oversize2.go"
-	pass "filecap-all names every violation in the tree, and a clean last file does not clear them"
 }
 
 # Working directory, whole-tree arm. specs/ci-gates.v1.yaml registers
@@ -309,8 +337,10 @@ test_every_input_is_checked() {
 # resolves against the CALLER's directory, so from go/zzz/ it matches nothing,
 # prints nothing, and exits 0 — while from the repo root the same broken arm
 # looks perfect. Hence this case runs from a subdirectory; every other
-# filecap-all assertion here runs from the root and cannot see it.
-# test_violation_message pins the equivalent for the changed-files arm.
+# filecap-all assertion here runs from the root and cannot see it. For the
+# changed-files arm the equivalent takes two cases, one per branch of
+# filecap_check_file: test_violation_message for a path that violates, and
+# test_nolint_marker_is_read_from_the_repo_root for one the marker exempts.
 test_filecap_all_walks_from_the_repo_root() {
 	local repo_dir
 	new_repo
@@ -319,10 +349,8 @@ test_filecap_all_walks_from_the_repo_root() {
 
 	GATE_CWD="${repo_dir}/go/zzz"
 	run_gate "${repo_dir}" filecap-all
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "expected rc=1 from filecap-all run inside go/zzz, got ${GATE_RC}"
+	assert_rc 1 "filecap-all walks the repo root, not the caller's working directory"
 	assert_contains "go/zzz/oversize.go"
-	pass "filecap-all walks the repo root, not the caller's working directory"
 }
 
 # ---------------------------------------------------------------------------
@@ -336,12 +364,11 @@ test_violation_message() {
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 501 "go/internal/big/oversize.go"
 	run_gate "${repo_dir}" filecap "go/internal/big/oversize.go"
-	[[ "${GATE_RC}" == 1 ]] || fail "expected rc=1 for a 501-line non-test file, got ${GATE_RC}"
+	assert_rc 1 "a 501-line non-test file is a violation"
 	assert_contains "go/internal/big/oversize.go"
 	assert_contains "501 lines"
 	assert_contains "split it"
 	assert_contains "//nolint:filelength"
-	pass "violation message names the file, the line count, and both legal exits"
 
 	# Same file, same argv, run from go/ instead of the repo root. The hook stages
 	# repo-relative paths and filecap_check_file resolves them against repo_root
@@ -349,10 +376,33 @@ test_violation_message() {
 	# misses, so every file passes. Both callers run from the root today.
 	GATE_CWD="${repo_dir}/go"
 	run_gate "${repo_dir}" filecap "go/internal/big/oversize.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "expected rc=1 when run from a subdirectory, got ${GATE_RC}"
+	assert_rc 1 "a violating file is still a violation when the gate runs from a subdirectory"
 	assert_contains "501 lines"
-	pass "the verdict does not depend on the caller's working directory"
+}
+
+# The other half of that working-directory contract, and the half nothing used to
+# cover. filecap_check_file resolves THREE paths against ${repo_root}: the
+# `[[ -f ]]` guard, the `rg -q` nolint test, and the line count. A violating
+# fixture returns before the `rg` line ever matters, so every subdirectory case
+# above leaves that one path unpinned — drop its `${repo_root}/` prefix and, run
+# from go/internal, rg cannot open the file. It prints an IO error, the
+# `&& return 0` never fires, and a file the marker exempts is reported as a
+# 501-line violation. From the repo root the same broken line looks perfect.
+#
+# So the two subdirectory fixtures are a pair: one expected to violate, one
+# expected to be exempt. Only the exempt one reaches the `rg` test, and both of
+# its observables are asserted, because the mutation moves both — rc flips 0 to 1
+# and the committer gets rg's error on stderr.
+test_nolint_marker_is_read_from_the_repo_root() {
+	local repo_dir
+	new_repo
+	repo_dir="${REPO_DIR}"
+	write_file "${repo_dir}" 501 "go/internal/big/marked.go" "nolint:filelength"
+
+	GATE_CWD="${repo_dir}/go/internal"
+	run_gate "${repo_dir}" filecap "go/internal/big/marked.go"
+	assert_rc 0 "a //nolint:filelength file stays exempt when the gate runs from a subdirectory"
+	assert_silent "and rg's error on the unreadable path does not reach the committer"
 }
 
 test_non_go_file_is_ignored() {
@@ -361,8 +411,7 @@ test_non_go_file_is_ignored() {
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 900 "go/internal/big/notes.txt"
 	run_gate "${repo_dir}" filecap "go/internal/big/notes.txt"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 900-line non-.go file, got ${GATE_RC}"
-	pass "a non-.go file over the cap is ignored"
+	assert_rc 0 "a non-.go file over the cap is ignored"
 }
 
 # First-party Go outside the go/ module. precommit-go.sh's header block calls
@@ -380,16 +429,12 @@ test_outside_go_module_is_capped_locally_only() {
 	write_file "${repo_dir}" 501 "sdk/go/factschema/scratch.go"
 
 	run_gate "${repo_dir}" filecap "sdk/go/factschema/scratch.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "expected rc=1 for a 501-line first-party .go file outside go/, got ${GATE_RC}"
+	assert_rc 1 "a 501-line .go file outside go/ is capped by filecap"
 	assert_contains "sdk/go/factschema/scratch.go"
 	assert_contains "501 lines"
-	pass "a 501-line .go file outside go/ is capped by filecap"
 
 	run_gate "${repo_dir}" filecap-all
-	[[ "${GATE_RC}" == 0 ]] ||
-		fail "expected rc=0 from filecap-all for a file outside its go/ walk, got ${GATE_RC}"
-	pass "filecap-all does not see that file, so the strictness is local-only by design"
+	assert_rc 0 "filecap-all does not see that file, so the strictness is local-only by design"
 }
 
 # The plugin matches "/testdata/" against an ABSOLUTE path, so a repo-root
@@ -412,16 +457,13 @@ test_leading_segment_is_exempt() {
 	write_file "${repo_dir}" 501 "vendor/example.com/dep/oversize.go"
 
 	run_gate "${repo_dir}" filecap "testdata/nornicdb/oversize.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root testdata/ file, got ${GATE_RC}"
-	pass "a leading testdata/ segment is exempt (501-line file on disk)"
+	assert_rc 0 "a leading testdata/ segment is exempt (501-line file on disk)"
 
 	run_gate "${repo_dir}" filecap "generated/oversize.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root generated/ file, got ${GATE_RC}"
-	pass "a leading generated/ segment is exempt (501-line file on disk)"
+	assert_rc 0 "a leading generated/ segment is exempt (501-line file on disk)"
 
 	run_gate "${repo_dir}" filecap "vendor/example.com/dep/oversize.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a 501-line repo-root vendor/ file, got ${GATE_RC}"
-	pass "a leading vendor/ segment is exempt (501-line file on disk)"
+	assert_rc 0 "a leading vendor/ segment is exempt (501-line file on disk)"
 }
 
 # A path the hook stages but that does not exist on disk (deleted in the same
@@ -433,16 +475,14 @@ test_missing_file_is_ignored() {
 	repo_dir="${REPO_DIR}"
 	write_file "${repo_dir}" 10 "go/internal/big/present.go"
 	run_gate "${repo_dir}" filecap "go/internal/big/absent.go"
-	[[ "${GATE_RC}" == 0 ]] || fail "expected rc=0 for a path with no file on disk, got ${GATE_RC}"
-	pass "a staged path with no file on disk is ignored"
+	assert_rc 0 "a staged path with no file on disk is ignored"
 	# The exit code alone does not hold the `[[ -f ]]` guard in place. Delete the
 	# guard and rg and awk both run against a path that is not there: rg reports
 	# an IO error, awk says "can't open file" and prints no count, and the empty
 	# count still compares as 0 — so rc stays 0 and the assertion above passes
-	# against a broken script. What breaks is the committer's terminal.
-	[[ ! -s "${GATE_OUT}" ]] ||
-		fail "expected no output for a path with no file on disk (rg/awk errors leaking?)"
-	pass "and the gate stays silent, so no rg or awk error reaches the committer"
+	# against a broken script. What breaks is the committer's terminal, which is
+	# why this silence check is a counted assertion and not a bare guard.
+	assert_silent "and the gate stays silent, so no rg or awk error reaches the committer"
 }
 
 # A file with no trailing newline: the plugin's bufio.Scanner counts the final
@@ -458,10 +498,8 @@ test_missing_trailing_newline_counts() {
 	git_in "${repo_dir}" add -A
 	git_in "${repo_dir}" commit -q -m "drop trailing newline"
 	run_gate "${repo_dir}" filecap "go/internal/big/nonewline.go"
-	[[ "${GATE_RC}" == 1 ]] ||
-		fail "expected rc=1 for 501 lines whose last line lacks a newline, got ${GATE_RC}"
+	assert_rc 1 "a final line without a trailing newline still counts (matches the plugin)"
 	assert_contains "501 lines"
-	pass "a final line without a trailing newline still counts (matches the plugin)"
 }
 
 # ---------------------------------------------------------------------------
@@ -500,6 +538,11 @@ test_mutation_breaks_parity() {
 	' "${helper}" >"${mutated}"
 	chmod +x "${mutated}"
 
+	# These two are diagnostics, not the load-bearing checks, and they stay bare
+	# guards for that reason. If the awk transform stops matching, the copy is
+	# identical to the real script, `filecap` honours the skip, and changed_rc
+	# comes back 0 — so the counted assertion below fails anyway. These just say
+	# WHY, instead of leaving a reader to work it out from an rc of 0.
 	if cmp -s "${helper}" "${mutated}"; then
 		fail "mutation produced an identical script — the revert did not land, so this check proves nothing"
 	fi
@@ -514,19 +557,20 @@ test_mutation_breaks_parity() {
 	run_gate "${repo_dir}" filecap-all
 	all_rc="${GATE_RC}"
 
-	[[ "${changed_rc}" == 1 ]] ||
-		fail "mutation check: reverted filecap should reject the long _test.go, got rc=${changed_rc}"
-	[[ "${all_rc}" == 0 ]] ||
-		fail "mutation check: filecap-all should still pass the long _test.go, got rc=${all_rc}"
+	assert_equal "${changed_rc}" 1 \
+		"mutation check: the reverted filecap rejects the long _test.go"
+	assert_equal "${all_rc}" 0 \
+		"mutation check: filecap-all still passes the long _test.go"
 	[[ "${changed_rc}" != "${all_rc}" ]] ||
 		fail "mutation check: parity still held against the reverted fix — the matrix cannot detect the defect"
-	pass "mutation check: reverting the fix breaks parity (filecap rc=1 vs filecap-all rc=0), as required"
+	pass "mutation check: reverting the fix breaks parity, so the matrix can detect the defect"
 }
 
 run_parity_matrix
 test_every_input_is_checked
 test_filecap_all_walks_from_the_repo_root
 test_violation_message
+test_nolint_marker_is_read_from_the_repo_root
 test_non_go_file_is_ignored
 test_outside_go_module_is_capped_locally_only
 test_leading_segment_is_exempt
@@ -537,11 +581,22 @@ test_mutation_breaks_parity
 # Pin the assertion total the way run_parity_matrix pins its case count. Deleting
 # a call from the list above otherwise costs nothing: the runner still exits 0
 # and still prints "all tests passed", with a smaller number nobody compares
-# against anything. Every assertion increments the counter — assert_contains goes
-# through pass() for that reason — so this covers the message checks too. Read a
-# mismatch as "a test stopped running", not as a stale constant to bump.
-[[ "${assertions}" == 47 ]] ||
-	fail "runner made ${assertions} assertions, expected 47 — a test function or assertion went missing"
+# against anything. Read a mismatch as "a test stopped running", not as a stale
+# constant to bump.
+#
+# What the pin covers: every check that goes through assert_contains,
+# assert_equal, assert_rc, or assert_silent, because each of those calls pass()
+# itself. Remove the call and the total drops. The exit-code and silence checks
+# used to sit outside that set as bare `[[ ... ]] || fail` lines with their own
+# pass() beside them, so deleting one changed nothing; two of them were the sole
+# detector of a real defect.
+#
+# What the pin does NOT cover, and cannot: a check that still runs but was
+# weakened in place, and the two bare diagnostic guards in
+# test_mutation_breaks_parity (the `cmp -s` and `bash -n`), which are backed by
+# the counted assertions after them.
+[[ "${assertions}" == 66 ]] ||
+	fail "runner made ${assertions} assertions, expected 66 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"
