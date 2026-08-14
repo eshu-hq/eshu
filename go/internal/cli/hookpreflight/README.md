@@ -164,10 +164,14 @@ graph/Postgres drivers).
     calls it, and the tool-to-class translations are a complete list rather than
     a sample: any production string literal the mapping translates into a
     different class has to be one of the pinned names
-  - `doc_lockstep_gate_inputs_test.go` — the two acceptance gates that are not
-    the trigger, each pinned as a property rather than as a list of values that
-    fail today: `Evaluate` advises for exactly one host, and for exactly the
-    scope-ID characters the class above names, swept character by character
+  - `doc_lockstep_gate_inputs_test.go` — the acceptance gates that are not the
+    trigger, each pinned as a property rather than as a list of values that fail
+    today: `Evaluate` advises for exactly one host, for exactly the scope-ID
+    characters the class above names (swept character by character), and it
+    reaches `DecisionAdvise` in exactly one place. That last one is what closes
+    a gate keyed on some *other* request field — `Tool`, `Workload`, a
+    permission value nobody listed — which the trigger sweep cannot see, because
+    it varies the trigger and holds the rest still
   - `doc_lockstep_advisory_test.go` — what an advisory says once it is emitted:
     the `advisory`/`local_preflight` truth labels in both the `Output` and the
     published string, the "advisory context only" disclaimer sentence, which
@@ -197,6 +201,13 @@ graph/Postgres drivers).
   - `scopeFromInput`'s candidate *membership* — adding or removing a scope
     kind. The order is pinned (`TestDocLockstepScopeResolutionIsFirstMatch`);
     which kinds are on the list is not.
+  - A `Trigger`-carrying literal nested two containers deep — `[][]Input{{{…}}}`
+    — where the middle literal elides its type too. The positional-literal rule
+    resolves an elided element from its immediate container, and there is no
+    type on the middle one to resolve from. Unlike the single-level `[]Input{{…}}`
+    case, which the production file's own `[]Scope{{Kind: …}}` shows is ordinary
+    Go, nobody writes this by accident; it is listed because it is reachable,
+    not because it is likely.
   - Where the wrapper sets `Input.Elapsed`. Moving `time.Since(start)` to
     before the stdin read stops that read counting toward the budget, and
     nothing goes red. `AGENTS.md` tells a debugger it counts; no test does.

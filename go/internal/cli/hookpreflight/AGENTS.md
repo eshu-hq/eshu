@@ -68,7 +68,14 @@
   be exactly one `switch trigger { ... }` whose clauses are string literals
   returning a bare `true`, plus one `default` returning a bare `false`. The
   switch tag must be the bare parameter, optionally wrapped in
-  `strings.TrimSpace`/`strings.ToLower` — those fold spellings of one class
+  `strings.TrimSpace`/`strings.ToLower` — literally those two calls, so
+  factoring the pair into a named helper and writing
+  `switch normalizedTrigger(trigger)` is **refused even though the helper would
+  be pure**. That is deliberate, not an oversight: the scanner reads syntax, and
+  a call it cannot see through is exactly how `canonicalTrigger(trigger)` mapped
+  one class onto another while `triggerAllowed` stayed byte-identical. The cost
+  of the rule is one factoring nobody needs; the cost of relaxing it is the
+  evasion coming back — those fold spellings of one class
   together and cannot map one class onto another, which a helper like
   `canonicalTrigger(trigger)` can. An early `if`, a conditional inside a
   clause, a returned variable or comparison, a tagless switch, a rewritten tag,
@@ -105,7 +112,12 @@
   it fails. When a new evasion slips through, work the bound first: is the class
   it widens outside the swept set, or is the request it needs outside
   `triggerAxisVariants`? Widen the sweep or the axis set before concluding the
-  property itself is wrong. Answering each new evasion with one more
+  property itself is wrong — while remembering that the axis list is an
+  enumeration and widening it only ever catches the value you just added.
+  A gate keyed on a field rather than on the trigger is closed structurally
+  instead, by `TestDocLockstepEvaluateHasOneAdvisePath`: `Evaluate` reaches
+  `DecisionAdvise` in exactly one place, at the top level of its body, so a
+  second advise path fails whatever it keys on. Answering each new evasion with one more
   source-scanner spelling is what the four earlier generations did and it did
   not converge — but the cheap structural belts in
   `doc_lockstep_trigger_alias_test.go` stay regardless. Every remap found so far
@@ -242,9 +254,9 @@
   `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`
   rejections, the Claude tool-to-class mapping, the excluded command families,
   and that the mapping's translations are all enumerated,
-  `doc_lockstep_gate_inputs_test.go` pins the two acceptance gates that are not
-  the trigger — the single supported host and the exact scope-ID character
-  class —
+  `doc_lockstep_gate_inputs_test.go` pins the acceptance gates that are not the
+  trigger — the single supported host, the exact scope-ID character class, and
+  that `Evaluate` has exactly one advise path —
   `doc_lockstep_advisory_test.go` pins what an emitted advisory says — the
   truth labels, the disclaimer sentence, the MCP tool per scope kind, and
   `repoRelativePath`'s escape refusal — and

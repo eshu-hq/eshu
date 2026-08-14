@@ -57,11 +57,9 @@ func (f triggerAliasFinding) String() string {
 	return f.File + ": " + f.Func + " " + f.Detail
 }
 
-// triggerCarryingTypes returns the struct types dir declares that have a
-// Trigger field, read out of the source rather than listed, so a new one is
-// covered by the positional-literal rule without anybody adding it here.
-func triggerCarryingTypes(files map[string]*ast.File) map[string]bool {
-	carrying := map[string]bool{}
+// typeSpecs returns every type declaration in files, by name.
+func typeSpecs(files map[string]*ast.File) map[string]*ast.TypeSpec {
+	specs := map[string]*ast.TypeSpec{}
 	for _, file := range files {
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
@@ -69,20 +67,61 @@ func triggerCarryingTypes(files map[string]*ast.File) map[string]bool {
 				continue
 			}
 			for _, spec := range genDecl.Specs {
-				typeSpec, isType := spec.(*ast.TypeSpec)
-				if !isType {
-					continue
+				if typeSpec, isType := spec.(*ast.TypeSpec); isType {
+					specs[typeSpec.Name.Name] = typeSpec
 				}
-				structType, isStruct := typeSpec.Type.(*ast.StructType)
-				if !isStruct || structType.Fields == nil {
-					continue
+			}
+		}
+	}
+	return specs
+}
+
+// triggerCarryingTypes returns every type name that reaches a Trigger field:
+// a struct declaring one, an alias or defined type over such a struct, and a
+// struct embedding one. It is read out of the source rather than listed, so a
+// new one is covered without anybody adding it here.
+//
+// The indirect cases are here because the direct one alone was too narrow.
+// `type Alt = Input` and `type Alt Input` both build the same field set under a
+// name the first version did not recognize, and neither is an exotic thing to
+// write.
+func triggerCarryingTypes(files map[string]*ast.File) map[string]bool {
+	specs := typeSpecs(files)
+	carrying := map[string]bool{}
+	for name, spec := range specs {
+		structType, isStruct := spec.Type.(*ast.StructType)
+		if !isStruct || structType.Fields == nil {
+			continue
+		}
+		for _, field := range structType.Fields.List {
+			for _, fieldName := range field.Names {
+				if fieldName.Name == "Trigger" {
+					carrying[name] = true
 				}
-				for _, field := range structType.Fields.List {
-					for _, name := range field.Names {
-						if name.Name == "Trigger" {
-							carrying[typeSpec.Name.Name] = true
-						}
-					}
+			}
+		}
+	}
+	// Fold aliases, defined types, and embedded fields until nothing new
+	// appears. A chain (type A = Input; type B A) needs more than one pass.
+	for changed := true; changed; {
+		changed = false
+		for name, spec := range specs {
+			if carrying[name] {
+				continue
+			}
+			if carrying[bareTypeName(spec.Type)] {
+				carrying[name] = true
+				changed = true
+				continue
+			}
+			structType, isStruct := spec.Type.(*ast.StructType)
+			if !isStruct || structType.Fields == nil {
+				continue
+			}
+			for _, field := range structType.Fields.List {
+				if len(field.Names) == 0 && carrying[bareTypeName(field.Type)] {
+					carrying[name] = true
+					changed = true
 				}
 			}
 		}
@@ -90,17 +129,43 @@ func triggerCarryingTypes(files map[string]*ast.File) map[string]bool {
 	return carrying
 }
 
-// compositeLitTypeName reports the bare type name a composite literal
-// constructs, seeing through the &T{...} form.
-func compositeLitTypeName(lit *ast.CompositeLit) string {
-	switch typed := lit.Type.(type) {
+// bareTypeName reports the type name expr denotes, seeing through a pointer or
+// a package qualifier. It returns "" for anything with no single name, such as
+// a slice or a map -- those are containers, handled by containerElementName.
+func bareTypeName(expr ast.Expr) string {
+	switch typed := expr.(type) {
 	case *ast.Ident:
 		return typed.Name
 	case *ast.StarExpr:
-		return exprText(typed.X)
+		return bareTypeName(typed.X)
+	case *ast.SelectorExpr:
+		return typed.Sel.Name
 	default:
 		return ""
 	}
+}
+
+// containerElementName reports the element type a slice, array or map literal
+// gives its elements when they elide their own type. `[]Input{{...}}` is the
+// shape this exists for: the inner literal carries no type at all, so without
+// the container there is nothing to match against -- and the production file
+// already writes `[]Scope{{Kind: ...}}` one function over, so this is ordinary
+// Go rather than a contrivance.
+func containerElementName(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.ArrayType:
+		return bareTypeName(typed.Elt)
+	case *ast.MapType:
+		return bareTypeName(typed.Value)
+	default:
+		return ""
+	}
+}
+
+// compositeLitTypeName reports the bare type name a composite literal
+// constructs, seeing through the &T{...} form.
+func compositeLitTypeName(lit *ast.CompositeLit) string {
+	return bareTypeName(lit.Type)
 }
 
 // scanTriggerAliases reports all three rules over dir's non-test files, plus how
@@ -178,14 +243,9 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 // the package-level one so the two cannot drift.
 func compositeLitFindings(node ast.Node, file, owner string, carrying map[string]bool) []triggerAliasFinding {
 	var findings []triggerAliasFinding
-	ast.Inspect(node, func(inner ast.Node) bool {
-		lit, isLit := inner.(*ast.CompositeLit)
-		if !isLit {
-			return true
-		}
-		typeName := compositeLitTypeName(lit)
-		if !carrying[typeName] || len(lit.Elts) == 0 {
-			return true
+	report := func(lit *ast.CompositeLit, typeName string) {
+		if len(lit.Elts) == 0 {
+			return
 		}
 		for _, element := range lit.Elts {
 			if _, keyed := element.(*ast.KeyValueExpr); !keyed {
@@ -193,7 +253,32 @@ func compositeLitFindings(node ast.Node, file, owner string, carrying map[string
 					File: file, Func: owner,
 					Detail: "builds a " + typeName + " without naming its fields",
 				})
-				break
+				return
+			}
+		}
+	}
+	ast.Inspect(node, func(inner ast.Node) bool {
+		lit, isLit := inner.(*ast.CompositeLit)
+		if !isLit {
+			return true
+		}
+		if typeName := compositeLitTypeName(lit); carrying[typeName] {
+			report(lit, typeName)
+		}
+		// Elements that elide their own type take it from the container, so
+		// they are judged here rather than when the walk reaches them: on their
+		// own they carry no type to match.
+		element := containerElementName(lit.Type)
+		if !carrying[element] {
+			return true
+		}
+		for _, entry := range lit.Elts {
+			value := entry
+			if pair, keyed := entry.(*ast.KeyValueExpr); keyed {
+				value = pair.Value
+			}
+			if child, isChild := value.(*ast.CompositeLit); isChild && child.Type == nil {
+				report(child, element)
 			}
 		}
 		return true

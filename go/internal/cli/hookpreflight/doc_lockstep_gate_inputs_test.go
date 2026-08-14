@@ -4,6 +4,8 @@
 package hookpreflight
 
 import (
+	"go/ast"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -306,5 +308,122 @@ func TestDocLockstepScopeIDCharacterClassIsExact(t *testing.T) {
 	}
 	if accepted != expectedScopeIDRuneCount {
 		t.Errorf("%d of the swept characters produced an advisory, want %d; README.md's class is 26 letters twice, 10 digits, and . _ - / :", accepted, expectedScopeIDRuneCount)
+	}
+}
+
+// adviseSite is one place production code puts DecisionAdvise into a Decision
+// field.
+type adviseSite struct {
+	File     string
+	Func     string
+	TopLevel bool
+}
+
+func (s adviseSite) String() string { return s.File + ": " + s.Func }
+
+// scanAdviseSites reports every assignment or composite-literal element that
+// sets a Decision field to DecisionAdvise in dir's non-test files, whether each
+// sits at the top level of its function body, and how many function bodies were
+// walked so a caller can refuse a vacuous pass.
+func scanAdviseSites(dir string) (functions int, sites []adviseSite, err error) {
+	_, parsed, _, err := parseNonTestGoFiles(dir)
+	if err != nil {
+		return 0, nil, err
+	}
+	names := make([]string, 0, len(parsed))
+	for name := range parsed {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		for _, decl := range parsed[name].Decls {
+			funcDecl, ok := decl.(*ast.FuncDecl)
+			if !ok || funcDecl.Body == nil {
+				continue
+			}
+			functions++
+			top := map[ast.Node]bool{}
+			for _, stmt := range funcDecl.Body.List {
+				top[stmt] = true
+			}
+			ast.Inspect(funcDecl.Body, func(node ast.Node) bool {
+				switch typed := node.(type) {
+				case *ast.AssignStmt:
+					for i, lhs := range typed.Lhs {
+						selector, isSelector := lhs.(*ast.SelectorExpr)
+						if !isSelector || selector.Sel.Name != "Decision" || i >= len(typed.Rhs) {
+							continue
+						}
+						if value, isIdent := typed.Rhs[i].(*ast.Ident); isIdent && value.Name == "DecisionAdvise" {
+							sites = append(sites, adviseSite{
+								File: name, Func: funcDisplayName(funcDecl), TopLevel: top[typed],
+							})
+						}
+					}
+				case *ast.KeyValueExpr:
+					key, isIdent := typed.Key.(*ast.Ident)
+					if !isIdent || key.Name != "Decision" {
+						return true
+					}
+					if value, isValue := typed.Value.(*ast.Ident); isValue && value.Name == "DecisionAdvise" {
+						sites = append(sites, adviseSite{File: name, Func: funcDisplayName(funcDecl)})
+					}
+				}
+				return true
+			})
+		}
+	}
+	return functions, sites, nil
+}
+
+// TestDocLockstepEvaluateHasOneAdvisePath closes the axis arm's remaining gap,
+// and it is worth being precise about what that gap was.
+//
+// triggerAxisVariants repeats the trigger comparison over other request shapes,
+// including one value per field that no production comparison names. The file
+// claimed that made an added gate keyed on an unnamed value visible. It did not.
+// Six gates inserted ahead of Evaluate's switch were measured; the only two that
+// failed were the two whose literals the variant list happens to contain:
+//
+//	Permission == "elevated"  caught     Tool      == "Terminal"  survived
+//	Freshness  == "unnamed"   caught     Workload  == "canary"    survived
+//	                                     Permission == "sudo"     survived
+//	                                     Freshness  == "indexing" survived
+//
+// That is the same enumeration with two more strings in it. A `Terminal`
+// PreToolUse payload came back advise with a 324-character additionalContext
+// while triggerAllowed("terminal") was false -- a shell command getting hook
+// output, which the contract doc rules out in as many words.
+//
+// The structural fact closes it whatever the gate keys on: Evaluate reaches
+// DecisionAdvise in exactly one place, at the top level of its body, after
+// every skip has been ruled out. A second advise path is a second way to
+// publish, and no list of field values has to be kept current for this to see
+// it.
+func TestDocLockstepEvaluateHasOneAdvisePath(t *testing.T) {
+	t.Parallel()
+
+	// The behavioural control: DecisionAdvise is reachable at all, so the
+	// count below is pinning a live path and not a dead constant.
+	if Evaluate(advisableInput()).Decision != DecisionAdvise {
+		t.Fatal("the control request did not advise; the assertions below would pin an unreachable constant")
+	}
+
+	functions, sites, err := scanAdviseSites(".")
+	if err != nil {
+		t.Fatalf("scan advise sites: %v", err)
+	}
+	if functions == 0 {
+		t.Fatal("walked 0 production function bodies; the assertion would be vacuous")
+	}
+	if len(sites) != 1 {
+		t.Fatalf("production code reaches DecisionAdvise in %d places, want exactly 1: %v; each one is a way to publish an advisory, and a new one bypasses every skip Evaluate's switch decides", len(sites), sites)
+	}
+	if sites[0].Func != "Evaluate" {
+		t.Errorf("DecisionAdvise is set in %s, want Evaluate; the decision belongs where the skips are decided", sites[0])
+	}
+	if !sites[0].TopLevel {
+		t.Errorf("%s sets DecisionAdvise inside a nested block, want a top-level statement of Evaluate's body; a conditional advise path runs before or beside the switch instead of after it", sites[0])
 	}
 }

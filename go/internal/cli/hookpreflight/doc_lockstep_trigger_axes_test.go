@@ -72,9 +72,24 @@ type triggerAxisVariant struct {
 // --permission elevated, with the equivalence log unchanged at 26 advised.
 //
 // The values are the package's own constants plus, for each field, one value no
-// production comparison names. The unnamed ones are the point: every gate in
-// Evaluate compares against a constant, so an added gate keying on a value
-// outside that set is exactly what the constants alone would miss.
+// production comparison names.
+//
+// Do not read more into that second group than it carries. An earlier version
+// of this comment claimed it caught "an added gate keying on a value outside
+// that set". It does not, and the measurement is worth keeping: of six gates
+// inserted ahead of Evaluate's switch, the only two that failed were the two
+// whose literals appear below -- Permission == "elevated" and Freshness ==
+// "unnamed". Gates on "sudo", "indexing", Tool == "Terminal" and Workload ==
+// "canary" all survived. Adding a literal here catches a gate on that literal
+// and nothing else; this is an enumeration, and widening it does not make it a
+// property.
+//
+// What actually closes that axis is structural and lives elsewhere:
+// TestDocLockstepEvaluateHasOneAdvisePath (doc_lockstep_gate_inputs_test.go)
+// holds Evaluate to a single advise path, so a second one fails whatever field
+// or value it keys on. These variants are still worth running -- they check the
+// trigger equivalence holds on request shapes the baseline never builds -- but
+// they are a sample, not a closure.
 func triggerAxisVariants() []triggerAxisVariant {
 	var variants []triggerAxisVariant
 	for _, permission := range []string{"", PermissionAllowed, "elevated", "unnamed"} {
@@ -116,7 +131,7 @@ func triggerAxisVariants() []triggerAxisVariant {
 
 // oneEditNeighbourhood returns every string one character edit away from a
 // value in bases: an insertion at any position, a substitution at any position,
-// or a deletion of one character, over triggerSweepAlphabet. It reaches past
+// or a deletion of one character, over triggerNeighbourhoodAlphabet. It reaches past
 // triggerSweepMaxLen without guessing words, because a remap keyed on a prefix,
 // a suffix, or a substring of an accepted class widens the set to strings that
 // sit exactly here. doc_lockstep_gate_inputs_test.go reuses it for the host

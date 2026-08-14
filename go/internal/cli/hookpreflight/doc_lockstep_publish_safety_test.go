@@ -335,8 +335,16 @@ func TestDocLockstepExcludedToolFamiliesNeverReachAReadClass(t *testing.T) {
 			checked++
 		}
 	}
-	if checked != len(verbs)*len(decoratedToolNames("edit")) {
-		t.Fatalf("evaluated %d tool names, want %d", checked, len(verbs)*len(decoratedToolNames("edit")))
+	// Both counts are literals. len(verbs)*len(decoratedToolNames("edit"))
+	// would agree with any decoration set, so shrinking that helper to one
+	// spelling per verb would drop coverage from 150 names to 10 with the
+	// arithmetic still balancing -- the same defect the sweep constants in
+	// doc_lockstep_trigger_axes_test.go are pinned against.
+	if got := len(decoratedToolNames("edit")); got != 15 {
+		t.Fatalf("decoratedToolNames spells %d names per verb, want 15; a narrower set covers fewer of the ways a host names a tool without failing anything else", got)
+	}
+	if checked != 150 {
+		t.Fatalf("evaluated %d tool names, want 150 (10 excluded verbs x 15 spellings)", checked)
 	}
 }
 
