@@ -347,20 +347,21 @@ because `job-schema-bootstrap.yaml` carries `helm.sh/hook: pre-install,pre-upgra
 The reviewer is right, and the PR's earlier answer treated an admission gate as
 if it were a write fence.
 
-Half of that is now closed and half of it cannot be, so both are stated plainly:
+Part of that is now closed and part of it is not, so each part is stated
+plainly rather than rounded up to "fenced":
 
-- **Closed.** `graphschemacompat.WriteFence` re-reads the marker on the write
-  path, and `CanonicalNodeWriter.WithSchemaWriteFence` makes every canonical
-  write ask it first. A writer the applied marker stops admitting fails before
-  building a statement instead of writing under an identity the schema no longer
-  describes. The refusal is retryable, so the work waits in the queue for the
-  pod that replaces this one rather than dead-lettering a backlog. Decisions are
-  cached for 30 seconds, so it costs one indexed marker read per writer per
-  interval, not one per write. A marker that cannot be read holds the previous
-  decision — failing closed there would turn one Postgres blip into a
-  simultaneous graph-write outage across every writer, which is worse than the
-  gap being closed.
-- **Not closed, and not closable from here.** A writer built before this fence
+- **Closed, for one writer.** `graphschemacompat.WriteFence` re-reads the marker
+  on the write path, and `CanonicalNodeWriter.WithSchemaWriteFence` makes every
+  write through that writer ask it first. A writer the applied marker stops
+  admitting fails before building a statement instead of writing under an
+  identity the schema no longer describes. The refusal is retryable, so the work
+  waits in the queue for the pod that replaces this one rather than
+  dead-lettering a backlog. Decisions are cached for 30 seconds, so it costs one
+  indexed marker read per fenced writer per interval, not one per write. A marker
+  that cannot be read holds the previous decision — failing closed there would
+  turn one Postgres blip into a simultaneous graph-write outage across every
+  fenced writer, which is worse than the gap being closed.
+- **Not closed for a pre-fence release.** A writer built before this fence
   contains no call to it. Nothing added to this repository changes what that
   binary does, and no schema object can stop it either: its harmful operation is
   `MATCH (m:Module {name: row.module_name})`, an ordinary read, and Module
@@ -371,6 +372,37 @@ Half of that is now closed and half of it cannot be, so both are stated plainly:
   records the marker. That is now written down in
   `docs/public/deployment/service-runtimes-bootstrap.md` rather than left to be
   discovered.
+- **Not closed for the reducer, on the current release.** A #6106 review caught
+  the first version of this section calling the gap historical when it is not.
+  Only `CanonicalNodeWriter` takes a fence, and only `cmd/ingester` and
+  `cmd/projector` wire one. `cmd/bootstrap-index` skips it deliberately, being a
+  one-shot seeder. Every writer `cmd/reducer` builds runs unfenced: `EdgeWriter`
+  (`main.go:360`, `endpoint_presence_wiring.go:90`), `SemanticEntityWriter`
+  (`neo4j_wiring.go:252`), `SecretsIAMGraphWriter`
+  (`secrets_iam_graph_wiring.go:63`), the specialized cloud, Kubernetes, and IAM
+  writers (`canonical_graph_writers.go:78-124`), and the orphan sweep store
+  (`graph_orphan_sweep_wiring.go:27`).
+
+  For #6102 that costs nothing, and the reason is worth recording because it is
+  what the next cutover author has to re-derive. No unfenced writer keys a
+  Module node on name. Only two statements write a `:Module` node at all:
+  `canonicalNodeModuleUpsertCypher` (`canonical_node_cypher.go:331`), which
+  MERGEs on `{name, lang}` and belongs to `CanonicalNodeWriter`; and
+  `semanticModuleUpsertCypher` (`semantic_entity_statements.go:188`), the
+  reducer's, which MERGEs on `{uid}` — an identity this cutover did not move,
+  and one the uid uniqueness constraint already records as DDL. The reducer's
+  only other Module-touching path is the orphan sweep, whose key is already the
+  composite `(name, coalesce(lang, '<absent>'))` (`orphan_sweep.go:373`, pinned
+  by `orphan_sweep_test.go:112`). `EdgeWriter`'s dynamically-labelled statements
+  anchor every endpoint on `{uid: …}`
+  (`edge_writer_code_call_labels.go:146-178`), and Module is in none of the four
+  endpoint allowlists (same file, lines 34-62).
+
+  An identity cutover on a label a reducer writer does MERGE on would land
+  squarely in this gap: those pods would be checked at startup and keep writing
+  through the whole rollout. Whoever writes that change either wires a fence
+  into the writer or scales the resolution engine to zero — this record exists
+  so the choice is made rather than assumed.
 
 Proven by mutation, on the built code:
 
@@ -463,8 +495,8 @@ one literal inside an expression that was already there, on an already-loaded
 candidate row, with the Module statements still anchored on `name` inline in the
 MATCH pattern so they resolve through `module_name_lookup` rather than scanning
 the label. The schema write fence adds one indexed single-row Postgres read per
-writer per 30-second interval (`graph_schema_applications` by backend, ORDER BY
-applied_at DESC LIMIT 1), not one per write:
+fenced writer per 30-second interval (`graph_schema_applications` by backend,
+ORDER BY applied_at DESC LIMIT 1), not one per write:
 `TestWriteFenceReusesItsDecisionWithinTheInterval` asserts the read count, 1
 across five checks inside an interval and 2 across two. Backend:
 `eshu-nornicdb-pr290:3722b483c02c`. No new Cypher statement is emitted by any of

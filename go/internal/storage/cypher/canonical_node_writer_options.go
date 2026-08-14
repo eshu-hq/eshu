@@ -23,8 +23,11 @@ func (w *CanonicalNodeWriter) WithTracer(tracer trace.Tracer) *CanonicalNodeWrit
 	return w
 }
 
-// WithSchemaWriteFence makes every canonical write ask check first, and fail
-// without writing when it says no.
+// WithSchemaWriteFence makes every write through this writer ask check first,
+// and fail without writing when it says no. It fences this writer and no other:
+// the writers cmd/reducer builds take no fence, so a marker recorded under a
+// running reducer does not stop them. See graphschemacompat.WriteFence for the
+// full coverage list.
 //
 // The graph schema compatibility gate otherwise runs once, at process startup.
 // A writer admitted then keeps writing across a schema application recorded

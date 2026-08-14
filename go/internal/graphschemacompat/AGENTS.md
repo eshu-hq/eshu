@@ -24,7 +24,7 @@
   listing the writer's fingerprint in `compatible_fingerprints` may pass.
 - **A read failure is not a refusal** - `WriteFence` stops a write only on a
   marker it read successfully that says no. Do not make it fail closed on a
-  query error: every canonical writer would stop together on one Postgres blip,
+  query error: every fenced writer would stop together on one Postgres blip,
   and the startup check already admitted the process.
 
 ## Common changes and how to scope them
@@ -47,8 +47,35 @@
 - The same message on a *retrying* projector queue row, from a process that
   started fine, is the `WriteFence` refusing a write mid-flight: a schema
   application landed underneath this pod. The work stays queued for the pod that
-  replaces it. The fence reaches only writers built with it, so a release older
-  than the fence still has to be stopped before bootstrap records the marker.
+  replaces it.
+
+## What the write fence actually covers
+
+Narrower than "canonical writers", so check this list before an identity cutover
+leans on it. Only `CanonicalNodeWriter` accepts a fence
+(`CanonicalNodeWriter.WithSchemaWriteFence`), and only two binaries wire one:
+
+- **Fenced** - `cmd/ingester` (`wiring_canonical_writer_open.go`) and
+  `cmd/projector` (`runtime_wiring.go`).
+- **Unfenced on purpose** - `cmd/bootstrap-index` (`wiring.go`), a one-shot
+  seeder that applies or adopts the schema itself and exits.
+- **Unfenced** - every writer `cmd/reducer` builds: `EdgeWriter`,
+  `SemanticEntityWriter`, `SecretsIAMGraphWriter`, the specialized cloud,
+  Kubernetes, and IAM writers in `cmd/reducer/canonical_graph_writers.go`, and
+  the orphan sweep store. A marker recorded under a running reducer does not
+  stop its writes.
+
+The #6102 Module cutover is unaffected: no unfenced writer keys a Module node on
+name. `MERGE (m:Module {name, lang})` belongs to `CanonicalNodeWriter`, the
+reducer's only Module upsert MERGEs on `uid` (an identity this cutover did not
+move, and one the uid uniqueness constraint records as real DDL), and the orphan
+sweep already keys Module on `(name, lang)`.
+
+A future cutover on a label a reducer writer MERGEs on gets no such protection -
+those pods would be checked at startup only and keep writing through the
+rollout. Two gaps stay open either way: a release older than the fence contains
+no call to it, and an unfenced writer has none to make. Both need those pods
+stopped before bootstrap records the marker.
 
 ## Anti-patterns specific to this package
 

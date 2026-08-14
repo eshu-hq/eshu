@@ -43,15 +43,13 @@ See `doc.go` for the godoc package contract.
 
 ## Telemetry
 
-This package emits no metrics or spans. A `WriteFence` refusal surfaces where
-the write failed: the canonical writer returns it as a retryable projector
-error, so it lands on the queue row with the full expected/applied fingerprint
-message and shows up in existing queue and status telemetry.
-
 This package emits no metrics or spans. Callers surface startup refusal through
 their existing `runtime.startup.failed` structured log, and Postgres
 instrumentation exposes marker-read and marker-write latency when callers pass
-instrumented adapters.
+instrumented adapters. A `WriteFence` refusal surfaces where the write failed:
+`CanonicalNodeWriter` returns it as a retryable projector error, so it lands on
+the queue row with the full expected/applied fingerprint message and shows up in
+existing queue and status telemetry.
 
 ## Gotchas / invariants
 
@@ -74,13 +72,22 @@ instrumented adapters.
   which is the normal shape of a Helm upgrade: the schema-bootstrap Job is a
   pre-upgrade hook, so it records the new marker while the previous generation
   of pods is still serving. `WriteFence` is what carries the decision onto the
-  write path. It cannot reach a writer from a release built before the fence
-  existed -- that binary never calls it -- so an identity cutover still needs
-  those pods stopped before bootstrap records the marker.
+  write path.
+- The fence covers less than "canonical writers", so check before an identity
+  cutover leans on it. Only `CanonicalNodeWriter` accepts one, and only
+  `cmd/ingester` and `cmd/projector` wire it; `cmd/bootstrap-index` skips it on
+  purpose as a one-shot seeder. Every writer `cmd/reducer` builds runs unfenced
+  (`EdgeWriter`, `SemanticEntityWriter`, `SecretsIAMGraphWriter`, the
+  specialized cloud/Kubernetes/IAM writers, the orphan sweep store), so a marker
+  recorded under a running reducer does not stop its writes. `AGENTS.md` carries
+  the full list and why the #6102 Module cutover is unaffected by the gap.
+- Two gaps stay open. A writer from a release built before the fence never calls
+  it, and an unfenced writer has no call to make. An identity cutover still
+  needs both stopped before bootstrap records the marker.
 - A `WriteFence` refuses only on a marker it read successfully that says no. An
   unreadable marker holds the previous decision, because failing closed there
-  would turn one Postgres blip into a graph-write outage across every writer at
-  once.
+  would turn one Postgres blip into a graph-write outage across every fenced
+  writer at once.
 - Direct bootstrap-index startup may recover from `ErrMissingMarker` by applying
   the strict graph schema. Long-lived graph writers should return the error and
   let deployment ordering run `eshu-bootstrap-data-plane`.
