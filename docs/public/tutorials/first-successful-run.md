@@ -3,7 +3,7 @@ title: Complete a local Compose first run
 description: Guides a new reader through one local Compose runtime, one indexed repository, and one bounded repository-list result.
 type: tutorial
 audience: new-user
-time: 10 minutes
+time: Varies with repository size
 entrypoint: true
 landing: false
 -->
@@ -21,7 +21,9 @@ result.
 
 ## Before you begin
 
-Allow about 10 minutes after the container images are available. You need:
+Indexing time varies with repository size, enabled materializers, and the local
+machine. Continue from status evidence rather than an elapsed-time estimate.
+You need:
 
 - Docker Compose.
 - The Eshu checkout at `$HOME/src/eshu` or an equivalent parent and repository
@@ -57,17 +59,17 @@ For a different runtime shape, use the
    Continue when bootstrap shows `Exited (0)` and the API is healthy. `workspace
    status` must report healthy state, no outstanding queue work, a
    completed or active generation, and no failed or dead-letter stage or domain work.
-   `list` must contain `eshu`; these are the signals `first-run` uses for reuse.
-   Then run the guided check inside the Compose API service against the canonical
-   mounted path:
+   `list` must contain `eshu` with `local_path` set to `/data/repos/eshu`; these
+   are the signals `first-run` uses for reuse. Then run the guided check inside
+   the Compose API service with that managed path:
 
    ```bash
-   docker compose exec eshu eshu first-run /fixtures/eshu
+   docker compose exec eshu eshu first-run /data/repos/eshu
    ```
 
-   The command sees the repository at `/fixtures/eshu` and uses the same stores
-   as the running stack. It verifies Compose without starting it, then waits for
-   indexing completeness and a bounded repository query.
+   The command uses the same repository and stores as the running stack. It
+   verifies Compose without starting it, then waits for indexing completeness
+   and a bounded repository query.
 3. Confirm the result from the same service container:
 
    ```bash

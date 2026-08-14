@@ -3,7 +3,7 @@ title: Choose your first successful run
 description: Gets a new reader to one working runtime, one indexed repository, and one useful answer.
 type: how-to
 audience: new-user
-time: 5 minutes
+time: Varies with repository size
 entrypoint: true
 landing: false
 -->
@@ -58,12 +58,12 @@ for the distinction between `/healthz`, `/readyz`, and indexing readiness.
    Continue when bootstrap shows `Exited (0)` and the API is healthy. `workspace
    status` must report healthy state, no outstanding queue work, a
    completed or active generation, and no failed or dead-letter stage or domain
-   work. `list` must contain `payments-api`; these are the signals `first-run` uses for reuse.
-2. Run the guided check inside the Compose API service. The container uses the
-   canonical mounted repository path and the same stores as the running stack:
+   work. `list` must contain `payments-api` with `local_path` set to
+   `/data/repos/payments-api`; these are the signals `first-run` uses for reuse.
+2. Run the guided check inside the Compose API service with the managed `local_path` reported by `list`:
 
    ```bash
-   docker compose exec eshu eshu first-run /fixtures/payments-api
+   docker compose exec eshu eshu first-run /data/repos/payments-api
    ```
 
 3. Confirm the result from the same service container:
@@ -184,7 +184,7 @@ again.
 
 | Path | Symptom | What to do |
 | --- | --- | --- |
-| Local Compose | API is unreachable, or the repository is missing or stale | Run `docker compose ps` and fix unhealthy services. Check the `/fixtures` mount and selector, then rerun the container-executed `first-run`, `index-status`, and `list` commands. |
+| Local Compose | API is unreachable, or the repository is missing or stale | Fix unhealthy services and check the `/fixtures` mount and selector. Pass the managed `local_path` from `eshu list` to `first-run`. |
 | Local binaries | Commands or MCP repository status are missing | Reinstall local binaries if needed. Reapply `eshu mcp setup --platform codex`, restart Codex in the target workspace, then call `get_index_status` and bounded `list_indexed_repositories` again. |
 | Hosted | The API returns 401 or 403, or the repository is missing or stale | Make the client and server `ESHU_API_KEY` values match. Rerun `eshu hosted-setup --platform codex --repository payments-api`, then `eshu list`. |
 
