@@ -137,20 +137,23 @@ ifa_fault_write_repo_node_membership() {
 # Replace only those repository-attributed hashes with stable labels+uid (or
 # the Repository's repo_id). On mapped containment edges whose original
 # endpoints are both members of that repository, a present projector/canonical
-# generation_id is checked against the cassette's expected generation and then
-# normalized because a successful delta refreshes it. All other properties,
-# attachment topology, types, and counts remain exact.
+# generation_id must be gen-1 in the baseline. In the changed dump it must be
+# gen-2 when both endpoints are mutable identities, or remain gen-1 at the
+# one-mapped preserved-subtree seam. All other properties, attachment topology,
+# types, and counts remain exact.
 ifa_fault_write_collateral_edges() {
 	local graph_dump="$1" repo_identities="$2" repo_membership="$3"
-	local output="$4" expected_generation="$5"
+	local output="$4" comparison_side="$5"
 	local sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
 	local code_call_types='["CALLS","INSTANTIATES","REFERENCES","USES_METACLASS"]'
 	jq -S --slurpfile repo_identities "${repo_identities}" \
 		--slurpfile repo_membership "${repo_membership}" \
 		--argjson sql_types "${sql_types}" \
 		--argjson code_call_types "${code_call_types}" \
-		--arg expected_generation "${expected_generation}" '
-		if ((.nodes | type) != "array") or ((.edges | type) != "array") then
+		--arg comparison_side "${comparison_side}" '
+		if ($comparison_side != "baseline" and $comparison_side != "changed") then
+			error("collateral comparison side must be baseline or changed")
+		elif ((.nodes | type) != "array") or ((.edges | type) != "array") then
 			error("graph dump must contain nodes and edges arrays")
 		else
 			.edges
@@ -181,6 +184,16 @@ ifa_fault_write_collateral_edges() {
 					and (.props.evidence_source? == "projector/canonical")
 					and (.props | has("generation_id"))
 				) then
+					(
+						if $comparison_side == "baseline" then
+							"gen-1"
+						elif ($from_identity != null and $to_identity != null) then
+							"gen-2"
+						else
+							"gen-1"
+						end
+					) as $expected_generation
+					|
 					if .props.generation_id == $expected_generation then
 						.props.generation_id = "<generation-provenance>"
 					else
@@ -203,8 +216,6 @@ ifa_fault_compare_collateral_edges() {
 	local sql_repo_id="${4:-repo-ifa-sql-family}"
 	local mutable_relative_path="${5:-db/schema.sql}"
 	local mutable_absolute_path="${6:-/repo/db/schema.sql}"
-	local baseline_generation="${7:-gen-1}"
-	local changed_generation="${8:-gen-2}"
 	local baseline_identities="${output_dir}/baseline-sql-repo-node-identities.json"
 	local changed_identities="${output_dir}/changed-sql-repo-node-identities.json"
 	local baseline_membership="${output_dir}/baseline-sql-repo-node-membership.json"
@@ -226,10 +237,10 @@ ifa_fault_compare_collateral_edges() {
 		"${changed_dump}" "${sql_repo_id}" "${changed_membership}" || return 2
 	ifa_fault_write_collateral_edges \
 		"${baseline_dump}" "${baseline_identities}" "${baseline_membership}" "${baseline_edges}" \
-		"${baseline_generation}" || return 2
+		"baseline" || return 2
 	ifa_fault_write_collateral_edges \
 		"${changed_dump}" "${changed_identities}" "${changed_membership}" "${changed_edges}" \
-		"${changed_generation}" || return 2
+		"changed" || return 2
 	local diff_rc=0
 	diff -u "${baseline_edges}" "${changed_edges}" >"${diff_output}" || diff_rc=$?
 	[[ "${diff_rc}" -le 1 ]] || return 2
@@ -365,9 +376,9 @@ cell_deltaretract() {
 	# retain topology, type, count, generation_id presence, and every other
 	# property, so attachment swaps, containment loss/addition, and out-of-scope
 	# property churn still fail; no unrelated CONTAINS or REPO_CONTAINS edge is
-	# ignored. Only gen-1 to gen-2 provenance on mapped projector/canonical
-	# containment edges whose original endpoints both belong to the SQL repo is
-	# allowed to refresh.
+	# ignored. Baseline canonical containment is gen-1; changed edges refresh to
+	# gen-2 only when both endpoints map to the mutable SQL seam, while a
+	# one-mapped preserved-subtree edge remains gen-1.
 	command -v jq >/dev/null 2>&1 \
 		|| die "delta-retract: jq is required for fail-closed collateral graph comparison"
 	if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
@@ -380,9 +391,7 @@ cell_deltaretract() {
 		"${work_dir}" \
 		"repo-ifa-sql-family" \
 		"db/schema.sql" \
-		"/repo/db/schema.sql" \
-		"gen-1" \
-		"gen-2" || collateral_rc=$?
+		"/repo/db/schema.sql" || collateral_rc=$?
 	if [[ "${collateral_rc}" -eq 1 ]]; then
 		printf 'delta-retract: graph collateral changed outside the exact SQL and code-call families:\n' >&2
 		cat "${work_dir}/collateral-edges.diff" >&2

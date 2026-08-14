@@ -31,6 +31,8 @@ test_ifa_fault_write_collateral_fixture() {
 	local edge_evidence_source="${9:-projector/canonical}"
 	local foreign_generation="${10:-gen-1}"
 	local mixed_containment_generation="${11:-gen-1}"
+	local omit_owned_generation="${12:-false}"
+	local preserved_mapped_generation="${13:-gen-1}"
 	local sql_repo root_dir schema_dir sql_file sql_entity sql_entity_alt
 	local handler_dir handler_file handler_function foreign_from foreign_to
 	local sql_repo_hash sql_entity_hash sql_entity_alt_hash sql_target_hash
@@ -90,6 +92,8 @@ test_ifa_fault_write_collateral_fixture() {
 		--arg edge_evidence_source "${edge_evidence_source}" \
 		--arg foreign_generation "${foreign_generation}" \
 		--arg mixed_containment_generation "${mixed_containment_generation}" \
+		--argjson omit_owned_generation "${omit_owned_generation}" \
+		--arg preserved_mapped_generation "${preserved_mapped_generation}" \
 		--argjson preserve_handler "$(if [[ "${handler_mode}" == "preserve" ]]; then printf true; else printf false; fi)" \
 		'{
 			nodes: (
@@ -99,14 +103,14 @@ test_ifa_fault_write_collateral_fixture() {
 			edges: ([
 				{type:"REPO_CONTAINS", from:$sql_repo_hash, to:$root_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
 				{type:"CONTAINS", from:$root_dir_hash, to:$schema_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
-				{type:"CONTAINS", from:$schema_dir_hash, to:$sql_file_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$schema_dir_hash, to:$sql_file_hash, props:({evidence_source:$edge_evidence_source} + (if $omit_owned_generation then {} else {generation_id:$containment_generation} end))},
 				{type:"CONTAINS", from:$sql_file_hash, to:$sql_target_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
 				{type:"EXECUTES", from:$sql_target_hash, to:$sql_target_hash, props:{}},
 				{type:"CALLS", from:"code-from", to:"code-to", props:{}},
 				{type:"CONTAINS", from:$root_dir_hash, to:$foreign_to_hash, props:{generation_id:$mixed_containment_generation, evidence_source:$edge_evidence_source}},
 				{type:$foreign_type, from:$foreign_from_hash, to:$foreign_to_hash, props:{generation_id:$foreign_generation, evidence_source:$edge_evidence_source, evidence:$foreign_evidence}}
 			] + (if $preserve_handler then [
-				{type:"CONTAINS", from:$root_dir_hash, to:$handler_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$root_dir_hash, to:$handler_dir_hash, props:{generation_id:$preserved_mapped_generation, evidence_source:$edge_evidence_source}},
 				{type:"CONTAINS", from:$handler_dir_hash, to:$handler_file_hash, props:{generation_id:"gen-1", evidence_source:$edge_evidence_source}},
 				{type:"CONTAINS", from:$handler_file_hash, to:$handler_function_hash, props:{generation_id:"gen-1", evidence_source:$edge_evidence_source}}
 			] else [] end))
@@ -135,6 +139,14 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		"${case_dir}/unexpected-noncontained-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-2
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-owned-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-unexpected
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-baseline-generation.dump" gen1 DEPENDS_ON sql-table-users preserve gen1 gen-2
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-missing-owned-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-1 true
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-unrefreshed-mutable.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-1
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-refreshed-preserved.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-1 false gen-2
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-foreign-endpoint-containment.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-2
 	test_ifa_fault_write_collateral_fixture \
@@ -177,6 +189,30 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		>/dev/null 2>&1 || rc=$?
 	[[ "${rc}" -eq 2 ]] \
 		|| fail "unexpected SQL-owned generation_id returned ${rc}, want fail-closed status 2"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/unexpected-baseline-generation.dump" "${case_dir}/allowed.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "baseline SQL-owned gen-2 returned ${rc}, want fail-closed status 2"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-missing-owned-generation.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "missing changed-side SQL-owned generation_id returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-unrefreshed-mutable.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "changed both-mapped gen-1 returned ${rc}, want fail-closed status 2"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-refreshed-preserved.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "changed one-mapped gen-2 returned ${rc}, want fail-closed status 2"
 	rc=0
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-foreign-endpoint-containment.dump" "${case_dir}" \
