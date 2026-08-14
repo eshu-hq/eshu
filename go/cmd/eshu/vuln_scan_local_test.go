@@ -40,7 +40,7 @@ func TestRunVulnScanRepoStartsLocalRuntimeWhenServiceURLUnconfigured(t *testing.
 	defer reset()
 
 	var bootstrapCalled atomic.Bool
-	scanRunBootstrap = func(_ context.Context, _ string, _ []string, env []string, _ io.Writer, _ io.Writer) error {
+	scanStub.RunBootstrap = func(_ context.Context, _ string, _ []string, env []string, _ io.Writer, _ io.Writer) error {
 		bootstrapCalled.Store(true)
 		if got, want := envValue(env, "ESHU_POSTGRES_DSN"), "owner-dsn"; got != want {
 			t.Fatalf("ESHU_POSTGRES_DSN = %q, want %q", got, want)

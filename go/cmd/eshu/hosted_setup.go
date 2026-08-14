@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
@@ -23,7 +24,7 @@ type hostedSetupDeps struct {
 	// classified as an authentication failure.
 	Ready func(*APIClient) error
 	// FetchStatus reads the bounded pipeline status for index classification.
-	FetchStatus func(*APIClient) (scanPipelineStatus, error)
+	FetchStatus func(*APIClient) (scan.PipelineStatus, error)
 	// ListTools returns the visible MCP tool surface.
 	ListTools func() []mcp.ToolDefinition
 	// ListRepos runs the bounded repositories query used for scope enumeration

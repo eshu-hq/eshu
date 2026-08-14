@@ -62,7 +62,7 @@ func TestRunVulnScanRepoIndexesResolvesRepoAndListsImpactFindings(t *testing.T) 
 	defer reset()
 
 	var bootstrapCalled atomic.Bool
-	scanRunBootstrap = func(_ context.Context, _ string, args []string, env []string, stdout io.Writer, _ io.Writer) error {
+	scanStub.RunBootstrap = func(_ context.Context, _ string, args []string, env []string, stdout io.Writer, _ io.Writer) error {
 		bootstrapCalled.Store(true)
 		if got, want := strings.Join(args, " "), "eshu-bootstrap-index --path "+absRepoPath; got != want {
 			t.Fatalf("bootstrap args = %q, want %q", got, want)

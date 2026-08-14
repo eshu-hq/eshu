@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 )
 
@@ -108,7 +109,7 @@ func fetchLiveEvidenceSnapshot(client *APIClient) (evidencebundle.LiveSnapshot, 
 	if err := client.Get(evidenceBundleIndexEndpoint, &index); err != nil {
 		return evidencebundle.LiveSnapshot{}, fmt.Errorf("fetch %s: %w", evidenceBundleIndexEndpoint, err)
 	}
-	var pipeline scanPipelineStatus
+	var pipeline scan.PipelineStatus
 	if err := client.Get(evidenceBundlePipelineEndpoint, &pipeline); err != nil {
 		return evidencebundle.LiveSnapshot{}, fmt.Errorf("fetch %s: %w", evidenceBundlePipelineEndpoint, err)
 	}
@@ -121,7 +122,7 @@ func fetchLiveEvidenceSnapshot(client *APIClient) (evidencebundle.LiveSnapshot, 
 
 func liveEvidenceSnapshotFromStatus(
 	index evidenceIndexStatus,
-	pipeline scanPipelineStatus,
+	pipeline scan.PipelineStatus,
 	collectors evidenceCollectorsResponse,
 ) evidencebundle.LiveSnapshot {
 	stages := make([]evidencebundle.LiveStageSummarySnapshot, 0, len(pipeline.StageSummaries))

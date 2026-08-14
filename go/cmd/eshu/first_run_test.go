@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // fakeFirstRunProbe builds a runtime probe with explicit, deterministic seams.
@@ -106,7 +108,7 @@ func TestDetectFirstRunRuntimeUnknownWhenNothingAvailable(t *testing.T) {
 func TestExecuteFirstRunFailsWhenRuntimeUnavailable(t *testing.T) {
 	deps := firstRunDeps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{}),
-		FetchStatus:   func(*APIClient) (scanPipelineStatus, error) { return scanPipelineStatus{}, nil },
+		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
 		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
 		WorkspaceRoot: "/ws",
 	}
@@ -127,7 +129,7 @@ func TestExecuteFirstRunFailsWhenRuntimeUnavailable(t *testing.T) {
 func TestExecuteFirstRunMissingBinariesWithComposeDownFails(t *testing.T) {
 	deps := firstRunDeps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{"/ws/docker-compose.yaml": true}),
-		FetchStatus:   func(*APIClient) (scanPipelineStatus, error) { return scanPipelineStatus{}, nil },
+		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
 		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
 		WorkspaceRoot: "/ws",
 	}
@@ -148,18 +150,18 @@ func TestExecuteFirstRunMissingBinariesWithComposeDownFails(t *testing.T) {
 func TestExecuteFirstRunReusesExistingIndexedRepo(t *testing.T) {
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{
-				Health:            scanHealth{State: "healthy"},
-				GenerationHistory: scanGenerationHistory{Completed: 1},
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{
+				Health:            scan.Health{State: "healthy"},
+				GenerationHistory: scan.GenerationHistory{Completed: 1},
 			}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			return repositoryListResponse{Repositories: []repositorySelectorEntry{{ID: "r1", Name: "demo", LocalPath: "/ws"}}}, nil
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
 			t.Fatal("RunScan should not be called when a complete index already exists")
-			return scanResult{}, nil
+			return scan.Result{}, nil
 		},
 		WorkspaceRoot: "/ws",
 	}
@@ -182,9 +184,9 @@ func TestExecuteFirstRunRunsScanThenQuery(t *testing.T) {
 	var scanCalled bool
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
 			// No repositories yet, so detection returns no existing index.
-			return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			if !scanCalled {
@@ -192,9 +194,9 @@ func TestExecuteFirstRunRunsScanThenQuery(t *testing.T) {
 			}
 			return repositoryListResponse{Repositories: []repositorySelectorEntry{{ID: "r1", Name: "demo"}}}, nil
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
 			scanCalled = true
-			return scanResult{Status: "ready"}, nil
+			return scan.Result{Status: "ready"}, nil
 		},
 		ReposDir:      fakeReposDir,
 		WorkspaceRoot: "/ws",
@@ -220,16 +222,16 @@ func TestExecuteFirstRunSurfacesDeadLetterFailure(t *testing.T) {
 	t.Setenv("ESHU_HOME", t.TempDir())
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			return repositoryListResponse{}, nil
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
-			return scanResult{
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
+			return scan.Result{
 					Status:       "failed",
-					StatusReport: scanPipelineStatus{Queue: scanQueue{DeadLetter: 2}, Health: scanHealth{State: "degraded"}},
+					StatusReport: scan.PipelineStatus{Queue: scan.Queue{DeadLetter: 2}, Health: scan.Health{State: "degraded"}},
 				},
 				errors.New("scan readiness timed out: queue has dead-letter work")
 		},
@@ -257,12 +259,12 @@ func TestExecuteFirstRunPartialReadinessIsNotSuccess(t *testing.T) {
 	t.Setenv("ESHU_HOME", t.TempDir())
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
-			return scanResult{Status: "partial", StatusReport: scanPipelineStatus{Health: scanHealth{State: "degraded"}}},
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
+			return scan.Result{Status: "partial", StatusReport: scan.PipelineStatus{Health: scan.Health{State: "degraded"}}},
 				errors.New("scan readiness timed out: queue still has outstanding work")
 		},
 		ReposDir:      fakeReposDir,
@@ -287,8 +289,8 @@ func TestExecuteFirstRunQueryFailureIsNotSuccess(t *testing.T) {
 	var calls int
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			calls++
@@ -298,8 +300,8 @@ func TestExecuteFirstRunQueryFailureIsNotSuccess(t *testing.T) {
 			}
 			return repositoryListResponse{}, errors.New("connection refused")
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
-			return scanResult{Status: "ready"}, nil
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
+			return scan.Result{Status: "ready"}, nil
 		},
 		ReposDir:      fakeReposDir,
 		WorkspaceRoot: "/ws",
