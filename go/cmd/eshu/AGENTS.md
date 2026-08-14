@@ -3,7 +3,10 @@
 ## Read first
 
 1. `go/cmd/eshu/README.md` — binary purpose, subcommand groups, configuration,
-   and gotchas
+   and evidence markers. Its "Gotchas / invariants" section routes to three
+   sibling docs that hold the per-command contracts:
+   `gotchas-onboarding-and-dogfood.md`, `gotchas-read-surface-commands.md`,
+   and `gotchas-local-runtime-and-graph.md`
 2. `go/cmd/eshu/root.go` — `rootCmd`, persistent flags (`--database`,
    `--visual`), and root subcommand registration
 3. `go/cmd/eshu/service.go` — `runMCPStart`, `runAPIStart`, `eshuExec`,
@@ -20,13 +23,13 @@
 
 ## Invariants this package enforces
 
-- **`SilenceUsage` and `SilenceErrors`** — set on `rootCmd` so Cobra does not
-  print usage on every error. Removing these breaks operator scripts that
-  parse `stderr`. Enforced at `root.go:31-32`.
-- **`--database` mutates the process environment** — `PersistentPreRunE` on
-  `rootCmd` calls `os.Setenv("ESHU_RUNTIME_DB_TYPE", globalDatabase)`. This
-  affects every child process exec'd in the same process. Enforced at
-  `root.go:35`.
+- **`SilenceUsage` and `SilenceErrors`** — both set to `true` on the `rootCmd`
+  literal in `root.go`, so Cobra does not print usage on every error. Removing
+  either breaks operator scripts that parse `stderr`.
+- **`--database` mutates the process environment** — the `PersistentPreRunE` on
+  that same `rootCmd` literal calls
+  `os.Setenv("ESHU_RUNTIME_DB_TYPE", globalDatabase)`. This affects every child
+  process exec'd in the same process.
 - **Service-launch via `syscall.Exec`** — `eshu mcp start` (stdio path),
   `eshu api start`, and `eshu graph start` replace the current process image via
   `eshuExec` (backed by `syscall.Exec`). No Eshu logic runs after the exec
