@@ -114,9 +114,30 @@ const (
 // config.
 func IndexBoundary(s, set string, depth BoundaryDepth) (int, int) {
 	if depth == LiteralOnly {
-		// set holds ASCII only, and every byte of a multi-byte UTF-8 rune is
-		// >= 0x80, so a rune scan cannot match inside one.
-		if i := strings.IndexAny(s, set); i >= 0 {
+		return IndexBoundaryBySpelling(s, set, "")
+	}
+	return IndexBoundaryBySpelling(s, set, set)
+}
+
+// IndexBoundaryBySpelling is IndexBoundary for a caller whose boundary set is
+// not the same in both spellings: literal names the bytes counted when written
+// as themselves, escaped names the bytes ALSO counted when written as one
+// percent-escape. Passing "" for escaped is LiteralOnly; passing the same set
+// for both is LiteralOrEscaped.
+//
+// The two sets exist because BoundaryDepth alone was too coarse for a walk over
+// PROSE. reportbundle's free-text scan ends a value at whitespace, a quote or a
+// backtick as well as at a PairSeparators byte, and reading that whole set one
+// layer down cut a credential in half: an encoder writes "%20" precisely
+// because the space is INSIDE a value, so the escaped spelling is evidence of
+// content, not of a boundary. Only "?", "&" and ";" are URL structure at the
+// encoded depth. The prose delimiters stay literal-only at both depths, which
+// is what this signature lets a caller say.
+func IndexBoundaryBySpelling(s, literal, escaped string) (int, int) {
+	if escaped == "" {
+		// literal holds ASCII only, and every byte of a multi-byte UTF-8 rune
+		// is >= 0x80, so a byte scan cannot match inside one.
+		if i := strings.IndexAny(s, literal); i >= 0 {
 			return i, 1
 		}
 		return -1, 0
@@ -126,10 +147,14 @@ func IndexBoundary(s, set string, depth BoundaryDepth) (int, int) {
 		if width == 0 {
 			break
 		}
-		for j := 0; j < len(set); j++ {
-			if set[j] == decoded {
-				return i, width
-			}
+		// Which set applies is decided by how this position was SPELLED, not by
+		// what it decodes to: at width 1 the byte is written as itself.
+		set := literal
+		if width != 1 {
+			set = escaped
+		}
+		if strings.IndexByte(set, decoded) >= 0 {
+			return i, width
 		}
 		i += width
 	}
