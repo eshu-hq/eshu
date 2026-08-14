@@ -15,13 +15,24 @@ import (
 )
 
 // ReadInput returns the captured service-story response bytes for `eshu
-// service-report`: the file at path when path is non-empty, otherwise stdin.
-// It errors when stdin is read and turns out to be empty or all whitespace,
-// since a silent empty report would otherwise print as an unsupported dossier
-// with no explanation.
+// service-report`: the file at path when path holds any non-whitespace
+// character, otherwise everything readable from stdin. The branch is a
+// strings.TrimSpace test, so a blank or whitespace-only path counts as no
+// path -- a --from of "   " reads stdin and never opens a file.
+//
+// It returns an error in three cases: the file read failed, the stdin read
+// failed, or stdin was read and turned out to be empty or all whitespace.
+//
+// The emptiness check is not what keeps an empty report from printing: empty
+// bytes never get as far as a report, because ParseServiceStoryResponse cannot
+// decode them. What the check buys is a message an operator can act on -- "no
+// service-story response provided; pass --from or pipe JSON on stdin" instead
+// of "unexpected end of JSON input". It covers stdin only, so an empty file at
+// a real path still comes back as empty bytes and still fails a step later at
+// decode, with the unhelpful message.
 func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 	if strings.TrimSpace(path) != "" {
-		data, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local captured response file, not an HTTP request param
+		data, err := os.ReadFile(path) // #nosec G304 -- a caller-supplied path parameter; the CLI wrapper sources it from an operator flag (--from), not an HTTP request param
 		if err != nil {
 			return nil, fmt.Errorf("read service-story response %s: %w", path, err)
 		}
@@ -38,13 +49,16 @@ func ReadInput(stdin io.Reader, path string) ([]byte, error) {
 }
 
 // SupplyChainSection reads an optional captured supply-chain inventory response
-// and maps it into the report's supply_chain section. It returns nil when no
-// path is given, so the section falls back to its unsupported placeholder.
+// and maps it into the report's supply_chain section. It returns a nil section
+// when path is blank or whitespace-only -- the same strings.TrimSpace test
+// ReadInput branches on -- so the section falls back to its unsupported
+// placeholder. It returns an error when the file read fails and when the file
+// does not decode.
 func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*serviceintel.SectionInput, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- path is an operator-supplied CLI flag pointing to a local supply-chain inventory file, not an HTTP request param
+	raw, err := os.ReadFile(path) // #nosec G304 -- a caller-supplied path parameter; the CLI wrapper sources it from an operator flag (--supply-chain-from), not an HTTP request param
 	if err != nil {
 		return nil, fmt.Errorf("read supply-chain inventory %s: %w", path, err)
 	}
@@ -59,7 +73,9 @@ func SupplyChainSection(path string, subject serviceintel.ReportSubject) (*servi
 // ParseServiceStoryResponse extracts the dossier map and optional truth envelope
 // from a captured service-story response. It accepts the standard envelope
 // ({"data": ..., "truth": ...}) and falls back to treating the whole object as a
-// bare dossier when no envelope wrapper is present.
+// bare dossier, with a nil truth envelope, whenever "data" decodes to nil --
+// which covers a bare dossier with no wrapper and an explicit "data": null
+// alike.
 func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope, error) {
 	var envelope struct {
 		Data  map[string]any       `json:"data"`
@@ -78,9 +94,32 @@ func ParseServiceStoryResponse(raw []byte) (map[string]any, *query.TruthEnvelope
 	return bare, nil, nil
 }
 
-// RenderReport prints a compact, human-readable view of the report to w. The
-// JSON output (serviceintel.Report marshaled directly by the caller) remains
-// the machine-readable source of truth.
+// RenderReport prints a compact, human-readable view of the report to w. It
+// returns nothing and discards w's write errors, so a failed terminal write
+// does not fail the command.
+//
+// The text form is a fixed subset of the report, not a rendering of all of it.
+// It prints the subject label (service name, plus service id in parentheses
+// when both are set); the report-level Supported, Partial, and TruthClass; for
+// each section its Status, Title, and its answer's Summary,
+// UnsupportedReasons, and Limitations; for each recommended next call its
+// label -- the first of Tool, Route, Playbook that is set -- and Reason; and
+// for each suggested investigation its Basis, Reason, next-call label, and
+// ExpectedTruthClass.
+//
+// Everything else the JSON carries is absent by design. That includes Schema,
+// the report-level Truth envelope, and the report-level aggregated Limitations
+// -- and also Subject.RepoID and Subject.RepoName, each section's Kind, each
+// next call's Arguments, each investigation's ID, Section, and EvidenceBasis,
+// and every other field of a section's AnswerPacket, EvidenceHandles included.
+// So a field visible under --json and missing from the text is a bug only when
+// it is in the printed subset above. TestRenderReportJSONKeyContract pins the
+// whole classification key by key, and fails on a report field nobody has
+// classified yet.
+//
+// The JSON output (serviceintel.Report marshaled directly by the caller) is
+// therefore the machine-readable source of truth, and this function is the
+// only producer of `eshu service-report`'s text form.
 func RenderReport(w io.Writer, report serviceintel.Report) {
 	_, _ = fmt.Fprintf(w, "Service intelligence report: %s\n", reportSubjectLabel(report.Subject))
 	_, _ = fmt.Fprintf(w, "  supported=%t partial=%t truth_class=%s\n\n", report.Supported, report.Partial, report.TruthClass)

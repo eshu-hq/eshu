@@ -5,6 +5,7 @@ package servicereport
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 )
+
+// errReader fails every Read with a non-EOF error, standing in for a stdin
+// stream that dies part-way through instead of ending cleanly.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
 
 const sampleServiceStoryEnvelope = `{
   "data": {
@@ -66,9 +73,68 @@ func TestReadInputFromStdin(t *testing.T) {
 	}
 }
 
+// TestReadInputEmptyStdinErrors pins the empty-stdin message verbatim. The
+// check exists for the message, not to stop an empty report from printing:
+// empty bytes never reach a report, because ParseServiceStoryResponse cannot
+// decode them (TestParseServiceStoryResponseEmptyInputFailsAtDecode shows what
+// the operator would get instead). Both halves of that rationale are stated in
+// doc.go and README.md, so both are pinned here.
 func TestReadInputEmptyStdinErrors(t *testing.T) {
-	if _, err := ReadInput(strings.NewReader("   "), ""); err == nil {
+	_, err := ReadInput(strings.NewReader("   "), "")
+	if err == nil {
 		t.Fatalf("expected an error for empty stdin with no --from path")
+	}
+	const want = "no service-story response provided; pass --from or pipe JSON on stdin"
+	if err.Error() != want {
+		t.Fatalf("ReadInput empty-stdin message = %q, want %q", err.Error(), want)
+	}
+}
+
+// TestParseServiceStoryResponseEmptyInputFailsAtDecode is the other half of
+// ReadInput's empty-stdin rationale: whitespace-only input does not fall
+// through to a silent empty report, it fails at decode with a message that
+// says nothing useful to an operator. That is what ReadInput's check replaces.
+func TestParseServiceStoryResponseEmptyInputFailsAtDecode(t *testing.T) {
+	for _, input := range []string{"", "   ", "\n\t "} {
+		_, _, err := ParseServiceStoryResponse([]byte(input))
+		if err == nil {
+			t.Fatalf("expected a decode error for %q, got a usable dossier", input)
+		}
+		const want = "decode service-story response: unexpected end of JSON input"
+		if err.Error() != want {
+			t.Fatalf("ParseServiceStoryResponse(%q) error = %q, want %q", input, err.Error(), want)
+		}
+	}
+}
+
+// TestReadInputWhitespacePathReadsStdin pins the branch condition in
+// ReadInput: strings.TrimSpace decides whether a file is opened, so a
+// whitespace-only --from path never touches the filesystem and stdin is read
+// instead. This is the trap the package docs call out.
+func TestReadInputWhitespacePathReadsStdin(t *testing.T) {
+	got, err := ReadInput(strings.NewReader(sampleServiceStoryEnvelope), "   ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != sampleServiceStoryEnvelope {
+		t.Fatalf("a whitespace-only path must fall through to stdin, got %q", got)
+	}
+}
+
+// TestReadInputStdinReadErrorPropagates covers ReadInput's third error return:
+// io.ReadAll failing on its own, which is neither the file read failing nor
+// stdin arriving empty.
+func TestReadInputStdinReadErrorPropagates(t *testing.T) {
+	sentinel := errors.New("stdin stream broke")
+	_, err := ReadInput(errReader{err: sentinel}, "")
+	if err == nil {
+		t.Fatalf("expected an error when the stdin reader itself fails")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("ReadInput must wrap the underlying stdin read error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "read service-story response from stdin") {
+		t.Fatalf("expected the stdin-read message, got %v", err)
 	}
 }
 
@@ -169,5 +235,54 @@ func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write test fixture %s: %v", path, err)
+	}
+}
+
+// TestParseServiceStoryResponseNullDataTakesBarePath pins the doc claim that an
+// explicit "data": null falls through to the bare-dossier path.
+//
+// TestParseServiceStoryResponseBareDossier covers the *absent* data key, which
+// is a different input: absent and explicit-null both leave envelope.Data nil,
+// but only a test that sends the null proves the doc's "alike" claim. Without
+// this, changing the guard to check for the key's presence would keep every
+// other test green and silently contradict the comment.
+func TestParseServiceStoryResponseNullDataTakesBarePath(t *testing.T) {
+	t.Parallel()
+
+	dossier, truth, err := ParseServiceStoryResponse([]byte(`{"data": null, "service": "checkout"}`))
+	if err != nil {
+		t.Fatalf("ParseServiceStoryResponse() error = %v, want nil", err)
+	}
+	if truth != nil {
+		t.Errorf("truth = %+v, want nil on the bare path", truth)
+	}
+	// The bare path re-decodes the whole object, so the sibling key survives
+	// and the "data" key is present with a nil value.
+	if got := dossier["service"]; got != "checkout" {
+		t.Errorf("dossier[\"service\"] = %v, want \"checkout\" -- the bare path should re-decode the whole object", got)
+	}
+	if _, ok := dossier["data"]; !ok {
+		t.Errorf("dossier is missing the \"data\" key; got %v -- the bare path decodes the raw object, envelope fields included", dossier)
+	}
+}
+
+// TestSupplyChainSectionWhitespacePathReturnsNil pins the doc claim that a
+// whitespace-only --supply-chain-from is treated as absent, mirroring
+// ReadInput's strings.TrimSpace branch.
+//
+// TestSupplyChainSectionNoPathReturnsNil only exercises "". A guard weakened to
+// `path == ""` would keep that test green and start trying to read a file named
+// "   ", surfacing a confusing read error instead of the documented nil section.
+func TestSupplyChainSectionWhitespacePathReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{" ", "   ", "\t", "\n", " \t\n "} {
+		section, err := SupplyChainSection(path, serviceintel.ReportSubject{ServiceName: "checkout"})
+		if err != nil {
+			t.Errorf("SupplyChainSection(%q) error = %v, want nil", path, err)
+		}
+		if section != nil {
+			t.Errorf("SupplyChainSection(%q) = %+v, want nil -- whitespace is treated as absent", path, section)
+		}
 	}
 }
