@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package opdigest
 
 import (
 	"crypto/sha256"
@@ -14,48 +14,69 @@ import (
 )
 
 const (
-	operatorDigestArtifactSchema    = "operator_digest_artifact.v1"
-	operatorDigestArtifactFormat    = "json"
-	operatorDigestArtifactWriterCLI = "cli"
-	operatorDigestRedactionProfile  = "share_safe_v1"
+	// artifactSchema is the operator_digest_artifact.v1 schema marker every
+	// Artifact carries.
+	artifactSchema = "operator_digest_artifact.v1"
+	// artifactFormat is the artifact's on-disk encoding. It is the only
+	// format this package writes.
+	artifactFormat = "json"
+	// artifactWriterCLI is the Artifact.WriterKind value the CLI writer
+	// stamps; it distinguishes CLI-produced artifacts from a future
+	// non-CLI writer.
+	artifactWriterCLI = "cli"
+	// redactionProfile is the share-safe redaction profile every Artifact
+	// applies before it is written.
+	redactionProfile = "share_safe_v1"
 )
 
-type operatorDigestArtifact struct {
-	Schema      string                           `json:"schema"`
-	Digest      operatorDigest                   `json:"digest"`
-	Artifact    operatorDigestArtifactMetadata   `json:"artifact"`
-	Redaction   operatorDigestArtifactRedaction  `json:"redaction"`
-	SourceRefs  []operatorDigestSourceRef        `json:"source_refs"`
-	Validation  operatorDigestArtifactValidation `json:"validation"`
-	Limitations []operatorDigestLimitation       `json:"limitations"`
+// Artifact is the operator_digest_artifact.v1 shareable handoff wrapper
+// around one Digest.
+type Artifact struct {
+	Schema      string             `json:"schema"`
+	Digest      Digest             `json:"digest"`
+	Artifact    ArtifactMetadata   `json:"artifact"`
+	Redaction   ArtifactRedaction  `json:"redaction"`
+	SourceRefs  []SourceRef        `json:"source_refs"`
+	Validation  ArtifactValidation `json:"validation"`
+	Limitations []Limitation       `json:"limitations"`
 }
 
-type operatorDigestArtifactMetadata struct {
+// ArtifactMetadata identifies one Artifact and how it was produced.
+type ArtifactMetadata struct {
 	ID               string `json:"id"`
 	WriterKind       string `json:"writer_kind"`
 	Format           string `json:"format"`
 	ValidationStatus string `json:"validation_status"`
 }
 
-type operatorDigestArtifactRedaction struct {
+// ArtifactRedaction records the redaction profile and rules an Artifact's
+// writer applied.
+type ArtifactRedaction struct {
 	Profile        string   `json:"profile"`
 	Version        string   `json:"version"`
 	AppliedRules   []string `json:"applied_rules"`
 	ReplacedFields []string `json:"replaced_fields"`
 }
 
-type operatorDigestArtifactValidation struct {
-	Status string                        `json:"status"`
-	Checks []operatorDigestArtifactCheck `json:"checks"`
+// ArtifactValidation is the aggregate pass/fail outcome of the checks
+// BuildArtifact runs before returning an Artifact.
+type ArtifactValidation struct {
+	Status string          `json:"status"`
+	Checks []ArtifactCheck `json:"checks"`
 }
 
-type operatorDigestArtifactCheck struct {
+// ArtifactCheck is one named validation outcome within ArtifactValidation.
+type ArtifactCheck struct {
 	ID string `json:"id"`
 	OK bool   `json:"ok"`
 }
 
-func writeOperatorDigestArtifact(path string, digest operatorDigest) error {
-	artifact, err := buildOperatorDigestArtifact(digest)
+// WriteArtifact builds the operator_digest_artifact.v1 wrapper around digest
+// and writes it as indented JSON to path, mode 0600. It never reads a
+// cobra flag or the process environment; the caller (the `eshu report`
+// wrapper) resolves --artifact-out to path first.
+func WriteArtifact(path string, digest Digest) error {
+	artifact, err := BuildArtifact(digest)
 	if err != nil {
 		return err
 	}
@@ -64,16 +85,22 @@ func writeOperatorDigestArtifact(path string, digest operatorDigest) error {
 		return fmt.Errorf("encode operator digest artifact: %w", err)
 	}
 	data = append(data, '\n')
-	if err := writeOperatorDigestArtifactFile(path, data); err != nil {
+	if err := writeArtifactFile(path, data); err != nil {
 		return fmt.Errorf("write operator digest artifact: %w", err)
 	}
 	return nil
 }
 
-func writeOperatorDigestArtifactFile(path string, data []byte) (err error) {
+// writeArtifactFile returns the *fs.PathError from os/File unwrapped, on
+// purpose. Those errors already render as "open <path>: <cause>", and
+// WriteArtifact's caller adds the "write operator digest artifact: " prefix,
+// so wrapping here would print the path twice in operator-facing stderr.
+// The `eshu report --artifact-out` message text is a CLI contract; keep it
+// byte-identical.
+func writeArtifactFile(path string, data []byte) (err error) {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) // #nosec G304 -- path is an operator-supplied CLI output path, not an HTTP request param
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // *fs.PathError already names the path; see the comment above.
 	}
 	defer func() {
 		if closeErr := file.Close(); err == nil && closeErr != nil {
@@ -82,27 +109,31 @@ func writeOperatorDigestArtifactFile(path string, data []byte) (err error) {
 	}()
 	n, err := file.Write(data)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // *fs.PathError already names the path; see the comment above.
 	}
 	if n != len(data) {
 		return io.ErrShortWrite
 	}
-	return file.Chmod(0o600)
+	return file.Chmod(0o600) //nolint:wrapcheck // *fs.PathError already names the path; see the comment above.
 }
 
-func buildOperatorDigestArtifact(digest operatorDigest) (operatorDigestArtifact, error) {
-	sourceRefs := dedupeOperatorDigestSourceRefs(digest.SourceRefs)
-	artifact := operatorDigestArtifact{
-		Schema:     operatorDigestArtifactSchema,
+// BuildArtifact wraps digest in the operator_digest_artifact.v1 shape,
+// computes its content-derived Artifact.ID, and validates the result
+// against the artifact contract (schema markers, required fields, source
+// ref completeness, redaction metadata) before returning it.
+func BuildArtifact(digest Digest) (Artifact, error) {
+	sourceRefs := dedupeSourceRefs(digest.SourceRefs)
+	artifact := Artifact{
+		Schema:     artifactSchema,
 		Digest:     digest,
-		SourceRefs: dedupeOperatorDigestSourceRefs(append(sourceRefs, operatorDigestQuestionSourceRefs(digest.SuggestedQuestions)...)),
-		Artifact: operatorDigestArtifactMetadata{
-			WriterKind:       operatorDigestArtifactWriterCLI,
-			Format:           operatorDigestArtifactFormat,
+		SourceRefs: dedupeSourceRefs(append(sourceRefs, questionSourceRefs(digest.SuggestedQuestions)...)),
+		Artifact: ArtifactMetadata{
+			WriterKind:       artifactWriterCLI,
+			Format:           artifactFormat,
 			ValidationStatus: "passed",
 		},
-		Redaction: operatorDigestArtifactRedaction{
-			Profile: operatorDigestRedactionProfile,
+		Redaction: ArtifactRedaction{
+			Profile: redactionProfile,
 			Version: "1",
 			AppliedRules: []string{
 				"scope_share_safe_validation",
@@ -111,9 +142,9 @@ func buildOperatorDigestArtifact(digest operatorDigest) (operatorDigestArtifact,
 			},
 			ReplacedFields: []string{},
 		},
-		Validation: operatorDigestArtifactValidation{
+		Validation: ArtifactValidation{
 			Status: "passed",
-			Checks: []operatorDigestArtifactCheck{
+			Checks: []ArtifactCheck{
 				{ID: "schema", OK: true},
 				{ID: "required_digest_fields", OK: true},
 				{ID: "source_refs", OK: true},
@@ -123,19 +154,19 @@ func buildOperatorDigestArtifact(digest operatorDigest) (operatorDigestArtifact,
 		},
 		Limitations: digest.Limitations,
 	}
-	artifact.Artifact.ID = operatorDigestArtifactID(artifact)
-	if err := validateOperatorDigestArtifact(artifact); err != nil {
-		return operatorDigestArtifact{}, err
+	artifact.Artifact.ID = artifactID(artifact)
+	if err := validateArtifact(artifact); err != nil {
+		return Artifact{}, err
 	}
 	return artifact, nil
 }
 
-func validateOperatorDigestArtifact(artifact operatorDigestArtifact) error {
-	if artifact.Schema != operatorDigestArtifactSchema {
-		return fmt.Errorf("operator digest artifact schema = %q, want %q", artifact.Schema, operatorDigestArtifactSchema)
+func validateArtifact(artifact Artifact) error {
+	if artifact.Schema != artifactSchema {
+		return fmt.Errorf("operator digest artifact schema = %q, want %q", artifact.Schema, artifactSchema)
 	}
-	if artifact.Digest.Schema != operatorDigestSchema {
-		return fmt.Errorf("operator digest schema = %q, want %q", artifact.Digest.Schema, operatorDigestSchema)
+	if artifact.Digest.Schema != Schema {
+		return fmt.Errorf("operator digest schema = %q, want %q", artifact.Digest.Schema, Schema)
 	}
 	if strings.TrimSpace(artifact.Digest.Scope.ID) == "" || strings.TrimSpace(artifact.Digest.Profile) == "" {
 		return fmt.Errorf("operator digest artifact missing scope or profile")
@@ -177,7 +208,7 @@ func validateOperatorDigestArtifact(artifact operatorDigestArtifact) error {
 			return fmt.Errorf("operator digest question %q references unknown target %q", question.ID, question.Target)
 		}
 	}
-	if artifact.Redaction.Profile != operatorDigestRedactionProfile || len(artifact.Redaction.AppliedRules) == 0 {
+	if artifact.Redaction.Profile != redactionProfile || len(artifact.Redaction.AppliedRules) == 0 {
 		return fmt.Errorf("operator digest artifact missing redaction metadata")
 	}
 	if artifact.Validation.Status != "passed" || artifact.Artifact.ValidationStatus != "passed" || artifact.Artifact.ID == "" {
@@ -186,23 +217,23 @@ func validateOperatorDigestArtifact(artifact operatorDigestArtifact) error {
 	return nil
 }
 
-func operatorDigestQuestionSourceRefs(questions []operatorDigestQuestion) []operatorDigestSourceRef {
-	refs := make([]operatorDigestSourceRef, 0, len(questions))
+func questionSourceRefs(questions []Question) []SourceRef {
+	refs := make([]SourceRef, 0, len(questions))
 	for _, question := range questions {
 		target := strings.TrimSpace(question.Target)
 		if target == "" {
 			continue
 		}
-		refs = append(refs, operatorDigestSourceRef{
+		refs = append(refs, SourceRef{
 			ID:   target,
-			Kind: operatorDigestTargetKind(target),
+			Kind: targetKind(target),
 			Name: target,
 		})
 	}
 	return refs
 }
 
-func operatorDigestTargetKind(target string) string {
+func targetKind(target string) string {
 	switch {
 	case strings.HasPrefix(target, "mcp:"):
 		return "mcp_tool"
@@ -215,9 +246,9 @@ func operatorDigestTargetKind(target string) string {
 	}
 }
 
-func dedupeOperatorDigestSourceRefs(refs []operatorDigestSourceRef) []operatorDigestSourceRef {
+func dedupeSourceRefs(refs []SourceRef) []SourceRef {
 	seen := make(map[string]struct{}, len(refs))
-	out := make([]operatorDigestSourceRef, 0, len(refs))
+	out := make([]SourceRef, 0, len(refs))
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.ID) == "" {
 			continue
@@ -231,7 +262,7 @@ func dedupeOperatorDigestSourceRefs(refs []operatorDigestSourceRef) []operatorDi
 	return out
 }
 
-func operatorDigestArtifactID(artifact operatorDigestArtifact) string {
+func artifactID(artifact Artifact) string {
 	var b strings.Builder
 	b.WriteString(artifact.Schema)
 	b.WriteString("|")

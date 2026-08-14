@@ -88,6 +88,11 @@ The top-level artifact is:
 
 `generated_at` may be emitted by a concrete CLI or API response as transport
 metadata, but it is not part of ordering, IDs, scoring, or golden fixtures.
+`eshu report` takes that permission and declines it: its digest has to be
+byte-identical run over run, and `TestJSONKeyOrderMatchesContractDoc` in
+`go/internal/cli/opdigest` holds the emitted top-level keys to exactly the
+eight rows above. Adding `generated_at` there turns that test red on purpose;
+it is a contract change for the CLI, not a free field.
 
 ## Shareable Artifact
 
@@ -107,6 +112,12 @@ Artifact writers must produce a single JSON document with this top-level shape:
 | `source_refs` | Deduplicated route, MCP tool, CLI command, playbook, and evidence-handle references used by the digest. |
 | `validation` | Determinism, schema, redaction, and public-safety validation results. |
 | `limitations` | Artifact-level omissions, unsupported sections, truncation, stale data, or export-time warnings. |
+
+`TestJSONKeyOrderMatchesContractDoc`'s `artifact` subtest, in
+`go/internal/cli/opdigest`, holds the artifact `eshu report --artifact-out`
+writes to exactly these seven rows in this order, the same way its `digest`
+subtest holds the Output Shape table above. Adding, removing, or reordering a
+row here is a contract change for the CLI, not a free edit.
 
 Recommended local file names use only share-safe, deterministic components:
 

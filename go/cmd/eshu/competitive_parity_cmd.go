@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/competitiveparity"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -182,11 +183,11 @@ func exerciseFirstRunReportArtifact() error {
 }
 
 func exerciseOperatorDigestArtifact() error {
-	options, err := operatorDigestOptionsFromFlags("repo:demo/service", operatorDigestDefaultProfile, 2)
+	options, err := opdigest.OptionsFromFlags("repo:demo/service", opdigest.DefaultProfile, 2)
 	if err != nil {
 		return err
 	}
-	_, err = buildOperatorDigestArtifact(buildOperatorDigest(options))
+	_, err = opdigest.BuildArtifact(opdigest.BuildDigest(options))
 	return err
 }
 
