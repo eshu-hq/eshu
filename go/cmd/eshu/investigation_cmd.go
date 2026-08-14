@@ -4,39 +4,15 @@
 package main
 
 import (
-	"fmt"
-	"net/url"
-	"os"
-	"strings"
-
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
+	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-// supplyChainExplainEnvelope decodes the canonical envelope returned by the
-// supply-chain impact explain route.
-type supplyChainExplainEnvelope struct {
-	Data  query.SupplyChainImpactExplanationResult `json:"data"`
-	Truth *query.TruthEnvelope                     `json:"truth"`
-	Error *query.ErrorEnvelope                     `json:"error"`
-}
-
-// investigationExportDeps lets tests inject the read fetches without a live API.
-type investigationExportDeps struct {
-	FetchSupplyChainExplain func(client *APIClient, filter query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error)
-	FetchAdmissionDecisions func(client *APIClient, params url.Values) (admissionDecisionsEnvelope, error)
-	FetchDriftFindings      func(client *APIClient, body map[string]any) (driftFindingsEnvelope, error)
-}
-
-func defaultInvestigationExportDeps() investigationExportDeps {
-	return investigationExportDeps{
-		FetchSupplyChainExplain: fetchSupplyChainExplain,
-		FetchAdmissionDecisions: fetchAdmissionDecisions,
-		FetchDriftFindings:      fetchDriftFindings,
-	}
-}
+// investigationExportDepsValue is the read seam the CLI tests swap so they can
+// drive every export path without a live API. Production runs keep the default.
+var investigationExportDepsValue = investigation.DefaultDeps()
 
 func init() {
 	rootCmd.AddCommand(newInvestigationCommand())
@@ -80,23 +56,31 @@ rather than a fabricated answer.`,
 	return cmd
 }
 
+// runInvestigationExport reads the flags, resolves the API client and the output
+// streams, and hands the rest to internal/cli/investigation. The order of the
+// two parse steps is load-bearing: a run with both a bad --format and a bad
+// --subject reports the format first, as it always has.
 func runInvestigationExport(cmd *cobra.Command, _ []string) error {
 	rawFamily, _ := cmd.Flags().GetString("family")
 	rawSubjects, _ := cmd.Flags().GetStringArray("subject")
 	rawFormat, _ := cmd.Flags().GetString("format")
 	out, _ := cmd.Flags().GetString("out")
+	maxSourceFacts, _ := cmd.Flags().GetInt("max-source-facts")
 
 	format, err := query.ParseInvestigationPacketFormat(rawFormat)
 	if err != nil {
 		return err
 	}
-	subject, err := parseSubjectFlags(rawSubjects)
+	subject, err := investigation.ParseSubjectFlags(rawSubjects)
 	if err != nil {
 		return err
 	}
-	family := query.InvestigationFamily(strings.TrimSpace(rawFamily))
 
-	packet, err := buildInvestigationExportPacket(cmd, family, subject)
+	packet, err := investigation.BuildPacket(apiClientFromCmd(cmd), investigationExportDepsValue, investigation.Request{
+		Family:  investigation.ParseFamily(rawFamily),
+		Subject: subject,
+		Bounds:  investigation.BoundsFromMaxSourceFacts(maxSourceFacts),
+	})
 	if err != nil {
 		return err
 	}
@@ -104,217 +88,5 @@ func runInvestigationExport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	return writeInvestigationArtifact(cmd, out, data)
+	return investigation.WriteArtifact(cmd.OutOrStdout(), cmd.ErrOrStderr(), out, data)
 }
-
-// buildInvestigationExportPacket dispatches by family. An unknown family yields a
-// refusal packet (the contract treats it as a valid, share-safe artifact). A
-// known-but-unwired family is a clear CLI error so the operator is never misled
-// into thinking the artifact is empty truth.
-func buildInvestigationExportPacket(cmd *cobra.Command, family query.InvestigationFamily, subject map[string]string) (query.InvestigationEvidencePacket, error) {
-	if !query.ValidInvestigationFamily(family) {
-		return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
-			Family:  family,
-			Subject: subjectOrPlaceholder(subject),
-			Refusal: query.PacketRefusalUnknownFamily,
-		})
-	}
-	switch family {
-	case query.InvestigationFamilySupplyChainImpact:
-		return buildSupplyChainExportPacket(cmd, subject)
-	case query.InvestigationFamilyDeployableUnit:
-		return buildDeployableUnitExportPacket(cmd, subject)
-	case query.InvestigationFamilyDrift:
-		return buildDriftExportPacket(cmd, subject)
-	default:
-		return query.InvestigationEvidencePacket{}, fmt.Errorf(
-			"investigation family %q is recognized but not yet available in this CLI build", family,
-		)
-	}
-}
-
-func buildSupplyChainExportPacket(cmd *cobra.Command, subject map[string]string) (query.InvestigationEvidencePacket, error) {
-	filter := supplyChainFilterFromSubject(subject)
-	if !supplyChainFilterHasScope(filter) {
-		return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
-			Family:  query.InvestigationFamilySupplyChainImpact,
-			Subject: subjectOrPlaceholder(subject),
-			Refusal: query.PacketRefusalScopeNotFound,
-		})
-	}
-	client := apiClientFromCmd(cmd)
-	envelope, err := investigationExportDepsValue.FetchSupplyChainExplain(client, filter)
-	if err != nil {
-		if refusal, ok := refusalFromFetchError(err); ok {
-			return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
-				Family:  query.InvestigationFamilySupplyChainImpact,
-				Subject: subjectOrPlaceholder(subject),
-				Refusal: refusal,
-			})
-		}
-		return query.InvestigationEvidencePacket{}, err
-	}
-	if refusal, refused, err := refusalFromEnvelopeError(envelope.Error); err != nil {
-		return query.InvestigationEvidencePacket{}, err
-	} else if refused {
-		return refusalPacket(query.InvestigationFamilySupplyChainImpact, subject, refusal)
-	}
-	return query.BuildSupplyChainImpactPacket(envelope.Data, envelope.Truth, packetBoundsFromCmd(cmd))
-}
-
-// refusalPacket builds a valid refusal artifact for a family and scope.
-func refusalPacket(family query.InvestigationFamily, subject map[string]string, refusal query.PacketRefusalState) (query.InvestigationEvidencePacket, error) {
-	return query.NewInvestigationEvidencePacket(query.InvestigationPacketInput{
-		Family:  family,
-		Subject: subjectOrPlaceholder(subject),
-		Refusal: refusal,
-	})
-}
-
-// refusalFromEnvelopeError maps an in-envelope error to a refusal state, or to a
-// CLI error when no refusal mapping applies. A nil error means no refusal.
-func refusalFromEnvelopeError(errEnv *query.ErrorEnvelope) (query.PacketRefusalState, bool, error) {
-	if errEnv == nil {
-		return query.PacketRefusalNone, false, nil
-	}
-	if refusal, ok := refusalFromErrorCode(errEnv.Code); ok {
-		return refusal, true, nil
-	}
-	return query.PacketRefusalNone, false, fmt.Errorf("read failed: %s: %s", errEnv.Code, errEnv.Message)
-}
-
-// packetBoundsFromCmd reads the --max-source-facts override into a bounds value,
-// returning nil when the flag is unset so the contract defaults apply.
-func packetBoundsFromCmd(cmd *cobra.Command) *query.PacketBounds {
-	maxSourceFacts, _ := cmd.Flags().GetInt("max-source-facts")
-	if maxSourceFacts <= 0 {
-		return nil
-	}
-	return &query.PacketBounds{MaxSourceFacts: maxSourceFacts}
-}
-
-func fetchSupplyChainExplain(client *APIClient, filter query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
-	values := url.Values{}
-	addQueryValue(values, "finding_id", filter.FindingID)
-	addQueryValue(values, "advisory_id", filter.AdvisoryID)
-	addQueryValue(values, "cve_id", filter.CVEID)
-	addQueryValue(values, "package_id", filter.PackageID)
-	addQueryValue(values, "repository_id", filter.RepositoryID)
-	addQueryValue(values, "subject_digest", filter.SubjectDigest)
-	path := "/api/v0/supply-chain/impact/explain?" + values.Encode()
-	var envelope supplyChainExplainEnvelope
-	if err := client.GetEnvelope(path, &envelope); err != nil {
-		return supplyChainExplainEnvelope{}, err
-	}
-	return envelope, nil
-}
-
-func supplyChainFilterFromSubject(subject map[string]string) query.SupplyChainImpactExplanationFilter {
-	return query.SupplyChainImpactExplanationFilter{
-		FindingID:     subject["finding_id"],
-		AdvisoryID:    subject["advisory_id"],
-		CVEID:         subject["cve_id"],
-		PackageID:     subject["package_id"],
-		RepositoryID:  subject["repository_id"],
-		SubjectDigest: subject["subject_digest"],
-	}
-}
-
-func supplyChainFilterHasScope(filter query.SupplyChainImpactExplanationFilter) bool {
-	if strings.TrimSpace(filter.FindingID) != "" {
-		return true
-	}
-	hasAdvisory := strings.TrimSpace(filter.AdvisoryID) != "" || strings.TrimSpace(filter.CVEID) != ""
-	hasTarget := strings.TrimSpace(filter.PackageID) != "" ||
-		strings.TrimSpace(filter.RepositoryID) != "" ||
-		strings.TrimSpace(filter.SubjectDigest) != ""
-	return hasAdvisory && hasTarget
-}
-
-// refusalFromErrorCode maps an in-envelope error code to a packet refusal state
-// when one applies. Codes without a refusal mapping return false so the caller
-// surfaces them as a CLI error.
-func refusalFromErrorCode(code query.ErrorCode) (query.PacketRefusalState, bool) {
-	switch code {
-	case query.ErrorCodeNotFound, query.ErrorCodeScopeNotFound, query.ErrorCodeServiceNotFound:
-		return query.PacketRefusalScopeNotFound, true
-	case query.ErrorCodeUnsupportedCapability, query.ErrorCodeCapabilityDegraded:
-		return query.PacketRefusalProfileUnsupported, true
-	case query.ErrorCodeBackendUnavailable, query.ErrorCodeIndexBuilding:
-		return query.PacketRefusalBackendUnavailable, true
-	default:
-		return query.PacketRefusalNone, false
-	}
-}
-
-// refusalFromFetchError maps a transport-level API error to a refusal state. A
-// 404 becomes scope_not_found; a 503 becomes backend_unavailable. Other statuses
-// are surfaced to the operator as a CLI error.
-func refusalFromFetchError(err error) (query.PacketRefusalState, bool) {
-	status, ok := apierr.StatusCode(err)
-	if !ok {
-		return query.PacketRefusalNone, false
-	}
-	switch status {
-	case 404:
-		return query.PacketRefusalScopeNotFound, true
-	case 501:
-		// The explain handler returns 501 for a profile that cannot serve the
-		// capability; GetEnvelope surfaces it as a transport error before the
-		// in-envelope unsupported_capability code can be read.
-		return query.PacketRefusalProfileUnsupported, true
-	case 503:
-		return query.PacketRefusalBackendUnavailable, true
-	default:
-		return query.PacketRefusalNone, false
-	}
-}
-
-func parseSubjectFlags(raw []string) (map[string]string, error) {
-	subject := map[string]string{}
-	for _, entry := range raw {
-		key, value, ok := strings.Cut(entry, "=")
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-		if !ok || key == "" || value == "" {
-			return nil, fmt.Errorf("invalid --subject %q: expected key=value", entry)
-		}
-		subject[key] = value
-	}
-	return subject, nil
-}
-
-// subjectOrPlaceholder guarantees a non-empty scope so a refusal packet still
-// names what the operator asked for and passes the contract's scope gate.
-func subjectOrPlaceholder(subject map[string]string) map[string]string {
-	if len(subject) > 0 {
-		return subject
-	}
-	return map[string]string{"requested": "unspecified"}
-}
-
-func writeInvestigationArtifact(cmd *cobra.Command, out string, data []byte) error {
-	if strings.TrimSpace(out) == "" {
-		_, err := cmd.OutOrStdout().Write(data)
-		return err
-	}
-	if err := os.WriteFile(out, data, 0o600); err != nil {
-		return fmt.Errorf("write investigation packet: %w", err)
-	}
-	// os.WriteFile only applies the mode on creation; an existing file keeps its
-	// prior (possibly broader) permissions. Chmod explicitly so a regenerated
-	// artifact is always owner-only.
-	if err := os.Chmod(out, 0o600); err != nil {
-		return fmt.Errorf("set investigation packet permissions: %w", err)
-	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote investigation packet to %s\n", out)
-	return nil
-}
-
-func addQueryValue(values url.Values, key, value string) {
-	if v := strings.TrimSpace(value); v != "" {
-		values.Set(key, v)
-	}
-}
-
-var investigationExportDepsValue = defaultInvestigationExportDeps()

@@ -20,7 +20,7 @@ package main
 // is generated from -- edit those TSVs, then re-run
 // scripts/generate-dirgate-grandfather-go.sh, never this file directly.
 var grandfatheredDirectories = map[string]grandfatherEntry{
-	"cmd/eshu":                    {FileCount: 112, Digest: "1be98fa6d04142c3175ddfce1a4c35cc371d5d195e86bff0d59a809217632c8c"},
+	"cmd/eshu":                    {FileCount: 112, Digest: "198fedab92de0400348620eab3e9e924da306a7388069e45a9f20c4196a957b7"},
 	"internal/collector":          {FileCount: 111, Digest: "aa91a713d77db808654cec9c92705997921abb22b80435e157280e4c4a7c7d63", NamingExempt: []string{"discovery_advisory.go", "discovery_env.go"}},
 	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},

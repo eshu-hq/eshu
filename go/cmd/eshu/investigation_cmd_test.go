@@ -11,13 +11,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-func runInvestigationExportCmd(t *testing.T, args []string, fetch func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error)) (string, error) {
+func runInvestigationExportCmd(t *testing.T, args []string, fetch func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error)) (string, error) {
 	t.Helper()
 	prev := investigationExportDepsValue
-	investigationExportDepsValue = investigationExportDeps{FetchSupplyChainExplain: fetch}
+	investigationExportDepsValue = investigation.Deps{FetchSupplyChainExplain: fetch}
 	t.Cleanup(func() { investigationExportDepsValue = prev })
 
 	cmd := newInvestigationExportCommand()
@@ -29,8 +30,8 @@ func runInvestigationExportCmd(t *testing.T, args []string, fetch func(*APIClien
 	return out.String(), err
 }
 
-func explainEnvelopeFromComplete() supplyChainExplainEnvelope {
-	return supplyChainExplainEnvelope{
+func explainEnvelopeFromComplete() investigation.SupplyChainExplainEnvelope {
+	return investigation.SupplyChainExplainEnvelope{
 		Data:  completeSupplyChainExplainResult(),
 		Truth: explainTruthEnvelope(),
 	}
@@ -76,7 +77,7 @@ func completeSupplyChainExplainResult() query.SupplyChainImpactExplanationResult
 func TestInvestigationExportSupplyChainJSON(t *testing.T) {
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-aaaa-bbbb-cccc", "--subject", "package_id=pkg:golang/example.com/vuln", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return explainEnvelopeFromComplete(), nil
 		})
 	if err != nil {
@@ -101,7 +102,7 @@ func TestInvestigationExportPassesSubjectToFilter(t *testing.T) {
 	var gotFilter query.SupplyChainImpactExplanationFilter
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y"},
-		func(_ *APIClient, filter query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(_ investigation.Client, filter query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			gotFilter = filter
 			return explainEnvelopeFromComplete(), nil
 		})
@@ -116,9 +117,9 @@ func TestInvestigationExportPassesSubjectToFilter(t *testing.T) {
 func TestInvestigationExportUnknownFamilyRefuses(t *testing.T) {
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "not_a_family", "--subject", "x=y", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			t.Fatal("fetch should not be called for an unknown family")
-			return supplyChainExplainEnvelope{}, nil
+			return investigation.SupplyChainExplainEnvelope{}, nil
 		})
 	if err != nil {
 		t.Fatalf("export: %v", err)
@@ -135,9 +136,9 @@ func TestInvestigationExportUnknownFamilyRefuses(t *testing.T) {
 func TestInvestigationExportMissingScopeRefuses(t *testing.T) {
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			t.Fatal("fetch should not be called when scope is incomplete")
-			return supplyChainExplainEnvelope{}, nil
+			return investigation.SupplyChainExplainEnvelope{}, nil
 		})
 	if err != nil {
 		t.Fatalf("export: %v", err)
@@ -154,8 +155,8 @@ func TestInvestigationExportMissingScopeRefuses(t *testing.T) {
 func TestInvestigationExportErrorEnvelopeRefuses(t *testing.T) {
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
-			return supplyChainExplainEnvelope{Error: &query.ErrorEnvelope{Code: query.ErrorCodeNotFound, Message: "no finding"}}, nil
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			return investigation.SupplyChainExplainEnvelope{Error: &query.ErrorEnvelope{Code: query.ErrorCodeNotFound, Message: "no finding"}}, nil
 		})
 	if err != nil {
 		t.Fatalf("export: %v", err)
@@ -174,7 +175,7 @@ func TestInvestigationExportWritesFile(t *testing.T) {
 	path := filepath.Join(dir, "packet.md")
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "md", "--out", path},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return explainEnvelopeFromComplete(), nil
 		})
 	if err != nil {
@@ -208,7 +209,7 @@ func TestInvestigationExportMaxSourceFactsWired(t *testing.T) {
 	envelope.Data.Finding.EvidenceFactIDs = nil
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json", "--max-source-facts", "1"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return envelope, nil
 		})
 	if err != nil {
@@ -229,8 +230,8 @@ func TestInvestigationExportMaxSourceFactsWired(t *testing.T) {
 func TestInvestigationExportUnsupportedProfileRefuses(t *testing.T) {
 	out, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
-			return supplyChainExplainEnvelope{}, &apiHTTPError{StatusCode: 501, Body: "unsupported_capability"}
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
+			return investigation.SupplyChainExplainEnvelope{}, &apiHTTPError{StatusCode: 501, Body: "unsupported_capability"}
 		})
 	if err != nil {
 		t.Fatalf("export: %v", err)
@@ -252,7 +253,7 @@ func TestInvestigationExportChmodsExistingFile(t *testing.T) {
 	}
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--format", "json", "--out", path},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return explainEnvelopeFromComplete(), nil
 		})
 	if err != nil {
@@ -270,7 +271,7 @@ func TestInvestigationExportChmodsExistingFile(t *testing.T) {
 func TestInvestigationExportAcceptsRemoteFlags(t *testing.T) {
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "advisory_id=GHSA-x", "--subject", "package_id=pkg:npm/y", "--service-url", "http://example:8080", "--api-key", "k", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return explainEnvelopeFromComplete(), nil
 		})
 	if err != nil {
@@ -281,7 +282,7 @@ func TestInvestigationExportAcceptsRemoteFlags(t *testing.T) {
 func TestInvestigationExportRejectsBadSubject(t *testing.T) {
 	_, err := runInvestigationExportCmd(t,
 		[]string{"--family", "supply_chain_impact", "--subject", "noequals", "--format", "json"},
-		func(*APIClient, query.SupplyChainImpactExplanationFilter) (supplyChainExplainEnvelope, error) {
+		func(investigation.Client, query.SupplyChainImpactExplanationFilter) (investigation.SupplyChainExplainEnvelope, error) {
 			return explainEnvelopeFromComplete(), nil
 		})
 	if err == nil {
