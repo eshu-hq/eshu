@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 // TestValidate_PublicProfileWithPayloadsIsRejected is the redaction-safety
@@ -275,6 +276,16 @@ func TestValidationChecksMatchValidateBehavior(t *testing.T) {
 		// what proves the free-text scan is really running.
 		{"reporter_note", func(b *Bundle) {
 			b.ReporterNote = "curl -H 'Authorization: Bearer " + egressNoteHeaderSentinel + "'"
+		}},
+		// The error-text mutation plants the credential in Message only, with
+		// Details left clean: a mutation that set both would still be rejected by
+		// query_inputs (which runs first) and would prove nothing about this
+		// check running at all.
+		{"response_error_text", func(b *Bundle) {
+			b.Response.Error = &query.ErrorEnvelope{
+				Code:    "ambiguous",
+				Message: composedAmbiguousMessage("checkout?token=" + egressErrorMessageSentinel),
+			}
 		}},
 		{"share_safe_keys", func(b *Bundle) { b.Query.Params = map[string]any{"api_key": "leak"} }},
 	}

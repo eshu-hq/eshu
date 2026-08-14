@@ -4,6 +4,7 @@
 package reportbundle
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -53,6 +54,8 @@ const (
 	egressEncodedParamSentinel  = "EGRESS-ENCODED-PARAM-1d9f64"
 	egressNestedParamSentinel   = "EGRESS-NESTED-PARAM-b36a97"
 	egressErrorDetailSentinel   = "EGRESS-ERROR-DETAIL-71cf05"
+	egressErrorMessageSentinel  = "EGRESS-ERROR-MESSAGE-6ba3e2"
+	egressErrorCorrelationToken = "EGRESS-ERROR-CORRELATION-af57d1"
 	egressMalformedSentinel     = "EGRESS-MALFORMED-QUERY-d0e4b8"
 	egressNoteQuerySentinel     = "EGRESS-NOTE-QUERY-5b82ea"
 	egressNoteHeaderSentinel    = "EGRESS-NOTE-HEADER-c419d7"
@@ -84,13 +87,63 @@ func assertNoEgress(t *testing.T, label string, bundle Bundle, err error, sentin
 // carries it. wantCaptureError marks the inputs Capture is expected to refuse
 // outright rather than redact parameter by parameter.
 type egressCase struct {
-	name             string
-	target           string
-	params           map[string]any
-	errorDetails     map[string]any
-	note             string
-	sentinels        []string
-	wantCaptureError bool
+	name   string
+	target string
+	params map[string]any
+	// errorSelector is the caller-typed service selector the ambiguous path was
+	// given. A case that sets it gets BOTH halves of the real envelope built
+	// from that one string — details.selector and the composed Message — so no
+	// case can plant a sentinel in the structured half while the sentence beside
+	// it quietly holds a constant. See ambiguousErrorEnvelope.
+	errorSelector      string
+	errorCorrelationID string
+	note               string
+	sentinels          []string
+	wantCaptureError   bool
+}
+
+// composedAmbiguousMessage mirrors the sentence
+// query/service_workload_resolution.go:39 builds for an ambiguous selector. The
+// prose is not what is under test — the SELECTOR being interpolated into it is,
+// and that the production code really does interpolate it is pinned on the
+// producing side by
+// query.TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage. If that test
+// goes red, this constant is describing something the server no longer sends and
+// this file's error cases stop meaning anything.
+func composedAmbiguousMessage(selector string) string {
+	return fmt.Sprintf(
+		"service selector %q matched multiple services; add service_id, repo, or environment",
+		selector,
+	)
+}
+
+// ambiguousErrorEnvelope is the one builder both the Capture half and the
+// Validate half of this file use, so a bundle Capture is asked to redact and a
+// bundle Validate is asked to reject can never be built from different bytes.
+//
+// It is also why the error cases can fail at all. Both builders used to hardcode
+// Message to a fixed sentence carrying no sentinel, which made every assertion
+// about Message structurally incapable of going red — the leak this file exists
+// to catch shipped underneath a green run of this very test.
+func (tc egressCase) ambiguousErrorEnvelope() *query.ErrorEnvelope {
+	if tc.errorSelector == "" && tc.errorCorrelationID == "" {
+		return nil
+	}
+	envelope := &query.ErrorEnvelope{
+		Code:          "ambiguous",
+		Capability:    "platform_impact.context_overview",
+		CorrelationID: tc.errorCorrelationID,
+	}
+	if tc.errorSelector == "" {
+		envelope.Message = "selector matched more than one service"
+		return envelope
+	}
+	envelope.Message = composedAmbiguousMessage(tc.errorSelector)
+	envelope.Details = map[string]any{
+		"status":   "ambiguous",
+		"selector": tc.errorSelector,
+	}
+	return envelope
 }
 
 func egressCases() []egressCase {
@@ -134,10 +187,32 @@ func egressCases() []egressCase {
 			sentinels: []string{egressNestedParamSentinel},
 		},
 		{
-			name:         "error details echo a caller selector carrying a credential",
-			target:       "/api/v0/services/checkout/story",
-			errorDetails: map[string]any{"selector": "checkout?api_key=" + egressErrorDetailSentinel},
-			sentinels:    []string{egressErrorDetailSentinel},
+			name:          "error details echo a caller selector carrying a credential",
+			target:        "/api/v0/services/checkout/story",
+			errorSelector: "checkout?api_key=" + egressErrorDetailSentinel,
+			sentinels:     []string{egressErrorDetailSentinel},
+		},
+		{
+			// The same selector, read off the OTHER field of the same envelope.
+			// The redactor already fired rule "selector" on this value and
+			// dropped it from Details, then shipped it verbatim in the sentence
+			// composed from it — a bundle stamped profile=public and
+			// validation=passed with the credential still in
+			// response.error.message.
+			name:          "composed error message interpolates a caller selector carrying a credential",
+			target:        "/api/v0/services/checkout/story",
+			errorSelector: "checkout?token=" + egressErrorMessageSentinel,
+			sentinels:     []string{egressErrorMessageSentinel},
+		},
+		{
+			// correlation_id is caller-controlled: documentation.go:470 returns
+			// the request's own X-Correlation-ID header verbatim, and auth.go:430
+			// puts it in an error envelope without the character allowlist the
+			// audit path applies.
+			name:               "error correlation id repeats a caller-supplied header carrying a credential",
+			target:             "/api/v0/services/checkout/story",
+			errorCorrelationID: "corr-1?access_token=" + egressErrorCorrelationToken,
+			sentinels:          []string{egressErrorCorrelationToken},
 		},
 		{
 			name:             "malformed query string alongside the credential",
@@ -187,13 +262,7 @@ func (tc egressCase) captureInput() CaptureInput {
 	if tc.note != "" {
 		input.ReporterNote = tc.note
 	}
-	if tc.errorDetails != nil {
-		input.Envelope.Error = &query.ErrorEnvelope{
-			Code:    "ambiguous",
-			Message: "selector matched more than one service",
-			Details: tc.errorDetails,
-		}
-	}
+	input.Envelope.Error = tc.ambiguousErrorEnvelope()
 	return input
 }
 
@@ -233,12 +302,8 @@ func (tc egressCase) handEditedBundle(t *testing.T) Bundle {
 	if tc.note != "" {
 		bundle.ReporterNote = tc.note
 	}
-	if tc.errorDetails != nil {
-		bundle.Response.Error = &query.ErrorEnvelope{
-			Code:    "ambiguous",
-			Message: "selector matched more than one service",
-			Details: tc.errorDetails,
-		}
+	if envelope := tc.ambiguousErrorEnvelope(); envelope != nil {
+		bundle.Response.Error = envelope
 	}
 	return bundle
 }

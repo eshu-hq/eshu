@@ -19,14 +19,21 @@
 // Response.Error.Details (which echoes the caller's own selector back), and
 // ReporterNote. The first three are structured, so they get the
 // sensitive-key-name walk plus a re-parse of any query-string-shaped value at
-// any depth, as typed and once percent-decoded (redactQueryInput). ReporterNote
-// is free text — the guide asks
-// reporters for a repro, so it commonly holds a pasted curl — and gets a
-// line-by-line scan for a sensitive-named key beside an "=" or a ":"
-// (redactReporterNote). Server-produced evidence — Response.Data and
-// Response.Truth — gets the key-name walk only, because judging its content
-// would strip the answer the bundle exists to carry; see the package README for
-// what that exemption costs.
+// any depth, as typed and once percent-decoded (redactQueryInput).
+//
+// Free text gets a line-by-line scan for a sensitive-named key beside an "=" or
+// a ":" (redactFreeText). ReporterNote is in that domain because the guide asks
+// reporters for a repro, so it commonly holds a pasted curl. So are
+// Response.Error.Message and Response.Error.CorrelationID: a Message is composed
+// server-side out of the caller's own selector, and a CorrelationID is the
+// caller's own X-Correlation-ID header when one was sent. "Composed by the
+// server" is not the same as "free of reporter bytes", and treating it as such
+// is what shipped a credential inside a bundle whose details.selector had just
+// been redacted for holding the identical string.
+//
+// Server-produced evidence — Response.Data and Response.Truth — gets the
+// key-name walk only, because judging its content would strip the answer the
+// bundle exists to carry; see the package README for what that exemption costs.
 //
 // Every one of these rules asks the same question: is there a KEY NAME here
 // that collector.IsSensitiveKeyName flags. What differs between them is where

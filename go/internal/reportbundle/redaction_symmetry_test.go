@@ -70,6 +70,33 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 			},
 			handEdit: func(b *Bundle) { b.ReporterNote = symmetryBytes },
 		},
+		{
+			// The third placement is the one the first two did not imply. This
+			// field is written by the SERVER, so it read as out of scope — but
+			// the server writes it by interpolating the caller's own selector,
+			// which is the same bytes arriving by a longer route. Same text,
+			// same person typed it, so it must get the same verdict.
+			field: "response.error.message",
+			capture: CaptureInput{
+				Surface: "api",
+				Target:  "/api/v0/services/checkout/story",
+				Method:  "GET",
+				Envelope: query.ResponseEnvelope{
+					Data: map[string]any{"owner": "platform-team"},
+					Error: &query.ErrorEnvelope{
+						Code:    "ambiguous",
+						Message: composedAmbiguousMessage(symmetryBytes),
+					},
+				},
+				ReporterNote: "expected the owning team, got an empty list",
+			},
+			handEdit: func(b *Bundle) {
+				b.Response.Error = &query.ErrorEnvelope{
+					Code:    "ambiguous",
+					Message: composedAmbiguousMessage(symmetryBytes),
+				}
+			},
+		},
 	}
 
 	for _, placement := range placements {
@@ -163,6 +190,91 @@ func TestCaptureLeavesACleanReporterNoteAlone(t *testing.T) {
 	}
 	if containsRule(bundle.Redaction.Rules, "reporter_note") {
 		t.Errorf("Redaction.Rules = %v, want no reporter_note entry for an untouched note", bundle.Redaction.Rules)
+	}
+}
+
+// TestCaptureKeepsTheErrorMessageAroundTheCredential is the note test's
+// counterpart on the error envelope, and it guards the direction the leak fix
+// could overshoot in. An error message is one short sentence, so dropping the
+// whole field on a hit would cost a maintainer the entire explanation of what
+// went wrong — and the message is often the only human-readable statement of it
+// in the bundle. Only the pair goes; the sentence around it stays, and the
+// removal is recorded.
+func TestCaptureKeepsTheErrorMessageAroundTheCredential(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := Capture(CaptureInput{
+		Surface: "api",
+		Target:  "/api/v0/services/checkout/story",
+		Method:  "GET",
+		Envelope: query.ResponseEnvelope{
+			Data: map[string]any{"owner": "platform-team"},
+			Error: &query.ErrorEnvelope{
+				Code:    "ambiguous",
+				Message: composedAmbiguousMessage("checkout?token=" + egressErrorMessageSentinel),
+			},
+		},
+		ReporterNote: "expected one service, got an ambiguity",
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	if bundle.Response.Error == nil {
+		t.Fatal("Response.Error = nil, wanted the envelope kept")
+	}
+	message := bundle.Response.Error.Message
+	if strings.Contains(message, egressErrorMessageSentinel) {
+		t.Errorf("Response.Error.Message kept the credential: %s", message)
+	}
+	for _, keep := range []string{
+		"service selector",
+		"checkout",
+		"matched multiple services; add service_id, repo, or environment",
+	} {
+		if !strings.Contains(message, keep) {
+			t.Errorf("Response.Error.Message lost %q; got: %s", keep, message)
+		}
+	}
+	if !containsRule(bundle.Redaction.Rules, "response_error_message") {
+		t.Errorf("Redaction.Rules = %v, want it to record response_error_message", bundle.Redaction.Rules)
+	}
+}
+
+// TestCaptureLeavesACleanErrorEnvelopeAlone is the false-positive half. The
+// realistic ambiguous message — the same composition, with a selector nobody put
+// a credential in — must arrive byte for byte and record no rule.
+func TestCaptureLeavesACleanErrorEnvelopeAlone(t *testing.T) {
+	t.Parallel()
+
+	message := composedAmbiguousMessage("checkout")
+	const correlationID = "9f2c41d0a7b34e58bd10c6e2f4a97b31"
+	bundle, err := Capture(CaptureInput{
+		Surface: "api",
+		Target:  "/api/v0/services/checkout/story",
+		Method:  "GET",
+		Envelope: query.ResponseEnvelope{
+			Data: map[string]any{"owner": "platform-team"},
+			Error: &query.ErrorEnvelope{
+				Code:          "ambiguous",
+				Message:       message,
+				CorrelationID: correlationID,
+			},
+		},
+		ReporterNote: "expected one service, got an ambiguity",
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	if got := bundle.Response.Error.Message; got != message {
+		t.Errorf("Response.Error.Message was altered.\n got: %s\nwant: %s", got, message)
+	}
+	if got := bundle.Response.Error.CorrelationID; got != correlationID {
+		t.Errorf("Response.Error.CorrelationID was altered.\n got: %s\nwant: %s", got, correlationID)
+	}
+	for _, rule := range []string{"response_error_message", "response_error_correlation_id"} {
+		if containsRule(bundle.Redaction.Rules, rule) {
+			t.Errorf("Redaction.Rules = %v, want no %s entry for an untouched envelope", bundle.Redaction.Rules, rule)
+		}
 	}
 }
 

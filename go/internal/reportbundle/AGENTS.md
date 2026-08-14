@@ -19,11 +19,16 @@ read durable fact records itself — callers supply an already-resolved
     and `Response.Error.Details` (which echoes the caller's own selector back).
     These get the key-name walk PLUS the `embeddedSensitiveKey` structural
     re-parse, at any depth, via `redactQueryInput`.
-  - **Reporter-typed free text** — `ReporterNote`, via `redactReporterNote`.
-    Scanned line by line for a sensitive-named key beside `=` or `:`. It is a
-    separate function from `embeddedSensitiveKey` on purpose: that one splits on
-    query separators and skips any candidate key containing whitespace, which is
-    right for a parsed parameter and wrong for prose.
+  - **Free text** — `ReporterNote`, `Response.Error.Message`, and
+    `Response.Error.CorrelationID`, via `redactFreeText`. Scanned line by line
+    for a sensitive-named key beside `=` or `:`. It is a separate function from
+    `embeddedSensitiveKey` on purpose: that one splits on query separators and
+    skips any candidate key containing whitespace, which is right for a parsed
+    parameter and wrong for prose. A server-COMPOSED string is in this domain,
+    not out of it: `Message` is built by interpolating the caller's own selector
+    (`query/service_workload_resolution.go:39`), and `CorrelationID` is the
+    caller's own `X-Correlation-ID` header when one was sent
+    (`query/documentation.go:470`).
   - **Server-produced evidence** — `Response.Data`, `Response.Truth`. Key-name
     walk only, via `redactValue`.
 - The note scan covers BOTH the `key=value` and the `key: value` header form. Do

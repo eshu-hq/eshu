@@ -59,7 +59,7 @@ The rule is attached to where the data came from, not to how it arrived:
 | Provenance domain | Fields | Treatment |
 | --- | --- | --- |
 | Reporter-typed query input | `query.target`, all of `query.params`, `response.error.details` | key-name walk **plus** the `embeddedSensitiveKey` structural scan, at any depth; unparseable target fails closed |
-| Reporter-typed free text | `reporter_note` | line-by-line scan for a sensitive-named key beside `=` or `:` (`redactReporterNote`); the matched span is replaced, the rest of the note kept |
+| Free text | `reporter_note`, `response.error.message`, `response.error.correlation_id` | line-by-line scan for a sensitive-named key beside `=` or `:` (`redactFreeText`); the matched span is replaced, the rest of the text kept |
 | Server-produced evidence | `response.data`, `response.truth` | key-name walk only |
 
 `Capture` merges the target's query string into `query.params` first and then
@@ -142,6 +142,55 @@ What the note scan does **not** find, stated so nobody reads more into it:
 The cost is a false positive on prose: `no authorization: the call 403s` loses
 the rest of that line, and `SELECT token = 1` loses the pair. That trade is a
 shortened note against a live credential on a public issue.
+
+#### The error envelope's prose is scanned too
+
+`response.error.message` was left alone on the recorded belief that it was a
+"fixed contract field the redactor has no key names to work with", covered by
+`Validate`. Neither half was true. The message is composed: an ambiguous service
+story formats the caller's selector into
+`service selector %q matched multiple services`
+(`query/service_workload_resolution.go:39`) and emits it beside a
+`details.selector` holding the same string
+(`query/service_story_seam.go:129`). So the redactor dropped the selector from
+`details` — recording rule `selector` — and shipped it verbatim one field over,
+in a bundle stamped `profile: public` / `validation: passed`, which the reporter
+guide tells people to attach to a public issue. And `Validate` never named
+`message` at all.
+
+The mechanism is worth stating because it generalises: `redactErrorEnvelope`
+does `redacted := *envelope` and then walks only `Details`. A struct copy takes
+every scalar field along, so any field not explicitly scanned afterwards is
+shipped as-is. `Message` is assigned a non-literal value at more than twenty
+sites in `internal/query` — some interpolating `err.Error()` directly, most
+passing a variable composed further up — so the rule lives at this egress
+boundary rather than at each composer.
+
+`correlation_id` is scanned for the same reason one level over: it is the
+request's own `X-Correlation-ID` / `X-Request-ID` header when the caller sent one
+(`query/documentation.go:470`), and `query/auth.go:430` puts it in an error
+envelope without the character allowlist the audit path applies.
+
+`code`, `capability` and `profiles` are still copied unscanned. That is a
+different claim, not the same one restated: each is a server-side constant — an
+`ErrorCode` enum value, a capability name declared as a package const, a
+`QueryProfile` pair — with no route from caller input.
+
+The false positives are the same trade the note scan makes, and a message pays
+it more often than a note does, because a message is short. `encode oidc secret:
+%w` (`query/admin_provider_config_build.go:107`) has a sensitive name directly
+before its `:`, so the bundle records `encode oidc [redacted]` and lists
+`response_error_message`. A maintainer loses that sentence; the alternative is
+shipping the class of message likeliest to have a real secret in it.
+
+One thing this scan does cover that a sibling scrub does not: a credential
+carried as a **query parameter**. `https://host/mcp?token=…` inside a message or
+a note keeps the URL and loses the pair. `redactEndpoint`
+(`cmd/eshu/first_run_evidence.go:236`) strips a URL's userinfo and keeps its
+query string, so the same URL survives intact there. Neither closes the other's
+gap, and the reverse gap applies here: free text has no userinfo rule, so
+`https://alice:s3cr3t@host` passes this scan — the token left of the `:` is
+`alice`, which no sensitive-key rule matches.
 
 #### Why `response.data` is exempt, and what that costs
 

@@ -102,6 +102,7 @@ A captured bundle looks like this:
       "profile_payloads_consistency",
       "query_inputs",
       "reporter_note",
+      "response_error_text",
       "share_safe_keys"
     ]
   }
@@ -157,6 +158,15 @@ tends to land. Two shapes are removed:
 
 The rest of the note is kept, so the repro you wrote is still readable, and
 `redaction.rules` lists `reporter_note` whenever anything was taken out.
+
+The error message Eshu returned gets the same scan. That is not a formality: a
+few routes build their message by quoting the selector you asked about, so a
+selector like `checkout?token=...` comes back inside `response.error.message`
+even when the structured `response.error.details` beside it was already cleaned.
+The credential is cut out of the sentence and the sentence is kept, listed as
+`response_error_message` in `redaction.rules`. `response.error.correlation_id`
+is scanned the same way, because it is your own `X-Correlation-ID` header when
+you sent one.
 
 Five limits, worth knowing before you paste something unusual:
 

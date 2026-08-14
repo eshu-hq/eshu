@@ -279,16 +279,16 @@ func TestRedactReporterNote(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, redacted := redactReporterNote(tt.note)
+			got, redacted := redactFreeText(tt.note)
 			if got != tt.want {
-				t.Fatalf("redactReporterNote(%q) = %q, want %q", tt.note, got, tt.want)
+				t.Fatalf("redactFreeText(%q) = %q, want %q", tt.note, got, tt.want)
 			}
 			if want := tt.note != tt.want; redacted != want {
-				t.Fatalf("redactReporterNote(%q) redacted = %v, want %v", tt.note, redacted, want)
+				t.Fatalf("redactFreeText(%q) redacted = %v, want %v", tt.note, redacted, want)
 			}
-			again, changed := redactReporterNote(got)
+			again, changed := redactFreeText(got)
 			if changed || again != got {
-				t.Fatalf("redactReporterNote is not idempotent: second pass on %q gave %q (changed=%v)", got, again, changed)
+				t.Fatalf("redactFreeText is not idempotent: second pass on %q gave %q (changed=%v)", got, again, changed)
 			}
 		})
 	}
