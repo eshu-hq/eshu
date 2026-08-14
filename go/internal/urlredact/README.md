@@ -30,8 +30,20 @@ test:
 …/x?redirect_uri=/cb?access_token=<credential>
 ```
 
-The separators now live here once. `reportbundle` reads `PairSeparators` for its
-own scan; `cmd/eshu` calls `Query`, which is that scan's other half.
+The separators now live here once, and there were **three** copies to collapse,
+not two:
+
+| Consumer | Constant | What it bounds |
+| --- | --- | --- |
+| `cmd/eshu` | calls `Query` | a pair inside a structured endpoint's query string |
+| `reportbundle` | `queryPairSeparators` | a pair inside a query-shaped parameter VALUE |
+| `reportbundle` | `freeTextValueTerminators` | where a pair's value ends in prose |
+
+The third one is the one `redactFreeText` actually reads, and it was found only
+by breaking `PairSeparators` and watching which tests moved: sharing the first
+two left `reportbundle` green. It now splices `PairSeparators` into its wider
+set (`" \t\r\n" + PairSeparators + "'\"` + backtick + `"`), so one edit moves
+every walk.
 
 ## Exported surface
 
@@ -71,6 +83,12 @@ the next pass and `reportbundle.Capture` runs `Validate` over its own output.
 
 What must hold on every row is narrower, and is the thing that actually broke:
 the credential is gone from both outputs, and the text around it survives.
+
+Two rows put the credential in a **non-final** position, with text after it.
+They look redundant next to the rows above and are not: when a credential is
+last, its value runs to the end of the string whether or not a walk knows the
+separator, so every last-position row passes against a terminator set that has
+drifted. Those two rows are what makes `freeTextValueTerminators` load-bearing.
 
 A row one walk provably cannot handle records **why**, in
 `EndpointKeepsSecret` / `FreeTextKeepsSecret`. Two rows do today:

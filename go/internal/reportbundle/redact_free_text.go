@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 // This file owns the FREE-TEXT redaction domain. It was split out of redact.go
@@ -38,11 +40,17 @@ const (
 const freeTextMarker = "[redacted]"
 
 // freeTextValueTerminators end the VALUE half of a "key=value" pair found in
-// free text. Whitespace and quotes bound a pasted shell word; "?", "&" and ";"
-// bound one parameter inside a pasted URL. A credential containing one of these
-// would be cut short rather than removed whole, which is why the header form
-// below does not use them.
-const freeTextValueTerminators = " \t\r\n?&;'\"`"
+// free text. Whitespace and quotes bound a pasted shell word; the pair
+// separators bound one parameter inside a pasted URL. A credential containing
+// one of these would be cut short rather than removed whole, which is why the
+// header form below does not use them.
+//
+// The URL half is urlredact.PairSeparators, spliced in rather than spelled out.
+// This was the THIRD copy of "?&;" in the repository and the one this walk
+// actually reads — sharing only queryPairSeparators in redact.go left it able
+// to drift on its own, which a probe caught: changing the shared constant moved
+// cmd/eshu's walk and left this one untouched.
+const freeTextValueTerminators = " \t\r\n" + urlredact.PairSeparators + "'\"`"
 
 // isNoteKeyRune reports whether r can be part of a key name found in free text.
 // It is deliberately narrower than an HTTP header token: letters, digits, "_"

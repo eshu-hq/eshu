@@ -159,6 +159,26 @@ func BoundaryCases() []BoundaryCase {
 			WantFreeText: "http://h/x?repo=demo&[redacted]",
 		},
 		{
+			// A credential in LAST position hides which separator a walk
+			// actually knows, because the value runs to the end either way.
+			// This row and the next put text after the credential, so the
+			// separator has to end the value for the row to pass. Every other
+			// row in this corpus put the credential last, which is how a
+			// terminator set that had drifted still looked correct.
+			Name:         "semicolon ends a value with text after it",
+			Input:        "http://h/x?token=" + Sentinel + ";repo=demo",
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?token=redacted;repo=demo",
+			WantFreeText: "http://h/x?[redacted];repo=demo",
+		},
+		{
+			Name:         "nested question mark ends a value with text after it",
+			Input:        "http://h/x?api_key=" + Sentinel + "?next=/v0/y",
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?api_key=redacted?next=/v0/y",
+			WantFreeText: "http://h/x?[redacted]?next=/v0/y",
+		},
+		{
 			// %5F is "_". The endpoint walk decodes the name before asking the
 			// predicate; the free-text walk cannot, because walking back from
 			// "=" over key runes stops at "%" and yields "5Fkey".

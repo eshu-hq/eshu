@@ -194,9 +194,12 @@ they did drift: this package ended a value at `?`, `&` or `;`, `redactEndpoint`
 split on `&` alone, and a comment claiming the two could not disagree was read
 as covering both. Three credentials shipped through the gap —
 `?a=1;token=…`, `?next=/v0/y?api_key=…`, `?redirect_uri=/cb?access_token=…`.
-The separators now live once, in `internal/urlredact`, and both walks are driven
-through one shared corpus (`urlredact.BoundaryCases`) that records every row
-either walk cannot handle, with its reason.
+The separators now live once, in `internal/urlredact`. Both of this package's
+constants derive from it — `queryPairSeparators` for the parameter-value scan
+and `freeTextValueTerminators` for the prose scan, the latter splicing the
+shared set into its wider one. Both walks are then driven through one shared
+corpus (`urlredact.BoundaryCases`) that records every row either walk cannot
+handle, with its reason.
 
 The gap that remains is the reverse one, and it is here: free text has no
 userinfo rule, so `https://alice:s3cr3t@host` passes this scan untouched. The

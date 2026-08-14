@@ -65,9 +65,14 @@ func Query(rawQuery, marker string) string {
 
 // redactPair rewrites one "name=value" pair when the name is credential-shaped,
 // and returns it untouched otherwise.
+//
+// An empty value is the whole no-value test. strings.Cut returns an empty
+// after-half for "token=" AND for a bare "token", so a separate !found check
+// would be a clause no input can decide on its own — break it and every test
+// still passes.
 func redactPair(pair, marker string) string {
-	name, value, found := strings.Cut(pair, "=")
-	if !found || value == "" {
+	name, value, _ := strings.Cut(pair, "=")
+	if value == "" {
 		return pair
 	}
 	decoded, err := url.QueryUnescape(name)

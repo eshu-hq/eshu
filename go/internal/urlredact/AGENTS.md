@@ -20,6 +20,14 @@
   a different boundary, that is a change to this constant plus a corpus row
   proving what the difference does — not a local copy.
 
+  There were **three** copies, not two. `reportbundle` defines both
+  `queryPairSeparators` and `freeTextValueTerminators`, and the second is the
+  one `redactFreeText` reads. Wiring only the first left `reportbundle`
+  completely green when `PairSeparators` was broken. Before claiming a
+  consumer is wired, change `PairSeparators` to `"&"` and check that every
+  consumer's tests go red — a green consumer under that probe is an unwired
+  consumer, not a passing one.
+
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
   the README's narrow, checkable claim into "we scan for secrets", which nobody
