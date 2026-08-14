@@ -357,23 +357,42 @@ func UnsafeString(value string) bool {
 //     "password: !!!") reads as a count or a placeholder. evidencebundle's
 //     credentialPattern documents the same gap.
 //
+// Every assignment in the string is classified, not only the leftmost one. The
+// keyword is not the discriminator and the value is, so one honest assignment
+// says nothing about the next: "password: string, password: hunter2" is a
+// declaration followed by a credential, and a screen that returned on the first
+// match published the second. The safe shapes above continue the scan rather
+// than ending it, so a credential is withheld wherever it sits and the order the
+// two appear in does not change the answer.
+//
+// Scanning every assignment means the regex runs to the end of the input rather
+// than stopping at the first match, and that is not free. On
+// BenchmarkUnsafeStringPasswordGateOpen (best of 5 at -benchtime=2s):
+//
+//	leftmost match only     909 ns/op
+//	every match            1474 ns/op   1.62x
+//
+// The 565ns is paid only by a string carrying the literal word "password", which
+// is what opens the gate in UnsafeString. Ordinary answer prose never reaches
+// here, and BenchmarkUnsafeStringHonestCorpus -- eight honest strings, none of
+// them a password line -- is unmoved at 7418 -> 7570 ns/op.
+//
 // lower must already be lowercased.
 func passwordAssignmentIsUnsafe(lower string) bool {
-	match := passwordAssignmentPattern.FindStringSubmatch(lower)
-	if match == nil {
-		return false
+	for _, match := range passwordAssignmentPattern.FindAllStringSubmatch(lower, -1) {
+		value := leadingValueToken(match[len(match)-1])
+		switch {
+		case !hasLetterOrDigit(value):
+			// No value, or one made only of punctuation: a placeholder or a mask.
+			continue
+		case isDigits(value):
+			continue
+		case passwordDeclarationValues[strings.Trim(value, "*&[]")]:
+			continue
+		}
+		return true
 	}
-	value := leadingValueToken(match[len(match)-1])
-	switch {
-	case !hasLetterOrDigit(value):
-		// No value, or one made only of punctuation: a placeholder or a mask.
-		return false
-	case isDigits(value):
-		return false
-	case passwordDeclarationValues[strings.Trim(value, "*&[]")]:
-		return false
-	}
-	return true
+	return false
 }
 
 // leadingValueToken returns the longest prefix of value made only of characters

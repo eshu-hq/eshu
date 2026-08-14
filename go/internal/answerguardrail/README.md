@@ -71,7 +71,11 @@ their own logs, status, responses, or scorecards.
     a Terraform resource count — stay publishable. The cost is that a password
     that is only digits (`password: 123456`) or only punctuation reads as a
     count or a placeholder and is not screened. `evidencebundle`'s
-    `credentialPattern` documents the same gap for the same reason; and
+    `credentialPattern` documents the same gap for the same reason;
+  - because the value decides, the rule classifies every `password:` assignment
+    in a string, not the first one. One honest assignment says nothing about the
+    next, so `password: string, password: hunter2` is withheld and the order the
+    two appear in does not change the answer; and
   - a key that runs the word together with a prefix and no separator
     (`PGPASSWORD:`) is not screened. It is shape-identical to `checkPassword:`,
     which has to stay publishable. `DB_PASSWORD:` and `POSTGRES_PASSWORD:` are

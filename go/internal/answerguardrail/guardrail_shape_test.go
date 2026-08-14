@@ -231,6 +231,15 @@ func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
 		"password: <redacted>":     false,
 		"password: ${DB_PASSWORD}": false,
 		"password: ***":            false,
+		// Two assignments in one string. The classifier reads the VALUE, so it
+		// has to read every assignment: a screen that decides on the leftmost
+		// one publishes a credential that follows an honest declaration, and
+		// the order the two appear in must not change the answer.
+		"password: string, password: hunter2": true,
+		"password: hunter2, password: string": true,
+		// The negative control for the pair above. Scanning every assignment
+		// must not degrade into rejecting any string with two of them.
+		"password: string, confirm_password: string": false,
 		// No value at all.
 		"the field is named password:": false,
 		// Accepted miss, stated in the README: a key with no separator before
