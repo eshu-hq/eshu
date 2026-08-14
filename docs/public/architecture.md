@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: System Architecture
+title: Understand Eshu's system architecture
 description: Explains Eshu's runtime boundaries, durable write path, bounded read path, and graph backend seam.
 type: concept
 audience: practitioner, operator, contributor
@@ -136,6 +136,10 @@ instead of returning a lower-authority answer without saying so.
 | Profile capabilities and truth levels | [Capability conformance](reference/capability-conformance-spec.md) and [truth labels](reference/truth-label-protocol.md) |
 | Collector and reducer readiness | [Collector and reducer readiness](reference/collector-reducer-readiness.md) |
 | Fact and plugin contracts | [Fact schema versioning](reference/fact-schema-versioning.md) and [plugin trust](reference/plugin-trust-model.md) |
+| Supply-chain impact paths | [Supply-Chain Traceability](supply-chain-traceability.md) |
+| Deployable-unit admission and correlation | [Deployable-Unit Correlation](reference/deployable-unit-correlation.md) |
+| Extension package lifecycle | [Component Package Manager](reference/component-package-manager.md) |
+| Semantic enrichment policy and provenance | [Semantic Enrichment Posture](reference/semantic-enrichment-posture.md) |
 | Source package ownership | [Source layout](reference/source-layout.md) |
 | Conformance and fault proof | [How Eshu proves itself](concepts/how-eshu-proves-itself.md) and [Ifá](concepts/ifa-conformance-platform.md) |
 

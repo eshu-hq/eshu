@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: First Successful Run
+title: Choose your first successful run
 description: Gets a new reader to one working runtime, one indexed repository, and one useful answer.
 type: how-to
 audience: new-user

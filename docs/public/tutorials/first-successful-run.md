@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Local Compose First Run
+title: Complete a local Compose first run
 description: Guides a new reader through one local Compose runtime, one indexed repository, and one bounded repository-list result.
 type: tutorial
 audience: new-user
