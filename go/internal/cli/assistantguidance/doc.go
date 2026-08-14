@@ -22,9 +22,9 @@
 //
 // # What this package writes
 //
-// Engine performs three file operations, all under the absolute root the caller
-// supplies, and only at the platform-relative paths SupportedPlatforms lists
-// (CLAUDE.md, AGENTS.md, and .cursor/rules/eshu.mdc):
+// Engine writes only under the absolute root the caller supplies, and only at
+// the platform-relative paths SupportedPlatforms lists (CLAUDE.md, AGENTS.md,
+// and .cursor/rules/eshu.mdc). The write surface is:
 //
 //   - Install calls MkdirAll(dir, 0o755) then WriteFile(path, 0o644) -- and
 //     only when the rendered content differs from what is already on disk, so
