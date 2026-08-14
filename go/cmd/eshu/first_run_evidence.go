@@ -107,6 +107,9 @@ func buildFirstRunEvidence(result firstRunResult, inputs *firstRunEvidenceInputs
 	if inputs == nil {
 		inputs = &firstRunEvidenceInputs{}
 	}
+	// Every raw value the run knows about, so a composed string that interpolated
+	// one is rewritten to the same redacted form the matching field carries.
+	rawValues := []string{result.ServiceURL, inputs.MCPEndpoint, result.RepoTarget}
 	report := firstRunEvidenceReport{
 		Command:         "first-run-evidence",
 		Outcome:         evidenceOutcomeFor(result),
@@ -115,18 +118,18 @@ func buildFirstRunEvidence(result firstRunResult, inputs *firstRunEvidenceInputs
 		MCPEndpoint:     redactEndpoint(inputs.MCPEndpoint),
 		IndexingState:   evidenceIndexingStateFor(result),
 		SelectedTarget:  redactPath(result.RepoTarget),
-		Readiness:       strings.TrimSpace(result.Readiness),
+		Readiness:       scrubEvidenceText(strings.TrimSpace(result.Readiness), rawValues),
 		QueryAnswered:   result.QueryAnswered,
-		QuerySummary:    strings.TrimSpace(result.QuerySummary),
-		Truth:           result.Truth,
-		Diagnosis:       result.Diagnostic,
+		QuerySummary:    scrubEvidenceText(strings.TrimSpace(result.QuerySummary), rawValues),
+		Truth:           scrubEvidenceTruth(result.Truth, rawValues),
+		Diagnosis:       scrubEvidenceDiagnostic(result.Diagnostic, rawValues),
 	}
 	if target := report.SelectedTarget; target != "" {
 		report.IndexedRepositories = evidenceIndexedRepositories(result, target)
 	}
-	report.MissingEvidence = evidenceMissing(result)
-	report.NextCommands = evidenceNextCommands(result)
-	report.DocsLinks = evidenceDocsLinks(result)
+	report.MissingEvidence = scrubEvidenceTexts(evidenceMissing(result), rawValues)
+	report.NextCommands = scrubEvidenceTexts(evidenceNextCommands(result), rawValues)
+	report.DocsLinks = scrubEvidenceTexts(evidenceDocsLinks(result), rawValues)
 	return report
 }
 
