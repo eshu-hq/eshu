@@ -45,8 +45,8 @@ for the distinction between `/healthz`, `/readyz`, and indexing readiness.
    docker compose up -d
    ```
 
-   Replace `$HOME/src` and `payments-api` with your own values. Compose waits
-   for the one-shot bootstrap before it starts dependent services. Verify that
+   Replace `$HOME/src` and `payments-api` with your own values. The API can
+   become healthy while the one-shot bootstrap is still indexing. Verify that
    the completed index is reusable before running another indexing command:
 
    ```bash

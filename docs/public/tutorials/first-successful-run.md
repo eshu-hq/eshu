@@ -46,9 +46,9 @@ For a different runtime shape, use the
 
    Replace `$HOME/src` if your checkout has a different parent directory. Keep
    `eshu` in the selector only when that is the checkout's directory name.
-2. Compose waits for the one-shot bootstrap before it starts dependent
-   services. Before running another indexing command, verify that the completed
-   index is reusable:
+2. The API can become healthy while the one-shot bootstrap is still indexing.
+   Before running another indexing command, verify that the completed index is
+   reusable:
 
    ```bash
    docker compose ps --all bootstrap-index
