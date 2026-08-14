@@ -106,11 +106,16 @@ go_install_tool() {
 # both passed it, and the only way through was a //nolint:filelength marker that
 # suppresses nothing in CI. Keep the logic here, not in the case arms.
 #
-# The blast radius of that drift, measured with `awk 'END{print NR}'` over
-# `git ls-files 'go/*_test.go'`: 78 of the 6,115 tracked _test.go files under
-# go/ are over 500 lines, and 13 of those are over 1,000. Every one of them was
-# a local-only commit blocker that CI would have accepted, and every marker
-# added to get past it suppressed nothing anywhere.
+# The blast radius of that drift, with each path in `git ls-files
+# 'go/*_test.go'` counted the way filecap_count_lines counts it
+# (`awk 'END{print NR}'`): 78 of those files were over 500 lines when this was
+# written, and 13 were over 1,000. Every one of them was a local-only commit
+# blocker that CI would have accepted, and every marker added to get past it
+# suppressed nothing anywhere. The counts are stamped rather than kept current
+# on purpose: they measure the drift this arm fixed, and this comment used to
+# carry a running total of all tracked _test.go files that was already stale
+# both times it was written (6,114, then 6,115, against a tree holding 6,122).
+# The total was never what the argument rested on — 78 and 13 are.
 #
 # The two arms share the per-file VERDICT but not the INPUT SET, so "parity"
 # below always means "same file -> same answer", never "same set of files".
@@ -122,9 +127,10 @@ go_install_tool() {
 # file is rejected at commit time and no CI check would ever say so. That is
 # deliberate. The 500-line cap is a repo rule (AGENTS.md), not a go/-module
 # rule, and narrowing `filecap` to go/ would quietly drop it from first-party
-# sdk/go and tools code. It is close to biting today: the largest non-test .go
-# outside go/ is sdk/go/factschema/fact_kinds.go at 493 lines, seven short of a
-# local-only rejection CI would not reproduce.
+# sdk/go and tools code. It is close to biting: the largest non-test .go outside
+# go/ is sdk/go/factschema/fact_kinds.go, 493 lines when this was written. The
+# cap rejects at 501 (`(( lines > 500 ))`), so that file is eight lines short of
+# a local-only rejection CI would not reproduce.
 # ---------------------------------------------------------------------------
 
 # filecap_skip returns 0 for a Go path the cap intentionally does not apply to,
