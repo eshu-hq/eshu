@@ -94,6 +94,31 @@ errors; `eshu docs verify` is a foreground command whose output is its signal.
   the local scan and the API needs flags and the environment, so the wrapper
   picks and this package uses what it is handed.
 
+## Performance and observability of the extraction
+
+`persistence.go` trips the hot-path gate, and not spuriously: it opens a
+`chan facts.Envelope` and starts a goroutine that streams verification
+envelopes into `CommitScopeGeneration`, closing the channel on the way out.
+
+No-Regression Evidence: the concurrency shape did not change in the move. The
+channel construction, the `go func()`, the `defer close(stream)`, the range
+over `result.Envelopes`, and the `CommitScopeGeneration` call were extracted
+from `go/cmd/eshu/docs_persistence.go` and compared line for line against the
+version on `origin/main` -- the block is identical, so the same single producer
+feeds the same unbuffered channel to the same consumer, with the same close
+semantics. No buffering was added, no goroutine count changed, and nothing new
+runs concurrently. `go test ./cmd/eshu/... ./internal/cli/... -count=1` passes.
+
+There is no before/after timing here and inventing one would be dishonest --
+this is a file move, and the measurement that matters is that the shape is
+unchanged, which is shown above.
+
+No-Observability-Change: this package emits no metrics, spans, or logs, and the
+move neither added nor removed an instrument. The one operator-visible surface
+is the error text, and the error-string set across `go/cmd/eshu` and
+`go/internal/cli` is unchanged by this branch except for six new `scan`
+nil-guard messages, none of them on this path.
+
 ## Related docs
 
 - [`AGENTS.md`](AGENTS.md) — scoped guidance for agents editing this package.
