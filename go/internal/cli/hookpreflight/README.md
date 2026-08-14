@@ -109,7 +109,7 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Seven lockstep
+- The claims on this page are tested, not just written down. Eleven lockstep
   files pin them, so a code change that makes one of the sentences above false
   fails a test rather than quietly aging into fiction. Each names what it
   covers, and the list is the boundary — a claim not in it is not pinned:
@@ -130,22 +130,48 @@ graph/Postgres drivers).
   - `doc_lockstep_switch_test.go` and `doc_lockstep_switch_fixtures_test.go` —
     `triggerAllowed` stays a closed string switch compared against its own
     parameter, so the accepted classes can be read out of it
-  - `doc_lockstep_trigger_path_test.go` — the trigger reaches that switch
-    unrewritten, and `Evaluate` consults `triggerAllowed` itself rather than a
-    twin
+  - `doc_lockstep_trigger_equivalence_test.go` — the whole-program claim: on a
+    request that is eligible in every other respect, `Evaluate` advises for
+    exactly the triggers `triggerAllowed` accepts. This is what "the trigger
+    reaches that switch unrewritten" actually means, and it is asserted as a
+    property rather than as a shape, so a remap fails it however it is spelled
+  - `doc_lockstep_trigger_path_test.go` and
+    `doc_lockstep_trigger_path_fixtures_test.go` — the source half of the same
+    claim: which functions may write a `Trigger` field and from what, and that
+    `Evaluate`'s switch consults `triggerAllowed` itself on the value it
+    normalized rather than a twin or a rewritten copy. It catches the case the
+    equivalence test cannot see, a widening applied to both sides at once
   - `doc_lockstep_publish_safety_test.go` — one input per `scopeSafe`
     rejection kind listed above reaches `Evaluate` and publishes nothing, and
     every Claude tool the contract doc excludes comes back as a skip
+  - `doc_lockstep_advisory_test.go` — what an advisory says once it is emitted:
+    the `advisory`/`local_preflight` truth labels in both the `Output` and the
+    published string, the "advisory context only" disclaimer sentence, which
+    MCP tool answers each scope kind, and `repoRelativePath` refusing a tool
+    path that resolves outside the payload's `cwd`
   - `doc_lockstep_literal_test.go` — how many times each package doc quotes
     the contract name, so rewriting one of several mentions is not silent
 
-  Two things this set deliberately does not prove. The `~` and `\` rejections
-  in `scopeSafe` overlap the character-class check, so deleting either changes
-  no decision and nothing goes red — the character class is what holds them.
-  And the trigger-class comparison is against a transcription of the contract
-  doc's "Trigger Classes" bullets, not against the class names themselves, so
-  adding a class to both the code and that transcription with the doc
-  untouched passes; updating the doc is a rule in `AGENTS.md`, not a gate.
+  What this set does not prove, measured rather than assumed — each item below
+  was mutated on a full disk copy of the package and left the whole suite
+  green. It is what has been tried, not a proof that nothing else is missing:
+
+  - The `~` and `\` rejections in `scopeSafe` overlap the character-class
+    check, so deleting either changes no decision — the character class is what
+    holds them. `repoRelativePath`'s `..` guard is the same shape: dropping it
+    changes the merged `Input.RepoPath` to `../etc/passwd`, but `scopeSafe`
+    still refuses it, so no decision moves. The pin on it is at the function,
+    which is the only level it can go red at.
+  - The trigger-class comparison is against a transcription of the contract
+    doc's "Trigger Classes" bullets, not against the class names themselves, so
+    adding a class to both the code and that transcription with the doc
+    untouched passes; updating the doc is a rule in `AGENTS.md`, not a gate.
+  - `scopeFromInput`'s candidate *membership* — adding or removing a scope
+    kind. The order is pinned (`TestDocLockstepScopeResolutionIsFirstMatch`);
+    which kinds are on the list is not.
+  - Where the wrapper sets `Input.Elapsed`. Moving `time.Since(start)` to
+    before the stdin read stops that read counting toward the budget, and
+    nothing goes red. `AGENTS.md` tells a debugger it counts; no test does.
 
 ## Related docs
 

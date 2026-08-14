@@ -6,6 +6,7 @@ package hookpreflight
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -73,6 +74,43 @@ func TestDocLockstepSchemaLiteralOccurrenceCounts(t *testing.T) {
 	}
 	if total == 0 {
 		t.Fatal("counted 0 mentions across the package docs; the assertion would be vacuous")
+	}
+}
+
+// TestDocLockstepREADMENamesEveryLockstepFile pins the sentence the rest of
+// this guard is read through: README.md says its per-file list "is the boundary
+// -- a claim not in it is not pinned". That is only true while the list is
+// complete, and nothing held it. A new doc_lockstep file could land unlisted,
+// or a listed one could be deleted, and the boundary sentence would go on
+// claiming a coverage map that no longer matches the directory.
+func TestDocLockstepREADMENamesEveryLockstepFile(t *testing.T) {
+	t.Parallel()
+
+	// The glob is deliberately "doc_lockstep*" and not "doc_lockstep_*":
+	// doc_lockstep_test.go, the file the rest of the guard is documented from,
+	// does not match the second one, and a pin that silently skips the main
+	// file is the failure mode this whole directory exists to stop.
+	entries, err := filepath.Glob("doc_lockstep*_test.go")
+	if err != nil {
+		t.Fatalf("list lockstep files: %v", err)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("found %d lockstep files; the assertion would be vacuous", len(entries))
+	}
+	if !slices.Contains(entries, "doc_lockstep_test.go") {
+		t.Fatalf("the lockstep file list %v does not include doc_lockstep_test.go; the glob stopped matching the file the guard is documented from", entries)
+	}
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	for _, name := range entries {
+		if !strings.Contains(string(readme), name) {
+			t.Errorf("README.md's lockstep list does not name %s; the page calls that list the boundary of what is pinned, so a file missing from it makes the boundary sentence false", name)
+		}
+	}
+	if want := strings.Count(string(readme), "doc_lockstep_"); want < len(entries) {
+		t.Errorf("README.md mentions doc_lockstep_ %d times for %d files; a listed file was dropped from the directory", want, len(entries))
 	}
 }
 

@@ -81,11 +81,24 @@
   lowercase and trim `Input.Trigger` and nothing else; `baseOutput` copies it
   onto the wire unchanged; `MergeClaudePreToolUseInput` is the one deliberate
   translation, and only through `triggerFromClaudeTool(payload.ToolName)`.
-  `Evaluate`'s switch must consult `triggerAllowed` itself, on a bare
-  `.Trigger` field. Both ends are pinned by
-  `doc_lockstep_trigger_path_test.go`, because a remap in `normalizeInput` or a
-  call to a widened twin changes which classes get an advisory while
-  `triggerAllowed` stays byte-identical for a reader to check.
+  `Evaluate`'s switch must consult `triggerAllowed` itself, on the `.Trigger`
+  field of the variable it bound `normalizeInput`'s result to. A remap anywhere
+  along that path changes which classes get an advisory while `triggerAllowed`
+  stays byte-identical for a reader to check.
+  What holds it is `TestDocLockstepEvaluateAdvisesExactlyTheAllowedTriggers`
+  (doc_lockstep_trigger_equivalence_test.go): on a request eligible in every
+  other respect, `Evaluate` advises for exactly the triggers `triggerAllowed`
+  accepts, compared over every string of up to four lowercase characters, every
+  string literal the production files declare, and every documented class. It
+  asserts the behaviour, so it does not care how the rewrite is written — which
+  matters, because four earlier generations of this guard each read one more
+  spelling of the source and each was evaded by the next one. Do not answer a
+  new evasion by teaching the source scanners another shape; check first
+  whether the equivalence already fails on it, and if it does not, ask why the
+  property is wrong rather than adding a rule.
+  `doc_lockstep_trigger_path_test.go` still holds the source side, and is not
+  redundant: it catches the one case the equivalence cannot see, a widening
+  applied to `triggerAllowed` and to `Evaluate` at the same time.
 - **Change which Claude tools fire the hook** → edit `triggerFromClaudeTool`
   (claude.go). `TestDocLockstepClaudeToolTriggerClasses`
   (doc_lockstep_publish_safety_test.go) drives every tool the contract doc's
@@ -116,6 +129,14 @@
   `[A-Za-z0-9._/:-]` too — so deleting either explicit check changes no
   decision and no test can go red on it. The character-class loop is what
   actually holds those two; treat it accordingly.
+  `repoRelativePath`'s `strings.HasPrefix(rel, "..")` guard (claude.go) is the
+  same shape one layer earlier: dropping it lets an absolute `file_path`
+  outside the payload's `cwd` become `../etc/passwd` in `Input.RepoPath`, and
+  `scopeSafe` still refuses it, so no decision moves.
+  `TestDocLockstepRepoRelativePathRefusesEscapes`
+  (doc_lockstep_advisory_test.go) asserts the function directly, because that
+  is the only level it can go red at — do not "simplify" it into a test through
+  `Evaluate`.
 
 ## Failure modes and how to debug
 
@@ -124,7 +145,10 @@
   in the wrapper fills it from its own `time.Since(start)`, so a slow flag
   read or a slow `readClaudePreToolUseInput` stdin read can push `Elapsed`
   past `Budget` before `Evaluate` ever reaches scope resolution. This is a
-  wrapper-side timing question, not a bug in this package's logic.
+  wrapper-side timing question, not a bug in this package's logic. Note that
+  no test holds where that assignment sits: moving it above the stdin read
+  takes the read out of the budget and stays green, so this paragraph is the
+  only thing saying the read counts.
 - Symptom: a scope that looks safe (e.g. `service=checkout`) skips with
   `reasonBroadScope` → check `scopeFromInput`'s field order. If an earlier
   field (`repo_path`, `entity_id`) is also set but empty-after-trim or
@@ -148,11 +172,18 @@
   `doc_lockstep_switch_test.go` holds `triggerAllowed` to the closed-switch
   shape that walk depends on (with its fixture drive in
   `doc_lockstep_switch_fixtures_test.go`),
+  `doc_lockstep_trigger_equivalence_test.go` compares `Evaluate`'s advise set
+  against `triggerAllowed`'s accept set,
   `doc_lockstep_trigger_path_test.go` pins the path the trigger takes to reach
-  that switch, `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`
-  rejections and the Claude tool-to-class mapping, and
+  that switch (fixtures in `doc_lockstep_trigger_path_fixtures_test.go`),
+  `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`
+  rejections and the Claude tool-to-class mapping,
+  `doc_lockstep_advisory_test.go` pins what an emitted advisory says — the
+  truth labels, the disclaimer sentence, the MCP tool per scope kind, and
+  `repoRelativePath`'s escape refusal — and
   `doc_lockstep_literal_test.go` counts the contract-name mentions in the
-  package docs rather than checking each file has one. Fix the doc or the code
+  package docs rather than checking each file has one, and checks README.md's
+  per-file list still names every lockstep file on disk. Fix the doc or the code
   — do not relax the assertion. These exist because four rounds of hand-edited
   doc corrections on this package each fixed the reported sentence and left the
   next one standing.
