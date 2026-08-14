@@ -59,11 +59,15 @@ type Verdict struct {
 	Findings []Finding
 }
 
-// The publish-safety screen's regex rules. Each one runs on a publish path, so
-// each is written to the same standard: catch the shape the product actually
-// emits, and name in a comment what it deliberately does not catch. A screen
-// that withholds an honest answer is its own outage, so "reject more" is not
-// automatically the safer direction here.
+// The publish-safety screen's address and userinfo rules. Each one runs on a
+// publish path, so each is written to the same standard: catch the shape the
+// product actually emits, and name in a comment what it deliberately does not
+// catch. A screen that withholds an honest answer is its own outage, so "reject
+// more" is not automatically the safer direction here.
+//
+// The "password:" assignment rule is held to the same standard and lives in
+// guardrail_password.go, because it carries a value classifier rather than a
+// pattern alone.
 var (
 	// rawAddressPattern is the IPv4 half of the raw-address rule. Blanket by
 	// design: any dotted quad, private or public.
