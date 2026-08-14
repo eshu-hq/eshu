@@ -73,6 +73,19 @@ fail() {
 
 pass() { printf 'test-precommit-go-toolchain-isolation: ok: %s\n' "$*"; }
 
+# count_lines prints how many lines of $2 match pattern $1.
+#
+# It exists because of how `rg --count` behaves with no match: it prints NOTHING
+# and exits 1, where the POSIX line counter this file used to call printed `0`.
+# Left unhandled, the empty result reaches `[ "${n}" -ne 1 ]` as an
+# integer-expression syntax error instead of the clean, attributable failure
+# each assertion below is written to produce. Every count here goes through this.
+count_lines() {
+	local n
+	n="$(rg --count --no-filename -- "$1" "$2" || true)"
+	printf '%s' "${n:-0}"
+}
+
 # ---------------------------------------------------------------------------
 # Harness: a fake `go`, and stub tool binaries for it to "install".
 # ---------------------------------------------------------------------------
@@ -194,8 +207,8 @@ run_case() {
 	set -e
 
 	local installs_clean installs_leaked
-	installs_clean="$(grep -c '^install GOROOT=unset$' "${go_log}" || true)"
-	installs_leaked="$(grep -c '^install GOROOT=set$' "${go_log}" || true)"
+	installs_clean="$(count_lines '^install GOROOT=unset$' "${go_log}")"
+	installs_leaked="$(count_lines '^install GOROOT=set$' "${go_log}")"
 
 	if [ "${installs_leaked}" -ne 0 ]; then
 		fail "${subcmd}: ${installs_leaked} 'go install' invocation(s) inherited the leaked GOROOT — the env -u GOROOT in go_install_tool is missing or bypassed"
@@ -206,10 +219,13 @@ run_case() {
 	if [ "${rc}" -ne 0 ]; then
 		fail "${subcmd}: exit ${rc}, want 0 (output: $(tail -n 3 "${out}" | tr '\n' ' '))"
 	fi
-	if grep -q "${mismatch_text}" "${out}"; then
+	# -F: the mismatch text is compared literally, never as a pattern.
+	if rg --quiet --fixed-strings -- "${mismatch_text}" "${out}"; then
 		fail "${subcmd}: output carries the toolchain-mismatch failure"
 	fi
-	if ! grep -qx "${tool}" "${tool_log}"; then
+	# -x keeps a whole-line match, so `gosec` cannot be satisfied by a longer
+	# line that merely contains it.
+	if ! rg --quiet --line-regexp --fixed-strings -- "${tool}" "${tool_log}"; then
 		fail "${subcmd}: ${tool} never ran — the case cannot prove the install path works"
 	fi
 	# An `if` (not `&&`) so a failing case returns 0 and `set -e` does not abort
@@ -227,15 +243,22 @@ write_stubs
 mini_repo="$(make_mini_repo)"
 
 : >"${go_log}"
+# The output goes to a file rather than a command substitution so the check
+# below can read it with a plain `rg <file>`. A `printf ... | rg -q` pipeline
+# would sit under `set -o pipefail` with a reader that exits on first match, and
+# a SIGPIPE on the writer would then read as "text absent" — a self-check that
+# can report a false failure is no better than one that can report a false pass.
+selfcheck_out="${tmp_root}/selfcheck.out"
 set +e
-selfcheck_out="$(GOROOT="${leaked_goroot}" FAKE_GO_LOG="${go_log}" FAKE_GO_STUBS="${stub_src}" \
+GOROOT="${leaked_goroot}" FAKE_GO_LOG="${go_log}" FAKE_GO_STUBS="${stub_src}" \
 	GOBIN="${tmp_root}/selfcheck-bin" \
-	"${fake_bin}/go" install golang.org/x/vuln/cmd/govulncheck@latest 2>&1)"
+	"${fake_bin}/go" install golang.org/x/vuln/cmd/govulncheck@latest \
+	>"${selfcheck_out}" 2>&1
 selfcheck_rc=$?
 set -e
 if [ "${selfcheck_rc}" -eq 0 ]; then
 	fail "self-check: the fake go succeeded with GOROOT set — the harness cannot detect the regression it exists to catch"
-elif ! printf '%s' "${selfcheck_out}" | grep -q "${mismatch_text}"; then
+elif ! rg --quiet --fixed-strings -- "${mismatch_text}" "${selfcheck_out}"; then
 	fail "self-check: the fake go failed without the compile-mismatch text, so a red result could not be attributed to this bug"
 else
 	pass "self-check: fake go reproduces the compile mismatch when GOROOT leaks"
@@ -258,10 +281,38 @@ run_case gosec-all gosec
 # ONE executable `go install` line in the whole script, it must clear GOROOT,
 # and every install site must route through it.
 # ---------------------------------------------------------------------------
-raw_installs="$(grep -c '^[^#]*[^#]go install ' "${script}" || true)"
+# WHAT THE PATTERN MATCHES, AND WHAT IT DOES NOT
+#
+# `^[^#]*` reads as "nothing earlier on this line opened a comment", so the
+# prefix may be empty. That empty case is the whole point: the first version of
+# this check used `^[^#]*[^#]go install `, which demanded a character
+# IMMEDIATELY before `go`, and a bare `go install foo@v1` at column zero was
+# therefore invisible to it — exactly the shape a new, untested install site
+# takes. `\b` is what stops `cargo install` from being counted as a `go`
+# install.
+#
+# In scope, all counted: column zero, any leading whitespace, and an assignment
+# prefix such as `GOBIN=x go install ...` (matched because the prefix is not a
+# comment, not because assignments were special-cased).
+#
+# Out of scope, on purpose: an install reached through a variable
+# (`$GO install ...`, `"${go}" install ...`) and a `go install` written after a
+# `#` that is inside a quoted string. A line pattern cannot tell either one
+# apart from the real thing. The call-site count below is the second net for
+# both: adding a tool moves it off 4 and turns this file red until someone adds
+# a behavioural case for that tool.
+install_pattern='^[^#]*\bgo install[[:space:]]'
+# The matching lines are captured to a file so the GOROOT check below is a plain
+# search over a file. `rg ... | rg -q` would put a first-match-exit reader on the
+# other end of a pipe under `set -o pipefail`, where a SIGPIPE could be read as
+# a missing `env -u GOROOT` and fail a healthy script.
+install_lines="${tmp_root}/raw-install-lines.txt"
+rg --no-line-number --no-filename -- "${install_pattern}" "${script}" \
+	>"${install_lines}" || true
+raw_installs="$(count_lines "${install_pattern}" "${script}")"
 if [ "${raw_installs}" -ne 1 ]; then
 	fail "expected exactly 1 executable 'go install' line in precommit-go.sh (the go_install_tool helper), found ${raw_installs} — route every install through go_install_tool"
-elif ! grep '^[^#]*[^#]go install ' "${script}" | grep -q 'env -u GOROOT'; then
+elif ! rg --quiet --fixed-strings -- 'env -u GOROOT' "${install_lines}"; then
 	fail "the 'go install' in precommit-go.sh no longer clears GOROOT (env -u GOROOT)"
 else
 	pass "precommit-go.sh has exactly one 'go install', and it clears GOROOT"
@@ -269,7 +320,7 @@ fi
 
 # Match call sites only: the helper's own definition line is `go_install_tool()`,
 # so requiring a non-"(" character after the name excludes it.
-call_sites="$(grep -c '^[[:space:]]*go_install_tool[^(]' "${script}" || true)"
+call_sites="$(count_lines '^[[:space:]]*go_install_tool[^(]' "${script}")"
 if [ "${call_sites}" -ne 4 ]; then
 	fail "expected 4 go_install_tool call sites (golangci-lint, gosec, govulncheck, nancy), found ${call_sites} — if a tool was added or removed, update this count AND add a behavioural case above"
 else
