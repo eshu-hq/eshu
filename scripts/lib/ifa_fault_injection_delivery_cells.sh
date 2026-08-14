@@ -96,20 +96,60 @@ ifa_fault_write_repo_node_identities() {
 		"${identity_rows}" >"${output}" || return 2
 }
 
+# ifa_fault_write_repo_node_membership maps every node owned by repo_id to its
+# graphdump content hash. Ordinary nodes establish ownership only through
+# repo_id/repository_id; id/uid fallbacks are restricted to Repository nodes so
+# an unrelated node whose identifier happens to equal the repo ID cannot make
+# a cross-repository edge look SQL-owned.
+ifa_fault_write_repo_node_membership() {
+	local graph_dump="$1" repo_id="$2" output="$3"
+	local node_records="${output}.nodes.jsonl" membership_rows="${output}.rows.jsonl"
+	jq -c --arg repo_id "${repo_id}" '
+		if ((.nodes | type) != "array") or ((.edges | type) != "array") then
+			error("graph dump must contain nodes and edges arrays")
+		else
+			.nodes[]
+			| select(
+				.props.repo_id? == $repo_id
+				or .props.repository_id? == $repo_id
+				or (
+					((.labels | index("Repository")) != null)
+					and (.props.id? == $repo_id or .props.uid? == $repo_id)
+				)
+			)
+		end
+	' "${graph_dump}" >"${node_records}" || return 2
+	: >"${membership_rows}"
+	local node_record node_hash
+	while IFS= read -r node_record; do
+		node_hash="$(printf '%s\n' "${node_record}" | jq -S . | ifa_fault_sha256_stdin)" \
+			|| return 2
+		jq -nc --arg hash "${node_hash}" '{hash: $hash}' >>"${membership_rows}" || return 2
+	done <"${node_records}"
+	jq -s 'reduce .[] as $row ({}; .[$row.hash] = true)' \
+		"${membership_rows}" >"${output}" || return 2
+}
+
 # ifa_fault_write_collateral_edges writes the graph edge set outside the SQL
 # and code-call families, which the cell asserts independently against exact
 # expected fixtures. SQL generation 2 legitimately changes node properties,
 # replacing content hashes on SQL-repository CONTAINS/REPO_CONTAINS endpoints.
 # Replace only those repository-attributed hashes with stable labels+uid (or
-# the Repository's repo_id), preserving exact attachment topology as well as
-# relationship type, cardinality, and properties.
+# the Repository's repo_id). On mapped containment edges whose original
+# endpoints are both members of that repository, a present projector/canonical
+# generation_id is checked against the cassette's expected generation and then
+# normalized because a successful delta refreshes it. All other properties,
+# attachment topology, types, and counts remain exact.
 ifa_fault_write_collateral_edges() {
-	local graph_dump="$1" repo_identities="$2" output="$3"
+	local graph_dump="$1" repo_identities="$2" repo_membership="$3"
+	local output="$4" expected_generation="$5"
 	local sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
 	local code_call_types='["CALLS","INSTANTIATES","REFERENCES","USES_METACLASS"]'
 	jq -S --slurpfile repo_identities "${repo_identities}" \
+		--slurpfile repo_membership "${repo_membership}" \
 		--argjson sql_types "${sql_types}" \
-		--argjson code_call_types "${code_call_types}" '
+		--argjson code_call_types "${code_call_types}" \
+		--arg expected_generation "${expected_generation}" '
 		if ((.nodes | type) != "array") or ((.edges | type) != "array") then
 			error("graph dump must contain nodes and edges arrays")
 		else
@@ -120,15 +160,34 @@ ifa_fault_write_collateral_edges() {
 				| select($code_call_types | index($edge.type) | not)
 				| ($repo_identities[0][$edge.from] // null) as $from_identity
 				| ($repo_identities[0][$edge.to] // null) as $to_identity
-				| if (
+				| ($repo_membership[0][$edge.from] // false) as $from_repo_member
+				| ($repo_membership[0][$edge.to] // false) as $to_repo_member
+				| (
 					($edge.type == "CONTAINS" or $edge.type == "REPO_CONTAINS")
 					and ($from_identity != null or $to_identity != null)
-				) then
+				) as $mapped_sql_containment
+				| if $mapped_sql_containment then
 					$edge
 					| if $from_identity != null then .from = $from_identity else . end
 					| if $to_identity != null then .to = $to_identity else . end
 				else
 					$edge
+				end
+				| if (
+					$mapped_sql_containment
+					and $from_repo_member
+					and $to_repo_member
+					and ((.props | type) == "object")
+					and (.props.evidence_source? == "projector/canonical")
+					and (.props | has("generation_id"))
+				) then
+					if .props.generation_id == $expected_generation then
+						.props.generation_id = "<generation-provenance>"
+					else
+						error("mapped projector/canonical containment edge has unexpected generation_id")
+					end
+				else
+					.
 				end
 			)
 			| sort
@@ -144,8 +203,12 @@ ifa_fault_compare_collateral_edges() {
 	local sql_repo_id="${4:-repo-ifa-sql-family}"
 	local mutable_relative_path="${5:-db/schema.sql}"
 	local mutable_absolute_path="${6:-/repo/db/schema.sql}"
+	local baseline_generation="${7:-gen-1}"
+	local changed_generation="${8:-gen-2}"
 	local baseline_identities="${output_dir}/baseline-sql-repo-node-identities.json"
 	local changed_identities="${output_dir}/changed-sql-repo-node-identities.json"
+	local baseline_membership="${output_dir}/baseline-sql-repo-node-membership.json"
+	local changed_membership="${output_dir}/changed-sql-repo-node-membership.json"
 	local baseline_edges="${output_dir}/baseline-collateral-edges.json"
 	local changed_edges="${output_dir}/changed-collateral-edges.json"
 	local diff_output="${output_dir}/collateral-edges.diff"
@@ -157,10 +220,16 @@ ifa_fault_compare_collateral_edges() {
 		"${changed_dump}" "${sql_repo_id}" \
 		"${mutable_relative_path}" "${mutable_absolute_path}" \
 		"${changed_identities}" || return 2
+	ifa_fault_write_repo_node_membership \
+		"${baseline_dump}" "${sql_repo_id}" "${baseline_membership}" || return 2
+	ifa_fault_write_repo_node_membership \
+		"${changed_dump}" "${sql_repo_id}" "${changed_membership}" || return 2
 	ifa_fault_write_collateral_edges \
-		"${baseline_dump}" "${baseline_identities}" "${baseline_edges}" || return 2
+		"${baseline_dump}" "${baseline_identities}" "${baseline_membership}" "${baseline_edges}" \
+		"${baseline_generation}" || return 2
 	ifa_fault_write_collateral_edges \
-		"${changed_dump}" "${changed_identities}" "${changed_edges}" || return 2
+		"${changed_dump}" "${changed_identities}" "${changed_membership}" "${changed_edges}" \
+		"${changed_generation}" || return 2
 	local diff_rc=0
 	diff -u "${baseline_edges}" "${changed_edges}" >"${diff_output}" || diff_rc=$?
 	[[ "${diff_rc}" -le 1 ]] || return 2
@@ -293,9 +362,12 @@ cell_deltaretract() {
 	# hashes on the Repository plus db/schema.sql and its Directory ancestors are
 	# replaced by stable logical identities after proving ownership in each dump.
 	# Preserved paths such as cmd/api/handlers.go stay raw and exact. The records
-	# retain topology, type, count, and properties, so attachment swaps,
-	# containment loss/addition, and out-of-scope property churn still fail; no
-	# unrelated CONTAINS or REPO_CONTAINS edge is ignored.
+	# retain topology, type, count, generation_id presence, and every other
+	# property, so attachment swaps, containment loss/addition, and out-of-scope
+	# property churn still fail; no unrelated CONTAINS or REPO_CONTAINS edge is
+	# ignored. Only gen-1 to gen-2 provenance on mapped projector/canonical
+	# containment edges whose original endpoints both belong to the SQL repo is
+	# allowed to refresh.
 	command -v jq >/dev/null 2>&1 \
 		|| die "delta-retract: jq is required for fail-closed collateral graph comparison"
 	if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
@@ -308,7 +380,9 @@ cell_deltaretract() {
 		"${work_dir}" \
 		"repo-ifa-sql-family" \
 		"db/schema.sql" \
-		"/repo/db/schema.sql" || collateral_rc=$?
+		"/repo/db/schema.sql" \
+		"gen-1" \
+		"gen-2" || collateral_rc=$?
 	if [[ "${collateral_rc}" -eq 1 ]]; then
 		printf 'delta-retract: graph collateral changed outside the exact SQL and code-call families:\n' >&2
 		cat "${work_dir}/collateral-edges.diff" >&2

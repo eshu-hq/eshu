@@ -22,6 +22,15 @@ test_ifa_fault_write_collateral_fixture() {
 	local sql_target_uid="${4:-sql-table-users}"
 	local handler_mode="${5:-preserve}"
 	local handler_generation="${6:-gen1}"
+	local default_containment_generation="gen-2"
+	if [[ "${sql_generation}" == "gen1" ]]; then
+		default_containment_generation="gen-1"
+	fi
+	local containment_generation="${7:-${default_containment_generation}}"
+	local foreign_evidence="${8:-stable}"
+	local edge_evidence_source="${9:-projector/canonical}"
+	local foreign_generation="${10:-gen-1}"
+	local mixed_containment_generation="${11:-gen-1}"
 	local sql_repo root_dir schema_dir sql_file sql_entity sql_entity_alt
 	local handler_dir handler_file handler_function foreign_from foreign_to
 	local sql_repo_hash sql_entity_hash sql_entity_alt_hash sql_target_hash
@@ -35,7 +44,9 @@ test_ifa_fault_write_collateral_fixture() {
 	handler_file="$(printf '{\"labels\":[\"File\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"file-cmd-api-handlers\"}}' "${handler_generation}")"
 	handler_function="$(printf '{\"labels\":[\"Function\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"content-entity:e_cb021b7a4238\"}}' "${handler_generation}")"
 	foreign_from='{"labels":["Service"],"props":{"uid":"service-a"}}'
-	foreign_to='{"labels":["Workload"],"props":{"uid":"workload-a"}}'
+	# The uid deliberately collides with the SQL repo ID. Ordinary-node uid/id
+	# values must never establish repository membership.
+	foreign_to='{"labels":["Workload"],"props":{"uid":"repo-ifa-sql-family"}}'
 	if [[ "${sql_generation}" == "gen1" ]]; then
 		# Pinned independently by graphdump's real nodeDigest implementation in
 		# TestShellCollateralFixtureNodeDigestContract. Do not derive this value
@@ -74,6 +85,11 @@ test_ifa_fault_write_collateral_fixture() {
 		--arg foreign_from_hash "$(test_ifa_fault_node_hash "${foreign_from}")" \
 		--arg foreign_to_hash "$(test_ifa_fault_node_hash "${foreign_to}")" \
 		--arg foreign_type "${foreign_type}" \
+		--arg containment_generation "${containment_generation}" \
+		--arg foreign_evidence "${foreign_evidence}" \
+		--arg edge_evidence_source "${edge_evidence_source}" \
+		--arg foreign_generation "${foreign_generation}" \
+		--arg mixed_containment_generation "${mixed_containment_generation}" \
 		--argjson preserve_handler "$(if [[ "${handler_mode}" == "preserve" ]]; then printf true; else printf false; fi)" \
 		'{
 			nodes: (
@@ -81,17 +97,18 @@ test_ifa_fault_write_collateral_fixture() {
 				+ (if $preserve_handler then [$handler_dir, $handler_file, $handler_function] else [] end)
 			),
 			edges: ([
-				{type:"REPO_CONTAINS", from:$sql_repo_hash, to:$root_dir_hash, props:{}},
-				{type:"CONTAINS", from:$root_dir_hash, to:$schema_dir_hash, props:{}},
-				{type:"CONTAINS", from:$schema_dir_hash, to:$sql_file_hash, props:{}},
-				{type:"CONTAINS", from:$sql_file_hash, to:$sql_target_hash, props:{}},
+				{type:"REPO_CONTAINS", from:$sql_repo_hash, to:$root_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$root_dir_hash, to:$schema_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$schema_dir_hash, to:$sql_file_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$sql_file_hash, to:$sql_target_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
 				{type:"EXECUTES", from:$sql_target_hash, to:$sql_target_hash, props:{}},
 				{type:"CALLS", from:"code-from", to:"code-to", props:{}},
-				{type:$foreign_type, from:$foreign_from_hash, to:$foreign_to_hash, props:{}}
+				{type:"CONTAINS", from:$root_dir_hash, to:$foreign_to_hash, props:{generation_id:$mixed_containment_generation, evidence_source:$edge_evidence_source}},
+				{type:$foreign_type, from:$foreign_from_hash, to:$foreign_to_hash, props:{generation_id:$foreign_generation, evidence_source:$edge_evidence_source, evidence:$foreign_evidence}}
 			] + (if $preserve_handler then [
-				{type:"CONTAINS", from:$root_dir_hash, to:$handler_dir_hash, props:{}},
-				{type:"CONTAINS", from:$handler_dir_hash, to:$handler_file_hash, props:{}},
-				{type:"CONTAINS", from:$handler_file_hash, to:$handler_function_hash, props:{}}
+				{type:"CONTAINS", from:$root_dir_hash, to:$handler_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$handler_dir_hash, to:$handler_file_hash, props:{generation_id:"gen-1", evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$handler_file_hash, to:$handler_function_hash, props:{generation_id:"gen-1", evidence_source:$edge_evidence_source}}
 			] else [] end))
 		}' >"${output}"
 }
@@ -109,6 +126,18 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 	test_ifa_fault_write_collateral_fixture "${case_dir}/allowed.dump" gen2 DEPENDS_ON
 	test_ifa_fault_write_collateral_fixture "${case_dir}/unexpected.dump" gen2 RUNS_IN
 	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-foreign-props.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 changed
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/nonprojector-baseline.dump" gen1 DEPENDS_ON sql-table-users preserve gen1 gen-1 stable reducer/code-interproc
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-nonprojector-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable reducer/code-interproc
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-noncontained-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-2
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-owned-generation.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-unexpected
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-foreign-endpoint-containment.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-2
+	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-topology.dump" gen2 DEPENDS_ON sql-table-orders
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-broad-retract.dump" gen2 DEPENDS_ON sql-table-users retract
@@ -124,6 +153,36 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		>/dev/null 2>&1 || rc=$?
 	[[ "${rc}" -eq 1 ]] \
 		|| fail "unexpected foreign edge change returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-foreign-props.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "unexpected foreign edge property change returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/nonprojector-baseline.dump" "${case_dir}/unexpected-nonprojector-generation.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "non-projector generation_id churn returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-noncontained-generation.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "non-contained canonical generation_id churn returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-owned-generation.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "unexpected SQL-owned generation_id returned ${rc}, want fail-closed status 2"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-foreign-endpoint-containment.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "foreign-endpoint containment generation_id churn returned ${rc}, want collateral-diff status 1"
 	rc=0
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-topology.dump" "${case_dir}" \
