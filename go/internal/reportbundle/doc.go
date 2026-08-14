@@ -23,7 +23,11 @@
 //
 // Free text gets a line-by-line scan for a sensitive-named key beside an "=" or
 // a ":" (redactFreeText), each read through one layer of percent-encoding so
-// "%3D" counts as an "=". ReporterNote is in that domain because the guide asks
+// "%3D" counts as an "=". Where the value ENDS is read at the depth that "="
+// was written at: an escape inside a value whose pair used a literal "=" is
+// part of the credential ("?token=aa%26bb" is a token of "aa&bb"), and reading
+// it as a boundary cut the credential and shipped the tail.
+// ReporterNote is in that domain because the guide asks
 // reporters for a repro, so it commonly holds a pasted curl. So are
 // Response.Error.Message and Response.Error.CorrelationID: a Message is composed
 // server-side out of the caller's own selector, and a CorrelationID is the

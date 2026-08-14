@@ -223,7 +223,16 @@ text stopped changing would make `Capture` reject its own bundle. `%253D` is
 therefore three characters of text, and that is pinned by a corpus row rather
 than left implicit.
 
-Three gaps remain, each the reverse of something above:
+Decoding a separator is not the same as decoding a **boundary**, and treating
+them alike introduced a partial leak worse than the whole one it closed. A pair
+joined by a literal `=` is text at the depth the reporter typed, so an escape
+inside its value belongs to the value: `?token=aa%26bb` is a token whose value
+is `aa&bb`. Cutting there left `bb` in the note. An escape now ends a value only
+when that value's own `=` arrived encoded too — one rule, covering `%26`, `%3B`,
+`%3F`, `%20`, `%22` and `%27`, which all truncated identically. The accepted
+cost is over-removal, the same trade the header rule already makes.
+
+Four gaps remain, each the reverse of something above:
 
 - Free text has no **userinfo** rule, so `https://alice:s3cr3t@host` passes this
   scan untouched. The token left of the `:` is `alice`, which no sensitive-key
@@ -235,6 +244,11 @@ Three gaps remain, each the reverse of something above:
   second line is a bare secret with no key in front of it, which is the standing
   limit.
 - A separator encoded **twice** is out of reach, by the rule above.
+- Inside an **already-encoded** pair, a value that genuinely contains an `&` is
+  spelled `%26` — the same bytes as the separator there. `?a=1%26token%3Dse%26cret`
+  reads as a token of `se` followed by a parameter `cret`, so `cret` stays. The
+  bytes do not carry the encoder's intent, so nothing inside this walk can tell
+  the two apart.
 
 #### Why `response.data` is exempt, and what that costs
 

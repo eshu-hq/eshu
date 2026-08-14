@@ -83,14 +83,24 @@ read durable fact records itself — callers supply an already-resolved
   arrival point.
 - The free-text walk reads the SAME one layer, through
   `urlredact.DecodedByteAt` / `DecodedEscapeBefore` / `Decode`, so `%3D` is an
-  `=`, `%3A` is a `:`, `%26`/`%3F`/`%3B` end a pair and `api%5Fkey` is
-  `api_key`. It had none of that while `embeddedSensitiveKey` did, which is how
+  `=`, `%3A` is a `:` and `api%5Fkey` is `api_key`. It had none of that while
+  `embeddedSensitiveKey` did, which is how
   the encoded spelling of an already-fixed credential
   (`?redirect_uri=%2Fcb%3Faccess_token%3D…`) stayed green in `query.target` and
   leaked from `reporter_note` and `response.error.message`. Use the shared
   reader; do not add a second decoder. The one-layer rule is even stricter here
   than for the detector: this walk EMITS what it scanned and `Validate` scans
   the output again, so a deeper unwrap makes `Capture` reject its own bundle.
+- Whether `%26`/`%3F`/`%3B` END a value depends on the DEPTH of the pair, and
+  `noteTerminatorDepth` is where that is decided. A pair joined by a literal `=`
+  was typed at the surface, so an escape inside its value is part of the
+  credential: `?token=aa%26bb` is a token of `aa&bb`, and reading the `%26` as a
+  terminator cut it and left `bb` in the note. Only a pair whose own `=` arrived
+  encoded ends at an encoded terminator. Do not special-case one separator here
+  — `%26`, `%3B`, `%3F`, `%20`, `%22` and `%27` all truncated the same way, and
+  the escaped members of `freeTextValueTerminators` that are NOT in
+  `urlredact.PairSeparators` cannot be covered by a corpus row, so they need a
+  test in `redaction_boundary_test.go` of their own.
 - Any test constant carrying a credential must exist in more than one spelling.
   `symmetryBytes` was a single unencoded string driving all three placements, so
   one fix closed the axis for every placement at once and a placement the fix

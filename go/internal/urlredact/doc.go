@@ -27,6 +27,14 @@
 // either hex case, and records why one layer is the right depth. The escape is
 // copied through as it arrived, so nothing rewrites the operator's endpoint.
 //
+// Reading every escape as a separator is too much, though, and doing so
+// introduced a partial leak: "?token=AAAA%26BBBB" joins its name to its value
+// with a LITERAL "=", so the "%26" is two characters of a credential whose
+// value is "AAAA&BBBB", and cutting there shipped "BBBB". An escape stands for
+// a separator only at the depth its own pair was written at. BoundaryDepth
+// names the two depths and IndexBoundary scans at either; both walks pick from
+// how their pair's "=" was spelled.
+//
 // The package makes no judgement about what a VALUE looks like. There is no
 // entropy check and no secret-pattern list. It asks the shared name predicate
 // about the left half of a pair, exactly as every other redaction walk here

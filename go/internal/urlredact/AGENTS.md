@@ -43,7 +43,25 @@
   arrived, the next pass finds something new, and `Capture` rejects its own
   bundle — the reporter then gets nothing. `Decode` is `url.PathUnescape`, not
   `url.QueryUnescape`, because a `+` is a plus sign in prose and turning it into
-  a space can only lose matches.
+  a space can only lose matches. It is also the **only** decoder here: a second
+  one is the same defect as a second separator constant, and `redactPair` had
+  `url.QueryUnescape` sitting thirty lines from this rule.
+
+- **An escape is a separator only at its own pair's depth.** Reading every
+  escape as the byte it stands for is too much, and it introduced a partial leak
+  worse than the whole one it fixed. `?token=AAAA%26BBBB` joins name to value
+  with a LITERAL `=`, so the reporter typed it at the surface and its `%26` is
+  two characters of a value that reads `AAAA&BBBB`; splitting there shipped
+  `BBBB`. `?a=1%26token%3D…%26repo%3Ddemo` joins with `%3D`, so its structure is
+  one layer down and `%26` is the separator there.
+
+  `BoundaryDepth` / `IndexBoundary` carry this, and each walk picks the depth
+  from the width its own `=` was found at. Do not add a per-separator exception:
+  `%3B`, `%3F`, `%20`, `%22` and `%27` all broke identically and the one rule
+  covers them. The accepted cost is over-removal — `?token=x%26repo=demo` loses
+  `repo=demo` — and the residue that cannot be fixed from inside a string is a
+  value genuinely containing `&` inside an already-encoded pair, where `%26`
+  spells both.
 
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
@@ -68,11 +86,14 @@
 
 ## Common changes and how to scope them
 
-- **Add a separator** → edit `PairSeparators`, then add TWO corpus rows using
-  it: one spelling it literally and one spelling it `%XX`. Both walks are driven
-  through the corpus, so the rows tell you immediately whether the two now agree.
-  `TestBoundaryCasesCoverTheEncodedSpelling` fails without the second one. Do not
-  add the character to one walk only.
+- **Add a separator** → edit `PairSeparators`, then add THREE corpus rows using
+  it: one spelling it literally, one spelling it `%XX` as the pair boundary, and
+  one putting `%XX` inside the value of a pair written with a literal `=`, where
+  it must NOT bound anything. Both walks are driven through the corpus, so the
+  rows tell you immediately whether the two now agree.
+  `TestBoundaryCasesCoverTheEncodedSpelling` fails without the second one, and
+  nothing fails without the third — which is exactly how the truncation bug
+  reached review. Do not add the character to one walk only.
 - **Change what counts as a sensitive name** → that is `sensitiveQueryPattern`
   in `sdk/go/collector/validation.go`, not here. Every walk in the repo reads
   it through `collector.IsSensitiveKeyName` for that reason.
@@ -104,6 +125,11 @@
 ## Anti-patterns specific to this package
 
 - **Copying `PairSeparators` "for readability".** That is the bug.
+- **A coverage guard no corpus edit can redden.** Both meta-guards here shipped
+  in that state. One accepted a row carrying no credential; the other used an
+  unanchored escape pattern that matched ordinary text after an uppercase
+  escape. Before trusting a new guard, delete the row it exists to require and
+  watch it go red. Ask `BoundaryCase.ProvesRemoval` rather than `Secret != ""`.
 - **Deleting a corpus row because it is awkward.** The awkward rows are the ones
   that were never varied before, which is how the drift survived review.
 - **Importing a CLI or service package from here.** This package's only

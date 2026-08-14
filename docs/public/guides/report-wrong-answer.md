@@ -168,7 +168,7 @@ The credential is cut out of the sentence and the sentence is kept, listed as
 is scanned the same way, because it is your own `X-Correlation-ID` header when
 you sent one.
 
-Seven limits, worth knowing before you paste something unusual:
+Eight limits, worth knowing before you paste something unusual:
 
 - The rule matches credential-shaped key **names**. A secret sitting in a
   parameter named something innocuous, with no `key=` in front of it, is not
@@ -195,6 +195,15 @@ Seven limits, worth knowing before you paste something unusual:
   describes a request no server received. `%3D`, `%3d` and the literal `=` are
   all read the same way, and your note keeps the spelling you typed — only the
   credential is cut out.
+- A credential that itself **contains** an encoded character (`?token=aa%26bb`,
+  a token whose real value is `aa&bb`) is removed whole, and so is the rest of
+  that query string. Eshu cannot tell a `%26` inside a value from the `%26` that
+  separates one parameter from the next, so it assumes the value and drops
+  everything after it. If your note comes back missing a parameter you wanted, a
+  credential just before it is why. The reverse case is the one gap: when the
+  whole URL was already encoded (`?a=1%26token%3D…`), a value that genuinely
+  contains an `&` is spelled the same as the separator, so the part after it is
+  kept.
 - A credential that continues onto the **next line** is found only when a
   backslash says the line carried on, as in a wrapped `curl`:
 

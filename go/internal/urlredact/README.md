@@ -94,7 +94,19 @@ A second group of rows varies the **encoded spelling** of the same boundaries,
 because a corpus that covered every separator and wrote each one literally is
 what let `?a=1%3Btoken%3D…` through while `?a=1;token=…` was pinned.
 `TestBoundaryCasesCoverTheEncodedSpelling` and `TestBoundaryCasesVaryTheHexCase`
-fail if that stops being true.
+fail if that stops being true — but only after both were repaired, and the
+repair is the point. Each was satisfiable by a row nothing is ever removed from,
+so both now ask `BoundaryCase.ProvesRemoval`: a row with a credential and no
+recorded exemption. The hex-case guard also matched
+`%[0-9a-fA-F]*[a-f][0-9a-fA-F]*`, which is not anchored to a two-digit escape
+and ran on into ordinary text, so an uppercase `%2Fcb` satisfied a
+lowercase-hex requirement through its `cb`. Deleting the only lowercase row left
+that guard green. It now matches `%([0-9a-fA-F]{2})` and tests the two digits
+alone.
+
+Two more rows put an escaped separator **inside** a value whose pair was written
+with a literal `=`. That is the reverse boundary, and making the scan
+decode-aware broke it: see the section below.
 
 A row a walk provably cannot handle records **why**, in `EndpointKeepsSecret` /
 `FreeTextKeepsSecret`. Three rows carry a reason today, covering two cases:
@@ -143,7 +155,42 @@ One layer, never a loop, for two reasons:
 `+`. `QueryUnescape` turns `+` into a space, which is right for one parsed query
 parameter and wrong for a decoder that also feeds a walk over prose: it can only
 lose matches, because `token+%3Dx` then reads as `token =x`, whose key holds
-whitespace and is skipped.
+whitespace and is skipped. It is the only decoder here, and a second one is the
+defect this package exists to remove — `redactPair` had `url.QueryUnescape`
+thirty lines from the rule saying so.
+
+## Depth: an escape is a separator only where its pair is
+
+Reading every escape as the byte it stands for is too much on its own, and it
+introduced a partial leak worse than the whole one it fixed. `?token=AAAA%26BBBB`
+joins its name to its value with a **literal** `=`, so the reporter typed it at
+the surface and its `%26` is two characters the credential contains — the value
+is `AAAA&BBBB`. Cutting there shipped `BBBB`:
+
+```text
+Query("token=AAAA%26BBBB", "redacted")   was  token=redacted%26BBBB
+                                         now  token=redacted
+```
+
+`?a=1%26token%3D<credential>%26repo%3Ddemo` joins with `%3D`, so its whole
+structure is one layer down and `%26` there is the separator it stands for.
+
+So the spelling of a pair's own `=` decides which spellings of a terminator end
+its value. `BoundaryDepth` names the two, `IndexBoundary` scans at either, and
+both walks pick from the width their `=` was found at. Nothing about the
+literal-`=` case is special-cased per separator: `%3B`, `%3F`, `%20`, `%22` and
+`%27` all behaved the same way and are all fixed by the same rule.
+
+The cost is **over-removal**: `?token=x%26repo=demo` loses the `repo=demo`,
+because a benign parameter after an escaped separator cannot be told apart from
+the tail of a credential containing an `&`. Losing a parameter is the side to
+err on when the alternative is shipping half a credential.
+
+One residue stays open, and it is not fixable from inside a string: at the
+encoded depth, a value that genuinely contains an `&` is spelled `%26` — the
+same bytes as the separator. `?a=1%26token%3Dse%26cret` is read as a token of
+`se` followed by a parameter `cret`. Distinguishing them needs the encoder's
+intent, which the bytes do not carry.
 
 ## Exported escape surface
 
@@ -151,8 +198,11 @@ whitespace and is skipped.
 - `DecodedByteAt(s, i)` — the byte `s[i]` stands for, and its width.
 - `DecodedEscapeBefore(s, i)` — the byte an escape ending at `s[:i]` stands for,
   for the backwards walk that reads a key name leftwards from its separator.
-- `IndexDecodedAny(s, set)` — offset and width of the first position standing
-  for one of `set`.
+- `BoundaryDepth`, `LiteralOnly`, `LiteralOrEscaped` — which spellings of a
+  structural byte a scan counts as that byte.
+- `IndexBoundary(s, set, depth)` — offset and width of the first position
+  standing for one of `set` at that depth. At `LiteralOnly` the width is always
+  `1`.
 - `Decode(s)` — one layer across a whole string, for a name or a value rather
   than a position.
 
@@ -165,7 +215,9 @@ pair, exactly as every other redaction walk in this repository does.
 So a credential in a **path segment**, one under a name
 `collector.IsSensitiveKeyName` does not match (`?session=…`), and a bare secret
 with no key beside it are all invisible here — as they are everywhere else. So
-is a separator encoded twice (`%253D`), for the reason above.
+is a separator encoded twice (`%253D`), for the reason above, and so is the tail
+of a credential that holds an `&` inside an already-encoded pair, for the reason
+in the depth section.
 
 Assembling a redacted URL is not here either. `redactEndpoint` keeps that: it
 also strips userinfo and the fragment, and falls back to `mcpsetup.RedactToken`
