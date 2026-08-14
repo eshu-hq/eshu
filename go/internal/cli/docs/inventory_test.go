@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package docs
 
 import (
 	"crypto/sha256"
@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestDocsVerifyEnvironmentTruthReadsPublicDocsReferenceFromSiblingPage(t *testing.T) {
+func TestEnvironmentTruthReadsPublicDocsReferenceFromSiblingPage(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -37,11 +37,11 @@ func TestDocsVerifyEnvironmentTruthReadsPublicDocsReferenceFromSiblingPage(t *te
 	}
 
 	if !containsEnvTruth(pagePath, "ESHU_PUBLIC_DOCS_TEST_ENV") {
-		t.Fatalf("docsVerifyEnvironmentTruth() did not read docs/public/reference/environment-variables.md")
+		t.Fatalf("EnvironmentTruth() did not read docs/public/reference/environment-variables.md")
 	}
 }
 
-func TestDocsVerifyEnvironmentTruthReadsSplitEnvironmentReferencePages(t *testing.T) {
+func TestEnvironmentTruthReadsSplitEnvironmentReferencePages(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -66,11 +66,11 @@ func TestDocsVerifyEnvironmentTruthReadsSplitEnvironmentReferencePages(t *testin
 
 	pagePath := filepath.Join(dir, "docs", "public", "reference", "environment-runtime-storage.md")
 	if !containsEnvTruth(pagePath, "ESHU_SPLIT_REFERENCE_TEST_ENV") {
-		t.Fatalf("docsVerifyEnvironmentTruth() did not read split environment reference pages")
+		t.Fatalf("EnvironmentTruth() did not read split environment reference pages")
 	}
 }
 
-func TestDocsVerifyEnvironmentTruthIgnoresWildcardEnvironmentFamilies(t *testing.T) {
+func TestEnvironmentTruthIgnoresWildcardEnvironmentFamilies(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -88,10 +88,10 @@ func TestDocsVerifyEnvironmentTruthIgnoresWildcardEnvironmentFamilies(t *testing
 
 	pagePath := filepath.Join(dir, "docs", "public", "reference", "environment-runtime-storage.md")
 	if containsEnvTruth(pagePath, "ESHU_WORKFLOW_COORDINATOR_") {
-		t.Fatal("docsVerifyEnvironmentTruth() treated wildcard family prefix as a concrete environment variable")
+		t.Fatal("EnvironmentTruth() treated wildcard family prefix as a concrete environment variable")
 	}
 	if !containsEnvTruth(pagePath, "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE") {
-		t.Fatal("docsVerifyEnvironmentTruth() did not keep the concrete environment variable")
+		t.Fatal("EnvironmentTruth() did not keep the concrete environment variable")
 	}
 }
 
@@ -127,7 +127,7 @@ func TestReadDocumentInputBoundsContentButHashesFullFile(t *testing.T) {
 	}
 }
 
-func TestInventoryDocsStopsAtLimitAndMarksTruncated(t *testing.T) {
+func TestInventoryDocumentsStopsAtLimitAndMarksTruncated(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -137,9 +137,9 @@ func TestInventoryDocsStopsAtLimitAndMarksTruncated(t *testing.T) {
 		}
 	}
 
-	inventory, err := inventoryDocs(docsVerifyOptions{Path: dir, Limit: 1, MaxDocumentBytes: 1024})
+	inventory, err := InventoryDocuments(VerifyOptions{Path: dir, Limit: 1, MaxDocumentBytes: 1024})
 	if err != nil {
-		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+		t.Fatalf("InventoryDocuments() error = %v, want nil", err)
 	}
 	if got, want := len(inventory.Documents), 1; got != want {
 		t.Fatalf("len(Documents) = %d, want %d", got, want)
@@ -149,18 +149,18 @@ func TestInventoryDocsStopsAtLimitAndMarksTruncated(t *testing.T) {
 	}
 }
 
-func TestDocsVerifyEnvironmentTruthUsesReferenceDocs(t *testing.T) {
+func TestEnvironmentTruthUsesReferenceDocs(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{"ESHU_HOME", "ESHU_QUERY_PROFILE", "ESHU_FACT_STORE_DSN"} {
 		if !containsEnvTruth(".", name) {
-			t.Fatalf("docsVerifyEnvironmentTruth() missing %s from reference docs", name)
+			t.Fatalf("EnvironmentTruth() missing %s from reference docs", name)
 		}
 	}
 }
 
 func containsEnvTruth(path string, want string) bool {
-	for _, name := range docsVerifyEnvironmentTruth(path) {
+	for _, name := range EnvironmentTruth(path) {
 		if name == want {
 			return true
 		}

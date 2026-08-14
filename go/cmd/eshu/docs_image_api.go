@@ -4,56 +4,48 @@
 package main
 
 import (
-	"net/url"
 	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 )
 
+// remoteFlagReader is the slice of a cobra command these helpers need: the
+// --service-url/--api-key/--profile flags addRemoteFlags registered.
 type remoteFlagReader interface {
 	Flags() *pflag.FlagSet
 }
 
-type docsVerifyContainerImageIdentityPage struct {
-	Identities []struct {
-		IdentityID string `json:"identity_id"`
-		ImageRef   string `json:"image_ref"`
-		Outcome    string `json:"outcome"`
-	} `json:"identities"`
-}
-
-type docsVerifyContainerImageIdentityEnvelope struct {
-	Data  docsVerifyContainerImageIdentityPage `json:"data"`
-	Error *docsVerifyError                     `json:"error"`
-}
-
-func docsVerifyContainerImageAPIResolver(client *APIClient) doctruth.ContainerImageResolver {
-	cache := map[string]doctruth.ContainerImageResolution{}
-	return func(_ doctruth.DocumentInput, imageRef string) doctruth.ContainerImageResolution {
-		normalized := doctruth.NormalizeContainerImageRefClaim(imageRef)
-		if normalized == "" || client == nil {
-			return doctruth.ContainerImageResolution{}
-		}
-		if cached, ok := cache[normalized]; ok {
-			return cached
-		}
-		query := url.Values{}
-		query.Set("image_ref", normalized)
-		query.Set("limit", "1")
-		var envelope docsVerifyContainerImageIdentityEnvelope
-		err := client.GetEnvelope("/api/v0/supply-chain/container-images/identities?"+query.Encode(), &envelope)
-		if err != nil || envelope.Error != nil {
-			cache[normalized] = doctruth.ContainerImageResolution{}
-			return cache[normalized]
-		}
-		cache[normalized] = doctruth.ContainerImageResolution{Supported: true, Exists: len(envelope.Data.Identities) > 0}
-		return cache[normalized]
+// docsVerifyContainerImageResolver picks the container image truth source for
+// this run. The choice is process state -- an "api" run needs a client built
+// from flags -- so it is resolved here and handed to the docs package.
+func docsVerifyContainerImageResolver(cmd remoteFlagReader, opts docs.VerifyOptions) doctruth.ContainerImageResolver {
+	if opts.ImageTruth == "api" {
+		return docs.APIContainerImageResolver(apiClientFromRemoteFlags(cmd))
 	}
+	return docs.LocalContainerImageResolver(opts.Path)
 }
 
+// effectiveDocsVerifyImageTruth resolves the "auto" image truth mode: a run
+// that has been pointed at a remote service uses the API, everything else scans
+// the local workspace manifests. An explicit mode is returned unchanged.
+func effectiveDocsVerifyImageTruth(cmd remoteFlagReader, mode string) string {
+	mode = docs.NormalizeImageTruthMode(mode)
+	if mode == "auto" {
+		if docsVerifyRemoteImageTruthConfigured(cmd) {
+			return "api"
+		}
+		return "local"
+	}
+	return mode
+}
+
+// docsVerifyRemoteImageTruthConfigured reports whether this invocation was
+// pointed at a remote Eshu service, by an explicitly set remote flag or by the
+// service URL / API key environment variables.
 func docsVerifyRemoteImageTruthConfigured(cmd remoteFlagReader) bool {
 	for _, name := range []string{"service-url", "api-key", "profile"} {
 		if flag := cmd.Flags().Lookup(name); flag != nil && flag.Changed && strings.TrimSpace(flag.Value.String()) != "" {
@@ -64,6 +56,7 @@ func docsVerifyRemoteImageTruthConfigured(cmd remoteFlagReader) bool {
 		strings.TrimSpace(os.Getenv("ESHU_API_KEY")) != ""
 }
 
+// apiClientFromRemoteFlags builds the API client from the remote flag set.
 func apiClientFromRemoteFlags(cmd remoteFlagReader) *APIClient {
 	return NewAPIClient(
 		docsVerifyRemoteFlagValue(cmd, "service-url"),
@@ -72,6 +65,8 @@ func apiClientFromRemoteFlags(cmd remoteFlagReader) *APIClient {
 	)
 }
 
+// docsVerifyRemoteFlagValue reads one remote flag, yielding empty when the
+// command does not define it.
 func docsVerifyRemoteFlagValue(cmd remoteFlagReader, name string) string {
 	if flag := cmd.Flags().Lookup(name); flag != nil {
 		return flag.Value.String()

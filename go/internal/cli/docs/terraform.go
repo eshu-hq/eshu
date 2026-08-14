@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package docs
 
 import (
 	"errors"
@@ -19,14 +19,26 @@ import (
 )
 
 const (
-	docsVerifyTerraformTruthMaxFiles     = 2000
-	docsVerifyTerraformTruthMaxFileBytes = 512 * 1024
+	// terraformTruthMaxFiles bounds how many .tf files one scan parses.
+	terraformTruthMaxFiles = 2000
+	// terraformTruthMaxFileBytes bounds how much of one .tf file is read.
+	terraformTruthMaxFileBytes = 512 * 1024
 )
 
-var errDocsVerifyTerraformTruthLimitReached = errors.New("terraform truth file limit reached")
+// errTerraformTruthLimitReached stops the Terraform walk at
+// terraformTruthMaxFiles, marking the scan incomplete rather than failing.
+var errTerraformTruthLimitReached = errors.New("terraform truth file limit reached")
 
-func docsVerifyTerraformAddressResolver(verifyPath string) doctruth.TerraformAddressResolver {
-	root, ok := docsVerifyTruthRoot(verifyPath)
+// TerraformAddressResolver builds the resolver that checks a documented
+// Terraform address against the workspace's own .tf files. It returns nil when
+// no workspace root resolves.
+//
+// The scan is lazy and runs at most once per resolver. When it is incomplete --
+// the file limit was hit, a file was oversized, or HCL failed to parse -- an
+// unmatched address reports unsupported rather than contradicted, so invalid
+// HCL never turns a correctly documented address into a contradiction.
+func TerraformAddressResolver(verifyPath string) doctruth.TerraformAddressResolver {
+	root, ok := TruthRoot(verifyPath)
 	if !ok {
 		return nil
 	}
@@ -39,7 +51,7 @@ func docsVerifyTerraformAddressResolver(verifyPath string) doctruth.TerraformAdd
 			return doctruth.TerraformAddressResolution{}
 		}
 		once.Do(func() {
-			addresses, complete = docsVerifyTerraformAddressTruth(root)
+			addresses, complete = terraformAddressTruth(root)
 		})
 		if _, ok := addresses[normalized]; ok {
 			return doctruth.TerraformAddressResolution{Supported: true, Exists: true}
@@ -51,7 +63,10 @@ func docsVerifyTerraformAddressResolver(verifyPath string) doctruth.TerraformAdd
 	}
 }
 
-func docsVerifyTerraformAddressTruth(root string) (map[string]struct{}, bool) {
+// terraformAddressTruth walks root parsing every .tf and .tf.json file into the
+// set of resource, data, and module addresses they declare. The second return
+// reports whether the scan was complete.
+func terraformAddressTruth(root string) (map[string]struct{}, bool) {
 	addresses := map[string]struct{}{}
 	files := 0
 	complete := true
@@ -61,19 +76,19 @@ func docsVerifyTerraformAddressTruth(root string) (map[string]struct{}, bool) {
 			return nil
 		}
 		if entry.IsDir() {
-			if shouldSkipDocsVerifyTerraformTruthDir(entry.Name()) {
+			if shouldSkipTerraformTruthDir(entry.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !isDocsVerifyTerraformTruthFile(path) {
+		if !isTerraformTruthFile(path) {
 			return nil
 		}
 		files++
-		if files > docsVerifyTerraformTruthMaxFiles {
-			return errDocsVerifyTerraformTruthLimitReached
+		if files > terraformTruthMaxFiles {
+			return errTerraformTruthLimitReached
 		}
-		fileAddresses, ok := docsVerifyTerraformAddressesFromFile(path)
+		fileAddresses, ok := terraformAddressesFromFile(path)
 		if !ok {
 			complete = false
 		}
@@ -82,16 +97,19 @@ func docsVerifyTerraformAddressTruth(root string) (map[string]struct{}, bool) {
 		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, errDocsVerifyTerraformTruthLimitReached) {
+	if err != nil && !errors.Is(err, errTerraformTruthLimitReached) {
 		complete = false
 	}
-	if errors.Is(err, errDocsVerifyTerraformTruthLimitReached) {
+	if errors.Is(err, errTerraformTruthLimitReached) {
 		complete = false
 	}
 	return addresses, complete
 }
 
-func shouldSkipDocsVerifyTerraformTruthDir(name string) bool {
+// shouldSkipTerraformTruthDir reports the directories the Terraform scan does
+// not descend into. .terraform is excluded on top of the manifest scan's list:
+// it holds downloaded modules whose addresses are not this workspace's truth.
+func shouldSkipTerraformTruthDir(name string) bool {
 	switch name {
 	case ".git", ".terraform", ".worktrees", "node_modules", "vendor", "dist", "build", "site":
 		return true
@@ -100,20 +118,27 @@ func shouldSkipDocsVerifyTerraformTruthDir(name string) bool {
 	}
 }
 
-func isDocsVerifyTerraformTruthFile(path string) bool {
+// isTerraformTruthFile reports whether path is a Terraform configuration file
+// in either the native or JSON syntax.
+func isTerraformTruthFile(path string) bool {
 	lower := strings.ToLower(filepath.Base(path))
 	return strings.HasSuffix(lower, ".tf") || strings.HasSuffix(lower, ".tf.json")
 }
 
-func docsVerifyTerraformAddressesFromFile(path string) ([]string, bool) {
+// terraformAddressesFromFile parses one Terraform file into the addresses it
+// declares: `<type>.<name>` for a resource, `data.<type>.<name>` for a data
+// source, and `module.<name>` for a module. The second return is false when the
+// file could not be read, exceeds terraformTruthMaxFileBytes, or has HCL
+// errors -- a partially parsed file is not treated as complete truth.
+func terraformAddressesFromFile(path string) ([]string, bool) {
 	file, err := os.Open(path) // #nosec G304 -- path is a local Terraform file discovered by the program from the scan target directory, not an HTTP request param
 	if err != nil {
 		return nil, false
 	}
 	defer func() { _ = file.Close() }()
 
-	content, err := io.ReadAll(io.LimitReader(file, docsVerifyTerraformTruthMaxFileBytes+1))
-	if err != nil || len(content) > docsVerifyTerraformTruthMaxFileBytes {
+	content, err := io.ReadAll(io.LimitReader(file, terraformTruthMaxFileBytes+1))
+	if err != nil || len(content) > terraformTruthMaxFileBytes {
 		return nil, false
 	}
 

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 )
 
 func TestRunDocsVerifyChecksLocalPathClaims(t *testing.T) {
@@ -35,7 +37,7 @@ func TestRunDocsVerifyChecksLocalPathClaims(t *testing.T) {
 		t.Fatalf("WriteFile(doc) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -45,7 +47,7 @@ func TestRunDocsVerifyChecksLocalPathClaims(t *testing.T) {
 		t.Fatal("docs verify error = nil, want contradicted missing local path to fail")
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -116,16 +118,16 @@ func TestRunDocsVerifyMarksEscapedLocalPathAsMissingEvidence(t *testing.T) {
 	}
 }
 
-func runDocsVerifyJSONForTest(t *testing.T, docPath string, args ...string) (docsVerifyEnvelope, error) {
+func runDocsVerifyJSONForTest(t *testing.T, docPath string, args ...string) (docs.Envelope, error) {
 	t.Helper()
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
 	cmd.SetArgs(append([]string{docPath, "--json"}, args...))
 	err := cmd.Execute()
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}

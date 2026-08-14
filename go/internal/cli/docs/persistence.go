@@ -1,49 +1,57 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package docs
 
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-type docsPersistenceFactory func(context.Context) (docsVerifyPersistence, func() error, error)
+// freshnessVersion namespaces the freshness hint. Bump it when the fingerprint
+// inputs change, so previously persisted generations stop matching and get
+// re-verified instead of silently replaying a hint computed a different way.
+const freshnessVersion = "docs-verify-v1"
 
-type docsVerifyDeps struct {
-	openPersistence docsPersistenceFactory
-	commandTruth    func() []doctruth.CommandTruth
-	now             func() time.Time
-}
+// PersistenceFactory opens the persistence backend, returning the store, a
+// close function, and any open error. The CLI wrapper supplies it because
+// opening Postgres means reading the DSN from the process environment.
+type PersistenceFactory func(context.Context) (Persistence, func() error, error)
 
-type docsVerifyPersistence interface {
-	CurrentGeneration(context.Context, string) (docsPersistedGeneration, bool, error)
+// Persistence is the storage surface a verify run needs: read the current
+// generation for a scope, read back the facts of a generation, and commit a
+// new generation's facts.
+type Persistence interface {
+	CurrentGeneration(context.Context, string) (PersistedGeneration, bool, error)
 	ListFactEnvelopes(context.Context, string, string, []string) ([]facts.Envelope, error)
 	CommitScopeGeneration(context.Context, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error
 }
 
-type docsPersistedGeneration struct {
+// PersistedGeneration is the stored generation a freshness check compares
+// against.
+type PersistedGeneration struct {
 	GenerationID  string
 	FreshnessHint string
 }
 
-type docsVerifyPersistenceSummary struct {
+// PersistenceSummary reports what persistence did on this run. Enabled follows
+// --persist. Skipped means the stored generation was still fresh and its
+// findings were replayed instead of re-verified. Persisted means this run
+// committed a new generation.
+type PersistenceSummary struct {
 	Enabled       bool   `json:"enabled"`
 	Persisted     bool   `json:"persisted"`
 	Skipped       bool   `json:"skipped"`
@@ -53,90 +61,88 @@ type docsVerifyPersistenceSummary struct {
 	Repository    string `json:"repository,omitempty"`
 }
 
-type docsVerifyPostgresPersistence struct {
+// PostgresPersistence is the Postgres-backed Persistence implementation.
+type PostgresPersistence struct {
 	ingestion postgres.IngestionStore
 	facts     *postgres.FactStore
 }
 
-const docsVerifyFreshnessVersion = "docs-verify-v1"
-
-func defaultDocsVerifyDeps() docsVerifyDeps {
-	return docsVerifyDeps{
-		openPersistence: openDocsVerifyPostgresPersistence,
-		commandTruth:    func() []doctruth.CommandTruth { return commandTruthFromCobra(rootCmd) },
-		now:             func() time.Time { return time.Now().UTC() },
-	}
-}
-
-func openDocsVerifyPostgresPersistence(ctx context.Context) (docsVerifyPersistence, func() error, error) {
-	db, err := runtimecfg.OpenPostgres(ctx, os.Getenv)
-	if err != nil {
-		return nil, nil, err
-	}
+// NewPostgresPersistence wraps an open database handle as a Persistence. It
+// does not open, ping, or close the handle -- the caller that opened it owns
+// its lifetime.
+func NewPostgresPersistence(db *sql.DB) PostgresPersistence {
 	sqlDB := postgres.SQLDB{DB: db}
-	persistence := docsVerifyPostgresPersistence{
+	return PostgresPersistence{
 		ingestion: postgres.NewIngestionStore(sqlDB),
 		facts:     postgres.NewFactStore(sqlDB),
 	}
-	return persistence, db.Close, nil
 }
 
-func (p docsVerifyPostgresPersistence) CurrentGeneration(
+// CurrentGeneration reports the scope's current generation and whether one
+// exists.
+func (p PostgresPersistence) CurrentGeneration(
 	ctx context.Context,
 	scopeID string,
-) (docsPersistedGeneration, bool, error) {
+) (PersistedGeneration, bool, error) {
 	current, found, err := p.ingestion.CurrentScopeGeneration(ctx, scopeID)
 	if err != nil || !found {
-		return docsPersistedGeneration{}, found, err
+		return PersistedGeneration{}, found, err //nolint:wrapcheck // preparePersistence wraps this as "check documentation persistence freshness"; wrapping here would double the context in the operator-visible message.
 	}
-	return docsPersistedGeneration{
+	return PersistedGeneration{
 		GenerationID:  current.GenerationID,
 		FreshnessHint: current.FreshnessHint,
 	}, true, nil
 }
 
-func (p docsVerifyPostgresPersistence) ListFactEnvelopes(
+// ListFactEnvelopes reads the stored facts of a generation, filtered to kinds.
+func (p PostgresPersistence) ListFactEnvelopes(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
 	kinds []string,
 ) ([]facts.Envelope, error) {
-	return p.facts.ListFactsByKind(ctx, scopeID, generationID, kinds)
+	return p.facts.ListFactsByKind(ctx, scopeID, generationID, kinds) //nolint:wrapcheck // resultFromPersisted wraps this as "load persisted documentation verification facts".
 }
 
-func (p docsVerifyPostgresPersistence) CommitScopeGeneration(
+// CommitScopeGeneration commits a generation and its streamed facts.
+func (p PostgresPersistence) CommitScopeGeneration(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	factStream <-chan facts.Envelope,
 ) error {
-	return p.ingestion.CommitScopeGeneration(ctx, scopeValue, generation, factStream)
+	return p.ingestion.CommitScopeGeneration(ctx, scopeValue, generation, factStream) //nolint:wrapcheck // commitResult wraps this as "persist documentation verification facts".
 }
 
-func prepareDocsVerifyPersistence(
+// preparePersistence resolves the scope, freshness hint, and generation id for
+// this run and opens the store. When persistence is off it returns a zero
+// summary and no store. When the stored generation's freshness hint still
+// matches the current inventory it marks the summary Skipped, which tells
+// Verify to replay stored findings instead of re-verifying.
+func preparePersistence(
 	ctx context.Context,
-	opts docsVerifyOptions,
-	inventory docsInventory,
-	deps docsVerifyDeps,
-) (docsVerifyPersistence, func() error, docsVerifyPersistenceSummary, error) {
-	summary := docsVerifyPersistenceSummary{}
+	opts VerifyOptions,
+	inventory Inventory,
+	deps Deps,
+) (Persistence, func() error, PersistenceSummary, error) {
+	summary := PersistenceSummary{}
 	if !opts.Persist {
 		return nil, nil, summary, nil
 	}
-	if deps.openPersistence == nil {
+	if deps.OpenPersistence == nil {
 		return nil, nil, summary, fmt.Errorf("documentation persistence is not configured")
 	}
-	scopeID := docsVerifyScopeID(opts.Path, opts.Scope)
-	freshness := docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, opts.ImageTruth)
-	generationID := docsVerifyGenerationID(scopeID, freshness)
-	summary = docsVerifyPersistenceSummary{
+	scopeID := ScopeID(opts.Path, opts.Scope)
+	freshness := InventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, opts.ImageTruth)
+	generation := deriveGenerationID(scopeID, freshness)
+	summary = PersistenceSummary{
 		Enabled:       true,
 		ScopeID:       scopeID,
-		GenerationID:  generationID,
+		GenerationID:  generation,
 		FreshnessHint: freshness,
 		Repository:    strings.TrimSpace(opts.Repo),
 	}
-	persistence, closePersistence, err := deps.openPersistence(ctx)
+	persistence, closePersistence, err := deps.OpenPersistence(ctx)
 	if err != nil {
 		return nil, nil, summary, fmt.Errorf("open documentation persistence: %w", err)
 	}
@@ -154,10 +160,12 @@ func prepareDocsVerifyPersistence(
 	return persistence, closePersistence, summary, nil
 }
 
-func docsVerifyResultFromPersisted(
+// resultFromPersisted rebuilds a verification result from the stored findings
+// and evidence packets of a generation.
+func resultFromPersisted(
 	ctx context.Context,
-	persistence docsVerifyPersistence,
-	summary docsVerifyPersistenceSummary,
+	persistence Persistence,
+	summary PersistenceSummary,
 ) (doctruth.VerificationResult, error) {
 	envelopes, err := persistence.ListFactEnvelopes(ctx, summary.ScopeID, summary.GenerationID, []string{
 		facts.DocumentationFindingFactKind,
@@ -166,10 +174,13 @@ func docsVerifyResultFromPersisted(
 	if err != nil {
 		return doctruth.VerificationResult{}, fmt.Errorf("load persisted documentation verification facts: %w", err)
 	}
-	return docsVerifyResultFromEnvelopes(envelopes), nil
+	return resultFromEnvelopes(envelopes), nil
 }
 
-func docsVerifyResultFromEnvelopes(envelopes []facts.Envelope) doctruth.VerificationResult {
+// resultFromEnvelopes decodes stored fact envelopes back into findings,
+// evidence packets, and the derived summary counters. An envelope missing its
+// identity field is dropped rather than counted.
+func resultFromEnvelopes(envelopes []facts.Envelope) doctruth.VerificationResult {
 	result := doctruth.VerificationResult{Envelopes: envelopes}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
@@ -177,7 +188,7 @@ func docsVerifyResultFromEnvelopes(envelopes []facts.Envelope) doctruth.Verifica
 			finding := findingFromPayload(envelope.Payload)
 			if finding.FindingID != "" {
 				result.Findings = append(result.Findings, finding)
-				addDocsVerifyFindingStatus(&result.Summary, finding.Status)
+				addFindingStatus(&result.Summary, finding.Status)
 			}
 		case facts.DocumentationEvidencePacketFactKind:
 			packet := packetFromPayload(envelope.Payload)
@@ -191,15 +202,17 @@ func docsVerifyResultFromEnvelopes(envelopes []facts.Envelope) doctruth.Verifica
 	return result
 }
 
-func commitDocsVerifyResult(
+// commitResult streams the result's fact envelopes into a new scope
+// generation.
+func commitResult(
 	ctx context.Context,
-	persistence docsVerifyPersistence,
-	summary docsVerifyPersistenceSummary,
+	persistence Persistence,
+	summary PersistenceSummary,
 	result doctruth.VerificationResult,
 	now func() time.Time,
 ) error {
-	scopeValue := docsVerifyScope(summary)
-	generation := docsVerifyGeneration(scopeValue.ScopeID, summary.GenerationID, summary.FreshnessHint, now)
+	scopeValue := verifyScope(summary)
+	generation := verifyGeneration(scopeValue.ScopeID, summary.GenerationID, summary.FreshnessHint, now)
 	stream := make(chan facts.Envelope)
 	go func() {
 		defer close(stream)
@@ -213,7 +226,9 @@ func commitDocsVerifyResult(
 	return nil
 }
 
-func docsVerifyScope(summary docsVerifyPersistenceSummary) scope.IngestionScope {
+// verifyScope builds the ingestion scope documentation facts are committed
+// under. The optional repository selector is recorded as scope metadata.
+func verifyScope(summary PersistenceSummary) scope.IngestionScope {
 	metadata := map[string]string{}
 	if summary.Repository != "" {
 		metadata["repo"] = summary.Repository
@@ -228,7 +243,9 @@ func docsVerifyScope(summary docsVerifyPersistenceSummary) scope.IngestionScope 
 	}
 }
 
-func docsVerifyGeneration(scopeID, generationID, freshness string, now func() time.Time) scope.ScopeGeneration {
+// verifyGeneration builds the pending snapshot generation for a commit. A nil
+// now falls back to the wall clock.
+func verifyGeneration(scopeID, generationID, freshness string, now func() time.Time) scope.ScopeGeneration {
 	observedAt := time.Now().UTC()
 	if now != nil {
 		observedAt = now().UTC()
@@ -244,7 +261,10 @@ func docsVerifyGeneration(scopeID, generationID, freshness string, now func() ti
 	}
 }
 
-func docsVerifyScopeID(path string, explicit string) string {
+// ScopeID returns the ingestion scope id for a verify run: the explicit
+// --scope value when given, otherwise one derived from the absolute scan path
+// so the same tree keeps the same scope across runs and working directories.
+func ScopeID(path string, explicit string) string {
 	if value := strings.TrimSpace(explicit); value != "" {
 		return value
 	}
@@ -257,14 +277,21 @@ func docsVerifyScopeID(path string, explicit string) string {
 	})
 }
 
-func docsVerifyGenerationID(scopeID, freshness string) string {
+// deriveGenerationID derives the generation id from the scope and its
+// freshness hint, so an unchanged inventory maps back to the same generation.
+func deriveGenerationID(scopeID, freshness string) string {
 	return "docs-verify-generation:" + facts.StableID("documentation-verify-generation", map[string]any{
 		"scope_id":       scopeID,
 		"freshness_hint": freshness,
 	})
 }
 
-func docsInventoryFreshnessHint(
+// InventoryFreshnessHint fingerprints an inventory plus the bounds that
+// produced it. The scan bounds and image truth source are part of the
+// fingerprint on purpose: the same documents scanned with a different
+// --max-bytes, --limit, or image truth source can produce different findings,
+// so those runs must not be treated as a cache hit for one another.
+func InventoryFreshnessHint(
 	documents []doctruth.DocumentInput,
 	maxDocumentBytes int,
 	limit int,
@@ -299,10 +326,10 @@ func docsInventoryFreshnessHint(
 		return fingerprints[i].SourceURI < fingerprints[j].SourceURI
 	})
 	encoded, err := json.Marshal(freshnessInput{
-		Version:          docsVerifyFreshnessVersion,
+		Version:          freshnessVersion,
 		MaxDocumentBytes: maxDocumentBytes,
 		Limit:            limit,
-		ImageTruth:       normalizedDocsVerifyImageTruth(imageTruth),
+		ImageTruth:       NormalizeImageTruthMode(imageTruth),
 		Documents:        fingerprints,
 	})
 	if err != nil {
@@ -312,7 +339,11 @@ func docsInventoryFreshnessHint(
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func applyDocsVerifyInventorySummary(result *doctruth.VerificationResult, inventory docsInventory) {
+// applyInventorySummary overwrites the document counters on a replayed result
+// with what this run actually inventoried. Stored findings carry no scan
+// counters of their own, so without this a skipped run would report zero
+// documents scanned.
+func applyInventorySummary(result *doctruth.VerificationResult, inventory Inventory) {
 	truncated := inventory.Truncated
 	bytesScanned := 0
 	for _, doc := range inventory.Documents {
@@ -326,7 +357,9 @@ func applyDocsVerifyInventorySummary(result *doctruth.VerificationResult, invent
 	result.Truncated = result.Truncated || truncated
 }
 
-func addDocsVerifyFindingStatus(s *doctruth.VerificationSummary, status string) {
+// addFindingStatus folds one replayed finding's status into the summary
+// counters.
+func addFindingStatus(s *doctruth.VerificationSummary, status string) {
 	s.ClaimsChecked++
 	switch status {
 	case doctruth.VerificationStatusValid:
@@ -340,6 +373,7 @@ func addDocsVerifyFindingStatus(s *doctruth.VerificationSummary, status string) 
 	}
 }
 
+// findingFromPayload decodes a stored finding fact payload.
 func findingFromPayload(payload map[string]any) doctruth.VerificationFinding {
 	return doctruth.VerificationFinding{
 		FindingID:        stringPayload(payload, "finding_id"),
@@ -360,6 +394,8 @@ func findingFromPayload(payload map[string]any) doctruth.VerificationFinding {
 	}
 }
 
+// packetFromPayload decodes a stored evidence packet fact payload, keeping the
+// whole payload as the packet body.
 func packetFromPayload(payload map[string]any) doctruth.VerificationEvidencePacket {
 	return doctruth.VerificationEvidencePacket{
 		PacketID:      stringPayload(payload, "packet_id"),
@@ -369,6 +405,8 @@ func packetFromPayload(payload map[string]any) doctruth.VerificationEvidencePack
 	}
 }
 
+// stringPayload reads a trimmed string field from a fact payload, yielding
+// empty for a missing key or a non-string value.
 func stringPayload(payload map[string]any, key string) string {
 	value, _ := payload[key].(string)
 	return strings.TrimSpace(value)
