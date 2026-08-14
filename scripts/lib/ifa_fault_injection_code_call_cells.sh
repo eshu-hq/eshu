@@ -3,6 +3,38 @@
 # code_calls-targeted live fault cells (#5991). This function library is sourced
 # by verify-ifa-fault-injection.sh; the driver owns strict mode and globals.
 
+# ifa_code_call_require_fresh_intents fails closed unless a fresh compose stack
+# has a numeric zero count for the code_calls intent domain.
+ifa_code_call_require_fresh_intents() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" postgres_dsn="$4" compose_file_arg="$5"
+	local pre_intents pre_intents_rc
+	if pre_intents="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
+		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'code_calls';" \
+		"${compose_file_arg}")"; then
+		pre_intents_rc=0
+	else
+		pre_intents_rc=$?
+	fi
+	if [[ "${pre_intents_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${pre_intents_rc}" >&2
+		return "${pre_intents_rc}"
+	fi
+	pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
+	if [[ -z "${pre_intents}" ]]; then
+		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
+		return 1
+	fi
+	if [[ ! "${pre_intents}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
+			"${cell}" "${pre_intents}" >&2
+		return 1
+	fi
+	if [[ "${pre_intents}" != "0" ]]; then
+		printf '%s: %s code_calls intent row(s) survived fresh_stack\n' "${cell}" "${pre_intents}" >&2
+		return 1
+	fi
+}
+
 # ifa_code_call_start_intent_lock holds the first durable write used by
 # code_call_materialization. This makes the claimed-row observation and kill
 # deterministic: the handler cannot acknowledge between the observation and
@@ -92,11 +124,10 @@ cell_failgraphwrite_code_calls() {
 	log "cell fail-graph-write-once-then-succeed-code-calls: fresh stack"
 	fresh_stack failgraphwritecodecalls
 	if [[ "${use_compose}" -eq 1 ]]; then
-		local pre_intents
-		pre_intents="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'code_calls';" "${compose_file}" | tr -d '[:space:]')"
-		[[ "${pre_intents}" == "0" ]] \
-			|| die "fail-graph-write-once-then-succeed-code-calls: fresh stack contains ${pre_intents} code_calls intents"
+		ifa_code_call_require_fresh_intents \
+			"fail-graph-write-once-then-succeed-code-calls" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
+			"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+			|| die "fail-graph-write-once-then-succeed-code-calls: fresh-stack precondition failed"
 	fi
 	drive_all_cassettes failgraphwritecodecalls
 	local fault_once_script projector_pid reducer_pid marker_rc

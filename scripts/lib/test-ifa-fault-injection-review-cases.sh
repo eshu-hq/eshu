@@ -151,6 +151,57 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		|| fail "invalid graph dump returned ${rc}, want jq/error status 2"
 )
 
+test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed() (
+	source "${code_call_cells_lib}"
+	declare -F ifa_code_call_require_fresh_intents >/dev/null \
+		|| fail "code-call cells do not expose ifa_code_call_require_fresh_intents"
+
+	local query_output query_rc output rc
+	ifa_det_pg() {
+		printf '%s' "${query_output}"
+		return "${query_rc}"
+	}
+
+	query_output="ignored"
+	query_rc=7
+	rc=0
+	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
+	[[ "${rc}" -eq 7 ]] || fail "failed code-call precondition query returned ${rc}, want original exit 7"
+	[[ "${output}" == *"precondition query FAILED (exit 7)"* ]] \
+		|| fail "failed code-call precondition query did not preserve exit 7: ${output}"
+	[[ "${output}" != *"survived fresh_stack"* ]] \
+		|| fail "failed code-call precondition query was misreported as stale intents: ${output}"
+
+	query_output=""
+	query_rc=0
+	rc=0
+	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "empty code-call precondition count was accepted"
+	[[ "${output}" == *"returned empty output"* ]] \
+		|| fail "empty code-call precondition count was not diagnosed distinctly: ${output}"
+
+	query_output="not-a-count"
+	query_rc=0
+	rc=0
+	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "non-numeric code-call precondition count was accepted"
+	[[ "${output}" == *"returned non-numeric output"* ]] \
+		|| fail "non-numeric code-call precondition count was not diagnosed distinctly: ${output}"
+
+	query_output=$' 3\n'
+	query_rc=0
+	rc=0
+	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "stale code-call intents were accepted"
+	[[ "${output}" == *"3 code_calls intent row(s) survived fresh_stack"* ]] \
+		|| fail "stale code-call intents were not reported as stale: ${output}"
+
+	query_output=$' 0\n'
+	query_rc=0
+	ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml >/dev/null \
+		|| fail "zero code-call intents did not continue"
+)
+
 test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 	source "${det_lib}"
 	source "${driver_lib}"
@@ -187,5 +238,6 @@ test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 
 run_ifa_fault_injection_review_cases() {
 	test_ifa_fault_collateral_compare_is_scoped_and_fail_closed
+	test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed
 	test_ifa_fault_released_lock_holder_is_not_torn_down_twice
 }

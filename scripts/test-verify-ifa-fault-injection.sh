@@ -329,6 +329,10 @@ require_code_call_cells "kill cell proves a retry above baseline" "ifa_fault_ass
 require_code_call_cells "graph-write cell selects queue-retry" '"queue-retry"'
 require_code_call_cells "graph-write cell targets durable code-call marker" "ifa_fault_assert_once_fault_marker"
 require_code_call_cells "graph-write cell probes code-call intents" "projection_domain = 'code_calls'"
+require_code_call_cells "code-call precondition preserves query failure" "precondition query FAILED (exit"
+require_code_call_cells "code-call precondition distinguishes empty output" "returned empty output"
+require_code_call_cells "code-call precondition rejects non-numeric output" "returned non-numeric output"
+require_code_call_cells "code-call precondition reports stale intents" "survived fresh_stack"
 require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
 
 # Behavioral regressions for the two review-discovered false-green seams live
