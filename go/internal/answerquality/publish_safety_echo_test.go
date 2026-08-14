@@ -150,6 +150,217 @@ func TestScoreKeepsAKnownSurfaceReadable(t *testing.T) {
 	}
 }
 
+// unsafeCarrier is the value planted into a captured field by the prompt
+// metadata tests. It is a synthetic DSN, not a credential, and it is one the
+// shared screen catches -- which matters for the fields below that have no enum
+// to fall back on. See the limit noted on screened.
+const unsafeCarrier = "bolt://neo4j:" + echoSentinel + "@graph.example.com:7687"
+
+// promptMetadataPlants are the captured prompt fields the verdict renders
+// somewhere a person or a downstream artifact sees: into a criterion detail,
+// into a generated issue body, or straight into prompt_scores[] of the --json
+// payload.
+//
+// Every one of them is a plain string unmarshalled from an evidence file, so
+// none is validated and any can carry anything the capture tooling wrote. The
+// scorer screened the run id and the per-result fields and stopped there, so an
+// unsafe family or id failed publish_safety AND shipped in the same --json
+// verdict -- the artifact whose whole purpose is to be safe to paste somewhere
+// public. A criterion that refuses a value while the payload around it carries
+// that value has refused nothing.
+var promptMetadataPlants = map[string]func(*PromptResult){
+	// Copied raw into PromptScore.Family and interpolated into every aggregate
+	// criterion detail by aggregatePromptCriterion.
+	"family": func(prompt *PromptResult) { prompt.Family = PromptFamily(unsafeCarrier) },
+	// Copied raw into PromptScore.ID.
+	"id": func(prompt *PromptResult) { prompt.ID = unsafeCarrier },
+	// Rendered as the "want" half of the truth_honesty mismatch detail. The
+	// observed half was screened; the expected half was not.
+	"expected_truth_class": func(prompt *PromptResult) { prompt.ExpectedTruthClass = unsafeCarrier },
+	// Rendered into the parity detail as a missing surface. This one was not
+	// screened ANYWHERE: promptLocatedStrings covered each result's own surface
+	// but never the required list, so a carrier here shipped with the whole
+	// scorecard passing.
+	"required_surfaces": func(prompt *PromptResult) {
+		prompt.RequiredSurfaces = append(prompt.RequiredSurfaces, Surface(unsafeCarrier))
+	},
+	// Rendered into the follow_up_usefulness detail as a missing next call.
+	"required_next_calls": func(prompt *PromptResult) {
+		prompt.RequiredNextCalls = append(prompt.RequiredNextCalls, unsafeCarrier)
+	},
+}
+
+// TestScoreDoesNotEchoUnsafePromptMetadata plants the carrier in one captured
+// prompt field at a time and checks every rendered form of the verdict.
+func TestScoreDoesNotEchoUnsafePromptMetadata(t *testing.T) {
+	t.Parallel()
+
+	for name, plant := range promptMetadataPlants {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			evidence := completeEvidence()
+			plant(&evidence.Prompts[0])
+			verdict := Score(evidence)
+
+			// The screen has to SEE the field, or a clean payload only proves
+			// the value never reached a renderer on this particular path.
+			if got := verdict.Criterion(CriterionPublishSafety).Status; got != CriterionFail {
+				t.Fatalf("publish_safety = %q, want fail for an unsafe %s", got, name)
+			}
+			assertVerdictDoesNotEcho(t, verdict, unsafeCarrier)
+		})
+	}
+}
+
+// TestScoreKeepsHonestPromptMetadataReadable is the negative control for the
+// test above. Replacing every family, id, and expected truth class with a
+// redaction marker would satisfy it and leave prompt_scores[] useless: an
+// operator reads that array to find WHICH prompt failed.
+func TestScoreKeepsHonestPromptMetadataReadable(t *testing.T) {
+	t.Parallel()
+
+	evidence := completeEvidence()
+	verdict := Score(evidence)
+
+	if got := verdict.Criterion(CriterionPublishSafety).Status; got != CriterionPass {
+		t.Fatalf("publish_safety = %q, want pass on honest evidence", got)
+	}
+	if len(verdict.PromptScores) != len(evidence.Prompts) {
+		t.Fatalf("PromptScores = %d, want %d", len(verdict.PromptScores), len(evidence.Prompts))
+	}
+	for i, score := range verdict.PromptScores {
+		if score.ID != evidence.Prompts[i].ID {
+			t.Fatalf("PromptScores[%d].ID = %q, want %q carried through untouched",
+				i, score.ID, evidence.Prompts[i].ID)
+		}
+		if score.Family != evidence.Prompts[i].Family {
+			t.Fatalf("PromptScores[%d].Family = %q, want %q carried through untouched",
+				i, score.Family, evidence.Prompts[i].Family)
+		}
+	}
+	if payload := rendered(t, verdict); strings.Contains(payload, RedactedValue) ||
+		strings.Contains(payload, unrecognizedFamily) {
+		t.Fatalf("honest evidence was redacted: %s", payload)
+	}
+}
+
+// TestAggregatePromptCriterionNamesTheFamilyThroughTheEnum drives
+// aggregatePromptCriterion directly, with a PromptScore whose Family was never
+// labelled.
+//
+// It exists because the whole-Score path cannot reach this branch: scorePrompt
+// labels the family before the score is ever aggregated, so breaking the label
+// call here leaves every end-to-end test green. That makes the call
+// unfalsifiable from outside, and an unfalsifiable guard is one a later edit
+// deletes with the suite still passing. Aggregation reads a PromptScore it did
+// not build, so it names the family the same way whoever built it should have.
+func TestAggregatePromptCriterionNamesTheFamilyThroughTheEnum(t *testing.T) {
+	t.Parallel()
+
+	score := PromptScore{
+		ID:     "unlabelled",
+		Family: PromptFamily(unsafeCarrier),
+		Criteria: []CriterionScore{
+			{Name: CriterionParity, Status: CriterionFail, Detail: "required surfaces disagree"},
+		},
+	}
+	got := aggregatePromptCriterion(CriterionParity, []PromptScore{score})
+
+	if got.Status != CriterionFail {
+		t.Fatalf("status = %q, want fail; nothing below is being measured", got.Status)
+	}
+	assertNoEcho(t, "aggregate parity detail", got.Detail, unsafeCarrier)
+	if !strings.Contains(got.Detail, unrecognizedFamily) {
+		t.Fatalf("detail = %q, want the unrecognized-family marker", got.Detail)
+	}
+	// The negative control, in the same test so the two cannot drift: a known
+	// family still reads as itself.
+	score.Family = PromptFamilyServiceStory
+	known := aggregatePromptCriterion(CriterionParity, []PromptScore{score})
+	if !strings.Contains(known.Detail, string(PromptFamilyServiceStory)) {
+		t.Fatalf("detail = %q, want the known family named", known.Detail)
+	}
+}
+
+// narrationPlants are the captured narration fields the narration_fallback
+// detail renders. Every one of them already has a row in promptLocatedStrings,
+// so the screen sees them and publish_safety fails -- and then the raw value was
+// printed anyway, one criterion over, in the reason for the OTHER failure. Two
+// criteria disagreeing about whether a value may be published is the same defect
+// as the prompt metadata above, in a second file.
+var narrationPlants = map[string]func(*NarrationComparison){
+	"narration_status": func(n *NarrationComparison) {
+		n.Status = NarrationStatus(unsafeCarrier)
+	},
+	"fallback_truth_class": func(n *NarrationComparison) {
+		n.Fallback.TruthClass = unsafeCarrier
+	},
+	"fallback_freshness": func(n *NarrationComparison) {
+		n.Fallback.Freshness = unsafeCarrier
+	},
+	"fallback_citation_handles": func(n *NarrationComparison) {
+		n.Fallback.CitationHandles = append(n.Fallback.CitationHandles, unsafeCarrier)
+	},
+	// A non-empty fallback limitation list is enough to open the branch on its
+	// own. Setting Fallback.Partial as well would trip the partial-mismatch
+	// comparison first and this plant would never reach the renderer it targets.
+	"fallback_limitations": func(n *NarrationComparison) {
+		n.Fallback.Limitations = append(n.Fallback.Limitations, unsafeCarrier)
+	},
+	"fallback_next_calls": func(n *NarrationComparison) {
+		n.Fallback.NextCalls = append(n.Fallback.NextCalls, unsafeCarrier)
+	},
+}
+
+// TestScoreDoesNotEchoUnsafeNarration plants the carrier in one narration field
+// at a time.
+func TestScoreDoesNotEchoUnsafeNarration(t *testing.T) {
+	t.Parallel()
+
+	for name, plant := range narrationPlants {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			evidence := completeEvidence()
+			narration := validNarrationComparison()
+			plant(narration)
+			evidence.Prompts[0].Results[0].Narration = narration
+			verdict := Score(evidence)
+
+			if got := verdict.Criterion(CriterionPublishSafety).Status; got != CriterionFail {
+				t.Fatalf("publish_safety = %q, want fail for an unsafe %s", got, name)
+			}
+			assertVerdictDoesNotEcho(t, verdict, unsafeCarrier)
+		})
+	}
+}
+
+// TestScoreKeepsHonestNarrationDetailReadable is the negative control. A
+// narration mismatch has to stay diagnosable: replacing every truth class and
+// dropped citation with a marker would satisfy the test above and leave an
+// operator with a failure they cannot act on.
+func TestScoreKeepsHonestNarrationDetailReadable(t *testing.T) {
+	t.Parallel()
+
+	evidence := completeEvidence()
+	narration := validNarrationComparison()
+	narration.Fallback.CitationHandles = append(narration.Fallback.CitationHandles, "repo:dropped-by-narration")
+	evidence.Prompts[0].Results[0].Narration = narration
+	verdict := Score(evidence)
+
+	criterion := verdict.Criterion(CriterionNarrationFallback)
+	if criterion.Status != CriterionFail {
+		t.Fatalf("narration_fallback = %q, want fail; nothing below is being measured", criterion.Status)
+	}
+	if !strings.Contains(criterion.Detail, "repo:dropped-by-narration") {
+		t.Fatalf("detail = %q, want the honest dropped citation named", criterion.Detail)
+	}
+	if strings.Contains(criterion.Detail, RedactedValue) {
+		t.Fatalf("an honest narration value was redacted: %q", criterion.Detail)
+	}
+}
+
 // rendered returns every published form of the verdict as one string.
 func rendered(t *testing.T, verdict Verdict) string {
 	t.Helper()

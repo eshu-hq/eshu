@@ -58,8 +58,9 @@ const (
 // over. An enum has a fixed set of legal spellings, so it does not need the
 // screen: anything outside the set is replaced.
 const (
-	unrecognizedSurface = "[unrecognized surface]"
-	unrecognizedFamily  = "[unrecognized family]"
+	unrecognizedSurface         = "[unrecognized surface]"
+	unrecognizedFamily          = "[unrecognized family]"
+	unrecognizedNarrationStatus = "[unrecognized narration status]"
 )
 
 // label returns the surface's own name when it is one of the four known
@@ -89,6 +90,21 @@ func (f PromptFamily) label() string {
 
 // NarrationStatus records whether optional governed narration was used.
 type NarrationStatus string
+
+// label returns the status's own name when it is one of the four known statuses,
+// and unrecognizedNarrationStatus otherwise. The narration scorer renders an
+// unrecognized status into its failure detail, and the field is unmarshalled
+// straight from an evidence file, so that detail was the one place a captured
+// status reached the --json verdict unscreened. See label on Surface.
+func (s NarrationStatus) label() string {
+	switch s {
+	case NarrationStatusNotRequested, NarrationStatusAccepted,
+		NarrationStatusRejected, NarrationStatusUnavailable:
+		return string(s)
+	default:
+		return unrecognizedNarrationStatus
+	}
+}
 
 const (
 	// NarrationStatusNotRequested means no optional narration was attempted.

@@ -30,7 +30,11 @@ func narrationFailure(result SurfaceResult) string {
 	switch narration.Status {
 	case NarrationStatusAccepted, NarrationStatusRejected, NarrationStatusUnavailable:
 	default:
-		return fmt.Sprintf("unknown narration status %q", narration.Status)
+		// Through the enum. The status is unmarshalled from an evidence file, so
+		// the value that lands here is by definition one the scorer does not
+		// recognize -- printing it raw published an arbitrary captured string
+		// through the verdict.
+		return fmt.Sprintf("unknown narration status %q", narration.Status.label())
 	}
 	if detail := compareNarrationFallback(result, narration.Fallback); detail != "" {
 		return detail
@@ -48,12 +52,25 @@ func narrationFailure(result SurfaceResult) string {
 	return "accepted narration failed validator: " + narrationFindingReasons(verdict.Findings)
 }
 
+// compareNarrationFallback reports how a narrated result diverges from the
+// deterministic fallback row it must preserve, or "" when it preserves it.
+//
+// Every captured value it renders is screened. All of them -- both truth
+// classes, both freshness values, and the dropped handle, limitation, and next
+// call lists -- come from an evidence file with no validation, and this detail
+// is copied into the --json verdict and into a generated issue body. Comparisons
+// use the raw values; only the rendering is screened. These fields already have
+// rows in promptLocatedStrings, so an unsafe one fails publish_safety too, and a
+// verdict that fails that criterion while reprinting the value here has refused
+// nothing.
 func compareNarrationFallback(result SurfaceResult, fallback NarrationBaseline) string {
 	if fallback.TruthClass != "" && result.TruthClass != fallback.TruthClass {
-		return fmt.Sprintf("truth_class=%q fallback=%q", result.TruthClass, fallback.TruthClass)
+		return fmt.Sprintf("truth_class=%q fallback=%q",
+			screened(result.TruthClass), screened(fallback.TruthClass))
 	}
 	if fallback.Freshness != "" && result.Freshness != fallback.Freshness {
-		return fmt.Sprintf("freshness=%q fallback=%q", result.Freshness, fallback.Freshness)
+		return fmt.Sprintf("freshness=%q fallback=%q",
+			screened(result.Freshness), screened(fallback.Freshness))
 	}
 	if result.Supported != fallback.Supported {
 		return fmt.Sprintf("supported=%t fallback=%t", result.Supported, fallback.Supported)
@@ -65,17 +82,29 @@ func compareNarrationFallback(result SurfaceResult, fallback NarrationBaseline) 
 		return "truncated fallback hidden"
 	}
 	if missing := missingStrings(fallback.CitationHandles, result.CitationHandles); len(missing) > 0 {
-		return "dropped fallback citations: " + strings.Join(missing, ", ")
+		return "dropped fallback citations: " + strings.Join(screenAll(missing), ", ")
 	}
 	if fallback.Partial || fallback.Truncated || len(fallback.Limitations) > 0 {
 		if missing := missingStrings(fallback.Limitations, result.Limitations); len(missing) > 0 {
-			return "dropped fallback limitations: " + strings.Join(missing, ", ")
+			return "dropped fallback limitations: " + strings.Join(screenAll(missing), ", ")
 		}
 	}
 	if missing := missingStrings(fallback.NextCalls, result.NextCalls); len(missing) > 0 {
-		return "dropped fallback next calls: " + strings.Join(missing, ", ")
+		return "dropped fallback next calls: " + strings.Join(screenAll(missing), ", ")
 	}
 	return ""
+}
+
+// screenAll returns values with every entry the publish-safety scanner rejects
+// replaced by RedactedValue. An honest entry is carried through untouched: the
+// detail has to stay diagnosable, or the refusal has traded a leak for a failure
+// nobody can act on.
+func screenAll(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, screened(value))
+	}
+	return out
 }
 
 func missingStrings(required []string, actual []string) []string {

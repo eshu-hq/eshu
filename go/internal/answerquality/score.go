@@ -79,58 +79,22 @@ func Score(evidence Evidence) Verdict {
 	return verdict
 }
 
-// locatedString pairs a publishable value with a locator naming where it came
-// from. It exists so a publish-safety failure can say WHERE the unsafe value
-// was without saying WHAT it was, which is the contract
-// answerguardrail.Finding documents for itself ("without echoing the unsafe
-// value") and this package used to break.
-type locatedString struct {
-	// Where names the field, and for a captured result its surface, in a form
-	// an operator can search their own evidence file for.
-	Where string
-	Value string
-}
-
-// firstUnsafeLocation returns the locator of the first value the shared
-// publish-safety scanner rejects, or the empty string when all are safe. It
-// deliberately returns the locator and never the value: a scorecard detail is
-// printed to stdout, returned in the CLI's error to stderr, serialized into the
-// --json verdict, and copied verbatim into a generated GitHub issue body, so a
-// detail that quoted the value would publish exactly what the scorer refused.
-func firstUnsafeLocation(values []locatedString) string {
-	for _, value := range values {
-		if answerguardrail.UnsafeString(value.Value) {
-			return value.Where
-		}
-	}
-	return ""
-}
-
-// screened returns value when the shared publish-safety scanner accepts it, and
-// RedactedValue when it does not. It is the fallback for a captured field that
-// is open-valued and so has no enum to fall back to -- a truth class is any
-// string the capture tooling wrote. It is weaker than the enum labels by
-// construction, because it can only be as good as the screen it calls, which is
-// exactly why a field with a fixed set of legal values uses the set instead.
-func screened(value string) string {
-	if answerguardrail.UnsafeString(value) {
-		return RedactedValue
-	}
-	return value
-}
-
-func aggregatePublishSafety(evidence Evidence, scores []PromptScore) CriterionScore {
-	if where := firstUnsafeLocation([]locatedString{
-		{Where: "run_id", Value: evidence.RunID},
-		{Where: "eshu_commit", Value: evidence.EshuCommit},
-	}); where != "" {
-		return fail(CriterionPublishSafety, "unsafe run metadata in "+where)
-	}
-	return aggregatePromptCriterion(CriterionPublishSafety, scores)
-}
-
+// scorePrompt scores one captured prompt. The id and family are copied into the
+// serialized PromptScore, so both go through the same treatment the run id gets
+// in Score: an operator reads prompt_scores[] to find WHICH prompt failed, and
+// the --json verdict is meant to be safe to hand to someone else. Carrying an
+// unsafe value here while publish_safety refuses it two fields away is not a
+// refusal at all.
+//
+// The family has a fixed set of legal spellings, so it uses the enum. The id is
+// open-valued -- any string the capture tooling wrote -- so it can only use the
+// screen, and it is no better than the screen is. See screened.
 func scorePrompt(prompt PromptResult) PromptScore {
-	score := PromptScore{ID: prompt.ID, Family: prompt.Family, Pass: true}
+	score := PromptScore{
+		ID:     screened(prompt.ID),
+		Family: PromptFamily(prompt.Family.label()),
+		Pass:   true,
+	}
 	score.Criteria = append(
 		score.Criteria,
 		scoreUsefulness(prompt),
@@ -206,8 +170,13 @@ func scoreTruthHonesty(prompt PromptResult) CriterionScore {
 			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result missing truth class", result.Surface.label()))
 		}
 		if wantTruth != "" && result.TruthClass != wantTruth {
+			// Both halves are screened, not just the observed one. wantTruth
+			// comes from the captured prompt's ExpectedTruthClass when it is
+			// set, which is as unvalidated as the result's own truth class; the
+			// comparison above uses the raw value, only the rendering is
+			// screened.
 			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result truth %q, want %q",
-				result.Surface.label(), screened(result.TruthClass), wantTruth))
+				result.Surface.label(), screened(result.TruthClass), screened(wantTruth)))
 		}
 		if result.StaleNoCause || result.OverConfident {
 			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result was stale without cause or over-confident", result.Surface.label()))
@@ -265,7 +234,10 @@ func scoreParity(prompt PromptResult) CriterionScore {
 	var missing []string
 	for _, surface := range required {
 		if _, ok := seen[surface]; !ok {
-			missing = append(missing, string(surface))
+			// Through the enum. required can come from the captured prompt's
+			// RequiredSurfaces, so a surface named there but never returned is
+			// an unvalidated string that only this detail ever renders.
+			missing = append(missing, surface.label())
 		}
 	}
 	if len(missing) > 0 {
@@ -304,20 +276,17 @@ func scoreFollowUpUsefulness(prompt PromptResult) CriterionScore {
 	var missing []string
 	for _, next := range required {
 		if _, ok := combined[next]; !ok {
-			missing = append(missing, next)
+			// required can come from the captured prompt's RequiredNextCalls, so
+			// a next call named there but never returned is an unvalidated
+			// string this detail is the only renderer of. A next call is
+			// open-valued, so the screen is the only tool available here.
+			missing = append(missing, screened(next))
 		}
 	}
 	if len(missing) > 0 {
 		return fail(CriterionFollowUpUsefulness, "missing required next calls: "+strings.Join(missing, ", "))
 	}
 	return pass(CriterionFollowUpUsefulness, "required next calls are present")
-}
-
-func scorePublishSafety(prompt PromptResult) CriterionScore {
-	if where := firstUnsafeLocation(promptLocatedStrings(prompt)); where != "" {
-		return fail(CriterionPublishSafety, "unsafe publishable evidence in "+where)
-	}
-	return pass(CriterionPublishSafety, "evidence contains only redacted publishable strings")
 }
 
 func aggregatePromptCriterion(name CriterionName, scores []PromptScore) CriterionScore {
@@ -327,7 +296,12 @@ func aggregatePromptCriterion(name CriterionName, scores []PromptScore) Criterio
 	for _, score := range scores {
 		for _, criterion := range score.Criteria {
 			if criterion.Name == name && criterion.Status == CriterionFail {
-				return fail(name, fmt.Sprintf("%s: %s", score.Family, criterion.Detail))
+				// Through the enum, not the raw field. scorePrompt already
+				// labelled it, but this detail is the one the publish-safety
+				// criterion itself carries, so it names the family the same way
+				// whoever built the score did -- a criterion whose job is to
+				// refuse a value must not reprint it in its own reason.
+				return fail(name, fmt.Sprintf("%s: %s", score.Family.label(), criterion.Detail))
 			}
 		}
 	}
@@ -383,51 +357,6 @@ func requiredNextCalls(prompt PromptResult) []string {
 		return spec.RequiredNextCalls
 	}
 	return nil
-}
-
-// promptLocatedStrings returns every publishable string one captured prompt
-// carries, each labelled with the field it came from so a publish-safety
-// failure can point an operator at the row in their own evidence file without
-// reprinting its contents.
-func promptLocatedStrings(prompt PromptResult) []locatedString {
-	values := []locatedString{
-		{Where: "prompt id", Value: prompt.ID},
-		{Where: "prompt family", Value: string(prompt.Family)},
-		{Where: "prompt text", Value: prompt.Prompt},
-		{Where: "expected_truth_class", Value: prompt.ExpectedTruthClass},
-	}
-	values = appendLocated(values, "required_next_calls", prompt.RequiredNextCalls)
-	values = appendLocated(values, "acceptable_limitations", prompt.AcceptableLimitations)
-	for _, result := range prompt.Results {
-		// The locator names the surface through the enum, never through the
-		// captured string. Concatenating the raw field built the WHERE half of
-		// this contract out of an unscreened value: a locator is published in
-		// full, so a surface carrying something the scanner misses would be
-		// echoed verbatim through every following field's locator -- the same
-		// leak this type exists to close, one field over. The raw value is
-		// still screened, as its own row directly below.
-		surface := result.Surface.label()
-		values = append(
-			values,
-			locatedString{Where: "result surface", Value: string(result.Surface)},
-			locatedString{Where: surface + " result answer_summary", Value: result.AnswerSummary},
-			locatedString{Where: surface + " result truth_class", Value: result.TruthClass},
-			locatedString{Where: surface + " result freshness", Value: result.Freshness},
-		)
-		values = appendLocated(values, surface+" result citation_handles", result.CitationHandles)
-		values = appendLocated(values, surface+" result limitations", result.Limitations)
-		values = appendLocated(values, surface+" result next_calls", result.NextCalls)
-		values = appendLocated(values, surface+" result narration", narrationStrings(result.Narration))
-	}
-	return values
-}
-
-// appendLocated labels every value in a slice with one shared locator.
-func appendLocated(values []locatedString, where string, raw []string) []locatedString {
-	for _, value := range raw {
-		values = append(values, locatedString{Where: where, Value: value})
-	}
-	return values
 }
 
 func followUpFor(prompt PromptResult, criterion CriterionScore) FollowUpIssue {
