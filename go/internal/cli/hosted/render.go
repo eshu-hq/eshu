@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package hosted
 
 import (
 	"encoding/json"
@@ -10,17 +10,22 @@ import (
 	"strings"
 )
 
-// renderHostedOnboardJSON serializes the onboarding artifact as indented JSON.
+// RenderArtifactJSON serializes the onboarding artifact as indented JSON.
 // The artifact is already redacted, so the bytes are safe to persist or hand to
 // a project team.
-func renderHostedOnboardJSON(artifact hostedOnboardArtifact) ([]byte, error) {
+//
+// The json error is returned unwrapped so the operator sees the same encoder
+// message the command printed before this package existed.
+//
+//nolint:wrapcheck // preserves the operator-visible encoder message verbatim.
+func RenderArtifactJSON(artifact Artifact) ([]byte, error) {
 	return json.MarshalIndent(artifact, "", "  ")
 }
 
-// renderHostedOnboardMarkdown renders the artifact as a compact Markdown packet
+// RenderArtifactMarkdown renders the artifact as a compact Markdown packet
 // suitable for handing to a project team. It reads only already-redacted fields,
 // so no endpoint credential or token value can leak through this surface.
-func renderHostedOnboardMarkdown(artifact hostedOnboardArtifact) (string, error) {
+func RenderArtifactMarkdown(artifact Artifact) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Hosted onboarding: %s\n\n", artifact.Team)
 
@@ -65,9 +70,9 @@ func renderHostedOnboardMarkdown(artifact hostedOnboardArtifact) (string, error)
 	return b.String(), nil
 }
 
-// renderHostedOnboardTerminal writes a concise operator-facing summary of the
+// RenderArtifactTerminal writes a concise operator-facing summary of the
 // artifact. Like the artifact renderers it reads only redacted fields.
-func renderHostedOnboardTerminal(w io.Writer, artifact hostedOnboardArtifact, runErr error) {
+func RenderArtifactTerminal(w io.Writer, artifact Artifact, runErr error) {
 	header := "Hosted onboarding ready"
 	if !artifact.Connection.QueryAnswered {
 		header = "Hosted onboarding incomplete"
@@ -84,9 +89,9 @@ func renderHostedOnboardTerminal(w io.Writer, artifact hostedOnboardArtifact, ru
 	_, _ = fmt.Fprintf(w, "  first query   : %t\n", artifact.Connection.QueryAnswered)
 
 	for _, stage := range artifact.Connection.Stages {
-		marker := hostedStageMarker(stage.Status)
+		marker := stageMarker(stage.Status)
 		line := fmt.Sprintf("  %s %s", marker, stage.Name)
-		if stage.Category != hostedFailNone {
+		if stage.Category != FailNone {
 			line += fmt.Sprintf(" [%s]", stage.Category)
 		}
 		if stage.Detail != "" {
@@ -105,7 +110,7 @@ func renderHostedOnboardTerminal(w io.Writer, artifact hostedOnboardArtifact, ru
 }
 
 // onboardRuleScopeLine renders the rule scope as a one-line terminal summary.
-func onboardRuleScopeLine(scope hostedOnboardRuleScope) string {
+func onboardRuleScopeLine(scope RuleScope) string {
 	if !scope.Broad {
 		return "narrow"
 	}
@@ -144,7 +149,10 @@ func onboardMarkdownList(b *strings.Builder, title string, values []string) {
 	}
 }
 
-func onboardMarkdownStarterPlaybooks(b *strings.Builder, playbooks []hostedOnboardStarterPlaybook) {
+// onboardMarkdownStarterPlaybooks writes the starter-playbook section, naming
+// each playbook's ID, version, prompt family, ordered tools, and expected truth
+// classes so a team starts from concrete workflows rather than prose.
+func onboardMarkdownStarterPlaybooks(b *strings.Builder, playbooks []StarterPlaybook) {
 	if len(playbooks) == 0 {
 		return
 	}
@@ -175,7 +183,9 @@ func onboardTerminalList(w io.Writer, title string, values []string) {
 	}
 }
 
-func onboardTerminalStarterPlaybooks(w io.Writer, playbooks []hostedOnboardStarterPlaybook) {
+// onboardTerminalStarterPlaybooks writes the terminal form of the starter
+// playbooks: ID, version, prompt family, ordered tools, and truth classes.
+func onboardTerminalStarterPlaybooks(w io.Writer, playbooks []StarterPlaybook) {
 	if len(playbooks) == 0 {
 		return
 	}

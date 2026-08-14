@@ -5,11 +5,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/hosted"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
-	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -54,21 +53,13 @@ stays broad until that scoped token is provisioned.`,
 // options, wires the production hosted-setup seams, runs the onboarding
 // workflow, and renders or writes the redacted artifact.
 func runHostedOnboard(cmd *cobra.Command, _ []string) error {
-	opts, err := hostedOnboardOptionsFromCmd(cmd)
+	client := apiClientFromCmd(cmd)
+	opts, err := hostedOnboardOptionsFromCmd(cmd, client)
 	if err != nil {
 		return err
 	}
 
-	client := apiClientFromCmd(cmd)
-	deps := hostedSetupDeps{
-		Health:      hostedProbe(hostedHealthzPath),
-		Ready:       hostedProbe(hostedReadyzPath),
-		FetchStatus: hostedFetchStatus,
-		ListTools:   mcp.ReadOnlyTools,
-		ListRepos:   hostedListRepositories,
-	}
-
-	artifact, runErr := executeHostedOnboard(client, deps, opts)
+	artifact, runErr := hosted.ExecuteOnboard(hostedSetupDeps(client), opts)
 	if writeErr := finishHostedOnboard(cmd, artifact, runErr); writeErr != nil {
 		return writeErr
 	}
@@ -78,7 +69,7 @@ func runHostedOnboard(cmd *cobra.Command, _ []string) error {
 // hostedOnboardOptionsFromCmd resolves and validates the command flags into
 // onboarding options, parsing and compiling repository rules up front so a
 // malformed rule fails before any connection attempt.
-func hostedOnboardOptionsFromCmd(cmd *cobra.Command) (hostedOnboardOptions, error) {
+func hostedOnboardOptionsFromCmd(cmd *cobra.Command, client *APIClient) (hosted.OnboardOptions, error) {
 	team, _ := cmd.Flags().GetString("team")
 	repos, _ := cmd.Flags().GetStringArray("repo")
 	patterns, _ := cmd.Flags().GetStringArray("repo-pattern")
@@ -93,12 +84,14 @@ func hostedOnboardOptionsFromCmd(cmd *cobra.Command) (hostedOnboardOptions, erro
 	for _, pattern := range patterns {
 		rawRules = append(rawRules, "pattern:"+pattern)
 	}
-	rules, err := parseHostedRepoRules(rawRules)
+	rules, err := hosted.ParseRepoRules(rawRules)
 	if err != nil {
-		return hostedOnboardOptions{}, err
+		return hosted.OnboardOptions{}, err
 	}
 
-	return hostedOnboardOptions{
+	return hosted.OnboardOptions{
+		ServiceURL:   client.BaseURL,
+		APIKey:       client.APIKey,
 		Team:         team,
 		Platform:     platform,
 		Rules:        rules,
@@ -111,11 +104,11 @@ func hostedOnboardOptionsFromCmd(cmd *cobra.Command) (hostedOnboardOptions, erro
 // optionally writes a redacted artifact file. It returns only a write/encoding
 // error; the truthful connection outcome is returned by the caller so the exit
 // code reflects whether the bounded query actually returned.
-func finishHostedOnboard(cmd *cobra.Command, artifact hostedOnboardArtifact, runErr error) error {
+func finishHostedOnboard(cmd *cobra.Command, artifact hosted.Artifact, runErr error) error {
 	out, _ := cmd.Flags().GetString("out")
 	if strings.TrimSpace(out) != "" {
 		format, _ := cmd.Flags().GetString("format")
-		if err := writeHostedOnboardArtifact(artifact, format, out); err != nil {
+		if err := hosted.WriteArtifact(artifact, format, out); err != nil {
 			return err
 		}
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote hosted onboarding artifact to %s\n", out)
@@ -123,35 +116,13 @@ func finishHostedOnboard(cmd *cobra.Command, artifact hostedOnboardArtifact, run
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
-		data, err := renderHostedOnboardJSON(artifact)
+		data, err := hosted.RenderArtifactJSON(artifact)
 		if err != nil {
 			return err
 		}
 		_, err = cmd.OutOrStdout().Write(append(data, '\n'))
 		return err
 	}
-	renderHostedOnboardTerminal(cmd.OutOrStdout(), artifact, runErr)
+	hosted.RenderArtifactTerminal(cmd.OutOrStdout(), artifact, runErr)
 	return nil
-}
-
-// writeHostedOnboardArtifact renders the artifact in the requested format and
-// writes it with owner-only permissions, since it still carries endpoint
-// hostnames an operator may not want world-readable.
-func writeHostedOnboardArtifact(artifact hostedOnboardArtifact, format, path string) error {
-	normalized, err := normalizeEvidenceFormat(format)
-	if err != nil {
-		return err
-	}
-	var data []byte
-	if normalized == evidenceFormatJSON {
-		data, err = renderHostedOnboardJSON(artifact)
-	} else {
-		var markdown string
-		markdown, err = renderHostedOnboardMarkdown(artifact)
-		data = []byte(markdown)
-	}
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o600)
 }
