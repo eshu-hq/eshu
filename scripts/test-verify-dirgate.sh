@@ -133,6 +133,8 @@ main() {
 	test_grandfathered_shrink_requires_repin
 	test_grandfathered_shrink_below_cap_needs_no_repin
 	test_digest_helper
+	test_files_reports_zero_evaluated_directories
+	test_files_reports_evaluated_directory_count
 
 	printf '\ntests passed: %d/%d\n' "${pass_count}" "$((pass_count + fail_count))"
 	[[ "${fail_count}" -eq 0 ]]

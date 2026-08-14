@@ -284,7 +284,13 @@ case "${cmd}" in
 			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
 		;;
 	lint)
+		# Report how many packages were linted before doing it. `lint` with no
+		# arguments, or with arguments that map to no Go package, exits 0
+		# having run golangci-lint zero times -- which reads identically to a
+		# clean lint of the whole tree. Printing the count is what separates
+		# them, since this command's exit code alone cannot.
 		collect_dirs "$@"
+		printf 'lint: %d package(s) from %d path(s)\n' "${#dirs[@]}" "$#"
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
