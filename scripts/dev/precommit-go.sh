@@ -423,6 +423,18 @@ case "${cmd}" in
 		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" ./... ) \
 			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
 		;;
+	filecap-skip)
+		# Answers one question and nothing else: does the bash side skip this
+		# path? Exit 0 means skipped, 1 means it would be checked against the
+		# cap. It exists so the authoritative Go plugin's own test can call the
+		# bash implementation and compare, in
+		# tools/golangci-lint-filelength/skip_parity_test.go. Without it the
+		# two sides could only be compared by reading them, which is what let
+		# them drift in the first place (#6104).
+		[[ $# -eq 1 ]] || die "filecap-skip needs exactly one path"
+		filecap_skip "$1"
+		exit "$?"
+		;;
 	filecap-all)
 		# Whole-tree 500-line cap over every tracked Go file. This no-arg variant
 		# is what the ci-gates runner invokes (it passes no file list). Shares

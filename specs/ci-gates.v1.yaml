@@ -113,10 +113,14 @@ gates:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-precommit-go-filecap.sh"
-      # The Go plugin is the AUTHORITY the two bash variants mirror. A change to
-      # its skip() must re-run the mirror test, or the bash side drifts from CI
-      # silently -- which is exactly how the changed-files `filecap` variant
-      # ended up rejecting long _test.go files that CI passed (PR #6104).
+      # The Go plugin is the AUTHORITY the two bash variants mirror, and
+      # tools/golangci-lint-filelength/skip_parity_test.go is what actually
+      # compares them: it runs the plugin's skip() and the bash side (via
+      # `precommit-go.sh filecap-skip`) over the same paths and fails when they
+      # disagree. Before that test existed this trigger only re-ran a
+      # bash-against-bash test, which is how the changed-files `filecap` variant
+      # ended up rejecting long _test.go files that CI passed (#6104) with
+      # nothing catching it.
       - "tools/golangci-lint-filelength/**"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
@@ -133,7 +137,7 @@ gates:
       # search the basename or the full path. CI still enforces the cap itself
       # through the golangci-lint plugin. What CI does not check is whether the
       # two bash variants still mirror that plugin.
-      test_command: "bash scripts/test-precommit-go-filecap.sh"
+      test_command: "bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && go test -count=1 ."
     ci:
       workflow: test.yml
       job: "go-core"
