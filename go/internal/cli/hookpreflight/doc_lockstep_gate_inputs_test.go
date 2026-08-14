@@ -4,6 +4,7 @@
 package hookpreflight
 
 import (
+	"fmt"
 	"go/ast"
 	"sort"
 	"strings"
@@ -311,20 +312,30 @@ func TestDocLockstepScopeIDCharacterClassIsExact(t *testing.T) {
 	}
 }
 
-// adviseSite is one place production code puts DecisionAdvise into a Decision
-// field.
+// adviseSite is one place production code writes a Decision field a value
+// other than decisionSkip.
 type adviseSite struct {
 	File     string
 	Func     string
+	Value    string
 	TopLevel bool
 }
 
-func (s adviseSite) String() string { return s.File + ": " + s.Func }
+func (s adviseSite) String() string { return s.File + ": " + s.Func + " writes Decision = " + s.Value }
 
 // scanAdviseSites reports every assignment or composite-literal element that
-// sets a Decision field to DecisionAdvise in dir's non-test files, whether each
-// sits at the top level of its function body, and how many function bodies were
+// writes a Decision field something other than decisionSkip, whether each sits
+// at the top level of its function body, and how many function bodies were
 // walked so a caller can refuse a vacuous pass.
+//
+// It is written as "not a skip" rather than "is DecisionAdvise" on purpose. The
+// first version matched the DecisionAdvise identifier, which made the rule
+// satisfiable by spelling the value another way: `out.Decision = "advise"` in a
+// gate ahead of the switch published a 324-character advisory for trigger
+// "edit" with the whole suite green. A rule whose claim is "exactly one advise
+// path" must not be escapable by writing the same value differently -- that is
+// the same defect as the `return true` pattern-matching this package replaced
+// two generations ago.
 func scanAdviseSites(dir string) (functions int, sites []adviseSite, err error) {
 	_, parsed, _, err := parseNonTestGoFiles(dir)
 	if err != nil {
@@ -355,9 +366,10 @@ func scanAdviseSites(dir string) (functions int, sites []adviseSite, err error) 
 						if !isSelector || selector.Sel.Name != "Decision" || i >= len(typed.Rhs) {
 							continue
 						}
-						if value, isIdent := typed.Rhs[i].(*ast.Ident); isIdent && value.Name == "DecisionAdvise" {
+						if value, written := nonSkipDecisionValue(typed.Rhs[i]); written {
 							sites = append(sites, adviseSite{
-								File: name, Func: funcDisplayName(funcDecl), TopLevel: top[typed],
+								File: name, Func: funcDisplayName(funcDecl),
+								Value: value, TopLevel: top[typed],
 							})
 						}
 					}
@@ -366,8 +378,10 @@ func scanAdviseSites(dir string) (functions int, sites []adviseSite, err error) 
 					if !isIdent || key.Name != "Decision" {
 						return true
 					}
-					if value, isValue := typed.Value.(*ast.Ident); isValue && value.Name == "DecisionAdvise" {
-						sites = append(sites, adviseSite{File: name, Func: funcDisplayName(funcDecl)})
+					if value, written := nonSkipDecisionValue(typed.Value); written {
+						sites = append(sites, adviseSite{
+							File: name, Func: funcDisplayName(funcDecl), Value: value,
+						})
 					}
 				}
 				return true
@@ -375,6 +389,24 @@ func scanAdviseSites(dir string) (functions int, sites []adviseSite, err error) 
 		}
 	}
 	return functions, sites, nil
+}
+
+// nonSkipDecisionValue reports the rendered value expr writes to a Decision
+// field, and whether it is anything other than decisionSkip. The skip constant
+// is the one value that may be written from many places -- skip() is called
+// from six of them -- so it is the exemption, and everything else counts.
+func nonSkipDecisionValue(expr ast.Expr) (string, bool) {
+	if ident, isIdent := expr.(*ast.Ident); isIdent && ident.Name == "decisionSkip" {
+		return ident.Name, false
+	}
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name, true
+	case *ast.BasicLit:
+		return typed.Value, true
+	default:
+		return fmt.Sprintf("%T", expr), true
+	}
 }
 
 // TestDocLockstepEvaluateHasOneAdvisePath closes the axis arm's remaining gap,
@@ -418,7 +450,10 @@ func TestDocLockstepEvaluateHasOneAdvisePath(t *testing.T) {
 		t.Fatal("walked 0 production function bodies; the assertion would be vacuous")
 	}
 	if len(sites) != 1 {
-		t.Fatalf("production code reaches DecisionAdvise in %d places, want exactly 1: %v; each one is a way to publish an advisory, and a new one bypasses every skip Evaluate's switch decides", len(sites), sites)
+		t.Fatalf("production code writes a Decision field something other than decisionSkip in %d places, want exactly 1: %v; each one is a way to publish an advisory, and a new one bypasses every skip Evaluate's switch decides", len(sites), sites)
+	}
+	if sites[0].Value != "DecisionAdvise" {
+		t.Errorf("the one non-skip decision write is %s, want the DecisionAdvise constant; a raw string is the same value with nothing naming it", sites[0])
 	}
 	if sites[0].Func != "Evaluate" {
 		t.Errorf("DecisionAdvise is set in %s, want Evaluate; the decision belongs where the skips are decided", sites[0])

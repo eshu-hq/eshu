@@ -109,7 +109,7 @@ graph/Postgres drivers).
 - `MergeClaudePreToolUseInput` only fills `Trigger` and `RepoPath` from the
   Claude payload when the caller left them empty; an explicit `--trigger`
   or `--repo-path` flag always wins over the inferred value.
-- The claims on this page are tested, not just written down. Fourteen lockstep
+- The claims on this page are tested, not just written down. Fifteen lockstep
   files pin them, so a code change that makes one of the sentences above false
   fails a test rather than quietly aging into fiction. Each names what it
   covers, and the list is the boundary — a claim not in it is not pinned:
@@ -179,12 +179,36 @@ graph/Postgres drivers).
     path that resolves outside the payload's `cwd` — at the function, and again
     through `Evaluate`, where an escaping path must leave a scope the caller did
     set standing
+  - `doc_lockstep_evaluate_switch_test.go` — the condition each of `Evaluate`'s
+    five eligibility clauses tests, pinned to the one thing `AGENTS.md` says it
+    tests. This is the guard against acceptance widened *inside* an existing
+    gate — `case !x.Enabled && x.Tool != "Terminal":` keeps five clauses, keeps
+    every clause returning a skip, writes no `Trigger` and adds no decision
+    site, so nothing else here can see it
   - `doc_lockstep_literal_test.go` — how many times each package doc quotes
     the contract name, so rewriting one of several mentions is not silent
 
-  What this set does not prove, measured rather than assumed — each item below
-  was mutated on a full disk copy of the package and left the whole suite
-  green. It is what has been tried, not a proof that nothing else is missing:
+  What this set does not prove. The general statement first, because it
+  predicts the specifics rather than listing them after the fact: **the guards
+  watch the trigger-to-decision function over a stated sample, a fixed set of
+  write shapes, and a fixed set of decision sites. They do not watch what the
+  existing gates test.** Concretely —
+
+  - the sampled function is blind to triggers outside the sweep's alphabet and
+    depth, and to request fields whose values are not among the axis variants;
+  - the write inventory is blind to a `Trigger` written in a shape it does not
+    enumerate;
+  - the decision-site inventory is blind to a decision written under a different
+    spelling, and to acceptance widened inside an existing clause's condition.
+
+  The last two of those were live escapes found by reading that statement rather
+  than by imagining mutants, and both are closed now — a raw `"advise"` string,
+  and an extra conjunct on the `Enabled` clause. Read the statement as a map of
+  where to look next, not as a list of what is broken.
+
+  Each item below was mutated on a full disk copy of the package and left the
+  whole suite green. It is what has been tried, not a proof that nothing else is
+  missing:
 
   - The `~` and `\` rejections in `scopeSafe` overlap the character-class
     check, so deleting either changes no decision — the character class is what
@@ -201,6 +225,14 @@ graph/Postgres drivers).
   - `scopeFromInput`'s candidate *membership* — adding or removing a scope
     kind. The order is pinned (`TestDocLockstepScopeResolutionIsFirstMatch`);
     which kinds are on the list is not.
+  - The positional-literal rule's package-qualifier arm (`pkg.Type{…}`) is
+    implemented but has never been exercised, because it is unreachable in this
+    package by construction: such a literal needs an import exposing a
+    `Trigger`-carrying struct, and `docAllowedImports` permits only `fmt`, `io`,
+    `path/filepath`, `strings`, and `time`, none of which has one — so
+    `TestDocLockstepNonTestImports` fires first. Its irrelevance depends on that
+    allow-list. Widen the allow-list and this arm becomes load-bearing and still
+    unmeasured.
   - A `Trigger`-carrying literal nested two containers deep — `[][]Input{{{…}}}`
     — where the middle literal elides its type too. The positional-literal rule
     resolves an elided element from its immediate container, and there is no

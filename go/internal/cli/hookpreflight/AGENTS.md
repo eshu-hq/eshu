@@ -256,7 +256,10 @@
   and that the mapping's translations are all enumerated,
   `doc_lockstep_gate_inputs_test.go` pins the acceptance gates that are not the
   trigger — the single supported host, the exact scope-ID character class, and
-  that `Evaluate` has exactly one advise path —
+  that exactly one place writes a `Decision` anything other than `decisionSkip`
+  —
+  `doc_lockstep_evaluate_switch_test.go` pins what each of `Evaluate`'s five
+  clauses actually tests,
   `doc_lockstep_advisory_test.go` pins what an emitted advisory says — the
   truth labels, the disclaimer sentence, the MCP tool per scope kind, and
   `repoRelativePath`'s escape refusal — and
@@ -301,7 +304,15 @@
 ## What NOT to change without an ADR
 
 - `Evaluate`'s check order (budget, then host, then enabled, then trigger,
-  then permission, then scope, then freshness) — later checks assume earlier
+  then permission, then scope, then freshness), **and what each clause tests**.
+  A clause may test exactly the one condition it documents:
+  `TestDocLockstepEvaluateClausesTestWhatTheyDocument`
+  (doc_lockstep_evaluate_switch_test.go) compares all five against that list, so
+  an extra conjunct is a finding. It has to be, because that is the one way left
+  to widen acceptance without tripping anything else — `case !x.Enabled &&
+  x.Tool != "Terminal":` keeps the clause count at five, keeps every clause
+  returning a skip, writes no `Trigger` and adds no decision site, and it let
+  the hook fire with no explicit enablement. Later checks assume earlier
   ones already passed, and this order alone decides which single reason code
   comes back when several conditions are ineligible at once. The contract doc
   (docs/public/reference/assistant-fast-path-hooks.md) does NOT pin this: its
