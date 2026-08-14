@@ -4,7 +4,6 @@
 package reportbundle
 
 import (
-	"net/url"
 	"strings"
 	"unicode"
 
@@ -89,7 +88,8 @@ const queryPairSeparators = urlredact.PairSeparators
 //   - EXACTLY ONE decode, whose result is never fed back in. Re-decoding until
 //     the text stops changing would let a crafted value drive the loop, and
 //     each extra layer describes something the server never received. So
-//     "%253F" unwraps to "%3F" and stops there, undetected.
+//     "%253F" unwraps to "%3F" and stops there, undetected. urlredact/escape.go
+//     records the same rule for the walks that share the decoder.
 //   - A candidate key containing whitespace is skipped, since a real query
 //     key never has one. That keeps prose values ("SELECT token = 1") from
 //     costing a maintainer a parameter, at the price of missing a credential
@@ -98,12 +98,11 @@ func embeddedSensitiveKey(value string) (string, bool) {
 	if key, found := scanQueryShapedValue(value); found {
 		return key, true
 	}
-	// QueryUnescape fails on a malformed escape ("%ZZ"); there is nothing to
-	// scan then, and the raw pass above already ran. It also turns "+" into a
-	// space, which can only suppress a match, since a candidate key holding
-	// whitespace is skipped below.
-	decoded, err := url.QueryUnescape(value)
-	if err != nil || decoded == value {
+	// urlredact.Decode reports false for a malformed escape ("%ZZ") and for a
+	// value no escape changed; there is nothing new to scan in either case, and
+	// the raw pass above already ran.
+	decoded, changed := urlredact.Decode(value)
+	if !changed {
 		return "", false
 	}
 	return scanQueryShapedValue(decoded)

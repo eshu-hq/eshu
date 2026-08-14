@@ -23,10 +23,40 @@ import (
 // symmetrySentinel is the credential in the placement-symmetry control below.
 const symmetrySentinel = "SYMMETRY-CONTROL-6e13af"
 
-// symmetryBytes is one byte sequence, placed in two reporter-typed fields. It
-// is the exact shape the audit used: a benign-looking "next" parameter whose
-// value hides a second query string carrying the credential.
-const symmetryBytes = "next=/api/v0/x?api_key=" + symmetrySentinel
+// symmetrySpellings are the byte sequences placed in each reporter-typed field.
+// Every spelling goes into every placement, so the test is a grid rather than a
+// list.
+//
+// There used to be ONE constant here, and that is how the encoding axis got
+// through: flipping it to its percent-encoded spelling turned query.target
+// green — the structured domain decodes — while reporter_note and
+// response.error.message both leaked, which is the exact "one verdict per field,
+// for text the same person typed" property this test claims to guard. A single
+// byte pattern lets one fix close the axis for every placement at once, so a
+// placement the fix missed looks covered.
+var symmetrySpellings = []struct {
+	name  string
+	bytes string
+}{
+	{
+		// The shape the original audit used: a benign-looking "next" parameter
+		// whose value hides a second query string carrying the credential.
+		name:  "literal",
+		bytes: "next=/api/v0/x?api_key=" + symmetrySentinel,
+	},
+	{
+		// The same URL as a browser or an HTTP client writes it. No literal "?"
+		// and no literal "=" inside the value for a split to find.
+		name:  "percent-encoded",
+		bytes: "next=%2Fapi%2Fv0%2Fx%3Fapi%5Fkey%3D" + symmetrySentinel,
+	},
+	{
+		// A different carrier again: the separator that ends the pair, encoded,
+		// with text after the credential so the boundary has to be found.
+		name:  "percent-encoded with a following parameter",
+		bytes: "a=1%26token%3D" + symmetrySentinel + "%26repo%3Ddemo",
+	},
+}
 
 // TestReporterInputPlacementSymmetry pins the defect this change closed. The
 // same bytes used to be rejected in query.target and accepted in
@@ -43,32 +73,36 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 
 	placements := []struct {
 		field    string
-		capture  CaptureInput
-		handEdit func(*Bundle)
+		capture  func(bytes string) CaptureInput
+		handEdit func(b *Bundle, bytes string)
 	}{
 		{
 			field: "query.target",
-			capture: CaptureInput{
-				Surface:      "api",
-				Target:       "/api/v0/services/checkout/story?" + symmetryBytes,
-				Method:       "GET",
-				Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
-				ReporterNote: "expected the owning team, got an empty list",
+			capture: func(bytes string) CaptureInput {
+				return CaptureInput{
+					Surface:      "api",
+					Target:       "/api/v0/services/checkout/story?" + bytes,
+					Method:       "GET",
+					Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+					ReporterNote: "expected the owning team, got an empty list",
+				}
 			},
-			handEdit: func(b *Bundle) {
-				b.Query.Target = "/api/v0/services/checkout/story?" + symmetryBytes
+			handEdit: func(b *Bundle, bytes string) {
+				b.Query.Target = "/api/v0/services/checkout/story?" + bytes
 			},
 		},
 		{
 			field: "reporter_note",
-			capture: CaptureInput{
-				Surface:      "api",
-				Target:       "/api/v0/services/checkout/story",
-				Method:       "GET",
-				Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
-				ReporterNote: symmetryBytes,
+			capture: func(bytes string) CaptureInput {
+				return CaptureInput{
+					Surface:      "api",
+					Target:       "/api/v0/services/checkout/story",
+					Method:       "GET",
+					Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+					ReporterNote: bytes,
+				}
 			},
-			handEdit: func(b *Bundle) { b.ReporterNote = symmetryBytes },
+			handEdit: func(b *Bundle, bytes string) { b.ReporterNote = bytes },
 		},
 		{
 			// The third placement is the one the first two did not imply. This
@@ -77,54 +111,60 @@ func TestReporterInputPlacementSymmetry(t *testing.T) {
 			// which is the same bytes arriving by a longer route. Same text,
 			// same person typed it, so it must get the same verdict.
 			field: "response.error.message",
-			capture: CaptureInput{
-				Surface: "api",
-				Target:  "/api/v0/services/checkout/story",
-				Method:  "GET",
-				Envelope: query.ResponseEnvelope{
-					Data: map[string]any{"owner": "platform-team"},
-					Error: &query.ErrorEnvelope{
-						Code:    "ambiguous",
-						Message: composedAmbiguousMessage(symmetryBytes),
+			capture: func(bytes string) CaptureInput {
+				return CaptureInput{
+					Surface: "api",
+					Target:  "/api/v0/services/checkout/story",
+					Method:  "GET",
+					Envelope: query.ResponseEnvelope{
+						Data: map[string]any{"owner": "platform-team"},
+						Error: &query.ErrorEnvelope{
+							Code:    "ambiguous",
+							Message: composedAmbiguousMessage(bytes),
+						},
 					},
-				},
-				ReporterNote: "expected the owning team, got an empty list",
+					ReporterNote: "expected the owning team, got an empty list",
+				}
 			},
-			handEdit: func(b *Bundle) {
+			handEdit: func(b *Bundle, bytes string) {
 				b.Response.Error = &query.ErrorEnvelope{
 					Code:    "ambiguous",
-					Message: composedAmbiguousMessage(symmetryBytes),
+					Message: composedAmbiguousMessage(bytes),
 				}
 			},
 		},
 	}
 
 	for _, placement := range placements {
-		t.Run(placement.field, func(t *testing.T) {
-			t.Parallel()
+		for _, spelling := range symmetrySpellings {
+			t.Run(placement.field+"/"+spelling.name, func(t *testing.T) {
+				t.Parallel()
 
-			bundle, err := Capture(placement.capture)
-			if err != nil {
-				t.Fatalf("Capture(credential in %s) error = %v, want a redacted bundle", placement.field, err)
-			}
-			assertNoEgress(t, "Capture(credential in "+placement.field+")", bundle, err, symmetrySentinel)
-			if len(bundle.Redaction.Rules) == 0 {
-				t.Errorf("Capture(credential in %s): Redaction.Rules is empty, want the removal recorded", placement.field)
-			}
-			if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
-				t.Errorf("Validate(Capture output for %s) error = %v, want nil", placement.field, err)
-			}
+				label := "Capture(credential in " + placement.field + " as " + spelling.name + ")"
+				bundle, err := Capture(placement.capture(spelling.bytes))
+				if err != nil {
+					t.Fatalf("%s error = %v, want a redacted bundle", label, err)
+				}
+				assertNoEgress(t, label, bundle, err, symmetrySentinel)
+				if len(bundle.Redaction.Rules) == 0 {
+					t.Errorf("%s: Redaction.Rules is empty, want the removal recorded", label)
+				}
+				if err := Validate(bundle, ValidateOptions{RequirePublic: true}); err != nil {
+					t.Errorf("Validate(Capture output for %s) error = %v, want nil", label, err)
+				}
 
-			handWritten := minimalPublicBundle(t)
-			placement.handEdit(&handWritten)
-			err = Validate(handWritten, ValidateOptions{RequirePublic: true})
-			if err == nil {
-				t.Fatalf("Validate(hand-written bundle with the credential in %s) error = nil, want rejection", placement.field)
-			}
-			if strings.Contains(err.Error(), symmetrySentinel) {
-				t.Errorf("Validate(%s) error echoes the sentinel: %s", placement.field, err.Error())
-			}
-		})
+				handWritten := minimalPublicBundle(t)
+				placement.handEdit(&handWritten, spelling.bytes)
+				err = Validate(handWritten, ValidateOptions{RequirePublic: true})
+				if err == nil {
+					t.Fatalf("Validate(hand-written bundle with the credential in %s as %s) error = nil, want rejection",
+						placement.field, spelling.name)
+				}
+				if strings.Contains(err.Error(), symmetrySentinel) {
+					t.Errorf("Validate(%s) error echoes the sentinel: %s", label, err.Error())
+				}
+			})
+		}
 	}
 }
 
@@ -275,6 +315,68 @@ func TestCaptureLeavesACleanErrorEnvelopeAlone(t *testing.T) {
 		if containsRule(bundle.Redaction.Rules, rule) {
 			t.Errorf("Redaction.Rules = %v, want no %s entry for an untouched envelope", bundle.Redaction.Rules, rule)
 		}
+	}
+}
+
+// TestCaptureKeepsTheNoteAroundAPercentEncodedCredential is the over-removal
+// guard on the encoding axis. Reading a "%3D" as an "=" widened where a pair can
+// start, so the cost of getting it wrong is a note cut in the wrong place: the
+// URL around the credential has to survive in the spelling the reporter typed,
+// escapes and all, or a maintainer cannot reproduce the request.
+func TestCaptureKeepsTheNoteAroundAPercentEncodedCredential(t *testing.T) {
+	t.Parallel()
+
+	const sentinel = "SYMMETRY-ENCODED-NOTE-41b7c0"
+	bundle, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   "/api/v0/services/checkout/story",
+		Method:   "GET",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		ReporterNote: "the owner list came back empty.\n" +
+			"curl 'https://eshu.example/api/v0/x?repo=demo%26redirect_uri=%2Fcb%3Faccess_token%3D" + sentinel + "'\n" +
+			"same on a retry.",
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	if strings.Contains(bundle.ReporterNote, sentinel) {
+		t.Errorf("ReporterNote kept the credential: %s", bundle.ReporterNote)
+	}
+	for _, keep := range []string{
+		"the owner list came back empty.",
+		"https://eshu.example/api/v0/x?repo=demo%26redirect_uri=%2Fcb%3F",
+		"same on a retry.",
+	} {
+		if !strings.Contains(bundle.ReporterNote, keep) {
+			t.Errorf("ReporterNote lost %q; got:\n%s", keep, bundle.ReporterNote)
+		}
+	}
+}
+
+// TestCaptureLeavesAnUnrelatedContinuationLineAlone is the false-positive guard
+// on the line-continuation rule. A backslash at the end of a line only carries a
+// redaction forward when that line's removal ran all the way to its end, so
+// ordinary prose that happens to end in one keeps the line after it.
+func TestCaptureLeavesAnUnrelatedContinuationLineAlone(t *testing.T) {
+	t.Parallel()
+
+	note := "the path was C:\\\n" +
+		"and the second line is prose I want to keep."
+	bundle, err := Capture(CaptureInput{
+		Surface:      "api",
+		Target:       "/api/v0/services/checkout/story",
+		Method:       "GET",
+		Envelope:     query.ResponseEnvelope{Data: map[string]any{"owner": "platform-team"}},
+		ReporterNote: note,
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	if bundle.ReporterNote != note {
+		t.Errorf("ReporterNote was altered.\n got: %s\nwant: %s", bundle.ReporterNote, note)
+	}
+	if containsRule(bundle.Redaction.Rules, "reporter_note") {
+		t.Errorf("Redaction.Rules = %v, want no reporter_note entry for an untouched note", bundle.Redaction.Rules)
 	}
 }
 

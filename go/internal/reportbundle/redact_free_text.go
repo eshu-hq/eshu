@@ -64,18 +64,44 @@ func isNoteKeyRune(r rune) bool {
 // isNotePadRune reports whether r is padding a reporter may leave between a key
 // name and its separator, or between a separator and its value: the quote a
 // shell or a JSON blob wraps them in, and the spaces prose puts around an "=".
+//
+// "+" is in the set because it is how a query string spells a space, so
+// "?token+=+<credential>" is the same pair as "?token = <credential>" and used
+// to walk back to an empty key. It only ever matters directly beside a
+// separator, so "a+b=c" still reads its key as "b".
 func isNotePadRune(r rune) bool {
-	return r == '"' || r == '\'' || r == '`' || r == ' ' || r == '\t'
+	return r == '"' || r == '\'' || r == '`' || r == ' ' || r == '\t' || r == '+'
+}
+
+// noteRuneBefore reads one position leftwards from line[:i], unwrapping a
+// percent-escape when one ends there. It returns the character that position
+// stands for and how many bytes of line it took.
+//
+// The escape is tried first: "%5F" is a "_", so a name written "api%5Fkey" —
+// which is what the endpoint walk has always decoded, and what free text used to
+// read as "5Fkey" — walks back as one key.
+func noteRuneBefore(line string, i int) (rune, int) {
+	if b, ok := urlredact.DecodedEscapeBefore(line, i); ok {
+		return rune(b), urlredact.EscapeWidth
+	}
+	r, size := utf8.DecodeLastRuneInString(line[:i])
+	return r, size
 }
 
 // sensitiveKeyBefore returns the start index of a sensitive-named key ending
 // just before sep. It skips padding first, so `{"api_key":` and
 // `-H 'Authorization:` both resolve to the bare name, then walks back over key
 // runes.
+//
+// The name is unwrapped one layer before the predicate sees it, so the
+// predicate is asked about "api_key" whether the reporter wrote that or
+// "api%5Fkey". The unwrap is on the NAME only and the returned index still
+// points into the original bytes, so the text this walk emits is the text it was
+// given.
 func sensitiveKeyBefore(line string, sep int) (int, bool) {
 	end := sep
 	for end > 0 {
-		r, size := utf8.DecodeLastRuneInString(line[:end])
+		r, size := noteRuneBefore(line, end)
 		if !isNotePadRune(r) {
 			break
 		}
@@ -83,13 +109,16 @@ func sensitiveKeyBefore(line string, sep int) (int, bool) {
 	}
 	start := end
 	for start > 0 {
-		r, size := utf8.DecodeLastRuneInString(line[:start])
+		r, size := noteRuneBefore(line, start)
 		if !isNoteKeyRune(r) {
 			break
 		}
 		start -= size
 	}
 	key := line[start:end]
+	if decoded, changed := urlredact.Decode(key); changed {
+		key = decoded
+	}
 	if key == "" || !isRedactedKeyName(key) {
 		return 0, false
 	}
@@ -100,16 +129,18 @@ func sensitiveKeyBefore(line string, sep int) (int, bool) {
 // padding between the separator and the value. Skipping an opening quote
 // matters: `api_key="sk-live"` would otherwise end its value at that very quote
 // and leave the credential behind.
-func noteValueStart(line string, sep int) int {
-	start := sep + 1
-	for start < len(line) {
-		r, size := utf8.DecodeRuneInString(line[start:])
-		if !isNotePadRune(r) {
+//
+// valueStart is the index just past the separator, which is three bytes past it
+// when the separator was written "%3D".
+func noteValueStart(line string, valueStart int) int {
+	for valueStart < len(line) {
+		b, width := urlredact.DecodedByteAt(line, valueStart)
+		if width == 0 || !isNotePadRune(rune(b)) {
 			break
 		}
-		start += size
+		valueStart += width
 	}
-	return start
+	return valueStart
 }
 
 // redactFreeText is the scan for the FREE-TEXT domain: Bundle.ReporterNote,
@@ -207,34 +238,77 @@ func noteValueStart(line string, sep int) int {
 // internal/urlredact.PairSeparators, and both walks are driven through the one
 // shared corpus in urlredact.BoundaryCases.
 //
-// Deliberate limits, the same ones embeddedSensitiveKey carries:
+// Deliberate limits. The first three are embeddedSensitiveKey's own limits, in
+// the same words; the rest belong to this walk alone, which is why the list is
+// written out rather than claiming parity with a function that carries fewer:
 //   - A bare secret with no key in front of it ("I used sk-live-abc") is
 //     invisible.
 //   - A credential in a path segment, or under a name the sensitive-key
 //     predicate does not match, is invisible.
+//   - EXACTLY ONE layer of percent-encoding is unwrapped, so "%3D" is an "=" and
+//     "%253D" is three characters of text. urlredact/escape.go carries the
+//     reason, and it is sharper here than for a detector: this walk EMITS what
+//     it scanned, Validate scans that output again, and a reader that peeled
+//     until the text stopped changing would make Capture reject its own bundle.
 //   - URL USERINFO is invisible: in "https://alice:s3cr3t@host/x" the token to
 //     the left of the ":" is "alice", which no sensitive-key rule matches. A
 //     structured field gets that case from redactEndpoint; free text does not.
+//   - A credential carried onto the NEXT LINE is found only when a shell
+//     continuation backslash says the line carried on (see noteLineContinues).
+//     A note wrapped by a terminal, with no backslash, leaves a bare secret on
+//     its own line, which is the first limit above.
 //   - The cost of the header form is prose false positives: "no authorization:
 //     the call 403s" loses the rest of that line. That is a shortened note
 //     recorded in Redaction.Rules, against a live credential on a public issue.
 func redactFreeText(text string) (string, bool) {
-	if !strings.ContainsAny(text, "=:") {
+	// "%" is in the fast-path set because a separator can be spelled "%3D" or
+	// "%3A", with no literal "=" or ":" anywhere in the text.
+	if !strings.ContainsAny(text, "=:%") {
 		return text, false
 	}
 	lines := strings.Split(text, "\n")
 	redacted := false
+	continued := false
 	for i, line := range lines {
-		cleaned, changed := redactFreeTextLine(line)
-		if changed {
-			lines[i] = cleaned
+		if continued {
+			lines[i] = freeTextMarker
 			redacted = true
+			continued = noteLineContinues(line)
+			continue
 		}
+		cleaned, changed, toEnd := redactFreeTextLine(line)
+		if !changed {
+			continue
+		}
+		lines[i] = cleaned
+		redacted = true
+		continued = toEnd && noteLineContinues(line)
 	}
 	if !redacted {
 		return text, false
 	}
 	return strings.Join(lines, "\n"), true
+}
+
+// noteLineContinues reports whether a shell continuation carries this line's
+// text onto the next one.
+//
+// It is what keeps a credential from surviving a line break in the middle of a
+// pair. A reporter who wraps a pasted curl writes
+//
+//	-H 'Authorization: \
+//	Bearer <credential>'
+//
+// and every rule in this file stops at the newline, so the header rule removed
+// the empty remainder of the first line and left the credential standing alone
+// on the second. The following line is then removed WHOLE: there is no key on it
+// to anchor a narrower boundary, and a line reached this way is the tail of a
+// value that was already judged sensitive.
+//
+// Only a line whose redaction ran to its very end can continue, so an ordinary
+// note line that happens to end in a backslash costs nothing.
+func noteLineContinues(line string) bool {
+	return strings.HasSuffix(strings.TrimRight(line, " \t\r"), `\`)
 }
 
 // redactFreeTextLine applies the header rule first, because it removes the
@@ -253,24 +327,31 @@ func redactFreeText(text string) (string, bool) {
 // pass. Capture rejected its own output ("captured bundle failed its own
 // share-safe validation gate") and the reporter got no bundle at all, which is
 // exactly the failure capture.go's #5059 note says this package must not cause.
-func redactFreeTextLine(line string) (string, bool) {
+// The third return value reports whether the removal ran to the end of the
+// line, which is what noteLineContinues needs to decide if a credential carried
+// on past the newline.
+func redactFreeTextLine(line string) (string, bool, bool) {
 	if start, found := sensitiveHeaderKeyStart(line); found {
-		prefix, _ := redactNoteKeyValuePairs(line[:start])
-		return prefix + freeTextMarker, true
+		prefix, _, _ := redactNoteKeyValuePairs(line[:start])
+		return prefix + freeTextMarker, true, true
 	}
 	return redactNoteKeyValuePairs(line)
 }
 
 // sensitiveHeaderKeyStart returns the byte index where the first
-// sensitive-named "key:" on the line begins.
+// sensitive-named "key:" on the line begins. The ":" counts whether it is
+// written literally or as "%3A".
 func sensitiveHeaderKeyStart(line string) (int, bool) {
-	for i := 0; i < len(line); i++ {
-		if line[i] != ':' {
+	for i := 0; i < len(line); {
+		separator, width := urlredact.DecodedByteAt(line, i)
+		if separator != ':' {
+			i += width
 			continue
 		}
 		if start, ok := sensitiveKeyBefore(line, i); ok {
 			return start, true
 		}
+		i += width
 	}
 	return 0, false
 }
@@ -278,35 +359,48 @@ func sensitiveHeaderKeyStart(line string) (int, bool) {
 // redactNoteKeyValuePairs replaces every sensitive "key=value" span on one line,
 // keeping the text around them. Every pair on the line is handled, not only the
 // first: a pasted URL can carry two.
-func redactNoteKeyValuePairs(line string) (string, bool) {
+//
+// The "=" and the terminator that ends the value are both read one layer
+// decoded, so "?redirect_uri=%2Fcb%3Faccess_token%3D<credential>" — how an HTTP
+// client writes the nested callback URL — is cut at the same places
+// "?redirect_uri=/cb?access_token=<credential>" is. The bytes around the removed
+// span are copied through in the spelling they arrived in.
+//
+// It reports whether the last removal reached the end of the line.
+func redactNoteKeyValuePairs(line string) (string, bool, bool) {
 	var out strings.Builder
 	redacted := false
+	runsToEnd := false
 	// cursor is the start of the text not yet copied into out.
 	cursor := 0
-	for i := 0; i < len(line); i++ {
-		if line[i] != '=' {
+	for i := 0; i < len(line); {
+		separator, width := urlredact.DecodedByteAt(line, i)
+		if separator != '=' {
+			i += width
 			continue
 		}
 		start, ok := sensitiveKeyBefore(line, i)
 		if !ok || start < cursor {
+			i += width
 			continue
 		}
-		valueStart := noteValueStart(line, i)
+		valueStart := noteValueStart(line, i+width)
 		end := len(line)
-		if offset := strings.IndexAny(line[valueStart:], freeTextValueTerminators); offset >= 0 {
+		if offset, _ := urlredact.IndexDecodedAny(line[valueStart:], freeTextValueTerminators); offset >= 0 {
 			end = valueStart + offset
 		}
 		out.WriteString(line[cursor:start])
 		out.WriteString(freeTextMarker)
 		cursor = end
 		redacted = true
-		// Resume at the terminator that ended the value; the loop's i++ lands
-		// exactly there.
-		i = end - 1
+		runsToEnd = end == len(line)
+		// Resume at the terminator that ended the value. end is always past i,
+		// because valueStart is, so the scan cannot stall here.
+		i = end
 	}
 	if !redacted {
-		return line, false
+		return line, false, false
 	}
 	out.WriteString(line[cursor:])
-	return out.String(), true
+	return out.String(), true, runsToEnd
 }

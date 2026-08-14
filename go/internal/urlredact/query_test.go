@@ -4,6 +4,8 @@
 package urlredact
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -29,6 +31,13 @@ func TestQueryPreservesTheSeparatorItRead(t *testing.T) {
 		{name: "empty pair between separators", raw: "a=1&&token=" + Sentinel, want: "a=1&&token=redacted"},
 		{name: "percent-encoded name is decoded before matching", raw: "api%5Fkey=" + Sentinel, want: "api%5Fkey=redacted"},
 		{name: "undecodable name is asked about as it arrived", raw: "api%ZZkey=" + Sentinel, want: "api%ZZkey=" + Sentinel},
+		{name: "percent-encoded equals sign", raw: "token%3D" + Sentinel, want: "token%3Dredacted"},
+		{name: "percent-encoded ampersand splits the pairs", raw: "a=1%26token%3D" + Sentinel + "%26b=2", want: "a=1%26token%3Dredacted%26b=2"},
+		{name: "percent-encoded question mark opens a nested query", raw: "next=/v0/y%3Fapi_key%3D" + Sentinel, want: "next=/v0/y%3Fapi_key%3Dredacted"},
+		{name: "lowercase hex in the escapes", raw: "a=1%26token%3d" + Sentinel, want: "a=1%26token%3dredacted"},
+		{name: "encoded separator with no value after it", raw: "token%3D", want: "token%3D"},
+		{name: "double-encoded stays one layer out of reach", raw: "next=%253Ftoken%253D" + Sentinel, want: "next=%253Ftoken%253D" + Sentinel},
+		{name: "a percent that starts no escape is literal text", raw: "a=100%&token=" + Sentinel, want: "a=100%&token=redacted"},
 		{name: "no value to remove", raw: "token", want: "token"},
 		{name: "empty value", raw: "token=", want: "token="},
 		{name: "benign parameters survive", raw: "repo=demo&page=2", want: "repo=demo&page=2"},
@@ -123,4 +132,44 @@ func TestBoundaryCasesCoverEverySeparator(t *testing.T) {
 			t.Errorf("no corpus row exercises the %q separator", string(sep))
 		}
 	}
+}
+
+// TestBoundaryCasesCoverTheEncodedSpelling is the same guard on the axis that
+// broke next. Every separator had a row, and every row spelled it literally, so
+// "?a=1;token=…" was covered and "?a=1%3Btoken%3D…" — the same URL as an HTTP
+// client writes it — was not, in a corpus whose whole job is boundaries.
+//
+// It asks for the encoded spelling of each separator AND of the "=" that joins a
+// pair, because the "=" is the one a nested URL always hides.
+func TestBoundaryCasesCoverTheEncodedSpelling(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range append([]rune(PairSeparators), '=') {
+		escape := fmt.Sprintf("%%%02X", want)
+		found := false
+		for _, tc := range BoundaryCases() {
+			if strings.Contains(strings.ToUpper(tc.Input), escape) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no corpus row writes %q as %s", string(want), escape)
+		}
+	}
+}
+
+// TestBoundaryCasesVaryTheHexCase pins the other half of the encoding axis. RFC
+// 3986 allows either case in an escape and real clients emit both, so a hex
+// reader written with only "0-9A-F" would pass every row above.
+func TestBoundaryCasesVaryTheHexCase(t *testing.T) {
+	t.Parallel()
+
+	lower := regexp.MustCompile(`%[0-9a-fA-F]*[a-f][0-9a-fA-F]*`)
+	for _, tc := range BoundaryCases() {
+		if tc.Secret != "" && lower.MatchString(tc.Input) {
+			return
+		}
+	}
+	t.Error("no credential-carrying corpus row spells an escape with lowercase hex")
 }

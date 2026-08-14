@@ -92,7 +92,17 @@ func (c BoundaryCase) checkSecret(walk, keepsReason, got string) error {
 //
 // It is a function rather than a package-level slice so no caller can mutate
 // the corpus another test then reads.
+//
+// The two halves are split by what they vary. literalBoundaryCases varies WHICH
+// byte bounds a pair; encodedBoundaryCases varies HOW that byte is spelled. The
+// second half exists because the first was complete on its own axis — every
+// separator had a row — and the walks still let "?a=1%3Btoken%3D…" through.
 func BoundaryCases() []BoundaryCase {
+	return append(literalBoundaryCases(), encodedBoundaryCases()...)
+}
+
+// literalBoundaryCases are the rows whose separators are written as themselves.
+func literalBoundaryCases() []BoundaryCase {
 	return []BoundaryCase{
 		{
 			Name:         "semicolon separates pairs",
@@ -179,17 +189,6 @@ func BoundaryCases() []BoundaryCase {
 			WantFreeText: "http://h/x?[redacted]?next=/v0/y",
 		},
 		{
-			// %5F is "_". The endpoint walk decodes the name before asking the
-			// predicate; the free-text walk cannot, because walking back from
-			// "=" over key runes stops at "%" and yields "5Fkey".
-			Name:                "percent-encoded key name",
-			Input:               "http://h/x?api%5Fkey=" + Sentinel,
-			Secret:              Sentinel,
-			WantEndpoint:        "http://h/x?api%5Fkey=redacted",
-			WantFreeText:        "http://h/x?api%5Fkey=" + Sentinel,
-			FreeTextKeepsSecret: "walking back from \"=\" over key runes stops at \"%\", so the name reads as \"5Fkey\" and no sensitive-key rule matches it",
-		},
-		{
 			Name:         "key differing only in case",
 			Input:        "http://h/x?API_KEY=" + Sentinel,
 			Secret:       Sentinel,
@@ -226,6 +225,92 @@ func BoundaryCases() []BoundaryCase {
 			Input:        "http://127.0.0.1:8080/api/v0",
 			WantEndpoint: "http://127.0.0.1:8080/api/v0",
 			WantFreeText: "http://127.0.0.1:8080/api/v0",
+		},
+	}
+}
+
+// encodedBoundaryCases are the same boundaries written the way an HTTP client
+// writes them. A separator spelled "%26" is the same separator, and reading only
+// the literal spelling is what let an already-fixed credential back through.
+func encodedBoundaryCases() []BoundaryCase {
+	return []BoundaryCase{
+		{
+			// %5F is "_". Both walks unwrap the name one layer before asking
+			// the predicate, so it reads as "api_key".
+			Name:         "percent-encoded key name",
+			Input:        "http://h/x?api%5Fkey=" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?api%5Fkey=redacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			// The separator itself encoded, which is what leaves no literal "="
+			// anywhere for a split to find.
+			Name:         "percent-encoded key name and equals sign",
+			Input:        "http://h/x?api%5Fkey%3D" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?api%5Fkey%3Dredacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			// The OAuth callback as an HTTP CLIENT writes it. The literal
+			// spelling of this row is one of the three credentials the shared
+			// separator constant was introduced for, and it went straight back
+			// through the encoded spelling.
+			Name:         "percent-encoded nested query inside a benign value",
+			Input:        "https://h/api/v0/x?redirect_uri=%2Fcb%3Faccess_token%3D" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "https://h/api/v0/x?redirect_uri=%2Fcb%3Faccess_token%3Dredacted",
+			WantFreeText: "https://h/api/v0/x?redirect_uri=%2Fcb%3F[redacted]",
+		},
+		{
+			// Text after the credential, so an encoded separator has to END the
+			// value for this row to pass. Without it the value runs to the end
+			// of the string either way and the row proves nothing.
+			Name:         "percent-encoded ampersand ends a value",
+			Input:        "http://h/x?a=1%26token%3D" + Sentinel + "%26repo%3Ddemo",
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?a=1%26token%3Dredacted%26repo%3Ddemo",
+			WantFreeText: "http://h/x?a=1%26[redacted]%26repo%3Ddemo",
+		},
+		{
+			Name:         "percent-encoded semicolon ends a value",
+			Input:        "http://h/x?a=1%3Btoken%3D" + Sentinel + "%3Brepo%3Ddemo",
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?a=1%3Btoken%3Dredacted%3Brepo%3Ddemo",
+			WantFreeText: "http://h/x?a=1%3B[redacted]%3Brepo%3Ddemo",
+		},
+		{
+			// RFC 3986 allows either case in an escape, and clients emit both.
+			// A hex reader written with only "0-9A-F" passes every row above.
+			Name:         "lowercase hex in the escapes",
+			Input:        "http://h/x?a=1%26token%3d" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?a=1%26token%3dredacted",
+			WantFreeText: "http://h/x?a=1%26[redacted]",
+		},
+		{
+			// The far side of the one-layer rule, pinned so widening it to a
+			// loop is a decision somebody has to make here rather than a change
+			// no test notices. "%253D" is a request for the TEXT "%3D"; the
+			// server never received a separator, so neither walk invents one.
+			Name:                "double-encoded is one layer too deep",
+			Input:               "http://h/x?next=%252Fcb%253Faccess_token%253D" + Sentinel,
+			Secret:              Sentinel,
+			WantEndpoint:        "http://h/x?next=%252Fcb%253Faccess_token%253D" + Sentinel,
+			WantFreeText:        "http://h/x?next=%252Fcb%253Faccess_token%253D" + Sentinel,
+			EndpointKeepsSecret: "the unwrap runs exactly one layer, so \"%253D\" reads as the text \"%25\" then \"3D\" and no separator is there to split on",
+			FreeTextKeepsSecret: "the unwrap runs exactly one layer, so \"%253D\" reads as the text \"%25\" then \"3D\" and no separator is there to split on",
+		},
+		{
+			// "+" is how a query string spells a space, so this is the same
+			// pair as "?token = <credential>". It used to walk back from the
+			// "=" onto a "+" and read an empty key.
+			Name:         "plus stands in for a space around the separator",
+			Input:        "http://h/x?token+=+" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?token+=redacted",
+			WantFreeText: "http://h/x?[redacted]",
 		},
 	}
 }

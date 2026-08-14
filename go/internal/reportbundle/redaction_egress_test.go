@@ -63,6 +63,10 @@ const (
 	egressNoteSecondLineToken   = "EGRESS-NOTE-LINE2-7d0aa4"
 	egressNoteMixedQueryToken   = "EGRESS-NOTE-MIXED-QUERY-3fa612"
 	egressNoteMixedHeaderToken  = "EGRESS-NOTE-MIXED-HEADER-8c04de"
+	egressEncodedSelectorToken  = "EGRESS-ENCODED-SELECTOR-2a71f9"
+	egressEncodedNoteToken      = "EGRESS-ENCODED-NOTE-c58d03"
+	egressEncodedHeaderToken    = "EGRESS-ENCODED-HEADER-90ba2c"
+	egressContinuedNoteToken    = "EGRESS-CONTINUED-NOTE-6e4b17"
 )
 
 // assertNoEgress is the whole point of this file: it concatenates every channel
@@ -227,6 +231,47 @@ func egressCases() []egressCase {
 			target:    "/api/v0/services/checkout/story",
 			note:      "ran this and got an empty list:\ncurl 'https://eshu.example/api/v0/x?api_key=" + egressNoteQuerySentinel + "&repo=demo%2Fservice'",
 			sentinels: []string{egressNoteQuerySentinel},
+		},
+		{
+			// The same composed message as the row above, with the selector
+			// spelled the way an HTTP client writes it. Until the free-text scan
+			// read a "%3D" as an "=", every encoded row in this file sat in
+			// `params` — the structured domain, which has decoded since it was
+			// written — so the axis looked covered and the free-text domain had
+			// never been asked about it once.
+			name:          "composed error message interpolates a percent-encoded caller selector",
+			target:        "/api/v0/services/checkout/story",
+			errorSelector: "checkout%3Ftoken%3D" + egressEncodedSelectorToken,
+			sentinels:     []string{egressEncodedSelectorToken},
+		},
+		{
+			// The OAuth callback as a browser writes it, pasted into a note.
+			// "?redirect_uri=/cb?access_token=…" is one of the three credentials
+			// the shared separator constant was introduced for; this is the same
+			// URL, percent-encoded.
+			name:      "reporter note pastes a curl whose URL carries a percent-encoded nested credential",
+			target:    "/api/v0/services/checkout/story",
+			note:      "ran: curl 'https://eshu.example/api/v0/x?redirect_uri=%2Fcb%3Faccess_token%3D" + egressEncodedNoteToken + "'",
+			sentinels: []string{egressEncodedNoteToken},
+		},
+		{
+			// The header form's own encoded spelling. The pair form got a row
+			// first and this one did not, which a break-the-line probe caught:
+			// reading the ":" through an escape could be deleted outright and
+			// the whole suite stayed green.
+			name:      "reporter note pastes a header whose colon is percent-encoded",
+			target:    "/api/v0/services/checkout/story",
+			note:      "ran: curl -s -H 'Authorization%3A Bearer " + egressEncodedHeaderToken + "' https://eshu.example/api/v0/x",
+			sentinels: []string{egressEncodedHeaderToken},
+		},
+		{
+			// A pasted curl wrapped mid-header. Every rule in the free-text scan
+			// stops at a newline, so the header rule removed the empty remainder
+			// of the first line and left the credential alone on the second.
+			name:      "reporter note wraps a header value onto a continuation line",
+			target:    "/api/v0/services/checkout/story",
+			note:      "curl -s https://eshu.example/api/v0/x \\\n  -H 'Authorization: \\\n  Bearer " + egressContinuedNoteToken + "'",
+			sentinels: []string{egressContinuedNoteToken},
 		},
 		{
 			name:      "reporter note pastes a curl carrying an Authorization header",
