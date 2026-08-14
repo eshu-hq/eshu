@@ -28,11 +28,19 @@ func TestRedactFreeTextBoundaryCorpus(t *testing.T) {
 			t.Parallel()
 
 			got, _ := redactFreeText(tc.Input)
+			// The leak check runs FIRST, and fatally. Behind the exact-output
+			// assertion it could never fire: a leaking row fails that first and
+			// t.Fatalf ends the subtest, so the one message naming a shipped
+			// credential was dead code. The diff is also the wrong message for
+			// a leak — it prints the body, which is exactly what checkSecret
+			// refuses to echo.
+			if err := tc.CheckFreeTextSecret(got); err != nil {
+				t.Fatal(err)
+			}
+			// Kept, and second: it is what catches over-removal and a rewritten
+			// escape, neither of which the leak check can see.
 			if got != tc.WantFreeText {
 				t.Fatalf("redactFreeText(%q)\n got %q\nwant %q", tc.Input, got, tc.WantFreeText)
-			}
-			if err := tc.CheckFreeTextSecret(got); err != nil {
-				t.Error(err)
 			}
 
 			// Capture runs Validate over its own output, so a second pass has

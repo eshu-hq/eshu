@@ -82,7 +82,11 @@ func (c BoundaryCase) CheckFreeTextSecret(got string) error {
 // that quietly permits more than it says.
 //
 // The redacted body is never echoed, so a failure message cannot itself become
-// the leak it reports.
+// the leak it reports. That is also why both drivers MUST call this BEFORE
+// their exact-output assertion, and fatally. Behind that assertion the check
+// cannot fire — a leaking row fails the diff first and t.Fatalf ends the
+// subtest — so the only message that names a shipped credential was dead code,
+// and the message a reader did get was a string diff with the credential in it.
 func (c BoundaryCase) checkSecret(walk, keepsReason, got string) error {
 	if c.Secret == "" {
 		return nil

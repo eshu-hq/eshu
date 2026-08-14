@@ -115,11 +115,19 @@ func TestRedactEndpointBoundaryCorpus(t *testing.T) {
 	for _, tc := range urlredact.BoundaryCases() {
 		t.Run(tc.Name, func(t *testing.T) {
 			got := redactEndpoint(tc.Input)
+			// The leak check runs FIRST, and fatally. Behind the exact-output
+			// assertion it could never fire: a leaking row fails that first and
+			// t.Fatalf ends the subtest, so the one message naming a shipped
+			// credential was dead code. The diff is also the wrong message for
+			// a leak — it prints the body, which is exactly what checkSecret
+			// refuses to echo.
+			if err := tc.CheckEndpointSecret(got); err != nil {
+				t.Fatal(err)
+			}
+			// Kept, and second: it is what catches over-removal and a rewritten
+			// escape, neither of which the leak check can see.
 			if got != tc.WantEndpoint {
 				t.Fatalf("redactEndpoint(%q)\n got %q\nwant %q", tc.Input, got, tc.WantEndpoint)
-			}
-			if err := tc.CheckEndpointSecret(got); err != nil {
-				t.Error(err)
 			}
 			// The report can be re-rendered from a saved envelope, so the
 			// redacted form has to be a fixed point.
