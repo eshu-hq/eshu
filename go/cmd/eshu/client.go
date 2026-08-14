@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 )
 
 const eshuEnvelopeMIMEType = "application/eshu.envelope+json"
@@ -28,8 +30,22 @@ type apiHTTPError struct {
 	Body       string
 }
 
+// apiHTTPError is the CLI's transport error, and it stays unexported: only its
+// status code crosses the package boundary, through apierr.HTTPStatusError.
+// The assertion turns a rename or signature change here into a build failure
+// instead of silently un-classifying every internal/cli caller.
+var _ apierr.HTTPStatusError = (*apiHTTPError)(nil)
+
 func (e *apiHTTPError) Error() string {
 	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Body)
+}
+
+// HTTPStatusCode returns the HTTP status the API responded with. It carries
+// the "HTTP" prefix because a method cannot share the StatusCode field's name,
+// and because it reads unambiguously in an internal/cli package that has no
+// other status codes in scope.
+func (e *apiHTTPError) HTTPStatusCode() int {
+	return e.StatusCode
 }
 
 // NewAPIClient creates a client from environment/config.

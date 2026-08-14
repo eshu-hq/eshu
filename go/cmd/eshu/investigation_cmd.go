@@ -4,7 +4,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -251,11 +251,11 @@ func refusalFromErrorCode(code query.ErrorCode) (query.PacketRefusalState, bool)
 // 404 becomes scope_not_found; a 503 becomes backend_unavailable. Other statuses
 // are surfaced to the operator as a CLI error.
 func refusalFromFetchError(err error) (query.PacketRefusalState, bool) {
-	var httpErr *apiHTTPError
-	if !errors.As(err, &httpErr) {
+	status, ok := apierr.StatusCode(err)
+	if !ok {
 		return query.PacketRefusalNone, false
 	}
-	switch httpErr.StatusCode {
+	switch status {
 	case 404:
 		return query.PacketRefusalScopeNotFound, true
 	case 501:

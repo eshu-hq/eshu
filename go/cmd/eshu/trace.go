@@ -5,13 +5,14 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 )
 
 type traceServiceOptions struct {
@@ -380,15 +381,16 @@ func traceExitCode(code string) int {
 }
 
 func traceErrorCodeFromTransport(err error) string {
-	var httpErr *apiHTTPError
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		return "backend_unavailable"
 	}
 	if err != nil && strings.Contains(err.Error(), "request failed") {
 		return "backend_unavailable"
 	}
-	if err != nil && errors.As(err, &httpErr) {
-		switch httpErr.StatusCode {
+	// apierr.StatusCode reports false for a nil error, so the substring checks
+	// above keep their precedence and no nil guard is needed here.
+	if status, ok := apierr.StatusCode(err); ok {
+		switch status {
 		case 400:
 			return "invalid_argument"
 		case 404:

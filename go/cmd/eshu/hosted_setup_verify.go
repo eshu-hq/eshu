@@ -4,10 +4,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 )
 
@@ -66,9 +66,8 @@ func classifyProbeError(err error) hostedFailCategory {
 	if err == nil {
 		return hostedFailNone
 	}
-	var httpErr *apiHTTPError
-	if errors.As(err, &httpErr) {
-		if httpErr.StatusCode == 401 || httpErr.StatusCode == 403 {
+	if status, ok := apierr.StatusCode(err); ok {
+		if status == 401 || status == 403 {
 			return hostedFailAuthUnavailable
 		}
 	}
