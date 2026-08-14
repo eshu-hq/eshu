@@ -196,14 +196,21 @@ Eight limits, worth knowing before you paste something unusual:
   all read the same way, and your note keeps the spelling you typed — only the
   credential is cut out.
 - A credential that itself **contains** an encoded character (`?token=aa%26bb`,
-  a token whose real value is `aa&bb`) is removed whole, and so is the rest of
-  that query string. Eshu cannot tell a `%26` inside a value from the `%26` that
-  separates one parameter from the next, so it assumes the value and drops
-  everything after it. If your note comes back missing a parameter you wanted, a
-  credential just before it is why. The reverse case is the one gap: when the
-  whole URL was already encoded (`?a=1%26token%3D…`), a value that genuinely
-  contains an `&` is spelled the same as the separator, so the part after it is
-  kept.
+  a token whose real value is `aa&bb`) is removed whole, wherever that `%26`
+  sits in it — first character, middle, or last. Eshu cannot tell a `%26` inside
+  a value from the `%26` that separates one parameter from the next, so it
+  treats it as part of the value and keeps going to the next boundary written as
+  itself — a bare `?`, `&` or `;`, or in your note a bare space or quote as
+  well. Anything in between goes with it. If your note comes back missing a
+  parameter you wanted, a credential just before it is why.
+
+  The reverse case is the one gap, and it is narrower than the sentence above:
+  when the whole URL was already encoded (`?a=1%26token%3D…`), a value that
+  genuinely contains an `&`, a `?` or a `;` is spelled the same as the separator
+  there, so the part after it is kept. Only those three characters. A space,
+  tab, newline, quote or backtick written `%20`, `%09`, `%0A`, `%22`, `%27` or
+  `%60` is content at every depth, so a credential holding one is still removed
+  whole.
 - A credential that continues onto the **next line** is found only when a
   backslash says the line carried on, as in a wrapped `curl`:
 

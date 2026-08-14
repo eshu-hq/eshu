@@ -91,16 +91,31 @@ read durable fact records itself — callers supply an already-resolved
   reader; do not add a second decoder. The one-layer rule is even stricter here
   than for the detector: this walk EMITS what it scanned and `Validate` scans
   the output again, so a deeper unwrap makes `Capture` reject its own bundle.
-- Whether `%26`/`%3F`/`%3B` END a value depends on the DEPTH of the pair, and
-  `noteTerminatorDepth` is where that is decided. A pair joined by a literal `=`
-  was typed at the surface, so an escape inside its value is part of the
-  credential: `?token=aa%26bb` is a token of `aa&bb`, and reading the `%26` as a
-  terminator cut it and left `bb` in the note. Only a pair whose own `=` arrived
-  encoded ends at an encoded terminator. Do not special-case one separator here
-  — `%26`, `%3B`, `%3F`, `%20`, `%22` and `%27` all truncated the same way, and
-  the escaped members of `freeTextValueTerminators` that are NOT in
-  `urlredact.PairSeparators` cannot be covered by a corpus row, so they need a
-  test in `redaction_boundary_test.go` of their own.
+- Whether an escaped terminator ENDS a value depends on the DEPTH of the pair,
+  and `noteEscapedValueTerminators` is where that is decided. A pair joined by a
+  literal `=` was typed at the surface, so an escape inside its value is part of
+  the credential: `?token=aa%26bb` is a token of `aa&bb`, and reading the `%26`
+  as a terminator cut it and left `bb` in the note. Nothing is escaped-structure
+  there, and at that depth do not special-case one separator — `%26`, `%3B`,
+  `%3F`, `%20`, `%22` and `%27` all truncated the same way.
+- One layer down, where the pair's own `=` arrived encoded, the rule is NOT
+  uniform and treating it as uniform is the leak that came next. Only
+  `urlredact.PairSeparators` is structure there. Whitespace, a quote and a
+  backtick are prose delimiters — an encoder writes `%20` precisely because the
+  space is inside a value — and counting them a layer down cut the credential
+  out of `?redirect_uri=%2Fx%3Faccess_token%3D…%20TAIL` and shipped `TAIL`, on
+  `%20`, `%22`, `%27`, `%09` and `%0A` alike. That is why the terminator scan
+  passes two sets to `urlredact.IndexBoundaryBySpelling` rather than one set and
+  a depth. Those escaped members of `freeTextValueTerminators` cannot be covered
+  by a corpus row, because they are not pair boundaries, so they need rows in
+  `redaction_boundary_test.go` at BOTH depths — one test per depth exists, and a
+  new terminator needs a row in each.
+- This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, and
+  both leaks above are the two deciding differently. `urlredact.DifferentialCases`
+  compares them to EACH OTHER over a generated cross-product, driven from
+  `redaction_differential_test.go`; both walks passed every corpus row while
+  disagreeing on 72 of its 594 inputs. Widen the walk's terminator handling and
+  you widen that cross-product, not only the corpus.
 - Any test constant carrying a credential must exist in more than one spelling.
   `symmetryBytes` was a single unencoded string driving all three placements, so
   one fix closed the axis for every placement at once and a placement the fix

@@ -53,6 +53,9 @@ every walk.
   parameters, their order, and the **original separator bytes** all survive.
 - `Sentinel`, `BoundaryCase`, `BoundaryCases()` — the shared conformance corpus,
   described below.
+- `TailSentinel`, `DifferentialCase`, `DifferentialCases()` — the generated
+  cross-product that compares the two walks to **each other** rather than to a
+  written-down expectation. Also below.
 
 ## Why the walk is an index walk
 
@@ -108,6 +111,13 @@ Two more rows put an escaped separator **inside** a value whose pair was written
 with a literal `=`. That is the reverse boundary, and making the scan
 decode-aware broke it: see the section below.
 
+Four rows vary **where** in the value the escape sits, and they exist because
+every row above put it after at least one value byte. All of them therefore
+landed in the same cell — the pair already carries a value — while the cell
+where the escape is the value's *first* byte shipped a whole credential.
+`TestBoundaryCasesOpenAValueWithAnEscape` fails when any separator loses its
+opening-position row.
+
 A row a walk provably cannot handle records **why**, in `EndpointKeepsSecret` /
 `FreeTextKeepsSecret`. Three rows carry a reason today, covering two cases:
 
@@ -126,6 +136,33 @@ The corpus ships in the production package rather than a test-only sibling
 because it is the contract, not a fixture: it is what "these two walks agree"
 means, and putting it beside the constant they share is what keeps the two from
 being edited apart. It is a few hundred bytes of string constants.
+
+## The differential, and why the corpus was not enough
+
+A corpus row is written by somebody who already knows the case exists. Both
+walks passed every row above while disagreeing on **72 of 594** generated
+inputs: the endpoint walk shipped a whole credential when an escape opened the
+value, and the free-text walk cut one in half at an escaped space, quote or tab
+inside an already-encoded pair. Neither cell had a row, because neither was
+known.
+
+`DifferentialCases()` crosses the axes instead of enumerating the cases — the
+key name, how the pair's own `=` was spelled, which byte the escape stands for,
+where in the value it sits, and what follows the pair. `CheckAgreement` then
+asserts that both walks removed the same fragments, and each generated value
+carries a second sentinel *after* the escape so truncation shows up as one
+fragment removed and one kept.
+
+Agreement is about **removal**, not bytes: the two walks emit different text on
+purpose, so comparing output would need an exemption on nearly every row.
+`WalksDisagree` records a row the two provably cannot agree on, asserted in both
+directions like the corpus reasons. No row carries one today.
+
+`reportbundle`'s `TestRedactionWalksAgreeOnTheSharedDifferential` runs the
+endpoint side through `Query`, because `package main` is not importable.
+`cmd/eshu`'s `TestRedactEndpointDelegatesTheQueryWalkForTheDifferential` drives
+`redactEndpoint` through the identical rows and goes red if that delegation ever
+stops holding, so the substitution is pinned rather than assumed.
 
 ## The encoded spelling of a separator
 
@@ -177,9 +214,42 @@ structure is one layer down and `%26` there is the separator it stands for.
 
 So the spelling of a pair's own `=` decides which spellings of a terminator end
 its value. `BoundaryDepth` names the two, `IndexBoundary` scans at either, and
-both walks pick from the width their `=` was found at. Nothing about the
-literal-`=` case is special-cased per separator: `%3B`, `%3F`, `%20`, `%22` and
-`%27` all behaved the same way and are all fixed by the same rule.
+both walks pick from the width their `=` was found at. At the literal depth
+nothing is special-cased per separator: `%26`, `%3B`, `%3F`, `%20`, `%22` and
+`%27` all behaved the same way and one rule fixes all of them.
+
+One layer down it is **not** one rule, and saying it was is what leaked next.
+Only `?`, `&` and `;` are URL structure there. `reportbundle` also ends a value
+at whitespace, a quote or a backtick, because those bound a pasted shell word —
+and an encoder writes `%20` precisely because the space is *inside* a value, so
+the escaped spelling is evidence of content, not of a boundary. Counting the
+prose half a layer down cut the credential out of the nested callback URL and
+left the tail:
+
+```text
+redactFreeText("curl 'https://h/cb?redirect_uri=%2Fx%3Faccess_token%3D<credential>%20TAIL'")
+  was  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]%20TAIL'
+  now  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]'
+```
+
+`IndexBoundaryBySpelling(s, literal, escaped)` is where a walk says which set it
+means in which spelling; `IndexBoundary` is the shorthand for the same set both
+ways.
+
+Depth is one axis and **position** is another. The rule asks whether the name is
+credential-shaped and whether its `=` was literal, and it must not also ask
+whether a value is already there. When the escape is the value's first byte the
+pending text is a bare `token=`, that second question answered "no pair here",
+and the endpoint walk returned the credential whole:
+
+```text
+Query("token=%26<credential>", "redacted")   was  token=%26<credential>
+                                             now  token=redacted
+```
+
+Every corpus row and every unit row put the escape after at least one value
+byte, so the position axis had no coverage at all while the depth axis looked
+thorough.
 
 The cost is **over-removal**: `?token=x%26repo=demo` loses the `repo=demo`,
 because a benign parameter after an escaped separator cannot be told apart from
@@ -203,6 +273,9 @@ intent, which the bytes do not carry.
 - `IndexBoundary(s, set, depth)` — offset and width of the first position
   standing for one of `set` at that depth. At `LiteralOnly` the width is always
   `1`.
+- `IndexBoundaryBySpelling(s, literal, escaped)` — the same, for a caller whose
+  set differs by spelling: `literal` counts when written as itself, `escaped`
+  also counts as one percent-escape. `IndexBoundary` is a caller of it.
 - `Decode(s)` — one layer across a whole string, for a name or a value rather
   than a position.
 

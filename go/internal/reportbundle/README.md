@@ -228,9 +228,33 @@ them alike introduced a partial leak worse than the whole one it closed. A pair
 joined by a literal `=` is text at the depth the reporter typed, so an escape
 inside its value belongs to the value: `?token=aa%26bb` is a token whose value
 is `aa&bb`. Cutting there left `bb` in the note. An escape now ends a value only
-when that value's own `=` arrived encoded too — one rule, covering `%26`, `%3B`,
-`%3F`, `%20`, `%22` and `%27`, which all truncated identically. The accepted
-cost is over-removal, the same trade the header rule already makes.
+when that value's own `=` arrived encoded too — one rule at that depth, covering
+`%26`, `%3B`, `%3F`, `%20`, `%22` and `%27`, which all truncated identically.
+The accepted cost is over-removal, the same trade the header rule already makes.
+
+One layer down, where the pair's own `=` arrived encoded, it is **not** one
+rule. Only `?`, `&` and `;` are structure there. Whitespace, a quote and a
+backtick end a value because they bound a pasted shell word, and an encoder
+writes `%20` precisely because the space is *inside* a value — so the escaped
+spelling is evidence of content. Counting it a layer down cut the credential out
+of the nested callback URL and left the tail:
+
+```text
+redactFreeText("curl 'https://h/cb?redirect_uri=%2Fx%3Faccess_token%3D<credential>%20TAIL'")
+  was  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]%20TAIL'
+  now  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]'
+```
+
+`noteEscapedValueTerminators` returns the set that also counts escaped —
+`urlredact.PairSeparators` one layer down, nothing at the surface — and
+`urlredact.IndexBoundaryBySpelling` takes the literal and escaped sets apart.
+`%22`, `%27`, `%09` and `%0A` all leaked the same way and are all closed by the
+same split.
+
+This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, which is
+how both leaks reached review: each passed every row of the shared corpus.
+`TestRedactionWalksAgreeOnTheSharedDifferential` now compares the two to each
+other over 594 generated inputs, where they disagreed on 72 before the fixes.
 
 Four gaps remain, each the reverse of something above:
 

@@ -35,6 +35,22 @@
 // names the two depths and IndexBoundary scans at either; both walks pick from
 // how their pair's "=" was spelled.
 //
+// Two refinements, each learned from a leak the depth rule alone still allowed.
+// The depth question asks about the NAME and the "=" and nothing else: when the
+// escape is the first byte of the value, the pending text is a bare "token=",
+// and a walk that also asked "is there a value here yet?" answered no and
+// returned "?token=%26<credential>" untouched. And one layer down, only
+// PairSeparators is structure — a walk over PROSE also ends a value at
+// whitespace or a quote, and counting THOSE in escaped form cut a credential in
+// half, because an encoder writes "%20" precisely because the space is inside a
+// value. IndexBoundaryBySpelling is where a caller says which set it means in
+// which spelling.
+//
+// DifferentialCases is the answer to how both of those reached review: two
+// walks decided depth independently, both passed every row of the shared
+// corpus, and they disagreed on 72 of 594 generated inputs. That table crosses
+// the axes rather than enumerating the cases somebody already thought of.
+//
 // The package makes no judgement about what a VALUE looks like. There is no
 // entropy check and no secret-pattern list. It asks the shared name predicate
 // about the left half of a pair, exactly as every other redaction walk here

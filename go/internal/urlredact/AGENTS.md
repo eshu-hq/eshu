@@ -56,12 +56,41 @@
   one layer down and `%26` is the separator there.
 
   `BoundaryDepth` / `IndexBoundary` carry this, and each walk picks the depth
-  from the width its own `=` was found at. Do not add a per-separator exception:
-  `%3B`, `%3F`, `%20`, `%22` and `%27` all broke identically and the one rule
-  covers them. The accepted cost is over-removal — `?token=x%26repo=demo` loses
-  `repo=demo` — and the residue that cannot be fixed from inside a string is a
-  value genuinely containing `&` inside an already-encoded pair, where `%26`
-  spells both.
+  from the width its own `=` was found at. At the LITERAL depth do not add a
+  per-separator exception: `%26`, `%3B`, `%3F`, `%20`, `%22` and `%27` all broke
+  identically and one rule covers every one of them.
+
+  **One layer down it is not one rule, and claiming it was is what leaked
+  next.** Only `PairSeparators` is structure there. `reportbundle` also ends a
+  value at whitespace, a quote or a backtick, and an encoder writes `%20`
+  precisely because the space is INSIDE a value — the escaped spelling is
+  evidence of content, not of a boundary. Counting the prose half a layer down
+  cut the credential out of `?redirect_uri=%2Fx%3Faccess_token%3D…%20TAIL` and
+  shipped `TAIL`. `IndexBoundaryBySpelling(s, literal, escaped)` is where a walk
+  says which set it means in which spelling; `IndexBoundary` is the
+  same-set-both-ways shorthand for a caller that has no prose in its set.
+
+  The accepted cost is over-removal — `?token=x%26repo=demo` loses `repo=demo` —
+  and the residue that cannot be fixed from inside a string is a value genuinely
+  containing `&` inside an already-encoded pair, where `%26` spells both.
+
+- **Depth is one axis; POSITION is another.** The depth question asks whether
+  the name is credential-shaped and whether its `=` was literal. It must not
+  also ask whether the pair carries a value: that is `redactPair`'s question,
+  it lives in `sensitivePairSeparator`, and merging the two shipped a whole
+  credential. When the escape is the value's FIRST byte the pending text is a
+  bare `token=`, the merged function answered "no pair here", the escape was
+  honoured as a separator, and `?token=%26<credential>` came back untouched —
+  on every separator and every credential-shaped name. Keep
+  `sensitiveNamedPairSeparator` (depth) and `sensitivePairSeparator` (has a
+  value) apart.
+
+- **Two walks deciding the same thing independently is how this drifts.**
+  `DifferentialCases` compares the walks to EACH OTHER over a generated
+  cross-product, because a corpus row is written by somebody who already knows
+  the case exists. Both walks passed every corpus row while disagreeing on 72 of
+  594 inputs. When you add an axis to the walk, add it to the cross-product —
+  not only a row to the corpus.
 
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
@@ -86,14 +115,31 @@
 
 ## Common changes and how to scope them
 
-- **Add a separator** → edit `PairSeparators`, then add THREE corpus rows using
-  it: one spelling it literally, one spelling it `%XX` as the pair boundary, and
-  one putting `%XX` inside the value of a pair written with a literal `=`, where
-  it must NOT bound anything. Both walks are driven through the corpus, so the
-  rows tell you immediately whether the two now agree.
-  `TestBoundaryCasesCoverTheEncodedSpelling` fails without the second one, and
-  nothing fails without the third — which is exactly how the truncation bug
-  reached review. Do not add the character to one walk only.
+- **Add a separator** → edit `PairSeparators`, then add corpus rows on BOTH
+  axes, because each one hid a leak the other looked like it covered.
+
+  Depth, three rows: one spelling the separator literally, one spelling it `%XX`
+  as the pair boundary, and one putting `%XX` inside the value of a pair written
+  with a literal `=`, where it must NOT bound anything.
+
+  Position, three more: the `%XX` at the **start**, the **middle** and the
+  **end** of that literal value. "Middle" is the one everybody writes, and for
+  two rounds it was the only one — every row in this corpus put at least one
+  value byte in front of the escape, so `?token=%26<credential>` had no row at
+  all and shipped whole. `TestBoundaryCasesOpenAValueWithAnEscape` covers the
+  start position; nothing covers the end but the row you write.
+
+  Both walks are driven through the corpus, so the rows tell you immediately
+  whether the two now agree. `TestBoundaryCasesCoverTheEncodedSpelling` fails
+  without the encoded-boundary row, and nothing fails without the value-content
+  row — which is exactly how the truncation bug reached review. Do not add the
+  character to one walk only.
+- **Add a boundary that is not a separator** (a new prose delimiter for the
+  free-text walk) → it belongs in `freeTextValueTerminators`, NOT in
+  `PairSeparators`, and it stays literal-only at both depths. Pass it as the
+  `literal` argument of `IndexBoundaryBySpelling` and leave `escaped` to the
+  separators. A corpus row cannot reach it — it is not a pair boundary — so it
+  needs a row in `reportbundle/redaction_boundary_test.go` at BOTH depths.
 - **Change what counts as a sensitive name** → that is `sensitiveQueryPattern`
   in `sdk/go/collector/validation.go`, not here. Every walk in the repo reads
   it through `collector.IsSensitiveKeyName` for that reason.
