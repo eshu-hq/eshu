@@ -164,6 +164,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveSQLRelationshipMaterializedEdges(odu, sqlFamilyExpectedEdgesPath(r.RepoRoot))
 	case "documentation_edges":
 		return resolveDocumentationEdgeMaterializedEdges(odu, documentationFamilyExpectedEdgesPath(r.RepoRoot))
+	case "code_calls":
+		return resolveCodeCallMaterializedEdges(odu, codeCallFamilyExpectedEdgesPath(r.RepoRoot))
 	case "rationale_edges":
 		return resolveRationaleEdgeMaterializedEdges(odu, rationaleFamilyExpectedEdgesPath(r.RepoRoot))
 	default:

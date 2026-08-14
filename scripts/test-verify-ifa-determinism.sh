@@ -17,19 +17,29 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-determinism.sh"
 lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
+lifecycle_lib="${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
+code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
+workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
+registry="${repo_root}/specs/ci-gates.v1.yaml"
 
 fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-ifa-determinism.sh must be executable"
 [[ -f "${lib}" ]] || fail "missing ${lib}"
+[[ -f "${lifecycle_lib}" ]] || fail "missing ${lifecycle_lib}"
 [[ -f "${delta_lib}" ]] || fail "missing ${delta_lib}"
+[[ -f "${code_call_lib}" ]] || fail "missing ${code_call_lib}"
+[[ -f "${workflow}" ]] || fail "missing ${workflow}"
+[[ -f "${registry}" ]] || fail "missing ${registry}"
 
 # Both files parse under bash -n.
 bash -n "${script}" || fail "verify-ifa-determinism.sh has a syntax error"
 bash -n "${lib}" || fail "ifa_determinism_common.sh has a syntax error"
+bash -n "${lifecycle_lib}" || fail "ifa_determinism_lifecycle.sh has a syntax error"
 bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
+bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
@@ -41,25 +51,35 @@ require_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${lib}" || fail "missing ${label} (lib): ${needle}"
 }
+require_lifecycle_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${lifecycle_lib}" || fail "missing ${label} (lifecycle lib): ${needle}"
+}
 require_delta_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${delta_lib}" || fail "missing ${label} (delta lib): ${needle}"
 }
+require_code_call_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${code_call_lib}" || fail "missing ${label} (code-call lib): ${needle}"
+}
 
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
-require "exit trap" "trap cleanup EXIT"
+require "exit trap" "trap ifa_det_cleanup EXIT"
 # The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
 # masked by the exit trap above as a false PASS. Pin the exact check so a
 # refactor cannot silently drop it.
 require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
+require "sources lifecycle lib" "scripts/lib/ifa_determinism_lifecycle.sh"
 require "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
+require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed.
-require "failure log dump" "host binary logs (failure)"
+require_lifecycle_lib "failure log dump" "host binary logs (failure)"
 require "--no-compose flag" "--no-compose"
 require "--keep flag" "--keep"
 
@@ -106,7 +126,7 @@ require "synth-cassette projects flag" "-projects \"\${SYNTH_MULTISCOPE_PROJECTS
 require "synth-cassette resources flag" "-resources \"\${SYNTH_MULTISCOPE_RESOURCES}\""
 require "synth-cassette generated before the cell loop" "synth_cassette=\"\${work_dir}/synth-multiscope.json\""
 require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
-require "combined-graph digest framing" "demo-org + synth-multiscope + SQL family"
+require "combined-graph digest framing" "demo-org + synth-multiscope + SQL family + code-call family"
 
 # SQL relationship family cassette (#5351): the committed cassette driven into
 # every cell so the ifa-determinism lane actually replays the SQL relationship
@@ -136,6 +156,51 @@ require_delta_lib "assert-edges non-vacuity framing" "non-vacuity"
 require_delta_lib "assert-edges no-normalize-away directive" "do NOT normalize this away"
 require_delta_lib "delta assert-edges expected flag" '-expected "${sql_delta_expected_edges}"'
 require_delta_lib "delta assert-edges exactness framing" "SQL delta-live materialized edge set did not match the expected accumulated set"
+
+# code_calls (#5991): every N cell must drive the committed cassette and assert
+# its hand-derived five-edge set. Digest equality cannot detect empty == empty.
+require "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
+require "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+require "code-call cassette existence guard" "code-call cassette not found"
+require "code-call expected-edge set existence guard" "code-call expected-edge set not found"
+require "code-call drive helper invocation in every cell" "ifa_code_call_drive"
+require "code-call assertion helper invocation in every cell" "ifa_code_call_assert"
+require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+require_code_call_lib "code-call assert-edges domain" "-domain code_calls"
+require_code_call_lib "code-call expected-set argument" '-expected "${expected_edges}"'
+require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
+determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
+fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
+code_call_gate_seams=(
+	'go/internal/ifa/catalog_seed.go|go/internal/ifa/catalog_seed.go'
+	'go/internal/ifa/code_call_family_catalog.go|go/internal/ifa/code_call_family_catalog.go'
+	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_code_calls.go'
+	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
+	'go/internal/reducer/code_call*.go|go/internal/reducer/code_call_projection_runner.go'
+	'go/internal/reducer/service*.go|go/internal/reducer/service_side_runners.go'
+	'go/internal/storage/cypher/*code_call*.go|go/internal/storage/cypher/canonical_code_call_edges.go'
+	'go/internal/storage/cypher/edge_writer.go|go/internal/storage/cypher/edge_writer.go'
+	'go/internal/content/writer.go|go/internal/content/writer.go'
+	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
+)
+for seam in "${code_call_gate_seams[@]}"; do
+	trigger="${seam%%|*}"
+	concrete_path="${seam#*|}"
+	rg --fixed-strings --quiet -- "- '${trigger}'" "${workflow}" \
+		|| fail "workflow does not retrigger the live matrices for code-call proof input: ${trigger}"
+	printf '%s\n' "${determinism_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
+		|| fail "ifa-determinism registry entry omits code-call proof input: ${trigger}"
+	printf '%s\n' "${fault_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
+		|| fail "ifa-fault-injection registry entry omits code-call proof input: ${trigger}"
+	selection="$(printf '%s\n' "${concrete_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	for gate in ifa-determinism ifa-fault-injection; do
+		printf '%s\n' "${selection}" | rg --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]" \
+			|| fail "${concrete_path} does not select ${gate} through the real registry matcher"
+	done
+done
 
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
@@ -218,6 +283,9 @@ if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
 fi
 if rg --pcre2 --quiet -- "${private_pattern}" "${lib}"; then
 	fail "ifa_determinism_common.sh looks like it contains private data"
+fi
+if rg --pcre2 --quiet -- "${private_pattern}" "${lifecycle_lib}"; then
+	fail "ifa_determinism_lifecycle.sh looks like it contains private data"
 fi
 
 printf 'test-verify-ifa-determinism: pass\n'

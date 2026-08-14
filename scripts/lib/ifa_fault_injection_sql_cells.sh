@@ -17,9 +17,8 @@
 # is anchored to a CloudResource MERGE. The SQL relationship family
 # (sql_relationship_materialization / sql_relationships) drains cleanly
 # AFTER those faults have already hit GCP work, so an SQL-handler recovery
-# regression was never actually tested -- a confirmed-false fault-coverage
-# claim, waived in specs/ifa-materialized-edge-coverage.v1.yaml pointing at
-# this issue. These two cells close that gap:
+# regression was never actually tested -- the confirmed-false fault-coverage
+# claim these two cells closed:
 #
 #   - cell_killworker_sql provably targets the SQL work item by scoping
 #     ifa_fault_wait_for_claimed to domain=sql_relationship_materialization.
@@ -59,9 +58,9 @@
 # kill, in which case the restart exercises an already-finished unit and the
 # digest match afterwards says nothing about SQL recovery specifically. Closing
 # that needs an assertion that the SQL row was actually reclaimed and re-executed
-# after the restart, which is tracked with the graph-write cell in #5974. Do not
-# read this cell as fault-recovery coverage for the SQL family until then -- the
-# manifest keeps that dimension waived for exactly this reason.
+# after the restart. The separate graph-write cell supplies the durable
+# family-targeted retry proof; together the two live cells back the manifest's
+# unwaived SQL fault row.
 cell_killworker_sql() {
 	local cell_start
 	cell_start=$(date +%s)

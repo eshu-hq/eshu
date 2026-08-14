@@ -133,30 +133,17 @@ cell_deltaretract() {
 	assert_no_dead_letters deltaretract
 	capture_digest deltaretract
 
-	# The expected-v2 assertion above inspects sql_relationships ONLY, so a
-	# generation 2 that also retracted edges in another domain would still pass
-	# it. Compare the two canonical dumps structurally, ignoring the nine SQL
-	# relationship types the delta is allowed to move.
-	#
-	# This is deliberately NOT a line diff. The dump is pretty-printed JSON, so
-	# one edge spans many lines and the structural lines ("props": {, }, {)
-	# carry no type at all -- a line filter reports them as foreign changes and
-	# fails a correct run. The first version of this guard did exactly that.
-	#
-	# The jq walk is schema-agnostic: it collects every edge-shaped object
-	# anywhere in the document rather than assuming a top-level key.
-	local sql_types stray
-	sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
-	command -v jq >/dev/null 2>&1 || die "delta-retract: jq is required to compare the non-SQL graph; without it this check would silently pass"
-	local non_sql_filter="[.. | objects | select(has(\"type\") and has(\"from\") and has(\"to\")) | select((${sql_types} | index(.type)) | not) | {from, to, type}] | sort"
-	stray="$(diff \
-		<(jq -S "${non_sql_filter}" "${work_dir}/graph-baseline.dump") \
-		<(jq -S "${non_sql_filter}" "${work_dir}/graph-deltaretract.dump") || true)"
-	if [[ -n "${stray}" ]]; then
-		printf 'delta-retract: non-SQL edges changed between baseline and post-delta:\n%s\n' "${stray}" >&2
-		die "delta-retract: generation 2 changed edges outside the nine SQL relationship types -- the expected-v2 set only covers the SQL family, so this would otherwise pass unnoticed; do NOT widen the expected set to absorb it"
-	fi
-	printf 'delta-retract: non-SQL edge set unchanged from baseline\n'
+	# Generation 2 intentionally updates SQL-owned canonical nodes. graph-dump
+	# identifies relationship endpoints by the digest of every endpoint
+	# property, so those legitimate updates replace the apparent hashes of the
+	# SQL repository's CONTAINS and REPO_CONTAINS edges. A whole-graph
+	# "everything except the nine SQL types" comparison therefore cannot
+	# distinguish expected SQL ownership churn from damage in another repo.
+	# Reassert the covered unaffected family through its stable, hand-derived
+	# edge identities instead. This fails on a dropped, duplicated, or spurious
+	# code-call edge without globally ignoring structural relationship types.
+	ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}" \
+		|| die "delta-retract: SQL generation 2 changed the code-call family's five-edge exact set"
 
 	teardown_cell deltaretract
 	wall_times[deltaretract]=$(( $(date +%s) - cell_start ))

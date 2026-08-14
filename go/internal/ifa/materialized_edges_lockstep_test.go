@@ -5,6 +5,7 @@ package ifa
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -109,6 +110,24 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, detail=%q, want covered", fault.Status, fault.Detail)
 	}
 
+	// code_calls is the first non-SQL family promoted from extractor-only proof
+	// to both live matrices (#5991). Pin both rows and the waiver deletion here:
+	// a manifest row without a catalog/resolver guard cannot resolve covered,
+	// while a surviving waiver next to real coverage is stale by definition.
+	codeCallsBaseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"code_calls", replaycoverage.ScenarioTypeBaseline)
+	if codeCallsBaseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:code_calls (baseline) status = %q, detail=%q, want covered", codeCallsBaseline.Status, codeCallsBaseline.Detail)
+	}
+	codeCallsFault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"code_calls", replaycoverage.ScenarioTypeFault)
+	if codeCallsFault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:code_calls (fault) status = %q, detail=%q, want covered", codeCallsFault.Status, codeCallsFault.Detail)
+	}
+	for _, waiver := range waivers {
+		if waiver.Surface == MaterializedEdgeSurfacePrefix+"code_calls" {
+			t.Errorf("stale code_calls waiver remains for proof gate %q; #5991 requires both waivers to be removed with the live rows", waiver.ProofGate)
+		}
+	}
+
 	// Assert both proof gates this manifest references are CI-blocking with a
 	// local command, mirroring coverage_lockstep_test.go's ifa-contract-layer
 	// assertions: a non-blocking or command-less gate cannot be trusted to
@@ -128,6 +147,17 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 		if found.Local == nil || strings.TrimSpace(found.Local.Command) == "" {
 			t.Errorf("%s gate has no local command", gateID)
+		}
+		for _, trigger := range []string{
+			"go/internal/ifa/catalog_seed.go",
+			"go/internal/ifa/code_call_family_catalog.go",
+			"go/internal/ifa/materialized_edges*.go",
+			"go/internal/reducer/code_call*.go",
+			"go/internal/storage/cypher/*code_call*.go",
+		} {
+			if !slices.Contains(found.Triggers, trigger) {
+				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep code_calls covered without rerunning its live proof", gateID, trigger)
+			}
 		}
 	}
 }

@@ -107,16 +107,19 @@ session.
   `-expected` (same count, same `relationship_type`/source/target triples, where
   an endpoint's identity is its `uid` when present and its `id` otherwise —
   `Repository`, `Workload`, `WorkloadInstance` and `Platform` carry no uid).
-  Families sharing a relationship type with another family are additionally
-  scoped by endpoint label, so repo_dependency and workload_dependency do not
-  count each other's DEPENDS_ON edges. This is the assertion `ifa graph-dump -digest`'s determinism
+  The live matrices invoke this verb for `sql_relationships` and `code_calls`,
+  requiring nine SQL edges and five code-call edges exactly in every applicable
+  cell. Families sharing a relationship type with another family are
+  additionally scoped by endpoint label, so repo_dependency and
+  workload_dependency do not count each other's DEPENDS_ON edges. This is the
+  assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
   vacuously; the absolute expected set catches that regression. Wired into both
   the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline) live
-  gates so the `materialized_edges:sql_relationships` coverage manifest row's
-  two `proof_gate`s are actually backed by a replay of the family. Read-only:
-  no schema DDL, no write.
+  gates so the `materialized_edges:sql_relationships` and
+  `materialized_edges:code_calls` coverage manifest rows' two `proof_gate`s are
+  backed by live family replays. Read-only: no schema DDL, no write.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
   Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads

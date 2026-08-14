@@ -128,7 +128,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
+source "${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
+source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -169,6 +171,8 @@ sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.js
 sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
 sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
+code_call_cassette="${repo_root}/testdata/cassettes/codecalls/ifa-code-call-family.json"
+code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
@@ -226,6 +230,8 @@ fi
 [[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
 [[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-determinism: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
 [[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
+[[ -f "${code_call_cassette}" ]] || { echo "verify-ifa-determinism: code-call cassette not found: ${code_call_cassette}" >&2; exit 1; }
+[[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-determinism: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -237,52 +243,14 @@ bg_pids=()
 log() { printf '\n=== %s ===\n' "$*"; }
 die() { printf 'verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 
-cleanup() {
-	local status=$?
-	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
-		printf '\n=== host binary logs (failure) ===\n' >&2
-		for logf in "${log_dir}"/*.log; do
-			[[ -f "${logf}" ]] || continue
-			printf '\n--- %s ---\n' "$(basename "${logf}")" >&2
-			tail -40 "${logf}" >&2 || true
-		done
-	fi
-	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
-	done
-	if [[ "${keep}" -eq 1 ]]; then
-		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
-	else
-		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
-		fi
-		rm -rf "${work_dir}"
-	fi
-	exit "${status}"
-}
-trap cleanup EXIT
+trap ifa_det_cleanup EXIT
 
 # ----------------------------------------------------------------------------
 # Shared runtime environment for every host binary. Every URL/DSN below points
 # at localhost on this script's own ports — never the in-Compose-network
 # hostnames docker-compose.yaml's own db-migrate service uses.
 # ----------------------------------------------------------------------------
-export ESHU_GRAPH_BACKEND=nornicdb
-export NEO4J_URI="bolt://localhost:${NEO4J_BOLT_PORT}"
-export NEO4J_USERNAME=neo4j
-export NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}"
-export NEO4J_DATABASE=nornic
-export ESHU_NEO4J_DATABASE=nornic
-export DEFAULT_DATABASE=nornic
-export ESHU_POSTGRES_DSN="postgresql://eshu:${ESHU_POSTGRES_PASSWORD}@localhost:${ESHU_POSTGRES_PORT}/eshu"
-export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
-# Every Lifecycle binary (projector, reducer) starts an operator status server
-# and a metrics scrape server, both defaulting to fixed ports; run concurrently
-# they would collide, so each process gets an ephemeral port (mirrors
-# verify-golden-corpus-gate.sh / verify-ifa-replay-drive.sh).
-export ESHU_LISTEN_ADDR="127.0.0.1:0"
-export ESHU_METRICS_ADDR="127.0.0.1:0"
-unset ESHU_PPROF_ADDR || true
+ifa_det_configure_runtime
 
 if [[ "${teeth}" -eq 1 ]]; then
 	log "build host binaries (--teeth: -tags ${build_tags})"
@@ -375,6 +343,8 @@ for n in "${worker_counts[@]}"; do
 	# Add the committed nine-edge SQL family to the same durable cell.
 	ifa_det_drive_sql_baseline "${n}" "${bin_dir}" "${sql_cassette}" "${log_dir}" \
 		|| die "N=${n}: SQL relationship baseline drive failed"
+	ifa_code_call_drive "n${n}" "${bin_dir}" "${code_call_cassette}" "${n}" "${log_dir}" \
+		|| die "N=${n}: code-call family drive failed"
 
 	# Fourth drive (opt-in --contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -398,7 +368,7 @@ for n in "${worker_counts[@]}"; do
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family): %s\n' "${n}" "${work_items}"
+	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family): %s\n' "${n}" "${work_items}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()
@@ -417,6 +387,8 @@ for n in "${worker_counts[@]}"; do
 
 	ifa_det_assert_sql_baseline "${n}" "${bin_dir}" "${sql_expected_edges}" \
 		|| die "N=${n}: SQL relationship baseline assertion failed"
+	ifa_code_call_assert "N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
+		|| die "N=${n}: code-call family assertion failed"
 
 	# #5554: gen 2 reuses source_run_id in this same durable cell and retargets
 	# INDEXES, exercising the generation-aware refresh fence end to end.

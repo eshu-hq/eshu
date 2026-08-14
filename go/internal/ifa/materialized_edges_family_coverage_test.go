@@ -60,7 +60,7 @@ func TestEveryUmbrellaFamilyResolves(t *testing.T) {
 // TestEveryWaivedFamilyIsRegistered binds the manifest's waived families to the
 // code that must resolve them (#5543).
 //
-// The 26 waiver rows and the edge-type registries are maintained in different
+// The 24 waiver rows and the edge-type registries are maintained in different
 // places and neither knows about the other. A waived family that does not
 // resolve is one whose waiver can never be retired — `assert-edges` errors
 // before any Odù or expected-edge set gets a chance — and that is invisible

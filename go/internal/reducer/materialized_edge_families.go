@@ -15,11 +15,13 @@ import "sort"
 // determinism.sh, scripts/verify-ifa-fault-injection.sh).
 //
 // The result is exactly allProjectionDomains (shared_projection.go), sorted:
-// the 12 reducer-owned shared/edge projection domains that write graph edges
+// the 14 reducer-owned shared/edge projection domains that write graph edges
 // through the ordering-safe shared-projection intent path (repo_dependency,
 // workload_dependency, code_calls, sql_relationships, shell_exec,
 // inheritance_edges, documentation_edges, rationale_edges,
-// deployable_unit_edges, handles_route, runs_in, invokes_cloud_action).
+// deployable_unit_edges, handles_route, runs_in, invokes_cloud_action,
+// codeowners_ownership_edges, submodule_pin_edges).
+// The full set contains 14 allProjectionDomains families.
 // TestMaterializedEdgeFamiliesLocksToAllProjectionDomains locks the two in
 // lockstep so a domain added to or removed from allProjectionDomains moves
 // this enumeration in the same change, never a second hand-edit.
@@ -29,12 +31,13 @@ import "sort"
 // projection intent path — for example the IAM CAN_PERFORM/CAN_ASSUME,
 // S3 LOGS_TO, EC2 USES_PROFILE, Crossplane SATISFIED_BY, and cloud-provider
 // relationship-materialization families) are NOT enumerated here. #5351
-// lands the gate plus first coverage for the sql_relationships family only,
-// waiving the other 13 allProjectionDomains members to child issues; adding
-// the direct-materialization families to this enumeration is deliberately
-// deferred follow-up work, tracked under the umbrella follow-up #5543 (the
-// same issue the 13 not-yet-covered allProjectionDomains families are waived
-// to in specs/ifa-materialized-edge-coverage.v1.yaml).
+// landed the gate plus first coverage for sql_relationships, leaving the rest
+// waived to per-family child issues. #5991 later added the live code_calls
+// baseline/fault proof and removed that family's waivers.
+// The current 12 not-yet-covered allProjectionDomains families remain tracked
+// by #5543 in specs/ifa-materialized-edge-coverage.v1.yaml. Adding direct-materialization
+// families to this enumeration remains separate follow-up work under #5543
+// because they bypass the shared intent path this function inventories.
 func MaterializedEdgeFamilies() []string {
 	out := make([]string, 0, len(allProjectionDomains))
 	for _, domain := range allProjectionDomains {

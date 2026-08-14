@@ -70,6 +70,22 @@ ifa_det_start_bg() {
 	printf -v "${pidvar}" '%s' "${pid}"
 }
 
+# ifa_det_untrack_bg_pid removes a joined process from the caller's bg_pids
+# ownership set. Once wait has reaped a child, its numeric PID can be reused by
+# the OS; leaving it tracked lets a later teardown signal an unrelated process.
+ifa_det_untrack_bg_pid() {
+	local joined_pid="$1" pid
+	local retained=()
+	for pid in "${bg_pids[@]:-}"; do
+		[[ -n "${pid}" && "${pid}" != "${joined_pid}" ]] && retained+=("${pid}")
+	done
+	if [[ "${#retained[@]}" -eq 0 ]]; then
+		bg_pids=()
+	else
+		bg_pids=("${retained[@]}")
+	fi
+}
+
 # ifa_det_pg runs a single-value SQL query against the stack's Postgres,
 # working in both compose mode (via the postgres container) and --no-compose
 # mode (via a local psql client against dsn).
@@ -100,8 +116,8 @@ ifa_det_pg() {
 ifa_det_wait_for_backends() {
 	local compose_project="$1"
 	local compose_file="${2:-docker-compose.yaml}"
-	local i
-	for i in $(seq 1 60); do
+	local _
+	for _ in $(seq 1 60); do
 		if docker compose -p "${compose_project}" -f "${compose_file}" exec -T nornicdb \
 			wget --spider -q http://localhost:7474/health >/dev/null 2>&1 &&
 			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \

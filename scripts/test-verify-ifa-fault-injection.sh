@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Static structural test for verify-ifa-fault-injection.sh (issue #4580 P6
-# slice S5, extended by issue #5555's SQL-targeted cells 6-7). The gate
+# slice S5, extended by #5555's SQL-targeted cells and #5991's code-call cells). The gate
 # itself needs Docker + a built toolchain and takes significantly longer
-# than the sibling determinism matrix (seven fresh Postgres + NornicDB
-# stacks, two of them building AND running a -tags ifafaultinjection
+# than the sibling determinism matrix (eleven fresh Postgres + NornicDB
+# stacks, four of them running a -tags ifafaultinjection
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# seven-cell shape (baseline + the six live cells; fail-terminal
+# eleven-cell shape (baseline + ten live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -16,9 +16,11 @@
 # whichever domain the driven cassettes happen to schedule first. The driver
 # script itself was split into scripts/lib/ifa_fault_injection_driver.sh
 # (shared per-cell plumbing), scripts/lib/ifa_fault_injection_cells.sh (the
-# five original cells), and scripts/lib/ifa_fault_injection_sql_cells.sh (the
-# two SQL-targeted cells) to stay under the repo's 500-line cap; checks below
-# point at whichever file now actually holds the content.
+# five original cells), scripts/lib/ifa_fault_injection_sql_cells.sh (two
+# SQL-targeted cells), scripts/lib/ifa_fault_injection_code_call_cells.sh (two
+# code-call cells), and scripts/lib/ifa_fault_injection_delivery_cells.sh to
+# stay under the repo's 500-line cap; checks below point at whichever file now
+# actually holds the content.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,10 +31,14 @@ driver_lib="${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 sql_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 delivery_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
+code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
+code_call_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
+review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
+assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${review_cases_lib}" "${assertions_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -43,39 +49,13 @@ bash -n "${driver_lib}" || fail "ifa_fault_injection_driver.sh has a syntax erro
 bash -n "${cells_lib}" || fail "ifa_fault_injection_cells.sh has a syntax error"
 bash -n "${sql_cells_lib}" || fail "ifa_fault_injection_sql_cells.sh has a syntax error"
 bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh has a syntax error"
+bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
+bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh has a syntax error"
+bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
+bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
 
-require() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
-}
-require_lib() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${fault_lib}" || fail "missing ${label} (lib): ${needle}"
-}
-require_driver() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${driver_lib}" || fail "missing ${label} (driver lib): ${needle}"
-}
-require_cells() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${cells_lib}" || fail "missing ${label} (cells lib): ${needle}"
-}
-require_sql_cells() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${sql_cells_lib}" || fail "missing ${label} (sql cells lib): ${needle}"
-}
-require_delivery_cells() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${delivery_cells_lib}" || fail "missing ${label} (delivery cells lib): ${needle}"
-}
-# require_delivery_cells_multiline binds a needle that spans a line break.
-# Deleting just the function name from a continued call leaves its argument
-# lines behind, so an argument-only needle stays green -- proven by seeding
-# exactly that deletion. -U makes the match span the continuation.
-require_delivery_cells_multiline() {
-	local label="$1" needle="$2"
-	rg -U --fixed-strings --quiet -- "${needle}" "${delivery_cells_lib}" || fail "missing ${label} (delivery cells lib, multiline): ${needle}"
-}
+# shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
+source "${assertions_lib}"
 
 # Strict mode, self-cleanup, and the masking-safe bash>=4.4 guard.
 require "strict mode" "set -euo pipefail"
@@ -86,6 +66,8 @@ require "sources fault-injection lib" "scripts/lib/ifa_fault_injection_common.sh
 require "sources driver lib" "scripts/lib/ifa_fault_injection_driver.sh"
 require "sources cells lib" "scripts/lib/ifa_fault_injection_cells.sh"
 require "sources sql cells lib" "scripts/lib/ifa_fault_injection_sql_cells.sh"
+require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
+require "sources code-call cells lib" "scripts/lib/ifa_fault_injection_code_call_cells.sh"
 require "failure log dump" "host binary logs (failure)"
 require "--no-compose flag" "--no-compose"
 require "--keep flag" "--keep"
@@ -134,7 +116,7 @@ require_cells "assert-edges expected flag" '-expected "${sql_expected_edges}"'
 require_cells "assert-edges non-vacuity framing" "non-vacuity"
 
 # Untagged binaries plus a SEPARATE tagged reducer build for the queue-retry /
-# restart cells (4, 5, 7).
+# graph-fault and restart cells.
 require "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
 require "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""
 require "gate binary build" "ifa_det_build_bin \"\${bin_dir}\" golden-corpus-gate"
@@ -147,20 +129,18 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The nine-cell shape: baseline plus eight cells with a live seam -- four
+# The eleven-cell shape: baseline plus ten cells with a live seam -- four
 # original recovery cells, two SQL-targeted (#5555), two delivery-shaped
-# (#5544). Eight of the nine run by default; cell_failgraphwrite_sql is
-# defined but held out until #5974 proves it fires in CI.
+# (#5544), and two code-call-targeted (#5991). All eleven run by default.
 for cell in baseline killworker expirelease failgraphwrite restartbackend; do
 	require "cell present: ${cell}" "cell_${cell}"
 done
 # Anchored to the invocation line, not the bare name: the verifier's
 # source-helper comments mention cell_deltaretract, so a bare-name needle stays
 # green after the call is deleted. rg without --fixed-strings so ^...$ binds.
-# cell_failgraphwrite_sql remains held out: the marker proved the fault does not
-# fire in CI at all, which the old log poll could not distinguish from a late
-# log line. The other three run.
-for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract; do
+# Pin every split-library invocation to its own line so mentioning a function
+# in documentation cannot keep the test green after the call is deleted.
+for cell in cell_killworker_sql cell_killworker_code_calls cell_duplicatedelivery cell_deltaretract cell_failgraphwrite_code_calls; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
 # #5974 probes. A missing marker had two explanations and the gate had to guess
@@ -246,19 +226,21 @@ require_lib "redelivery counts what it actually wrote (CTE, not a second SELECT)
 # bare-name form passed, this argument-shaped form fails.
 require_delivery_cells_multiline "delta-retract drives gen 2 through the shared helper" $'ifa_det_run_sql_delta_live \\\n\t\t1 "${bin_dir}" "${sql_delta_cassette}"'
 
-require_delivery_cells "delta-retract proves it changed no non-SQL edges" "changed edges outside the nine SQL relationship types"
-require_delivery_cells "delta-retract compares structurally, not by line" "objects | select(has("
+require_delivery_cells_multiline "delta-retract reasserts the unaffected code-call family exactly" $'ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}"'
 require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
 require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
 require "gate defines the delta expected-edge set" "sql_delta_expected_edges="
-# Cell 7 CHANGES the graph on purpose (gen 2 adds and retracts edges), so a
+if rg --fixed-strings --quiet -- "ifa_fault_compare_non_sql_edges" "${delivery_cells_lib}"; then
+	fail "delta-retract must not compare whole non-SQL graph-dump endpoint hashes: SQL generation updates legitimately replace SQL-owned CONTAINS/REPO_CONTAINS hashes; assert unaffected covered families exactly instead"
+fi
+# Cell 9 CHANGES the graph on purpose (gen 2 adds and retracts edges), so a
 # baseline-digest comparison would fail correctly and invite the wrong fix.
 # Its exactness assertion is the expected-v2 set, which names the edges.
 if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${delivery_cells_lib}"; then
 	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 fi
 
-require "fail-terminal explicitly excluded with rationale" "fail-terminal (a tenth possible cell) is deliberately NOT included"
+require "fail-terminal explicitly excluded with rationale" "fail-terminal (a twelfth possible cell) is deliberately NOT included"
 
 # Cell 2 / cell 6 (kill-worker-after-claim[-sql]): real kill -9 + a fresh
 # process, not the hermetic-only faultreplay kind.
@@ -326,6 +308,34 @@ require_lib "count_retried generalized with a domain arg" 'domain="${5:-gcp_reso
 require_lib "assert_retried_above generalized with a domain arg" 'domain="${7:-gcp_resource_materialization}"'
 require_lib "wait_for_claimed generalized with a domain arg" 'domain="${6:-}"'
 
+# code_calls (#5991): every cell drives the family, baseline exact-asserts it,
+# and two dedicated cells prove queue reclaim and graph-write retry against the
+# code-call domains rather than an unrelated row that happened to run first.
+require "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
+require "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+require "code-call cassette existence guard" "code-call cassette not found"
+require "code-call expected-edge set existence guard" "code-call expected-edge set not found"
+require "code-call MERGE operation_match anchor" 'code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"'
+require_driver "code-call drive in every cell" "ifa_code_call_drive"
+require_cells "code-call exact assertion in baseline" "ifa_code_call_assert"
+require_cells "code-call fault-free retry baseline" '"code_call_materialization"'
+require "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
+require "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
+require_code_call_lib "code-call drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
+require_code_call_cells "claimed row targets code-call materialization" '"code_call_materialization"'
+require_code_call_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+require_code_call_cells "graph-write cell selects queue-retry" '"queue-retry"'
+require_code_call_cells "graph-write cell targets durable code-call marker" "ifa_fault_assert_once_fault_marker"
+require_code_call_cells "graph-write cell probes code-call intents" "projection_domain = 'code_calls'"
+require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
+
+# Behavioral regressions for the two review-discovered false-green seams live
+# in a sourced case module so this structural verifier stays below 500 lines.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-review-cases.sh
+source "${review_cases_lib}"
+run_ifa_fault_injection_review_cases
+
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
 require_driver "baseline digest capture" "digests[baseline]"
@@ -369,7 +379,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${code_call_lib}" "${code_call_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi

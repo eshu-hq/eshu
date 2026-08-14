@@ -50,6 +50,7 @@ var catalogSeed = []CatalogOdu{
 	demoOrgRoundtripOdu(),
 	repoDependencyConcurrencyOdu(),
 	sqlFamilyOdu(),
+	codeCallFamilyOdu(),
 	documentationFamilyOdu(),
 	rationaleFamilyOdu(),
 	sqlFamilyDeltaOdu(),

@@ -106,16 +106,15 @@ authoring; it does not build a second coverage framework.
   routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
   Because the expected type inventory is registry-derived, adding a tenth type
   without extending the Odù fails closed instead of preserving a stale count.
-- `loadCodeCallFamilyOdu` (`code_call_family_odu.go`, #5991, unexported) - reads the
-  committed `testdata/cassettes/codecalls/` cassette and projects it onto the
-  fact envelopes the reducer's extractor consumes. The code_calls Odù is derived
-  FROM the cassette rather than hand-built in Go the way `sqlFamilyOdu` is, so
-  the offline guard and the live `ifa drive` will assert the same bytes once the
-  cassette is wired into both gate scripts, instead of two lists that agree until
-  only one is edited. No gate drives it yet, so today it proves the EXTRACTOR
-  only: the live edge write is a MATCH-MATCH-MERGE on endpoint identity, so a
-  missing endpoint node is a silent no-op the offline guard cannot see, and the
-  family stays waived until the live assertion runs.
+- `codeCallFamilyOdu` (`code_call_family_catalog.go`, #5991, unexported) - is the
+  compiled, binary-portable Odù for the code-call family. Its facts and five
+  hand-derived expected edges are pinned to the committed
+  `testdata/cassettes/codecalls/` fixtures by a strict equality test, so changing
+  either side alone fails closed. The determinism gate replays the cassette and
+  exact-asserts all five live edges at N=1/2/4. The fault gate repeats that
+  assertion after domain-scoped worker-kill recovery and a once-then-succeed
+  graph-write fault. Together those gates prove all four code-call writer types
+  and satisfy the family's baseline and fault manifest rows without waivers.
 - `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
   (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
   `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it
@@ -130,9 +129,10 @@ authoring; it does not build a second coverage framework.
   cypher's shared single-type table. An unregistered family returns an error
   rather than an empty set, so a caller fails closed instead of asserting
   nothing. This is what backs
-  the `materialized_edges:sql_relationships` manifest row's `proof_gate`
-  claims from inside the `ifa-determinism` and `ifa-fault-injection` live
-  gates — digest equality across worker counts cannot catch a family silently
+  the `materialized_edges:sql_relationships` and
+  `materialized_edges:code_calls` manifest rows' `proof_gate` claims from inside
+  the `ifa-determinism` and `ifa-fault-injection` live gates — digest equality
+  across worker counts cannot catch a family silently
   empty in all cells; the absolute expected set can. The determinism gate first
   asserts gen 1, then drives gen 2 into the same durable cell and asserts the
   accumulated exact set before comparing N=1/2/4 graph digests.
