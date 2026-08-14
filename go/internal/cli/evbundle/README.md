@@ -146,6 +146,11 @@ the serving API's own request telemetry.
   as `1`. It deliberately does not reconcile with
   `domain_backlogs[].blocked`, which the status layer reports as the maximum
   among one domain's blockage rows.
+- **`domain_backlogs_truncated` has to travel.** The status layer caps
+  `domain_backlogs` at `status.DefaultOptions().DomainLimit` (5) and sets that
+  flag; the snapshot carries it so `evidencebundle` can mark
+  `bounds.truncated`. Dropping it makes a capped list read as a complete
+  enumeration, which is a wrong answer about the stack.
 - **Live bundles carry no repository scope.** All three routes are
   stack-global, so `ExportLive` is called with an empty scope and
   `evidencebundle` labels the artifact `live:local`. The wrapper refuses

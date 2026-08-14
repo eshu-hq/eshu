@@ -195,3 +195,38 @@ func TestLiveSnapshotFromStatusEmitsEmptySlicesNotNil(t *testing.T) {
 		t.Fatalf("empty status produced nil slices: %+v", snapshot)
 	}
 }
+
+// TestLiveSnapshotCarriesDomainBacklogTruncation pins the flag the status
+// layer sets when it capped the domain list. Without it a bundle presents a
+// partial enumeration as complete, and the API route
+// (internal/query/evidence_bundle_live.go) already carries it, so dropping it
+// here also splits the two readings of one stack.
+func TestLiveSnapshotCarriesDomainBacklogTruncation(t *testing.T) {
+	for _, truncated := range []bool{true, false} {
+		t.Run(fmt.Sprintf("truncated=%v", truncated), func(t *testing.T) {
+			snapshot := LiveSnapshotFromStatus(
+				IndexStatus{},
+				PipelineStatus{DomainBacklogsTruncated: truncated},
+				CollectorsResponse{},
+			)
+			if snapshot.DomainBacklogsTruncated != truncated {
+				t.Fatalf("DomainBacklogsTruncated = %v, want %v", snapshot.DomainBacklogsTruncated, truncated)
+			}
+		})
+	}
+}
+
+// TestFetchLiveSnapshotDecodesDomainBacklogTruncation covers the json tag,
+// which the mapping test above cannot: the status route serializes the flag
+// as domain_backlogs_truncated (internal/status/json.go).
+func TestFetchLiveSnapshotDecodesDomainBacklogTruncation(t *testing.T) {
+	bodies := fullStatusBodies()
+	bodies[PipelineEndpoint] = `{"health": {"state": "degraded"}, "domain_backlogs_truncated": true}`
+	snapshot, err := FetchLiveSnapshot(&stubFetcher{bodies: bodies})
+	if err != nil {
+		t.Fatalf("FetchLiveSnapshot() error = %v", err)
+	}
+	if !snapshot.DomainBacklogsTruncated {
+		t.Fatal("DomainBacklogsTruncated = false; the status route's domain_backlogs_truncated was dropped")
+	}
+}

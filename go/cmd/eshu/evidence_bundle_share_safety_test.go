@@ -19,11 +19,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -248,4 +250,87 @@ func TestEvidenceBundleScopeFlagSensitiveValueNeverReachesTheArtifact(t *testing
 			t.Fatalf("--scope never reaches the artifact; the absence assertions above would be vacuous\n%s", raw)
 		}
 	})
+}
+
+// TestEvidenceBundleLiveExportMarksATruncatedDomainList runs the whole command
+// against a status route that reports its domain list was capped, and reads
+// the bounds back out of the file. A bundle that shows a partial enumeration
+// as complete is a wrong answer about the stack, and the API route
+// (internal/query/evidence_bundle_live.go) has always carried this flag.
+func TestEvidenceBundleLiveExportMarksATruncatedDomainList(t *testing.T) {
+	index := `{"repository_count": 5, "semantic_extraction": {"state": "unavailable", "reason": "provider_not_configured"}}`
+	pipeline := `{
+		"health": {"state": "degraded", "reasons": ["queue backlog"]},
+		"queue": {"total": 18, "outstanding": 7},
+		"domain_backlogs": [{"domain": "aws_relationship_materialization", "outstanding": 1}],
+		"domain_backlogs_truncated": true
+	}`
+	collectors := `{"collectors": [{"collector_kind": "git", "status_category": "ready", "health": "healthy"}]}`
+	server := shareSafetyServer(t, index, pipeline, collectors)
+
+	outPath := filepath.Join(t.TempDir(), "bundle.json")
+	cmd := newEvidenceBundleExportCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--live", "--service-url", server.URL, "--out", outPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("evidence bundle export --live error = %v", err)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read bundle: %v", err)
+	}
+	var bundle struct {
+		Bounds struct {
+			Truncated       bool     `json:"truncated"`
+			TruncatedLayers []string `json:"truncated_layers"`
+		} `json:"bounds"`
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		t.Fatalf("decode bundle: %v\n%s", err, raw)
+	}
+	if !bundle.Bounds.Truncated {
+		t.Fatalf("bounds.truncated = false for a capped domain list; the artifact presents it as complete\n%s", raw)
+	}
+	if !strings.Contains(strings.Join(bundle.Bounds.TruncatedLayers, ","), "domain_backlogs") {
+		t.Fatalf("bounds.truncated_layers = %v, want it to name domain_backlogs", bundle.Bounds.TruncatedLayers)
+	}
+}
+
+// TestEvidenceBundleLiveExportLeavesACompleteDomainListUnmarked is the paired
+// negative: without the flag the bundle must NOT claim truncation, or the
+// marker means nothing.
+func TestEvidenceBundleLiveExportLeavesACompleteDomainListUnmarked(t *testing.T) {
+	index := `{"repository_count": 5, "semantic_extraction": {"state": "unavailable", "reason": "provider_not_configured"}}`
+	pipeline := `{
+		"health": {"state": "degraded", "reasons": ["queue backlog"]},
+		"queue": {"total": 18, "outstanding": 7},
+		"domain_backlogs": [{"domain": "aws_relationship_materialization", "outstanding": 1}]
+	}`
+	collectors := `{"collectors": [{"collector_kind": "git", "status_category": "ready", "health": "healthy"}]}`
+	server := shareSafetyServer(t, index, pipeline, collectors)
+
+	outPath := filepath.Join(t.TempDir(), "bundle.json")
+	cmd := newEvidenceBundleExportCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--live", "--service-url", server.URL, "--out", outPath})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("evidence bundle export --live error = %v", err)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read bundle: %v", err)
+	}
+	var bundle struct {
+		Bounds struct {
+			Truncated bool `json:"truncated"`
+		} `json:"bounds"`
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		t.Fatalf("decode bundle: %v\n%s", err, raw)
+	}
+	if bundle.Bounds.Truncated {
+		t.Fatalf("bounds.truncated = true for a complete domain list\n%s", raw)
+	}
 }

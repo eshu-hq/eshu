@@ -94,6 +94,12 @@ type PipelineStatus struct {
 	StageSummaries    []PipelineStageSummary    `json:"stage_summaries,omitempty"`
 	DomainBacklogs    []PipelineDomainBacklog   `json:"domain_backlogs,omitempty"`
 	ScopeActivity     PipelineScopeActivity     `json:"scope_activity,omitempty"`
+	// DomainBacklogsTruncated is true when the status layer capped
+	// DomainBacklogs before serializing it. Carrying it is what keeps a
+	// partial domain list from reading as a complete enumeration; see
+	// evidencebundle.LiveSnapshot.DomainBacklogsTruncated, which turns it into
+	// the bundle's Bounds.Truncated.
+	DomainBacklogsTruncated bool `json:"domain_backlogs_truncated,omitempty"`
 }
 
 // PipelineHealth decodes the pipeline health verdict and its free-text
@@ -273,9 +279,10 @@ func LiveSnapshotFromStatus(
 			Failed:     pipeline.GenerationHistory.Failed,
 			Other:      pipeline.GenerationHistory.Other,
 		},
-		StageSummaries: stages,
-		DomainBacklogs: domains,
-		Collectors:     liveCollectors,
+		StageSummaries:          stages,
+		DomainBacklogs:          domains,
+		DomainBacklogsTruncated: pipeline.DomainBacklogsTruncated,
+		Collectors:              liveCollectors,
 		SemanticExtraction: evidencebundle.LiveSemanticExtractionSnapshot{
 			State:              index.SemanticExtraction.State,
 			Reason:             index.SemanticExtraction.Reason,
