@@ -16,7 +16,7 @@ func scoreNarrationFallback(prompt PromptResult) CriterionScore {
 			continue
 		}
 		if detail := narrationFailure(result); detail != "" {
-			return fail(CriterionNarrationFallback, fmt.Sprintf("%s result: %s", result.Surface, detail))
+			return fail(CriterionNarrationFallback, fmt.Sprintf("%s result: %s", result.Surface.label(), detail))
 		}
 	}
 	return pass(CriterionNarrationFallback, "optional narration preserves deterministic fallback rows")

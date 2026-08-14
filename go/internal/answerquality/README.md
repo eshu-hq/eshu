@@ -33,6 +33,19 @@ Use `locatedString` and `firstUnsafeLocation` when adding a value to the
 screened set, not `answerguardrail.FirstUnsafeString` — the latter returns the
 value, which is what this contract exists to keep out of the output.
 
+The locator itself has to obey the same rule, and this is the easy half to get
+wrong. A locator such as `api result answer_summary` names a surface, and
+`SurfaceResult.Surface` is a plain string field unmarshalled from an evidence
+file — it is not validated, so it can carry anything the capture tooling wrote.
+Building the locator by concatenating that field put an unscreened value into
+the published half of the contract. Every rendering of a surface or a family now
+goes through `Surface.label()` / `PromptFamily.label()`, which return the enum's
+own spelling or a fixed marker, so a value the scanner happens to miss cannot
+ride out through a locator. Screening the field instead would inherit whatever
+the scanner misses, which is the thing being defended against; an enum has a
+fixed set of legal spellings and needs no scan. A field with no enum — a truth
+class — falls back to `screened`, which is best-effort and says so.
+
 ## Evidence
 
 `EvidenceVersion` is `answer-quality-scorecard/v1`. A complete run must include

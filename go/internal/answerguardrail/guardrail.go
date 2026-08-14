@@ -106,13 +106,23 @@ var (
 	// hex run ending at the "::" is preceded by a letter that is not a hex
 	// digit.
 	//
+	// Both sides carry a boundary, and they exclude the same characters. The
+	// right one is why "db::connect", "ca::cert", and "ff::Field" publish: the
+	// first version of this rule spelled the right side as "[0-9a-f:]*", which
+	// matches the empty string, so a 1-4 hex-character namespace followed by
+	// "::" matched on its prefix alone no matter what came after it and every
+	// such identifier was withheld. Spelling both sides as whole hextet groups
+	// and requiring a boundary after the last one is what makes the rule mean
+	// "this token IS an address" rather than "this token starts like one".
+	//
 	// Known gap, accepted: an all-hex identifier pair such as "abc::def" is
 	// indistinguishable from a compressed address by shape alone and IS
-	// rejected. Nothing else in the honest corpus is -- timestamps
-	// ("12:30:45"), durations, and version strings carry no "::" at all, which
-	// is why the compression marker is required rather than a general run of
+	// rejected -- both sides are valid hextets, so no boundary can separate
+	// them. Nothing else in the honest corpus is -- timestamps ("12:30:45"),
+	// durations, and version strings carry no "::" at all, which is why the
+	// compression marker is required rather than a general run of
 	// colon-separated hextets.
-	compressedIPv6Pattern = regexp.MustCompile(`(?i)(\[[0-9a-f:]*::[0-9a-f:]*\]|(^|[^0-9a-z])(::[0-9a-f]{1,4}|[0-9a-f]{1,4}::[0-9a-f:]*))`)
+	compressedIPv6Pattern = regexp.MustCompile(`(?i)(\[[0-9a-f:]*::[0-9a-f:]*\]|(^|[^0-9a-z])(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?([^0-9a-z]|$))`)
 
 	// fullIPv6Pattern is the uncompressed eight-hextet form, bracketed or not.
 	// It carries no "::" so it needs its own gate, and its own pattern.
@@ -146,18 +156,54 @@ var (
 	// stops there, so "password: hunter2" -- the form a config dump and a log
 	// line both use -- published clean.
 	//
-	// The word boundary is load-bearing, and it is why only "password" gets a
-	// colon rule while "token", "secret", and "api_key" keep their "=" form
-	// only. Without it this rejects an ordinary code-topic answer naming
-	// checkPassword or reset_password; with it, an answer naming
-	// "aws_appsync_api_key: 2 resources" or "aws_secretsmanager_secret: 5
-	// resources" -- both real resource types -- stays publishable. That is the
-	// same false positive evidencebundle's credentialPattern comment records
-	// hitting on "secrets_iam_trust_chain".
+	// The key half is a boundary rather than a "\b", and the difference is the
+	// whole point: "\b" treats "_" as a word character, so "\bpassword" does
+	// not match after one and DB_PASSWORD:, POSTGRES_PASSWORD:, and
+	// my_password: all walked past a rule written to catch exactly that. The
+	// boundary here excludes only letters and digits, so an underscore-joined
+	// key matches and "checkPassword:" -- where a letter precedes -- does not.
+	// Quotes on either side of the key are allowed, including backslash-escaped
+	// ones, which is what covers 'password':, "password":, and \"password\":.
+	//
+	// Only "password" gets a colon rule; "token", "secret", and "api_key" keep
+	// their "=" form only, because real resource types end in those words
+	// ("aws_appsync_api_key: 2 resources", "aws_secretsmanager_secret: 5
+	// resources") and a colon rule on them would reject honest answers. That is
+	// the same false positive evidencebundle's credentialPattern comment
+	// records hitting on "secrets_iam_trust_chain".
+	//
+	// The trailing group captures the assigned value, because the keyword alone
+	// does not say a credential is being assigned -- see
+	// passwordAssignmentIsUnsafe, which classifies it.
 	//
 	// Matched against the already-lowercased copy, so it carries no (?i).
-	passwordAssignmentPattern = regexp.MustCompile(`\bpassword"?\s*:`)
+	passwordAssignmentPattern = regexp.MustCompile(`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([^\s"',]*)`)
 )
+
+// passwordDeclarationValues are the assigned values that make a "password:" line
+// a type declaration rather than a credential. A schema, an interface, or a
+// GraphQL field says what shape the password has and carries no password:
+// TypeScript "password: string", GraphQL "password: String!", Rust
+// "password: Option<String>", Python "password: SecretStr". Withholding an
+// answer about a schema is the false positive this list exists to prevent.
+//
+// Matched after the value is lowercased and stripped of pointer, reference, and
+// slice punctuation, and after everything from the first character a type name
+// cannot contain -- "<", "(", "!", "|" -- has been dropped, so one entry covers
+// "String!", "Option<String>", and "varchar(255)" alike.
+//
+// A type name outside this list is treated as a value and the answer is
+// withheld. The list covers the scalars the colon-declaration languages
+// actually spell; a project-specific type is the accepted miss.
+var passwordDeclarationValues = map[string]bool{
+	"any": true, "bool": true, "boolean": true, "buffer": true,
+	"byte": true, "bytes": true, "char": true, "float": true,
+	"int": true, "integer": true, "nil": true, "none": true,
+	"null": true, "number": true, "object": true, "option": true,
+	"optional": true, "secretstr": true, "str": true, "string": true,
+	"text": true, "undefined": true, "unknown": true, "uuid": true,
+	"varchar": true,
+}
 
 // ValidateResult evaluates result against runtime-safe citation and publish
 // safety rules. It performs no I/O and never calls providers.
@@ -260,7 +306,7 @@ func UnsafeString(value string) bool {
 	if strings.Count(value, ":") >= 7 && fullIPv6Pattern.MatchString(value) {
 		return true
 	}
-	if strings.Contains(lower, "password") && passwordAssignmentPattern.MatchString(lower) {
+	if strings.Contains(lower, "password") && passwordAssignmentIsUnsafe(lower) {
 		return true
 	}
 	for _, fragment := range []string{
@@ -282,6 +328,93 @@ func UnsafeString(value string) bool {
 		}
 	}
 	return strings.Contains(lower, "http://") || strings.Contains(lower, "https://")
+}
+
+// passwordAssignmentIsUnsafe reports whether lower carries a password key that
+// is actually being assigned a credential. The keyword is not the
+// discriminator, the value is -- the same conclusion evidencebundle's
+// credentialPattern reached, and for the same reason: real content puts a
+// count after a name ending in a credential word. Terraform's random_password
+// is one, so "random_password: 3 resources" has to stay publishable, exactly as
+// "aws_secretsmanager_secret: 5 resources" already does.
+//
+// Three value shapes read as something other than a credential:
+//
+//   - A declaration. "password: string" assigns a TYPE, so the answer is about
+//     a schema. See passwordDeclarationValues.
+//   - A count. "random_password: 3 resources" assigns a number.
+//   - A placeholder. "password: <redacted>", "password: ***", and
+//     "password: ${DB_PASSWORD}" start with punctuation and name no secret.
+//
+// Anything else -- "password: hunter2", "DB_PASSWORD: hunter2",
+// "'password': 'S3NT1NEL'" -- is a credential and is withheld.
+//
+// Two accepted misses, both the price of a false positive worth more:
+//
+//   - A key that runs the word together with its prefix (PGPASSWORD:) is
+//     shape-identical to checkPassword: and is not screened.
+//   - A digits-only or punctuation-only password ("password: 123456",
+//     "password: !!!") reads as a count or a placeholder. evidencebundle's
+//     credentialPattern documents the same gap.
+//
+// lower must already be lowercased.
+func passwordAssignmentIsUnsafe(lower string) bool {
+	match := passwordAssignmentPattern.FindStringSubmatch(lower)
+	if match == nil {
+		return false
+	}
+	value := leadingValueToken(match[len(match)-1])
+	switch {
+	case !hasLetterOrDigit(value):
+		// No value, or one made only of punctuation: a placeholder or a mask.
+		return false
+	case isDigits(value):
+		return false
+	case passwordDeclarationValues[strings.Trim(value, "*&[]")]:
+		return false
+	}
+	return true
+}
+
+// leadingValueToken returns the longest prefix of value made only of characters
+// a type name or a count can carry. It stops at the first character that cannot
+// appear in one, which is what keeps a trailing delimiter -- the quote, comma,
+// or bracket a real carrier is wrapped in -- out of the classification.
+func leadingValueToken(value string) string {
+	for i, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+		case r == '_', r == '.', r == '-', r == '*', r == '&', r == '[', r == ']':
+		default:
+			return value[:i]
+		}
+	}
+	return value
+}
+
+// hasLetterOrDigit reports whether value carries anything a credential could be
+// spelled with. Matched against a lowercased value.
+func hasLetterOrDigit(value string) bool {
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return true
+		}
+	}
+	return false
+}
+
+// isDigits reports whether value is a non-empty run of decimal digits, which is
+// a count rather than a credential.
+func isDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func hasCitation(handles []string) bool {

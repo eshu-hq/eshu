@@ -19,6 +19,27 @@ const (
 	defaultCreatedAt = "2026-06-20T00:00:00Z"
 )
 
+// The IPv4 fragments the private-address rules are built from. They are
+// constants rather than repeated literals because the first version of these
+// rules spelled an octet as "\d{1,3}" with nothing after it, and that is two
+// bugs in one: "\d{1,3}" accepts 300, and with no boundary after the last octet
+// it matches the first eight characters of "version:10.0.5.300" and rejects a
+// share-safe bundle over a version string. An address is four octets and then
+// something that is not another digit.
+const (
+	// ipv4Octet is one decimal octet, 0-255, and nothing else.
+	ipv4Octet = `(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])`
+	// ipv4End is the boundary after the final octet. It excludes a digit but
+	// deliberately allows a dot, because a sentence ends "unreachable at
+	// 10.0.5.3." and that address is still an address.
+	ipv4End = `(?:[^0-9]|$)`
+	// ipv4Private is the RFC1918 and link-local space, without the boundary, for
+	// rules that already have one.
+	ipv4Private = `10\.` + ipv4Octet + `\.` + ipv4Octet + `\.` + ipv4Octet +
+		`|192\.168\.` + ipv4Octet + `\.` + ipv4Octet +
+		`|172\.(?:1[6-9]|2[0-9]|3[0-1])\.` + ipv4Octet + `\.` + ipv4Octet
+)
+
 var (
 	privateEndpointPattern = regexp.MustCompile(`(?i)https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|169\.254\.|\.cluster\.local|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
 	// Go network errors report a bare "host:port" with no scheme, so the
@@ -34,14 +55,29 @@ var (
 	// ("::ffff:10.0.5.3"). The pre-existing cases all read "dial tcp <host>",
 	// so the character before the host was always a space and the gap never
 	// showed.
-	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
+	// The quads here need no trailing boundary of their own: the required
+	// ":port" is one, which is why "version:10.0.5.300:5432" stops matching once
+	// the octets are range-checked.
+	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(localhost|127\.0\.0\.1|` + ipv4Private +
+		`|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local` +
+		`|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
 	// Addresses that locate a stack even without a port. The host:port rule
 	// above cannot cover these: a collector reason reads "instance 10.0.5.3 is
 	// unreachable" with no port at all, and a Kubernetes service name is a
 	// locating hostname in its own right. Kept separate so the port-bearing rule
 	// stays narrow enough not to fire on ordinary dotted text. Same left
 	// boundary as above, and for the same reason.
-	privateAddressPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local)`)
+	//
+	// This is the rule that has no port to bound it on the right, so each quad
+	// carries ipv4End. Without both halves -- the octet range AND that boundary
+	// -- an IP-shaped version string such as "backend:nornicdb version:10.0.5.300"
+	// matches on its first eight characters and the whole bundle is refused.
+	privateAddressPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.-])(` +
+		`10\.` + ipv4Octet + `\.` + ipv4Octet + `\.` + ipv4Octet + ipv4End +
+		`|192\.168\.` + ipv4Octet + `\.` + ipv4Octet + ipv4End +
+		`|172\.(?:1[6-9]|2[0-9]|3[0-1])\.` + ipv4Octet + `\.` + ipv4Octet + ipv4End +
+		`|169\.254\.` + ipv4Octet + `\.` + ipv4Octet + ipv4End +
+		`|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local)`)
 	// Unique-local IPv6, split out of the rule above because it is the one
 	// alternative whose left boundary must keep excluding the colon. A hextet
 	// is separated by colons, so allowing one before "fd12" would reject the

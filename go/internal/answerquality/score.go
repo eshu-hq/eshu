@@ -106,6 +106,19 @@ func firstUnsafeLocation(values []locatedString) string {
 	return ""
 }
 
+// screened returns value when the shared publish-safety scanner accepts it, and
+// RedactedValue when it does not. It is the fallback for a captured field that
+// is open-valued and so has no enum to fall back to -- a truth class is any
+// string the capture tooling wrote. It is weaker than the enum labels by
+// construction, because it can only be as good as the screen it calls, which is
+// exactly why a field with a fixed set of legal values uses the set instead.
+func screened(value string) string {
+	if answerguardrail.UnsafeString(value) {
+		return RedactedValue
+	}
+	return value
+}
+
 func aggregatePublishSafety(evidence Evidence, scores []PromptScore) CriterionScore {
 	if where := firstUnsafeLocation([]locatedString{
 		{Where: "run_id", Value: evidence.RunID},
@@ -165,19 +178,19 @@ func scoreUsefulness(prompt PromptResult) CriterionScore {
 	}
 	for _, result := range prompt.Results {
 		if !result.Useful || !result.Supported {
-			return fail(CriterionUsefulness, fmt.Sprintf("%s result was not useful or supported", result.Surface))
+			return fail(CriterionUsefulness, fmt.Sprintf("%s result was not useful or supported", result.Surface.label()))
 		}
 		if result.TooGeneric || result.TooVerbose {
-			return fail(CriterionUsefulness, fmt.Sprintf("%s result was generic or too verbose", result.Surface))
+			return fail(CriterionUsefulness, fmt.Sprintf("%s result was generic or too verbose", result.Surface.label()))
 		}
 		if strings.TrimSpace(result.AnswerSummary) == "" {
-			return fail(CriterionUsefulness, fmt.Sprintf("%s result had no answer summary", result.Surface))
+			return fail(CriterionUsefulness, fmt.Sprintf("%s result had no answer summary", result.Surface.label()))
 		}
 		// Reject a circular, identity-only answer that only restates the question's
 		// entity, even when the captured TooGeneric flag is unset and truth/citation
 		// scoring passes (issue #5266).
 		if answerguardrail.IsCircularAnswer(prompt.Prompt, result.AnswerSummary) {
-			return fail(CriterionUsefulness, fmt.Sprintf("%s result is circular or identity-only", result.Surface))
+			return fail(CriterionUsefulness, fmt.Sprintf("%s result is circular or identity-only", result.Surface.label()))
 		}
 	}
 	return pass(CriterionUsefulness, "captured answers are useful and supported")
@@ -190,16 +203,17 @@ func scoreTruthHonesty(prompt PromptResult) CriterionScore {
 	wantTruth := expectedTruth(prompt)
 	for _, result := range prompt.Results {
 		if strings.TrimSpace(result.TruthClass) == "" {
-			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result missing truth class", result.Surface))
+			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result missing truth class", result.Surface.label()))
 		}
 		if wantTruth != "" && result.TruthClass != wantTruth {
-			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result truth %q, want %q", result.Surface, result.TruthClass, wantTruth))
+			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result truth %q, want %q",
+				result.Surface.label(), screened(result.TruthClass), wantTruth))
 		}
 		if result.StaleNoCause || result.OverConfident {
-			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result was stale without cause or over-confident", result.Surface))
+			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result was stale without cause or over-confident", result.Surface.label()))
 		}
 		if strings.TrimSpace(result.Freshness) == "stale" && len(result.Limitations) == 0 {
-			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result was stale without a limitation", result.Surface))
+			return fail(CriterionTruthHonesty, fmt.Sprintf("%s result was stale without a limitation", result.Surface.label()))
 		}
 	}
 	return pass(CriterionTruthHonesty, "truth classes and freshness are honest")
@@ -221,7 +235,7 @@ func scoreCitationCoverage(prompt PromptResult) CriterionScore {
 			TruthProvenance: strings.TrimSpace(result.TruthClass) != "",
 		})
 		if verdict.HasFinding(answerguardrail.CriterionCitationCoverage) {
-			return fail(CriterionCitationCoverage, fmt.Sprintf("%s result has no citation handles", result.Surface))
+			return fail(CriterionCitationCoverage, fmt.Sprintf("%s result has no citation handles", result.Surface.label()))
 		}
 	}
 	return pass(CriterionCitationCoverage, "all captured results include citation handles")
@@ -233,10 +247,10 @@ func scoreBoundedness(prompt PromptResult) CriterionScore {
 	}
 	for _, result := range prompt.Results {
 		if (result.Partial || result.Truncated) && len(result.Limitations) == 0 && len(result.NextCalls) == 0 {
-			return fail(CriterionBoundedness, fmt.Sprintf("%s partial/truncated result has no limitation or continuation", result.Surface))
+			return fail(CriterionBoundedness, fmt.Sprintf("%s partial/truncated result has no limitation or continuation", result.Surface.label()))
 		}
 		if !result.Supported && len(result.Limitations) == 0 {
-			return fail(CriterionBoundedness, fmt.Sprintf("%s unsupported result has no limitation", result.Surface))
+			return fail(CriterionBoundedness, fmt.Sprintf("%s unsupported result has no limitation", result.Surface.label()))
 		}
 	}
 	return pass(CriterionBoundedness, "partial and unsupported states are bounded")
@@ -278,13 +292,13 @@ func scoreFollowUpUsefulness(prompt PromptResult) CriterionScore {
 	combined := map[string]struct{}{}
 	for _, result := range prompt.Results {
 		if result.MissingFollowUp {
-			return fail(CriterionFollowUpUsefulness, fmt.Sprintf("%s result marked missing follow-up", result.Surface))
+			return fail(CriterionFollowUpUsefulness, fmt.Sprintf("%s result marked missing follow-up", result.Surface.label()))
 		}
 		for _, next := range result.NextCalls {
 			combined[next] = struct{}{}
 		}
 		if (result.Partial || result.Truncated) && len(result.NextCalls) == 0 {
-			return fail(CriterionFollowUpUsefulness, fmt.Sprintf("%s partial/truncated result has no next call", result.Surface))
+			return fail(CriterionFollowUpUsefulness, fmt.Sprintf("%s partial/truncated result has no next call", result.Surface.label()))
 		}
 	}
 	var missing []string
@@ -385,9 +399,17 @@ func promptLocatedStrings(prompt PromptResult) []locatedString {
 	values = appendLocated(values, "required_next_calls", prompt.RequiredNextCalls)
 	values = appendLocated(values, "acceptable_limitations", prompt.AcceptableLimitations)
 	for _, result := range prompt.Results {
-		surface := string(result.Surface)
-		values = append(values,
-			locatedString{Where: "result surface", Value: surface},
+		// The locator names the surface through the enum, never through the
+		// captured string. Concatenating the raw field built the WHERE half of
+		// this contract out of an unscreened value: a locator is published in
+		// full, so a surface carrying something the scanner misses would be
+		// echoed verbatim through every following field's locator -- the same
+		// leak this type exists to close, one field over. The raw value is
+		// still screened, as its own row directly below.
+		surface := result.Surface.label()
+		values = append(
+			values,
+			locatedString{Where: "result surface", Value: string(result.Surface)},
 			locatedString{Where: surface + " result answer_summary", Value: result.AnswerSummary},
 			locatedString{Where: surface + " result truth_class", Value: result.TruthClass},
 			locatedString{Where: surface + " result freshness", Value: result.Freshness},
@@ -429,7 +451,7 @@ func followUpFor(prompt PromptResult, criterion CriterionScore) FollowUpIssue {
 	slices.Sort(labels)
 	labels = slices.Compact(labels)
 	return FollowUpIssue{
-		Title:  fmt.Sprintf("Fix %s answer-quality score for %s", criterion.Name, prompt.Family),
+		Title:  fmt.Sprintf("Fix %s answer-quality score for %s", criterion.Name, prompt.Family.label()),
 		Labels: labels,
 		Detail: criterion.Detail,
 	}

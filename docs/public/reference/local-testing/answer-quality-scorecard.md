@@ -41,7 +41,14 @@ The scorer records pass/fail rows for:
 `publish_safety` covers a connection string carrying a password in its userinfo
 on any scheme or none (`bolt://`, `postgres://`, `redis://`, and the bare
 `svc:PW@host/tool` form), IPv4 and IPv6 raw addresses, and a password assignment
-written with either `=` or `:`.
+written with either `=` or `:` — including the underscore-joined env keys a
+config dump actually carries, such as `DB_PASSWORD:` and `POSTGRES_PASSWORD:`.
+
+The password rule reads the assigned value, not just the key, so an answer that
+describes a schema (`password: string`) or counts resources
+(`random_password: 3 resources`) is not withheld. The screen is best-effort by
+design and `go/internal/answerguardrail/README.md` lists what it deliberately
+misses; treat a passing scorecard as screened, not as certified.
 
 A `publish_safety` failure names the field it found the value in — for example
 `unsafe publishable evidence in api result answer_summary`, or `unsafe run

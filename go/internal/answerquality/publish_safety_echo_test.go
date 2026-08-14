@@ -69,6 +69,98 @@ func TestScorePublishSafetyDoesNotEchoTheUnsafeValue(t *testing.T) {
 	}
 }
 
+// TestScoreDoesNotEchoAnUnsafeSurface covers the field the locators are built
+// out of. The scorer used to concatenate the captured surface into every
+// following locator ("<surface> result answer_summary"), so a surface carrying
+// an unsafe value was published in the WHERE half of a contract whose entire
+// purpose is to publish a location instead of a value.
+//
+// The two carriers below are chosen to make the test mean something on its own.
+// The first is caught by the shared screen, so the scorer would refuse it even
+// with no fix, through the "result surface" row. The second is NOT caught by
+// the screen -- it is honest-looking text -- which is why it is here: it proves
+// the locator names the surface through the enum rather than relying on the
+// screen to have caught whatever the surface carried, and it fails against a
+// scorer that only screens.
+func TestScoreDoesNotEchoAnUnsafeSurface(t *testing.T) {
+	t.Parallel()
+
+	for name, testCase := range map[string]struct {
+		surface     string
+		wantLocator string
+	}{
+		// The scanner catches this one, so the surface's own row fails first
+		// and the locator is a fixed literal.
+		"screened_by_the_scanner": {
+			surface:     "bolt://neo4j:" + echoSentinel + "@graph.example.com:7687",
+			wantLocator: "result surface",
+		},
+		// The scanner does NOT catch this one, so the surface's own row passes
+		// and the failure lands on the next field -- whose locator is built out
+		// of the surface. This is the case that fails against a scorer that
+		// concatenates the raw field, and the reason the fix is an enum rather
+		// than another call to the screen.
+		"missed_by_the_scanner": {
+			surface:     "internal-" + echoSentinel + "-surface",
+			wantLocator: unrecognizedSurface + " result answer_summary",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			evidence := completeEvidence()
+			evidence.Prompts[0].Results[0].Surface = Surface(testCase.surface)
+			evidence.Prompts[0].Results[0].AnswerSummary = "Backend reachable at 10.42.7." + "9."
+			verdict := Score(evidence)
+
+			criterion := verdict.Criterion(CriterionPublishSafety)
+			if criterion.Status != CriterionFail {
+				t.Fatalf("publish_safety = %q, want fail; nothing below is being measured", criterion.Status)
+			}
+			assertVerdictDoesNotEcho(t, verdict, testCase.surface)
+			// The refusal still has to be actionable, or the fix has traded a
+			// leak for a locator nobody can use.
+			if !strings.Contains(criterion.Detail, testCase.wantLocator) {
+				t.Fatalf("detail = %q, want it to name %q", criterion.Detail, testCase.wantLocator)
+			}
+		})
+	}
+}
+
+// TestScoreKeepsAKnownSurfaceReadable is the negative control for the test
+// above. Replacing every surface with the marker would satisfy it and destroy
+// the locator's purpose.
+func TestScoreKeepsAKnownSurfaceReadable(t *testing.T) {
+	t.Parallel()
+
+	evidence := completeEvidence()
+	evidence.Prompts[0].Results[0].AnswerSummary = "Backend reachable at 10.42.7." + "9."
+	verdict := Score(evidence)
+
+	criterion := verdict.Criterion(CriterionPublishSafety)
+	if criterion.Status != CriterionFail {
+		t.Fatalf("publish_safety = %q, want fail; nothing below is being measured", criterion.Status)
+	}
+	want := string(evidence.Prompts[0].Results[0].Surface) + " result answer_summary"
+	if !strings.Contains(criterion.Detail, want) {
+		t.Fatalf("detail = %q, want it to name %q", criterion.Detail, want)
+	}
+	if strings.Contains(rendered(t, verdict), unrecognizedSurface) {
+		t.Fatalf("a known surface was replaced by the unrecognized marker: %s", rendered(t, verdict))
+	}
+}
+
+// rendered returns every published form of the verdict as one string.
+func rendered(t *testing.T, verdict Verdict) string {
+	t.Helper()
+
+	raw, err := json.Marshal(verdict)
+	if err != nil {
+		t.Fatalf("marshal verdict: %v", err)
+	}
+	return string(raw)
+}
+
 // TestAggregatePublishSafetyDoesNotEchoUnsafeRunMetadata covers the other
 // caller, which screens run_id and eshu_commit. The run id is also copied into
 // the verdict's own RunID field and printed by the CLI header, so refusing to

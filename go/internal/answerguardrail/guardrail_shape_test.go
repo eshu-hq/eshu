@@ -126,20 +126,120 @@ func TestUnsafeStringRejectsRawIPv6(t *testing.T) {
 	}
 }
 
-// TestUnsafeStringRejectsColonSpelledPasswordAssignment pins the third hole:
-// "password=" was listed, the YAML and log-line spelling was not.
+// passwordAssignmentCarriers are the password assignments the colon rule has to
+// catch. The first four are the original hole ("password=" was listed, the YAML
+// and log-line spelling was not); the rest are the two shapes the first version
+// of that rule still walked past -- a single-quoted or escaped key, and the
+// snake_case env key that is how a password is actually spelled in a config
+// dump or a log line.
+var passwordAssignmentCarriers = []string{
+	"password: S3NT1NEL",
+	"password:S3NT1NEL",
+	`"password": "S3NT1NEL"`,
+	"  password:  S3NT1NEL",
+	`'password': 'S3NT1NEL'`,
+	`'password':'S3NT1NEL'`,
+	`\"password\": \"S3NT1NEL\"`,
+	"POSTGRES_PASSWORD: hunter2",
+	"DB_PASSWORD: hunter2",
+	"my_password: hunter2",
+	"neo4j_password: S3NT1NEL",
+	`{"db_password": "S3NT1NEL"}`,
+}
+
+// TestUnsafeStringRejectsColonSpelledPasswordAssignment pins the third hole.
 func TestUnsafeStringRejectsColonSpelledPasswordAssignment(t *testing.T) {
 	t.Parallel()
 
-	for _, value := range []string{
-		"password: S3NT1NEL",
-		"password:S3NT1NEL",
-		`"password": "S3NT1NEL"`,
-		"  password:  S3NT1NEL",
-	} {
+	for _, value := range passwordAssignmentCarriers {
 		t.Run(value, func(t *testing.T) {
 			if !UnsafeString(value) {
 				t.Fatalf("UnsafeString(%q) = false, want true", value)
+			}
+		})
+	}
+}
+
+// TestUnsafeStringRejectsCompressedIPv6WithoutMatchingAnIdentifier is the pair
+// this rule needs stated together: the same table has to show the rule firing
+// on an address AND not firing on a namespace whose first segment happens to be
+// hex. Split across two tests, a boundary that rejects everything and a
+// boundary that rejects nothing each look fine in one of them.
+func TestUnsafeStringRejectsCompressedIPv6WithoutMatchingAnIdentifier(t *testing.T) {
+	t.Parallel()
+
+	for value, want := range map[string]bool{
+		"fd00::1":        true,
+		"::1":            true,
+		"2001:db8::1":    true,
+		"[fd00::1]:7687": true,
+		// The IPv4-mapped form, which the right boundary must not break: the
+		// tail continues past the last hextet into a dotted quad.
+		"::ffff:10.0.5.3": true,
+		// Documented gap: both sides are valid hextets, so no boundary can
+		// tell this from an address. If this ever flips, the README's
+		// known-limits list is wrong and has to change with it.
+		"abc::def": true,
+		// A namespace whose first segment is 1-4 hex characters. Every one of
+		// these was withheld while the right side was spelled "[0-9a-f:]*".
+		"db::connect":   false,
+		"abc::default":  false,
+		"ca::cert":      false,
+		"de::btree":     false,
+		"ff::Field":     false,
+		"fade::unwrap":  false,
+		"beef::marbled": false,
+	} {
+		t.Run(value, func(t *testing.T) {
+			if got := UnsafeString(value); got != want {
+				t.Fatalf("UnsafeString(%q) = %v, want %v", value, got, want)
+			}
+		})
+	}
+}
+
+// TestUnsafeStringScreensPasswordKeysByTheirValue states the false-positive
+// boundary the widened password rule draws, in one table, because the two
+// halves only mean something together: the key alone does not decide, the value
+// does. A rule that rejected every "password:" line would pass a table of
+// credentials, and a rule that rejected none would pass a table of schemas.
+func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
+	t.Parallel()
+
+	for value, want := range map[string]bool{
+		// Assigned a credential.
+		"password: hunter2":      true,
+		"db_password: hunter2":   true,
+		"password: correcthorse": true,
+		`"password": "S3NT1NEL"`: true,
+		// Assigned a type: an answer about a schema, not a credential.
+		"password: string":         false,
+		"password: String!":        false,
+		"password: string | null":  false,
+		"password: Option<String>": false,
+		"password: SecretStr":      false,
+		"password: varchar(255)":   false,
+		"password: []byte":         false,
+		"password: *string":        false,
+		"user_password: boolean":   false,
+		"password: null":           false,
+		// Assigned a count. random_password is a real Terraform resource, so
+		// this is the same shape as "aws_secretsmanager_secret: 5 resources".
+		"random_password: 3 resources":  false,
+		"random_password: 12 resources": false,
+		// Assigned a placeholder: punctuation, naming no secret.
+		"password: <redacted>":     false,
+		"password: ${DB_PASSWORD}": false,
+		"password: ***":            false,
+		// No value at all.
+		"the field is named password:": false,
+		// Accepted miss, stated in the README: a key with no separator before
+		// the word is shape-identical to checkPassword.
+		"PGPASSWORD: hunter2": false,
+	} {
+		t.Run(value, func(t *testing.T) {
+			if got := UnsafeString(value); got != want {
+				t.Fatalf("UnsafeString(%q) = %v, want %v", value, got, want)
 			}
 		})
 	}
@@ -160,9 +260,14 @@ var (
 func TestUnsafeStringIsIndifferentToTheSurroundingDelimiter(t *testing.T) {
 	t.Parallel()
 
-	carriers := make([]string, 0, len(credentialCarriers)+len(rawIPv6Carriers)+len(alreadyCaughtValues))
+	carriers := make([]string, 0,
+		len(credentialCarriers)+len(rawIPv6Carriers)+len(passwordAssignmentCarriers)+len(alreadyCaughtValues))
 	carriers = append(carriers, credentialCarriers...)
 	carriers = append(carriers, rawIPv6Carriers...)
+	// The password carriers ride this sweep because the rule now reads the
+	// value after the colon, and a delimiter the corpus wraps values in --
+	// a quote, a comma, a closing bracket -- lands inside that value.
+	carriers = append(carriers, passwordAssignmentCarriers...)
 	// The already-caught values ride along so this table cannot report a clean
 	// sweep without also having exercised something it is known to reject.
 	carriers = append(carriers, alreadyCaughtValues...)
@@ -223,6 +328,13 @@ func TestUnsafeStringKeepsOrdinaryAnswerTextPublishable(t *testing.T) {
 		"serde::json::Value",
 		"k8s::api::core",
 		"cast the column with value::text",
+		// The same operator where the FIRST segment is all hex, which is the
+		// case a left boundary alone does not cover.
+		"db::connect has 4 callers",
+		"abc::default is generated",
+		"ca::cert loads the bundle",
+		"ff::Field is a marker type",
+		"de::btree is the storage engine",
 		// Bracketed all-hex colon runs that are slice expressions, not
 		// addresses. This is why the bracketed IPv6 rule requires either "::"
 		// or the full eight hextets.
@@ -237,6 +349,14 @@ func TestUnsafeStringKeepsOrdinaryAnswerTextPublishable(t *testing.T) {
 		"domain secrets_iam_trust_chain blocked",
 		"field reset_password is unused",
 		"passwords: 12 rotated",
+		// A password key whose value is a type, a count, or a placeholder. The
+		// keyword is not what makes a line a credential; the value is.
+		"password: string",
+		"password: String!",
+		"password: Option<String>",
+		"password: SecretStr",
+		"random_password: 3 resources",
+		"password: <redacted>",
 		// Ordinary email and mailto, which are not userinfo.
 		"owner alice@example.com",
 		"mailto:alice@example.com",
@@ -318,6 +438,21 @@ func BenchmarkUnsafeStringHonestCorpus(b *testing.B) {
 			if UnsafeString(value) {
 				b.Fatalf("corpus value %q is not publish-safe; the benchmark is measuring the wrong path", value)
 			}
+		}
+	}
+}
+
+// BenchmarkUnsafeStringPasswordGateOpen measures the one string shape that pays
+// for the password rule's value classification: an honest answer that carries
+// the word "password", so the substring gate opens and the regex plus the
+// classifier both run to completion before the value is called safe. Every
+// other honest string skips all of it on the gate. Terraform's random_password
+// is the real resource that makes this shape worth keeping publishable.
+func BenchmarkUnsafeStringPasswordGateOpen(b *testing.B) {
+	const value = "random_password: 3 resources in the module"
+	for i := 0; i < b.N; i++ {
+		if UnsafeString(value) {
+			b.Fatalf("%q is not publish-safe; the benchmark is measuring the wrong path", value)
 		}
 	}
 }

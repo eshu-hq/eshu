@@ -111,6 +111,54 @@ func TestValidateKeepsColonDelimitedHonestTextUsable(t *testing.T) {
 	}
 }
 
+// TestValidateChecksIPv4OctetsBeforeRejecting is the false-positive half of the
+// relaxed left boundary. Allowing a colon before the host is what let a rule
+// meet an IP-shaped version string, and "\d{1,3}" with nothing after the last
+// octet reads the first eight characters of "version:10.0.5.300" as 10.0.5.30
+// and refuses a share-safe bundle.
+//
+// The rejected rows ride along so a clean sweep here cannot be a rule that
+// stopped matching altogether.
+func TestValidateChecksIPv4OctetsBeforeRejecting(t *testing.T) {
+	for reason, wantRejected := range map[string]bool{
+		// Not addresses: an octet over 255, or a fourth component that keeps
+		// going.
+		"backend:nornicdb version:10.0.5.300":                false,
+		"backend:nornicdb version:192.168.1.900":             false,
+		"backend:nornicdb version:172.16.0.999":              false,
+		"backend:nornicdb version:169.254.0.256":             false,
+		"backend:nornicdb version:10.0.5.300:5432":           false,
+		"backend:nornicdb version:1.1.11 retry:10.4 percent": false,
+		// Addresses, in every position the boundary has to keep working.
+		"peer:10.0.5.3 unreachable":           true,
+		"instance 10.0.5.3 is unreachable":    true,
+		"instance 10.255.255.255 unreachable": true,
+		"peer 192.168.1.9 unreachable":        true,
+		"host 172.16.0.9 unreachable":         true,
+		"host 172.31.255.254 unreachable":     true,
+		"link-local 169.254.1.1 seen":         true,
+		"backend:10.0.5.3:5432 refused":       true,
+		// Sentence-final: the boundary allows a dot for exactly this.
+		"backend unreachable at 10.0.5.3.": true,
+	} {
+		t.Run(reason, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{reason}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{
+				ScopeID:   "live:local",
+				CreatedAt: fixedLiveCreatedAt,
+			})
+			err := Validate(bundle)
+			if wantRejected && err == nil {
+				t.Fatalf("Validate accepted a bundle carrying %q", reason)
+			}
+			if !wantRejected && err != nil {
+				t.Fatalf("Validate rejected share-safe text %q: %v", reason, err)
+			}
+		})
+	}
+}
+
 // TestValidateKeepsPublicIPv6InFreeTextUsable guards the IPv6 boundary that
 // deliberately did NOT change. A unique-local address is private and must be
 // rejected wherever it appears, but a public address whose middle hextet

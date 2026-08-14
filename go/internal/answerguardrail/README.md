@@ -57,13 +57,25 @@ their own logs, status, responses, or scorecards.
 - `UnsafeString` runs on a publish path, so its rules are tuned against false
   positives as hard as against coverage: an answer it wrongly withholds is its
   own outage. Each rule's comment in `guardrail.go` names what it deliberately
-  does not catch. Two limits worth knowing before relying on it:
+  does not catch. The limits worth knowing before relying on it:
   - an all-hex identifier pair such as `abc::def` is shape-identical to a
-    compressed IPv6 address and is rejected; and
+    compressed IPv6 address and is rejected. A namespace whose first segment is
+    hex but whose second is not (`db::connect`, `ff::Field`) publishes normally:
+    the rule requires the whole token to be an address, not to start like one;
   - only `password` gets a colon-spelled rule. `token`, `secret`, and `api_key`
     keep their `=` form only, because real resource types end in those words
     (`aws_appsync_api_key`, `aws_secretsmanager_secret`) and a colon rule on
-    them would reject honest answers.
+    them would reject honest answers;
+  - the password rule reads the value, not the keyword, so `password: string`,
+    `password: String!`, and `random_password: 3 resources` — a schema field and
+    a Terraform resource count — stay publishable. The cost is that a password
+    that is only digits (`password: 123456`) or only punctuation reads as a
+    count or a placeholder and is not screened. `evidencebundle`'s
+    `credentialPattern` documents the same gap for the same reason; and
+  - a key that runs the word together with a prefix and no separator
+    (`PGPASSWORD:`) is not screened. It is shape-identical to `checkPassword:`,
+    which has to stay publishable. `DB_PASSWORD:` and `POSTGRES_PASSWORD:` are
+    screened — an underscore is a separator.
 - Every regex is gated on a cheap substring check. That is a performance
   contract, not a style choice — see `UnsafeString`'s comment for the measured
   6.5x it prevents — so re-run `BenchmarkUnsafeStringHonestCorpus` if a gate
