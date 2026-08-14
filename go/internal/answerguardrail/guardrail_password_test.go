@@ -90,9 +90,11 @@ func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
 		// These rows guard that multi-match scan, NOT the capture class. Widening
 		// the class back leaves them all green -- the swallowed run
 		// "string;password:hunter2" is not a declaration value, so the classifier
-		// still answers true. They go red when the scan is cut to the leftmost
-		// match, which is row 5 of the mutation table in
-		// docs/internal/evidence/publish-safety-screen-shape-coverage.md.
+		// still answers true. Five of these six go red when the scan is cut to
+		// the leftmost match, which is row 5 of the mutation table in
+		// docs/internal/evidence/publish-safety-screen-shape-coverage.md. That
+		// row reports six failures, but the sixth is a comma-and-space row
+		// elsewhere in this map -- the counts coincide, the sets do not.
 		//
 		// The last row is the swap control: its leftmost assignment is the
 		// credential, so it passed before this fix and only in that order.

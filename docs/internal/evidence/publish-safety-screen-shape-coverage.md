@@ -511,11 +511,21 @@ minimum of 7 samples (3 at 128KB, where one run of the round-three scan takes
 
 Round three grows with the square of the assignment count. The clean evidence is
 the 32KB-to-128KB pair: 4x the input for 17.3x the time, against the 16x a
-quadratic predicts. The 4KB-to-32KB pair runs steeper than quadratic (8x the
-input for 213x the time, where quadratic predicts 64x), which is the range where
-the fixed per-call costs stop dominating rather than a growth rate above the
-square. Round four holds about 27 MB/s from 32KB up, so its cost tracks the input
-length.
+quadratic predicts.
+
+The 4KB-to-32KB pair runs steeper still — 8x the input for 213x the time, where
+quadratic predicts 64x — and that is worth explaining, because the obvious
+explanation is wrong. A fixed per-call cost cannot produce it. For
+`T(n) = F + c*n^2` with `F >= 0`, the ratio `T(8n)/T(n)` is at most 64, reaching
+64 only when `F` is zero, so any fixed overhead pushes a measured ratio *below*
+the prediction rather than above it.
+
+What does move it is per-byte cost rising with the working set. Round four's own
+column shows it on a scan whose growth is linear: 43.3 MB/s at 4KB against
+27.5 MB/s at 32KB and 27.1 MB/s at 128KB. Bytes get about 1.6x more expensive
+once the input stops fitting in L1, and the quadratic scan pays that same
+steepening on top of its own growth. Round four holds about 27 MB/s from 32KB
+up, so its cost tracks the input length.
 
 This was reachable, not a hang — the round-three scan always terminated. The
 committed benchmark now reads across three sizes for exactly this reason: a scan
