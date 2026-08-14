@@ -357,48 +357,91 @@ func UnsafeString(value string) bool {
 //     "password: !!!") reads as a count or a placeholder. evidencebundle's
 //     credentialPattern documents the same gap.
 //
-// Every assignment in the string is classified, not only the leftmost one. The
-// keyword is not the discriminator and the value is, so one honest assignment
-// says nothing about the next: "password: string, password: hunter2" is a
-// declaration followed by a credential, and a screen that returned on the first
-// match published the second. The safe shapes above continue the scan rather
-// than ending it, so a credential is withheld wherever it sits and the order the
-// two appear in does not change the answer.
+// Every assignment the key rule can see is classified, not only the leftmost
+// one. The keyword is not the discriminator and the value is, so one honest
+// assignment says nothing about the next: "password: string, password: hunter2"
+// is a declaration followed by a credential, and a screen that returned on the
+// first match published the second.
 //
-// Scanning every assignment means the regex runs to the end of the input rather
-// than stopping at the first match, and that is not free. On
-// BenchmarkUnsafeStringPasswordGateOpen (best of 5 at -benchtime=2s):
+// Where the scan resumes is the whole difficulty. The capture class stops only
+// at whitespace, a quote, or a comma, so when two assignments run together --
+// "password:string;password:hunter2" -- the regex reports ONE match capturing
+// "string;password:hunter2", and a loop over FindAllStringSubmatch has nothing
+// left to walk. leadingValueToken trims that back to "string", the classifier
+// calls it a declaration, and the credential inside the same match is never
+// looked at. So the scan resumes at the end of the CLASSIFIED TOKEN, not at the
+// end of the match. Narrowing the capture class instead closes the same hole and
+// was rejected: it copies the "what can a type name hold" set into the regex,
+// leaves a second copy in leadingValueToken, and nothing but care keeps the two
+// in step.
 //
-//	leftmost match only     909 ns/op
-//	every match            1474 ns/op   1.62x
+// What this guarantees: for two assignments the key rule matches at all, a
+// credential is withheld wherever it sits and swapping the two does not change
+// the answer. What it cannot do is rescue a key the rule never matches --
+// "PGPASSWORD:" is unscreened in any position, for the reason above.
 //
-// The 565ns is paid only by a string carrying the literal word "password", which
-// is what opens the gate in UnsafeString. Ordinary answer prose never reaches
-// here, and BenchmarkUnsafeStringHonestCorpus -- eight honest strings, none of
-// them a password line -- is unmoved at 7418 -> 7570 ns/op.
+// Re-running the regex across the rest of the input is not free. On
+// BenchmarkUnsafeStringPasswordGateOpen, all three variants ran interleaved in
+// one window at -benchtime=2s, reported as the minimum of 7 samples each because
+// the host was loaded enough that a sequential before/after drifted by more than
+// the effect:
+//
+//	leftmost match only                    966 ns/op
+//	every match, FindAllStringSubmatch    1549 ns/op   1.60x
+//	every match, resume past the token    1470 ns/op   1.52x
+//
+// Resuming inside a match is slightly cheaper than FindAllStringSubmatch, not
+// dearer: both re-scan the same tail, and FindStringSubmatchIndex hands back
+// offsets instead of building a string slice per match. The 504ns over
+// leftmost-only is paid only by a string carrying the literal word "password",
+// which is what opens the gate in UnsafeString. Ordinary answer prose never
+// reaches here, and BenchmarkUnsafeStringHonestCorpus -- eight honest strings,
+// none a password line -- is unmoved at 7785 -> 7768 ns/op.
 //
 // lower must already be lowercased.
 func passwordAssignmentIsUnsafe(lower string) bool {
-	for _, match := range passwordAssignmentPattern.FindAllStringSubmatch(lower, -1) {
-		value := leadingValueToken(match[len(match)-1])
-		switch {
-		case !hasLetterOrDigit(value):
-			// No value, or one made only of punctuation: a placeholder or a mask.
-			continue
-		case isDigits(value):
-			continue
-		case passwordDeclarationValues[strings.Trim(value, "*&[]")]:
-			continue
+	for offset := 0; offset < len(lower); {
+		match := passwordAssignmentPattern.FindStringSubmatchIndex(lower[offset:])
+		if match == nil {
+			return false
 		}
-		return true
+		valueStart := offset + match[len(match)-2]
+		value := leadingValueToken(lower[valueStart : offset+match[len(match)-1]])
+		if passwordValueIsCredential(value) {
+			return true
+		}
+		// valueStart sits at least nine bytes past offset -- the key, its colon,
+		// and any quoting around them -- so this always moves forward.
+		offset = valueStart + len(value)
 	}
 	return false
+}
+
+// passwordValueIsCredential reports whether value, the classified token of one
+// "password:" assignment, reads as a credential rather than as a type name, a
+// count, or a placeholder. Split out from passwordAssignmentIsUnsafe so the
+// classification is one expression the scan loop cannot accidentally reorder.
+func passwordValueIsCredential(value string) bool {
+	switch {
+	case !hasLetterOrDigit(value):
+		// No value, or one made only of punctuation: a placeholder or a mask.
+		return false
+	case isDigits(value):
+		// A count, as in "random_password: 3 resources".
+		return false
+	case passwordDeclarationValues[strings.Trim(value, "*&[]")]:
+		// A type: the answer is about a schema.
+		return false
+	}
+	return true
 }
 
 // leadingValueToken returns the longest prefix of value made only of characters
 // a type name or a count can carry. It stops at the first character that cannot
 // appear in one, which is what keeps a trailing delimiter -- the quote, comma,
-// or bracket a real carrier is wrapped in -- out of the classification.
+// or bracket a real carrier is wrapped in -- out of the classification. Its end
+// is also where passwordAssignmentIsUnsafe resumes scanning, so the characters
+// it rejects are exactly the characters a following assignment may hide behind.
 func leadingValueToken(value string) string {
 	for i, r := range value {
 		switch {

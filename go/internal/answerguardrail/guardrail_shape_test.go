@@ -232,12 +232,25 @@ func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
 		"password: ${DB_PASSWORD}": false,
 		"password: ***":            false,
 		// Two assignments in one string. The classifier reads the VALUE, so it
-		// has to read every assignment: a screen that decides on the leftmost
-		// one publishes a credential that follows an honest declaration, and
-		// the order the two appear in must not change the answer.
+		// has to read every assignment the key rule matches: a screen that
+		// decides on the leftmost one publishes a credential that follows an
+		// honest declaration, and swapping the two must not change the answer.
 		"password: string, password: hunter2": true,
 		"password: hunter2, password: string": true,
-		// The negative control for the pair above. Scanning every assignment
+		// The same pair with no space or comma between the two assignments.
+		// Every separator here is a character a type name cannot hold, so the
+		// regex swallows both assignments in ONE match and the value classifier
+		// trims back to the honest prefix. The scan has to resume at the end of
+		// that trimmed token rather than at the end of the match, or the
+		// credential sitting inside it is never looked at. The last row is the
+		// swap control: it passed before this fix, and only in that order.
+		"password:string;password:hunter2":  true,
+		"password:int|password:hunter2":     true,
+		"password:3;password:hunter2":       true,
+		"password:string:password:hunter2":  true,
+		"password:string(password:hunter2)": true,
+		"password:hunter2;password:string":  true,
+		// The negative control for the pairs above. Scanning every assignment
 		// must not degrade into rejecting any string with two of them.
 		"password: string, confirm_password: string": false,
 		// No value at all.

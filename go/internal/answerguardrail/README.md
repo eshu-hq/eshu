@@ -73,9 +73,12 @@ their own logs, status, responses, or scorecards.
     count or a placeholder and is not screened. `evidencebundle`'s
     `credentialPattern` documents the same gap for the same reason;
   - because the value decides, the rule classifies every `password:` assignment
-    in a string, not the first one. One honest assignment says nothing about the
-    next, so `password: string, password: hunter2` is withheld and the order the
-    two appear in does not change the answer; and
+    it can see, not just the first. One honest assignment says nothing about the
+    next, so `password: string, password: hunter2` is withheld, as is the
+    run-together `password:string;password:hunter2` where both assignments fall
+    inside a single regex match. Swapping the two makes no difference. The limit
+    is the key rule rather than the scan: a key the rule never matches is
+    unscreened wherever it sits, which is the next bullet; and
   - a key that runs the word together with a prefix and no separator
     (`PGPASSWORD:`) is not screened. It is shape-identical to `checkPassword:`,
     which has to stay publishable. `DB_PASSWORD:` and `POSTGRES_PASSWORD:` are
