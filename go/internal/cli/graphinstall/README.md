@@ -90,6 +90,22 @@ there is no background pipeline stage to instrument.
 - An install whose source already resolves to the same version and checksum
   as the managed binary is reported `Reused: true` and left untouched,
   unless `Options.Force` is set.
+- `source_path` (in both `Result` and the on-disk manifest) is a **redacted**
+  rendering, not the reference the operator typed. `redactSourceRef` in
+  `redact.go` replaces URL userinfo with `REDACTED` and drops the entire query
+  string. Do not "restore" the raw value: it reaches stdout, a persisted file,
+  and an error message, and `--from https://user:pw@host/build.tar.gz` wrote
+  the credential to disk before this was added.
+- The whole query string goes, rather than only credential-named parameters,
+  because presigned S3/GCS URLs put the bearer credential in
+  `X-Amz-Signature`, which is not credential-shaped by name. `source_sha256`
+  already identifies the exact bytes, so nothing diagnostic is lost.
+  `redactEndpoint` in `go/cmd/eshu` makes the opposite call for a live
+  diagnostic field -- the two are deliberately different, and each says so.
+- Archive/package detection runs against the URL **path**, never the raw
+  reference. Matching `.tar.gz` against the whole reference misclassified
+  every query-bearing download URL as a bare binary, and the install then
+  tried to exec the tarball.
 
 ## Performance and observability of the extraction
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // evidenceIndexingState names whether the first-run proved indexing reached a
@@ -230,8 +231,9 @@ func dedupeStrings(values []string) []string {
 
 // redactEndpoint returns a display-safe form of an endpoint URL. Any embedded
 // userinfo (user:password@) is stripped because it can carry a token or
-// password; the scheme, host, and path remain so the operator can still
-// recognize the target. A value that does not parse as a URL is masked through
+// password; credential-bearing query parameters are masked by name; the
+// scheme, host, and path remain so the operator can still recognize the
+// target. A value that does not parse as a URL is masked through
 // mcpsetup.RedactToken so a credential-looking string never survives verbatim.
 func redactEndpoint(raw string) string {
 	trimmed := strings.TrimSpace(raw)
@@ -245,7 +247,63 @@ func redactEndpoint(raw string) string {
 	if parsed.User != nil {
 		parsed.User = url.User("redacted")
 	}
+	parsed.RawQuery = redactQueryCredentials(parsed.RawQuery)
+	if parsed.Fragment != "" {
+		// An endpoint fragment has no diagnostic value, and "#access_token=..."
+		// is exactly how the OAuth implicit flow returns a bearer token, so
+		// this is dropped wholesale rather than filtered.
+		parsed.Fragment = "redacted"
+	}
 	return parsed.String()
+}
+
+// redactQueryCredentials masks the values of credential-bearing query
+// parameters, leaving every other parameter intact.
+//
+// Which names count is delegated to collector.IsSensitiveKeyName -- the same
+// predicate the collector SDK fails closed on at fact-emission time and the
+// same one go/internal/reportbundle asks. Keeping one rule means widening it
+// there widens it here, instead of this file drifting behind a second list.
+//
+// Per-parameter rather than dropping the whole query: an endpoint's query is
+// how an operator sees what was actually requested, so blanking "?repo=demo"
+// would remove the main diagnostic signal this field exists to carry. The
+// install-manifest sink in internal/cli/graphinstall makes the opposite call
+// for the opposite reason -- see redactSourceRef there.
+//
+// LIMIT, and it is a real one: this masks by parameter NAME only. A credential
+// under a name the predicate does not match still survives -- "?sig=..." and
+// "?X-Amz-Signature=..." are the ones to know about, since neither is
+// credential-shaped by name. Closing that gap would mean judging the value's
+// content, which this repository does not do (no entropy or secret-pattern
+// heuristics). A caller that cannot accept that residue should drop the query
+// entirely rather than rely on this function.
+func redactQueryCredentials(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		// Unparseable, so it cannot be inspected parameter by parameter. Fail
+		// closed: drop it rather than pass through bytes nobody has checked.
+		return "redacted"
+	}
+	redactedAny := false
+	for key, entries := range values {
+		if !collector.IsSensitiveKeyName(key) {
+			continue
+		}
+		for i := range entries {
+			entries[i] = "redacted"
+		}
+		redactedAny = true
+	}
+	if !redactedAny {
+		// Returned verbatim so a clean endpoint is not silently reordered or
+		// re-escaped by Encode().
+		return rawQuery
+	}
+	return values.Encode()
 }
 
 // redactPath returns a display-safe form of a filesystem path target. Absolute

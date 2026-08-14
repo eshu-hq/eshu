@@ -106,10 +106,14 @@ func materializeInstallSource(ctx context.Context, sourceRef string) (string, in
 		if err != nil {
 			return "", "", nil, err
 		}
+		// Classify on the URL path, not the whole reference. A presigned or
+		// token-bearing download URL ends in its query string, so matching
+		// ".tar.gz" against the raw reference reported every such URL as a
+		// bare binary and the install then tried to exec the tarball.
 		kind := sourceDownloadedBinary
-		if looksLikeArchive(sourceRef) {
+		if looksLikeArchive(parsed.Path) {
 			kind = sourceDownloadedArchive
-		} else if looksLikePackage(sourceRef) {
+		} else if looksLikePackage(parsed.Path) {
 			kind = sourceDownloadedPackage
 		}
 		return path, kind, func() error { return os.RemoveAll(filepath.Dir(path)) }, nil
@@ -140,6 +144,10 @@ func materializeInstallSource(ctx context.Context, sourceRef string) (string, in
 }
 
 func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, readVersion VersionReader) (preparedInstallSource, error) {
+	// Computed once, up front, so no path below can reach for the raw
+	// reference by accident. Everything operator-facing from here on -- the
+	// recorded SourcePath and every error message -- uses this form.
+	safeRef := redactSourceRef(sourceRef)
 	switch kind {
 	case sourceLocalArchive, sourceDownloadedArchive:
 		extractedBinary, extractedName, cleanup, err := extractBinaryFromArchive(localPath)
@@ -149,7 +157,7 @@ func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, r
 		version, err := readVersion(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", safeRef, err)
 		}
 		binarySHA, err := sha256File(extractedBinary)
 		if err != nil {
@@ -157,7 +165,7 @@ func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, r
 			return preparedInstallSource{}, err
 		}
 		return preparedInstallSource{
-			SourcePath:      sourceRef,
+			SourcePath:      safeRef,
 			SourceKind:      kind,
 			LocalBinaryPath: extractedBinary,
 			BinarySHA256:    binarySHA,
@@ -173,7 +181,7 @@ func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, r
 		version, err := readVersion(extractedBinary)
 		if err != nil {
 			_ = cleanup()
-			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", safeRef, err)
 		}
 		binarySHA, err := sha256File(extractedBinary)
 		if err != nil {
@@ -181,7 +189,7 @@ func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, r
 			return preparedInstallSource{}, err
 		}
 		return preparedInstallSource{
-			SourcePath:      sourceRef,
+			SourcePath:      safeRef,
 			SourceKind:      kind,
 			LocalBinaryPath: extractedBinary,
 			BinarySHA256:    binarySHA,
@@ -192,7 +200,7 @@ func inspectInstallSource(sourceRef, localPath string, kind installSourceKind, r
 	default:
 		version, err := readVersion(localPath)
 		if err != nil {
-			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", sourceRef, err)
+			return preparedInstallSource{}, fmt.Errorf("verify nornicdb source binary %q: %w", safeRef, err)
 		}
 		binarySHA, err := sha256File(localPath)
 		if err != nil {
@@ -217,20 +225,36 @@ func downloadInstallSource(ctx context.Context, sourceURL string) (string, error
 	if err != nil {
 		return "", err
 	}
+	// This error message deliberately names no URL. The only caller,
+	// materializeInstallSource, has already run url.Parse on sourceURL, and
+	// http.NewRequestWithContext parses with the same function against a
+	// constant method, so it cannot fail here -- there is no reachable case
+	// whose message would need redacting.
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("build nornicdb download request: %w", err)
 	}
+	safeURL := redactSourceRef(sourceURL)
 	client := &http.Client{Timeout: timeout}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("download nornicdb source %q: %w", sourceURL, err)
+		// The transport error is a *url.Error whose Error() re-prints the
+		// request URL. net/http only masks the password half of userinfo, so
+		// wrapping it directly would re-leak the username and the whole query
+		// string that safeURL just removed. Unwrap to the cause -- which
+		// carries host:port at most -- and keep %w so errors.Is/As still work.
+		cause := err
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			cause = urlErr.Err
+		}
+		return "", fmt.Errorf("download nornicdb source %q: %w", safeURL, cause)
 	}
 	defer func() {
 		_ = response.Body.Close()
 	}()
 	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download nornicdb source %q: unexpected status %s", sourceURL, response.Status)
+		return "", fmt.Errorf("download nornicdb source %q: unexpected status %s", safeURL, response.Status)
 	}
 
 	tempDir, err := os.MkdirTemp("", "eshu-nornicdb-install-*")

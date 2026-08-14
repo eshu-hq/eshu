@@ -49,4 +49,14 @@
 // exec.Command("pkgutil", "--expand-full", ...) in source.go, to expand a
 // darwin .pkg install source. That is archive extraction, not version
 // verification.
+//
+// The recorded source reference is redacted, not verbatim. A download URL can
+// carry credentials (userinfo, or a presigned query string), and the reference
+// reaches three operator-facing sinks: the JSON `eshu install nornicdb` prints
+// to stdout, the install manifest persisted at 0600, and the checksum-mismatch
+// error. redactSourceRef strips userinfo and the whole query string at the
+// point SourcePath is assigned, so no sink -- present or future -- can render
+// a secret. The recorded value is therefore display-only and not refetchable;
+// nothing in the repository parses the manifest back, and the download always
+// uses the caller's original reference.
 package graphinstall
