@@ -60,7 +60,9 @@ func buildSupplyChainPacket(client Client, deps Deps, req Request) (query.Invest
 		if refusal, refused := RefusalFromFetchError(err); refused {
 			return refusalPacket(query.InvestigationFamilySupplyChainImpact, req.Subject, refusal)
 		}
-		return query.InvestigationEvidencePacket{}, err //nolint:wrapcheck // transport text reaches the operator verbatim
+		// Unwrapped so the operator reads the client's own text; wrapcheck does
+		// not flag this one (the error comes from a struct field call).
+		return query.InvestigationEvidencePacket{}, err
 	}
 	if refusal, refused, err := RefusalFromEnvelopeError(envelope.Error); err != nil {
 		return query.InvestigationEvidencePacket{}, err
@@ -84,7 +86,9 @@ func buildDeployableUnitPacket(client Client, deps Deps, req Request) (query.Inv
 		if refusal, refused := RefusalFromFetchError(err); refused {
 			return refusalPacket(query.InvestigationFamilyDeployableUnit, req.Subject, refusal)
 		}
-		return query.InvestigationEvidencePacket{}, err //nolint:wrapcheck // transport text reaches the operator verbatim
+		// Unwrapped so the operator reads the client's own text; wrapcheck does
+		// not flag this one (the error comes from a struct field call).
+		return query.InvestigationEvidencePacket{}, err
 	}
 	if refusal, refused, err := RefusalFromEnvelopeError(envelope.Error); err != nil {
 		return query.InvestigationEvidencePacket{}, err
@@ -107,7 +111,9 @@ func buildDriftPacket(client Client, deps Deps, req Request) (query.Investigatio
 		if refusal, refused := RefusalFromFetchError(err); refused {
 			return refusalPacket(query.InvestigationFamilyDrift, req.Subject, refusal)
 		}
-		return query.InvestigationEvidencePacket{}, err //nolint:wrapcheck // transport text reaches the operator verbatim
+		// Unwrapped so the operator reads the client's own text; wrapcheck does
+		// not flag this one (the error comes from a struct field call).
+		return query.InvestigationEvidencePacket{}, err
 	}
 	if refusal, refused, err := RefusalFromEnvelopeError(envelope.Error); err != nil {
 		return query.InvestigationEvidencePacket{}, err
