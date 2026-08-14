@@ -137,6 +137,16 @@ func runReportCapture(cmd *cobra.Command, _ []string) error {
 		target = strings.TrimSpace(tool)
 	}
 
+	// Both are checked, and before the request goes out: --endpoint reaches the
+	// bundle when --tool is absent and reaches the failure message either way,
+	// so checking only the one that becomes query.target leaves the other live.
+	if err := rejectTargetCredentials("--endpoint", endpoint); err != nil {
+		return err
+	}
+	if err := rejectTargetCredentials("--tool", tool); err != nil {
+		return err
+	}
+
 	envelope, err := fetchReportEnvelope(apiClientFromCmd(cmd), method, endpoint, params)
 	if err != nil {
 		return fmt.Errorf("fetch query envelope: %w", err)
@@ -238,6 +248,80 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 	return envelope, nil
 }
 
+// rejectTargetCredentials refuses a --endpoint or --tool value carrying URL
+// userinfo, the `user:password@host` an authority component may hold.
+//
+// Every redaction rule in internal/reportbundle matches an object KEY name, and
+// SplitTargetQuery exists to turn a target's query string back into keys so
+// those rules can reach it. Userinfo sits before the "?", so the split never
+// sees it and there is no key name to match: `--tool
+// https://svc:PASSWORD@mcp.internal/tool` put the password verbatim into
+// query.target of a bundle stamped `"profile": "public"`, `"rules": []` and
+// `"status": "passed"` — a share-safe artifact, meant for a public issue, that
+// certified it had screened itself.
+//
+// It refuses rather than stripping, matching how Capture handles an unparseable
+// query string and how sdk/go/collector's validateSourceURI handles the same
+// userinfo on a fact source_ref: a bundle that quietly drops half of what the
+// reporter asked misreports the query under investigation, and the reporter is
+// the only one who can supply a target without the credential in it.
+//
+// net/url decides what an authority is, so an "@" inside a path segment
+// (`/api/v0/owners/dev@example.com/services`) is untouched. A hand-written
+// character rule is exactly what has been wrong here before.
+//
+// Not covered: a full URL pasted INSIDE a path segment
+// (`/api/v0/x/https://svc:pw@host/y`) is not an authority component, so
+// net/url reports no userinfo and the value passes. An unparseable target is
+// refused instead of passed, because nothing can separate a credential from a
+// string that cannot be taken apart.
+//
+// The error names the flag and never repeats the value, per the same rule
+// internal/reportbundle states in its doc.go: these messages reach terminals,
+// CI logs and pasted bug reports — the places the bundle beside them is
+// redacted for.
+func rejectTargetCredentials(flag, value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return commandExitError{
+			message: flag + " cannot be parsed as a URL, so it cannot be checked for an embedded credential; pass a plain path or tool name",
+			code:    2,
+		}
+	}
+	if parsed.User != nil {
+		return commandExitError{
+			message: flag + " carries a credential in its URL userinfo (user:password@host); remove it and rerun, because the captured bundle is meant to be attached to a public issue",
+			code:    2,
+		}
+	}
+	return nil
+}
+
+// safeErrorPath returns path with any URL userinfo replaced by a fixed marker,
+// for use in a message a reporter reads.
+//
+// Unlike rejectTargetCredentials this redacts instead of refusing: the caller
+// is already reporting a failure, and the host and path are what a reader needs
+// to fix it. A path net/url cannot parse is replaced wholesale, since a string
+// that cannot be taken apart cannot have a credential separated out of it.
+func safeErrorPath(path string) string {
+	parsed, err := url.Parse(path)
+	if err != nil {
+		return "[unparseable endpoint]"
+	}
+	if parsed.User == nil {
+		// Returned verbatim rather than through parsed.String(), which
+		// re-encodes and would change messages that were already safe.
+		return path
+	}
+	parsed.User = url.User("redacted")
+	return parsed.String()
+}
+
 // requestErrorWithoutURL strips the request URL out of a transport error and
 // puts the bare endpoint path in its place.
 //
@@ -252,14 +336,24 @@ func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[
 // and the reader still learns what actually failed (connection refused, TLS
 // handshake, timeout). Those carry host:port, never the query string.
 //
+// The substituted path goes through safeErrorPath rather than being trusted:
+// it is the reporter's own --endpoint, and stripping the query string leaves
+// `https://svc:PASSWORD@host/path` fully intact. runReportCapture already
+// refuses such an endpoint before any request goes out, so this is the second
+// of two guards — deliberately, because "the caller checked it" is the kind of
+// ordering assumption this function exists to stop depending on.
+//
 // Not covered: a server that echoes the request URL back inside a 4xx/5xx
 // response body, which arrives as apiHTTPError.Body rather than a *url.Error.
+// Reaching into that body means reading apiHTTPError, which lives in package
+// main and so cannot be read from internal/cli; issue #6059's sibling branch
+// (PR #6117) adds the accessor that would make it possible.
 func requestErrorWithoutURL(err error, safePath string) error {
 	var urlErr *url.Error
 	if !errors.As(err, &urlErr) {
 		return err
 	}
-	return fmt.Errorf("%s %s: %w", urlErr.Op, safePath, urlErr.Err)
+	return fmt.Errorf("%s %s: %w", urlErr.Op, safeErrorPath(safePath), urlErr.Err)
 }
 
 // observedTruncation looks for a top-level "truncated" boolean in the
