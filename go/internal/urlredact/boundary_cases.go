@@ -49,6 +49,17 @@ type BoundaryCase struct {
 	FreeTextKeepsSecret string
 }
 
+// ProvesRemoval reports whether this row is one BOTH walks must strip the
+// credential from.
+//
+// A coverage guard has to ask it. A guard satisfied by a row carrying no
+// credential, or by a row whose credential is recorded as unreachable, claims
+// an axis is exercised when nothing on that axis is ever removed — which is a
+// guard that cannot fail.
+func (c BoundaryCase) ProvesRemoval() bool {
+	return c.Secret != "" && c.EndpointKeepsSecret == "" && c.FreeTextKeepsSecret == ""
+}
+
 // CheckEndpointSecret reports whether cmd/eshu's redactEndpoint output honours
 // this row's leak invariant. It returns nil when it does.
 func (c BoundaryCase) CheckEndpointSecret(got string) error {
@@ -288,6 +299,33 @@ func encodedBoundaryCases() []BoundaryCase {
 			Secret:       Sentinel,
 			WantEndpoint: "http://h/x?a=1%26token%3dredacted",
 			WantFreeText: "http://h/x?a=1%26[redacted]",
+		},
+		{
+			// The other direction of the same axis, and the one making the
+			// separator decode-aware broke. Here the pair was written with a
+			// LITERAL "=", so the reporter typed it at the surface depth and
+			// the "%26" is two characters of the credential — "token=AAAA%26x"
+			// is a token whose value is "AAAA&x". Reading that escape as a
+			// boundary cut the value in half and shipped the tail.
+			//
+			// The cost of the fix is over-removal: a genuine "repo=demo" after
+			// such an escape goes with the credential. That is the side this
+			// package errs on, and it is what the free-text walk has always
+			// done for a header value.
+			Name:         "percent-encoded ampersand inside a literal pair is value content",
+			Input:        "http://h/x?token=AAAA%26" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?token=redacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			// The same shape on the other separator and another key name, so a
+			// fix written against "&" and "token" alone does not pass.
+			Name:         "percent-encoded semicolon inside a literal pair is value content",
+			Input:        "http://h/x?password=AAAA%3B" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?password=redacted",
+			WantFreeText: "http://h/x?[redacted]",
 		},
 		{
 			// The far side of the one-layer rule, pinned so widening it to a

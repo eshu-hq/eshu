@@ -35,6 +35,16 @@ func TestQueryPreservesTheSeparatorItRead(t *testing.T) {
 		{name: "percent-encoded ampersand splits the pairs", raw: "a=1%26token%3D" + Sentinel + "%26b=2", want: "a=1%26token%3Dredacted%26b=2"},
 		{name: "percent-encoded question mark opens a nested query", raw: "next=/v0/y%3Fapi_key%3D" + Sentinel, want: "next=/v0/y%3Fapi_key%3Dredacted"},
 		{name: "lowercase hex in the escapes", raw: "a=1%26token%3d" + Sentinel, want: "a=1%26token%3dredacted"},
+		// The depth rule. A pair joined by a literal "=" was typed at the
+		// surface, so an escaped separator inside its value is part of the
+		// value and the whole tail goes. Reading it as a boundary shipped
+		// everything after the escape.
+		{name: "escaped ampersand inside a literal pair is value content", raw: "token=AAAA%26" + Sentinel, want: "token=redacted"},
+		{name: "escaped semicolon inside a literal pair is value content", raw: "password=AAAA%3B" + Sentinel, want: "password=redacted"},
+		{name: "escaped question mark inside a literal pair is value content", raw: "token=AAAA%3F" + Sentinel, want: "token=redacted"},
+		{name: "a literal separator still ends a literal pair", raw: "token=AAAA%26" + Sentinel + "&repo=demo", want: "token=redacted&repo=demo"},
+		{name: "a benign literal pair keeps its escaped content", raw: "q=aa%26bb&repo=demo", want: "q=aa%26bb&repo=demo"},
+		{name: "an escaped separator still ends an escaped pair", raw: "a=1%26token%3D" + Sentinel + "%26repo%3Ddemo", want: "a=1%26token%3Dredacted%26repo%3Ddemo"},
 		{name: "encoded separator with no value after it", raw: "token%3D", want: "token%3D"},
 		{name: "double-encoded stays one layer out of reach", raw: "next=%253Ftoken%253D" + Sentinel, want: "next=%253Ftoken%253D" + Sentinel},
 		{name: "a percent that starts no escape is literal text", raw: "a=100%&token=" + Sentinel, want: "a=100%&token=redacted"},
@@ -148,7 +158,7 @@ func TestBoundaryCasesCoverTheEncodedSpelling(t *testing.T) {
 		escape := fmt.Sprintf("%%%02X", want)
 		found := false
 		for _, tc := range BoundaryCases() {
-			if strings.Contains(strings.ToUpper(tc.Input), escape) {
+			if tc.ProvesRemoval() && strings.Contains(strings.ToUpper(tc.Input), escape) {
 				found = true
 				break
 			}
@@ -159,16 +169,27 @@ func TestBoundaryCasesCoverTheEncodedSpelling(t *testing.T) {
 	}
 }
 
+// escapePattern matches exactly one percent-escape and captures its two hex
+// digits. Anchoring it to two digits is the whole point: an unanchored
+// `%[0-9a-fA-F]*[a-f][0-9a-fA-F]*` runs on past the escape into ordinary text,
+// so an uppercase "%2Fcb" satisfied a lowercase-hex guard through the "cb" that
+// follows it and the guard could not fail.
+var escapePattern = regexp.MustCompile(`%([0-9a-fA-F]{2})`)
+
 // TestBoundaryCasesVaryTheHexCase pins the other half of the encoding axis. RFC
 // 3986 allows either case in an escape and real clients emit both, so a hex
 // reader written with only "0-9A-F" would pass every row above.
 func TestBoundaryCasesVaryTheHexCase(t *testing.T) {
 	t.Parallel()
 
-	lower := regexp.MustCompile(`%[0-9a-fA-F]*[a-f][0-9a-fA-F]*`)
 	for _, tc := range BoundaryCases() {
-		if tc.Secret != "" && lower.MatchString(tc.Input) {
-			return
+		if !tc.ProvesRemoval() {
+			continue
+		}
+		for _, escape := range escapePattern.FindAllStringSubmatch(tc.Input, -1) {
+			if strings.ContainsAny(escape[1], "abcdef") {
+				return
+			}
 		}
 	}
 	t.Error("no credential-carrying corpus row spells an escape with lowercase hex")

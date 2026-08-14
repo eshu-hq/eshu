@@ -72,35 +72,45 @@ func TestDecodedEscapeBeforeOnlyFiresOnAWholeEscape(t *testing.T) {
 	}
 }
 
-// TestIndexDecodedAnyFindsEitherSpelling pins that a scan cannot be fooled by an
-// escape sitting where a separator is expected, and that it never reports a hit
-// inside one: "%3D" holds a "3", so a naive scan for "3" would land mid-escape.
-func TestIndexDecodedAnyFindsEitherSpelling(t *testing.T) {
+// TestIndexBoundaryHonoursTheDepth pins both halves of the reader. At
+// LiteralOrEscaped a scan cannot be fooled by an escape sitting where a
+// separator is expected, and it never reports a hit inside one: "%3D" holds a
+// "3", so a naive scan for "3" would land mid-escape. At LiteralOnly the same
+// escape is ordinary text, which is what keeps a credential containing "%26"
+// from being cut in half.
+func TestIndexBoundaryHonoursTheDepth(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
 		s         string
 		set       string
+		depth     BoundaryDepth
 		wantIndex int
 		wantWidth int
 	}{
-		{name: "literal", s: "ab=c", set: "=", wantIndex: 2, wantWidth: 1},
-		{name: "encoded", s: "ab%3Dc", set: "=", wantIndex: 2, wantWidth: EscapeWidth},
-		{name: "first of two spellings wins", s: "a%3Db=c", set: "=", wantIndex: 1, wantWidth: EscapeWidth},
-		{name: "no match", s: "abc", set: "=", wantIndex: -1},
-		{name: "does not match inside an escape", s: "%3D", set: "3", wantIndex: -1},
-		{name: "any byte of the set", s: "a;b", set: "?&;", wantIndex: 1, wantWidth: 1},
-		{name: "empty input", s: "", set: "=", wantIndex: -1},
+		{name: "literal", s: "ab=c", set: "=", depth: LiteralOrEscaped, wantIndex: 2, wantWidth: 1},
+		{name: "encoded", s: "ab%3Dc", set: "=", depth: LiteralOrEscaped, wantIndex: 2, wantWidth: EscapeWidth},
+		{name: "first of two spellings wins", s: "a%3Db=c", set: "=", depth: LiteralOrEscaped, wantIndex: 1, wantWidth: EscapeWidth},
+		{name: "no match", s: "abc", set: "=", depth: LiteralOrEscaped, wantIndex: -1},
+		{name: "does not match inside an escape", s: "%3D", set: "3", depth: LiteralOrEscaped, wantIndex: -1},
+		{name: "any byte of the set", s: "a;b", set: "?&;", depth: LiteralOrEscaped, wantIndex: 1, wantWidth: 1},
+		{name: "empty input", s: "", set: "=", depth: LiteralOrEscaped, wantIndex: -1},
+
+		{name: "literal depth reads the literal byte", s: "aa&bb", set: "?&;", depth: LiteralOnly, wantIndex: 2, wantWidth: 1},
+		{name: "literal depth ignores the escape", s: "aa%26bb", set: "?&;", depth: LiteralOnly, wantIndex: -1},
+		{name: "literal depth finds a literal past an escape", s: "aa%26bb;cc", set: "?&;", depth: LiteralOnly, wantIndex: 7, wantWidth: 1},
+		{name: "literal depth skips a multi-byte rune", s: "aé;b", set: ";", depth: LiteralOnly, wantIndex: 3, wantWidth: 1},
+		{name: "literal depth on empty input", s: "", set: "&", depth: LiteralOnly, wantIndex: -1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotIndex, gotWidth := IndexDecodedAny(tt.s, tt.set)
+			gotIndex, gotWidth := IndexBoundary(tt.s, tt.set, tt.depth)
 			if gotIndex != tt.wantIndex || gotWidth != tt.wantWidth {
-				t.Fatalf("IndexDecodedAny(%q, %q) = (%d, %d), want (%d, %d)",
-					tt.s, tt.set, gotIndex, gotWidth, tt.wantIndex, tt.wantWidth)
+				t.Fatalf("IndexBoundary(%q, %q, %v) = (%d, %d), want (%d, %d)",
+					tt.s, tt.set, tt.depth, gotIndex, gotWidth, tt.wantIndex, tt.wantWidth)
 			}
 		})
 	}

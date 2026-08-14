@@ -3,7 +3,10 @@
 
 package urlredact
 
-import "net/url"
+import (
+	"net/url"
+	"strings"
+)
 
 // EscapeWidth is the byte length of one percent-escape, as in "%3F".
 const EscapeWidth = 3
@@ -77,15 +80,47 @@ func DecodedEscapeBefore(s string, i int) (byte, bool) {
 	return decoded, true
 }
 
-// IndexDecodedAny returns the byte offset and width of the first position in s
-// that stands for one of the bytes in set, written literally or as one
-// percent-escape. It returns (-1, 0) when there is none.
+// BoundaryDepth selects which spellings of a structural byte a scan counts as
+// that byte.
+//
+// It exists because "is this an escape for a separator?" has no answer on its
+// own — it depends on how deep the text around it was encoded. Making every
+// read decode-aware without this distinction turned value CONTENT into
+// structure: "token=AAAA%26BBBB" is one credential whose value holds an "&",
+// and reading that "%26" as a boundary cut the value in half and shipped
+// "BBBB".
+type BoundaryDepth int
+
+const (
+	// LiteralOnly counts a structural byte only where it is written as itself.
+	// It is the depth of text the reporter typed at the surface: a pair joined
+	// by a literal "=" sits there, so an escape inside its value belongs to the
+	// value.
+	LiteralOnly BoundaryDepth = iota
+	// LiteralOrEscaped also counts one percent-escape standing for the byte. It
+	// is the depth of a pair whose own "=" arrived encoded — an HTTP client
+	// that wrote "%3D" wrote "%26" for the separator beside it, so both are
+	// structure there.
+	LiteralOrEscaped
+)
+
+// IndexBoundary returns the byte offset and width of the first position in s
+// that stands for one of the bytes in set at the given depth. It returns
+// (-1, 0) when there is none. At LiteralOnly the width is always 1.
 //
 // The width is returned because the caller has to keep the ORIGINAL spelling:
 // a walk that replaced "%3D" with "=" would rewrite an endpoint nobody asked to
 // have rewritten, and the operator then cannot match it against their own
 // config.
-func IndexDecodedAny(s, set string) (int, int) {
+func IndexBoundary(s, set string, depth BoundaryDepth) (int, int) {
+	if depth == LiteralOnly {
+		// set holds ASCII only, and every byte of a multi-byte UTF-8 rune is
+		// >= 0x80, so a rune scan cannot match inside one.
+		if i := strings.IndexAny(s, set); i >= 0 {
+			return i, 1
+		}
+		return -1, 0
+	}
 	for i := 0; i < len(s); {
 		decoded, width := DecodedByteAt(s, i)
 		if width == 0 {

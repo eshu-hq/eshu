@@ -356,15 +356,39 @@ func sensitiveHeaderKeyStart(line string) (int, bool) {
 	return 0, false
 }
 
+// noteTerminatorDepth picks which spellings of a terminator end a value, from
+// how the "=" that opened the pair was spelled.
+//
+// A pair joined by a LITERAL "=" is text at the depth the reporter typed, so an
+// escape inside its value is characters OF the credential: "?token=aa%26bb" is
+// a token whose value is "aa&bb". Reading that escape as a boundary cut the
+// credential at the "%26" and left "bb" in the note — a partial leak introduced
+// by making the terminator scan decode-aware without asking at which depth.
+// "%3B", "%20", "%27" and "%3F" all did the same thing.
+//
+// A pair whose "=" arrived percent-encoded sits one layer down, where an HTTP
+// client wrote the whole structure encoded. There a "%26" IS the separator it
+// stands for, which is what
+// "?redirect_uri=%2Fcb%3Faccess_token%3D<credential>%26repo%3Ddemo" needs.
+func noteTerminatorDepth(separatorWidth int) urlredact.BoundaryDepth {
+	if separatorWidth == urlredact.EscapeWidth {
+		return urlredact.LiteralOrEscaped
+	}
+	return urlredact.LiteralOnly
+}
+
 // redactNoteKeyValuePairs replaces every sensitive "key=value" span on one line,
 // keeping the text around them. Every pair on the line is handled, not only the
 // first: a pasted URL can carry two.
 //
-// The "=" and the terminator that ends the value are both read one layer
-// decoded, so "?redirect_uri=%2Fcb%3Faccess_token%3D<credential>" — how an HTTP
-// client writes the nested callback URL — is cut at the same places
-// "?redirect_uri=/cb?access_token=<credential>" is. The bytes around the removed
-// span are copied through in the spelling they arrived in.
+// The "=" is read one layer decoded, so
+// "?redirect_uri=%2Fcb%3Faccess_token%3D<credential>" — how an HTTP client
+// writes the nested callback URL — is found where
+// "?redirect_uri=/cb?access_token=<credential>" is. The terminator that ends
+// the value is read at the depth that "=" was written at (noteTerminatorDepth),
+// because an escape inside a value the reporter typed literally is part of the
+// credential, not the end of it. The bytes around the removed span are copied
+// through in the spelling they arrived in.
 //
 // It reports whether the last removal reached the end of the line.
 func redactNoteKeyValuePairs(line string) (string, bool, bool) {
@@ -386,7 +410,7 @@ func redactNoteKeyValuePairs(line string) (string, bool, bool) {
 		}
 		valueStart := noteValueStart(line, i+width)
 		end := len(line)
-		if offset, _ := urlredact.IndexDecodedAny(line[valueStart:], freeTextValueTerminators); offset >= 0 {
+		if offset, _ := urlredact.IndexBoundary(line[valueStart:], freeTextValueTerminators, noteTerminatorDepth(width)); offset >= 0 {
 			end = valueStart + offset
 		}
 		out.WriteString(line[cursor:start])
