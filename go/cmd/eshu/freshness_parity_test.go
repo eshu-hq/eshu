@@ -40,6 +40,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/freshness"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -116,22 +117,22 @@ func cliFreshnessServer(
 // renderGenerations renders the CLI generation-lifecycle summary the way the
 // `eshu freshness generations` command does, returning the human output for
 // non-green and convenience assertions.
-func renderGenerations(t *testing.T, env freshnessGenerationsEnvelope) string {
+func renderGenerations(t *testing.T, env freshness.Envelope) string {
 	t.Helper()
 	out := &bytes.Buffer{}
-	if err := renderFreshnessGenerationsSummary(out, env); err != nil {
-		t.Fatalf("renderFreshnessGenerationsSummary() error = %v", err)
+	if err := freshness.RenderGenerationsSummary(out, env); err != nil {
+		t.Fatalf("RenderGenerationsSummary() error = %v", err)
 	}
 	return out.String()
 }
 
 // renderChangedSince renders the CLI changed-since summary the way the
 // `eshu freshness changed-since` command does.
-func renderChangedSince(t *testing.T, env freshnessGenerationsEnvelope) string {
+func renderChangedSince(t *testing.T, env freshness.Envelope) string {
 	t.Helper()
 	out := &bytes.Buffer{}
-	if err := renderFreshnessChangedSinceSummary(out, env); err != nil {
-		t.Fatalf("renderFreshnessChangedSinceSummary() error = %v", err)
+	if err := freshness.RenderChangedSinceSummary(out, env); err != nil {
+		t.Fatalf("RenderChangedSinceSummary() error = %v", err)
 	}
 	return out.String()
 }
@@ -151,14 +152,14 @@ func equalStrings(a, b []string) bool {
 // freshnessStateFromEnvelope reads the canonical truth.freshness.state the CLI
 // envelope carries. The CLI parses truth as a generic map, so the parity layer
 // reads the same path the renderer reads.
-func freshnessStateFromEnvelope(env freshnessGenerationsEnvelope) string {
+func freshnessStateFromEnvelope(env freshness.Envelope) string {
 	return traceString(traceMap(env.Truth, "freshness"), "state")
 }
 
 // generationIDsFromEnvelope flattens the source generation identities the CLI
 // envelope reports, using the SAME projection shape the MCP parity layer uses
 // so the two can be reasoned about as equal contracts.
-func generationIDsFromEnvelope(env freshnessGenerationsEnvelope) []string {
+func generationIDsFromEnvelope(env freshness.Envelope) []string {
 	ids := []string{}
 	if rows := traceSlice(env.Data, "generations"); len(rows) > 0 {
 		for _, raw := range rows {
@@ -209,9 +210,9 @@ func TestCLIFreshnessGenerationsParityChangedSupersedes(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	env, err := fetchFreshnessGenerations(client, freshnessGenerationsOptions{ScopeID: "git-repository-scope:acme/app"})
+	env, err := freshness.FetchGenerations(client, freshness.GenerationsOptions{ScopeID: "git-repository-scope:acme/app"})
 	if err != nil {
-		t.Fatalf("fetchFreshnessGenerations() error = %v", err)
+		t.Fatalf("FetchGenerations() error = %v", err)
 	}
 	if got := freshnessStateFromEnvelope(env); got != string(query.FreshnessFresh) {
 		t.Fatalf("CLI freshness state = %q, want fresh", got)
@@ -238,9 +239,9 @@ func TestCLIFreshnessGenerationsParityPendingBuilding(t *testing.T) {
 		Limit: 50,
 	}}, nil)
 
-	env, err := fetchFreshnessGenerations(client, freshnessGenerationsOptions{Repository: "acme/app"})
+	env, err := freshness.FetchGenerations(client, freshness.GenerationsOptions{Repository: "acme/app"})
 	if err != nil {
-		t.Fatalf("fetchFreshnessGenerations() error = %v", err)
+		t.Fatalf("FetchGenerations() error = %v", err)
 	}
 	requireNonGreenCLIState(t, freshnessStateFromEnvelope(env), string(query.FreshnessBuilding))
 	requireCLIRendersFreshness(t, renderGenerations(t, env), "building", "gen-inflight")
@@ -264,9 +265,9 @@ func TestCLIFreshnessGenerationsParityUnknownScopeNotFound(t *testing.T) {
 	client := cliFreshnessServer(t, fixedGenerationReader{page: status.GenerationLifecyclePage{Limit: 50}}, nil)
 
 	// API/MCP surfaces keep the precise typed code in the body.
-	_, transportErr := fetchFreshnessGenerations(client, freshnessGenerationsOptions{ScopeID: "does-not-exist"})
+	_, transportErr := freshness.FetchGenerations(client, freshness.GenerationsOptions{ScopeID: "does-not-exist"})
 	if transportErr == nil {
-		t.Fatal("fetchFreshnessGenerations() error = nil, want HTTP 404 for unknown scope")
+		t.Fatal("FetchGenerations() error = nil, want HTTP 404 for unknown scope")
 	}
 	if !strings.Contains(transportErr.Error(), string(query.ErrorCodeScopeNotFound)) {
 		t.Fatalf("transport error = %v, want it to carry %q from the canonical body", transportErr, query.ErrorCodeScopeNotFound)
@@ -309,12 +310,12 @@ func TestCLIFreshnessChangedSinceParityRetiredEvidence(t *testing.T) {
 		}},
 	}})
 
-	env, err := fetchFreshnessChangedSince(client, freshnessChangedSinceOptions{
+	env, err := freshness.FetchChangedSince(client, freshness.ChangedSinceOptions{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-prior",
 	})
 	if err != nil {
-		t.Fatalf("fetchFreshnessChangedSince() error = %v", err)
+		t.Fatalf("FetchChangedSince() error = %v", err)
 	}
 	if got := freshnessStateFromEnvelope(env); got != string(query.FreshnessFresh) {
 		t.Fatalf("CLI freshness state = %q, want fresh", got)
@@ -348,12 +349,12 @@ func TestCLIFreshnessChangedSinceParityUnavailable(t *testing.T) {
 		},
 	}})
 
-	env, err := fetchFreshnessChangedSince(client, freshnessChangedSinceOptions{
+	env, err := freshness.FetchChangedSince(client, freshness.ChangedSinceOptions{
 		ScopeID:           "git-repository-scope:acme/app",
 		SinceGenerationID: "gen-prior",
 	})
 	if err != nil {
-		t.Fatalf("fetchFreshnessChangedSince() error = %v", err)
+		t.Fatalf("FetchChangedSince() error = %v", err)
 	}
 	requireNonGreenCLIState(t, freshnessStateFromEnvelope(env), string(query.FreshnessUnavailable))
 
