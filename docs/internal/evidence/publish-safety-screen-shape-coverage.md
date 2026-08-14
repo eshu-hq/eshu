@@ -231,6 +231,103 @@ real reason — its rows moved when the regex moved. It could not fail, because
 no row in it was the shape being argued about. A false-positive claim is only
 tested by a row that the broken code actually rejects.
 
+## D: what review rounds two and three found
+
+Section C is the first review round. Two more followed. Each found a live defect
+rather than a wording problem, and each is a separate commit on this branch.
+
+### The password classifier let the order of two assignments decide
+
+`passwordAssignmentIsUnsafe` read the leftmost `password:` in a string and
+returned on it. The classifier decides on the assigned **value**, so one honest
+assignment says nothing about the next, and a string that opened with a schema
+declaration and carried a real secret afterwards published the secret:
+
+| Input | Before | After |
+| --- | --- | --- |
+| `password: string, password: hunter2` | published | withheld |
+| `password: hunter2, password: string` | withheld | withheld |
+
+Swapping two halves of the same string changed the answer. That is the signature
+of a rule reading position rather than content. The scan now classifies every
+assignment and continues past the safe shapes — declaration, count, placeholder
+— instead of ending on them.
+
+### The scorecard published the values its own `publish_safety` criterion refused
+
+`publish_safety` failed on an unsafe family or prompt id while the same raw value
+shipped in `prompt_scores[]` of the `--json` verdict. The verdict is the artifact
+the scorecard exists to make safe to hand to someone else, so a criterion that
+refuses a value the payload around it still carries has refused nothing.
+
+Thirteen render sites now go through the screen: `PromptScore.ID` and `.Family`,
+the family that `aggregatePromptCriterion` interpolates into every aggregate
+detail, the *expected* truth class in a `truth_honesty` mismatch (the observed
+half was already screened and the expected half was not), the missing surfaces
+and next calls in `parity` and `follow_up_usefulness`, and the narration status,
+truth classes, freshness values, and dropped citation, limitation, and next-call
+lists in a `narration_fallback` detail.
+
+`required_surfaces` was the worst of them: it had no `locatedString` row at all,
+so nothing screened it and a carrier planted there shipped with the whole
+scorecard reporting a pass. It has a row now.
+
+Fields with a closed value set go through `label()`, which returns the enum name
+and never the captured string; `NarrationStatus` gained one alongside the
+existing `Surface` and `PromptFamily`. Open-valued fields have no enum to fall
+back on, so they use `screened()` and are only as good as the shared scanner.
+That is a stated limit, not an assumption.
+
+`score.go` sat at 498 of the 500-line cap, so the publish-safety plumbing moved
+to `score_publish_safety.go`.
+
+### A credential run together with an honest assignment still published
+
+Round two fixed the comma-and-space spelling and left the run-together one. The
+capture class in `passwordAssignmentPattern` is `([^\s"',]*)`, which stops only
+at whitespace, a quote, and a comma. When a second `password:<secret>` sits
+inside that run, the **whole run is one match**, measured against the shipped
+pattern:
+
+```text
+"password:string;password:hunter2"   -> 1 match, capture = "string;password:hunter2"
+"password:[]string;password:hunter2" -> 1 match, capture = "[]string;password:hunter2"
+```
+
+`FindAllStringSubmatch` therefore had nothing left to iterate. `leadingValueToken`
+trimmed the capture at the first character a type name cannot hold — `;`, `|`,
+`:`, `(` — the classifier saw only the safe prefix `string`, and the loop
+continued past text it had never looked at.
+
+| Input | Before | After |
+| --- | --- | --- |
+| `password:string;password:hunter2` | published | withheld |
+| `password:int\|password:hunter2` | published | withheld |
+| `password:3;password:hunter2` | published | withheld |
+| `password:string:password:hunter2` | published | withheld |
+| `password:string(password:hunter2)` | published | withheld |
+| `password:hunter2;password:string` | withheld | withheld |
+
+The last row is the swap control. It passed before the fix, and only in that
+order — which is how the order-independence claim survived round two.
+
+This is not a regression from this branch. The merge-base has no `password:`
+colon rule at all, so all six shapes publish on `origin/main` too. What the round
+flagged as blocking was the unconditional claim standing in a shipped doc and a
+package doc comment while the property no longer held.
+
+The fix scans with `FindStringSubmatchIndex` and resumes at the end of the
+**classified token** rather than at the end of the match. The alternative —
+narrowing the capture class to `leadingValueToken`'s own character set — closes
+the same hole and was rejected because it copies the "what a type name can hold"
+set into the regex, leaves a second copy in `leadingValueToken`, and nothing but
+care keeps the two in step.
+
+The claim itself is now scoped in both places (`guardrail.go` and
+`go/internal/answerguardrail/README.md`) to the assignments the key rule can
+match. A key it never matches, `PGPASSWORD:`, stays unscreened in any position,
+which is the accepted miss the same doc already enumerated.
+
 ## Why no existing test caught either
 
 For B, every case in `live_redaction_test.go` writes `"dial tcp <host>"`, which
@@ -288,8 +385,9 @@ scan.
 
 ### Re-measured after the review fixes
 
-The review fixes make the IPv6 pattern longer and add a `FindStringSubmatch`
-plus a value classifier to the password rule, so both benchmarks were re-run
+The round-one review fixes make the IPv6 pattern longer and add a
+`FindStringSubmatch` plus a value classifier to the password rule (rounds two and
+three later replaced that locator — see below), so both benchmarks were re-run
 against the PR head (`0425ecea0`) in a throwaway worktree on the same machine,
 in the same session, best of 5 at `-benchtime=2s`. Absolute numbers drift
 between sessions — the 7480 above was a different session — so only the
@@ -309,9 +407,42 @@ rule still runs only when the string contains `password`, and the IPv6 rule only
 when it contains `::`. The value classifier is new work behind that gate, so
 `BenchmarkUnsafeStringPasswordGateOpen` measures the shape that pays for it —
 an honest `random_password: 3 resources` line, where the gate opens and the
-regex and classifier both run to completion: **953 ns/op**. That is the same
-order as the `::`-carrying string's ~1.3us and it applies only to strings that
-carry the word.
+regex and classifier both run to completion. The round-one number, **953 ns/op**,
+is superseded: rounds two and three changed what happens behind that gate, and
+the current figure is in the next subsection.
+
+### Re-measured after rounds two and three
+
+Round two replaced the leftmost-only locator with a scan over every assignment,
+and round three replaced that scan again with one that resumes at the end of the
+classified token. Both are extra work behind the `password` substring gate, so
+`BenchmarkUnsafeStringPasswordGateOpen` is the benchmark that moves.
+
+The host was loaded during this measurement — load average 35 on 12 cores, with
+other agents running — enough that a sequential before/after drifted by more than
+the effect being measured. Two consecutive runs of an *unchanged* honest corpus
+differed by 65%. So all three locator variants were compiled into the same
+package in turn and run **interleaved** in one window, `-benchtime=2s`, reported
+as the minimum of 7 samples each:
+
+| Locator | `PasswordGateOpen` | vs leftmost |
+| --- | --- | --- |
+| leftmost match only (round one) | 966 ns/op | — |
+| every match, `FindAllStringSubmatch` (round two) | 1549 ns/op | 1.60x |
+| every match, resume past the token (round three, shipped) | 1470 ns/op | 1.52x |
+
+Round three is slightly **cheaper** than round two, not dearer. Both re-scan the
+same tail, and `FindStringSubmatchIndex` returns offsets instead of building a
+string slice per match.
+
+`BenchmarkUnsafeStringHonestCorpus` over the same interleaved window: 7785 ns/op
+(round two) to 7768 ns/op (round three), which is inside the run-to-run spread.
+Ordinary answer prose carries no `password` substring, so it never enters this
+function and nothing was traded for the correctness fix.
+
+The limit worth stating: minimum-of-N on a loaded host establishes that round
+three is not a regression against round two. It is not precise enough to defend
+the 79ns gap between them as real.
 
 ## No-Observability-Change:
 
@@ -332,25 +463,42 @@ ones.
 
 ## Verification
 
-Every command run after the final edit. Exit codes captured directly.
+Re-run in full after the last edit on the branch, including the last edit to this
+file. Exit codes captured directly with `cmd; echo $?`, never `$?` after a pipe.
+`GOCACHE` is pinned to a worktree-local directory so a sibling agent's build
+cannot corrupt these runs.
 
 ```text
-cd go && go test ./internal/query/... ./internal/evidencebundle/... \
-  ./internal/answerquality/... ./internal/answerguardrail/... -count=1     rc=0
-cd go && go test ./internal/query/... -race -count=1                       rc=0
-cd go && golangci-lint run ./internal/query/... ./internal/evidencebundle/... \
-  ./internal/answerguardrail/... ./internal/answerquality/...              rc=0
-cd go && go test -bench BenchmarkUnsafeStringRejection \
-  ./internal/answerguardrail/                                              rc=0
+cd go && go test ./internal/answerguardrail/... ./internal/answerquality/... \
+  ./internal/query/... ./internal/evidencebundle/... -count=1              rc=0
+cd go && go test ./internal/answerguardrail/... ./internal/answerquality/... \
+  ./internal/query/... ./internal/evidencebundle/... -race -count=1        rc=0
+cd go && golangci-lint run ./internal/answerguardrail/... \
+  ./internal/answerquality/...                                             rc=0
+gofumpt -l go/internal/answerguardrail/guardrail.go \
+  go/internal/answerguardrail/guardrail_shape_test.go   (no output)        rc=0
 bash scripts/verify-package-docs.sh                                        rc=0
-bash scripts/verify-dirgate.sh --all                                       rc=0
 bash scripts/verify-performance-evidence.sh                                rc=0
+uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
+  mkdocs build --strict --clean --config-file docs/mkdocs.yml               rc=0
 git diff --check                                                           rc=0
 ```
 
-Mutation proof, each revert confirmed with `git diff` against `origin/main`
-before the run and each red confirmed to be an assertion failure and not a
-build failure (`go build` exit 0 first):
+Earlier rounds also ran `bash scripts/verify-dirgate.sh --all` (rc=0) and the
+`internal/query` race suite; the block above supersedes them by covering the same
+packages plus `answerquality` and `evidencebundle` under `-race`.
+
+Go source line counts against the 500-line cap, after this round:
+`guardrail.go` 499, `guardrail_shape_test.go` 490. The pre-commit
+`500-line Go file cap` hook passes. This evidence file is 577 lines, which is
+normal for its class — eight docs under `docs/internal/evidence/` are longer, up
+to 1502 — and the cap the repo enforces is on Go source.
+
+### Mutation proof for round one
+
+Each revert confirmed with `git diff` against `origin/main` before the run, and
+each red confirmed to be an assertion failure and not a build failure
+(`go build` exit 0 first):
 
 - reverting `guardrail.go` alone: 18 sub-failures across the three
   `internal/query` publish-path tests, with the `already_screened_control`
@@ -385,3 +533,45 @@ The locator mutation is the one worth reading twice: only the
 against the broken code, because the surface's own screened row fails first and
 hides the leak. A test written with only that carrier would have reported the
 defect fixed while it was still there.
+
+### Mutation proof for rounds two and three
+
+Every production line the two later commits added was broken the same way, one
+at a time. Each mutation was confirmed to have landed (`diff` against a pristine
+copy — one perl expression matched nothing on the first attempt and was thrown
+out rather than counted), each was confirmed to compile (`go build` exit 0, so a
+compile error cannot masquerade as a guard firing), and the tree was restored and
+re-diffed after each.
+
+Round three, `internal/answerguardrail`:
+
+| Reverted | Red |
+| --- | --- |
+| the resume point, back to the end of the whole match | 5 sub-failures: exactly the five new run-together rows, with `password:hunter2;password:string` still passing — the swap control behaving as the defect predicts |
+| the classifier's declaration branch, to reject types | 7 sub-failures: every schema row, including the two-assignment negative control |
+| the classifier's digit branch, to reject counts | 3 sub-failures: both `random_password: N resources` rows plus the honest-answer table |
+| the classifier, to report no credential at all | 7 sub-failures across `TestUnsafeStringRejectsColonSpelledPasswordAssignment` |
+| `leadingValueToken` at the call site, passing the raw capture | 6 sub-failures: every trailing-punctuation row (`String!`, `varchar(255)`, `Option<String>`, `<redacted>`, `${DB_PASSWORD}`) |
+
+Round two, `internal/answerquality` — one row per screened render site, each
+naming the subtest that goes red:
+
+| Reverted | Red |
+| --- | --- |
+| `PromptScore.ID`, back to the captured id | `TestScoreDoesNotEchoUnsafePromptMetadata/id` |
+| `PromptScore.Family`, back to the captured family | `.../family` |
+| the expected half of a `truth_honesty` mismatch | `.../expected_truth_class` |
+| the parity detail's missing surfaces, back to the raw string | `.../required_surfaces` |
+| the `required_surfaces` `locatedString` row | `.../required_surfaces` — the same subtest, from the other side: one guard screens the value, the other keeps it out of the rendered detail |
+| the follow-up detail's missing next calls | `.../required_next_calls` |
+| the narration status | `TestScoreDoesNotEchoUnsafeNarration/narration_status` |
+| the narration fallback truth classes | `.../fallback_truth_class` |
+| the narration fallback freshness | `.../fallback_freshness` |
+| the dropped citation, limitation, and next-call lists | `.../fallback_next_calls`, `.../fallback_limitations`, `.../fallback_citation_handles` |
+| `aggregatePromptCriterion`'s `label()` call | `TestAggregatePromptCriterionNamesTheFamilyThroughTheEnum` |
+
+That last row is the one that could not be falsified end to end: `scorePrompt`
+labels the family before aggregation ever sees it, so no scorecard input reaches
+`aggregatePromptCriterion` with an unscreened family. It gets a direct unit test
+instead of a guard that cannot fail — which is the shape section C says to
+distrust, so it is named here rather than folded into the count.
