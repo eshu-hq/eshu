@@ -69,7 +69,8 @@
   considered and rejected on issue #6059; reopening it needs the measurement
   redone, not an assumption.
 - **Moving the API client in here.** `APIClient` has 20+ readers in
-  `go/cmd/eshu` and cannot move before `resolveConfigValue` does. That is its
+  `go/cmd/eshu`. Its config reads now come from
+  `go/internal/cli/config.ResolveValue`, but moving the client is still its
   own decision with its own sequencing, not a side effect of needing a status
   code.
 

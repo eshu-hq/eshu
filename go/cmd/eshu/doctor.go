@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(strings.Repeat("-", 40))
 
 	// Check config directory.
-	dir := appHome()
+	dir := cliconfig.Home()
 	if info, err := os.Stat(dir); err == nil && info.IsDir() {
 		fmt.Printf("  [ok] Config directory exists: %s\n", dir)
 	} else {
@@ -27,7 +28,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check env file.
-	envFile := envFilePath()
+	envFile := cliconfig.EnvFilePath()
 	if _, err := os.Stat(envFile); err == nil {
 		fmt.Printf("  [ok] Config file exists: %s\n", envFile)
 	} else {
@@ -61,7 +62,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Check Neo4j.
 	neo4jURI := os.Getenv("NEO4J_URI")
 	if neo4jURI == "" {
-		neo4jURI = resolveConfigValue("NEO4J_URI", "")
+		neo4jURI = cliconfig.ResolveValue("NEO4J_URI", "")
 	}
 	if neo4jURI != "" {
 		fmt.Printf("  [ok] Neo4j URI configured: %s\n", neo4jURI)

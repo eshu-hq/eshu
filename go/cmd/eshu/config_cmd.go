@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/spf13/cobra"
 )
 
@@ -22,14 +23,14 @@ func init() {
 		Use:   "show",
 		Short: "Display current configuration settings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := loadEnvConfig()
-			if len(config) == 0 {
-				fmt.Printf("No configuration found at %s\n", envFilePath())
+			settings := cliconfig.Load()
+			if len(settings) == 0 {
+				fmt.Printf("No configuration found at %s\n", cliconfig.EnvFilePath())
 				return nil
 			}
 			headers := []string{"Key", "Value"}
 			var rows [][]string
-			for k, v := range config {
+			for k, v := range settings {
 				rows = append(rows, []string{k, v})
 			}
 			printTable(headers, rows)
@@ -42,7 +43,7 @@ func init() {
 		Short: "Set one configuration value",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setConfigValue(args[0], args[1]); err != nil {
+			if err := cliconfig.SetValue(args[0], args[1]); err != nil {
 				return err
 			}
 			printSuccess(fmt.Sprintf("Set %s", args[0]))
@@ -63,7 +64,7 @@ func init() {
 				fmt.Println("Reset cancelled")
 				return nil
 			}
-			return writeEnvConfig(map[string]string{})
+			return cliconfig.Reset()
 		},
 	})
 
@@ -72,7 +73,7 @@ func init() {
 		Short: "Switch the default database backend",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			backend, err := configureDatabaseBackend(args[0])
+			backend, err := cliconfig.ConfigureDatabaseBackend(args[0])
 			if err != nil {
 				return err
 			}
@@ -110,34 +111,4 @@ func init() {
 		},
 	}
 	rootCmd.AddCommand(nAlias)
-}
-
-func configureDatabaseBackend(rawBackend string) (string, error) {
-	backend := strings.ToLower(strings.TrimSpace(rawBackend))
-	switch backend {
-	case "nornicdb", "nornic":
-		if err := setConfigValue("ESHU_GRAPH_BACKEND", "nornicdb"); err != nil {
-			return "", err
-		}
-		if err := setConfigValue("DEFAULT_DATABASE", "nornic"); err != nil {
-			return "", err
-		}
-		if err := setConfigValue("ESHU_NEO4J_DATABASE", "nornic"); err != nil {
-			return "", err
-		}
-		return "nornicdb", nil
-	case "neo4j":
-		if err := setConfigValue("ESHU_GRAPH_BACKEND", "neo4j"); err != nil {
-			return "", err
-		}
-		if err := setConfigValue("DEFAULT_DATABASE", "neo4j"); err != nil {
-			return "", err
-		}
-		if err := setConfigValue("ESHU_NEO4J_DATABASE", "neo4j"); err != nil {
-			return "", err
-		}
-		return "neo4j", nil
-	default:
-		return "", fmt.Errorf("invalid backend: %s (must be nornicdb or neo4j)", backend)
-	}
 }

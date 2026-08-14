@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 )
 
 const eshuEnvelopeMIMEType = "application/eshu.envelope+json"
@@ -53,7 +54,7 @@ func (e *apiHTTPError) HTTPStatusCode() int {
 func NewAPIClient(serviceURL, apiKey, profile string) *APIClient {
 	base := serviceURL
 	if base == "" {
-		base = resolveConfigValue("ESHU_SERVICE_URL", profile)
+		base = cliconfig.ResolveValue("ESHU_SERVICE_URL", profile)
 	}
 	if base == "" {
 		base = os.Getenv("ESHU_SERVICE_URL")
@@ -65,7 +66,7 @@ func NewAPIClient(serviceURL, apiKey, profile string) *APIClient {
 
 	key := apiKey
 	if key == "" {
-		key = resolveConfigValue("ESHU_API_KEY", profile)
+		key = cliconfig.ResolveValue("ESHU_API_KEY", profile)
 	}
 	if key == "" {
 		key = os.Getenv("ESHU_API_KEY")

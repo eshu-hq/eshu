@@ -14,7 +14,7 @@
 - **No process wiring in this package.** No cobra flags, no env reads that
   resolve Eshu config or a credential, no `fmt.Print*`. `go/cmd/eshu` is
   `package main`, so nothing can import it — any symbol that reads a flag,
-  resolves `*APIClient` via `resolveConfigValue`, or maps to an exit code has
+  resolves `*APIClient` via `go/internal/cli/config.ResolveValue`, or maps to an exit code has
   to live in `mcp_setup_cmd.go` instead. If you find yourself wanting to call
   `cmd.Flags()` or read a credential out of the environment, that logic
   belongs in the wrapper, not here.

@@ -6,6 +6,7 @@ package main
 import (
 	"strings"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
@@ -139,8 +140,8 @@ func isEmptyRepositoriesAnswer(answer string) bool {
 // environment or config so the API-vs-MCP heuristic can flag a misrouted URL.
 // An empty result means no endpoint is configured and the heuristic is skipped.
 func resolveFirstRunMCPEndpoint() string {
-	if value := strings.TrimSpace(resolveConfigValue("ESHU_MCP_URL", "")); value != "" {
+	if value := strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_URL", "")); value != "" {
 		return value
 	}
-	return strings.TrimSpace(resolveConfigValue("ESHU_MCP_ENDPOINT", ""))
+	return strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_ENDPOINT", ""))
 }
