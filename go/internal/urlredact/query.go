@@ -55,6 +55,13 @@ const PairSeparators = "?&;"
 // stands for. So an escaped separator is skipped when the pair it would end is
 // a credential-named pair with a literal "=".
 //
+// That test asks about the NAME and the "=" and nothing else. It must not also
+// ask whether a value is already there, which is a separate question with its
+// own function: when the escape is the FIRST byte of the value the pending text
+// is a bare "token=", and answering "no value, so not a credential pair" made
+// the walk honour the escape and return "?token=%26<credential>" untouched.
+//
+
 // The cost is over-removal: "?token=x%26repo=demo" loses the "repo=demo" an
 // operator might have wanted, because it cannot be told apart from the tail of
 // a credential containing an "&". Losing a benign parameter is the side to err
@@ -113,23 +120,32 @@ func redactPair(pair, marker string) string {
 	return pair[:sep+width] + marker
 }
 
-// sensitivePairSeparator locates the "=" that joins a credential-named
-// parameter to a value it actually carries, and reports how that "=" was
-// spelled: width 1 for a literal one, EscapeWidth for "%3D".
+// sensitiveNamedPairSeparator locates the "=" that joins a credential-named
+// parameter to its value half, and reports how that "=" was spelled: width 1
+// for a literal one, EscapeWidth for "%3D".
 //
-// ok is false for a pair with no "=", a pair with nothing after it, and a pair
-// whose name is not credential-shaped. Those are the three cases redactPair
-// returns untouched, and the width is what tells Query whether an escaped
-// separator ends this pair's value or belongs to it.
+// It answers the DEPTH question and only that: is this a credential-shaped
+// name, and was its "=" written at the surface? It says nothing about whether a
+// value follows, which is what separates it from sensitivePairSeparator below.
+//
+// Splitting the two apart is the fix for a whole-credential leak. One function
+// answered both, and its "nothing after the =" clause — correct for deciding
+// whether there is a value to write over — was also deciding whether an escape
+// was structure. When the escape is the FIRST byte of the value, the text
+// pending at it is exactly "token=", so the combined function said "not a
+// credential pair", the escape was honoured as a separator, and
+// "token=%26<credential>" came back byte for byte as it arrived. Not at the
+// query start only, not on "token" only: "password", "api_key", "%3B" and "%3F"
+// all shipped the same way, into the first-run evidence artifact.
 //
 // The name is unwrapped through the package's own one-layer reader rather than
 // url.QueryUnescape. The two differ on "+", and a second decoder beside the
 // shared one is how the walks drifted in the first place — see escape.go.
 // Nothing here regresses on "+": the name predicate matches on a substring, so
 // "token+" is recognized whether or not the "+" became a space.
-func sensitivePairSeparator(pair string) (int, int, bool) {
+func sensitiveNamedPairSeparator(pair string) (int, int, bool) {
 	sep, width := IndexBoundary(pair, "=", LiteralOrEscaped)
-	if sep < 0 || sep+width >= len(pair) {
+	if sep < 0 {
 		return 0, 0, false
 	}
 	name := pair[:sep]
@@ -142,13 +158,31 @@ func sensitivePairSeparator(pair string) (int, int, bool) {
 	return sep, width, true
 }
 
+// sensitivePairSeparator is sensitiveNamedPairSeparator plus the one condition
+// redactPair needs and the depth question must not ask: the pair has to carry a
+// value.
+//
+// ok is false for a pair with no "=", a pair with nothing after it, and a pair
+// whose name is not credential-shaped. Those are the three cases redactPair
+// returns untouched.
+func sensitivePairSeparator(pair string) (int, int, bool) {
+	sep, width, ok := sensitiveNamedPairSeparator(pair)
+	if !ok || sep+width >= len(pair) {
+		return 0, 0, false
+	}
+	return sep, width, true
+}
+
 // opensSurfaceCredential reports whether pair is a credential-named pair whose
 // "=" was written literally, which is the case where an escaped separator after
 // it is value content rather than the end of the value.
 //
 // It is asked about the text pending since the last pair boundary, so the
-// answer is about the pair the escape would close.
+// answer is about the pair the escape would close. That pending text is "token="
+// when the escape opens the value and "token=AAAA" when it sits further in, and
+// the answer has to be the same for both — the escape is inside the pair either
+// way. Asking whether a value is already there is what made the two differ.
 func opensSurfaceCredential(pair string) bool {
-	_, width, ok := sensitivePairSeparator(pair)
+	_, width, ok := sensitiveNamedPairSeparator(pair)
 	return ok && width == 1
 }

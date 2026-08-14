@@ -332,6 +332,46 @@ func encodedBoundaryCases() []BoundaryCase {
 			WantFreeText: "http://h/x?[redacted]",
 		},
 		{
+			// The same depth rule with the escape at offset ZERO of the value.
+			// Every row above puts at least one value byte in front of the
+			// escape, so the text pending at that point reads "token=AAAA" and
+			// the endpoint walk recognized a credential pair. Here it reads
+			// "token=", the walk answered "no value, so not a credential pair",
+			// honoured the escape as a separator, and shipped the whole
+			// credential into the first-run artifact. Position is a second axis
+			// on top of depth, and it had no row.
+			Name:         "percent-encoded ampersand opens a literal value",
+			Input:        "http://h/x?token=%26" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?token=redacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			Name:         "percent-encoded semicolon opens a literal value",
+			Input:        "http://h/x?password=%3B" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?password=redacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			Name:         "percent-encoded question mark opens a literal value",
+			Input:        "http://h/x?api_key=%3F" + Sentinel,
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?api_key=redacted",
+			WantFreeText: "http://h/x?[redacted]",
+		},
+		{
+			// The third position: the escape is the last thing in the value, and
+			// a LITERAL separator after it still ends the pair. Without this row
+			// the corpus pins the escape at the start and in the middle of a
+			// value and says nothing about the end.
+			Name:         "percent-encoded ampersand closes a literal value",
+			Input:        "http://h/x?token=" + Sentinel + "%26&repo=demo",
+			Secret:       Sentinel,
+			WantEndpoint: "http://h/x?token=redacted&repo=demo",
+			WantFreeText: "http://h/x?[redacted]&repo=demo",
+		},
+		{
 			// The far side of the one-layer rule, pinned so widening it to a
 			// loop is a decision somebody has to make here rather than a change
 			// no test notices. "%253D" is a request for the TEXT "%3D"; the

@@ -42,6 +42,17 @@ func TestQueryPreservesTheSeparatorItRead(t *testing.T) {
 		{name: "escaped ampersand inside a literal pair is value content", raw: "token=AAAA%26" + Sentinel, want: "token=redacted"},
 		{name: "escaped semicolon inside a literal pair is value content", raw: "password=AAAA%3B" + Sentinel, want: "password=redacted"},
 		{name: "escaped question mark inside a literal pair is value content", raw: "token=AAAA%3F" + Sentinel, want: "token=redacted"},
+		// The same depth rule at the one position none of the rows above reach:
+		// the escape is the FIRST byte of the value, so the text pending at it
+		// is exactly "token=". Asking "does this pair carry a value?" there
+		// answered no, the escape was honoured as a separator, and the whole
+		// credential came back untouched.
+		{name: "escaped ampersand opening a literal value is value content", raw: "token=%26" + Sentinel, want: "token=redacted"},
+		{name: "escaped semicolon opening a literal value is value content", raw: "password=%3B" + Sentinel, want: "password=redacted"},
+		{name: "escaped question mark opening a literal value is value content", raw: "api_key=%3F" + Sentinel, want: "api_key=redacted"},
+		{name: "escaped separator opening a literal value away from the query start", raw: "x=1&token=%26" + Sentinel, want: "x=1&token=redacted"},
+		{name: "escaped ampersand closing a literal value", raw: "token=" + Sentinel + "%26&repo=demo", want: "token=redacted&repo=demo"},
+		{name: "a benign pair keeps an escape that opens its value", raw: "q=%26bb&repo=demo", want: "q=%26bb&repo=demo"},
 		{name: "a literal separator still ends a literal pair", raw: "token=AAAA%26" + Sentinel + "&repo=demo", want: "token=redacted&repo=demo"},
 		{name: "a benign literal pair keeps its escaped content", raw: "q=aa%26bb&repo=demo", want: "q=aa%26bb&repo=demo"},
 		{name: "an escaped separator still ends an escaped pair", raw: "a=1%26token%3D" + Sentinel + "%26repo%3Ddemo", want: "a=1%26token%3Dredacted%26repo%3Ddemo"},
@@ -165,6 +176,33 @@ func TestBoundaryCasesCoverTheEncodedSpelling(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("no corpus row writes %q as %s", string(want), escape)
+		}
+	}
+}
+
+// TestBoundaryCasesOpenAValueWithAnEscape pins the axis every encoded row
+// missed. All of them put at least one value byte in front of the escape, so
+// all of them landed in the same cell — the pair already carries a value — and
+// the cell where the escape is the value's FIRST byte had no row on any
+// separator. That cell is where the endpoint walk asked "does this pair carry a
+// value?", got "no" for the pending text "token=", honoured the escape as a
+// separator, and returned the credential verbatim.
+func TestBoundaryCasesOpenAValueWithAnEscape(t *testing.T) {
+	t.Parallel()
+
+	for _, sep := range PairSeparators {
+		// A literal "=" with the escape straight after it: the pair was written
+		// at the surface depth and the escape opens its value.
+		opening := fmt.Sprintf("=%%%02X", sep)
+		found := false
+		for _, tc := range BoundaryCases() {
+			if tc.ProvesRemoval() && strings.Contains(strings.ToUpper(tc.Input), opening) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("no corpus row opens a literal value with %q, the position that shipped a whole credential", opening)
 		}
 	}
 }
