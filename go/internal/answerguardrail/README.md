@@ -75,9 +75,9 @@ their own logs, status, responses, or scorecards.
   - because the value decides, the rule classifies every `password:` assignment
     it can see, not just the first. One honest assignment says nothing about the
     next, so `password: string, password: hunter2` is withheld, as is the
-    run-together `password:string;password:hunter2` where both assignments fall
-    inside a single regex match. Swapping the two makes no difference. The limit
-    is the key rule rather than the scan: a key the rule never matches is
+    run-together `password:string;password:hunter2` with no space, quote, or
+    comma between the two. Swapping the two makes no difference. The limit is
+    the key rule rather than the scan: a key the rule never matches is
     unscreened wherever it sits, which is the next bullet; and
   - a key that runs the word together with a prefix and no separator
     (`PGPASSWORD:`) is not screened. It is shape-identical to `checkPassword:`,
@@ -87,6 +87,24 @@ their own logs, status, responses, or scorecards.
   contract, not a style choice — see `UnsafeString`'s comment for the measured
   6.5x it prevents — so re-run `BenchmarkUnsafeStringHonestCorpus` if a gate
   changes.
+- The password scan is one `FindAllStringSubmatch` pass, and that is also a
+  performance contract. Nothing caps the string reaching it: `ask_sse.go`
+  screens the whole joined model answer, and `answerquality` screens evidence
+  values taken from indexed repository content. An earlier version restarted the
+  regex at each value it classified, which cost 713ms on a 32KB run of
+  assignments against 1.19ms for one pass. `valueTokenClass` is what makes one
+  pass sufficient — it stops the capture at the separator, leaving it in place as
+  the next match's left boundary — so re-run
+  `BenchmarkUnsafeStringPasswordRunTogetherScale` across all three of its sizes
+  if the capture class or the scan changes. One size cannot show the difference.
+
+## Files
+
+- `guardrail.go` — the `Result`/`Verdict` shape, `ValidateResult`, and
+  `UnsafeString` with the address, userinfo, and fragment rules.
+- `guardrail_password.go` — the `password:` assignment rule: the pattern, the
+  value classifier, and the declaration list.
+- `substance.go` — the circular-answer check.
 
 ## Related docs
 

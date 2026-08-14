@@ -316,12 +316,47 @@ colon rule at all, so all six shapes publish on `origin/main` too. What the roun
 flagged as blocking was the unconditional claim standing in a shipped doc and a
 package doc comment while the property no longer held.
 
-The fix scans with `FindStringSubmatchIndex` and resumes at the end of the
-**classified token** rather than at the end of the match. The alternative —
-narrowing the capture class to `leadingValueToken`'s own character set — closes
-the same hole and was rejected because it copies the "what a type name can hold"
-set into the regex, leaves a second copy in `leadingValueToken`, and nothing but
-care keeps the two in step.
+Round three scanned with `FindStringSubmatchIndex` and resumed at the end of the
+**classified token** rather than at the end of the match. That closed the hole
+and was quadratic: re-running the regex from each value re-scanned the whole
+remaining string once per assignment. Round four replaced it with the
+alternative round three had rejected — narrow the capture class to the
+classifier's own character set — which closes the same hole in one
+`FindAllStringSubmatch` pass.
+
+The round-three objection to narrowing was that it copies the "what a type name
+can hold" set into the regex and leaves a second copy in `leadingValueToken`.
+Putting the set in one `const` answers it: `valueTokenClass` is the only copy,
+the pattern interpolates it, and `leadingValueToken` is deleted rather than left
+to drift.
+
+```go
+const valueTokenClass = `a-z0-9_.\-*&\[\]`
+
+var passwordAssignmentPattern = regexp.MustCompile(
+	`(^|[^a-z0-9])password[\\"']*[ \t]*:[ \t]*[\\"']*([` + valueTokenClass + `]*)`,
+)
+```
+
+One pass finds both assignments because the separator between two run-together
+assignments is, by definition, a character the capture stops at — so it is still
+sitting there to serve as the next match's left boundary.
+
+Equivalence was measured rather than argued. A differential ran both scans over
+500,000 generated strings built from the real assignment shapes (13 key
+spellings, 5 quotings, 53 values, 36 separators, 1-3 assignments each, plus a
+token-soup slice):
+
+```text
+corpus=500000 divergences=0 safety_regressions=0 newly_withheld=0
+coverage: unsafe=153663 multi_password_strings=339619 multi_regex_matches=238466
+```
+
+The coverage line is the guard on the guard. A corpus that never reached the
+classifier, or never carried two matched assignments, would report 0 divergences
+while proving nothing. The same harness run against a scan deliberately broken
+back to leftmost-match-only reports 54,785 divergences, so it can tell the two
+apart.
 
 The claim itself is now scoped in both places (`guardrail.go` and
 `go/internal/answerguardrail/README.md`) to the assignments the key rule can
@@ -429,16 +464,58 @@ as the minimum of 7 samples each:
 | --- | --- | --- |
 | leftmost match only (round one) | 966 ns/op | — |
 | every match, `FindAllStringSubmatch` (round two) | 1549 ns/op | 1.60x |
-| every match, resume past the token (round three, shipped) | 1470 ns/op | 1.52x |
+| every match, resume past the token (round three) | 1470 ns/op | 1.52x |
 
-Round three is slightly **cheaper** than round two, not dearer. Both re-scan the
-same tail, and `FindStringSubmatchIndex` returns offsets instead of building a
-string slice per match.
+Round three read those two numbers as "resuming inside a match is slightly
+cheaper than `FindAllStringSubmatch`, not dearer: both re-scan the same tail."
+**That was wrong, and the benchmark it rested on could not have shown it.**
+`BenchmarkUnsafeStringPasswordGateOpen` is a 42-byte string with ONE assignment,
+so the resume loop runs a single iteration; the two scans do identical work on
+it. The 79ns gap is the cost of building one string slice, and it says nothing
+about a string with many assignments — where `FindAllStringSubmatch` scans the
+tail once and the resume loop scans it once per assignment.
 
 `BenchmarkUnsafeStringHonestCorpus` over the same interleaved window: 7785 ns/op
 (round two) to 7768 ns/op (round three), which is inside the run-to-run spread.
 Ordinary answer prose carries no `password` substring, so it never enters this
 function and nothing was traded for the correctness fix.
+
+### Round four: the resume loop was quadratic
+
+The capture class `([^\s"',]*)` stops only at whitespace, a quote, or a comma, so
+an input carrying many `password:` assignments and none of those three characters
+made the round-three scan re-run the regex over the whole remaining string once
+per assignment.
+
+Nothing caps the input that reaches this rule.
+`go/internal/query/ask_sse.go:171-177` screens `strings.Join(deltas, "")` — the
+entire model answer as one string. `ask_guardrails.go:119,181` screen the summary
+and limitations, also uncapped. `answerquality/score_publish_safety.go:28`
+screens evidence values taken from indexed repository content.
+
+`BenchmarkUnsafeStringPasswordRunTogetherScale` is the benchmark that can express
+this shape, and it is new in round four: back-to-back `password:string;`
+assignments, every value honest so the scan never short-circuits. Both scans were
+compiled into the package together and run **interleaved** — alternating
+invocations, not `-count=N`, which groups all samples of one benchmark before
+starting the next — on a host at load average 7-16 on 12 cores, reported as the
+minimum of 7 samples (3 at 128KB, where one run of the round-three scan takes
+12s):
+
+| Input | Round three (resume per value) | Round four (one pass) | Ratio |
+| --- | ---: | ---: | ---: |
+| 4096 B | 3.34 ms | 94.6 µs | 35x |
+| 32768 B | 713.0 ms | 1.19 ms | 599x |
+| 131072 B | 12.31 s | 4.84 ms | 2544x |
+
+Round three grows with the square of the assignment count: 8x the input costs
+213x the time. Round four holds about 27 MB/s from 32KB up, so its cost tracks
+the input length.
+
+This was reachable, not a hang — the round-three scan always terminated. The
+committed benchmark now reads across three sizes for exactly this reason: a scan
+that is quadratic in the assignment count passes any single size and fails the
+ratio between two.
 
 The limit worth stating: minimum-of-N on a loaded host establishes that round
 three is not a regression against round two. It is not precise enough to defend
@@ -543,15 +620,42 @@ out rather than counted), each was confirmed to compile (`go build` exit 0, so a
 compile error cannot masquerade as a guard firing), and the tree was restored and
 re-diffed after each.
 
-Round three, `internal/answerguardrail`:
+Rounds three and four, `internal/answerguardrail`. The round-three table
+published here under-reported three of its five rows. It is replaced rather than
+patched, because round four changed the code the mutations apply to: there is no
+resume point to revert any more, and `leadingValueToken` is deleted.
 
-| Reverted | Red |
-| --- | --- |
-| the resume point, back to the end of the whole match | 5 sub-failures: exactly the five new run-together rows, with `password:hunter2;password:string` still passing — the swap control behaving as the defect predicts |
-| the classifier's declaration branch, to reject types | 7 sub-failures: every schema row, including the two-assignment negative control |
-| the classifier's digit branch, to reject counts | 3 sub-failures: both `random_password: N resources` rows plus the honest-answer table |
-| the classifier, to report no credential at all | 7 sub-failures across `TestUnsafeStringRejectsColonSpelledPasswordAssignment` |
-| `leadingValueToken` at the call site, passing the raw capture | 6 sub-failures: every trailing-punctuation row (`String!`, `varchar(255)`, `Option<String>`, `<redacted>`, `${DB_PASSWORD}`) |
+Every count below was re-derived against the shipped round-four code
+(`guardrail_password.go`), one mutation at a time, each confirmed to compile
+(`go build` exit 0) and each reverted with `git checkout --` before the next.
+The command was:
+
+```bash
+go test ./internal/answerguardrail/ -count=1 -v 2>&1 | grep -cE '^ +--- FAIL:'
+```
+
+**Counting scope: leaf subtest failures across the whole package**, not one
+test. The breakdown column names which parent test each failure came from, which
+is where the round-three numbers went wrong — they counted one test and reported
+the figure as the total.
+
+| Mutation | Red | Breakdown |
+| --- | ---: | --- |
+| capture class widened back to `[^\s"',]*` | 8 | 5 in `ScreensPasswordKeysByTheirValue` (the run-together rows), 3 in `KeepsOrdinaryAnswerTextPublishable` |
+| declaration branch never matches | 15 | 11 in `ScreensPasswordKeysByTheirValue`, 4 in `KeepsOrdinaryAnswerTextPublishable` |
+| digit branch never matches | 3 | 2 in `ScreensPasswordKeysByTheirValue`, 1 in `KeepsOrdinaryAnswerTextPublishable` |
+| classifier reports no credential | 24 | 12 in `RejectsColonSpelledPasswordAssignment`, 12 in `ScreensPasswordKeysByTheirValue` |
+| leftmost match only (`FindAllStringSubmatch(lower, 1)`) | 6 | all 6 in `ScreensPasswordKeysByTheirValue` |
+
+The unmutated baseline and the restored tree both report 0, so none of these
+counts is a pre-existing failure being re-attributed.
+
+For the record, the round-three table's five rows against the code as it then
+stood: rows 1 and 3 were right (5 and 3); "declaration branch" was 15, not 7;
+"classifier reports no credential" was 24 across the package with 12 in the named
+test, not 7; "raw capture, no `leadingValueToken`" was 8, not 6. Every mutation
+did land and did redden — the error was under-counting, not a false green — but
+the numbers were wrong in a document offered as proof.
 
 Round two, `internal/answerquality` — one row per screened render site, each
 naming the subtest that goes red:
