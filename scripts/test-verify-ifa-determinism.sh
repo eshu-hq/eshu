@@ -176,6 +176,8 @@ code_call_gate_seams=(
 	'go/internal/ifa/code_call_family_catalog.go|go/internal/ifa/code_call_family_catalog.go'
 	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_code_calls.go'
 	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
+	'go/internal/reducer/registry.go|go/internal/reducer/registry.go'
+	'go/internal/reducer/defaults_domain_catalog.go|go/internal/reducer/defaults_domain_catalog.go'
 	'go/internal/reducer/code_call*.go|go/internal/reducer/code_call_projection_runner.go'
 	'go/internal/reducer/service*.go|go/internal/reducer/service_side_runners.go'
 	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection.go'
@@ -189,6 +191,11 @@ code_call_gate_seams=(
 	'go/internal/storage/cypher/edge_writer_retract*.go|go/internal/storage/cypher/edge_writer_retract_scope.go'
 	'go/internal/content/writer.go|go/internal/content/writer.go'
 	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
+	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
+	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents.go'
+	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_upsert.go'
+	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_history.go'
+	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_partition_candidates.go'
 )
 for seam in "${code_call_gate_seams[@]}"; do
 	trigger="${seam%%|*}"
