@@ -53,10 +53,13 @@ codes in scope.
 - Implemented by `go/cmd/eshu`'s `apiHTTPError`; `client.go` carries a
   compile-time assertion so a rename there fails the build rather than silently
   dropping every consumer's classification.
-- Consumed by four error-classification sites in `go/cmd/eshu` (`trace.go`,
-  `map.go`, `hosted_setup_verify.go`, `diagnostics_classify.go`) and one in an
-  extracted family, `internal/cli/investigation`'s `RefusalFromFetchError`. The
-  remaining `cmd/eshu` sites move here as their families are extracted.
+- Consumed by six error-classification sites: four still in `go/cmd/eshu`
+  (`trace.go`, `map.go`, `hosted_setup_verify.go`, `diagnostics_classify.go`)
+  and two in extracted families — `internal/cli/investigation`'s
+  `RefusalFromFetchError` and `internal/cli/change`'s
+  `ErrorCodeFromTransport`. The remaining `cmd/eshu` sites move here as their
+  families are extracted. `client.go` imports this package too, for the
+  compile-time assertion; it classifies nothing.
 
 ## Telemetry
 

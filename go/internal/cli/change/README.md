@@ -49,6 +49,8 @@ Failure classification:
 
 - `Failure`, `FailureKind`, and the four kinds `KindInvalidArgument`,
   `KindEnvelope`, `KindFreshness`, `KindIncomplete`.
+- `Kinds()` — those four as a slice, so the caller mapping them to exit codes
+  can prove it covered all of them.
 - `Validate(opts)`, `ClassifyImpact(envelope)`, `ClassifyPlan(envelope)`.
 - `ErrorCodeFromTransport(err)`, `EnvelopeFromTransportError(err)`,
   `EnvelopeFailure(e)`.
@@ -80,7 +82,9 @@ owned by `go/cmd/eshu/change_impact.go`.
   `truncated`; the change family exits 4 on a still-building index and 5 on a
   truncated answer. `changeExitCode` answers those two directly and routes only
   `KindEnvelope` through the shared table. `TestChangeExitCodeMapping` fails if
-  that stops being true.
+  that stops being true. It also walks `Kinds()`, so a kind added without its
+  arm fails there instead of falling to the default exit code and reading as
+  correct.
 - **`ErrorCodeFromTransport` checks the message before the status.** A retry
   wrapper can carry the last response's status while the real answer is that
   the backend was unreachable. `TestErrorCodeFromTransportPrecedence`'s
@@ -95,11 +99,18 @@ owned by `go/cmd/eshu/change_impact.go`.
 - **Freshness is checked before truncation.** A stale answer reports staleness,
   not the truncation staleness often causes.
 - **The trace helpers here are copies, not shared code.** `mapValue`,
-  `stringValue`, `intValue`, `boolValue`, and `sliceValue` mirror `go/cmd/eshu`'s
-  `traceMap` and friends, which still have callers that have not moved
+  `stringValue`, `intValue`, `boolValue`, `sliceValue`, and
+  `ErrorCodeFromTransport` mirror `go/cmd/eshu`'s `traceMap` and friends and
+  `traceErrorCodeFromTransport`, which still have callers that have not moved
   (`component_api.go`, `map.go`, `trace.go`, `trace_render.go`, and the
   freshness family). The two copies coexist until a shared home exists; do not
   delete either side assuming the other covers it.
+  `ErrorCodeFromTransport` is the one to watch: it is the only copy with real
+  logic in it, and #6117 already edited the original mid-epic. An edit there
+  that misses this copy would leave `eshu change impact` and `eshu change plan`
+  classifying on the old table. `TestTransportErrorCodeParity` in
+  `go/cmd/eshu` feeds one error table to both functions and fails when their
+  answers differ.
 - **The envelope error message is printed verbatim.** For a transport failure
   it is the Go error, which embeds the service URL an operator set. That is the
   point of the message, and this package does not screen it.

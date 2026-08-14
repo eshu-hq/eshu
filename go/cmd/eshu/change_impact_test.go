@@ -331,7 +331,7 @@ func TestPreChangeImpactDogfoodFixtureProvesWorkflowAdvantage(t *testing.T) {
 func TestChangeExitCodeMapping(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	cases := []struct {
 		name    string
 		failure change.Failure
 		want    int
@@ -346,7 +346,41 @@ func TestChangeExitCodeMapping(t *testing.T) {
 		{name: "envelope unsupported_capability", failure: change.Failure{Kind: change.KindEnvelope, Code: "unsupported_capability"}, want: 6},
 		{name: "envelope backend_unavailable", failure: change.Failure{Kind: change.KindEnvelope, Code: "backend_unavailable"}, want: 1},
 		{name: "unknown kind", failure: change.Failure{Kind: change.FailureKind("something_new")}, want: 1},
-	} {
+	}
+
+	// Every kind change.Kinds() declares needs a row here, and at least one of
+	// its rows must expect something other than what an unrecognised kind gets.
+	// Without this the table guards only the kinds someone remembered to type:
+	// a new kind added without its changeExitCode arm falls to the default,
+	// exits 1, and reads as correct. The exhaustive linter cannot cover the
+	// gap either, because go/.golangci.yml sets default-signifies-exhaustive
+	// and that switch has a default.
+	kinds := change.Kinds()
+	if len(kinds) == 0 {
+		t.Fatal("change.Kinds() returned nothing; this check would pass having evaluated no kinds")
+	}
+	unrecognised := changeExitCode(change.Failure{Kind: change.FailureKind("something_new")})
+	for _, kind := range kinds {
+		rows, offDefault := 0, 0
+		for _, tc := range cases {
+			if tc.failure.Kind != kind {
+				continue
+			}
+			rows++
+			if tc.want != unrecognised {
+				offDefault++
+			}
+		}
+		if rows == 0 {
+			t.Fatalf("no row exercises change.FailureKind %q; add the row and the changeExitCode arm it needs", kind)
+		}
+		if offDefault == 0 {
+			t.Fatalf("every row for %q expects %d, which is what an unrecognised kind gets, so changeExitCode has no arm of its own for it", kind, unrecognised)
+		}
+	}
+	t.Logf("checked %d declared kinds against %d table rows", len(kinds), len(cases))
+
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if got := changeExitCode(tc.failure); got != tc.want {
@@ -386,5 +420,73 @@ func TestChangeExitErrorPassesThroughForeignErrors(t *testing.T) {
 	}
 	if exitErr.ExitCode() != 4 || exitErr.Error() != "pre-change impact freshness is building" {
 		t.Fatalf("commandExitError = {%q %d}, want {%q 4}", exitErr.Error(), exitErr.ExitCode(), "pre-change impact freshness is building")
+	}
+}
+
+// TestTransportErrorCodeParity holds change.ErrorCodeFromTransport and
+// traceErrorCodeFromTransport to the same answers.
+//
+// The two are copies. cmd/eshu is package main, so neither can import the
+// other, and both still have callers: `eshu change impact` and
+// `eshu change plan` use the copy, while `eshu trace`, `eshu map`,
+// component_api, and the freshness family use the original. #6117 edited the
+// original mid-epic. Without this test the next such edit would reach the
+// trace side and leave the change side classifying on the old table, with
+// nothing in the tree going red.
+//
+// Every branch of the shared body gets a row: the two strings.Contains checks
+// that run first, the four mapped statuses, and the default that catches
+// everything else. The precedence row -- an HTTP 400 whose body says
+// "connection refused" -- is the only input whose answer changes if the
+// message checks move after the status switch.
+func TestTransportErrorCodeParity(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil error", err: nil, want: "api_error"},
+		{name: "message connection refused", err: errors.New("dial tcp 127.0.0.1:8080: connect: connection refused"), want: "backend_unavailable"},
+		{name: "message request failed", err: errors.New("request failed: context deadline exceeded"), want: "backend_unavailable"},
+		{name: "message beats status", err: &apiHTTPError{StatusCode: http.StatusBadRequest, Body: "connection refused"}, want: "backend_unavailable"},
+		{name: "status 400", err: &apiHTTPError{StatusCode: http.StatusBadRequest, Body: "bad selector"}, want: "invalid_argument"},
+		{name: "status 404", err: &apiHTTPError{StatusCode: http.StatusNotFound, Body: "no such repo"}, want: "not_found"},
+		{name: "status 501", err: &apiHTTPError{StatusCode: http.StatusNotImplemented, Body: "no such capability"}, want: "unsupported_capability"},
+		{name: "status 503", err: &apiHTTPError{StatusCode: http.StatusServiceUnavailable, Body: "backend down"}, want: "backend_unavailable"},
+		{name: "status 409 falls through", err: &apiHTTPError{StatusCode: http.StatusConflict, Body: "ambiguous scope"}, want: "api_error"},
+		{name: "status 500 falls through", err: &apiHTTPError{StatusCode: http.StatusInternalServerError, Body: "boom"}, want: "api_error"},
+		{name: "no status carried", err: errors.New("json: cannot unmarshal"), want: "api_error"},
+	}
+
+	// Every arm of the switch, plus the default, has to be represented or a
+	// divergence in an unvisited arm passes unnoticed.
+	seen := map[string]bool{}
+	for _, tc := range cases {
+		seen[tc.want] = true
+	}
+	for _, code := range []string{"invalid_argument", "not_found", "unsupported_capability", "backend_unavailable", "api_error"} {
+		if !seen[code] {
+			t.Fatalf("no row expects %q; the table no longer covers every arm", code)
+		}
+	}
+	if len(cases) != 11 {
+		t.Fatalf("parity table has %d rows, want 11; add the row and say why rather than editing this number", len(cases))
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			trace := traceErrorCodeFromTransport(tc.err)
+			extracted := change.ErrorCodeFromTransport(tc.err)
+			if trace != extracted {
+				t.Fatalf("traceErrorCodeFromTransport(%v) = %q, change.ErrorCodeFromTransport = %q; the two copies have diverged", tc.err, trace, extracted)
+			}
+			if trace != tc.want {
+				t.Fatalf("both copies answered %q for %v, want %q", trace, tc.err, tc.want)
+			}
+		})
 	}
 }

@@ -91,8 +91,14 @@ itself plus the one stderr line `WriteArtifact` prints when `--out` is set.
   `TestRefusalFromFetchErrorClassifiesByStatusNotMessage` pins today's answer.
 - **Fetches do not wrap.** Each `Fetch*` returns the client's error unchanged so
   `errors.As` still finds the status and the operator reads the client's own
-  text. The `//nolint:wrapcheck` directives on those returns are load-bearing;
-  `internal/cli/` is not exempt from wrapcheck the way `cmd/` is.
+  text. The `//nolint:wrapcheck` directives on those returns are load-bearing,
+  and moving the code somewhere else would not remove the need for them.
+  `wrapcheck.ignore-package-globs` in `go/.golangci.yml` matches the package an
+  error came *from*, not the package the code sits in. An unwrapped error
+  originating in a `go/cmd/*` package is ignored wherever it is returned; code
+  that merely lives under `cmd/` gets nothing. `go/cmd/eshu` is `package main`
+  and nothing can import it, so it never supplies an error to another package
+  either, which leaves that glob doing nothing at all here.
 - **A refusal is not an error.** Every scope, transport, and envelope refusal
   path returns `(packet, nil)`. The command exits 0 and writes a valid artifact.
   Only an unmapped envelope code, an unclassifiable transport error, and a

@@ -33,9 +33,17 @@
 
 - **Fetches return the transport error unwrapped.** Wrapping breaks nothing for
   `errors.As`, but it does change the text an operator reads on a failed call.
-  The `//nolint:wrapcheck` on each `Fetch*` return is deliberate — `cmd/*` is
-  exempt from wrapcheck in `go/.golangci.yml` and `internal/cli/*` is not, so
-  the linter will push you toward a wrap that rewrites CLI output.
+  The `//nolint:wrapcheck` on each `Fetch*` return is deliberate: without it the
+  linter pushes you toward a wrap that rewrites CLI output.
+
+  Do not read that as "this would be exempt back under `cmd/`".
+  `wrapcheck.ignore-package-globs` matches the package the error **comes
+  from**, not the package the code **sits in**. An unwrapped error originating
+  in a `go/cmd/*` package is ignored wherever it is returned; code that merely
+  lives under `cmd/` gets nothing. `go/cmd/eshu` is `package main` and nothing
+  can import it, so it is never the origin package for anyone either, which
+  leaves that glob doing nothing at all for this family. Moving code is not a
+  way out of a wrapcheck finding.
 
 - **Server text never enters the artifact.** An envelope `error.message` and a
   transport error string go to stderr through the CLI error only. The refusal

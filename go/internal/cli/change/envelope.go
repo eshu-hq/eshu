@@ -73,6 +73,9 @@ type EnvelopeError struct {
 // not shared with them. The originals still have callers that are not moving
 // (component_api.go, map.go, trace.go, trace_render.go, and the freshness
 // family), so the two copies coexist deliberately until a shared home exists.
+// ErrorCodeFromTransport in failure.go is a sixth copy of the same kind, and
+// the one an edit to the originals is most likely to reach; its doc comment
+// names the parity test that catches a divergence.
 func mapValue(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil

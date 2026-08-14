@@ -16,7 +16,9 @@
 // either as the canonical envelope in JSON or as a short human summary.
 //
 // Failures come back as a Failure carrying a FailureKind -- KindInvalidArgument,
-// KindEnvelope, KindFreshness, or KindIncomplete -- and never as an exit code.
+// KindEnvelope, KindFreshness, or KindIncomplete, which Kinds returns as a
+// slice so the caller can prove it handled all of them -- and never as an exit
+// code.
 // The caller owns that mapping, and it is not a formality: the CLI's shared
 // code-to-exit-code table answers 1 for a still-building index, while both
 // change commands have always exited 4. ErrorCodeFromTransport classifies a

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -90,22 +91,67 @@ func renderEverything(t *testing.T, opts Options, envelope Envelope) []rendering
 // optionsCarrying builds an Options whose changed-file set carries the
 // sentinel, through all three entry points that produce FileChange rows, so a
 // leak via any of them is covered.
+//
+// Every string field of Options carries it, not a selection. The scope of this
+// check is "nothing an operator typed reaches output", and a field left
+// unplanted is a field the check silently exempts. DeveloperIntent is the one
+// that would hurt most: it is free text from --intent, so unlike a repo ID or
+// a ref it has no shape at all, and a project name or an unannounced customer
+// lands in it as easily as anything else. The int fields are left alone --
+// MaxDepth, Limit, and Offset cannot carry a sentinel and cannot carry a name.
 func optionsCarrying(marked string) Options {
 	fromGit := ParseNameStatusDiff("M\t" + marked + "\nR100\t" + marked + "-old\t" + marked + "-new\n")
 	explicit := ModifiedFiles([]string{marked})
 	changes := append(fromGit, explicit...)
 	return Options{
-		RepoID:       "repo:" + marked,
-		RepoPath:     "/home/dev/" + marked,
-		BaseRef:      "refs/heads/" + marked,
-		HeadRef:      marked,
-		Target:       "service:" + marked,
-		ServiceName:  marked,
-		Topic:        marked,
-		Changes:      changes,
-		ChangedPaths: ChangedPaths(changes),
-		MaxDepth:     4,
-		Limit:        25,
+		RepoID:          "repo:" + marked,
+		DeveloperIntent: "roll out " + marked + " before the announcement",
+		RepoPath:        "/home/dev/" + marked,
+		BaseRef:         "refs/heads/" + marked,
+		HeadRef:         marked,
+		Target:          "service:" + marked,
+		TargetType:      "service-" + marked,
+		ServiceName:     marked,
+		WorkloadID:      "workload:" + marked,
+		ResourceID:      "resource:" + marked,
+		ModuleID:        "module:" + marked,
+		Topic:           marked,
+		Environment:     "prod-" + marked,
+		Changes:         changes,
+		ChangedPaths:    ChangedPaths(changes),
+		MaxDepth:        4,
+		Limit:           25,
+	}
+}
+
+// TestOptionsCarryingPlantsEveryStringField keeps optionsCarrying honest.
+//
+// The absence check below is only as wide as the input it is given. A string
+// field nobody planted is a field that check exempts, and it exempts it
+// silently -- the run stays green and the coverage shrinks. Reflection is what
+// notices, so a field added to Options later fails here until it is planted.
+//
+// The two slice fields are covered by the changed-file assertions in
+// TestOperatorInputNeverReachesRendering, and the three int fields can carry
+// neither a sentinel nor a name.
+func TestOptionsCarryingPlantsEveryStringField(t *testing.T) {
+	t.Parallel()
+
+	opts := optionsCarrying("go/internal/" + canary + "/handler.go")
+	value := reflect.ValueOf(opts)
+	planted := 0
+	for i := range value.NumField() {
+		field := value.Type().Field(i)
+		if field.Type.Kind() != reflect.String {
+			continue
+		}
+		if !strings.Contains(value.Field(i).String(), canary) {
+			t.Fatalf("Options.%s carries no sentinel; an unplanted field is one the absence check silently exempts", field.Name)
+		}
+		planted++
+	}
+	if planted != 13 {
+		t.Fatalf("planted %d string fields, want 13; plant the new field in optionsCarrying before moving this number", planted)
 	}
 }
 

@@ -35,6 +35,24 @@ const (
 	KindIncomplete FailureKind = "incomplete"
 )
 
+// Kinds returns every FailureKind declared above, in declaration order, so a
+// caller that maps a kind onto something else can prove it covered all of them.
+//
+// It exists because nothing else notices a missing arm. go/cmd/eshu's
+// changeExitCode ends in a
+// default that answers 1, and go/.golangci.yml sets
+// default-signifies-exhaustive, so the exhaustive linter treats that switch as
+// complete no matter which kinds it lists. A new kind added without its arm
+// would fall to the default, and a hand-written test table cannot notice a kind
+// it does not mention. TestChangeExitCodeMapping walks this slice instead.
+//
+// Add a new kind here as well as to the const block. Nothing enforces that
+// pairing -- this slice sits next to the constants so the two are hard to
+// separate, and keeping them together is the one manual step left.
+func Kinds() []FailureKind {
+	return []FailureKind{KindInvalidArgument, KindEnvelope, KindFreshness, KindIncomplete}
+}
+
 // Failure is the error this package returns for every unclean outcome.
 // Message is operator-facing text; Kind and Code are what the caller maps to
 // an exit code.
@@ -55,6 +73,13 @@ func (f Failure) Error() string { return f.Message }
 
 // ErrorCodeFromTransport classifies a failed API call into the envelope error
 // code the change commands render and exit on.
+//
+// It is a copy of traceErrorCodeFromTransport in go/cmd/eshu/trace.go, which
+// still serves `eshu trace`, `eshu map`, component_api, and the freshness
+// family. That directory is package main, so neither side can import the
+// other, and both keep their callers. Change one and you must change the
+// other: TestTransportErrorCodeParity in go/cmd/eshu feeds one error table to
+// both and fails when their answers differ.
 //
 // The two message checks run before the status switch, and that order is the
 // contract, not an accident. An error whose text names a refused connection or

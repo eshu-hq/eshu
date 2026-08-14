@@ -35,10 +35,16 @@
   `changeImpactOptionsFromCommand`, add it to `ImpactRequestBody`, and update
   the key-count assertions in `TestRequestBodiesCarryEveryOption`. The counts
   are there so a new key cannot arrive untested.
-- **A new fail-closed condition** → add a `FailureKind`, extend
-  `ClassifyImpact` or `ClassifyPlan`, and add the matching arm to
-  `changeExitCode`. The `exhaustive` linter will not catch a missing arm here,
-  because the switch has a `default`; `TestChangeExitCodeMapping` will.
+- **A new fail-closed condition** → add a `FailureKind`, add it to `Kinds()`
+  right below the const block, extend `ClassifyImpact` or `ClassifyPlan`, and
+  add the matching arm to `changeExitCode`. The `exhaustive` linter will not
+  catch a missing arm: the switch has a `default` and `go/.golangci.yml` sets
+  `default-signifies-exhaustive`, so it reads as complete whatever it lists.
+  `TestChangeExitCodeMapping` walks `change.Kinds()` and fails if a declared
+  kind has no table row, or if its only rows expect the same exit code an
+  unrecognised kind gets — which is what a missing arm produces. That guard is
+  only as complete as `Kinds()`, so the one step nothing checks for you is
+  adding the constant to that slice.
 - **A new rendering line** → put it in `renderImpactSummary` or
   `renderPlanSummary` and extend the exact-output assertions in
   `render_test.go`. Those compare whole strings on purpose.
