@@ -19,6 +19,14 @@
 // handles and the other cannot is recorded in the row itself, with the reason,
 // rather than left for a reader to discover.
 //
+// Agreeing on WHICH bytes bound a pair is only half of it. An HTTP client
+// building a nested URL writes the structure percent-encoded, so
+// "?redirect_uri=%2Fcb%3Faccess_token%3D…" carries no bare "?" and no bare "="
+// — the same credential as the literal spelling, past both walks. escape.go
+// owns reading a separator through EXACTLY ONE layer of percent-encoding, in
+// either hex case, and records why one layer is the right depth. The escape is
+// copied through as it arrived, so nothing rewrites the operator's endpoint.
+//
 // The package makes no judgement about what a VALUE looks like. There is no
 // entropy check and no secret-pattern list. It asks the shared name predicate
 // about the left half of a pair, exactly as every other redaction walk here

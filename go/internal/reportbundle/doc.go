@@ -22,7 +22,8 @@
 // any depth, as typed and once percent-decoded (redactQueryInput).
 //
 // Free text gets a line-by-line scan for a sensitive-named key beside an "=" or
-// a ":" (redactFreeText). ReporterNote is in that domain because the guide asks
+// a ":" (redactFreeText), each read through one layer of percent-encoding so
+// "%3D" counts as an "=". ReporterNote is in that domain because the guide asks
 // reporters for a repro, so it commonly holds a pasted curl. So are
 // Response.Error.Message and Response.Error.CorrelationID: a Message is composed
 // server-side out of the caller's own selector, and a CorrelationID is the

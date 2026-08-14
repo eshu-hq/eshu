@@ -168,7 +168,7 @@ The credential is cut out of the sentence and the sentence is kept, listed as
 is scanned the same way, because it is your own `X-Correlation-ID` header when
 you sent one.
 
-Six limits, worth knowing before you paste something unusual:
+Seven limits, worth knowing before you paste something unusual:
 
 - The rule matches credential-shaped key **names**. A secret sitting in a
   parameter named something innocuous, with no `key=` in front of it, is not
@@ -188,9 +188,24 @@ Six limits, worth knowing before you paste something unusual:
   comes back shorter than you wrote it, that is why, and `redaction.rules` says
   so.
 - A percent-encoded parameter (`/x%3Fapi_key%3D...`, the form a browser or an
-  HTTP client writes) is unwrapped one layer before the check, so it is found
-  wherever you typed it. Encode it a second time (`%253F`) and it is not: the
-  unwrap runs exactly one layer, never in a loop.
+  HTTP client writes) is unwrapped **one layer** before the check, in your note
+  and in the returned error message as well as in `query.target` and
+  `query.params`. Encode it a second time (`%253F`) and it is not found: the
+  unwrap runs exactly one layer, never in a loop, because every further layer
+  describes a request no server received. `%3D`, `%3d` and the literal `=` are
+  all read the same way, and your note keeps the spelling you typed — only the
+  credential is cut out.
+- A credential that continues onto the **next line** is found only when a
+  backslash says the line carried on, as in a wrapped `curl`:
+
+  ```text
+  -H 'Authorization: \
+  Bearer sk-live-...'
+  ```
+
+  Both lines go. Break the same header without the backslash and the second
+  line is a bare secret with no key in front of it, which is the first limit
+  above.
 - `response.data` is scanned by key name only. Some Eshu routes echo your
   request parameters back inside the answer, so a credential you typed can
   reappear there even though it was dropped from `query.params`. Read the

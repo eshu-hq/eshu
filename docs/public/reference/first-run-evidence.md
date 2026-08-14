@@ -47,8 +47,13 @@ The endpoint and target fields are rewritten like this:
   (`token`, `api_key`, `access_token`, `authorization`, and similar), replaced
   with `redacted`. "Any" means any: pairs are separated by `?`, `&` or `;`, so a
   second query string nested inside a parameter value
-  (`?next=/v0/y?api_key=…`) is walked too, and a percent-encoded name
-  (`api%5Fkey`) is decoded before the match. A parameter with no value at all
+  (`?next=/v0/y?api_key=…`) is walked too. Each of those separators, and the `=`
+  that joins a name to its value, counts whether it is written literally or
+  percent-encoded, so `?a=1&b=%3Ftoken%3D…` — how an HTTP client writes a nested
+  URL — is walked exactly like `?a=1&b=?token=…`. Hex case does not matter, and a
+  percent-encoded name (`api%5Fkey`) is decoded before the match. The escapes are
+  copied through in the spelling they arrived in, so you can still match the
+  endpoint against your own config. A parameter with no value at all
   (`?token` or `?token=`) is left alone rather than shown as `token=redacted`,
   which would report a credential the URL never carried.
 - The **fragment** — everything after `#` — is dropped whole. A fragment never
@@ -81,11 +86,18 @@ parameter name. Nothing here judges whether a piece of text looks like a
 secret, so these reach the artifact as written:
 
 - A credential in a URL **path segment**, such as
-  `https://host/x/sk-live-abc/story`.
+  `https://host/x/sk-live-abc/story`. This covers a `#` written as `%23`
+  (`https://host/cb%23access_token=…`): a percent-encoded `#` is a literal
+  character in the path, not a fragment, so the fragment rule above does not
+  reach it.
 - A credential under a parameter name the rule does not match, such as
   `?session=sk-live-abc`.
 - A bare secret in prose with no key beside it, such as
   `authenticated with sk-live-abc`.
+- A separator encoded **twice**, such as `?next=%253Ftoken%253D…`. The unwrap
+  runs exactly one layer, on purpose: `%253F` asks for the literal text `%3F`,
+  so a second layer would describe a request no server received, and a loop
+  would let the input decide how long it runs.
 
 Artifacts are written with owner-only (`0600`) permissions because they still
 contain endpoint hostnames.

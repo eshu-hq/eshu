@@ -90,14 +90,21 @@ last, its value runs to the end of the string whether or not a walk knows the
 separator, so every last-position row passes against a terminator set that has
 drifted. Those two rows are what makes `freeTextValueTerminators` load-bearing.
 
-A row one walk provably cannot handle records **why**, in
-`EndpointKeepsSecret` / `FreeTextKeepsSecret`. Two rows do today:
+A second group of rows varies the **encoded spelling** of the same boundaries,
+because a corpus that covered every separator and wrote each one literally is
+what let `?a=1%3Btoken%3D…` through while `?a=1;token=…` was pinned.
+`TestBoundaryCasesCoverTheEncodedSpelling` and `TestBoundaryCasesVaryTheHexCase`
+fail if that stops being true.
 
-- a **percent-encoded key name** (`api%5Fkey`) — the endpoint walk decodes the
-  name before asking the predicate; the free-text walk cannot, because walking
-  back from `=` over key runes stops at `%` and reads the name as `5Fkey`.
-- **URL userinfo** (`http://u:<credential>@h/x`) — the token left of the `:` is
-  the username, which no sensitive-key rule matches.
+A row a walk provably cannot handle records **why**, in `EndpointKeepsSecret` /
+`FreeTextKeepsSecret`. Three rows carry a reason today, covering two cases:
+
+- **URL userinfo** (`http://u:<credential>@h/x`, and the same URL with a query
+  beside it) — the token left of the `:` is the username, which no sensitive-key
+  rule matches, so only the endpoint walk closes it. Two rows.
+- a **double-encoded** separator (`%253D`) — neither walk reaches it, and that
+  row is where widening the unwrap to a loop would have to be argued. It is the
+  only row where both reasons are set.
 
 `CheckEndpointSecret` / `CheckFreeTextSecret` assert those reasons in **both**
 directions. A walk that starts removing an exempted credential fails the test
@@ -108,6 +115,47 @@ because it is the contract, not a fixture: it is what "these two walks agree"
 means, and putting it beside the constant they share is what keeps the two from
 being edited apart. It is a few hundred bytes of string constants.
 
+## The encoded spelling of a separator
+
+Knowing which bytes bound a pair does not help when the bytes are written
+`%26`. An HTTP client building a nested URL percent-encodes the structure, so
+`?redirect_uri=%2Fcb%3Faccess_token=…` has no bare `?` and no bare `=` for a
+split to find — and that is the same credential as
+`?redirect_uri=/cb?access_token=…`, one of the three the separator constant was
+introduced for.
+
+So every read of a separator here goes through `escape.go`, which unwraps
+**exactly one layer**, in either hex case. `Query` copies the escape through in
+the spelling it arrived in; the operator's endpoint is not rewritten.
+
+One layer, never a loop, for two reasons:
+
+- `%253F` asks for the literal text `%3F`. A second layer would describe a
+  request no server received, and a loop would let the input decide how long it
+  runs.
+- `reportbundle`'s free-text walk **emits** the text it scanned, and `Capture`
+  runs `Validate` over its own bundle. A reader that peeled until the text
+  stopped changing would hand back a string one layer shallower than it arrived,
+  the next pass would peel one more and find something new, and `Capture` would
+  reject the bundle it just built — leaving the reporter with nothing.
+
+`Decode` is `url.PathUnescape`, not `url.QueryUnescape`, and the difference is
+`+`. `QueryUnescape` turns `+` into a space, which is right for one parsed query
+parameter and wrong for a decoder that also feeds a walk over prose: it can only
+lose matches, because `token+%3Dx` then reads as `token =x`, whose key holds
+whitespace and is skipped.
+
+## Exported escape surface
+
+- `EscapeWidth` — `3`, the byte length of one escape.
+- `DecodedByteAt(s, i)` — the byte `s[i]` stands for, and its width.
+- `DecodedEscapeBefore(s, i)` — the byte an escape ending at `s[:i]` stands for,
+  for the backwards walk that reads a key name leftwards from its separator.
+- `IndexDecodedAny(s, set)` — offset and width of the first position standing
+  for one of `set`.
+- `Decode(s)` — one layer across a whole string, for a name or a value rather
+  than a position.
+
 ## What this package does not do
 
 It does not judge what a **value** looks like. No entropy check, no
@@ -116,7 +164,8 @@ pair, exactly as every other redaction walk in this repository does.
 
 So a credential in a **path segment**, one under a name
 `collector.IsSensitiveKeyName` does not match (`?session=…`), and a bare secret
-with no key beside it are all invisible here — as they are everywhere else.
+with no key beside it are all invisible here — as they are everywhere else. So
+is a separator encoded twice (`%253D`), for the reason above.
 
 Assembling a redacted URL is not here either. `redactEndpoint` keeps that: it
 also strips userinfo and the fragment, and falls back to `mcpsetup.RedactToken`

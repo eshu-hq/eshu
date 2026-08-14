@@ -81,6 +81,20 @@ read durable fact records itself — callers supply an already-resolved
   package exists to remove. The decode runs EXACTLY ONE layer and never feeds
   its output back in; do not turn it into a loop, and do not move it to an
   arrival point.
+- The free-text walk reads the SAME one layer, through
+  `urlredact.DecodedByteAt` / `DecodedEscapeBefore` / `Decode`, so `%3D` is an
+  `=`, `%3A` is a `:`, `%26`/`%3F`/`%3B` end a pair and `api%5Fkey` is
+  `api_key`. It had none of that while `embeddedSensitiveKey` did, which is how
+  the encoded spelling of an already-fixed credential
+  (`?redirect_uri=%2Fcb%3Faccess_token%3D…`) stayed green in `query.target` and
+  leaked from `reporter_note` and `response.error.message`. Use the shared
+  reader; do not add a second decoder. The one-layer rule is even stricter here
+  than for the detector: this walk EMITS what it scanned and `Validate` scans
+  the output again, so a deeper unwrap makes `Capture` reject its own bundle.
+- Any test constant carrying a credential must exist in more than one spelling.
+  `symmetryBytes` was a single unencoded string driving all three placements, so
+  one fix closed the axis for every placement at once and a placement the fix
+  missed still looked covered. `symmetrySpellings` is a grid now; keep it one.
 - No user-supplied string is interpolated into an error this package returns.
   Name the field (`query.target`, `query.params.next`), never the value. A
   parameter NAME is reporter-typed too and can itself be a `key=value` pair, so

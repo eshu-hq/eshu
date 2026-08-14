@@ -28,6 +28,23 @@
   consumer's tests go red — a green consumer under that probe is an unwired
   consumer, not a passing one.
 
+- **One definition of the DEPTH, too.** `escape.go` owns reading a separator
+  through percent-encoding, and every walk goes through it — `Query`,
+  `redactFreeText`, and `reportbundle.embeddedSensitiveKey`. Sharing the
+  separator BYTES was not enough on its own: an HTTP client writes the structure
+  encoded, so `?redirect_uri=%2Fcb%3Faccess_token%3D…` carries no bare `?` and no
+  bare `=`, and it went past both walks while the literal spelling of the same
+  URL was pinned by a corpus row.
+
+  **EXACTLY ONE layer, never a loop.** `%253F` asks for the text `%3F`, so a
+  second layer describes a request no server received. The harder reason is that
+  `redactFreeText` emits what it scanned and `Capture` runs `Validate` over that
+  output: a deeper unwrap hands back a string one layer shallower than it
+  arrived, the next pass finds something new, and `Capture` rejects its own
+  bundle — the reporter then gets nothing. `Decode` is `url.PathUnescape`, not
+  `url.QueryUnescape`, because a `+` is a plus sign in prose and turning it into
+  a space can only lose matches.
+
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
   the README's narrow, checkable claim into "we scan for secrets", which nobody
@@ -51,9 +68,11 @@
 
 ## Common changes and how to scope them
 
-- **Add a separator** → edit `PairSeparators`, then add a corpus row using it.
-  Both walks are driven through the corpus, so the row tells you immediately
-  whether the two now agree. Do not add the character to one walk only.
+- **Add a separator** → edit `PairSeparators`, then add TWO corpus rows using
+  it: one spelling it literally and one spelling it `%XX`. Both walks are driven
+  through the corpus, so the rows tell you immediately whether the two now agree.
+  `TestBoundaryCasesCoverTheEncodedSpelling` fails without the second one. Do not
+  add the character to one walk only.
 - **Change what counts as a sensitive name** → that is `sensitiveQueryPattern`
   in `sdk/go/collector/validation.go`, not here. Every walk in the repo reads
   it through `collector.IsSensitiveKeyName` for that reason.

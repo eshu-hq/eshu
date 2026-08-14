@@ -88,7 +88,8 @@ a property of the text, so the decode happens inside `embeddedSensitiveKey`
 rather than at one arrival point. It runs **exactly one layer** and never feeds
 its own output back in — re-decoding until the text stops changing would let a
 crafted value drive the loop — so a double-encoded nesting (`%253F`) still
-passes.
+passes. The decoder is `urlredact.Decode`, shared with the free-text walk and
+with `cmd/eshu`, so the three cannot drift on how deep they look.
 
 #### The note is scanned too, and why it is scanned differently
 
@@ -201,11 +202,39 @@ shared set into its wider one. Both walks are then driven through one shared
 corpus (`urlredact.BoundaryCases`) that records every row either walk cannot
 handle, with its reason.
 
-The gap that remains is the reverse one, and it is here: free text has no
-userinfo rule, so `https://alice:s3cr3t@host` passes this scan untouched. The
-token left of the `:` is `alice`, which no sensitive-key rule matches. A
-structured field gets that case from `redactEndpoint`; a note or an error
-message does not.
+The next axis under the same boundary was **how the separator is spelled**. Both
+walks read only the literal bytes, so
+`?redirect_uri=%2Fcb%3Faccess_token%3D…` — the third credential in that list,
+written the way a browser or an HTTP client writes it — went straight back
+through. Only the structured domain decoded, because `embeddedSensitiveKey` had
+its own unwrap, so a reviewer flipping a test constant to its encoded spelling
+watched `query.target` stay green while `reporter_note` and
+`response.error.message` both leaked: one verdict per field, for text the same
+person typed.
+
+Reading a separator through one layer of percent-encoding now lives in
+`urlredact/escape.go` and every walk uses it, `embeddedSensitiveKey` included.
+The free-text scan reads `%3D` as `=`, `%3A` as `:`, `%26`/`%3F`/`%3B` as pair
+boundaries and `api%5Fkey` as `api_key`, in either hex case, and emits the bytes
+around the removal in the spelling they arrived in. **One layer, never a loop** —
+here the reason is sharper than for the detector: this walk emits what it
+scanned and `Validate` scans that output again, so a reader that peeled until the
+text stopped changing would make `Capture` reject its own bundle. `%253D` is
+therefore three characters of text, and that is pinned by a corpus row rather
+than left implicit.
+
+Three gaps remain, each the reverse of something above:
+
+- Free text has no **userinfo** rule, so `https://alice:s3cr3t@host` passes this
+  scan untouched. The token left of the `:` is `alice`, which no sensitive-key
+  rule matches. A structured field gets that case from `redactEndpoint`; a note
+  or an error message does not.
+- A credential on the **next line** is found only when a backslash says the line
+  carried on — a wrapped `curl` writes `-H 'Authorization: \` and puts
+  `Bearer …` underneath, and both lines go. Wrapped without the backslash, the
+  second line is a bare secret with no key in front of it, which is the standing
+  limit.
+- A separator encoded **twice** is out of reach, by the rule above.
 
 #### Why `response.data` is exempt, and what that costs
 
