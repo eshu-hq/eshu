@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
 	"bytes"
@@ -61,19 +61,19 @@ func steadyClock(step time.Duration) func() time.Time {
 	}
 }
 
-func newTestDemoRuntime(exec *fakeDemoExec) *demoRuntime {
-	return &demoRuntime{
+func newTestDemoRuntime(exec *fakeDemoExec) *Runtime {
+	return &Runtime{
 		exec:    exec.run,
 		now:     steadyClock(time.Second),
-		project: defaultDemoProject,
+		project: DefaultProject,
 		// Keep the multi-poll readiness path off the wall clock.
 		pollInterval: time.Millisecond,
 		// A ready index and a correct first answer unless a test overrides.
-		probe: func(context.Context, string, string) (demoIndexStatus, error) {
-			return demoIndexStatus{Status: "healthy", RepositoryCount: 20}, nil
+		probe: func(context.Context, string, string) (IndexStatus, error) {
+			return IndexStatus{Status: "healthy", RepositoryCount: 20}, nil
 		},
-		ask: func(context.Context, string, string) (demoAnswer, error) {
-			return demoAnswer{Question: "q", Answer: "a", Truth: map[string]any{"backend": "nornicdb"}}, nil
+		ask: func(context.Context, string, string) (Answer, error) {
+			return Answer{Question: "q", Answer: "a", Truth: map[string]any{"backend": "nornicdb"}}, nil
 		},
 	}
 }
@@ -86,7 +86,7 @@ func TestDemoUp_UsesUniqueProjectNameAndDemoOverlay(t *testing.T) {
 	}}
 	rt := newTestDemoRuntime(exec)
 
-	if _, err := rt.up(context.Background()); err != nil {
+	if _, err := rt.Up(context.Background()); err != nil {
 		t.Fatalf("up: %v", err)
 	}
 	if !exec.sawContaining("-p eshu-demo") {
@@ -108,7 +108,7 @@ func TestDemoUp_RefusesToClobberARunningProjectAndNeverDownsIt(t *testing.T) {
 	}}
 	rt := newTestDemoRuntime(exec)
 
-	_, err := rt.up(context.Background())
+	_, err := rt.Up(context.Background())
 	if err == nil {
 		t.Fatal("up() error = nil, want a refuse-to-clobber error")
 	}
@@ -133,7 +133,7 @@ func TestDemoUp_MissingDockerIsADiagnosticsGradeError(t *testing.T) {
 	}
 	rt := newTestDemoRuntime(exec)
 
-	_, err := rt.up(context.Background())
+	_, err := rt.Up(context.Background())
 	if err == nil {
 		t.Fatal("up() error = nil, want a docker preflight error")
 	}
@@ -155,15 +155,15 @@ func TestDemoUp_WaitsForIndexCompletenessNotProcessHealth(t *testing.T) {
 	exec := &fakeDemoExec{}
 	rt := newTestDemoRuntime(exec)
 	polls := 0
-	rt.probe = func(context.Context, string, string) (demoIndexStatus, error) {
+	rt.probe = func(context.Context, string, string) (IndexStatus, error) {
 		polls++
 		if polls < 3 {
-			return demoIndexStatus{Status: "degraded", RepositoryCount: polls}, nil
+			return IndexStatus{Status: "degraded", RepositoryCount: polls}, nil
 		}
-		return demoIndexStatus{Status: "healthy", RepositoryCount: 20}, nil
+		return IndexStatus{Status: "healthy", RepositoryCount: 20}, nil
 	}
 
-	res, err := rt.up(context.Background())
+	res, err := rt.Up(context.Background())
 	if err != nil {
 		t.Fatalf("up: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestDemoUp_RecordsPerPhaseTimings(t *testing.T) {
 	exec := &fakeDemoExec{}
 	rt := newTestDemoRuntime(exec)
 
-	res, err := rt.up(context.Background())
+	res, err := rt.Up(context.Background())
 	if err != nil {
 		t.Fatalf("up: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestDemoUp_CarriesTheFirstAnswerAndItsTruth(t *testing.T) {
 	exec := &fakeDemoExec{}
 	rt := newTestDemoRuntime(exec)
 
-	res, err := rt.up(context.Background())
+	res, err := rt.Up(context.Background())
 	if err != nil {
 		t.Fatalf("up: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestDemoDown_RemovesVolumesAndOrphansForTheDemoProjectOnly(t *testing.T) {
 	exec := &fakeDemoExec{}
 	rt := newTestDemoRuntime(exec)
 
-	if err := rt.down(context.Background()); err != nil {
+	if err := rt.Down(context.Background()); err != nil {
 		t.Fatalf("down: %v", err)
 	}
 	if !exec.sawContaining("-p eshu-demo") {
@@ -236,7 +236,7 @@ func TestDemoRuntime_ProjectOverrideIsHonoured(t *testing.T) {
 	rt := newTestDemoRuntime(exec)
 	rt.project = "eshu-demo-reviewer"
 
-	if _, err := rt.up(context.Background()); err != nil {
+	if _, err := rt.Up(context.Background()); err != nil {
 		t.Fatalf("up: %v", err)
 	}
 	if !exec.sawContaining("-p eshu-demo-reviewer") {
@@ -249,13 +249,13 @@ func TestDemoRuntime_ProjectOverrideIsHonoured(t *testing.T) {
 
 func TestDemoEnvelope_ShapeMatchesTheFirstRunContract(t *testing.T) {
 	t.Parallel()
-	res := demoResult{
+	res := Result{
 		Ready:       true,
-		FirstAnswer: demoAnswer{Question: "q", Answer: "a", Truth: map[string]any{"backend": "nornicdb"}},
+		FirstAnswer: Answer{Question: "q", Answer: "a", Truth: map[string]any{"backend": "nornicdb"}},
 		PhaseMillis: map[string]int64{"up": 1},
 		TotalMillis: 1,
 	}
-	env := demoEnvelopeFor(res, nil)
+	env := EnvelopeFor(res, nil)
 	if env.Error != nil {
 		t.Errorf("Error = %v, want nil on success", env.Error)
 	}
@@ -263,7 +263,7 @@ func TestDemoEnvelope_ShapeMatchesTheFirstRunContract(t *testing.T) {
 		t.Error("envelope Truth is empty; the answer's provenance must survive into --json")
 	}
 
-	failed := demoEnvelopeFor(demoResult{}, errors.New("compose up failed"))
+	failed := EnvelopeFor(Result{}, errors.New("compose up failed"))
 	if failed.Error == nil || failed.Error.Message == "" {
 		t.Fatal("failed envelope carries no error message")
 	}
@@ -273,19 +273,19 @@ func TestDemoEnvelope_ShapeMatchesTheFirstRunContract(t *testing.T) {
 // execs into back to the fragment that defines it.
 //
 // Without this the coupling is invisible: renaming the service in the overlay
-// leaves recoverDemoKey shelling out to a service that no longer exists, the
+// leaves recoverKey shelling out to a service that no longer exists, the
 // key lookup fails, and `demo status` reports a perfectly healthy stack as
 // not-ready. Asserting the const alone would prove nothing, so this reads the
 // committed fragment and requires the name to appear as a service key.
 func TestDemoServiceNameMatchesComposeOverlay(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join("..", "..", "..", "docker-compose.demo.runtime.yaml")
+	path := filepath.Join("..", "..", "..", "..", "docker-compose.demo.runtime.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
-	if !strings.Contains(string(raw), "\n  "+demoServiceName+":\n") {
-		t.Errorf("demoServiceName = %q, but %s declares no such service", demoServiceName, path)
+	if !strings.Contains(string(raw), "\n  "+serviceName+":\n") {
+		t.Errorf("serviceName = %q, but %s declares no such service", serviceName, path)
 	}
 }
 
@@ -294,11 +294,11 @@ func TestDemoServiceNameMatchesComposeOverlay(t *testing.T) {
 func TestRecoverDemoKeyExecsTheNamedService(t *testing.T) {
 	t.Parallel()
 	fake := &fakeDemoExec{fallback: demoExecReply{out: []byte("demo-abc123\n")}}
-	r := &demoRuntime{exec: fake.run, project: "eshu-demo", composeFile: "docker-compose.demo.yaml"}
+	r := &Runtime{exec: fake.run, project: "eshu-demo", composeFile: "docker-compose.demo.yaml"}
 
-	key, err := r.recoverDemoKey(context.Background())
+	key, err := r.recoverKey(context.Background())
 	if err != nil {
-		t.Fatalf("recoverDemoKey: %v", err)
+		t.Fatalf("recoverKey: %v", err)
 	}
 	if key != "demo-abc123" {
 		t.Errorf("key = %q, want demo-abc123", key)
@@ -307,8 +307,8 @@ func TestRecoverDemoKeyExecsTheNamedService(t *testing.T) {
 		t.Fatalf("calls = %d, want 1", len(fake.calls))
 	}
 	joined := strings.Join(fake.calls[0], " ")
-	if !strings.Contains(joined, "exec -T "+demoServiceName+" printenv ESHU_API_KEY") {
-		t.Errorf("exec call = %q, want it to target service %q", joined, demoServiceName)
+	if !strings.Contains(joined, "exec -T "+serviceName+" printenv ESHU_API_KEY") {
+		t.Errorf("exec call = %q, want it to target service %q", joined, serviceName)
 	}
 }
 
@@ -326,16 +326,16 @@ func TestOwnsProjectRejectsALookalikeConfigPath(t *testing.T) {
 		label string
 		want  bool
 	}{
-		{"exact", "/repo/" + demoComposeFileName, true},
-		{"with fragments", "/repo/" + demoComposeFileName + ",/repo/docker-compose.demo.corpus.yaml", true},
-		{"lookalike suffix", "/repo/not-" + demoComposeFileName + ".bak", false},
-		{"lookalike prefix", "/repo/x-" + demoComposeFileName, false},
+		{"exact", "/repo/" + ComposeFileName, true},
+		{"with fragments", "/repo/" + ComposeFileName + ",/repo/docker-compose.demo.corpus.yaml", true},
+		{"lookalike suffix", "/repo/not-" + ComposeFileName + ".bak", false},
+		{"lookalike prefix", "/repo/x-" + ComposeFileName, false},
 		{"unrelated project", "/elsewhere/docker-compose.yaml", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fake := &fakeDemoExec{fallback: demoExecReply{out: []byte(tc.label + "\n")}}
-			r := &demoRuntime{exec: fake.run, project: "eshu-demo", composeFile: demoComposeFileName}
+			r := &Runtime{exec: fake.run, project: "eshu-demo", composeFile: ComposeFileName}
 			got, err := r.ownsProject(context.Background())
 			if err != nil {
 				t.Fatalf("ownsProject: %v", err)
@@ -355,9 +355,9 @@ func TestWaitReadyTimeoutNamesTheResolvedComposeFile(t *testing.T) {
 	t.Parallel()
 	const resolved = "/custom/path/my-demo-compose.yaml"
 	now := time.Now()
-	r := &demoRuntime{
-		probe:        func(context.Context, string, string) (demoIndexStatus, error) { return demoIndexStatus{}, nil },
-		now:          func() time.Time { now = now.Add(demoReadyTimeout); return now },
+	r := &Runtime{
+		probe:        func(context.Context, string, string) (IndexStatus, error) { return IndexStatus{}, nil },
+		now:          func() time.Time { now = now.Add(readyTimeout); return now },
 		project:      "eshu-demo",
 		composeFile:  resolved,
 		pollInterval: time.Millisecond,
@@ -379,16 +379,16 @@ func TestWaitReadyTimeoutNamesTheResolvedComposeFile(t *testing.T) {
 // manifest gives them the one fact they need to fix it.
 func TestPrintDemoGuidedPathSaysWhenItCannotLoad(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir) // no manifest at demoManifestPath under this root
+	t.Chdir(dir) // no manifest at ManifestPath under this root
 
 	var buf bytes.Buffer
-	printDemoGuidedPath(&buf)
+	printGuidedPath(&buf)
 
 	got := buf.String()
 	if got == "" {
-		t.Fatal("printDemoGuidedPath() printed nothing; want an explicit note that the guided path is unavailable")
+		t.Fatal("printGuidedPath() printed nothing; want an explicit note that the guided path is unavailable")
 	}
-	if !strings.Contains(got, demoManifestPath) {
-		t.Errorf("output = %q, want it to name %q so the operator can act on it", got, demoManifestPath)
+	if !strings.Contains(got, ManifestPath) {
+		t.Errorf("output = %q, want it to name %q so the operator can act on it", got, ManifestPath)
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
 	"bytes"
@@ -16,27 +16,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// demoManifestPath is the committed acceptance oracle for the demo questions.
-const demoManifestPath = "specs/demo-first-answers.v1.yaml"
+// ManifestPath is the committed acceptance oracle for the demo questions,
+// relative to the repository root the command is run from.
+const ManifestPath = "specs/demo-first-answers.v1.yaml"
 
 // Execute kinds the manifest declares. A question names the surface that
 // actually answers it, which is why `eshu demo` never needs a general
 // natural-language query route — there isn't one.
 const (
-	demoExecuteMCP  = "mcp"
-	demoExecuteHTTP = "http"
+	executeMCP  = "mcp"
+	executeHTTP = "http"
 )
 
-// demoExecute is a question's callable surface: which transport, which tool or
+// Execute is a question's callable surface: which transport, which tool or
 // route, and the arguments that make the answer correct for the demo corpus.
-type demoExecute struct {
+type Execute struct {
 	Kind      string         `yaml:"kind"`
 	Ref       string         `yaml:"ref"`
 	Arguments map[string]any `yaml:"arguments"`
 }
 
-// demoQuestion is one entry from the manifest.
-type demoQuestion struct {
+// Question is one entry from the manifest.
+type Question struct {
 	ID       string `yaml:"id"`
 	Question string `yaml:"question"`
 	Surface  struct {
@@ -46,86 +47,93 @@ type demoQuestion struct {
 		Kind      string         `yaml:"kind"`
 		Ref       string         `yaml:"ref"`
 		Arguments map[string]any `yaml:"arguments"`
-		Execute   demoExecute    `yaml:"execute"`
+		Execute   Execute        `yaml:"execute"`
 	} `yaml:"surface"`
 	// Execute is resolved from Surface.Execute after load so callers do not
 	// have to know the manifest's nesting.
-	Execute        demoExecute `yaml:"-"`
+	Execute        Execute `yaml:"-"`
 	ExpectedAnswer struct {
 		RequiredResponseFields []string `yaml:"required_response_fields"`
 	} `yaml:"expected_answer"`
 }
 
-// demoManifest is the parsed acceptance oracle.
-type demoManifest struct {
-	Questions []demoQuestion `yaml:"questions"`
+// Manifest is the parsed acceptance oracle.
+type Manifest struct {
+	Questions []Question `yaml:"questions"`
 }
 
-// loadDemoManifest reads and validates the committed manifest.
-func loadDemoManifest(path string) (demoManifest, error) {
+// LoadManifest reads and validates the committed manifest at path.
+func LoadManifest(path string) (Manifest, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- program-constructed repo-relative path
 	if err != nil {
-		return demoManifest{}, fmt.Errorf("read demo manifest %s: %w", path, err)
+		return Manifest{}, fmt.Errorf("read demo manifest %s: %w", path, err)
 	}
-	var m demoManifest
+	var m Manifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
-		return demoManifest{}, fmt.Errorf("parse demo manifest %s: %w", path, err)
+		return Manifest{}, fmt.Errorf("parse demo manifest %s: %w", path, err)
 	}
 	if len(m.Questions) == 0 {
-		return demoManifest{}, fmt.Errorf("demo manifest %s declares no questions", path)
+		return Manifest{}, fmt.Errorf("demo manifest %s declares no questions", path)
 	}
 	for i := range m.Questions {
 		q := &m.Questions[i]
 		q.Execute = q.Surface.Execute
-		if q.Execute.Kind == "" && (q.Surface.Kind == demoExecuteMCP || q.Surface.Kind == demoExecuteHTTP) {
-			q.Execute = demoExecute{Kind: q.Surface.Kind, Ref: q.Surface.Ref, Arguments: q.Surface.Arguments}
+		if q.Execute.Kind == "" && (q.Surface.Kind == executeMCP || q.Surface.Kind == executeHTTP) {
+			q.Execute = Execute{Kind: q.Surface.Kind, Ref: q.Surface.Ref, Arguments: q.Surface.Arguments}
 		}
 		q.Question = strings.TrimSpace(q.Question)
 	}
 	return m, nil
 }
 
-// executeDemoQuestion calls the surface the question declares and checks the
+// ExecuteQuestion calls the surface the question declares and checks the
 // reply against that question's required_response_fields.
 //
 // The check is the point. A tool that answers with the wrong shape has not
 // answered: the demo's promise is a correlated answer, and accepting any 200
 // would let "the stack is up" pass as "the demo works".
-func executeDemoQuestion(ctx context.Context, apiBase, mcpBase, apiKey string, q demoQuestion) (demoAnswer, error) {
+func ExecuteQuestion(ctx context.Context, apiBase, mcpBase, apiKey string, q Question) (Answer, error) {
 	var payload map[string]any
 	var err error
 	switch q.Execute.Kind {
-	case demoExecuteMCP:
-		payload, err = callDemoMCPTool(ctx, mcpBase, apiKey, q.Execute)
-	case demoExecuteHTTP:
-		payload, err = callDemoHTTPRoute(ctx, apiBase, apiKey, q.Execute)
+	case executeMCP:
+		payload, err = callMCPTool(ctx, mcpBase, apiKey, q.Execute)
+	case executeHTTP:
+		payload, err = callHTTPRoute(ctx, apiBase, apiKey, q.Execute)
 	default:
-		return demoAnswer{}, fmt.Errorf(
+		return Answer{}, fmt.Errorf(
 			"question %s declares execute kind %q, which this command cannot call; the manifest supports %q and %q",
-			q.ID, q.Execute.Kind, demoExecuteMCP, demoExecuteHTTP)
+			q.ID, q.Execute.Kind, executeMCP, executeHTTP)
 	}
 	if err != nil {
-		return demoAnswer{}, fmt.Errorf("question %s (%s %s): %w", q.ID, q.Execute.Kind, q.Execute.Ref, err)
+		return Answer{}, fmt.Errorf("question %s (%s %s): %w", q.ID, q.Execute.Kind, q.Execute.Ref, err)
 	}
-	if missing := missingDemoFields(payload, q.ExpectedAnswer.RequiredResponseFields); len(missing) > 0 {
-		return demoAnswer{}, fmt.Errorf(
+	if missing := missingFields(payload, q.ExpectedAnswer.RequiredResponseFields); len(missing) > 0 {
+		return Answer{}, fmt.Errorf(
 			"question %s answered without required field(s) %s; the surface replied but not with the shape the manifest requires",
 			q.ID, strings.Join(missing, ", "))
 	}
-	truth := extractDemoTruth(payload)
+	truth := extractTruth(payload)
 	if len(truth) == 0 {
-		return demoAnswer{}, fmt.Errorf(
+		return Answer{}, fmt.Errorf(
 			"question %s answered without truth labels; an answer with no provenance is not evidence", q.ID)
 	}
-	return demoAnswer{
+	return Answer{
 		Question: q.Question,
-		Answer:   summarizeDemoPayload(payload),
+		Answer:   summarizePayload(payload),
 		Truth:    truth,
 	}, nil
 }
 
-// callDemoMCPTool issues the JSON-RPC tools/call the MCP server expects.
-func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute) (map[string]any, error) {
+// callMCPTool issues the JSON-RPC tools/call the MCP server expects.
+//
+// Encode and transport failures reach the operator through ExecuteQuestion,
+// which already prefixes the question id and the surface it called. Wrapping
+// them a second time here would change the message printed for a failed demo
+// question.
+//
+//nolint:wrapcheck // ExecuteQuestion already prefixes the question id and surface
+func callMCPTool(ctx context.Context, mcpBase, apiKey string, ex Execute) (map[string]any, error) {
 	args := ex.Arguments
 	if args == nil {
 		args = map[string]any{}
@@ -147,7 +155,7 @@ func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := demoHTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +208,13 @@ func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute
 	return nil, fmt.Errorf("MCP tool %s returned no structured payload", ex.Ref)
 }
 
-// callDemoHTTPRoute issues the "<METHOD> <path>" the manifest declares.
-func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecute) (map[string]any, error) {
+// callHTTPRoute issues the "<METHOD> <path>" the manifest declares.
+//
+// Same as callMCPTool: ExecuteQuestion adds the question id and the surface,
+// and a second wrap here changes text an operator reads.
+//
+//nolint:wrapcheck // ExecuteQuestion already prefixes the question id and surface
+func callHTTPRoute(ctx context.Context, apiBase, apiKey string, ex Execute) (map[string]any, error) {
 	method, path, found := strings.Cut(strings.TrimSpace(ex.Ref), " ")
 	if !found {
 		return nil, fmt.Errorf("http ref %q is not \"<METHOD> <path>\"", ex.Ref)
@@ -213,7 +226,7 @@ func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecu
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := demoHTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -228,8 +241,8 @@ func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecu
 	return payload, nil
 }
 
-// missingDemoFields returns the required top-level fields absent from payload.
-func missingDemoFields(payload map[string]any, required []string) []string {
+// missingFields returns the required top-level fields absent from payload.
+func missingFields(payload map[string]any, required []string) []string {
 	var missing []string
 	for _, f := range required {
 		if f == "__truth" {
@@ -242,9 +255,9 @@ func missingDemoFields(payload map[string]any, required []string) []string {
 	return missing
 }
 
-// summarizeDemoPayload renders a one-line human answer. It prefers a summary
+// summarizePayload renders a one-line human answer. It prefers a summary
 // the surface already wrote over anything this command invents.
-func summarizeDemoPayload(payload map[string]any) string {
+func summarizePayload(payload map[string]any) string {
 	if packet, ok := payload["answer_packet"].(map[string]any); ok {
 		if s, ok := packet["summary"].(string); ok && s != "" {
 			return s
@@ -258,9 +271,9 @@ func summarizeDemoPayload(payload map[string]any) string {
 	return "answered with " + strings.Join(keys, ", ")
 }
 
-// extractDemoTruth lifts the surface's truth labels. An answer with no truth
+// extractTruth lifts the surface's truth labels. An answer with no truth
 // is reported as such rather than given a fabricated label.
-func extractDemoTruth(payload map[string]any) map[string]any {
+func extractTruth(payload map[string]any) map[string]any {
 	if truth, ok := payload["__truth"].(map[string]any); ok && len(truth) > 0 {
 		return truth
 	}
@@ -301,15 +314,15 @@ func shellSingleQuote(s string) string {
 // and told the operator to pipe sentences into `eshu query`, which takes no
 // natural language. That printed confidently to someone in their first five
 // minutes and sent them nowhere, and nothing failed.
-func (q demoQuestion) RunnableForm() string {
+func (q Question) RunnableForm() string {
 	switch q.Execute.Kind {
-	case demoExecuteMCP:
+	case executeMCP:
 		args, err := json.Marshal(q.Execute.Arguments)
 		if err != nil || len(q.Execute.Arguments) == 0 {
 			return fmt.Sprintf("eshu mcp call %s", q.Execute.Ref)
 		}
 		return fmt.Sprintf("eshu mcp call %s --arguments %s", q.Execute.Ref, shellSingleQuote(string(args)))
-	case demoExecuteHTTP:
+	case executeHTTP:
 		method, path, found := strings.Cut(strings.TrimSpace(q.Execute.Ref), " ")
 		if !found {
 			return q.Execute.Ref

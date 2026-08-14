@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 func TestDemoUp_BoundsTheComposePhase(t *testing.T) {
 	t.Parallel()
 	blocked := make(chan struct{})
-	r := &demoRuntime{
+	r := &Runtime{
 		exec: func(ctx context.Context, _ []string, _ string, args ...string) ([]byte, error) {
 			for _, a := range args {
 				if a == "up" {
@@ -32,7 +32,7 @@ func TestDemoUp_BoundsTheComposePhase(t *testing.T) {
 			}
 			return []byte(""), nil
 		},
-		probe:        func(context.Context, string, string) (demoIndexStatus, error) { return demoIndexStatus{}, nil },
+		probe:        func(context.Context, string, string) (IndexStatus, error) { return IndexStatus{}, nil },
 		now:          time.Now,
 		project:      "eshu-demo-test",
 		composeFile:  "docker-compose.demo.yaml",
@@ -41,7 +41,7 @@ func TestDemoUp_BoundsTheComposePhase(t *testing.T) {
 	}
 
 	done := make(chan error, 1)
-	go func() { _, err := r.up(context.Background()); done <- err }()
+	go func() { _, err := r.Up(context.Background()); done <- err }()
 
 	select {
 	case <-blocked:
@@ -83,7 +83,7 @@ func TestDemoUp_SkipsTheBuildWhenImagesArePresent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var buildRan bool
-			r := &demoRuntime{
+			r := &Runtime{
 				exec: func(_ context.Context, _ []string, _ string, args ...string) ([]byte, error) {
 					joined := strings.Join(args, " ")
 					switch {
@@ -100,18 +100,18 @@ func TestDemoUp_SkipsTheBuildWhenImagesArePresent(t *testing.T) {
 					}
 					return []byte(""), nil
 				},
-				probe: func(context.Context, string, string) (demoIndexStatus, error) {
-					return demoIndexStatus{Status: "healthy", RepositoryCount: 1}, nil
+				probe: func(context.Context, string, string) (IndexStatus, error) {
+					return IndexStatus{Status: "healthy", RepositoryCount: 1}, nil
 				},
-				ask: func(context.Context, string, string) (demoAnswer, error) {
-					return demoAnswer{Answer: "an answer", Truth: map[string]any{"level": "derived"}}, nil
+				ask: func(context.Context, string, string) (Answer, error) {
+					return Answer{Answer: "an answer", Truth: map[string]any{"level": "derived"}}, nil
 				},
 				now:          time.Now,
 				project:      "eshu-demo-test",
 				composeFile:  "docker-compose.demo.yaml",
 				pollInterval: time.Millisecond,
 			}
-			res, err := r.up(context.Background())
+			res, err := r.Up(context.Background())
 			if err != nil {
 				t.Fatalf("up: %v", err)
 			}
