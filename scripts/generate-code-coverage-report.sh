@@ -57,8 +57,6 @@ NR == 1 { next }
 		next
 	}
 	if (excluded(file)) {
-		excluded_files[file] = 1
-		excluded_statements += statements
 		next
 	}
 	pkg = file
@@ -67,7 +65,6 @@ NR == 1 { next }
 	if (count > 0) {
 		covered[pkg] += statements
 	}
-	included_files[file] = 1
 }
 END {
 	for (pkg in total) {
@@ -76,19 +73,11 @@ END {
 		all_total += total[pkg]
 		all_covered += covered[pkg]
 	}
-	included_count = 0
-	for (file in included_files) {
-		included_count++
-	}
-	excluded_count = 0
-	for (file in excluded_files) {
-		excluded_count++
-	}
 	all_pct = all_total == 0 ? 0 : (all_covered * 100 / all_total)
-	printf "total\t%d\t%d\t%.1f\t%d\t%d\t%d\n", all_total, all_covered, all_pct, included_count, excluded_count, excluded_statements > "/dev/stderr"
+	printf "total\t%d\t%d\t%.1f\n", all_total, all_covered, all_pct > "/dev/stderr"
 }' "${profile}" >/dev/null 2>"${summary_tsv}"
 
-read -r _ _total_statements _covered_statements total_pct included_files excluded_files excluded_statements <"${summary_tsv}"
+read -r _ _total_statements _covered_statements total_pct <"${summary_tsv}"
 
 canonical_pct="$(LC_ALL=C awk -v covered="${_covered_statements}" -v total="${_total_statements}" '
 BEGIN {
@@ -125,8 +114,12 @@ EOF
 	printf '%s\n' '- Policy: advisory baseline. The report exposes gaps without failing unrelated PRs solely because historical coverage is low.'
 	printf '%s\n\n' '- Follow-up: make package-level no-regression checks blocking after the baseline is trustworthy.'
 	printf '## Exclusions\n\n'
-	printf 'The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included %s files and excluded %s files (%s statements).\n\n' \
-		"${included_files}" "${excluded_files}" "${excluded_statements}"
+	# No per-run file or statement counts here. The report's own policy keeps
+	# volatile per-run figures out of the checked-in summary, and the counts do
+	# not reproduce: two runs on one commit, one worktree, no edits between
+	# them, rendered 4859 and then 4894 included files.
+	# scripts/test-generate-code-coverage-report.sh fails if a count returns.
+	printf '%s\n\n' 'The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. This summary does not record how many files a run included or excluded: repeated runs on the same commit produced different counts, so the number would not reproduce. The uploaded raw profile carries the per-file records for the run that produced it.'
 	printf '## Package Drilldown\n\n'
 	printf 'The coverage workflow uploads the raw Go coverage profile for exact statement- and package-level drilldown. Those volatile counts are intentionally not copied into this checked-in summary: equivalent passing concurrency tests can execute different scheduler branches while preserving the same rounded repository-level signal.\n\n'
 	printf '## Report Boundaries\n\n'

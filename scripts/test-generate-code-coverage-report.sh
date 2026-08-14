@@ -131,6 +131,58 @@ else
 	record_fail "scheduler-equivalent profiles across a tenth boundary must not churn checked-in artifacts"
 fi
 
+# The checked-in summary carries no per-run file counts. Two runs on one commit
+# in one worktree, with no edits between them, put 4859 in the report and then
+# 4894, so a committed count is not reproducible and contradicts the report's
+# own stated policy that volatile per-run counts stay out of it.
+#
+# This case renders a profile whose included-file count (23), excluded-file
+# count (17) and excluded-statement total (91) are numbers the report cannot
+# produce any other way -- coverage here is 50%, and the only other literal in
+# the template is the issue reference #4227, which no word-boundary match on
+# those three numbers can hit. So the check does not depend on how a
+# reintroduced count is worded: any phrasing that puts a per-run count back in
+# the report puts one of those numbers in the output with it.
+volatile_profile="${tmp_root}/volatile-counts.out"
+{
+	printf 'mode: count\n'
+	# 23 included files, each half covered, so the report reads 50%.
+	for ((i = 1; i <= 23; i++)); do
+		printf 'go/internal/volatile%02d/file.go:1.1,2.1 1 1\n' "${i}"
+		printf 'go/internal/volatile%02d/file.go:3.1,4.1 1 0\n' "${i}"
+	done
+	# 17 excluded files holding 91 statements between them (16 x 5, then 11).
+	for ((i = 1; i <= 16; i++)); do
+		printf 'go/internal/volatile/testdata/excluded%02d.go:1.1,2.1 5 0\n' "${i}"
+	done
+	printf 'go/internal/volatile/testdata/excluded17.go:1.1,2.1 11 0\n'
+} >"${volatile_profile}"
+
+volatile_report="${tmp_root}/volatile-counts.md"
+volatile_shield="${tmp_root}/volatile-counts.json"
+ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_IN="${volatile_profile}" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${volatile_report}" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${volatile_shield}" \
+	"${generator}" >/dev/null
+
+# Positive checks first, so a failed or empty render cannot pass the negative
+# check below by rendering nothing at all.
+require "volatile-count fixture renders its coverage percentage" \
+	"Total Go code coverage: **50%**" "${volatile_report}"
+require "volatile-count fixture keeps the exclusions section" \
+	"## Exclusions" "${volatile_report}"
+if rg --quiet -e '\b23\b' -e '\b17\b' -e '\b91\b' "${volatile_report}"; then
+	record_fail "report must not carry per-run file counts: $(rg --no-line-number -e '\b23\b' -e '\b17\b' -e '\b91\b' "${volatile_report}" | head -1)"
+else
+	record_pass "report carries no per-run file or statement counts"
+fi
+if rg --fixed-strings --quiet -- "In this run" "${report}"; then
+	record_fail "committed report must not carry a per-run count sentence"
+else
+	record_pass "committed report carries no per-run count sentence"
+fi
+
 require "fixture total coverage" "Total Go code coverage: **33%**" "${out_report}"
 require "fixture package drilldown boundary" "raw Go coverage profile" "${out_report}"
 require "fixture generated exclusion" "Generated Go files" "${out_report}"
