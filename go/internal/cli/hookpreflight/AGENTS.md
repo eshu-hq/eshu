@@ -75,7 +75,16 @@
   a call it cannot see through is exactly how `canonicalTrigger(trigger)` mapped
   one class onto another while `triggerAllowed` stayed byte-identical. The cost
   of the rule is one factoring nobody needs; the cost of relaxing it is the
-  evasion coming back — those fold spellings of one class
+  evasion coming back.
+  `TestDocLockstepEvaluateClausesTestWhatTheyDocument` carries the same kind of
+  constraint for a different reason: `Evaluate`'s five clause conditions are
+  matched **as written**, so `supportedHostClaude != normalized.Host` is
+  rejected for `normalized.Host != supportedHostClaude` even though the two are
+  identical. Spell them the documented way. Accepting arbitrary equivalent
+  spellings needs an expression normalizer, and one loose enough to swap
+  operands is loose enough to start accepting the extra conjunct that gate was
+  added to catch. The failure message prints both sides, so a rejection here is
+  a one-line edit rather than a puzzle — those fold spellings of one class
   together and cannot map one class onto another, which a helper like
   `canonicalTrigger(trigger)` can. An early `if`, a conditional inside a
   clause, a returned variable or comparison, a tagless switch, a rewritten tag,
