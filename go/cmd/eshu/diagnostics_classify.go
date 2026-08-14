@@ -4,10 +4,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 )
 
 // onboardingSignal is the pure, structured input to the classifier. It carries
@@ -283,9 +284,8 @@ func mcpEndpointLooksLikeAPI(endpoint, apiBase string) bool {
 
 // isAuthError reports whether the error is an HTTP 401/403 from the API client.
 func isAuthError(err error) bool {
-	var apiErr *apiHTTPError
-	if errors.As(err, &apiErr) {
-		return apiErr.StatusCode == 401 || apiErr.StatusCode == 403
+	if status, ok := apierr.StatusCode(err); ok {
+		return status == 401 || status == 403
 	}
 	return false
 }

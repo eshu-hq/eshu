@@ -4,13 +4,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 )
 
 type entityMapOptions struct {
@@ -334,8 +335,7 @@ func entityMapErrorCodeFromTransport(err error) string {
 	if err == nil {
 		return ""
 	}
-	var httpErr *apiHTTPError
-	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusConflict {
+	if status, ok := apierr.StatusCode(err); ok && status == http.StatusConflict {
 		return "ambiguous"
 	}
 	return traceErrorCodeFromTransport(err)
