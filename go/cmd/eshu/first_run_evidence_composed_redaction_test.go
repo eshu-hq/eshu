@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 // Synthetic leak sentinels. These are not real credentials; they exist so a
@@ -98,55 +100,93 @@ func assertNoSentinels(t *testing.T, surface, body string) {
 	}
 }
 
-// TestRedactEndpointDropsSensitiveQueryValues pins both halves of the query
-// rule: a parameter whose NAME collector.IsSensitiveKeyName flags loses its
-// value, and every other parameter survives so an operator can still tell which
-// target the report is describing.
+// TestRedactEndpointBoundaryCorpus drives redactEndpoint through the shared
+// corpus in internal/urlredact. internal/reportbundle drives its free-text walk
+// through the identical rows, in TestRedactFreeTextBoundaryCorpus.
 //
-// The predicate is shared with internal/reportbundle rather than restated here,
-// so the two packages cannot drift on what counts as a sensitive key.
-func TestRedactEndpointDropsSensitiveQueryValues(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		want string
-	}{
-		{
-			name: "sensitive parameter loses its value",
-			raw:  "http://127.0.0.1:8080/x?api_key=" + leakSentinelQuery,
-			want: "http://127.0.0.1:8080/x?api_key=redacted",
-		},
-		{
-			name: "benign parameters are kept so the target stays recognizable",
-			raw:  "http://127.0.0.1:8080/x?repo=demo&token=" + leakSentinelQuery + "&page=2",
-			want: "http://127.0.0.1:8080/x?repo=demo&token=redacted&page=2",
-		},
-		{
-			name: "userinfo and query are both closed on the same URL",
-			raw:  "http://u:" + leakSentinelAPI + "@127.0.0.1:8080/x?access_token=" + leakSentinelQuery,
-			want: "http://redacted@127.0.0.1:8080/x?access_token=redacted",
-		},
-		{
-			name: "a benign query is untouched",
-			raw:  "http://127.0.0.1:8080/x?repo=demo&page=2",
-			want: "http://127.0.0.1:8080/x?repo=demo&page=2",
-		},
-		{
-			name: "no query at all",
-			raw:  "http://127.0.0.1:8080/api/v0",
-			want: "http://127.0.0.1:8080/api/v0",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := redactEndpoint(tt.raw)
-			if got != tt.want {
-				t.Fatalf("redactEndpoint(%q) = %q, want %q", tt.raw, got, tt.want)
+// One table, two walks, on purpose. The fixture this replaces claimed to pin
+// "both halves of the query rule" while every one of its five cases used a
+// single "&", no ";", no nested "?" and no fragment — the axis it named was the
+// one axis it never varied. So the two walks drifted on exactly those
+// boundaries and nothing went red. A row either walk cannot handle carries its
+// reason, and urlredact's own check fails when a reason stops being true, so a
+// stale exemption cannot quietly widen what the corpus permits.
+func TestRedactEndpointBoundaryCorpus(t *testing.T) {
+	for _, tc := range urlredact.BoundaryCases() {
+		t.Run(tc.Name, func(t *testing.T) {
+			got := redactEndpoint(tc.Input)
+			if got != tc.WantEndpoint {
+				t.Fatalf("redactEndpoint(%q)\n got %q\nwant %q", tc.Input, got, tc.WantEndpoint)
+			}
+			if err := tc.CheckEndpointSecret(got); err != nil {
+				t.Error(err)
 			}
 			// The report can be re-rendered from a saved envelope, so the
 			// redacted form has to be a fixed point.
 			if again := redactEndpoint(got); again != got {
 				t.Fatalf("redactEndpoint is not idempotent: second pass on %q gave %q", got, again)
+			}
+		})
+	}
+}
+
+// TestRedactEndpointKeepsBenignParametersAlongsideARedactedOne pins the
+// over-redaction side on a multi-parameter endpoint: only the credential-named
+// parameter loses its value, and the ones around it keep their position, so an
+// operator can still match the target against their own config.
+func TestRedactEndpointKeepsBenignParametersAlongsideARedactedOne(t *testing.T) {
+	const raw = "http://127.0.0.1:8080/x?repo=demo&token=" + leakSentinelQuery + "&page=2"
+	const want = "http://127.0.0.1:8080/x?repo=demo&token=redacted&page=2"
+
+	if got := redactEndpoint(raw); got != want {
+		t.Fatalf("redactEndpoint(%q) = %q, want %q", raw, got, want)
+	}
+}
+
+// TestScrubEvidenceTextDoesNotCorruptURLsForASeparatorOnlyTarget pins the other
+// direction of the substitution gate. The gate asks whether a raw path is
+// distinctive enough to identify, and "//" is not: it appears inside every
+// absolute URL, so substituting it rewrote "https://h/z" to "https:.../h/z" in
+// composed text. That is corrupting rather than leaking — the operator gets a
+// mangled endpoint they cannot match against their own config, and stage two no
+// longer recognizes it as a URL to redact either.
+//
+// A repo target with an empty final element has the same problem for a
+// different reason: it redacts to ".../", which identifies nothing.
+func TestScrubEvidenceTextDoesNotCorruptURLsForASeparatorOnlyTarget(t *testing.T) {
+	const text = "could not reach https://h/z from the compose network"
+
+	// Every one of these is a substring of the URL in text, so a stage-one
+	// substitution that reaches inside a URL span rewrites it.
+	for _, target := range []string{"//", "//h/z", "/h/z"} {
+		t.Run(target, func(t *testing.T) {
+			if got := scrubEvidenceText(text, []string{target}); got != text {
+				t.Fatalf("scrubEvidenceText with target %q\n got %q\nwant %q", target, got, text)
+			}
+		})
+	}
+}
+
+// TestScrubEvidenceTextStillSubstitutesRealTargets is the companion that keeps
+// the gate above from being satisfied by refusing to substitute anything. The
+// short-absolute-path case is the one a byte-length gate used to let through.
+func TestScrubEvidenceTextStillSubstitutesRealTargets(t *testing.T) {
+	tests := []struct {
+		target string
+		text   string
+		want   string
+	}{
+		{target: "/u/bob", text: "eshu story /u/bob", want: "eshu story .../bob"},
+		{
+			target: "/home/" + leakSentinelTarget + "/work/repo",
+			text:   "eshu story /home/" + leakSentinelTarget + "/work/repo",
+			want:   "eshu story .../repo",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.target, func(t *testing.T) {
+			if got := scrubEvidenceText(tt.text, []string{tt.target}); got != tt.want {
+				t.Fatalf("scrubEvidenceText(%q, %q) = %q, want %q", tt.text, tt.target, got, tt.want)
 			}
 		})
 	}

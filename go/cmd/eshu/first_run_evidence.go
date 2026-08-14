@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
-	"github.com/eshu-hq/eshu/sdk/go/collector"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 // evidenceIndexingState names whether the first-run proved indexing reached a
@@ -241,17 +241,27 @@ func dedupeStrings(values []string) []string {
 const evidenceRedactedMarker = "redacted"
 
 // redactEndpoint returns a display-safe form of an endpoint URL. A URL can carry
-// a credential in two places and both are closed here: embedded userinfo
-// (user:password@) and a query parameter with a credential-shaped name. The
-// scheme, host, path, and every other query parameter remain so the operator can
-// still recognize the target. A value that does not parse as a URL is masked
-// through mcpsetup.RedactToken so a credential-looking string never survives
-// verbatim.
+// a credential in three places and all three are closed here: embedded userinfo
+// (user:password@), a query parameter with a credential-shaped name, and the
+// fragment. The scheme, host, path, and every other query parameter remain so
+// the operator can still recognize the target. A value that does not parse as a
+// URL is masked through mcpsetup.RedactToken so a credential-looking string
+// never survives verbatim.
 //
-// The query half was open until measured: "could not reach
-// http://127.0.0.1:8080/x?api_key=<credential>" came out verbatim while the same
-// credential in userinfo was removed. scrubEvidenceText's stage one could not
-// help — redactEvidenceValue returned such a URL unchanged, so it was skipped.
+// Each place was open until measured, and the count in this comment was wrong
+// before the fragment was added to it:
+//
+//   - Query: "could not reach http://127.0.0.1:8080/x?api_key=<credential>"
+//     came out verbatim while the same credential in userinfo was removed.
+//     Nothing upstream could help, because every composed-text path ends up
+//     back in this function.
+//   - Fragment: url.Parse lifts "#…" into Fragment and String() re-emits it
+//     untouched, so the canonical OAuth implicit-grant callback
+//     "https://app.example.com/cb#access_token=<credential>" survived whole.
+//
+// The whole fragment goes, not just its credential-named pairs. A fragment is
+// client-side and never reaches the server, so it contributes nothing to the
+// target recognition that is the stated reason the rest of the URL is kept.
 func redactEndpoint(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -264,36 +274,14 @@ func redactEndpoint(raw string) string {
 	if parsed.User != nil {
 		parsed.User = url.User(evidenceRedactedMarker)
 	}
-	parsed.RawQuery = redactQueryCredentials(parsed.RawQuery)
+	// urlredact owns the pair boundary for both this walk and
+	// internal/reportbundle's. Splitting a query string here by hand is how the
+	// two drifted: this one knew only "&", so "?a=1;token=<credential>" and
+	// "?next=/v0/y?api_key=<credential>" reached the artifact whole.
+	parsed.RawQuery = urlredact.Query(parsed.RawQuery, evidenceRedactedMarker)
+	parsed.Fragment = ""
+	parsed.RawFragment = ""
 	return parsed.String()
-}
-
-// redactQueryCredentials replaces the value of every query parameter whose name
-// collector.IsSensitiveKeyName flags, keeping the name, the other parameters,
-// and their original order so the endpoint stays recognizable.
-//
-// It asks the collector predicate rather than restating the rule, so this
-// package and internal/reportbundle cannot drift on what a sensitive key is.
-// The walk splits on "&" by hand instead of using url.ParseQuery and Encode:
-// that pair sorts the parameters and re-encodes the ones it kept, which would
-// rewrite an endpoint the operator has to match against their own config.
-func redactQueryCredentials(rawQuery string) string {
-	if rawQuery == "" {
-		return ""
-	}
-	pairs := strings.Split(rawQuery, "&")
-	for i, pair := range pairs {
-		name, _, _ := strings.Cut(pair, "=")
-		decoded, err := url.QueryUnescape(name)
-		if err != nil {
-			decoded = name
-		}
-		if !collector.IsSensitiveKeyName(decoded) {
-			continue
-		}
-		pairs[i] = name + "=" + evidenceRedactedMarker
-	}
-	return strings.Join(pairs, "&")
 }
 
 // redactPath returns a display-safe form of a filesystem path target. Absolute
@@ -345,48 +333,68 @@ const evidenceURLTrailingPunctuation = ".,;:!?)]}"
 // string: text reaching the report is cleaned on the way in, not at each
 // rendering surface.
 //
+// The two stages are applied to DISJOINT spans, not one after the other over
+// the whole string. Every absolute URL goes to stage two; only the text between
+// the URLs goes to stage one. Running stage one over the URLs as well corrupted
+// them, because a raw filesystem target can be a substring of a URL: a
+// RepoTarget of "//" rewrote "https://h/z" to "https:.../h/z", and "/h/z" did
+// the same to the same URL. The operator then got an endpoint they could not
+// match against their own config, and stage two no longer recognized it as a
+// URL either. Nothing leaked, but nothing was readable. A known raw value that
+// IS a URL loses nothing by the split: stage two redacts it through the same
+// redactEndpoint stage one would have called.
+//
 // Both stages recognize structure; neither judges what a value looks like. In an
-// absolute URL a credential is removed from the userinfo and from any query
-// parameter with a credential-shaped name. One in a PATH SEGMENT, one under a
-// parameter name collector.IsSensitiveKeyName does not match, and a bare secret
-// with no key beside it ("token is sk-live-abc") all survive.
+// absolute URL a credential is removed from the userinfo, from any query
+// parameter with a credential-shaped name, and from the fragment (which is
+// dropped whole). One in a PATH SEGMENT, one under a parameter name
+// collector.IsSensitiveKeyName does not match, and a bare secret with no key
+// beside it ("token is sk-live-abc") all survive.
 func scrubEvidenceText(text string, rawValues []string) string {
 	if strings.TrimSpace(text) == "" {
 		return text
 	}
-	scrubbed := text
+	var out strings.Builder
+	out.Grow(len(text))
+	cursor := 0
+	for _, span := range evidenceEmbeddedURLPattern.FindAllStringIndex(text, -1) {
+		out.WriteString(substituteRawTargets(text[cursor:span[0]], rawValues))
+		out.WriteString(redactEmbeddedURL(text[span[0]:span[1]]))
+		cursor = span[1]
+	}
+	out.WriteString(substituteRawTargets(text[cursor:], rawValues))
+	return out.String()
+}
+
+// substituteRawTargets is stage one over one URL-free span: each known raw
+// filesystem target is replaced with the same redacted form the corresponding
+// report field carries, so a composed string and the field it was built from
+// never disagree.
+//
+// Only targets distinctive enough to identify are substituted; a bare "/a"
+// would corrupt "/api/v0". The gate is structural rather than a byte length,
+// because a length gate let "/u/bob" (6 bytes) stay whole in composed text
+// while SelectedTarget one field over already showed ".../bob" — the username
+// leak redactPath exists to prevent, readable on the same artifact.
+func substituteRawTargets(span string, rawValues []string) string {
+	if span == "" {
+		return span
+	}
 	for _, raw := range rawValues {
 		raw = strings.TrimSpace(raw)
-		if raw == "" || !strings.Contains(scrubbed, raw) {
+		if raw == "" || !strings.HasPrefix(raw, "/") || strings.Count(raw, "/") < 2 {
 			continue
 		}
-		redacted := redactEvidenceValue(raw)
+		if !strings.Contains(span, raw) {
+			continue
+		}
+		redacted := redactPath(raw)
 		if redacted == raw {
 			continue
 		}
-		// Substitute only values distinctive enough to identify; a bare "/a"
-		// would corrupt "/api/v0". URLs always qualify. For a path the gate is
-		// structural, because a raw byte length let "/u/bob" (6 bytes) stay whole
-		// in composed text while SelectedTarget one field over already showed
-		// ".../bob" — the username leak redactPath exists to prevent, readable on
-		// the same artifact.
-		replaceablePath := strings.HasPrefix(raw, "/") && strings.Count(raw, "/") >= 2
-		if !strings.Contains(raw, "://") && !replaceablePath {
-			continue
-		}
-		scrubbed = strings.ReplaceAll(scrubbed, raw, redacted)
+		span = strings.ReplaceAll(span, raw, redacted)
 	}
-	return evidenceEmbeddedURLPattern.ReplaceAllStringFunc(scrubbed, redactEmbeddedURL)
-}
-
-// redactEvidenceValue picks the right redaction for a known raw value: URL-like
-// values keep their scheme, host, and path with any userinfo removed, while
-// filesystem targets collapse to their final element.
-func redactEvidenceValue(raw string) string {
-	if strings.Contains(raw, "://") {
-		return redactEndpoint(raw)
-	}
-	return redactPath(raw)
+	return span
 }
 
 // redactEmbeddedURL redacts a single URL matched inside free-form text,

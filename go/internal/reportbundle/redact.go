@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 	"github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
@@ -40,10 +41,17 @@ func isRedactedKeyName(key string) bool {
 }
 
 // queryPairSeparators are the characters that end one key=value pair inside a
-// query-string-shaped value: "?" opens a nested query, "&" and ";" separate
-// pairs within one. A raw "&" only reaches a parsed value percent-encoded,
-// because net/url would otherwise have split on it into its own parameter.
-const queryPairSeparators = "?&;"
+// query-string-shaped value. A raw "&" only reaches a parsed value
+// percent-encoded, because net/url would otherwise have split on it into its
+// own parameter.
+//
+// The characters themselves are urlredact.PairSeparators, not a copy. This
+// package had all three while cmd/eshu's endpoint walk had only "&", and a
+// comment there asserted the two "cannot disagree" because they share
+// collector.IsSensitiveKeyName — true about NAMES, false about BOUNDARIES.
+// Three credentials shipped verbatim through that gap. One definition, two
+// readers, so the drift cannot recur.
+const queryPairSeparators = urlredact.PairSeparators
 
 // embeddedSensitiveKey reports the first sensitive-named key found inside a
 // query-string-shaped VALUE, such as the "api_key" in
