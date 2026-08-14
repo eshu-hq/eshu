@@ -284,10 +284,11 @@ to `score_publish_safety.go`.
 ### A credential run together with an honest assignment still published
 
 Round two fixed the comma-and-space spelling and left the run-together one. The
-capture class in `passwordAssignmentPattern` is `([^\s"',]*)`, which stops only
-at whitespace, a quote, and a comma. When a second `password:<secret>` sits
-inside that run, the **whole run is one match**, measured against the shipped
-pattern:
+capture class in `passwordAssignmentPattern` was then `([^\s"',]*)`, which stopped
+only at whitespace, a quote, and a comma. When a second `password:<secret>` sat
+inside that run, the **whole run was one match**. Measured against the round-three
+pattern — not the narrowed one this branch ships, under which both of these
+strings report two matches:
 
 ```text
 "password:string;password:hunter2"   -> 1 match, capture = "string;password:hunter2"
@@ -508,9 +509,13 @@ minimum of 7 samples (3 at 128KB, where one run of the round-three scan takes
 | 32768 B | 713.0 ms | 1.19 ms | 599x |
 | 131072 B | 12.31 s | 4.84 ms | 2544x |
 
-Round three grows with the square of the assignment count: 8x the input costs
-213x the time. Round four holds about 27 MB/s from 32KB up, so its cost tracks
-the input length.
+Round three grows with the square of the assignment count. The clean evidence is
+the 32KB-to-128KB pair: 4x the input for 17.3x the time, against the 16x a
+quadratic predicts. The 4KB-to-32KB pair runs steeper than quadratic (8x the
+input for 213x the time, where quadratic predicts 64x), which is the range where
+the fixed per-call costs stop dominating rather than a growth rate above the
+square. Round four holds about 27 MB/s from 32KB up, so its cost tracks the input
+length.
 
 This was reachable, not a hang — the round-three scan always terminated. The
 committed benchmark now reads across three sizes for exactly this reason: a scan
@@ -641,7 +646,7 @@ the figure as the total.
 
 | Mutation | Red | Breakdown |
 | --- | ---: | --- |
-| capture class widened back to `[^\s"',]*` | 8 | 5 in `ScreensPasswordKeysByTheirValue` (the run-together rows), 3 in `KeepsOrdinaryAnswerTextPublishable` |
+| capture class widened back to `[^\s"',]*` | 8 | 5 in `ScreensPasswordKeysByTheirValue` — `String!`, `varchar(255)`, `Option<String>`, `<redacted>`, `${DB_PASSWORD}` — and 3 in `KeepsOrdinaryAnswerTextPublishable` |
 | declaration branch never matches | 15 | 11 in `ScreensPasswordKeysByTheirValue`, 4 in `KeepsOrdinaryAnswerTextPublishable` |
 | digit branch never matches | 3 | 2 in `ScreensPasswordKeysByTheirValue`, 1 in `KeepsOrdinaryAnswerTextPublishable` |
 | classifier reports no credential | 24 | 12 in `RejectsColonSpelledPasswordAssignment`, 12 in `ScreensPasswordKeysByTheirValue` |
@@ -649,6 +654,28 @@ the figure as the total.
 
 The unmutated baseline and the restored tree both report 0, so none of these
 counts is a pre-existing failure being re-attributed.
+
+Row 1 and row 5 are worth reading together, because guessing which rows cover
+which is a trap. **The run-together rows do not guard the capture class.** Widen
+the class and they all stay green: the capture swallows the whole run, and
+`passwordValueIsCredential("string;password:hunter2")` still answers `true`
+because that swallowed run is not in `passwordDeclarationValues`. What the
+narrowed class actually protects is the ability to classify a type name at all —
+the five rows named in row 1 are the declaration and placeholder false positives,
+`String!`, `varchar(255)`, `Option<String>`, `<redacted>`, and `${DB_PASSWORD}`.
+
+The run-together rows are load-bearing against row 5 instead. Cutting the scan to
+`FindAllStringSubmatch(lower, 1)` reddens five of them — every one whose leftmost
+assignment is honest — plus the comma-and-space row
+`password: string, password: hunter2`. The sixth,
+`password:hunter2;password:string`, stays green there by design: it is the swap
+control, its leftmost assignment is the credential, and leftmost-only still
+answers `true`. It goes red under "classifier reports no credential".
+
+The reason to write this down: a maintainer who reads row 1 as "the run-together
+rows cover the capture class" and then reworks the trailing-punctuation false
+positives would leave the class narrowing with nothing guarding it, while six
+rows still look like they do.
 
 For the record, the round-three table's five rows against the code as it then
 stood: rows 1 and 3 were right (5 and 3); "declaration branch" was 15, not 7;
