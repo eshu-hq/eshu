@@ -44,9 +44,22 @@ For a different runtime shape, use the
 
    Replace `$HOME/src` if your checkout has a different parent directory. Keep
    `eshu` in the selector only when that is the checkout's directory name.
-2. Wait for the API at `http://localhost:8080` to become healthy, then run the
-   guided check inside the Compose API service against the canonical mounted
-   path:
+2. Compose waits for the one-shot bootstrap before it starts dependent
+   services. Before running another indexing command, verify that the completed
+   index is reusable:
+
+   ```bash
+   docker compose ps --all bootstrap-index
+   docker compose exec eshu eshu workspace status
+   docker compose exec eshu eshu list
+   ```
+
+   Continue when bootstrap shows `Exited (0)` and the API is healthy. `workspace
+   status` must report healthy state, no outstanding queue work, a
+   completed or active generation, and no failed or dead-letter stage or domain work.
+   `list` must contain `eshu`; these are the signals `first-run` uses for reuse.
+   Then run the guided check inside the Compose API service against the canonical
+   mounted path:
 
    ```bash
    docker compose exec eshu eshu first-run /fixtures/eshu

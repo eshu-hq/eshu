@@ -45,8 +45,20 @@ for the distinction between `/healthz`, `/readyz`, and indexing readiness.
    docker compose up -d
    ```
 
-   Replace `$HOME/src` and `payments-api` with your own values. Wait until the
-   API at `http://localhost:8080` is healthy.
+   Replace `$HOME/src` and `payments-api` with your own values. Compose waits
+   for the one-shot bootstrap before it starts dependent services. Verify that
+   the completed index is reusable before running another indexing command:
+
+   ```bash
+   docker compose ps --all bootstrap-index
+   docker compose exec eshu eshu workspace status
+   docker compose exec eshu eshu list
+   ```
+
+   Continue when bootstrap shows `Exited (0)` and the API is healthy. `workspace
+   status` must report healthy state, no outstanding queue work, a
+   completed or active generation, and no failed or dead-letter stage or domain
+   work. `list` must contain `payments-api`; these are the signals `first-run` uses for reuse.
 2. Run the guided check inside the Compose API service. The container uses the
    canonical mounted repository path and the same stores as the running stack:
 
