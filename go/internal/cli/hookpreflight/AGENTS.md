@@ -100,17 +100,20 @@
   `triggerAxisVariants`? Widen the sweep or the axis set before concluding the
   property itself is wrong. Answering each new evasion with one more
   source-scanner spelling is what the four earlier generations did and it did
-  not converge — but the cheap structural belt in
-  `doc_lockstep_trigger_alias_test.go` stays regardless, because all three
-  remaps that have escaped the sample so far were written through a pointer to
-  the field.
+  not converge — but the cheap structural belts in
+  `doc_lockstep_trigger_alias_test.go` stay regardless. Every remap found so far
+  that escaped the sample reached `Input.Trigger` in a way the writer scan
+  cannot see: through a pointer to the field, or through a positional composite
+  literal. When a new one turns up, check whether it reached the field a third
+  way and add the rule, rather than reading a passing sweep as proof that the
+  belts are redundant.
   `doc_lockstep_trigger_path_test.go` still holds the source side, and is not
   redundant: it catches the one case the equivalence cannot see, a widening
   applied to `triggerAllowed` and to `Evaluate` at the same time.
   `doc_lockstep_trigger_axes_test.go` holds the sample that equivalence runs
   over — the neighbourhood alphabet, the request shapes, and a literal pin on
   the two sweep constants — and `doc_lockstep_trigger_alias_test.go` refuses the
-  pointer writes the writer scan cannot see.
+  pointer writes and positional literals the writer scan cannot see.
 - **Change which Claude tools fire the hook** → edit `triggerFromClaudeTool`
   (claude.go). `TestDocLockstepClaudeToolTriggerClasses`
   (doc_lockstep_publish_safety_test.go) drives every tool the contract doc's
@@ -225,8 +228,8 @@
   `doc_lockstep_switch_fixtures_test.go`),
   `doc_lockstep_trigger_equivalence_test.go` compares `Evaluate`'s advise set
   against `triggerAllowed`'s accept set (with the sample it sweeps, and the pins
-  on that sample, in `doc_lockstep_trigger_axes_test.go`, and the pointer-alias
-  belt in `doc_lockstep_trigger_alias_test.go`),
+  on that sample, in `doc_lockstep_trigger_axes_test.go`, and the structural
+  belts in `doc_lockstep_trigger_alias_test.go`),
   `doc_lockstep_trigger_path_test.go` pins the path the trigger takes to reach
   that switch (fixtures in `doc_lockstep_trigger_path_fixtures_test.go`),
   `doc_lockstep_publish_safety_test.go` pins the `scopeSafe`

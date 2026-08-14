@@ -10,35 +10,43 @@ import (
 	"testing"
 )
 
-// The belt on the trigger path (see doc_lockstep_test.go for the conventions
+// The belts on the trigger path (see doc_lockstep_test.go for the conventions
 // the whole guard follows).
 //
-// doc_lockstep_trigger_path_test.go names who may write a `.Trigger` field.
-// It reads assignments, so it sees `x.Trigger = ...` and nothing else: a write
-// through a pointer taken to the field is an *ast.StarExpr on the left, with no
-// `.Trigger` selector there at all. That gap was known and left open on the
-// argument that the equivalence property covers any rewrite however it is
-// spelled. Three measured evasions say otherwise, all of them pointer writes,
-// all green against the property at the time:
+// doc_lockstep_trigger_path_test.go names who may write a `.Trigger` field. It
+// reads assignments and keyed composite-literal elements, so it sees
+// `x.Trigger = ...` and `Input{Trigger: ...}` and nothing else. Two ways of
+// putting a value in that field are neither: a write through a pointer taken to
+// it (an *ast.StarExpr on the left, with no `.Trigger` selector anywhere), and a
+// positional composite literal (no field names at all, so no `Trigger` key to
+// match). Both gaps were known and left open on the argument that the
+// equivalence property covers any rewrite however it is spelled. Four measured
+// evasions say otherwise, each green against the property as it stood:
 //
 //	tp := &input.Trigger; if len(*tp) > 4 && triggerAllowed((*tp)[:4]) { ... }
 //	tp := &input.Trigger; if input.Permission == "elevated" { *tp = "read" }
 //	tp := &input.Trigger; if (*tp)[len(*tp)-1] == '@' { *tp = (*tp)[:len(*tp)-1] }
+//	normalized = withTrigger(normalized, "read"), where withTrigger returns a
+//	positional Input literal, gated on len(trigger) > 6 to clear the one-edit
+//	radius
 //
 // The first reached past the sweep's length bound, the second keyed on a field
-// the sweep held fixed, the third on a character outside its alphabet. The
-// sweep and the axis set have since been widened and now catch all three -- and
-// that is the argument for this file rather than against it. Each of those
-// three was found by someone looking; the widening answers the three that were
-// found, and this rule answers the shape they share. It costs one AST walk and
-// reports nothing today.
+// the sweep held fixed, the third on a character outside its alphabet, the
+// fourth on a length the neighbourhood does not reach. The sweep and the axis
+// set have been widened and now catch the first three -- and that is the
+// argument for this file rather than against it. The fourth still passes the
+// equivalence, and passes it for a reason README.md states plainly: a remap can
+// evade the property by reaching a class the sweep does not generate. Widening
+// the sample answers the evasions someone has already found; these rules answer
+// the shapes they are written in, which is the part that generalizes.
 //
-// Two rules, both currently vacuous over the production files, which is why the
+// Three rules, all vacuous over the production files today, which is why the
 // fixture drive at the bottom matters more than usual: a rule that has never
 // fired is indistinguishable from a rule that cannot.
 
 // triggerAliasFinding is one place a production file takes the address of a
-// Trigger field, or assigns through a dereferenced pointer.
+// Trigger field, assigns through a dereferenced pointer, or builds a
+// Trigger-carrying struct without naming its fields.
 type triggerAliasFinding struct {
 	File   string
 	Func   string
@@ -49,7 +57,53 @@ func (f triggerAliasFinding) String() string {
 	return f.File + ": " + f.Func + " " + f.Detail
 }
 
-// scanTriggerAliases reports both rules over dir's non-test files, plus how
+// triggerCarryingTypes returns the struct types dir declares that have a
+// Trigger field, read out of the source rather than listed, so a new one is
+// covered by the positional-literal rule without anybody adding it here.
+func triggerCarryingTypes(files map[string]*ast.File) map[string]bool {
+	carrying := map[string]bool{}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				typeSpec, isType := spec.(*ast.TypeSpec)
+				if !isType {
+					continue
+				}
+				structType, isStruct := typeSpec.Type.(*ast.StructType)
+				if !isStruct || structType.Fields == nil {
+					continue
+				}
+				for _, field := range structType.Fields.List {
+					for _, name := range field.Names {
+						if name.Name == "Trigger" {
+							carrying[typeSpec.Name.Name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return carrying
+}
+
+// compositeLitTypeName reports the bare type name a composite literal
+// constructs, seeing through the &T{...} form.
+func compositeLitTypeName(lit *ast.CompositeLit) string {
+	switch typed := lit.Type.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return exprText(typed.X)
+	default:
+		return ""
+	}
+}
+
+// scanTriggerAliases reports all three rules over dir's non-test files, plus how
 // many function bodies it walked so a caller can refuse a vacuous pass.
 //
 // The second rule is deliberately broader than the trigger: any write through a
@@ -63,6 +117,7 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 	if err != nil {
 		return 0, nil, err
 	}
+	carrying := triggerCarryingTypes(parsed)
 	names := make([]string, 0, len(parsed))
 	for name := range parsed {
 		names = append(names, name)
@@ -99,6 +154,20 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 							})
 						}
 					}
+				case *ast.CompositeLit:
+					typeName := compositeLitTypeName(typed)
+					if !carrying[typeName] || len(typed.Elts) == 0 {
+						return true
+					}
+					for _, element := range typed.Elts {
+						if _, keyed := element.(*ast.KeyValueExpr); !keyed {
+							findings = append(findings, triggerAliasFinding{
+								File: name, Func: funcName,
+								Detail: "builds a " + typeName + " without naming its fields",
+							})
+							break
+						}
+					}
 				}
 				return true
 			})
@@ -108,7 +177,8 @@ func scanTriggerAliases(dir string) (functions int, findings []triggerAliasFindi
 }
 
 // TestDocLockstepNoPointerAliasToATrigger is the positive half: no production
-// function takes the address of a Trigger field or writes through a pointer.
+// function takes the address of a Trigger field, writes through a pointer, or
+// builds a Trigger-carrying struct positionally.
 func TestDocLockstepNoPointerAliasToATrigger(t *testing.T) {
 	t.Parallel()
 
@@ -120,7 +190,7 @@ func TestDocLockstepNoPointerAliasToATrigger(t *testing.T) {
 		t.Fatal("walked 0 production function bodies; the assertion would be vacuous")
 	}
 	for _, finding := range findings {
-		t.Errorf("%s; a trigger written through a pointer is invisible to the writer scan in doc_lockstep_trigger_path_test.go, which reads `.Trigger` assignments. Write the field directly, and register the function in docTriggerWriters", finding)
+		t.Errorf("%s; a trigger set through a pointer or a positional literal is invisible to the writer scan in doc_lockstep_trigger_path_test.go, which reads `.Trigger` assignments and `Trigger:` literal keys. Name the field, and register the function in docTriggerWriters", finding)
 	}
 }
 
@@ -163,9 +233,27 @@ func TestDocLockstepTriggerAliasScannerReportsPointerWrites(t *testing.T) {
 			body:         "func normalizeInput(input Input) Input {\n\tp := triggerSlot(&input)\n\t*p = \"read\"\n\treturn input\n}\n",
 			wantFindings: 1,
 		},
+		{
+			name: "rebuilds_the_input_positionally",
+			body: "type Input struct {\n\tHost string\n\tTrigger string\n}\n\n" +
+				"func withTrigger(input Input, trigger string) Input {\n\treturn Input{input.Host, trigger}\n}\n",
+			wantFindings: 1,
+		},
+		{
+			name: "a_keyed_literal_is_left_to_the_writer_scan",
+			body: "type Input struct {\n\tHost string\n\tTrigger string\n}\n\n" +
+				"func withTrigger(input Input, trigger string) Input {\n\treturn Input{Host: input.Host, Trigger: trigger}\n}\n",
+			wantFindings: 0,
+		},
+		{
+			name: "a_positional_literal_of_another_type_is_ignored",
+			body: "type Scope struct {\n\tKind string\n\tID string\n}\n\n" +
+				"func narrow() Scope {\n\treturn Scope{\"repo_path\", \"services/api\"}\n}\n",
+			wantFindings: 0,
+		},
 	}
-	if len(cases) < 5 {
-		t.Fatalf("alias fixtures = %d, want one per measured evasion plus the clean control and a pointer from elsewhere", len(cases))
+	if len(cases) < 8 {
+		t.Fatalf("alias fixtures = %d, want one per measured evasion plus the controls that must stay quiet", len(cases))
 	}
 
 	for _, tc := range cases {

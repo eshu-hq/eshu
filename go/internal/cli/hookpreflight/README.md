@@ -143,9 +143,14 @@ graph/Postgres drivers).
     repeated on, and a literal pin on the two constants the exhaustive arm's
     coverage rests on, since the size check alone agrees with any value they take
   - `doc_lockstep_trigger_alias_test.go` — the belt under both: no production
-    function takes the address of a `Trigger` field or writes through a
-    dereferenced pointer, which is the one shape the writer scan below cannot
-    see and the shape all three known sample-escaping remaps were written in
+    function takes the address of a `Trigger` field, writes through a
+    dereferenced pointer, or builds a `Trigger`-carrying struct without naming
+    its fields. Those are the ways of setting that field the writer scan below
+    cannot see, since it reads `.Trigger` assignments and `Trigger:` literal
+    keys — and every remap found so far that escaped the equivalence's sample
+    was written in one of them. Treat that as a pattern worth re-checking rather
+    than a closed list: a new way of reaching the field is a new rule here, not
+    an argument that the rules are unnecessary
   - `doc_lockstep_trigger_path_test.go` and
     `doc_lockstep_trigger_path_fixtures_test.go` — the source half of the same
     claim: which functions may write a `Trigger` field and from what, and that
