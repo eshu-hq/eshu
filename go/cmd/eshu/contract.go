@@ -38,11 +38,11 @@ func removedCommandError(command, guidance string) error {
 // freshness.go until that command's logic moved to internal/cli/freshness
 // (#6059), and it still has callers in three other command families --
 // change_plan.go, change_impact.go, and component_api.go -- so it could not
-// move out with the rest. trace.go is 490 lines against a 500-line cap and
-// cannot take it, and cmd/eshu is pinned at its current non-test file count by
-// the directory gate, so a new file is not an option either. contract.go holds
-// the plumbing every command family shares, which makes it the one file here
-// that no family extraction will claim.
+// move out with the rest. trace.go has no room under its 500-line cap for
+// traceBool and this comment, and cmd/eshu is pinned at its current non-test
+// file count by the directory gate, so a new file is not an option either.
+// contract.go holds the plumbing every command family shares, which makes it
+// the one file here that no family extraction will claim.
 func traceBool(parent map[string]any, key string) bool {
 	if parent == nil {
 		return false

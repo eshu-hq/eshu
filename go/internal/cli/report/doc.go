@@ -38,11 +38,12 @@
 // segment, which is not an authority component and so carries no userinfo as
 // far as net/url is concerned; an "@" after the first "/" of an opaque target
 // (`svc:name/dev@example.com`) or in a target with neither a scheme nor a "//"
-// (`dev@example.com/services`), both of which read as paths for the same
-// reason; or a server that echoes the request URL back inside a 4xx/5xx
-// response body, which arrives as go/cmd/eshu's apiHTTPError and cannot be
-// read from internal/cli. The request itself is deliberately unredacted — the
-// answer under investigation is the one the reporter's own credential returns.
+// (`dev@example.com/services`), neither of which has an authority for the "@"
+// to sit in (net/url leaves the first in Opaque and the second in Path); or a
+// server that echoes the request URL back inside a 4xx/5xx response body,
+// which arrives as go/cmd/eshu's apiHTTPError and cannot be read from
+// internal/cli. The request itself is deliberately unredacted — the answer
+// under investigation is the one the reporter's own credential returns.
 //
 // # Boundary
 //
