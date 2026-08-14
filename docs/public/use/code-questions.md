@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Ask Code Questions
+title: Ask code questions
 description: Gives CLI and MCP examples for asking code, dependency, and call-graph questions.
 type: how-to
 audience: practitioner

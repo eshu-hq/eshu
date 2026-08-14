@@ -18,7 +18,7 @@ Each covered Markdown page carries a hidden block near the top of the file:
 
 ```markdown
 <!-- docs-catalog
-title: Ask Code Questions
+title: Ask code questions
 description: Gives CLI and MCP examples for asking code, dependency, and call-graph questions.
 type: how-to
 audience: practitioner

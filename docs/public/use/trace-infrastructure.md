@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Trace Infrastructure
+title: Trace infrastructure
 description: Shows how to trace services, workloads, cloud resources, Terraform, and deployment evidence.
 type: how-to
 audience: platform-engineer, operator

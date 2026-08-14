@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Index Repositories
+title: Index repositories
 description: Explains the local and Compose paths for indexing source, infrastructure, and docs repositories.
 type: how-to
 audience: practitioner
