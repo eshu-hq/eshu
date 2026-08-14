@@ -16,7 +16,7 @@ at every hop.
 [First successful run](getting-started/first-successful-run.md){ .md-button .md-button--primary }
 [Connect MCP](mcp/index.md){ .md-button }
 
-## Docs At A Glance
+## Choose the kind of help you need
 
 <div class="grid cards">
 <ul>
@@ -43,7 +43,7 @@ at every hop.
 </ul>
 </div>
 
-## Get Started
+## Start with your goal
 
 <div class="grid cards">
 <ul>
@@ -86,7 +86,7 @@ at every hop.
 </ul>
 </div>
 
-## Popular Tutorials
+## Choose a tutorial
 
 <div class="grid cards">
 <ul>
@@ -123,7 +123,7 @@ at every hop.
 </ul>
 </div>
 
-## Explore By Role
+## Explore by role
 
 | Role | Start here | Then read |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ at every hop.
 | Operator | [Health checks](operate/health-checks.md) | [Tuning playbook](operate/tuning-playbook.md) |
 | Evaluator or contributor | [Roadmap](roadmap.md) | [Release log](releases/index.md) |
 
-## Quick Start
+## Run the first guided check
 
 Run Eshu's first successful run, then connect an assistant through MCP:
 

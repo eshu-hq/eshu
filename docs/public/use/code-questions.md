@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Ask Code Questions
+title: Ask code questions
 description: Gives CLI and MCP examples for asking code, dependency, and call-graph questions.
 type: how-to
 audience: practitioner
@@ -7,12 +7,16 @@ entrypoint: true
 landing: false
 -->
 
-# Ask Code Questions
+# Ask code questions
 
 Start with a symbol, file, repository, or phrase. Eshu works best when the
 question names the thing you want to inspect.
 
-## CLI Examples
+Before using the CLI examples, start an Eshu API and index the repository you
+want to query. Local Compose serves the API at `http://localhost:8080` by
+default. The `eshu` CLI must also be installed and available on `PATH`.
+
+## Ask from the CLI
 
 These commands call the HTTP API:
 
@@ -25,13 +29,10 @@ eshu analyze dead-code --repo payments-api
 eshu stats payments-api
 ```
 
-If you are running locally, start Docker Compose or another API process first.
-The local Compose API defaults to `http://localhost:8080`.
-
 Use `--repo` or `--repo-id` on relationship commands when a symbol name is
 common across repositories.
 
-## MCP Examples
+## Ask from an MCP client
 
 Ask your assistant questions like:
 
@@ -47,7 +48,13 @@ Ask for evidence when you need to make a decision:
 > Use Eshu. Search the indexed repos, show the files and symbols involved, and
 > explain what evidence supports the answer.
 
-## Read Next
+## Verify the answer
+
+Check that the response names the repository, files, or symbols that support
+it. If a name exists in more than one repository, repeat the command with
+`--repo` or `--repo-id` and confirm that the bounded result matches your scope.
+
+## Read next
 
 - [Starter Prompts](../guides/starter-prompts.md) for copy-ready questions.
 - [MCP Guide](../guides/mcp-guide.md) for assistant tool-selection patterns.

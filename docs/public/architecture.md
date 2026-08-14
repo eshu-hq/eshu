@@ -1,217 +1,148 @@
-# System Architecture
+<!-- docs-catalog
+title: Understand Eshu's system architecture
+description: Explains Eshu's runtime boundaries, durable write path, bounded read path, and graph backend seam.
+type: concept
+audience: practitioner, operator, contributor
+entrypoint: true
+landing: false
+-->
 
-Eshu turns repository content, infrastructure definitions, deployment metadata,
-registry metadata, cloud observations, and runtime evidence into one queryable
-graph.
+# Understand Eshu's system architecture
 
-Use this page for the current runtime boundaries, write/read paths, backend
-seam, and links to the deeper contracts.
+Eshu turns source, infrastructure, deployment, supply-chain, cloud, and runtime
+observations into an evidence-backed graph. This page explains which runtime
+owns each stage and where correctness boundaries sit.
 
-For the shorter concept path, start with [Understand Eshu](understand/index.md).
-For operations, start with [Operate Eshu](operate/index.md). For collectors,
-facts, or language support, start with [Extend Eshu](extend/index.md).
+Start with [Understand Eshu](understand/index.md) for the shorter concept path.
+Use [Service runtimes](deployment/service-runtimes.md) for commands, ports, and
+deployment shapes.
 
-## Core Model
+## Follow the facts-first model
 
-Eshu is facts-first:
+Eshu moves observations through four boundaries:
 
-1. Intake runtimes observe source systems and commit versioned facts.
+1. Intake runtimes observe bounded source scopes and commit versioned facts.
 2. Durable queues make projection work claimable, retryable, and recoverable.
-3. The resolution engine materializes graph and read-model truth.
-4. HTTP API and MCP surfaces read canonical graph/content state; normal CLI
-   reads call the HTTP API instead of opening storage directly. The API's one
-   data-plane mutation is the all-scopes vulnerability-suppression policy
-   endpoint, which writes immutable facts and queued projection work rather
-   than canonical graph truth.
+3. The resolution engine materializes canonical graph and read-model truth.
+4. HTTP API and MCP surfaces return bounded, truth-labeled reads.
 
-The main correctness boundary is simple: collectors and webhooks observe source
-truth; the resolution engine decides graph truth. Intake services do not write
-canonical graph state directly.
+Collectors and webhooks record source truth. They do not write canonical graph
+state directly. The resolution engine owns that decision so replay and repair
+follow the same contract as the initial projection.
 
-## Runtime Topology
+## See the runtime boundaries
 
 ```mermaid
 flowchart LR
-  subgraph Sources["Source systems"]
-    Git["Git repositories"]
-    Hooks["Git and cloud webhooks"]
-    Docs["Confluence"]
-    Registries["OCI and package registries"]
-    Cloud["AWS and Terraform state"]
-  end
+  Sources["Repositories, registries, cloud, and webhooks"]
+  Intake["Ingester, webhook listener, and hosted collectors"]
+  Pg[("Postgres\nfacts, queues, status, content")]
+  Reducer["Resolution engine"]
+  Graph[("Graph backend\nNornicDB or Neo4j")]
+  API["HTTP API"]
+  MCP["MCP server"]
+  CLI["CLI"]
 
-  subgraph Intake["Intake and control"]
-    Ingester["Ingester"]
-    Webhook["Webhook Listener"]
-    Coordinator["Workflow Coordinator"]
-    Collectors["Hosted Collectors"]
-  end
-
-  subgraph State["Durable state"]
-    Postgres[("Postgres\nfacts, queues, status, content")]
-    Graph[("Graph backend\nNornicDB default / Neo4j optional")]
-  end
-
-  subgraph Projection["Truth materialization"]
-    Reducer["Resolution Engine"]
-  end
-
-  subgraph Reads["Read surfaces"]
-    API["HTTP API"]
-    MCP["MCP Server"]
-    CLI["CLI"]
-  end
-
-  Git -->|"sync, snapshot, parse"| Ingester
-  Hooks -->|"verified trigger"| Webhook
-  Docs -->|"bounded read"| Collectors
-  Registries -->|"metadata read"| Collectors
-  Cloud -->|"scoped observation"| Collectors
-  Coordinator -->|"create and reap claims"| Postgres
-  Coordinator -->|"claimable work"| Collectors
-  Webhook -->|"refresh trigger"| Postgres
-  Ingester -->|"repository facts and work"| Postgres
-  Collectors -->|"external-source facts"| Postgres
-  Postgres -->|"claim work"| Reducer
+  Sources -->|"bounded observation"| Intake
+  Intake -->|"versioned facts and work"| Pg
+  Pg -->|"claimable work"| Reducer
   Reducer -->|"canonical nodes and edges"| Graph
-  Reducer -->|"content and read models"| Postgres
-  API -->|"bounded graph reads"| Graph
-  API -->|"content, status, read models"| Postgres
-  API -->|"all-scopes suppression fact + projection intent"| Postgres
-  MCP -->|"tool-backed graph reads"| Graph
-  MCP -->|"content, status, read models"| Postgres
-  CLI -->|"normal read commands"| API
-  CLI -->|"local launcher and admin flows"| Postgres
+  Reducer -->|"content and read models"| Pg
+  API --> Graph
+  API --> Pg
+  MCP --> Graph
+  MCP --> Pg
+  CLI -->|"normal reads"| API
 ```
 
-## Runtime Boundaries
+The main ownership rules are:
 
-Runtime ownership has three rules:
+- Intake owns source observation and immutable fact generations.
+- Postgres owns facts, queues, claims, status, content, and read models.
+- The resolution engine owns graph projection, retry, replay, and repair.
+- API and MCP own bounded reads from canonical graph and relational state.
+- Normal CLI read commands call the API. Local launcher and admin commands may
+  own embedded services or Compose-backed stores.
 
-- Intake runtimes observe bounded source scopes and commit facts.
-- The resolution engine owns canonical graph projection, shared
-  materialization, retry, replay, and repair.
-- API and MCP serve bounded reads from graph, content, status, and read-model
-  stores. The API additionally owns one bounded, all-scopes suppression-policy
-  mutation that commits an immutable fact generation and projector intent in
-  one Postgres transaction. Normal CLI read commands call the API surface.
+The API has one data-plane mutation: the all-scopes vulnerability-suppression
+policy endpoint. It commits an immutable fact generation and projector intent
+in one Postgres transaction; it does not write canonical graph truth directly.
 
-Runtime commands, Compose services, Helm templates, ports, and scrape targets
-live in [Service Runtimes](deployment/service-runtimes.md).
-
-## Package Ownership
-
-The repository layout follows service boundaries: collection belongs in
-collector/parser packages, fact and queue state in storage packages, graph write
-contracts in the Cypher storage layer, materialization in projector/reducer
-packages, reads in query packages, and operator signals in
-runtime/status/telemetry packages.
-
-For the directory-by-directory map, use
-[Source Layout](reference/source-layout.md). This architecture page should stay
-focused on ownership rules, not repeat the source tree.
-
-## Write Path
+## Trace the durable write path
 
 ```mermaid
 sequenceDiagram
   participant Source as Source system
-  participant Intake as Ingester or Collector
+  participant Intake as Intake runtime
   participant Pg as Postgres
-  participant Reducer as Resolution Engine
-  participant Graph as Graph Backend
+  participant Reducer as Resolution engine
+  participant Graph as Graph backend
 
-  Source->>Intake: observe bounded source scope
-  Intake->>Pg: commit versioned facts
-  Intake->>Pg: enqueue projection or reducer work
-  Reducer->>Pg: claim durable work
-  Reducer->>Pg: load facts and prior decisions
+  Source->>Intake: observe bounded scope
+  Intake->>Pg: commit facts and enqueue work
+  Reducer->>Pg: claim work and load facts
   Reducer->>Graph: write canonical graph state
-  Reducer->>Pg: write content/read models
+  Reducer->>Pg: write read models
   Reducer->>Pg: ack, retry, or dead-letter work
 ```
 
-This path is replayable because service boundaries cross through durable facts,
-queues, claims, status rows, and graph-write telemetry. Diagnose failed graph
-writes from queue state and telemetry; do not move graph writes into intake
-services.
+Facts, queues, claims, status rows, and graph-write telemetry make this path
+diagnosable and replayable. A failed graph write stays a resolution concern;
+moving it into intake would split the truth owner.
 
-## Read Path
+## Trace the bounded read path
 
 ```mermaid
 flowchart LR
   User["User or automation"] --> API["HTTP API"]
-  MCPClient["MCP client"] --> MCP["MCP Server"]
-  CLI["CLI normal reads"] --> API
+  Client["MCP client"] --> MCP["MCP server"]
+  CLI["CLI"] --> API
   API --> Query["Query handlers"]
-  MCP -->|"tool dispatch"| Query
-  Query -->|"GraphQuery port"| Graph[("Canonical graph backend")]
-  Query -->|"Content/status/read ports"| Postgres[("Postgres")]
-  Query -->|"truth label, limit, truncation"| Response["Bounded response"]
+  MCP --> Query
+  Query --> Graph[("Canonical graph")]
+  Query --> Pg[("Content, status, and read models")]
+  Query --> Response["Bounded, truth-labeled response"]
 ```
 
-Read handlers are bounded before execution. List-style reads need scope, limit,
-timeout, and deterministic ordering. If a surface cannot answer accurately from
-the active profile, it returns `unsupported_capability` or a truth-labeled
-response instead of silently downgrading.
+List-style reads set scope, limit, timeout, and deterministic ordering before
+execution. When the active profile cannot answer accurately, the surface
+returns `unsupported_capability` or an explicit truth label instead of silently
+downgrading the answer.
 
-## Contract Links
+## Keep backend differences behind the seam
 
-Focused references own the details:
+Query handlers depend on capability ports rather than database drivers.
+`GraphQuery` serves read-only traversal, `ContentStore` serves relational reads,
+and graph writes use the backend-neutral Cypher storage layer.
 
-| Contract | Current source |
+`ESHU_GRAPH_BACKEND` selects the backend. An empty value defaults to NornicDB;
+an invalid value fails startup. Neo4j is supported when it passes the shared
+Cypher, Bolt, and conformance contract. Backend-specific DDL, runtime settings,
+retry classification, and measured adapter differences stay in narrow seams;
+handler and reducer logic do not branch on graph brand.
+
+The same contracts run locally and in deployed Kubernetes services. A profile
+that lacks graph-authoritative data refuses graph-authoritative questions
+instead of returning a lower-authority answer without saying so.
+
+## Go deeper by contract
+
+| Concern | Authoritative page |
 | --- | --- |
-| Runtime commands, deployment shapes, health/status, ServiceMonitor coverage | [Service Runtimes](deployment/service-runtimes.md) |
-| End-to-end service workflows and operator checkpoints | [Service Workflows](reference/service-workflows.md) |
-| Admin/status HTTP shape | [Runtime Admin API](reference/runtime-admin-api.md) |
-| Metrics, traces, logs, and cross-service correlation | [Telemetry Overview](reference/telemetry/index.md) |
-| Graph backend selection, operations, and evidence | [Graph Backend Operations](reference/graph-backend-operations.md) |
-| Backend conformance gate | [Backend Conformance](reference/backend-conformance.md) |
-| Capability profiles and truth levels | [Capability Conformance Spec](reference/capability-conformance-spec.md) |
-| Truth labels | [Truth Label Protocol](reference/truth-label-protocol.md) |
-| Collector and reducer readiness | [Collector And Reducer Readiness](reference/collector-reducer-readiness.md) |
-| Supply-chain CVE-to-impact chain and launch surfaces | [Supply-Chain Traceability](supply-chain-traceability.md) |
-| Deployable-unit edge admission | [Deployable-Unit Correlation](reference/deployable-unit-correlation.md) |
-| Component packages and activation | [Component Package Manager](reference/component-package-manager.md) |
-| Fact schema and plugin trust | [Fact Schema Versioning](reference/fact-schema-versioning.md), [Plugin Trust Model](reference/plugin-trust-model.md) |
-| Optional hosted semantic enrichment posture | [Semantic Enrichment Posture](reference/semantic-enrichment-posture.md) |
-| Conformance, determinism, load, and fault-injection proof (Ifá) | [How Eshu Proves Itself](concepts/how-eshu-proves-itself.md), [The Ifá Conformance Platform](concepts/ifa-conformance-platform.md) |
+| Service workflows and operator checkpoints | [Service workflows](reference/service-workflows.md) |
+| Status, readiness, and failure surfaces | [Runtime admin API](reference/runtime-admin-api.md) |
+| Metrics, traces, logs, and correlation | [Telemetry](reference/telemetry/index.md) |
+| Backend operation and compatibility | [Graph backend operations](reference/graph-backend-operations.md) and [backend conformance](reference/backend-conformance.md) |
+| Profile capabilities and truth levels | [Capability conformance](reference/capability-conformance-spec.md) and [truth labels](reference/truth-label-protocol.md) |
+| Collector and reducer readiness | [Collector and reducer readiness](reference/collector-reducer-readiness.md) |
+| Fact and plugin contracts | [Fact schema versioning](reference/fact-schema-versioning.md) and [plugin trust](reference/plugin-trust-model.md) |
+| Supply-chain impact paths | [Supply-Chain Traceability](supply-chain-traceability.md) |
+| Deployable-unit admission and correlation | [Deployable-Unit Correlation](reference/deployable-unit-correlation.md) |
+| Extension package lifecycle | [Component Package Manager](reference/component-package-manager.md) |
+| Semantic enrichment policy and provenance | [Semantic Enrichment Posture](reference/semantic-enrichment-posture.md) |
+| Source package ownership | [Source layout](reference/source-layout.md) |
+| Conformance and fault proof | [How Eshu proves itself](concepts/how-eshu-proves-itself.md) and [Ifá](concepts/ifa-conformance-platform.md) |
 
-## Backend Seam
-
-Query handlers depend on capability ports, not concrete database drivers.
-`GraphQuery` serves read-only graph traversal. `ContentStore` serves relational
-content and coverage reads. Graph writes go through the backend-neutral Cypher
-storage layer.
-
-The active graph backend is selected with `ESHU_GRAPH_BACKEND`. Empty values
-default to `nornicdb`; invalid values fail startup. NornicDB is the default
-backend. Neo4j is the official compatibility backend when it passes the shared
-Cypher/Bolt contract and conformance evidence.
-
-Backend-specific behavior belongs in narrow seams: schema DDL translation,
-connection/runtime settings, retry classification, query builders, and measured
-adapter differences. Handler and reducer logic should not branch on graph
-brand.
-
-## Local And Deployed Shapes
-
-The same contracts run in local and deployed shapes:
-
-- Normal local CLI reads go through the API surface. The `eshu graph` and
-  related local commands are launcher/admin flows for the local owner process,
-  embedded local services, or Compose-backed stores.
-- Production uses split Kubernetes/Helm runtimes with shared Postgres and a
-  configured graph backend.
-
-The capability matrix defines each profile's supported capabilities and truth
-levels. Lightweight local mode refuses graph-authoritative questions that need a
-graph backend instead of silently returning low-authority answers.
-
-## What Belongs Elsewhere
-
-This page is intentionally not a change diary, ADR index, backlog, or incident
-archive. Durable lessons should live in current architecture, workflow,
-deployment, testing, telemetry, backend, MCP, collector, or package-local docs.
-Historical plans should not be the primary way engineers or operators learn how
-Eshu works.
+Historical plans and incident notes are not architecture contracts. Put durable
+lessons in the current workflow, deployment, telemetry, backend, or package
+documentation that owns the behavior.

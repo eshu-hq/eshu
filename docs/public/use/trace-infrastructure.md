@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Trace Infrastructure
+title: Trace infrastructure
 description: Shows how to trace services, workloads, cloud resources, Terraform, and deployment evidence.
 type: how-to
 audience: platform-engineer, operator
@@ -7,12 +7,17 @@ entrypoint: true
 landing: false
 -->
 
-# Trace Infrastructure
+# Trace infrastructure
 
 Use this path when you need to understand what deploys a service, what
 resources it uses, or what might break when infrastructure changes.
 
-## Good Starting Points
+Before you begin, start Eshu and index the repositories and infrastructure
+evidence you want to trace. The CLI examples require the `eshu` binary on
+`PATH` and a reachable API; Local Compose serves it at
+`http://localhost:8080` by default.
+
+## Choose a starting point
 
 Start with one of these:
 
@@ -24,7 +29,7 @@ Start with one of these:
 - repository name
 - environment name
 
-## CLI Examples
+## Trace from the CLI
 
 ```bash
 eshu trace service payments-api --env prod
@@ -34,7 +39,7 @@ eshu map --from payments-api --type service --env prod
 `eshu trace service` renders the service story from the API. `eshu map` renders
 a bounded graph neighborhood from one resolved entity.
 
-## MCP Examples
+## Trace from an MCP client
 
 - "What deploys this service to prod?"
 - "Which workloads use this database?"
@@ -48,7 +53,13 @@ Ask for evidence for each hop:
 > infrastructure. Show the repos, files, and graph relationships that support
 > each step.
 
-## Read Next
+## Verify each hop
+
+Confirm that every step names its environment, source repository or file, and
+graph relationship. Narrow a mixed-environment result with `--env`, then rerun
+the trace before acting on it.
+
+## Read next
 
 - [Starter Prompts](../guides/starter-prompts.md)
 - [Relationship Graph Examples](../guides/relationship-graphs.md)

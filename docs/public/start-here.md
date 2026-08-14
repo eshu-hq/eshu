@@ -15,7 +15,7 @@ If you are brand new, start with
 [First Successful Run](getting-started/first-successful-run.md). It gets you
 from zero to one indexed repository, a status check, and a first useful answer.
 
-## Pick Your Goal
+## Pick your goal
 
 | Goal | First page |
 | --- | --- |
@@ -36,7 +36,7 @@ from zero to one indexed repository, a status check, and a first useful answer.
 | See what is planned before the next stable release | [Roadmap](roadmap.md) |
 | Look up exact commands or flags | [CLI Reference](reference/cli-reference.md) |
 
-## Two Local Paths
+## Choose a local path
 
 Most first-time readers start locally. Eshu has two local shapes:
 
@@ -48,7 +48,7 @@ Most first-time readers start locally. Eshu has two local shapes:
 If you are not sure which one you need, start with
 [Run locally](run-locally/index.md).
 
-## After Eshu Has Data
+## Use indexed data
 
 - [Index repositories](use/index-repositories.md)
 - [Ask code questions](use/code-questions.md)
@@ -56,7 +56,7 @@ If you are not sure which one you need, start with
 - [Work through use cases](use-cases.md), from supply-chain triage to environment comparison
 - [Use starter prompts](guides/starter-prompts.md)
 
-## If You Are Operating Eshu
+## Operate a running service
 
 - [Health checks](operate/health-checks.md)
 - [Telemetry](operate/telemetry.md)

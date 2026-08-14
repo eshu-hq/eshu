@@ -1,5 +1,5 @@
 <!-- docs-catalog
-title: Index Repositories
+title: Index repositories
 description: Explains the local and Compose paths for indexing source, infrastructure, and docs repositories.
 type: how-to
 audience: practitioner
@@ -7,12 +7,25 @@ entrypoint: true
 landing: false
 -->
 
-# Index Repositories
+# Index repositories
 
 Indexing turns source code, infrastructure files, docs, and deployment config
 into Eshu facts, content, and graph relationships.
 
-## Choose A Path
+## Before you begin
+
+Run the Compose commands from the Eshu checkout with Docker Compose installed.
+Keep the repositories you want to index under the directory you set as
+`ESHU_FILESYSTEM_HOST_ROOT`.
+
+The host CLI and local-service paths also require the Eshu binaries on `PATH`:
+
+```bash
+./scripts/install-local-binaries.sh
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+## Choose an indexing path
 
 | Path | Use it when |
 | --- | --- |
@@ -20,7 +33,7 @@ into Eshu facts, content, and graph relationships.
 | Host CLI into Compose stores | Compose is already running and you want to index another checkout from your terminal. |
 | Local Eshu service | You are using `eshu graph start` for one workspace-local development service. |
 
-## Docker Compose Bootstrap
+## Bootstrap with Docker Compose
 
 ```bash
 export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
@@ -32,7 +45,7 @@ docker compose up --build
 Use this when you want API, MCP, ingester, reducer, Postgres, and graph backend
 running together.
 
-## Host CLI Into Compose Stores
+## Host CLI into Compose stores
 
 Start Compose:
 
@@ -65,28 +78,32 @@ Use `index` when you only need to launch `eshu-bootstrap-index`:
 eshu index .
 ```
 
-Both commands require local binaries on `PATH`:
-
-```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-```
-
 If you use `docker-compose.neo4j.yml`, set `ESHU_GRAPH_BACKEND=neo4j` and use
 database `neo4j`.
 
-## Local Eshu Service
+## Start a local Eshu service
 
 ```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-
 eshu graph start --workspace-root "$PWD"
 ```
 
 See [Local binaries](../run-locally/local-binaries.md).
 
-## Check Results
+## Verify the indexed repositories
+
+For the workspace-local owner, generate the Codex MCP configuration:
+
+```bash
+eshu mcp setup --platform codex
+```
+
+Copy the printed `[mcp_servers.eshu]` block into `~/.codex/config.toml`. Then
+open the target repository as the Codex workspace, restart Codex, and ask it
+to call `get_index_status` with `{}`. When the status is `healthy`, call
+`list_indexed_repositories` with `{"limit": 25, "offset": 0}` and confirm that
+the bounded page contains the repository.
+
+For Local Compose or another API-backed runtime, use the CLI:
 
 ```bash
 eshu index-status
@@ -96,7 +113,7 @@ eshu stats
 
 Compose defaults to API `http://localhost:8080`.
 
-## Exclude Local Noise
+## Exclude local noise
 
 Eshu skips common cache and dependency directories by default, including `.git`,
 `.terraform`, `.terragrunt-cache`, `.pulumi`, `node_modules`, `vendor`, and

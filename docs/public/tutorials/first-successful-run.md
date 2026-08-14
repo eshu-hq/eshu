@@ -1,77 +1,114 @@
-# Tutorial: First Successful Run
+<!-- docs-catalog
+title: Complete a local Compose first run
+description: Guides a new reader through one local Compose runtime, one indexed repository, and one bounded repository-list result.
+type: tutorial
+audience: new-user
+time: Varies with repository size
+entrypoint: true
+landing: false
+-->
 
-Use this tutorial when you want one working Eshu runtime, one indexed
-repository, and one answer you can trust.
+# Complete a local Compose first run
 
-## Outcome
+Use this tutorial to start Eshu with Docker Compose, index one repository, and
+confirm that the Compose service returns a bounded repository list.
 
-By the end, Eshu has started or connected to a runtime, indexed a repository,
-waited for readiness, and returned one bounded answer.
+## What you will accomplish
 
-## Time
+By the end, the local stack will be running, the `eshu` repository will be
+indexed, and the guided check will have returned a bounded repository-list
+result.
 
-About 10 minutes for a local path after Docker or local binaries are available.
+## Before you begin
 
-## Prerequisites
+Indexing time varies with repository size, enabled indexing features, and the local
+machine. Continue from status evidence rather than an elapsed-time estimate.
+You need:
 
-- A Git repository you can index.
-- Either Docker Compose, local Eshu binaries, or access to a hosted Eshu
-  service.
-- For hosted Eshu, an API endpoint and bearer token from your operator.
+- Docker Compose.
+- The Eshu checkout at `$HOME/src/eshu` or an equivalent parent and repository
+  path.
 
-## Steps
+For a different runtime shape, use the
+[first successful run chooser](../getting-started/first-successful-run.md).
 
-1. Pick the path that matches your runtime:
-   - Local Compose for the full local stack.
-   - Local binaries when developing from a checkout.
-   - Hosted service when someone already operates Eshu for you.
-2. For a local Compose run, export a host root and repository selector:
+## Start and verify Eshu
+
+1. From the Eshu checkout, expose the parent directory and select the checkout
+   by its directory name:
 
    ```bash
    export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
    export ESHU_REPOSITORY_RULES_JSON='{"exact":["eshu"]}'
    export ESHU_API_KEY="local-compose-token"
+   docker compose up -d
    ```
 
-3. Run the first-run command:
+   Replace `$HOME/src` if your checkout has a different parent directory. Keep
+   `eshu` in the selector only when that is the checkout's directory name.
+2. The API can become healthy while the one-shot bootstrap is still indexing.
+   Before running another indexing command, verify that the completed index is
+   reusable:
 
    ```bash
-   eshu first-run
+   docker compose ps --all bootstrap-index
+   docker compose exec eshu eshu workspace status
+   docker compose exec eshu eshu list
    ```
 
-4. Wait for the command to finish. It should not call the run successful only
-   because processes are healthy; it waits for indexing completeness and a
-   bounded query answer.
-5. Ask one narrow follow-up from the CLI or an assistant:
+   Continue when bootstrap shows `Exited (0)` and the API is healthy. `workspace
+   status` must report healthy state, no outstanding queue work, a
+   completed or active generation, and no failed or dead-letter stage or domain work.
+   `list` must contain `eshu` with `local_path` set to `/data/repos/eshu`; these
+   are the signals `first-run` uses for reuse. Then run the guided check inside
+   the Compose API service with that managed path:
 
-   ```text
-   Use Eshu. List the indexed repositories, then explain what Eshu knows about
-   the eshu repository with file and symbol evidence.
+   ```bash
+   docker compose exec eshu eshu first-run /data/repos/eshu
    ```
 
-## Expected Result
+   The command uses the same repository and stores as the running stack. It
+   verifies Compose without starting it, then waits for indexing completeness
+   and a bounded repository query.
+3. Confirm the result from the same service container:
 
-`eshu first-run` reports success only after it reaches a usable index and a
-bounded query returns. For local runs, `eshu list` and `eshu stats <repo>` should
-show the indexed repository. For hosted runs, `eshu hosted-setup` should report
-that health, readiness, status, MCP tool visibility, and a first query passed.
+   ```bash
+   docker compose exec eshu eshu index-status
+   docker compose exec eshu eshu list
+   docker compose exec eshu eshu stats eshu
+   ```
 
-## Failure Hints
+## Verify the result
 
-- If health is green but the query fails, wait for indexing readiness rather
-  than restarting the API.
-- If Compose cannot see repositories, check `ESHU_FILESYSTEM_HOST_ROOT` and
-  Docker mount visibility.
-- If the CLI reports auth failures, make sure the client token matches the
-  runtime's configured API key.
-- If local binaries are missing, run `./scripts/install-local-binaries.sh` and
-  put `$(go env GOPATH)/bin` on `PATH`.
+The container-executed `index-status` command should show a drained index, and
+`list` should include the selected repository. The guided check should report
+success only after its bounded repository-list query returns. If it does not,
+wait for the index to drain and rerun it.
 
-## Read Next
+## Troubleshoot the run
 
-- [First Successful Run](../getting-started/first-successful-run.md) for the
-  full path chooser and detailed commands.
-- [Ask Eshu from an assistant](ask-from-assistant.md) when you are ready to use
-  MCP.
-- [Debug stale answers](debug-stale-answers.md) if the first answer is missing
-  or stale.
+- If the API is unreachable, run `docker compose ps`, fix unhealthy services,
+  and rerun the container-executed guided check.
+- If the repository is missing, check `ESHU_FILESYSTEM_HOST_ROOT`, the Docker
+  mount at `/fixtures`, and the exact directory name in
+  `ESHU_REPOSITORY_RULES_JSON`.
+- If the API returns 401 or 403, make the client and server `ESHU_API_KEY`
+  values match.
+- If health is green but the repository result is stale, wait for
+  `eshu index-status` to drain. Health alone does not prove indexing readiness.
+
+## Clean up
+
+If you started Compose for this tutorial, stop it from the same checkout:
+
+```bash
+docker compose down
+```
+
+Leave the stack running if it was already in use before the tutorial.
+
+## Read next
+
+- [Ask Eshu from an assistant](ask-from-assistant.md)
+- [Debug stale answers](debug-stale-answers.md)
+- [Index repositories](../use/index-repositories.md)
