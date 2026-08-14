@@ -67,6 +67,7 @@ on:
       - 'scripts/test-verify-ifa-fault-injection.sh'
       - 'scripts/lib/test-ifa-fault-injection-assertions.sh'
       - 'scripts/lib/test-ifa-fault-injection-review-cases.sh'
+      - 'scripts/lib/ifa_fault_injection_collateral_nodes.sh'
       - 'scripts/lib/ifa_fault_injection_common.sh'
       - 'scripts/lib/ifa_fault_injection_cells.sh'
       - 'scripts/lib/ifa_fault_injection_driver.sh'

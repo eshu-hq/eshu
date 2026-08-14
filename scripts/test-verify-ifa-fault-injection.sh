@@ -18,9 +18,10 @@
 # (shared per-cell plumbing), scripts/lib/ifa_fault_injection_cells.sh (the
 # five original cells), scripts/lib/ifa_fault_injection_sql_cells.sh (two
 # SQL-targeted cells), scripts/lib/ifa_fault_injection_code_call_cells.sh (two
-# code-call cells), and scripts/lib/ifa_fault_injection_delivery_cells.sh to
-# stay under the repo's 500-line cap; checks below point at whichever file now
-# actually holds the content.
+# code-call cells), scripts/lib/ifa_fault_injection_delivery_cells.sh, and its
+# full-node collateral helper ifa_fault_injection_collateral_nodes.sh to stay
+# under the repo's 500-line cap; checks below point at whichever file now holds
+# the content.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,6 +32,7 @@ driver_lib="${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 sql_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 delivery_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
+collateral_nodes_lib="${repo_root}/scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
 code_call_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
@@ -38,7 +40,7 @@ assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${review_cases_lib}" "${assertions_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${review_cases_lib}" "${assertions_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -49,6 +51,7 @@ bash -n "${driver_lib}" || fail "ifa_fault_injection_driver.sh has a syntax erro
 bash -n "${cells_lib}" || fail "ifa_fault_injection_cells.sh has a syntax error"
 bash -n "${sql_cells_lib}" || fail "ifa_fault_injection_sql_cells.sh has a syntax error"
 bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh has a syntax error"
+bash -n "${collateral_nodes_lib}" || fail "ifa_fault_injection_collateral_nodes.sh has a syntax error"
 bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
 bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
@@ -68,6 +71,7 @@ require "sources cells lib" "scripts/lib/ifa_fault_injection_cells.sh"
 require "sources sql cells lib" "scripts/lib/ifa_fault_injection_sql_cells.sh"
 require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
 require "sources code-call cells lib" "scripts/lib/ifa_fault_injection_code_call_cells.sh"
+require "sources collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 require "failure log dump" "host binary logs (failure)"
 require "--no-compose flag" "--no-compose"
 require "--keep flag" "--keep"
@@ -384,7 +388,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${code_call_lib}" "${code_call_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi

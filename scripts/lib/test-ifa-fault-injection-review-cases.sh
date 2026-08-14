@@ -22,6 +22,13 @@ test_ifa_fault_write_collateral_fixture() {
 	local sql_target_uid="${4:-sql-table-users}"
 	local handler_mode="${5:-preserve}"
 	local handler_generation="${6:-gen1}"
+	local node_generation="gen-2" handler_node_generation="gen-2"
+	if [[ "${sql_generation}" == "gen1" ]]; then
+		node_generation="gen-1"
+	fi
+	if [[ "${handler_generation}" == "gen1" ]]; then
+		handler_node_generation="gen-1"
+	fi
 	local default_containment_generation="gen-2"
 	if [[ "${sql_generation}" == "gen1" ]]; then
 		default_containment_generation="gen-1"
@@ -33,18 +40,28 @@ test_ifa_fault_write_collateral_fixture() {
 	local mixed_containment_generation="${11:-gen-1}"
 	local omit_owned_generation="${12:-false}"
 	local preserved_mapped_generation="${13:-gen-1}"
+	local sql_file_language="${14:-sql}"
+	local default_sql_index_table="public.orders"
+	if [[ "${sql_generation}" == "gen1" ]]; then
+		default_sql_index_table="public.users"
+	fi
+	local sql_index_table="${15:-${default_sql_index_table}}"
 	local sql_repo root_dir schema_dir sql_file sql_entity sql_entity_alt
-	local handler_dir handler_file handler_function foreign_from foreign_to
+	local sql_index handler_dir handler_file handler_function foreign_from foreign_to
 	local sql_repo_hash sql_entity_hash sql_entity_alt_hash sql_target_hash
-	sql_repo="$(printf '{\"labels\":[\"Repository\"],\"props\":{\"generation_id\":\"%s\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${sql_generation}")"
-	root_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${sql_generation}")"
-	schema_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${sql_generation}")"
-	sql_file="$(printf '{\"labels\":[\"File\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"file-db-schema\"}}' "${sql_generation}")"
-	sql_entity="$(printf '{\"labels\":[\"SqlTable\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"sql-table-users\"}}' "${sql_generation}")"
-	sql_entity_alt="$(printf '{\"labels\":[\"SqlTable\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"sql-table-orders\"}}' "${sql_generation}")"
-	handler_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${handler_generation}")"
-	handler_file="$(printf '{\"labels\":[\"File\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"file-cmd-api-handlers\"}}' "${handler_generation}")"
-	handler_function="$(printf '{\"labels\":[\"Function\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"content-entity:e_cb021b7a4238\"}}' "${handler_generation}")"
+	local sql_index_hash
+	sql_repo="$(printf '{\"labels\":[\"Repository\"],\"props\":{\"generation_id\":\"%s\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${node_generation}")"
+	root_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${node_generation}")"
+	schema_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${node_generation}")"
+	sql_file="$(printf '{\"labels\":[\"File\"],\"props\":{\"generation_id\":\"%s\",\"lang\":\"%s\",\"language\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"file-db-schema\"}}' \
+		"${node_generation}" "${sql_file_language}" "${sql_file_language}")"
+	sql_entity="$(printf '{\"labels\":[\"SqlTable\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"sql-table-users\"}}' "${node_generation}")"
+	sql_entity_alt="$(printf '{\"labels\":[\"SqlTable\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"sql-table-orders\"}}' "${node_generation}")"
+	sql_index="$(printf '{\"labels\":[\"SqlIndex\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/db/schema.sql\",\"relative_path\":\"db/schema.sql\",\"repo_id\":\"repo-ifa-sql-family\",\"table_name\":\"%s\",\"uid\":\"content-entity:sql-idx-users-email\"}}' \
+		"${node_generation}" "${sql_index_table}")"
+	handler_dir="$(printf '{\"labels\":[\"Directory\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api\",\"repo_id\":\"repo-ifa-sql-family\"}}' "${handler_node_generation}")"
+	handler_file="$(printf '{\"labels\":[\"File\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"file-cmd-api-handlers\"}}' "${handler_node_generation}")"
+	handler_function="$(printf '{\"labels\":[\"Function\"],\"props\":{\"generation_id\":\"%s\",\"path\":\"/repo/cmd/api/handlers.go\",\"relative_path\":\"cmd/api/handlers.go\",\"repo_id\":\"repo-ifa-sql-family\",\"uid\":\"content-entity:e_cb021b7a4238\"}}' "${handler_node_generation}")"
 	foreign_from='{"labels":["Service"],"props":{"uid":"service-a"}}'
 	# The uid deliberately collides with the SQL repo ID. Ordinary-node uid/id
 	# values must never establish repository membership.
@@ -53,12 +70,13 @@ test_ifa_fault_write_collateral_fixture() {
 		# Pinned independently by graphdump's real nodeDigest implementation in
 		# TestShellCollateralFixtureNodeDigestContract. Do not derive this value
 		# with the shell helper: that would make the attribution test circular.
-		sql_repo_hash="8ea9d5d8c0eabf08ef3c18ad4b6617a6466c707f7f579bac7017a7b6497d129a"
+		sql_repo_hash="b3af008c122a125c24d4885578d29af6f24471d748db246d9d30a4fd8c1281f0"
 	else
 		sql_repo_hash="$(test_ifa_fault_node_hash "${sql_repo}")"
 	fi
 	sql_entity_hash="$(test_ifa_fault_node_hash "${sql_entity}")"
 	sql_entity_alt_hash="$(test_ifa_fault_node_hash "${sql_entity_alt}")"
+	sql_index_hash="$(test_ifa_fault_node_hash "${sql_index}")"
 	if [[ "${sql_target_uid}" == "sql-table-orders" ]]; then
 		sql_target_hash="${sql_entity_alt_hash}"
 	else
@@ -71,6 +89,7 @@ test_ifa_fault_write_collateral_fixture() {
 		--argjson sql_file "${sql_file}" \
 		--argjson sql_entity "${sql_entity}" \
 		--argjson sql_entity_alt "${sql_entity_alt}" \
+		--argjson sql_index "${sql_index}" \
 		--argjson handler_dir "${handler_dir}" \
 		--argjson handler_file "${handler_file}" \
 		--argjson handler_function "${handler_function}" \
@@ -81,6 +100,7 @@ test_ifa_fault_write_collateral_fixture() {
 		--arg schema_dir_hash "$(test_ifa_fault_node_hash "${schema_dir}")" \
 		--arg sql_file_hash "$(test_ifa_fault_node_hash "${sql_file}")" \
 		--arg sql_target_hash "${sql_target_hash}" \
+		--arg sql_index_hash "${sql_index_hash}" \
 		--arg handler_dir_hash "$(test_ifa_fault_node_hash "${handler_dir}")" \
 		--arg handler_file_hash "$(test_ifa_fault_node_hash "${handler_file}")" \
 		--arg handler_function_hash "$(test_ifa_fault_node_hash "${handler_function}")" \
@@ -97,7 +117,7 @@ test_ifa_fault_write_collateral_fixture() {
 		--argjson preserve_handler "$(if [[ "${handler_mode}" == "preserve" ]]; then printf true; else printf false; fi)" \
 		'{
 			nodes: (
-				[$sql_repo, $root_dir, $schema_dir, $sql_file, $sql_entity, $sql_entity_alt, $foreign_from, $foreign_to]
+				[$sql_repo, $root_dir, $schema_dir, $sql_file, $sql_entity, $sql_entity_alt, $sql_index, $foreign_from, $foreign_to]
 				+ (if $preserve_handler then [$handler_dir, $handler_file, $handler_function] else [] end)
 			),
 			edges: ([
@@ -105,6 +125,7 @@ test_ifa_fault_write_collateral_fixture() {
 				{type:"CONTAINS", from:$root_dir_hash, to:$schema_dir_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
 				{type:"CONTAINS", from:$schema_dir_hash, to:$sql_file_hash, props:({evidence_source:$edge_evidence_source} + (if $omit_owned_generation then {} else {generation_id:$containment_generation} end))},
 				{type:"CONTAINS", from:$sql_file_hash, to:$sql_target_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
+				{type:"CONTAINS", from:$sql_file_hash, to:$sql_index_hash, props:{generation_id:$containment_generation, evidence_source:$edge_evidence_source}},
 				{type:"EXECUTES", from:$sql_target_hash, to:$sql_target_hash, props:{}},
 				{type:"CALLS", from:"code-from", to:"code-to", props:{}},
 				{type:"CONTAINS", from:$root_dir_hash, to:$foreign_to_hash, props:{generation_id:$mixed_containment_generation, evidence_source:$edge_evidence_source}},
@@ -119,6 +140,7 @@ test_ifa_fault_write_collateral_fixture() {
 
 test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 	source "${det_lib}"
+	source "${collateral_nodes_lib}"
 	source "${delivery_cells_lib}"
 	declare -F ifa_fault_compare_collateral_edges >/dev/null \
 		|| fail "delivery cells do not expose ifa_fault_compare_collateral_edges"
@@ -147,6 +169,10 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		"${case_dir}/unexpected-unrefreshed-mutable.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-1
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-refreshed-preserved.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-1 false gen-2
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-mapped-file-property.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-1 false gen-1 CORRUPTED
+	test_ifa_fault_write_collateral_fixture \
+		"${case_dir}/unexpected-sql-index-table.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-1 false gen-1 sql public.payments
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-foreign-endpoint-containment.dump" gen2 DEPENDS_ON sql-table-users preserve gen1 gen-2 stable projector/canonical gen-1 gen-2
 	test_ifa_fault_write_collateral_fixture \
@@ -215,6 +241,18 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		|| fail "changed one-mapped gen-2 returned ${rc}, want fail-closed status 2"
 	rc=0
 	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-mapped-file-property.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "mapped File language corruption returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-sql-index-table.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "unexpected SqlIndex table_name returned ${rc}, want fail-closed status 2"
+	rc=0
+	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-foreign-endpoint-containment.dump" "${case_dir}" \
 		>/dev/null 2>&1 || rc=$?
 	[[ "${rc}" -eq 1 ]] \
@@ -244,6 +282,79 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		>/dev/null 2>&1 || rc=$?
 	[[ "${rc}" -eq 2 ]] \
 		|| fail "invalid graph dump returned ${rc}, want jq/error status 2"
+)
+
+test_ifa_fault_assert_node_compare_status() {
+	local baseline_dump="$1" changed_dump="$2" case_dir="$3" want_rc="$4" label="$5"
+	local baseline_identities="${case_dir}/hostile-baseline-identities.json"
+	local changed_identities="${case_dir}/hostile-changed-identities.json"
+	ifa_fault_write_repo_node_identities \
+		"${baseline_dump}" repo-ifa-sql-family db/schema.sql /repo/db/schema.sql \
+		"${baseline_identities}" || fail "${label}: could not map baseline identities"
+	ifa_fault_write_repo_node_identities \
+		"${changed_dump}" repo-ifa-sql-family db/schema.sql /repo/db/schema.sql \
+		"${changed_identities}" || fail "${label}: could not map changed identities"
+	local rc=0
+	ifa_fault_compare_collateral_nodes \
+		"${baseline_dump}" "${changed_dump}" \
+		"${baseline_identities}" "${changed_identities}" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq "${want_rc}" ]] \
+		|| fail "${label}: full-node comparison returned ${rc}, want ${want_rc}"
+}
+
+test_ifa_fault_collateral_nodes_preserve_full_multiset() (
+	source "${det_lib}"
+	source "${collateral_nodes_lib}"
+	source "${delivery_cells_lib}"
+	local case_dir rc
+	case_dir="$(mktemp -d -t ifa-fault-collateral-nodes.XXXXXX)"
+	trap 'rm -rf "${case_dir}"' EXIT
+	test_ifa_fault_write_collateral_fixture "${case_dir}/baseline.dump" gen1 DEPENDS_ON
+	test_ifa_fault_write_collateral_fixture "${case_dir}/allowed.dump" gen2 DEPENDS_ON
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/allowed.dump" "${case_dir}" 0 \
+		"exact generation and SqlIndex transitions"
+
+	jq '(.nodes[] | select(.props.uid? == "file-db-schema") | .props).unexpected = "extra"' \
+		"${case_dir}/allowed.dump" >"${case_dir}/extra-prop.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/extra-prop.dump" "${case_dir}" 1 "extra mapped property"
+	jq 'del(.nodes[] | select(.props.uid? == "file-db-schema") | .props.language)' \
+		"${case_dir}/allowed.dump" >"${case_dir}/missing-prop.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/missing-prop.dump" "${case_dir}" 1 "missing mapped property"
+	jq '(.nodes[] | select(.props.uid? == "file-db-schema") | .labels) = ["CorruptedFile"]' \
+		"${case_dir}/allowed.dump" >"${case_dir}/label-drift.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/label-drift.dump" "${case_dir}" 1 "mapped label drift"
+	jq '(.nodes[] | select(.props.uid? == "file-db-schema") | .props.repo_id) = "other-repo"' \
+		"${case_dir}/allowed.dump" >"${case_dir}/owner-drift.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/owner-drift.dump" "${case_dir}" 1 "mapped owner drift"
+	jq '(.nodes[] | select(.props.uid? == "file-db-schema") | .props.generation_id) = "gen-unknown"' \
+		"${case_dir}/allowed.dump" >"${case_dir}/wrong-generation.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/wrong-generation.dump" "${case_dir}" 2 "mapped generation drift"
+	jq '.nodes |= map(select(.props.uid? != "file-db-schema"))' \
+		"${case_dir}/allowed.dump" >"${case_dir}/missing-node.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/missing-node.dump" "${case_dir}" 1 "missing mapped node"
+	jq '.nodes += [(.nodes[] | select(.props.uid? == "file-db-schema"))]' \
+		"${case_dir}/allowed.dump" >"${case_dir}/duplicate-node.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/duplicate-node.dump" "${case_dir}" 2 "duplicate mapped node"
+	jq '(.nodes[] | select(.props.uid? == "service-a") | .props).tier = "corrupted"' \
+		"${case_dir}/allowed.dump" >"${case_dir}/unmapped-drift.dump"
+	test_ifa_fault_assert_node_compare_status \
+		"${case_dir}/baseline.dump" "${case_dir}/unmapped-drift.dump" "${case_dir}" 1 "unmapped node drift"
+
+	printf '[]\n' >"${case_dir}/malformed-identities.json"
+	rc=0
+	ifa_fault_write_collateral_nodes \
+		"${case_dir}/baseline.dump" "${case_dir}/malformed-identities.json" \
+		"${case_dir}/malformed-output.json" baseline >/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 2 ]] || fail "malformed node identity map returned ${rc}, want status 2"
 )
 
 test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed() (
@@ -333,6 +444,7 @@ test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 
 run_ifa_fault_injection_review_cases() {
 	test_ifa_fault_collateral_compare_is_scoped_and_fail_closed
+	test_ifa_fault_collateral_nodes_preserve_full_multiset
 	test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed
 	test_ifa_fault_released_lock_holder_is_not_torn_down_twice
 }

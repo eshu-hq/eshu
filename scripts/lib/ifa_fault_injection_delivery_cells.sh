@@ -231,6 +231,14 @@ ifa_fault_compare_collateral_edges() {
 		"${changed_dump}" "${sql_repo_id}" \
 		"${mutable_relative_path}" "${mutable_absolute_path}" \
 		"${changed_identities}" || return 2
+	local node_rc=0
+	ifa_fault_compare_collateral_nodes \
+		"${baseline_dump}" "${changed_dump}" \
+		"${baseline_identities}" "${changed_identities}" "${output_dir}" || node_rc=$?
+	if [[ "${node_rc}" -ne 0 ]]; then
+		: >"${diff_output}"
+		return "${node_rc}"
+	fi
 	ifa_fault_write_repo_node_membership \
 		"${baseline_dump}" "${sql_repo_id}" "${baseline_membership}" || return 2
 	ifa_fault_write_repo_node_membership \
@@ -384,7 +392,7 @@ cell_deltaretract() {
 	if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
 		die "delta-retract: shasum or sha256sum is required to attribute SQL-owned containment endpoints"
 	fi
-	local collateral_rc=0
+	local collateral_rc=0 collateral_diff
 	ifa_fault_compare_collateral_edges \
 		"${work_dir}/graph-baseline.dump" \
 		"${work_dir}/graph-deltaretract.dump" \
@@ -394,12 +402,14 @@ cell_deltaretract() {
 		"/repo/db/schema.sql" || collateral_rc=$?
 	if [[ "${collateral_rc}" -eq 1 ]]; then
 		printf 'delta-retract: graph collateral changed outside the exact SQL and code-call families:\n' >&2
-		cat "${work_dir}/collateral-edges.diff" >&2
+		for collateral_diff in "${work_dir}/collateral-nodes.diff" "${work_dir}/collateral-edges.diff"; do
+			[[ ! -s "${collateral_diff}" ]] || cat "${collateral_diff}" >&2
+		done
 		die "delta-retract: SQL generation 2 changed unrelated graph truth; do not widen the family allowlists"
 	fi
 	[[ "${collateral_rc}" -eq 0 ]] \
 		|| die "delta-retract: collateral graph comparison failed (status ${collateral_rc}); refusing to report parity"
-	printf 'delta-retract: collateral graph edge set unchanged outside exact SQL/code-call assertions\n'
+	printf 'delta-retract: collateral graph node and edge sets unchanged outside exact SQL/code-call assertions\n'
 
 	teardown_cell deltaretract
 	wall_times[deltaretract]=$(( $(date +%s) - cell_start ))

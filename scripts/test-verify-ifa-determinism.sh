@@ -209,6 +209,24 @@ for seam in "${code_call_gate_seams[@]}"; do
 	done
 done
 
+# The collateral node comparator is sourced only by the fault-injection
+# driver. Keep the workflow filter and registry selector in lockstep without
+# making an isolated helper change run the unrelated determinism matrix.
+fault_collateral_nodes_lib='scripts/lib/ifa_fault_injection_collateral_nodes.sh'
+rg --quiet --fixed-strings --line-regexp -- "      - '${fault_collateral_nodes_lib}'" "${workflow}" \
+	|| fail "workflow does not retrigger fault injection for collateral node helper: ${fault_collateral_nodes_lib}"
+printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${fault_collateral_nodes_lib}\"" \
+	|| fail "ifa-fault-injection registry entry omits collateral node helper: ${fault_collateral_nodes_lib}"
+collateral_selection="$(printf '%s\n' "${fault_collateral_nodes_lib}" | (
+	cd "${repo_root}/go"
+	go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+))"
+printf '%s\n' "${collateral_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
+	|| fail "collateral node helper does not select ifa-fault-injection through the real registry matcher"
+if printf '%s\n' "${collateral_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
+	fail "collateral node helper must not select ifa-determinism; that driver does not source it"
+fi
+
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
 # writers contend and the owner ledger must keep the digest identical across

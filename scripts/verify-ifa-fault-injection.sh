@@ -24,7 +24,8 @@
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 10, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 11, issue
 # #5991), and scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 8-9,
-# issue #5544):
+# issue #5544). The delta cell's full-node collateral comparator is split into
+# scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
 #   1. baseline                              -- fault-free; establishes the
 #      digest every non-delta recovery cell is compared against. Cell 9
@@ -157,6 +158,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_call_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_collateral_nodes.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_delivery_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
 # shellcheck source=scripts/lib/ifa_sql_delta_live.sh
