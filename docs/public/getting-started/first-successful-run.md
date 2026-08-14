@@ -138,18 +138,18 @@ Follow only the instruction for the path you chose.
 
 ### Local Compose
 
-Connect Codex to the Compose MCP service over HTTP. The `--hosted` flag selects
-the remote HTTP transport even though this service runs on your machine.
-`--auth shared-key` reads the local `ESHU_API_KEY` exported above.
+Generate the Local Compose HTTP configuration with the exported `ESHU_API_KEY`:
 
 ```bash
-eshu mcp setup --hosted --platform codex --service-url http://localhost:8081 --auth shared-key
+docker compose exec eshu eshu mcp setup --hosted --platform codex --service-url http://localhost:8081 --auth shared-key
 ```
+
+Copy the printed `[mcp_servers.eshu]` TOML block into `~/.codex/config.toml`.
+Restart Codex with `ESHU_API_KEY` in its environment before asking a question.
 
 ### Local binaries
 
-Use the Codex configuration generated in the local-binary steps above. Do not
-run either HTTP setup command for the stdio owner.
+Keep the Codex configuration from the local-binary steps. Do not use either HTTP command for the stdio owner.
 
 ### Hosted service
 
