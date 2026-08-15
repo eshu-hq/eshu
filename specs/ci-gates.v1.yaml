@@ -138,7 +138,7 @@ gates:
       # search the basename or the full path. CI still enforces the cap itself
       # through the golangci-lint plugin. What CI does not check is whether the
       # two bash variants still mirror that plugin.
-      test_command: "bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && go test -count=1 ."
+      test_command: "bash scripts/test-precommit-go-filecap.sh && cd tools/golangci-lint-filelength && env -u GOROOT go test -count=1 ."
     ci:
       workflow: test.yml
       job: "go-core"
