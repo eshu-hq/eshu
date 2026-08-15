@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package docs
 
 import (
 	"crypto/sha256"
@@ -21,21 +21,44 @@ import (
 )
 
 var (
-	errDocsInventoryLimitReached = errors.New("documentation file limit reached")
-	docsEnvVarPattern            = regexp.MustCompile(`\bESHU_[A-Z0-9_]*[A-Z0-9]\b`)
+	// errInventoryLimitReached stops the walk once VerifyOptions.Limit
+	// documents are collected. It is a control signal, not a failure: the
+	// caller converts it into Inventory.Truncated.
+	errInventoryLimitReached = errors.New("documentation file limit reached")
+
+	// envVarPattern matches a concrete ESHU_ environment variable name. The
+	// trailing [A-Z0-9] class is what keeps a documented wildcard family
+	// prefix such as `ESHU_WORKFLOW_COORDINATOR_*` from being recorded as a
+	// real variable.
+	envVarPattern = regexp.MustCompile(`\bESHU_[A-Z0-9_]*[A-Z0-9]\b`)
 )
 
-func inventoryDocs(opts docsVerifyOptions) (docsInventory, error) {
+// Inventory is the bounded set of documents one verify run will check.
+// Truncated reports that the document limit stopped the walk early.
+type Inventory struct {
+	Documents []doctruth.DocumentInput
+	Truncated bool
+}
+
+// InventoryDocuments collects the Markdown documents under opts.Path.
+//
+// A file path is read directly. A directory is walked recursively, skipping
+// .git, node_modules, and vendor, and collecting only .md, .mdx, and .markdown
+// files. The walk stops at opts.Limit documents and reports Truncated; each
+// document's content is bounded at opts.MaxDocumentBytes while its revision id
+// still hashes the whole file. Documents are returned sorted by path so a
+// repeated run over an unchanged tree produces the same freshness hint.
+func InventoryDocuments(opts VerifyOptions) (Inventory, error) {
 	info, err := os.Stat(opts.Path)
 	if err != nil {
-		return docsInventory{}, fmt.Errorf("stat documentation path: %w", err)
+		return Inventory{}, fmt.Errorf("stat documentation path: %w", err)
 	}
 	if !info.IsDir() {
 		doc, err := readDocumentInput(opts.Path, opts.MaxDocumentBytes)
 		if err != nil {
-			return docsInventory{}, err
+			return Inventory{}, err
 		}
-		return docsInventory{Documents: []doctruth.DocumentInput{doc}}, nil
+		return Inventory{Documents: []doctruth.DocumentInput{doc}}, nil
 	}
 	documents := []doctruth.DocumentInput{}
 	err = filepath.WalkDir(opts.Path, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -43,7 +66,7 @@ func inventoryDocs(opts docsVerifyOptions) (docsInventory, error) {
 			return walkErr
 		}
 		if len(documents) >= opts.Limit {
-			return errDocsInventoryLimitReached
+			return errInventoryLimitReached
 		}
 		if entry.IsDir() {
 			switch entry.Name() {
@@ -62,20 +85,23 @@ func inventoryDocs(opts docsVerifyOptions) (docsInventory, error) {
 		}
 		documents = append(documents, doc)
 		if len(documents) >= opts.Limit {
-			return errDocsInventoryLimitReached
+			return errInventoryLimitReached
 		}
 		return nil
 	})
 	truncated := false
-	if errors.Is(err, errDocsInventoryLimitReached) {
+	if errors.Is(err, errInventoryLimitReached) {
 		truncated = true
 	} else if err != nil {
-		return docsInventory{}, fmt.Errorf("inventory documentation: %w", err)
+		return Inventory{}, fmt.Errorf("inventory documentation: %w", err)
 	}
 	sort.Slice(documents, func(i, j int) bool { return documents[i].Path < documents[j].Path })
-	return docsInventory{Documents: documents, Truncated: truncated}, nil
+	return Inventory{Documents: documents, Truncated: truncated}, nil
 }
 
+// readDocumentInput reads one documentation file into a verifier input. The
+// returned content is bounded by maxBytes; RevisionID always hashes the full
+// file, so a change past the bound still invalidates the persisted generation.
 func readDocumentInput(path string, maxBytes int) (doctruth.DocumentInput, error) {
 	file, err := os.Open(path) // #nosec G304 -- path is a documentation file discovered by the program from the scan target directory, not an HTTP request param
 	if err != nil {
@@ -100,17 +126,21 @@ func readDocumentInput(path string, maxBytes int) (doctruth.DocumentInput, error
 	}, nil
 }
 
+// readBoundedDocument returns the first maxBytes of reader, a sha256 revision
+// id over the entire stream, and whether the content was cut short. Reading
+// past the bound only to hash it is deliberate: the revision id has to change
+// when a byte beyond the excerpt changes.
 func readBoundedDocument(reader io.Reader, maxBytes int) ([]byte, string, bool, error) {
 	hash := sha256.New()
 	limited, err := io.ReadAll(io.LimitReader(reader, int64(maxBytes)+1))
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, err //nolint:wrapcheck // readDocumentInput wraps this with the file path; wrapping twice would duplicate that context in operator-visible output.
 	}
 	if _, err := hash.Write(limited); err != nil {
-		return nil, "", false, err
+		return nil, "", false, err //nolint:wrapcheck // same single-wrap contract as above.
 	}
 	if _, err := io.Copy(hash, reader); err != nil {
-		return nil, "", false, err
+		return nil, "", false, err //nolint:wrapcheck // same single-wrap contract as above.
 	}
 	truncated := len(limited) > maxBytes
 	if truncated {
@@ -119,10 +149,13 @@ func readBoundedDocument(reader io.Reader, maxBytes int) ([]byte, string, bool, 
 	return limited, "sha256:" + hex.EncodeToString(hash.Sum(nil)), truncated, nil
 }
 
+// fileURI renders an absolute path as a file:// URI with the escaping url.URL
+// applies, so a path containing a space stays a valid URI.
 func fileURI(absolute string) string {
 	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(absolute)}).String()
 }
 
+// isDocumentationFile reports whether path has a Markdown extension.
 func isDocumentationFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".md", ".mdx", ".markdown":
@@ -132,9 +165,15 @@ func isDocumentationFile(path string) bool {
 	}
 }
 
-func docsVerifyEnvironmentTruth(path string) []string {
+// EnvironmentTruth reports the ESHU_ environment variable names documentation
+// may claim: a built-in default set, plus every concrete name found in the
+// environment reference pages reachable from path. Names are sorted and
+// deduplicated. A reference page that cannot be read is skipped rather than
+// failing the run, which biases an unreadable page toward contradicted
+// findings rather than a hard error.
+func EnvironmentTruth(path string) []string {
 	out := map[string]struct{}{}
-	for _, name := range docsVerifyDefaultEnvironmentTruth() {
+	for _, name := range defaultEnvironmentTruth() {
 		out[name] = struct{}{}
 	}
 	for _, candidate := range environmentReferenceCandidates(path) {
@@ -142,7 +181,7 @@ func docsVerifyEnvironmentTruth(path string) []string {
 		if err != nil {
 			continue
 		}
-		for _, name := range docsEnvVarPattern.FindAllString(string(content), -1) {
+		for _, name := range envVarPattern.FindAllString(string(content), -1) {
 			out[name] = struct{}{}
 		}
 	}
@@ -154,6 +193,12 @@ func docsVerifyEnvironmentTruth(path string) []string {
 	return names
 }
 
+// environmentReferenceCandidates enumerates the environment reference pages to
+// read for path. For each ancestor directory it considers reference/,
+// docs/public/reference/, and docs/docs/reference/, taking both
+// environment-variables.md and the environment-*.md split pages, then adds the
+// same set relative to the working directory and its parent. Candidates are
+// deduplicated in discovery order; they are paths to try, not paths that exist.
 func environmentReferenceCandidates(path string) []string {
 	base := path
 	if info, err := os.Stat(path); err == nil && !info.IsDir() {
@@ -200,7 +245,9 @@ func environmentReferenceCandidates(path string) []string {
 	return candidates
 }
 
-func docsVerifyDefaultEnvironmentTruth() []string {
+// defaultEnvironmentTruth is the environment variable set every verify run
+// accepts even when no reference page is reachable.
+func defaultEnvironmentTruth() []string {
 	return []string{
 		"ESHU_API_KEY",
 		"ESHU_CONTENT_STORE_DSN",

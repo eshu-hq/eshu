@@ -6,8 +6,9 @@ package query
 import "testing"
 
 // TestIdentityHashMatchesUnexportedImplementation proves the exported
-// IdentityHash (the form go/cmd/api/seed_initial_admin.go and
-// go/cmd/eshu/admin_initial_credential.go call) produces byte-identical
+// IdentityHash (the form go/cmd/api/seed_initial_admin.go,
+// go/cmd/api/seed_initial_admin_helpers.go, and
+// go/internal/cli/admin/credential.go call) produces byte-identical
 // output to the package's own internal localIdentityHash, so every caller
 // inside and outside this package always agrees on the same hash for the
 // same input.

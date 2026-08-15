@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 func TestRunScanRunsBootstrapAndWaitsForHealthyPipeline(t *testing.T) {
@@ -37,7 +40,7 @@ func TestRunScanRunsBootstrapAndWaitsForHealthyPipeline(t *testing.T) {
 
 	var gotArgs []string
 	var gotEnv []string
-	scanRunBootstrap = func(_ context.Context, binary string, args []string, env []string, _ io.Writer, _ io.Writer) error {
+	scanStub.RunBootstrap = func(_ context.Context, binary string, args []string, env []string, _ io.Writer, _ io.Writer) error {
 		if binary != "/bin/eshu-bootstrap-index" {
 			t.Fatalf("binary = %q, want /bin/eshu-bootstrap-index", binary)
 		}
@@ -45,22 +48,22 @@ func TestRunScanRunsBootstrapAndWaitsForHealthyPipeline(t *testing.T) {
 		gotEnv = append([]string(nil), env...)
 		return nil
 	}
-	statuses := []scanPipelineStatus{
+	statuses := []scan.PipelineStatus{
 		{
-			Health: scanHealth{State: "healthy"},
-			Queue:  scanQueue{},
+			Health: scan.Health{State: "healthy"},
+			Queue:  scan.Queue{},
 		},
 		{
-			Health: scanHealth{State: "healthy"},
-			Queue:  scanQueue{Succeeded: 12},
-			GenerationHistory: scanGenerationHistory{
+			Health: scan.Health{State: "healthy"},
+			Queue:  scan.Queue{Succeeded: 12},
+			GenerationHistory: scan.GenerationHistory{
 				Completed: 1,
 			},
 		},
 	}
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
 		if len(statuses) == 0 {
-			t.Fatal("scanFetchPipelineStatus called more times than expected")
+			t.Fatal("FetchStatus called more times than expected")
 		}
 		next := statuses[0]
 		statuses = statuses[1:]
@@ -116,13 +119,13 @@ func TestRunScanFailsOnDeadLettersByDefault(t *testing.T) {
 	defer reset()
 
 	var scanDeadLetterFetchCount atomic.Int64
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
 		if called := scanDeadLetterFetchCount.Add(1); called == 1 {
-			return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+			return scan.PipelineStatus{Health: scan.Health{State: "healthy"}}, nil
 		}
-		return scanPipelineStatus{
-			Health: scanHealth{State: "degraded", Reasons: []string{"queue has dead-letter work"}},
-			Queue:  scanQueue{DeadLetter: 1},
+		return scan.PipelineStatus{
+			Health: scan.Health{State: "degraded", Reasons: []string{"queue has dead-letter work"}},
+			Queue:  scan.Queue{DeadLetter: 1},
 		}, nil
 	}
 
@@ -140,14 +143,14 @@ func TestRunScanJSONUsesCanonicalEnvelope(t *testing.T) {
 	defer reset()
 
 	var scanJSONFetchCount atomic.Int64
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
 		if called := scanJSONFetchCount.Add(1); called == 1 {
-			return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+			return scan.PipelineStatus{Health: scan.Health{State: "healthy"}}, nil
 		}
-		return scanPipelineStatus{
-			Health: scanHealth{State: "healthy"},
-			Queue:  scanQueue{Succeeded: 4},
-			GenerationHistory: scanGenerationHistory{
+		return scan.PipelineStatus{
+			Health: scan.Health{State: "healthy"},
+			Queue:  scan.Queue{Succeeded: 4},
+			GenerationHistory: scan.GenerationHistory{
 				Completed: 1,
 			},
 		}, nil
@@ -191,11 +194,11 @@ func TestRunScanReturnsPreflightFailureBeforeBootstrap(t *testing.T) {
 	reset := stubScanRuntime(t)
 	defer reset()
 
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{}, errors.New("connection refused")
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{}, errors.New("connection refused")
 	}
 	calledBootstrap := false
-	scanRunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
+	scanStub.RunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
 		calledBootstrap = true
 		return nil
 	}
@@ -205,7 +208,7 @@ func TestRunScanReturnsPreflightFailureBeforeBootstrap(t *testing.T) {
 		t.Fatal("runScan() error = nil, want preflight failure")
 	}
 	if calledBootstrap {
-		t.Fatal("scanRunBootstrap called after failed preflight")
+		t.Fatal("RunBootstrap called after failed preflight")
 	}
 }
 
@@ -213,11 +216,11 @@ func TestRunScanJSONReturnsEnvelopeForPreflightFailure(t *testing.T) {
 	reset := stubScanRuntime(t)
 	defer reset()
 
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{}, errors.New("connection refused")
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{}, errors.New("connection refused")
 	}
 	calledBootstrap := false
-	scanRunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
+	scanStub.RunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
 		calledBootstrap = true
 		return nil
 	}
@@ -234,7 +237,7 @@ func TestRunScanJSONReturnsEnvelopeForPreflightFailure(t *testing.T) {
 		t.Fatal("runScan() error = nil, want preflight failure")
 	}
 	if calledBootstrap {
-		t.Fatal("scanRunBootstrap called after failed preflight")
+		t.Fatal("RunBootstrap called after failed preflight")
 	}
 	assertScanJSONError(t, out.Bytes(), "scan preflight status check")
 }
@@ -244,7 +247,7 @@ func TestRunScanAppliesTimeoutToBootstrapContext(t *testing.T) {
 	defer reset()
 
 	var sawDeadline bool
-	scanRunBootstrap = func(ctx context.Context, _ string, _ []string, _ []string, _ io.Writer, _ io.Writer) error {
+	scanStub.RunBootstrap = func(ctx context.Context, _ string, _ []string, _ []string, _ io.Writer, _ io.Writer) error {
 		_, sawDeadline = ctx.Deadline()
 		return context.DeadlineExceeded
 	}
@@ -263,81 +266,18 @@ func TestRunScanAppliesTimeoutToBootstrapContext(t *testing.T) {
 	}
 }
 
-func TestWaitForScanReadinessStopsOnContextCancellation(t *testing.T) {
-	reset := stubScanRuntime(t)
-	defer reset()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	var fetches atomic.Int64
-	scanFetchPipelineStatus = func(*APIClient) (scanPipelineStatus, error) {
-		fetches.Add(1)
-		return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
-	}
-
-	_, err := waitForScanReadiness(
-		ctx,
-		&APIClient{},
-		scanOptions{Timeout: time.Minute, PollInterval: time.Second},
-		scanResult{StatusReport: scanPipelineStatus{Health: scanHealth{State: "progressing"}}},
-		time.Now(),
-		time.Now(),
-	)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("waitForScanReadiness() error = %v, want context canceled", err)
-	}
-	if got := fetches.Load(); got != 0 {
-		t.Fatalf("status fetches after canceled context = %d, want 0", got)
-	}
-}
-
-func TestEvaluateScanReadinessTreatsActiveGenerationAsCurrentWhenDrained(t *testing.T) {
-	status := scanPipelineStatus{
-		Health: scanHealth{State: "healthy"},
-		Queue:  scanQueue{Succeeded: 9},
-		GenerationHistory: scanGenerationHistory{
-			Active: 1,
-		},
-	}
-
-	verdict := evaluateScanReadiness(status)
-
-	if !verdict.Ready {
-		t.Fatalf("verdict.Ready = false, want true; reason=%q", verdict.Reason)
-	}
-}
-
-func TestEvaluateScanReadinessWaitsForPendingGeneration(t *testing.T) {
-	status := scanPipelineStatus{
-		Health: scanHealth{State: "healthy"},
-		Queue:  scanQueue{Succeeded: 9},
-		GenerationHistory: scanGenerationHistory{
-			Pending: 1,
-		},
-	}
-
-	verdict := evaluateScanReadiness(status)
-
-	if verdict.Ready {
-		t.Fatal("verdict.Ready = true, want false while a generation is still pending")
-	}
-	if verdict.Terminal {
-		t.Fatal("verdict.Terminal = true, want retryable pending-generation verdict")
-	}
-}
-
 func TestRunScanAllowPartialPrintsHumanWarning(t *testing.T) {
 	reset := stubScanRuntime(t)
 	defer reset()
 
 	var fetchCount atomic.Int64
-	scanFetchPipelineStatus = func(_ *APIClient) (scanPipelineStatus, error) {
+	scanStub.FetchStatus = func(scan.Client) (scan.PipelineStatus, error) {
 		if fetchCount.Add(1) == 1 {
-			return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+			return scan.PipelineStatus{Health: scan.Health{State: "healthy"}}, nil
 		}
-		return scanPipelineStatus{
-			Health: scanHealth{State: "degraded", Reasons: []string{"queue has dead-letter work"}},
-			Queue:  scanQueue{DeadLetter: 1},
+		return scan.PipelineStatus{
+			Health: scan.Health{State: "degraded", Reasons: []string{"queue has dead-letter work"}},
+			Queue:  scan.Queue{DeadLetter: 1},
 		}, nil
 	}
 
@@ -376,6 +316,29 @@ func TestScanCommandIsRegisteredWithReadinessFlags(t *testing.T) {
 	}
 }
 
+// TestDefaultScanRuntimeWiresEveryRequiredSeam guards the production wiring.
+// internal/cli/scan rejects a Runtime missing a process seam, so a field this
+// wrapper forgot to set would otherwise only surface on a real scan.
+func TestDefaultScanRuntimeWiresEveryRequiredSeam(t *testing.T) {
+	rt := defaultScanRuntime(&APIClient{BaseURL: "http://localhost:8080"})
+
+	if rt.Client == nil {
+		t.Fatal("Runtime.Client = nil, want the API client")
+	}
+	if rt.ServiceURL != "http://localhost:8080" {
+		t.Fatalf("Runtime.ServiceURL = %q, want the client base URL", rt.ServiceURL)
+	}
+	if len(rt.Environ) == 0 {
+		t.Fatal("Runtime.Environ is empty, want the process environment")
+	}
+	if rt.LookPath == nil || rt.RunBootstrap == nil {
+		t.Fatal("Runtime.LookPath/RunBootstrap = nil, want the process seams wired")
+	}
+	if rt.FetchStatus == nil || rt.FetchQueryProbe == nil {
+		t.Fatal("Runtime.FetchStatus/FetchQueryProbe = nil, want the API reads wired")
+	}
+}
+
 func assertScanJSONError(t *testing.T, contents []byte, want string) {
 	t.Helper()
 	var payload map[string]any
@@ -405,53 +368,64 @@ func newTestScanCommand(t *testing.T) *cobra.Command {
 	return cmd
 }
 
+// scanStub is the fake scan runtime stubScanRuntime installs. Tests override
+// individual seams on it after calling stubScanRuntime. A nil Environ resolves
+// through procexec.Environ at command-run time, exactly as production does, so a
+// t.Setenv after the stub still reaches the bootstrap child's environment.
+var scanStub scan.Runtime
+
+// stubScanRuntime replaces the production scan runtime factory with one that
+// runs no bootstrap child, resolves no PATH, and reads no API. The returned
+// function restores the factory.
 func stubScanRuntime(t *testing.T) func() {
 	t.Helper()
-	originalLookPath := scanLookPath
-	originalRunBootstrap := scanRunBootstrap
-	originalFetchStatus := scanFetchPipelineStatus
-	originalFetchQueryProbe := scanFetchQueryProbe
-	originalNow := scanNow
-	originalWait := scanWait
+	original := scanRuntimeFor
 
-	scanLookPath = func(file string) (string, error) {
-		if file != "eshu-bootstrap-index" {
-			t.Fatalf("scanLookPath(%q), want eshu-bootstrap-index", file)
-		}
-		return "/bin/eshu-bootstrap-index", nil
-	}
-	scanRunBootstrap = func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
-		return nil
-	}
-	scanFetchPipelineStatus = func(*APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{
-			Health: scanHealth{State: "healthy"},
-			Queue:  scanQueue{},
-			GenerationHistory: scanGenerationHistory{
-				Completed: 1,
-			},
-		}, nil
-	}
-	scanFetchQueryProbe = func(*APIClient) (map[string]any, error) {
-		return map[string]any{
-			"data":  map[string]any{"repositories": []any{}},
-			"truth": map[string]any{"basis": "authoritative_graph"},
-			"error": nil,
-		}, nil
-	}
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
-	scanNow = func() time.Time {
-		now = now.Add(time.Second)
-		return now
+	scanStub = scan.Runtime{
+		LookPath: func(file string) (string, error) {
+			if file != "eshu-bootstrap-index" {
+				t.Fatalf("LookPath(%q), want eshu-bootstrap-index", file)
+			}
+			return "/bin/eshu-bootstrap-index", nil
+		},
+		RunBootstrap: func(context.Context, string, []string, []string, io.Writer, io.Writer) error {
+			return nil
+		},
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{
+				Health: scan.Health{State: "healthy"},
+				Queue:  scan.Queue{},
+				GenerationHistory: scan.GenerationHistory{
+					Completed: 1,
+				},
+			}, nil
+		},
+		FetchQueryProbe: func(scan.Client) (map[string]any, error) {
+			return map[string]any{
+				"data":  map[string]any{"repositories": []any{}},
+				"truth": map[string]any{"basis": "authoritative_graph"},
+				"error": nil,
+			}, nil
+		},
+		Now: func() time.Time {
+			now = now.Add(time.Second)
+			return now
+		},
+		Wait: func(context.Context, time.Duration) error { return nil },
 	}
-	scanWait = func(context.Context, time.Duration) error { return nil }
+
+	scanRuntimeFor = func(client *APIClient) scan.Runtime {
+		rt := scanStub
+		rt.Client = client
+		rt.ServiceURL = client.BaseURL
+		if rt.Environ == nil {
+			rt.Environ = procexec.Environ()
+		}
+		return rt
+	}
 
 	return func() {
-		scanLookPath = originalLookPath
-		scanRunBootstrap = originalRunBootstrap
-		scanFetchPipelineStatus = originalFetchStatus
-		scanFetchQueryProbe = originalFetchQueryProbe
-		scanNow = originalNow
-		scanWait = originalWait
+		scanRuntimeFor = original
 	}
 }

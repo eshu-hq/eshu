@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // rootCauseSentinel is a distinctive substring asserted in every classified
@@ -116,8 +118,8 @@ func TestClassifyIndexingNotReady(t *testing.T) {
 		Step:       onboardingStepReadiness,
 		Shape:      firstRunShapeExistingAPI,
 		Underlying: errors.New(rootCauseSentinel + ": scan readiness timed out: queue still has outstanding work"),
-		Readiness:  scanReadinessVerdict{Reason: "queue still has outstanding work"},
-		Queue:      scanQueue{Outstanding: 12, Pending: 12},
+		Readiness:  scan.ReadinessVerdict{Reason: "queue still has outstanding work"},
+		Queue:      scan.Queue{Outstanding: 12, Pending: 12},
 	}
 	got, ok := classifyOnboardingFailure(signal)
 	assertDiagnostic(t, got, ok, onboardingClassIndexingNotReady, "indexing is still")
@@ -129,8 +131,8 @@ func TestClassifyQueueFailedWork(t *testing.T) {
 		Step:       onboardingStepReadiness,
 		Shape:      firstRunShapeExistingAPI,
 		Underlying: errors.New(rootCauseSentinel + ": queue has dead-letter work"),
-		Readiness:  scanReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
-		Queue:      scanQueue{DeadLetter: 3, Failed: 1},
+		Readiness:  scan.ReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
+		Queue:      scan.Queue{DeadLetter: 3, Failed: 1},
 	}
 	got, ok := classifyOnboardingFailure(signal)
 	assertDiagnostic(t, got, ok, onboardingClassQueueFailedWork, "Queue has")
@@ -147,14 +149,14 @@ func TestRecoveryStepsReferenceRealCommands(t *testing.T) {
 	queueSignal := onboardingSignal{
 		Step:       onboardingStepReadiness,
 		Underlying: rootCauseErr(),
-		Readiness:  scanReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
-		Queue:      scanQueue{DeadLetter: 3, Failed: 1},
+		Readiness:  scan.ReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
+		Queue:      scan.Queue{DeadLetter: 3, Failed: 1},
 	}
 	buildingSignal := onboardingSignal{
 		Step:       onboardingStepReadiness,
 		Underlying: rootCauseErr(),
-		Readiness:  scanReadinessVerdict{Reason: "queue still has outstanding work"},
-		Queue:      scanQueue{Outstanding: 12, Pending: 12},
+		Readiness:  scan.ReadinessVerdict{Reason: "queue still has outstanding work"},
+		Queue:      scan.Queue{Outstanding: 12, Pending: 12},
 	}
 
 	for _, tc := range []struct {

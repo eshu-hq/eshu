@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 )
 
@@ -44,7 +45,7 @@ func TestRunDocsVerifyChecksContainerImageClaims(t *testing.T) {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -54,7 +55,7 @@ func TestRunDocsVerifyChecksContainerImageClaims(t *testing.T) {
 		t.Fatal("docs verify error = nil, want non-zero for contradicted image finding")
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -66,57 +67,6 @@ func TestRunDocsVerifyChecksContainerImageClaims(t *testing.T) {
 	}
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/api:1.2.3", "valid")
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/missing:9.9.9", "contradicted")
-}
-
-func TestDocsVerifyContainerImageTruthMarksOversizedManifestIncomplete(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.WriteFile(
-		filepath.Join(root, "deployment.yaml"),
-		bytes.Repeat([]byte("x"), docsVerifyImageTruthMaxFileBytes+1),
-		0o600,
-	); err != nil {
-		t.Fatalf("WriteFile(deployment.yaml) error = %v, want nil", err)
-	}
-
-	_, complete := docsVerifyContainerImageTruth(root)
-	if complete {
-		t.Fatal("docsVerifyContainerImageTruth complete = true, want false for oversized manifest")
-	}
-}
-
-func TestDocsVerifyContainerImageResolverScansLazily(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.Mkdir(filepath.Join(root, ".git"), 0o700); err != nil {
-		t.Fatalf("Mkdir(.git) error = %v, want nil", err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(root, "deployment.yaml"),
-		[]byte("image: ghcr.io/acme/api:1.2.3\n"),
-		0o600,
-	); err != nil {
-		t.Fatalf("WriteFile(deployment.yaml) error = %v, want nil", err)
-	}
-
-	resolver := docsVerifyLocalContainerImageResolver(root)
-	if resolver == nil {
-		t.Fatal("docsVerifyContainerImageResolver() = nil, want resolver")
-	}
-	if err := os.WriteFile(
-		filepath.Join(root, "deployment.yaml"),
-		[]byte("image: ghcr.io/acme/api:2.0.0\n"),
-		0o600,
-	); err != nil {
-		t.Fatalf("rewrite deployment.yaml error = %v, want nil", err)
-	}
-
-	resolution := resolver(doctruth.DocumentInput{}, "ghcr.io/acme/api:2.0.0")
-	if !resolution.Supported || !resolution.Exists {
-		t.Fatalf("resolution = %#v, want lazy scan to see rewritten manifest", resolution)
-	}
 }
 
 func TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth(t *testing.T) {
@@ -157,7 +107,7 @@ func TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth(t *testing.T) {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -176,7 +126,7 @@ func TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth(t *testing.T) {
 		t.Fatal("docs verify error = nil, want non-zero for API contradicted image finding")
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -207,7 +157,7 @@ func TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence(t *testing.T) {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -216,7 +166,7 @@ func TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence(t *testing.T) {
 		t.Fatalf("docs verify error = %v, want nil for missing evidence; output=%s", err, out.String())
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -231,26 +181,26 @@ func TestDocsVerifyFreshnessIncludesEffectiveImageTruthMode(t *testing.T) {
 		SourceURI:  "file:///repo/README.md",
 		RevisionID: "sha256:doc",
 	}}
-	local := docsInventoryFreshnessHint(documents, 256*1024, 50, "local")
-	api := docsInventoryFreshnessHint(documents, 256*1024, 50, "api")
+	local := docs.InventoryFreshnessHint(documents, 256*1024, 50, "local")
+	api := docs.InventoryFreshnessHint(documents, 256*1024, 50, "api")
 	if local == api {
 		t.Fatalf("freshness local = freshness api = %q, want image truth source in fingerprint", local)
 	}
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	if err := cmd.Flags().Set("image-truth", "auto"); err != nil {
 		t.Fatalf("Set(image-truth) error = %v, want nil", err)
 	}
 	if err := cmd.Flags().Set("service-url", "https://api.example.test"); err != nil {
 		t.Fatalf("Set(service-url) error = %v, want nil", err)
 	}
-	opts, err := docsVerifyOptionsFromCommand(cmd, []string{"README.md"})
+	flags, err := docsVerifyFlagsFromCommand(cmd, []string{"README.md"})
 	if err != nil {
-		t.Fatalf("docsVerifyOptionsFromCommand() error = %v, want nil", err)
+		t.Fatalf("docsVerifyFlagsFromCommand() error = %v, want nil", err)
 	}
-	if got, want := effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth), "api"; got != want {
+	if got, want := effectiveDocsVerifyImageTruth(cmd, flags.verify.ImageTruth), "api"; got != want {
 		t.Fatalf("effectiveDocsVerifyImageTruth(auto with service-url) = %q, want %q", got, want)
 	}
-	if got, want := docsInventoryFreshnessHint(documents, 256*1024, 50, effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth)), api; got != want {
+	if got, want := docs.InventoryFreshnessHint(documents, 256*1024, 50, effectiveDocsVerifyImageTruth(cmd, flags.verify.ImageTruth)), api; got != want {
 		t.Fatalf("auto+service-url freshness = %q, want api freshness %q", got, want)
 	}
 }

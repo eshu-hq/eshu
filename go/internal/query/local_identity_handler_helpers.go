@@ -378,10 +378,11 @@ func localIdentityActorClass(auth AuthContext) governanceaudit.ActorClass {
 	}
 }
 
-// IdentityHash is the exported form of localIdentityHash, for the two
-// callers outside this package that need the identical "sha256:<hex>"
-// hash-only identity-field convention: go/cmd/api/seed_initial_admin.go and
-// go/cmd/eshu/admin_initial_credential.go. Every hash-only identity field
+// IdentityHash is the exported form of localIdentityHash, for the callers
+// outside this package that need the identical "sha256:<hex>" hash-only
+// identity-field convention: go/cmd/api/seed_initial_admin.go,
+// go/cmd/api/seed_initial_admin_helpers.go, and
+// go/internal/cli/admin/credential.go. Every hash-only identity field
 // this codebase writes or compares (subject_id_hash, profile_handle_hash,
 // recovery-code hashes, policy revision hash, password_parameters_hash) MUST
 // use this single implementation so the local-identity surface never

@@ -11,11 +11,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 )
 
 type vulnScanRepoOptions struct {
-	Scan         scanOptions
+	Scan         scan.Options
 	Limit        int
 	ImpactStatus string
 	RepoID       string
@@ -105,7 +106,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	if opts.Scan.JSON || opts.ExportFormat != "" {
 		scanStdout = cmd.ErrOrStderr()
 	}
-	scanResult, err := executeScan(cmd.Context(), scanStdout, cmd.ErrOrStderr(), client, opts.Scan, !opts.Scan.JSON)
+	scanResult, err := scan.Execute(cmd.Context(), scanStdout, cmd.ErrOrStderr(), scanRuntimeFor(client), opts.Scan, !opts.Scan.JSON)
 	result.Scan = scanResult
 	result.Status = scanResult.Status
 	result.Warnings = append(result.Warnings, scanResult.Warnings...)
@@ -239,7 +240,7 @@ func finishVulnScanRepo(
 	err error,
 ) error {
 	if truth == nil {
-		truth = scanTruth("stale", "partial", opts.Scan.Profile, currentGraphBackend())
+		truth = scan.Truth("stale", "partial", opts.Scan.Profile, scan.CurrentGraphBackend())
 	}
 	report := vulnscan.BuildReport(result, vulnscan.Now())
 	result.Report = &report

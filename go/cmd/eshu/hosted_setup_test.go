@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
@@ -25,10 +26,10 @@ func hostedClientWithKey() *APIClient {
 
 // readyStatus returns a drained, healthy pipeline status with one completed
 // generation so the readiness classifier reports ready.
-func readyStatus() scanPipelineStatus {
-	return scanPipelineStatus{
-		Health:            scanHealth{State: "healthy"},
-		GenerationHistory: scanGenerationHistory{Completed: 1},
+func readyStatus() scan.PipelineStatus {
+	return scan.PipelineStatus{
+		Health:            scan.Health{State: "healthy"},
+		GenerationHistory: scan.GenerationHistory{Completed: 1},
 	}
 }
 
@@ -38,7 +39,7 @@ func okHostedDeps() hostedSetupDeps {
 	return hostedSetupDeps{
 		Health:      func(*APIClient) error { return nil },
 		Ready:       func(*APIClient) error { return nil },
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) { return readyStatus(), nil },
+		FetchStatus: func(*APIClient) (scan.PipelineStatus, error) { return readyStatus(), nil },
 		ListTools:   mcp.ReadOnlyTools,
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			return repositoryListResponse{Repositories: []repositorySelectorEntry{{Name: "acme/api"}}}, nil
@@ -125,8 +126,8 @@ func TestHostedSetupAuthFailureCategory(t *testing.T) {
 func TestHostedSetupEmptyIndexCategory(t *testing.T) {
 	t.Parallel()
 	deps := okHostedDeps()
-	deps.FetchStatus = func(*APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+	deps.FetchStatus = func(*APIClient) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{Health: scan.Health{State: "healthy"}}, nil
 	}
 	deps.ListRepos = func(*APIClient) (repositoryListResponse, error) {
 		return repositoryListResponse{}, nil
@@ -146,10 +147,10 @@ func TestHostedSetupEmptyIndexCategory(t *testing.T) {
 func TestHostedSetupStaleReadinessCategory(t *testing.T) {
 	t.Parallel()
 	deps := okHostedDeps()
-	deps.FetchStatus = func(*APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{
-			Health:            scanHealth{State: "stalled", Reasons: []string{"no progress"}},
-			GenerationHistory: scanGenerationHistory{Completed: 1},
+	deps.FetchStatus = func(*APIClient) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{
+			Health:            scan.Health{State: "stalled", Reasons: []string{"no progress"}},
+			GenerationHistory: scan.GenerationHistory{Completed: 1},
 		}, nil
 	}
 	result, _ := executeHostedSetup(hostedClientWithKey(), deps, baseHostedOptions())
@@ -164,11 +165,11 @@ func TestHostedSetupStaleReadinessCategory(t *testing.T) {
 func TestHostedSetupPartialReadinessCategory(t *testing.T) {
 	t.Parallel()
 	deps := okHostedDeps()
-	deps.FetchStatus = func(*APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{
-			Health:            scanHealth{State: "healthy"},
-			Queue:             scanQueue{Outstanding: 3, Pending: 3},
-			GenerationHistory: scanGenerationHistory{Completed: 1},
+	deps.FetchStatus = func(*APIClient) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{
+			Health:            scan.Health{State: "healthy"},
+			Queue:             scan.Queue{Outstanding: 3, Pending: 3},
+			GenerationHistory: scan.GenerationHistory{Completed: 1},
 		}, nil
 	}
 	result, _ := executeHostedSetup(hostedClientWithKey(), deps, baseHostedOptions())
@@ -260,7 +261,7 @@ func TestClassifyIndexReadinessVariants(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		status   scanPipelineStatus
+		status   scan.PipelineStatus
 		repos    int
 		wantCat  hostedFailCategory
 		wantDone bool
@@ -274,28 +275,28 @@ func TestClassifyIndexReadinessVariants(t *testing.T) {
 		},
 		{
 			name:     "empty index",
-			status:   scanPipelineStatus{Health: scanHealth{State: "healthy"}},
+			status:   scan.PipelineStatus{Health: scan.Health{State: "healthy"}},
 			repos:    0,
 			wantCat:  hostedFailEmptyIndex,
 			wantDone: false,
 		},
 		{
 			name:     "partial outstanding work",
-			status:   scanPipelineStatus{Health: scanHealth{State: "healthy"}, Queue: scanQueue{Outstanding: 2, Pending: 2}, GenerationHistory: scanGenerationHistory{Completed: 1}},
+			status:   scan.PipelineStatus{Health: scan.Health{State: "healthy"}, Queue: scan.Queue{Outstanding: 2, Pending: 2}, GenerationHistory: scan.GenerationHistory{Completed: 1}},
 			repos:    1,
 			wantCat:  hostedFailPartialReadiness,
 			wantDone: false,
 		},
 		{
 			name:     "building no generation yet",
-			status:   scanPipelineStatus{Health: scanHealth{State: "healthy"}},
+			status:   scan.PipelineStatus{Health: scan.Health{State: "healthy"}},
 			repos:    1,
 			wantCat:  hostedFailPartialReadiness,
 			wantDone: false,
 		},
 		{
 			name:     "stale degraded",
-			status:   scanPipelineStatus{Health: scanHealth{State: "degraded", Reasons: []string{"backend slow"}}, GenerationHistory: scanGenerationHistory{Completed: 1}},
+			status:   scan.PipelineStatus{Health: scan.Health{State: "degraded", Reasons: []string{"backend slow"}}, GenerationHistory: scan.GenerationHistory{Completed: 1}},
 			repos:    1,
 			wantCat:  hostedFailStaleReadiness,
 			wantDone: false,

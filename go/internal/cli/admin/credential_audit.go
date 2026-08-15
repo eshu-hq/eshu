@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package admin
 
 import (
 	"context"
@@ -16,13 +16,14 @@ import (
 // Bootstrap admin credential CLI durable audit events (issue #4963
 // acceptance criterion: "Bootstrap mode choice, generation, retrieval, and
 // reset are durable audit events (values excluded)"). Retrieval and reset
-// only ever happen through this CLI (`eshu admin initial-credential` /
-// `reset-initial-credential`), never through the API process, so their
+// only ever happen through the `eshu admin initial-credential` /
+// `reset-initial-credential` commands, whose logic this package holds, never
+// through the API process, so their
 // audit events live here rather than in
-// go/cmd/api/seed_initial_admin_audit.go (which covers the two events the
+// go/cmd/api/seed_initial_admin_audit.go, which covers the two events the
 // API process itself observes: mode choice and credential generation at
-// startup) — cmd/api and cmd/eshu are separate main packages and cannot
-// share unexported code. Every event below carries only bounded metadata
+// startup. That file is in `package main` and cannot be imported, so the
+// two sides stay separate implementations. Every event below carries only bounded metadata
 // (event kind via ReasonCode, tenant/workspace, timestamp, and key_id via
 // CorrelationID) — never the retrieved or regenerated plaintext password,
 // recovery code, or sealed ciphertext. Reason codes follow the
@@ -36,15 +37,15 @@ const (
 )
 
 // newAdminCredentialAuditAppender builds the durable governance-audit
-// appender from the CLI's own Postgres handle. appender is nil only when db
+// appender from the Postgres handle the caller supplies. appender is nil only when db
 // is nil (defensive; every real call site always has an open connection),
 // matching every other governance-audit call site in this codebase (see
 // go/cmd/api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
 // never fails the primary operation because audit wiring is unavailable.
-// Returns query.GovernanceAuditAppender (this binary already depends on
-// internal/query elsewhere — see local_host_config.go and friends — so
-// reusing its interface here, rather than declaring a structurally-identical
-// local one, is not a new dependency edge).
+// Returns query.GovernanceAuditAppender: credential.go already imports
+// internal/query for query.IdentityHash, so reusing its interface here,
+// rather than declaring a structurally-identical local one, is not a new
+// dependency edge.
 func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) query.GovernanceAuditAppender {
 	if db == nil {
 		return nil
@@ -61,9 +62,10 @@ func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) query.GovernanceA
 // credential's first login consumes it, so that an attempt happened, when,
 // and whether it succeeded must all be durably recorded (epic #4962
 // acceptance criterion) — a failed attempt (already consumed, wrong DEK) is
-// as security-relevant as a successful one. This CLI has no login/session of
-// its own (it authenticates directly with ESHU_POSTGRES_DSN + the DEK, the
-// same trust boundary as the API process itself), so there is no
+// as security-relevant as a successful one. The command has no login/session
+// of its own (go/cmd/eshu opens Postgres from ESHU_POSTGRES_DSN and resolves
+// the data-encryption key, the same trust boundary as the API process
+// itself), so there is no
 // per-operator identity to attribute the event to; ActorClassSystem below
 // reflects that honestly rather than fabricating an ActorIDHash
 // NormalizeEvent would otherwise require for ActorClassOperator. keyID is
@@ -83,10 +85,13 @@ func auditBootstrapCredentialRetrieved(ctx context.Context, appender query.Gover
 // auditBootstrapCredentialReset records a reset/regeneration attempt of the
 // bootstrap admin credential via `eshu admin reset-initial-credential`,
 // success or failure (see auditBootstrapCredentialRetrieved's doc comment
-// for why both outcomes are audited). keyID is always the newly-sealed
-// replacement envelope's key id: Seal (and EnvelopeKeyID) already succeeded
-// before ResetBootstrapCredential's persistence call is attempted, so a
-// persistence failure still has a real key id to correlate against.
+// for why both outcomes are audited). ResetInitialCredential calls this on
+// every return, so keyID depends on how far the reset got: once Seal (and
+// EnvelopeKeyID) succeeded it is the newly-sealed replacement envelope's key
+// id — a later persistence failure still has a real key id to correlate
+// against — while a failure before sealing carries the prior envelope's key
+// id when blank-username recovery resolved one, and "" when no envelope was
+// ever resolved (see resetInitialCredential's doc comment).
 func auditBootstrapCredentialReset(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, resetErr error) {
 	reason := bootstrapCredentialAuditReasonReset
 	decision := governanceaudit.DecisionAllowed

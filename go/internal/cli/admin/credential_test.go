@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package admin
 
 import (
 	"bytes"
@@ -207,7 +207,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 		t.Fatalf("GenerateFromPassword() error = %v", err)
 	}
 	newHash := string(newHashBytes)
-	newPayload, err := json.Marshal(bootstrapCredentialPayloadCLI{
+	newPayload, err := json.Marshal(BootstrapCredentialPayload{
 		Username: "admin", Password: newPassword, RecoveryCode: newRecovery,
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 	"github.com/eshu-hq/eshu/go/internal/vulnerabilityparityproof"
 )
@@ -140,7 +141,7 @@ func finishVulnScanProviderParity(
 	data := vulnscan.ParityData(report, opts.Parity)
 	envelope := vulnScanProviderParityEnvelope{
 		Data:  data,
-		Truth: scanTruth("exact", "fresh", "operator_provider_parity", currentGraphBackend()),
+		Truth: scan.Truth("exact", "fresh", "operator_provider_parity", scan.CurrentGraphBackend()),
 	}
 	if err != nil {
 		envelope.Error = &vulnscan.RepoError{Message: err.Error()}

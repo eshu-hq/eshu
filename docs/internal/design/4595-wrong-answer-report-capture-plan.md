@@ -96,7 +96,7 @@ string into any error it returns.
   type (`client.go:17`) and decode per-verb `{data, truth, error}` structs
   (example: `go/cmd/eshu/trace.go:146-151`).
 - `go/cmd/eshu` already imports `go/internal/query` directly
-  (`go/cmd/eshu/admin_initial_credential_audit.go:12`), so the bundle can
+  (`go/cmd/eshu/local_host_config.go`), so the bundle can
   embed the real envelope types instead of copies.
 - Top-level command name `report` is FREE: `report` exists only as a
   subcommand of `operator-digest` (`operator_digest_cmd.go:76`) and

@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -27,7 +28,7 @@ type firstRunRuntimeProbe struct {
 func defaultFirstRunRuntimeProbe() firstRunRuntimeProbe {
 	return firstRunRuntimeProbe{
 		APIHealthy: firstRunAPIHealthy,
-		LookPath:   scanLookPath,
+		LookPath:   exec.LookPath,
 		FileExists: pathExists,
 	}
 }

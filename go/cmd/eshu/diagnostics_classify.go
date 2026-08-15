@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // onboardingSignal is the pure, structured input to the classifier. It carries
@@ -41,9 +42,9 @@ type onboardingSignal struct {
 	APIBaseURL string
 
 	// Readiness is the readiness verdict when the failure is readiness-related.
-	Readiness scanReadinessVerdict
+	Readiness scan.ReadinessVerdict
 	// Queue is the queue snapshot used to distinguish stuck vs failed work.
-	Queue scanQueue
+	Queue scan.Queue
 
 	// EmptyRepoList marks that the repository list/selector returned nothing.
 	EmptyRepoList bool
@@ -292,12 +293,12 @@ func isAuthError(err error) bool {
 
 // queueHasFailedWork reports whether the queue snapshot carries failed,
 // retrying, or dead-letter work that blocks readiness.
-func queueHasFailedWork(q scanQueue) bool {
+func queueHasFailedWork(q scan.Queue) bool {
 	return q.DeadLetter > 0 || q.Failed > 0 || q.Retrying > 0
 }
 
 // queueFailureDetail renders a stable, specific description of the blocked work.
-func queueFailureDetail(q scanQueue) string {
+func queueFailureDetail(q scan.Queue) string {
 	parts := make([]string, 0, 3)
 	if q.DeadLetter > 0 {
 		parts = append(parts, fmt.Sprintf("dead-letter=%d", q.DeadLetter))
@@ -317,7 +318,7 @@ func queueFailureDetail(q scanQueue) string {
 // readinessStillBuilding reports whether the pipeline is healthy-ish but
 // indexing has not finished: a non-terminal readiness verdict with outstanding
 // queue work and no failed/dead-letter items.
-func readinessStillBuilding(verdict scanReadinessVerdict, q scanQueue) bool {
+func readinessStillBuilding(verdict scan.ReadinessVerdict, q scan.Queue) bool {
 	if verdict.Ready || verdict.Terminal || queueHasFailedWork(q) {
 		return false
 	}

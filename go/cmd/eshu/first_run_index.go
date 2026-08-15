@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // ensureFirstRunIndexed brings the target repository to a queryable state. When
@@ -46,7 +48,7 @@ func ensureFirstRunIndexed(
 		}, fmt.Errorf("index repository: scan seam is not configured")
 	}
 
-	scanOpts := scanOptions{
+	scanOpts := scan.Options{
 		Wait:         true,
 		Timeout:      opts.Timeout,
 		PollInterval: opts.PollInterval,
@@ -55,7 +57,7 @@ func ensureFirstRunIndexed(
 	}
 	resolveReposDir := deps.ReposDir
 	if resolveReposDir == nil {
-		resolveReposDir = scanReposDir
+		resolveReposDir = scan.ReposDir
 	}
 	reposDir, err := resolveReposDir(deps.WorkspaceRoot)
 	if err != nil {
@@ -68,7 +70,7 @@ func ensureFirstRunIndexed(
 	}
 	scanOpts.ReposDir = reposDir
 
-	result, err := deps.RunScan(ctx, stdout, stderr, client, scanOpts, false)
+	result, err := deps.RunScan(ctx, stdout, stderr, scanRuntimeFor(client), scanOpts, false)
 	if err != nil {
 		return firstRunIndexOutcome{
 			Status:       firstRunStepFailed,
@@ -104,7 +106,7 @@ func firstRunDetectExistingIndex(deps firstRunDeps, client *APIClient) (firstRun
 	if err != nil {
 		return firstRunIndexOutcome{}, false
 	}
-	verdict := evaluateScanReadiness(status)
+	verdict := scan.EvaluateReadiness(status)
 	if !verdict.Ready {
 		return firstRunIndexOutcome{}, false
 	}
@@ -133,17 +135,17 @@ func firstRunRepoMatchesTarget(repos repositoryListResponse, workspaceRoot strin
 }
 
 // firstRunScanTarget builds the scan target for the resolved workspace root.
-func firstRunScanTarget(workspaceRoot string) scanTarget {
-	return scanTarget{
+func firstRunScanTarget(workspaceRoot string) scan.Target {
+	return scan.Target{
 		Path: workspaceRoot,
 		Root: workspaceRoot,
-		Kind: scanTargetKind(workspaceRoot, false),
+		Kind: scan.TargetKind(workspaceRoot, false),
 	}
 }
 
 // firstRunCompletenessFromScan maps a scan result status to a first-run
 // completeness label without overstating success.
-func firstRunCompletenessFromScan(result scanResult) string {
+func firstRunCompletenessFromScan(result scan.Result) string {
 	switch result.Status {
 	case "ready":
 		return "complete"
@@ -157,7 +159,7 @@ func firstRunCompletenessFromScan(result scanResult) string {
 }
 
 // firstRunReadinessFromScan extracts a human readiness label from a scan result.
-func firstRunReadinessFromScan(result scanResult) string {
+func firstRunReadinessFromScan(result scan.Result) string {
 	if state := strings.TrimSpace(result.StatusReport.Health.State); state != "" {
 		return state
 	}

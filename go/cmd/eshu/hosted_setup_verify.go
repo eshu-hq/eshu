@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // hostedHealthzPath is the deployed liveness probe path served by the runtime
@@ -40,10 +41,10 @@ func hostedProbe(path string) func(*APIClient) error {
 }
 
 // hostedFetchStatus reads the bounded pipeline status from the deployed service.
-func hostedFetchStatus(client *APIClient) (scanPipelineStatus, error) {
-	var status scanPipelineStatus
+func hostedFetchStatus(client *APIClient) (scan.PipelineStatus, error) {
+	var status scan.PipelineStatus
 	if err := client.Get(hostedStatusPath, &status); err != nil {
-		return scanPipelineStatus{}, err
+		return scan.PipelineStatus{}, err
 	}
 	return status, nil
 }
@@ -92,10 +93,10 @@ func classifyReadError(err error) hostedFailCategory {
 // repository count, returning the specific readiness category, a human detail,
 // and whether the index is fully ready. The categories never collapse: an empty
 // index, a building/partial pipeline, and a stale/degraded pipeline are each
-// reported distinctly. It reuses evaluateScanReadiness for the terminal/stale
+// reported distinctly. It reuses scan.EvaluateReadiness for the terminal/stale
 // verdict so the hosted flow agrees with the local readiness contract.
-func classifyIndexReadiness(status scanPipelineStatus, repoCount int) (hostedFailCategory, string, bool) {
-	verdict := evaluateScanReadiness(status)
+func classifyIndexReadiness(status scan.PipelineStatus, repoCount int) (hostedFailCategory, string, bool) {
+	verdict := scan.EvaluateReadiness(status)
 
 	// A terminal verdict means failed, dead-letter, degraded, or stalled work:
 	// the indexed truth is not trustworthy, so report stale-readiness.

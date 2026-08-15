@@ -11,9 +11,9 @@ import (
 
 // localIdentityRecoveryCodeFactorKind is the identity_mfa_factors.factor_kind
 // value ResetBootstrapCredential re-enrolls. It matches go/cmd/api's
-// seed_initial_admin.go bootstrapAdminMFAFactorKind constant (the two main
-// packages cannot share an unexported constant across binaries — see
-// bootstrapCredentialPayloadCLI's doc comment in go/cmd/eshu), so the factor
+// seed_initial_admin.go bootstrapAdminMFAFactorKind constant (go/cmd/api is
+// `package main` and cannot be imported — see BootstrapCredentialPayload's
+// doc comment in go/internal/cli/admin/credential.go), so the factor
 // this reset installs is indistinguishable in kind from the one bootstrap
 // originally seeded.
 const localIdentityRecoveryCodeFactorKind = "recovery_code"
