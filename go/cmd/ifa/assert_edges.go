@@ -196,8 +196,8 @@ func assertMaterializedEdges(
 				}
 			}
 		}
-		fromUID := endpointID(edge.FromProps)
-		toUID := endpointID(edge.ToProps)
+		fromUID := endpointID(edge.FromProps, edge.FromLabels)
+		toUID := endpointID(edge.ToProps, edge.ToLabels)
 		if fromUID == "" || toUID == "" {
 			// Name WHICH side is unidentified. This branch fires when either
 			// endpoint lacks an identity, so a message asserting both are missing
@@ -310,11 +310,17 @@ func assertMaterializedEdges(
 	return fmt.Errorf("%s", b.String())
 }
 
+// endpointCodeownerTeamLabel is the one node label endpointID's "ref"
+// fallback applies to. Kept as a named constant rather than an inline
+// string literal so the scoping is visible at the call site, not buried in
+// endpointID's body.
+const endpointCodeownerTeamLabel = "CodeownerTeam"
+
 // endpointID extracts a node's canonical identity: its "uid" when present,
-// its "id" next, and its "ref" last. It returns "" when none of the three is
-// present as a non-empty string, which the caller reports as an
-// unmaterialized endpoint.
-func endpointID(props map[string]any) string {
+// its "id" next, and — ONLY for a CodeownerTeam-labeled endpoint — its "ref"
+// last. It returns "" when none of those applicable checks resolves, which
+// the caller reports as an unmaterialized endpoint.
+func endpointID(props map[string]any, labels []string) string {
 	if props == nil {
 		return ""
 	}
@@ -334,13 +340,23 @@ func endpointID(props map[string]any) string {
 	if id, ok := props["id"].(string); ok && id != "" {
 		return id
 	}
-	// Fall back to "ref": CodeownerTeam is MERGEd `{ref: row.owner_ref}`
-	// (canonical_codeowners_edges.go) and carries neither uid nor id — verified
-	// repo-wide, it is the only node label any writer keys on a top-level "ref"
-	// property. Without this fallback, the target endpoint of every
-	// DECLARES_CODEOWNER edge would report as unmaterialized even though the
-	// team node exists and is correctly identified by its ref. ref stays last
-	// so a uid- or id-bearing endpoint is unaffected.
+	// Fall back to "ref", but ONLY for a CodeownerTeam-labeled endpoint:
+	// CodeownerTeam is MERGEd `{ref: row.owner_ref}`
+	// (canonical_codeowners_edges.go) and carries neither uid nor id. Without
+	// this fallback, the target endpoint of every DECLARES_CODEOWNER edge
+	// would report as unmaterialized even though the team node exists and is
+	// correctly identified by its ref.
+	//
+	// Scoped by label, not applied to every endpoint: an unscoped fallback
+	// rests entirely on the (unverifiable at this call site) claim that no
+	// OTHER label is ever keyed on a top-level "ref" property. A node in a
+	// uid/id-keyed family that lost its real identity but happened to carry
+	// an incidental "ref" would then read as "identified" instead of
+	// "unmaterialized" — the exact false pass this scoping closes. See
+	// TestRefFallbackIsScopedToCodeownerTeam.
+	if !hasLabel(labels, endpointCodeownerTeamLabel) {
+		return ""
+	}
 	ref, _ := props["ref"].(string)
 	return ref
 }

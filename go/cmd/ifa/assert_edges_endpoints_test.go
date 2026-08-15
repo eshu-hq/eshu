@@ -197,7 +197,11 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 // fallback: a CodeownerTeam endpoint, MERGEd `{ref: row.owner_ref}`
 // (canonical_codeowners_edges.go) and carrying neither uid nor id, still
 // resolves by its ref rather than reporting as an unmaterialized endpoint —
-// the exact shape a live DECLARES_CODEOWNER edge's target carries.
+// the exact shape a live DECLARES_CODEOWNER edge's target carries. ToLabels
+// is set to CodeownerTeam because the fallback is scoped to that label (see
+// TestRefFallbackIsScopedToCodeownerTeam) — a real live edge always carries
+// its endpoint's labels, so this is the realistic shape, not a simplification
+// the scoping happens to tolerate.
 func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +212,7 @@ func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 	graph := fakeEdgeReader{edges: []graphdump.Edge{{
 		Type:      "DECLARES_CODEOWNER",
 		FromProps: map[string]any{"id": "repo-1"},
+		ToLabels:  []string{"CodeownerTeam"},
 		ToProps:   map[string]any{"ref": "team-a"}, // ref-only: no uid, no id.
 	}}}
 	expected := []ifa.ExpectedEdge{
@@ -216,6 +221,39 @@ func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 
 	if err := assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected); err != nil {
 		t.Fatalf("assertMaterializedEdges(ref-only CodeownerTeam target) = %v, want nil; ref must resolve the endpoint", err)
+	}
+}
+
+// TestRefFallbackIsScopedToCodeownerTeam proves the ref fallback does NOT
+// apply globally: an endpoint of some OTHER label that lost its real
+// identity (no uid, no id) but happens to carry an incidental "ref" property
+// must still report as unmaterialized, not silently resolve by that ref. An
+// unscoped fallback would mask exactly this failure mode — a node in a
+// uid/id-keyed family that lost its real identity would read as
+// "identified" instead of "unmaterialized".
+func TestRefFallbackIsScopedToCodeownerTeam(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "DECLARES_CODEOWNER",
+		FromProps: map[string]any{"id": "repo-1"},
+		ToLabels:  []string{"SomeOtherLabel"},
+		ToProps:   map[string]any{"ref": "incidental"}, // no uid, no id -- must NOT resolve.
+	}}}
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "incidental"},
+	}
+
+	err = assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(non-CodeownerTeam endpoint with only an incidental ref) = nil, want an endpoint-defect failure")
+	}
+	if !strings.Contains(err.Error(), "endpoint") {
+		t.Errorf("error %q does not report the endpoint defect", err)
 	}
 }
 
