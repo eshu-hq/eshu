@@ -117,11 +117,15 @@ func TestDeployableUnitFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 		}
 		localPaths = append(localPaths, localPath)
 	}
-	if len(localPaths) != 2 {
-		t.Fatalf("expected 2 repository facts (app + deploy), got %d", len(localPaths))
+	if len(localPaths) != 4 {
+		t.Fatalf("expected 4 repository facts (app, deploy, rejected, jenkins), got %d", len(localPaths))
 	}
-	if localPaths[0] == localPaths[1] {
-		t.Fatalf("app and deploy repositories share local_path %q", localPaths[0])
+	seen := make(map[string]struct{}, len(localPaths))
+	for _, localPath := range localPaths {
+		if _, dup := seen[localPath]; dup {
+			t.Fatalf("two deployable-unit repositories share local_path %q", localPath)
+		}
+		seen[localPath] = struct{}{}
 	}
 	for _, sibling := range []string{sqlFamilyLocalPath, "/repo-code-calls"} {
 		for _, localPath := range localPaths {

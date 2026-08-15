@@ -58,6 +58,32 @@ const (
 	// TestDiscoverStructuredArgoCDEvidencePreservesApplicationSourceTupleAlignment's
 	// "helm-charts"/"config-repo" fixtures do.
 	deployableUnitFamilyArgoCDSourceRepoURL = "https://github.com/ifa-org/deployable-unit-family.git"
+
+	// deployableUnitFamilyRejectedRepoID carries a Dockerfile and NOTHING
+	// else -- the exact fixture shape
+	// TestDeployableUnitCorrelationHandleRejectsDockerfileOnlyCandidate proves
+	// stays below DockerfileRulePack's 0.90 MinAdmissionConfidence. Its row
+	// exists (repo_id and admission_state both populate) but admission_state
+	// never becomes "admitted", proving AdmittedDeployableUnitRows' first drop
+	// condition: a candidate can reach row construction and still be
+	// correctly excluded from the materialized set.
+	deployableUnitFamilyRejectedRepoID   = "repo-ifa-deployable-unit-rejected"
+	deployableUnitFamilyRejectedRepoName = "deployable-unit-family-rejected"
+
+	// deployableUnitFamilyAdmittedNoDeployRepoID carries a Dockerfile PLUS a
+	// Jenkinsfile -- the exact fixture shape
+	// TestDeployableUnitCorrelationHandleAdmitsJenkinsBackedServiceCandidate
+	// proves reaches JenkinsRulePack's 0.84 MinAdmissionConfidence on
+	// structural evidence ALONE, with no RelDeploysFrom resolved relationship
+	// involved at all. Its candidate is admitted (admission_state ==
+	// "admitted") but deployment_repo_id stays "" because nothing in this
+	// Odù's evidence names a deployment repository for it. This proves
+	// AdmittedDeployableUnitRows' SECOND, independent drop condition: an
+	// admitted row can still be correctly excluded from the materialized set
+	// for lacking a deployment_repo_id -- a fixture of only-admitted rows with
+	// a deployment_repo_id cannot distinguish that filter from a no-op.
+	deployableUnitFamilyAdmittedNoDeployRepoID   = "repo-ifa-deployable-unit-jenkins"
+	deployableUnitFamilyAdmittedNoDeployRepoName = "deployable-unit-family-jenkins"
 )
 
 // deployableUnitFamilyOdu returns the binary-portable catalog representation
@@ -71,6 +97,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 	// TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily's proof.
 	appLocalPath := "/repo-deployable-unit-app"
 	deployLocalPath := "/repo-deployable-unit-deploy"
+	rejectedLocalPath := "/repo-deployable-unit-rejected"
+	jenkinsLocalPath := "/repo-deployable-unit-jenkins"
 	factsForOdu := []facts.Envelope{
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID:      deployableUnitFamilyAppRepoID,
@@ -107,10 +135,57 @@ func deployableUnitFamilyOdu() CatalogOdu {
 				},
 			},
 		}),
+		// Negative case 1: Dockerfile-only, no other evidence. Reaches row
+		// construction but stays rejected (admission_state != "admitted").
+		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
+			RepoID:      deployableUnitFamilyRejectedRepoID,
+			SourceRunID: &sourceRunID,
+			LocalPath:   &rejectedLocalPath,
+			GraphID:     strPtr(deployableUnitFamilyRejectedRepoID),
+			Name:        strPtr(deployableUnitFamilyRejectedRepoName),
+		}),
+		deployableUnitCatalogFileFact(codegraphv1.File{
+			RepoID: deployableUnitFamilyRejectedRepoID, RelativePath: "Dockerfile",
+			Language: strPtr("dockerfile"),
+			ParsedFileData: map[string]any{
+				"dockerfile_stages": []any{
+					map[string]any{"name": "runtime"},
+				},
+			},
+		}),
+		// Negative case 2: Dockerfile + Jenkinsfile, admitted via
+		// JenkinsRulePack on structural evidence alone, but with no
+		// RelDeploysFrom evidence naming a deployment repository --
+		// admission_state == "admitted" AND deployment_repo_id == "".
+		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
+			RepoID:      deployableUnitFamilyAdmittedNoDeployRepoID,
+			SourceRunID: &sourceRunID,
+			LocalPath:   &jenkinsLocalPath,
+			GraphID:     strPtr(deployableUnitFamilyAdmittedNoDeployRepoID),
+			Name:        strPtr(deployableUnitFamilyAdmittedNoDeployRepoName),
+		}),
+		deployableUnitCatalogFileFact(codegraphv1.File{
+			RepoID: deployableUnitFamilyAdmittedNoDeployRepoID, RelativePath: "Dockerfile",
+			Language: strPtr("dockerfile"),
+			ParsedFileData: map[string]any{
+				"dockerfile_stages": []any{
+					map[string]any{"name": "runtime"},
+				},
+			},
+		}),
+		deployableUnitCatalogFileFact(codegraphv1.File{
+			RepoID: deployableUnitFamilyAdmittedNoDeployRepoID, RelativePath: "Jenkinsfile",
+			Language: strPtr("groovy"),
+			ParsedFileData: map[string]any{
+				"jenkins_pipeline_calls": []any{"deployShared"},
+			},
+		}),
 	}
 	return CatalogOdu{
-		Odu:    Odu{Name: deployableUnitFamilyOduName, Facts: factsForOdu},
-		Detail: "one Dockerfile-backed app repository plus one ArgoCD-deploying control repository, proving CORRELATES_DEPLOYABLE_UNIT through the real evidence-discovery and resolution seams, not a hand-authored resolved relationship",
+		Odu: Odu{Name: deployableUnitFamilyOduName, Facts: factsForOdu},
+		Detail: "one Dockerfile-backed app repository plus one ArgoCD-deploying control repository (positive case: admitted with a deployment_repo_id), " +
+			"one Dockerfile-only repository (negative case: rejected), and one Dockerfile+Jenkinsfile repository (negative case: admitted but no deployment_repo_id) -- " +
+			"proving CORRELATES_DEPLOYABLE_UNIT through the real evidence-discovery and resolution seams, and proving both of AdmittedDeployableUnitRows' independent drop conditions",
 	}
 }
 

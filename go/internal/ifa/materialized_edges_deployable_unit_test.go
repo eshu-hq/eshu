@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // TestResolveDeployableUnitMaterializedEdgesReproducesExpectedSet pins the
@@ -67,5 +69,86 @@ func TestResolveDeployableUnitMaterializedEdgesRejectsWrongExpectedSet(t *testin
 	ok, detail := resolveDeployableUnitMaterializedEdges(odu, wrongPath)
 	if ok {
 		t.Fatalf("resolveDeployableUnitMaterializedEdges() = (true, %q), want (false, ...) for a deliberately wrong fixture", detail)
+	}
+}
+
+// TestDeployableUnitAssertDropReasonsCatchesRejectedRowLeak proves
+// deployableUnitAssertDropReasons is not vacuous: a rejected candidate's row
+// leaking into the admitted set must fail, not silently pass.
+func TestDeployableUnitAssertDropReasonsCatchesRejectedRowLeak(t *testing.T) {
+	t.Parallel()
+
+	rejectedRow := reducer.SharedProjectionIntentRow{
+		RepositoryID: deployableUnitFamilyRejectedRepoID,
+		Payload:      map[string]any{"admission_state": "rejected"},
+	}
+	noDeployRow := reducer.SharedProjectionIntentRow{
+		RepositoryID: deployableUnitFamilyAdmittedNoDeployRepoID,
+		Payload:      map[string]any{"admission_state": "admitted", "deployment_repo_id": ""},
+	}
+	rows := []reducer.SharedProjectionIntentRow{rejectedRow, noDeployRow}
+	// Simulate the bug: the rejected row leaked into "admitted".
+	admitted := []reducer.SharedProjectionIntentRow{rejectedRow}
+
+	if detail := deployableUnitAssertDropReasons("odu:test", rows, admitted); detail == "" {
+		t.Fatal("deployableUnitAssertDropReasons() = \"\", want a non-empty failure detail for a leaked rejected row")
+	}
+}
+
+// TestDeployableUnitAssertDropReasonsCatchesMissingNegativeRows proves the
+// guard fails closed when the fixture no longer carries the negative-case
+// repositories at all, rather than treating their absence as vacuously fine.
+func TestDeployableUnitAssertDropReasonsCatchesMissingNegativeRows(t *testing.T) {
+	t.Parallel()
+
+	if detail := deployableUnitAssertDropReasons("odu:test", nil, nil); detail == "" {
+		t.Fatal("deployableUnitAssertDropReasons() = \"\", want a non-empty failure detail when neither negative-case row is present")
+	}
+}
+
+// TestDeployableUnitAssertDropReasonsCatchesUnexpectedDeploymentRepoID proves
+// the blank-deployment_repo_id drop reason is actually checked: a "no-deploy"
+// fixture row that unexpectedly carries a deployment_repo_id no longer
+// isolates that drop condition and must fail.
+func TestDeployableUnitAssertDropReasonsCatchesUnexpectedDeploymentRepoID(t *testing.T) {
+	t.Parallel()
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{RepositoryID: deployableUnitFamilyRejectedRepoID, Payload: map[string]any{"admission_state": "rejected"}},
+		{
+			RepositoryID: deployableUnitFamilyAdmittedNoDeployRepoID,
+			Payload:      map[string]any{"admission_state": "admitted", "deployment_repo_id": "repo-unexpected"},
+		},
+	}
+
+	if detail := deployableUnitAssertDropReasons("odu:test", rows, nil); detail == "" {
+		t.Fatal("deployableUnitAssertDropReasons() = \"\", want a non-empty failure detail when the no-deploy row unexpectedly carries a deployment_repo_id")
+	}
+}
+
+// TestDeployableUnitAssertAdmittedEdgePropertiesCatchesWrongRulePack proves
+// deployableUnitAssertAdmittedEdgeProperties is not vacuous: the bare MERGE
+// key means a repo pair admitted for the WRONG reason (here, a different
+// rule pack than argocd) must fail this check even though the edge's
+// {type, source, target} triple is unchanged.
+func TestDeployableUnitAssertAdmittedEdgePropertiesCatchesWrongRulePack(t *testing.T) {
+	t.Parallel()
+
+	admitted := []reducer.SharedProjectionIntentRow{
+		{
+			Payload: map[string]any{
+				"admission_state":     "admitted",
+				"evidence_type":       "deployable_unit_correlation",
+				"resolution_source":   "reducer/deployable-unit-correlation",
+				"generation_id":       deployableUnitFamilyGenerationID,
+				"deployable_unit_key": deployableUnitFamilyAppRepoName,
+				"correlation_key":     deployableUnitFamilyAppRepoID + ":" + deployableUnitFamilyAppRepoName,
+				"rule_pack":           "dockerfile", // wrong: this Odù's positive case is argocd-sourced.
+			},
+		},
+	}
+
+	if detail := deployableUnitAssertAdmittedEdgeProperties("odu:test", admitted); detail == "" {
+		t.Fatal("deployableUnitAssertAdmittedEdgeProperties() = \"\", want a non-empty failure detail for a rule_pack mismatch")
 	}
 }

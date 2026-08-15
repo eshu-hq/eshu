@@ -81,6 +81,89 @@
             "relative_path": "apps/deployable-unit-app.yaml",
             "repo_id": "repo-ifa-deployable-unit-deploy"
           }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-rejected",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-rejected",
+            "local_path": "/repo-deployable-unit-rejected",
+            "name": "deployable-unit-family-rejected",
+            "repo_id": "repo-ifa-deployable-unit-rejected",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-rejected:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ]
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-deployable-unit-rejected"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-jenkins",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-jenkins",
+            "local_path": "/repo-deployable-unit-jenkins",
+            "name": "deployable-unit-family-jenkins",
+            "repo_id": "repo-ifa-deployable-unit-jenkins",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-jenkins:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ]
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-jenkins:Jenkinsfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "groovy",
+            "parsed_file_data": {
+              "jenkins_pipeline_calls": [
+                "deployShared"
+              ]
+            },
+            "relative_path": "Jenkinsfile",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
         }
       ]
     }

@@ -88,6 +88,10 @@ func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	}
 
 	admitted := reducer.AdmittedDeployableUnitRows(rows)
+	if detail := deployableUnitAssertDropReasons(odu.Name, rows, admitted); detail != "" {
+		return false, detail
+	}
+
 	actual := make([]ExpectedEdge, 0, len(admitted))
 	for _, row := range admitted {
 		actual = append(actual, ExpectedEdge{
@@ -99,10 +103,103 @@ func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	if mismatch := compareDeployableUnitExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
+
+	// The MERGE key is bare (source_repo.id + deployment_repo.id + type only,
+	// canonical_deployable_unit_edges.go), so the ExpectedEdge triple above
+	// cannot distinguish a correct correlation from a wrong one for the SAME
+	// repo pair: two different correlation reasons collapse onto one edge,
+	// last-writer-wins on all 14 SET properties. Assert the ones that carry
+	// correlation truth so a regression that admits the right repo pair for
+	// the WRONG reason (wrong rule pack, wrong admission state, stale
+	// generation) still fails this guard.
+	if detail := deployableUnitAssertAdmittedEdgeProperties(odu.Name, admitted); detail != "" {
+		return false, detail
+	}
+
 	return true, fmt.Sprintf(
-		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractDeployableUnitCorrelationRows reproduces the expected %d-edge set exactly across all %d registry types",
+		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractDeployableUnitCorrelationRows reproduces the expected %d-edge set exactly across all %d registry types, proves both AdmittedDeployableUnitRows drop reasons, and matches the admitted edge's non-identity properties",
 		odu.Name, len(expected), len(registry),
 	)
+}
+
+// deployableUnitAssertDropReasons proves AdmittedDeployableUnitRows' two
+// independent drop conditions actually fire for this Odù, not merely that
+// the admitted set happens to match the expected edges. A fixture carrying
+// only rows that end up admitted cannot prove the filter exists: removing it
+// entirely would still pass an exact-set comparison over an Odù with no
+// candidate that SHOULD be dropped.
+func deployableUnitAssertDropReasons(oduName string, rows, admitted []reducer.SharedProjectionIntentRow) string {
+	admittedRepoIDs := make(map[string]struct{}, len(admitted))
+	for _, row := range admitted {
+		admittedRepoIDs[row.RepositoryID] = struct{}{}
+	}
+
+	var rejectedRow, noDeployRow *reducer.SharedProjectionIntentRow
+	for i := range rows {
+		switch rows[i].RepositoryID {
+		case deployableUnitFamilyRejectedRepoID:
+			rejectedRow = &rows[i]
+		case deployableUnitFamilyAdmittedNoDeployRepoID:
+			noDeployRow = &rows[i]
+		}
+	}
+
+	if rejectedRow == nil {
+		return fmt.Sprintf("odù %q: no row for %q; the rejected-candidate drop reason cannot be proven", oduName, deployableUnitFamilyRejectedRepoID)
+	}
+	if anyToStringValue(rejectedRow.Payload["admission_state"]) == "admitted" {
+		return fmt.Sprintf("odù %q: %q admitted unexpectedly; the Dockerfile-only fixture no longer proves the rejection drop reason", oduName, deployableUnitFamilyRejectedRepoID)
+	}
+	if _, ok := admittedRepoIDs[deployableUnitFamilyRejectedRepoID]; ok {
+		return fmt.Sprintf("odù %q: rejected candidate %q leaked into the admitted set", oduName, deployableUnitFamilyRejectedRepoID)
+	}
+
+	if noDeployRow == nil {
+		return fmt.Sprintf("odù %q: no row for %q; the blank-deployment_repo_id drop reason cannot be proven", oduName, deployableUnitFamilyAdmittedNoDeployRepoID)
+	}
+	if anyToStringValue(noDeployRow.Payload["admission_state"]) != "admitted" {
+		return fmt.Sprintf("odù %q: %q no longer reaches admission via structural evidence alone; the fixture no longer proves the blank-deployment_repo_id drop reason", oduName, deployableUnitFamilyAdmittedNoDeployRepoID)
+	}
+	if strings.TrimSpace(anyToStringValue(noDeployRow.Payload["deployment_repo_id"])) != "" {
+		return fmt.Sprintf("odù %q: %q unexpectedly carries a deployment_repo_id; the fixture no longer isolates the blank-deployment_repo_id drop reason", oduName, deployableUnitFamilyAdmittedNoDeployRepoID)
+	}
+	if _, ok := admittedRepoIDs[deployableUnitFamilyAdmittedNoDeployRepoID]; ok {
+		return fmt.Sprintf("odù %q: admitted-but-no-deploy candidate %q leaked into the admitted set", oduName, deployableUnitFamilyAdmittedNoDeployRepoID)
+	}
+
+	return ""
+}
+
+// deployableUnitAssertAdmittedEdgeProperties checks the admitted edge's
+// non-identity properties against the values this Odù's evidence must
+// produce. See resolveDeployableUnitMaterializedEdges's call site for why:
+// the bare MERGE key means the ExpectedEdge triple alone cannot catch a
+// correct repo pair admitted for the wrong reason.
+func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []reducer.SharedProjectionIntentRow) string {
+	if len(admitted) != 1 {
+		return fmt.Sprintf("odù %q: expected exactly 1 admitted row to assert non-identity properties against, got %d", oduName, len(admitted))
+	}
+	row := admitted[0]
+	want := map[string]string{
+		"admission_state":     "admitted",
+		"evidence_type":       "deployable_unit_correlation",
+		"resolution_source":   "reducer/deployable-unit-correlation",
+		"generation_id":       deployableUnitFamilyGenerationID,
+		"deployable_unit_key": deployableUnitFamilyAppRepoName,
+		"correlation_key":     deployableUnitFamilyAppRepoID + ":" + deployableUnitFamilyAppRepoName,
+		"rule_pack":           "argocd",
+	}
+	var mismatches []string
+	for key, wantValue := range want {
+		if got := anyToStringValue(row.Payload[key]); got != wantValue {
+			mismatches = append(mismatches, fmt.Sprintf("%s=%q (want %q)", key, got, wantValue))
+		}
+	}
+	if len(mismatches) == 0 {
+		return ""
+	}
+	sort.Strings(mismatches)
+	return fmt.Sprintf("odù %q: admitted edge non-identity properties do not match: %s", oduName, strings.Join(mismatches, ", "))
 }
 
 // deployableUnitFamilyIntentFromOdu derives the reducer.Intent the pure
