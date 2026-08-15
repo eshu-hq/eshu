@@ -131,6 +131,7 @@ source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
 source "${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
+source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -173,6 +174,16 @@ sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-fam
 sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 code_call_cassette="${repo_root}/testdata/cassettes/codecalls/ifa-code-call-family.json"
 code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+
+# documentation_edges family cassette (#5994): a committed cassette exercising
+# the reducer's DOCUMENTS edge materialization, including the SqlTable-target
+# case (batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation).
+# Driven into every cell alongside the SQL + code-call families; the
+# materialized_edges:documentation_edges manifest row's proof_gate:
+# ifa-determinism claim is backed by the same per-cell absolute-set assertion
+# pattern the SQL/code-call families use.
+documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
+documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
@@ -232,6 +243,8 @@ fi
 [[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
 [[ -f "${code_call_cassette}" ]] || { echo "verify-ifa-determinism: code-call cassette not found: ${code_call_cassette}" >&2; exit 1; }
 [[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-determinism: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
+[[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-determinism: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
+[[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-determinism: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -345,6 +358,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: SQL relationship baseline drive failed"
 	ifa_code_call_drive "n${n}" "${bin_dir}" "${code_call_cassette}" "${n}" "${log_dir}" \
 		|| die "N=${n}: code-call family drive failed"
+	ifa_documentation_drive "n${n}" "${bin_dir}" "${documentation_cassette}" "${n}" "${log_dir}" \
+		|| die "N=${n}: documentation family drive failed"
 
 	# Fourth drive (opt-in --contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -368,7 +383,7 @@ for n in "${worker_counts[@]}"; do
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family): %s\n' "${n}" "${work_items}"
+	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family): %s\n' "${n}" "${work_items}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()
@@ -389,6 +404,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: SQL relationship baseline assertion failed"
 	ifa_code_call_assert "N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "N=${n}: code-call family assertion failed"
+	ifa_documentation_assert "N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
+		|| die "N=${n}: documentation family assertion failed"
 
 	# #5554: gen 2 reuses source_run_id in this same durable cell and retargets
 	# INDEXES, exercising the generation-aware refresh fence end to end.
@@ -398,6 +415,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: SQL delta-live proof failed"
 	ifa_code_call_assert "post-delta N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "N=${n}: SQL generation 2 changed the code-call family's five-edge exact set"
+	ifa_documentation_assert "post-delta N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
+		|| die "N=${n}: SQL generation 2 changed the documentation family's three-edge exact set"
 
 	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \

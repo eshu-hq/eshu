@@ -155,6 +155,11 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"go/internal/reducer/code_call*.go",
 			"go/internal/storage/cypher/*code_call*.go",
 			"sdk/go/factschema/codegraph/v1/repository.go",
+			"go/internal/ifa/documentation_family_odu.go",
+			"go/internal/ifa/documentation_family_live_test.go",
+			"go/internal/reducer/documentation_edge*.go",
+			"go/internal/storage/cypher/*documentation*.go",
+			"sdk/go/factschema/documentation/v1/**",
 		} {
 			if !slices.Contains(found.Triggers, trigger) {
 				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep code_calls covered without rerunning its live proof", gateID, trigger)

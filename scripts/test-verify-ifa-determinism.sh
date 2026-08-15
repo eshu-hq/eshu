@@ -20,6 +20,7 @@ lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
 lifecycle_lib="${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
+documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
@@ -31,6 +32,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${lifecycle_lib}" ]] || fail "missing ${lifecycle_lib}"
 [[ -f "${delta_lib}" ]] || fail "missing ${delta_lib}"
 [[ -f "${code_call_lib}" ]] || fail "missing ${code_call_lib}"
+[[ -f "${documentation_lib}" ]] || fail "missing ${documentation_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
 
@@ -40,6 +42,7 @@ bash -n "${lib}" || fail "ifa_determinism_common.sh has a syntax error"
 bash -n "${lifecycle_lib}" || fail "ifa_determinism_lifecycle.sh has a syntax error"
 bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
 bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
+bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
@@ -63,6 +66,10 @@ require_code_call_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${code_call_lib}" || fail "missing ${label} (code-call lib): ${needle}"
 }
+require_documentation_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"
+}
 
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
@@ -75,6 +82,7 @@ require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
 require "sources lifecycle lib" "scripts/lib/ifa_determinism_lifecycle.sh"
 require "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
 require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
+require "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
@@ -175,6 +183,18 @@ post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post
 [[ "${delta_call_line}" =~ ^[0-9]+$ && "${post_delta_code_call_line}" =~ ^[0-9]+$ && "${post_delta_dump_line}" =~ ^[0-9]+$ \
 	&& "${delta_call_line}" -lt "${post_delta_code_call_line}" && "${post_delta_code_call_line}" -lt "${post_delta_dump_line}" ]] \
 	|| fail "every N cell must exact-assert code_calls after the SQL gen-2 drain and before its post-delta graph dump"
+
+# documentation_edges (#5994): every N cell must drive the committed cassette
+# and assert its hand-derived three-edge set (Function, Class, and the
+# SqlTable-target case, batchCanonicalDocumentationEntityEdgeCypher's MATCH
+# label alternation). Digest equality cannot detect empty == empty.
+require "documentation drive helper invocation in every cell" "ifa_documentation_drive"
+require "documentation assertion helper invocation in every cell" "ifa_documentation_assert"
+require_documentation_lib "documentation cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+require_documentation_lib "documentation assert-edges domain" "-domain documentation_edges"
+require_documentation_lib "documentation expected-set argument" '-expected "${expected_edges}"'
+require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
+
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
