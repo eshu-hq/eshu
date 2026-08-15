@@ -255,7 +255,7 @@ func TestCLIFreshnessGenerationsParityPendingBuilding(t *testing.T) {
 // DOCUMENTED TRANSPORT-SHAPE DIFFERENCE: the CLI's GetEnvelope returns a
 // transport error (not a parsed envelope) for any non-2xx status, so the typed
 // envelope error code (scope_not_found) is mapped to the HTTP-status-derived
-// code (not_found) by traceErrorCodeFromTransport. The API and MCP surfaces
+// code (not_found) by freshness.ErrorCodeFromTransport. The API and MCP surfaces
 // (which read the body) keep the precise scope_not_found code. Both surfaces
 // agree on the contract that an unknown scope is an explicit error, never a
 // confident empty answer; only the CLI's error-code granularity narrows. This

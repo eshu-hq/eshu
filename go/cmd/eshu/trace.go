@@ -380,8 +380,12 @@ func traceExitCode(code string) int {
 	}
 }
 
-// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`, `eshu map`,
-// component_api, and freshness. change.ErrorCodeFromTransport is its copy; TestTransportErrorCodeParity pins the pair.
+// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`,
+// `eshu map`, and component_api. It has two copies, not one:
+// change.ErrorCodeFromTransport and freshness.ErrorCodeFromTransport, both
+// taken because cmd/eshu is package main and cannot be imported. The freshness
+// family used to call this function and no longer does. Edit this body and
+// both copies need the same edit; TestTransportErrorCodeParity pins all three.
 func traceErrorCodeFromTransport(err error) string {
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		return "backend_unavailable"

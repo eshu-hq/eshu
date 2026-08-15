@@ -94,7 +94,11 @@ telemetry.
   error carrying both an HTTP status and the text "connection refused"
   classifies as `backend_unavailable`. The `err != nil` guards on those two
   `strings.Contains` calls are required; the status branch needs none because
-  `errors.As` reports false for a nil error.
+  `errors.As` reports false for a nil error. This function is one of three
+  identical copies — the original `traceErrorCodeFromTransport` in
+  `go/cmd/eshu/trace.go` and `change.ErrorCodeFromTransport` are the others —
+  because `go/cmd/eshu` is package main and cannot be imported.
+  `TestTransportErrorCodeParity` there holds all three to the same answers.
 - **Nothing screens the rendered error message.** `RenderEnvelopeError` prints
   a transport error verbatim, and `net/http`'s text embeds the request URL —
   the `--service-url` endpoint and every selector in the query string. A secret

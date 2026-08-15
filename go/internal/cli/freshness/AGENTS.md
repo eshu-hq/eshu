@@ -29,6 +29,13 @@
   `strings.Contains` calls run first and their `err != nil` guards are load
   bearing. `TestErrorCodeFromTransportMessagePrecedesStatus` fails if the
   order changes — it uses a status 400 whose text says "connection refused".
+- **`ErrorCodeFromTransport` is one of three identical copies.** The others are
+  `traceErrorCodeFromTransport` in `go/cmd/eshu/trace.go` (the original, still
+  serving `eshu trace`, `eshu map`, and component_api) and
+  `change.ErrorCodeFromTransport`. `go/cmd/eshu` is package main, so nothing
+  can import the original and each family carries its own. Edit one and you
+  must edit all three — `TestTransportErrorCodeParity` in `go/cmd/eshu` feeds
+  one error table to every copy and names the one that answered differently.
 - **Renderers write through `writef`.** Not `fmt.Fprintf`. See `write.go` for
   why, and do not add a second `//nolint:wrapcheck` without reading it.
 - **The value readers are private copies.** `mapValue`, `sliceValue`,

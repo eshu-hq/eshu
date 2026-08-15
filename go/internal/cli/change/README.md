@@ -104,15 +104,17 @@ owned by `go/cmd/eshu/change_impact.go`.
   `stringValue`, `intValue`, `boolValue`, `sliceValue`, and
   `ErrorCodeFromTransport` mirror `go/cmd/eshu`'s `traceMap` and friends and
   `traceErrorCodeFromTransport`, which still have callers that have not moved
-  (`component_api.go`, `map.go`, `trace.go`, `trace_render.go`, and the
-  freshness family). The two copies coexist until a shared home exists; do not
-  delete either side assuming the other covers it.
+  (`component_api.go`, `contract.go`, `map.go`, `trace.go`, and
+  `trace_render.go`). The copies coexist until a shared home exists; do not
+  delete either side assuming the other covers it. The freshness family keeps
+  its own set for the same reason.
   `ErrorCodeFromTransport` is the one to watch: it is the only copy with real
-  logic in it, and #6117 already edited the original mid-epic. An edit there
-  that misses this copy would leave `eshu change impact` and `eshu change plan`
-  classifying on the old table. `TestTransportErrorCodeParity` in
-  `go/cmd/eshu` feeds one error table to both functions and fails when their
-  answers differ.
+  logic in it, and #6117 already edited the original mid-epic. It now exists
+  three times — here, in `go/cmd/eshu/trace.go`, and in
+  `go/internal/cli/freshness/envelope.go` — and an edit that misses one leaves
+  that command family classifying on the old table.
+  `TestTransportErrorCodeParity` in `go/cmd/eshu` feeds one error table to all
+  three and fails when their answers differ.
 - **The envelope error message is printed verbatim.** For a transport failure
   it is the Go error, which embeds the service URL an operator set. That is the
   point of the message, and this package does not screen it.

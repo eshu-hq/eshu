@@ -97,6 +97,14 @@ func ExitCodeForErrorCode(code string) int {
 // ErrorCodeFromTransport classifies a transport-level failure into the error
 // code the synthesized envelope carries.
 //
+// It is one of three identical copies. The original is
+// traceErrorCodeFromTransport in go/cmd/eshu/trace.go, which still serves
+// `eshu trace`, `eshu map`, and component_api; change.ErrorCodeFromTransport
+// is the third. cmd/eshu is package main, so no one can import the original,
+// and each copy keeps its own callers. Change one and you must change all
+// three: TestTransportErrorCodeParity in go/cmd/eshu feeds one error table to
+// every copy and fails when their answers differ.
+//
 // Ordering is load-bearing: the two message checks run before the status
 // switch, so an API response that carries an HTTP status *and* mentions a
 // refused connection classifies as backend_unavailable rather than by its
