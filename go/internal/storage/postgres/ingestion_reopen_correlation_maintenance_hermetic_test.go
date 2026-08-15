@@ -111,9 +111,19 @@ func runHermeticDeferredMaintenance(t *testing.T) (reopenTx, backfillTx *fakeTx)
 		// The batch transaction re-loads active generations under its batch lock.
 		queryResponses: []queueFakeRows{{rows: activeGenerations}},
 	}
+	// The deferred backfill publishes readiness and the partition memo in a
+	// separate per-partition transaction that opens after every evidence batch
+	// commits (publishDeferredBackfillPartitions), so the store now begins three
+	// transactions in this order, not two. Its one query is the under-lock
+	// re-read of the scope's active generation; answering gen-alpha keeps the
+	// partition live so this fixture exercises the publish path rather than the
+	// generation-advanced skip.
+	fanInTx := &fakeTx{
+		queryResponses: []queueFakeRows{{rows: [][]any{{"gen-alpha"}}}},
+	}
 	reopenTx = &fakeTx{}
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{backfillTx, reopenTx},
+		txs: []*fakeTx{backfillTx, fanInTx, reopenTx},
 		queryResponses: []queueFakeRows{
 			// Snapshot reads on the store db: catalog, latest facts, active generations.
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-alpha","name":"alpha"}`), catalogFakeObservedAt}}},

@@ -103,8 +103,9 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 		},
 	}
 	completionTx := &fakeTx{}
+	fanInTx := deferredFanInFakeTx("gen-infra")
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{barrierTx, batchTx, reopenTx, completionTx},
+		txs: []*fakeTx{barrierTx, batchTx, fanInTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
 			{rows: [][]any{}},
@@ -130,7 +131,8 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 			barrierTx.committed, batchTx.committed, reopenTx.committed, completionTx.committed)
 	}
 	assertExecContains(t, barrierTx.execs, "INSERT INTO deferred_maintenance_barrier_arrivals")
-	assertExecContains(t, batchTx.execs, "INSERT INTO graph_projection_phase_state")
+	// Readiness is published by the fan-in transaction, not the evidence batch.
+	assertExecContains(t, fanInTx.execs, "INSERT INTO graph_projection_phase_state")
 	assertExecContains(t, completionTx.execs, "completed_at = $4")
 	// Joining an already-open epoch must never insert a new one.
 	for _, exec := range barrierTx.execs {
@@ -218,8 +220,9 @@ func TestIngestionStoreShardDrainBarrierSingleShardHasCommittedRunsMaintenance(t
 			{rows: [][]any{{"work-item-1", "scope-infra", "gen-infra"}}},
 		},
 	}
+	fanInTx := deferredFanInFakeTx("gen-infra")
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{batchTx, reopenTx},
+		txs: []*fakeTx{batchTx, fanInTx, reopenTx},
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
 			{rows: [][]any{}},
@@ -238,7 +241,8 @@ func TestIngestionStoreShardDrainBarrierSingleShardHasCommittedRunsMaintenance(t
 	if err != nil {
 		t.Fatalf("RunDeferredRelationshipMaintenanceAfterShardDrain() error = %v, want nil", err)
 	}
-	assertExecContains(t, batchTx.execs, "INSERT INTO graph_projection_phase_state")
+	// Readiness is published by the fan-in transaction, not the evidence batch.
+	assertExecContains(t, fanInTx.execs, "INSERT INTO graph_projection_phase_state")
 	if !batchTx.committed {
 		t.Fatal("batch transaction committed = false, want true")
 	}

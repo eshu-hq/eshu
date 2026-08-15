@@ -438,7 +438,25 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 		// rows.
 		return &queueFakeRows{}, nil
 	}
+	if strings.HasPrefix(query, activeScopeGenerationQuery) {
+		// The deferred backfill fan-in's under-lock generation re-read: default
+		// to "this scope has no generation", the same empty answer the
+		// corpus-wide latest_generations default above gives, so a fixture that
+		// stages no generation state publishes no readiness. Matched by identity
+		// with the production constant for the same reason as the listing above.
+		return &queueFakeRows{}, nil
+	}
 	return nil, errors.New("unexpected query in transaction")
+}
+
+// deferredFanInFakeTx builds the transaction the deferred backfill's
+// per-partition fan-in publication opens after every evidence batch has
+// committed (publishDeferredBackfillPartitions). Its single query is the
+// under-lock re-read of the partition's scope generation; answering with
+// generationID keeps the partition live so the fixture exercises the publish
+// path rather than the generation-advanced skip.
+func deferredFanInFakeTx(generationID string) *fakeTx {
+	return &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{generationID}}}}}
 }
 
 // fakeAcceptedFactIDRows extracts the fact_id ($1 of every columnsPerFactRow

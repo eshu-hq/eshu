@@ -13,7 +13,6 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -147,13 +146,21 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 	return skippedPartitions, nil
 }
 
-// writeDeferredBackfillInBatches commits deferred backward-evidence and the
-// matching readiness rows in bounded per-repository batches, each in its own
-// transaction holding only that batch's exclusive maintenance locks. It returns
-// the number of readiness rows published. Every active repository is published
-// as backward-evidence-ready even when it discovered no new evidence, preserving
+// writeDeferredBackfillInBatches commits deferred backward evidence in bounded
+// per-repository batches, each in its own transaction holding only that batch's
+// exclusive maintenance locks, and then publishes readiness and the partition
+// memo in a separate per-partition fan-in step. It returns the number of
+// readiness rows published. Every active repository is published as
+// backward-evidence-ready even when it discovered no new evidence, preserving
 // the prior corpus-wide readiness contract; repositories whose active generation
 // disappears between batches are skipped idempotently.
+//
+// The two phases are separate because they have different natural units. A
+// batch is a contiguous slice of the repo-ID-sorted corpus, so the repositories
+// of one (scope, generation) partition are routinely spread across several
+// batches; readiness and the memo, by contrast, are partition-wide claims. See
+// publishDeferredBackfillPartitions for the publication contract and its
+// deadlock-freedom argument.
 func (s IngestionStore) writeDeferredBackfillInBatches(
 	ctx context.Context,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
@@ -205,26 +212,51 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		workers = len(bounds)
 	}
 
-	return s.runDeferredBackfillBatches(ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
+	contributions, err := s.runDeferredBackfillBatches(
+		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
+	)
+	if err != nil {
+		// A failed or canceled batch means at least one partition's evidence is
+		// only partly committed. Publishing readiness or a memo row for ANY
+		// partition now would claim completion the pass did not achieve, and the
+		// memo in particular is durable: applyDeferredPartitionMemoGate would skip
+		// that partition's fact load on every later pass until the catalog
+		// fingerprint changes. Withhold the whole fan-in instead; the committed
+		// evidence is content-addressed and the next pass re-derives and
+		// republishes it.
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
+	}
+
+	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers)
 }
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories
 // in its own transaction. It acquires the batch's exclusive maintenance locks in
-// sorted order, re-reads the active generations under the lock so evidence and
-// readiness attach to the generation current at lock time, persists each
-// repository's evidence, publishes its readiness row, and commits to release the
-// locks. The batch is idempotent: evidence inserts are content-addressed
-// (ON CONFLICT DO NOTHING) and readiness upserts are keyed by generation.
+// sorted order, re-reads the active generations under the lock so evidence
+// attaches to the generation current at lock time, persists each repository's
+// evidence, and commits to release the locks. The batch is idempotent: evidence
+// inserts are content-addressed (ON CONFLICT (evidence_id) DO NOTHING), so a
+// re-run converges on the same rows.
+//
+// The batch deliberately publishes NOTHING partition-wide. It returns the
+// (scope, generation) partitions it contributed evidence to, mapped to the
+// repositories it persisted under each, and the caller's fan-in step publishes
+// readiness and the memo once every batch of the pass has committed. A batch is
+// a contiguous slice of the repo-ID-sorted corpus, so it generally holds only
+// SOME of a partition's repositories; publishing a partition-wide claim from
+// here would assert completion on behalf of sibling batches that may still fail.
 func (s IngestionStore) writeDeferredBackfillBatch(
 	ctx context.Context,
 	batchRepoIDs []string,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
-	catalogFingerprint string,
-) (int, error) {
+) (map[scopeGenerationPartition][]string, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("begin deferred backfill batch transaction: %w", err)
+		return nil, fmt.Errorf("begin deferred backfill batch transaction: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -238,34 +270,29 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 		lockKeys = append(lockKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
 	}
 	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
-		return 0, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
+		return nil, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
 	}
 
 	currentGenerations, err := loadActiveRepositoryGenerations(ctx, tx)
 	if err != nil {
-		return 0, fmt.Errorf("reload active repository generations under batch lock: %w", err)
+		return nil, fmt.Errorf("reload active repository generations under batch lock: %w", err)
 	}
 
 	relationshipStore := NewRelationshipStore(tx)
-	phaseRows := make([]reducer.GraphProjectionPhaseState, 0, len(batchRepoIDs))
-	memoCandidates := make([]scopeGenerationPartition, 0, len(batchRepoIDs))
-	// publishedPartitions dedupes phaseRows/memoCandidates to one entry per
-	// (scope, generation) partition. Readiness and the partition memo are
-	// partition facts, not per-repo facts: their conflict keys
+	// contributions records which (scope, generation) partition each repository's
+	// evidence landed under, keyed by partition so the caller's fan-in publishes
+	// exactly once per partition however many repositories or batches feed it.
+	// This is where the old within-batch dedupe of the partition-keyed sinks
+	// moved to: readiness and the memo are partition facts, not per-repo facts
 	// (graph_projection_phase_state's six-column PK and
-	// deferred_backfill_partition_memo's (scope_id, generation_id) PK) are both
-	// functions of (repoGeneration.ScopeID, repoGeneration.GenerationID) alone.
-	// The ingestion commit path accepts multiple repositories under one
-	// scope+generation (a multi-repo scope); without this dedupe, N repositories
-	// sharing a partition would append N byte-identical conflict keys into the
-	// same batched INSERT ... ON CONFLICT DO UPDATE below, and Postgres rejects
-	// that with SQLSTATE 21000 ("ON CONFLICT DO UPDATE command cannot affect row
-	// a second time"), rolling back the whole batch -- including well-formed
-	// repositories sharing the batch with no bug of their own. The per-repo
-	// evidence upsert above stays per-repo; only these two partition-keyed sinks
-	// dedupe.
-	publishedPartitions := make(map[scopeGenerationPartition]struct{}, len(batchRepoIDs))
-	now := s.now()
+	// deferred_backfill_partition_memo's (scope_id, generation_id) PK are both
+	// functions of (ScopeID, GenerationID) alone), so N repositories sharing a
+	// partition must never contribute N byte-identical conflict keys to one
+	// INSERT ... ON CONFLICT DO UPDATE -- Postgres rejects that with SQLSTATE
+	// 21000 ("ON CONFLICT DO UPDATE command cannot affect row a second time").
+	// Keying by partition here makes that shape unrepresentable rather than
+	// merely filtered.
+	contributions := make(map[scopeGenerationPartition][]string, len(batchRepoIDs))
 	for _, repoID := range batchRepoIDs {
 		repoGeneration, ok := currentGenerations[repoID]
 		if !ok {
@@ -280,14 +307,17 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 		// (snapshotGenerations is non-nil), skip any repository whose active
 		// generation under the batch lock differs from the generation the fact
 		// load queried for that scope — or whose scope was absent from the
-		// snapshot. Publishing readiness here would mark the new generation
-		// backward-evidence-committed even though its facts were never loaded
-		// (the per-scope query rejected the stale generation), reopening
-		// deployment mapping with missing relationship evidence. The next periodic
+		// snapshot. Persisting evidence and contributing a publication candidate
+		// here would mark the new generation backward-evidence-committed even
+		// though its facts were never loaded (the per-scope query rejected the
+		// stale generation), reopening deployment mapping with missing
+		// relationship evidence. The next periodic
 		// RunDeferredRelationshipMaintenance pass re-snapshots and processes the
 		// advanced generation. A nil snapshot (no anchors/no partitions) disables
 		// the guard so the legacy publish-for-every-active-repository contract
-		// holds when no fact load occurred.
+		// holds when no fact load occurred. publishDeferredBackfillPartitions
+		// re-applies the same guard under its own locks, because the generation
+		// can advance again between this commit and the fan-in.
 		if snapshotGenerations != nil {
 			snapshotGen, inSnapshot := snapshotGenerations[repoGeneration.ScopeID]
 			if !inSnapshot || snapshotGen != repoGeneration.GenerationID {
@@ -301,56 +331,18 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 		}
 		if repoEvidence := evidenceBySourceRepo[repoID]; len(repoEvidence) > 0 {
 			if err := relationshipStore.UpsertEvidenceFacts(ctx, repoGeneration.GenerationID, repoEvidence); err != nil {
-				return 0, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
+				return nil, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
 			}
 		}
 		partition := scopeGenerationPartition{
 			ScopeID:      repoGeneration.ScopeID,
 			GenerationID: repoGeneration.GenerationID,
 		}
-		if _, alreadyPublished := publishedPartitions[partition]; alreadyPublished {
-			continue
-		}
-		publishedPartitions[partition] = struct{}{}
-		phaseRows = append(phaseRows, reducer.GraphProjectionPhaseState{
-			Key: reducer.GraphProjectionPhaseKey{
-				ScopeID:          repoGeneration.ScopeID,
-				AcceptanceUnitID: repoGeneration.ScopeID,
-				SourceRunID:      repoGeneration.GenerationID,
-				GenerationID:     repoGeneration.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCrossRepoEvidence,
-			},
-			Phase:       reducer.GraphProjectionPhaseBackwardEvidenceCommitted,
-			CommittedAt: now,
-			UpdatedAt:   now,
-		})
-		memoCandidates = append(memoCandidates, partition)
-	}
-	if err := NewGraphProjectionPhaseStateStore(tx).PublishGraphProjectionPhases(ctx, phaseRows); err != nil {
-		return 0, fmt.Errorf("publish backward evidence readiness: %w", err)
-	}
-	// Partition memo write (issue #3624 Track 1 / B'), committed in the SAME
-	// transaction as the phase rows above so a memo row never exists without its
-	// evidence and phase publication (atomic: a rollback here rolls back both).
-	// ArgoCD-bearing partitions (see listArgoCDBearingPartitionsQuery) are
-	// deliberately EXCLUDED from the memo write, not merely gated at read time:
-	// their cross-repo evidence can change when a DIFFERENT repo (the external
-	// ArgoCD config repo) changes, so writing a memo row for them would still be
-	// safe today (the read-side gate always reloads ArgoCD-bearing partitions
-	// regardless of memo state) but would misleadingly claim "this partition's
-	// evidence is fully determined by its own catalog fingerprint," which is
-	// false for the ArgoCD carve-out. Omitting the write keeps that invariant
-	// visible in the durable memo state itself, not only in the gate's logic.
-	// A snapshot-guard skip (a repo whose generation advanced) also leaves no
-	// phase row and so is naturally excluded here via the same batchRepoIDs loop.
-	if catalogFingerprint != "" && len(memoCandidates) > 0 {
-		if err := writeDeferredBackfillPartitionMemos(ctx, tx, memoCandidates, catalogFingerprint, now); err != nil {
-			return 0, err
-		}
+		contributions[partition] = append(contributions[partition], repoID)
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
+		return nil, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
 	}
 	committed = true
-	return len(phaseRows), nil
+	return contributions, nil
 }

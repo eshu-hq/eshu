@@ -82,6 +82,12 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 			{rows: activeGenerations},
 		},
 	}
+	// The fan-in publishes readiness per (scope, generation) partition in its own
+	// transaction after the batch commits, in ScopeID order: scope-alpha then
+	// scope-zeta. Each answers one query, the under-lock re-read of its scope's
+	// active generation.
+	fanInAlphaTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{"gen-alpha"}}}}}
+	fanInZetaTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{{"gen-zeta"}}}}}
 	reopenTx := &fakeTx{
 		queryResponses: []queueFakeRows{
 			// ReopenDeploymentMappingWorkItems: no succeeded work items.
@@ -89,7 +95,7 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 		},
 	}
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{tx, reopenTx},
+		txs: []*fakeTx{tx, fanInAlphaTx, fanInZetaTx, reopenTx},
 		queryResponses: []queueFakeRows{
 			// Snapshot reads on the store db: catalog, latest facts, active generations.
 			{rows: [][]any{
@@ -135,6 +141,44 @@ func TestMaintenanceTakesPerRepoExclusiveLocksInOrder(t *testing.T) {
 	if lockKeys[0] != wantAlpha || lockKeys[1] != wantZeta {
 		t.Fatalf("lock keys = %v, want sorted [%v %v]", lockKeys, wantAlpha, wantZeta)
 	}
+
+	// The fan-in publication transactions take the same per-repository exclusive
+	// locks, in the same global sorted order, over their own partition's
+	// repositories only. That is the premise the fan-in's deadlock-freedom
+	// argument rests on, so it is asserted rather than assumed: an unlocked
+	// publication could race an ingestion commit advancing the generation
+	// between the re-read and the commit.
+	for _, fanIn := range []struct {
+		name    string
+		tx      *fakeTx
+		wantKey any
+	}{
+		{name: "scope-alpha", tx: fanInAlphaTx, wantKey: wantAlpha},
+		{name: "scope-zeta", tx: fanInZetaTx, wantKey: wantZeta},
+	} {
+		fanInKeys := maintenanceRepoLockKeys(t, fanIn.tx.execs)
+		if len(fanInKeys) != 1 || fanInKeys[0] != fanIn.wantKey {
+			t.Fatalf("%s fan-in lock keys = %v, want exactly [%v]", fanIn.name, fanInKeys, fanIn.wantKey)
+		}
+	}
+}
+
+// maintenanceRepoLockKeys extracts the per-repository exclusive-lock partition
+// keys from a recorded transaction's ExecContext calls, asserting each carries
+// the deferred-maintenance namespace.
+func maintenanceRepoLockKeys(t *testing.T, execs []fakeExecCall) []any {
+	t.Helper()
+	var keys []any
+	for _, exec := range execs {
+		if !strings.Contains(exec.query, "pg_advisory_xact_lock(") || !strings.Contains(exec.query, "hashtext") {
+			continue
+		}
+		if got, want := exec.args[0], deferredMaintenanceLockNamespace; got != want {
+			t.Fatalf("exclusive lock namespace = %v, want %v", got, want)
+		}
+		keys = append(keys, exec.args[1])
+	}
+	return keys
 }
 
 // TestRepoLockKeyDisjointForDistinctRepos proves distinct repositories map to

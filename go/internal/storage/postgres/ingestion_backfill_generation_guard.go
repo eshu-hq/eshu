@@ -111,3 +111,52 @@ func loadActiveRepositoryGenerations(
 
 	return result, nil
 }
+
+// activeScopeGenerationQuery resolves ONE scope's currently active generation.
+//
+// It is the single-scope projection of latestGenerationCTE, which every
+// corpus-wide deferred query joins against: that CTE picks, per scope,
+// COALESCE(ingestion_scopes.active_generation_id, generation.generation_id)
+// from the scope_generations row ordered by (ingested_at DESC,
+// generation_id DESC). Restricting the same expression, join, and ordering to
+// one scope_id and taking LIMIT 1 yields exactly the row DISTINCT ON (scope_id)
+// would have chosen for that scope. TestFanInActiveGenerationMatchesCorpusLoader
+// pins that correspondence against the shipped corpus-wide loader so the two
+// cannot drift apart silently.
+//
+// The fan-in needs a per-scope lookup rather than loadActiveRepositoryGenerations
+// because it runs once per partition. loadActiveRepositoryGenerations scans
+// fact_records for every repository fact in the corpus; at ~910 partitions that
+// would be ~910 corpus-wide scans per pass. This lookup is a LIMIT 1 read served
+// by scope_generations_scope_latest_lookup_idx
+// (scope_id, ingested_at DESC, generation_id DESC) from migration 002.
+const activeScopeGenerationQuery = `
+SELECT COALESCE(scope.active_generation_id, generation.generation_id) AS generation_id
+FROM scope_generations AS generation
+LEFT JOIN ingestion_scopes AS scope
+  ON scope.scope_id = generation.scope_id
+WHERE generation.scope_id = $1
+ORDER BY generation.ingested_at DESC, generation.generation_id DESC
+LIMIT 1
+`
+
+// loadActiveGenerationForScope returns the scope's active generation ID. The
+// empty string with a nil error means the scope has no generation row at all,
+// which the caller treats the same as an advanced generation: nothing to
+// publish.
+func loadActiveGenerationForScope(ctx context.Context, queryer Queryer, scopeID string) (string, error) {
+	rows, err := queryer.QueryContext(ctx, activeScopeGenerationQuery, scopeID)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return "", rows.Err()
+	}
+	var generationID string
+	if err := rows.Scan(&generationID); err != nil {
+		return "", err
+	}
+	return generationID, rows.Err()
+}

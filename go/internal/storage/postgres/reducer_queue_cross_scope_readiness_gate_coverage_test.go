@@ -47,8 +47,15 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
 		"TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
-		"TestWriteDeferredBackfillBatchSharedScopeGenerationDedupesConflictKey",
-		"TestWriteDeferredBackfillBatchDistinctScopesPublishOneRowEach",
+		"TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition",
+		"TestDeferredBackfillDistinctScopesPublishOneRowEach",
+		"TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails",
+		"TestDeferredBackfillWithholdsPublicationWhenSiblingBatchCanceled",
+		"TestDeferredBackfillPublishesOncePerPartitionAcrossBatches",
+		"TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced",
+		"TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable",
+		"TestDeferredBackfillCrashBetweenBatchesAndFanInConverges",
+		"TestFanInActiveGenerationMatchesCorpusLoader",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

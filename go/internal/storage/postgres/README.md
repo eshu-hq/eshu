@@ -1504,13 +1504,62 @@ whole pass returned, hiding intra-pass progress. `runDeferredBackfillBatches`
 records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
 `eshu_dp_deferred_backfill_batches_completed_total` (counter) per committed
 per-repository batch, and emits a `deferred_backfill_batch_committed batch=N
-total_batches=M repos=R readiness_rows=P duration_s=D workers=W` log line per
+total_batches=M repos=R partitions=Q duration_s=D workers=W` log line per
 batch. A rising `…batches_completed_total` during a pass is the operator-visible
 progress signal for the backfill long pole, and the `workers=W` attribute shows
 the active concurrency; the existing `relationship.backfill_deferred` span and
 `DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still record the
 whole-pass totals. New instruments are registered in
 `internal/telemetry/instruments.go`.
+
+The batch line reports `partitions=Q` rather than a readiness count because
+batches no longer publish readiness; see
+[Deferred backfill fan-in publication](#deferred-backfill-fan-in-publication)
+for the step that does and the `deferred_backfill_fanin_completed` line it emits.
+
+### Deferred backfill fan-in publication
+
+Evidence batches are fixed-size contiguous slices of the repo-ID-sorted corpus,
+so a `(scope_id, generation_id)` partition's repositories routinely land in
+several different batches. Readiness (`graph_projection_phase_state`) and the
+partition memo (`deferred_backfill_partition_memo`) are partition-wide claims,
+not per-repository facts, so they are published by a fan-in step
+(`publishDeferredBackfillPartitions`, `ingestion_backfill_pool.go`) that runs
+only after every batch of the pass has committed — one transaction per
+partition, publishing both rows atomically.
+
+Publishing from inside a batch was wrong in a way that outlived the pass: the
+memo is durable, and a memo row written by a batch that carried only some of a
+partition's repositories claimed the partition's evidence was complete. If a
+sibling batch then failed, `applyDeferredPartitionMemoGate` skipped that
+partition's fact load on every later pass until the catalog fingerprint changed.
+
+The contract the fan-in provides:
+
+- If ANY batch fails or is canceled, the fan-in does not run at all, so nothing
+  is published for any partition.
+- Each fan-in transaction takes the partition's repository advisory locks in the
+  same global sorted order the batches use, re-reads the scope's active
+  generation under those locks (`activeScopeGenerationQuery`), and skips the
+  partition when the generation advanced since the batch committed.
+- A memo row never exists without complete evidence and readiness. The reverse —
+  committed evidence with no memo — is tolerated and self-healing: a partition
+  with no memo row is a gate miss, so the next pass reloads it, re-upserts the
+  same content-addressed evidence as a no-op, and publishes. A process that dies
+  between the last batch commit and the fan-in lands in exactly that state.
+
+Operators see `deferred_backfill_fanin_completed partitions=N published=P
+skipped=S duration_s=D workers=W` once per pass. `skipped=S` counts partitions
+whose generation advanced under the fan-in; the absence of the line after a
+batch phase means the fan-in never ran, which is distinguishable from a fan-in
+that ran and published nothing (`published=0`).
+
+Proofs live in `ingestion_backfill_fanin_publication_test.go` (withholding on a
+failed or canceled sibling batch, publish-once across batches) and
+`ingestion_backfill_fanin_recovery_test.go` (generation advanced mid-pass,
+fan-in failure recovery, the crash window between the last batch and
+publication, and the differential pinning `activeScopeGenerationQuery` against
+the corpus-wide `loadActiveRepositoryGenerations`).
 
 ### Deferred fact-load payload hoist + regex fast arm (#3624)
 
