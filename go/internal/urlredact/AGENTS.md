@@ -92,6 +92,22 @@
   594 inputs. When you add an axis to the walk, add it to the cross-product —
   not only a row to the corpus.
 
+  **A differential is silent when both walks are wrong the same way.** That is
+  why `CheckRemoval` exists beside `CheckAgreement`: 378 of the 594 rows declare
+  a fragment inside a credential value and BOTH walks must remove it. Break the
+  shared name predicate and every row still agrees — only the removal half goes
+  red. A fragment the depth model puts outside the value goes in `Outside`, not
+  `Removable` and never in `WalksDisagree`: both walks keeping it is agreement,
+  so recording it as a disagreement trips the stale-exemption branch.
+
+  Keep the oracle hand-written. `credentialShaped`, `encoded` and
+  `pairSeparator` are literals in the axis tables on purpose — an oracle that
+  called `collector.IsSensitiveKeyName` or read `PairSeparators` would
+  reclassify every row the moment the code it checks moves, and the table would
+  go green asserting nothing. Both totals are written down for the same reason;
+  if you add an axis, the self-consistency test tells you the new numbers and
+  every place citing them has to move too.
+
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
   the README's narrow, checkable claim into "we scan for secrets", which nobody

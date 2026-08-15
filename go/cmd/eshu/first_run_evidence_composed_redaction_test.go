@@ -425,8 +425,8 @@ func TestRedactEndpointDelegatesTheQueryWalkForTheDifferential(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			endpoint := redactEndpoint("http://127.0.0.1:8080/x?" + tc.Input)
 			query := urlredact.Query(tc.Input, evidenceRedactedMarker)
-			for _, secret := range tc.Secrets {
-				if strings.Contains(endpoint, secret) != strings.Contains(query, secret) {
+			for _, fragment := range tc.Fragments() {
+				if strings.Contains(endpoint, fragment) != strings.Contains(query, fragment) {
 					t.Fatalf("redactEndpoint and urlredact.Query disagree on a fragment of %q", tc.Input)
 				}
 			}

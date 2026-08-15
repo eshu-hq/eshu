@@ -115,7 +115,10 @@ read durable fact records itself — callers supply an already-resolved
   compares them to EACH OTHER over a generated cross-product, driven from
   `redaction_differential_test.go`; both walks passed every corpus row while
   disagreeing on 72 of its 594 inputs. Widen the walk's terminator handling and
-  you widen that cross-product, not only the corpus.
+  you widen that cross-product, not only the corpus. The driver calls
+  `CheckRemoval` before `CheckAgreement`, because comparing the two walks is
+  silent when both stop removing together — 378 of the rows declare a fragment
+  both must remove, and that is the half a shared-predicate regression trips.
 - Any test constant carrying a credential must exist in more than one spelling.
   `symmetryBytes` was a single unencoded string driving all three placements, so
   one fix closed the axis for every placement at once and a placement the fix

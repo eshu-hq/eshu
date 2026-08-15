@@ -254,7 +254,10 @@ same split.
 This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, which is
 how both leaks reached review: each passed every row of the shared corpus.
 `TestRedactionWalksAgreeOnTheSharedDifferential` now compares the two to each
-other over 594 generated inputs, where they disagreed on 72 before the fixes.
+other over 594 generated inputs, where they disagreed on 72 before the fixes. It
+also asserts outright that both walks removed the credential on the 378 rows
+that carry one — comparing the walks to each other says nothing when they stop
+removing together, which is what breaking the name predicate they share does.
 
 Four gaps remain, each the reverse of something above:
 

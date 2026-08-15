@@ -51,6 +51,13 @@
 // corpus, and they disagreed on 72 of 594 generated inputs. That table crosses
 // the axes rather than enumerating the cases somebody already thought of.
 //
+// It asserts two different things, and conflating them cost it 36 rows of real
+// coverage. CheckRemoval says both walks removed every fragment the depth model
+// puts inside a credential value — 378 of the 594 rows carry one. CheckAgreement
+// says the two decided every fragment the same way, which is all that can be
+// asked of the rest, because over-removal is this package's accepted cost.
+// Agreement on its own is silent when both walks stop removing together.
+//
 // The package makes no judgement about what a VALUE looks like. There is no
 // entropy check and no secret-pattern list. It asks the shared name predicate
 // about the left half of a pair, exactly as every other redaction walk here

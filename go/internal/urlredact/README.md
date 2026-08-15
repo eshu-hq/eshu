@@ -148,15 +148,45 @@ known.
 
 `DifferentialCases()` crosses the axes instead of enumerating the cases — the
 key name, how the pair's own `=` was spelled, which byte the escape stands for,
-where in the value it sits, and what follows the pair. `CheckAgreement` then
-asserts that both walks removed the same fragments, and each generated value
-carries a second sentinel *after* the escape so truncation shows up as one
+where in the value it sits, and what follows the pair. Each generated value
+carries a second sentinel *after* the escape, so truncation shows up as one
 fragment removed and one kept.
 
-Agreement is about **removal**, not bytes: the two walks emit different text on
-purpose, so comparing output would need an exemption on nearly every row.
-`WalksDisagree` records a row the two provably cannot agree on, asserted in both
-directions like the corpus reasons. No row carries one today.
+Every row declares its fragments in two lists, and the split is what makes the
+row count mean something:
+
+- `Removable` — inside the value of a credential-named pair. **Both** walks must
+  remove them, and `CheckRemoval` says so outright. 378 of the 594 rows carry at
+  least one.
+- `Outside` — past the separator that ended the pair, or under a name no
+  sensitive-key rule matches. `CheckAgreement` requires only that the two walks
+  decided them the same way; over-removal is this package's accepted cost, so
+  neither keeping nor removing is required.
+
+Both lists were one list, and it hid a hole. 234 of the 594 rows landed where
+**both** walks keep the fragment — 36 of those under a credential-shaped name,
+every `token%3D`/`api_key%3D` row whose escape is a separator. That is not a
+leak: one layer down `token%3D%26X` really does carry an empty value and `X` is
+a separate bare parameter. But a check that only compares the two walks to each
+other is silent when they are both right *and* when they are both wrong, so
+those rows counted toward coverage while a regression that stopped removing
+anything on them would still have passed.
+
+Agreement is about the **decision**, not the bytes: the two walks emit different
+text on purpose, so comparing output would need an exemption on nearly every
+row. `WalksDisagree` records a row the two provably cannot agree on, asserted in
+both directions like the corpus reasons. No row carries one today — and a row
+where both walks keep a fragment is not one of them, because that is agreement;
+it belongs in `Outside`.
+
+Every axis carries the model's own answer as a hand-written literal —
+`credentialShaped`, `encoded`, `pairSeparator` — rather than calling
+`collector.IsSensitiveKeyName` or reading `PairSeparators`. An oracle that asked
+the production code would move with it: break the name predicate and every row
+would reclassify its fragments as `Outside`, the table would assert no removal
+at all, and the differential would go green on a walk that had stopped
+redacting. Both totals in `TestDifferentialCasesAreSelfConsistent` are written
+down for the same reason.
 
 `reportbundle`'s `TestRedactionWalksAgreeOnTheSharedDifferential` runs the
 endpoint side through `Query`, because `package main` is not importable.
