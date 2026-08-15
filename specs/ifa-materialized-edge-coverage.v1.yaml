@@ -246,8 +246,9 @@ waivers:
   # extractor proof alone and had to withdraw it): a live cassette in the
   # determinism matrix, a per-cell absolute DOCUMENTS assertion, the static gate
   # mirrors, and domain-scoped fault cells. The MaterializedEdgeDomainEdgeTypes
-  # half of that old reason was already stale when it was written -- the
-  # single-type registry resolves documentation_edges to DOCUMENTS.
+  # half of that old reason went stale the day after it was written, when
+  # a9326630a registered the family -- the single-type registry resolves
+  # documentation_edges to DOCUMENTS.
   - surface: "materialized_edges:codeowners_ownership_edges"
     proof_gate: ifa-determinism
     issue: "#5992"

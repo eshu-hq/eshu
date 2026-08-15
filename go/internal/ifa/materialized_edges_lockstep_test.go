@@ -181,7 +181,7 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"sdk/go/factschema/documentation/v1/**",
 		} {
 			if !slices.Contains(found.Triggers, trigger) {
-				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep code_calls covered without rerunning its live proof", gateID, trigger)
+				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep a family covered without rerunning its live proof", gateID, trigger)
 			}
 		}
 	}
