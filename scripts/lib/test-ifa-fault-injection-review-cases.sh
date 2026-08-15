@@ -181,6 +181,8 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		"${case_dir}/unexpected-broad-retract.dump" gen2 DEPENDS_ON sql-table-users retract
 	test_ifa_fault_write_collateral_fixture \
 		"${case_dir}/unexpected-handler-churn.dump" gen2 DEPENDS_ON sql-table-users preserve gen2
+	jq '(.edges[] | select(.type == "CALLS") | .props).confidence = "CORRUPTED"' \
+		"${case_dir}/allowed.dump" >"${case_dir}/unexpected-code-call-property.dump"
 
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/allowed.dump" "${case_dir}" \
@@ -197,6 +199,12 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 		>/dev/null 2>&1 || rc=$?
 	[[ "${rc}" -eq 1 ]] \
 		|| fail "unexpected foreign edge property change returned ${rc}, want collateral-diff status 1"
+	rc=0
+	ifa_fault_compare_collateral_edges \
+		"${case_dir}/baseline.dump" "${case_dir}/unexpected-code-call-property.dump" "${case_dir}" \
+		>/dev/null 2>&1 || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "unexpected code-call edge property change returned ${rc}, want collateral-diff status 1"
 	rc=0
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/nonprojector-baseline.dump" "${case_dir}/unexpected-nonprojector-generation.dump" "${case_dir}" \

@@ -396,6 +396,8 @@ for n in "${worker_counts[@]}"; do
 		"${n}" "${bin_dir}" "${sql_delta_cassette}" "${sql_delta_expected_edges}" "${log_dir}" \
 		"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
 		|| die "N=${n}: SQL delta-live proof failed"
+	ifa_code_call_assert "post-delta N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
+		|| die "N=${n}: SQL generation 2 changed the code-call family's five-edge exact set"
 
 	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \

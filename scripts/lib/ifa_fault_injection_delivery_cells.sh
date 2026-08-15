@@ -131,8 +131,10 @@ ifa_fault_write_repo_node_membership() {
 }
 
 # ifa_fault_write_collateral_edges writes the graph edge set outside the SQL
-# and code-call families, which the cell asserts independently against exact
-# expected fixtures. SQL generation 2 legitimately changes node properties,
+# family, which the cell asserts independently against an exact expected
+# fixture. Code-call edges remain in this full-record comparison because their
+# exact assertion covers type and endpoints, not properties. SQL generation 2
+# legitimately changes node properties,
 # replacing content hashes on SQL-repository CONTAINS/REPO_CONTAINS endpoints.
 # Replace only those repository-attributed hashes with stable labels+uid (or
 # the Repository's repo_id). On mapped containment edges whose original
@@ -145,11 +147,9 @@ ifa_fault_write_collateral_edges() {
 	local graph_dump="$1" repo_identities="$2" repo_membership="$3"
 	local output="$4" comparison_side="$5"
 	local sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
-	local code_call_types='["CALLS","INSTANTIATES","REFERENCES","USES_METACLASS"]'
 	jq -S --slurpfile repo_identities "${repo_identities}" \
 		--slurpfile repo_membership "${repo_membership}" \
 		--argjson sql_types "${sql_types}" \
-		--argjson code_call_types "${code_call_types}" \
 		--arg comparison_side "${comparison_side}" '
 		if ($comparison_side != "baseline" and $comparison_side != "changed") then
 			error("collateral comparison side must be baseline or changed")
@@ -160,7 +160,6 @@ ifa_fault_write_collateral_edges() {
 			| map(
 				. as $edge
 				| select($sql_types | index($edge.type) | not)
-				| select($code_call_types | index($edge.type) | not)
 				| ($repo_identities[0][$edge.from] // null) as $from_identity
 				| ($repo_identities[0][$edge.to] // null) as $to_identity
 				| ($repo_membership[0][$edge.from] // false) as $from_repo_member
@@ -209,8 +208,9 @@ ifa_fault_write_collateral_edges() {
 }
 
 # ifa_fault_compare_collateral_edges returns 0 for exact collateral parity, 1
-# for a real difference, and 2 for jq/hash/diff failure. It deliberately does
-# not absorb SQL or code-call exactness: their dedicated assertions run first.
+# for a real difference, and 2 for jq/hash/diff failure. It supplements rather
+# than replaces the dedicated SQL and code-call exact assertions: SQL edges are
+# excluded here, while code-call edges retain their complete property records.
 ifa_fault_compare_collateral_edges() {
 	local baseline_dump="$1" changed_dump="$2" output_dir="$3"
 	local sql_repo_id="${4:-repo-ifa-sql-family}"

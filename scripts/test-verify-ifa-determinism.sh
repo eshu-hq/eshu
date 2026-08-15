@@ -169,6 +169,12 @@ require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${c
 require_code_call_lib "code-call assert-edges domain" "-domain code_calls"
 require_code_call_lib "code-call expected-set argument" '-expected "${expected_edges}"'
 require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
+delta_call_line="$(rg -n -- '^[[:space:]]*ifa_det_run_sql_delta_live' "${script}" | cut -d: -f1 || true)"
+post_delta_code_call_line="$(rg -n --fixed-strings -- 'ifa_code_call_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"' "${script}" | cut -d: -f1 || true)"
+[[ "${delta_call_line}" =~ ^[0-9]+$ && "${post_delta_code_call_line}" =~ ^[0-9]+$ && "${post_delta_dump_line}" =~ ^[0-9]+$ \
+	&& "${delta_call_line}" -lt "${post_delta_code_call_line}" && "${post_delta_code_call_line}" -lt "${post_delta_dump_line}" ]] \
+	|| fail "every N cell must exact-assert code_calls after the SQL gen-2 drain and before its post-delta graph dump"
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
 code_call_gate_seams=(
