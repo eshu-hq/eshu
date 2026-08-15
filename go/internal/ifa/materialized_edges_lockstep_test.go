@@ -128,6 +128,25 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 	}
 
+	// documentation_edges is the second non-SQL family promoted to both live
+	// matrices (#5994). Its history is the reason this block exists: commit
+	// 42e188ba1 seeded a coverage row on the EXTRACTOR proof alone and had to
+	// withdraw it, because neither gate executed the family. Pin both rows and
+	// the waiver deletion so that cannot recur silently.
+	docsBaseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"documentation_edges", replaycoverage.ScenarioTypeBaseline)
+	if docsBaseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:documentation_edges (baseline) status = %q, detail=%q, want covered", docsBaseline.Status, docsBaseline.Detail)
+	}
+	docsFault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"documentation_edges", replaycoverage.ScenarioTypeFault)
+	if docsFault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:documentation_edges (fault) status = %q, detail=%q, want covered", docsFault.Status, docsFault.Detail)
+	}
+	for _, waiver := range waivers {
+		if waiver.Surface == MaterializedEdgeSurfacePrefix+"documentation_edges" {
+			t.Errorf("stale documentation_edges waiver remains for proof gate %q; #5994 requires both waivers to be removed with the live rows", waiver.ProofGate)
+		}
+	}
+
 	// Assert both proof gates this manifest references are CI-blocking with a
 	// local command, mirroring coverage_lockstep_test.go's ifa-contract-layer
 	// assertions: a non-blocking or command-less gate cannot be trusted to

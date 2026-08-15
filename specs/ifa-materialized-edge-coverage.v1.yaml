@@ -73,8 +73,9 @@
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# The sql_relationships BASELINE, DELTA, and FAULT rows and the code_calls
-# BASELINE and FAULT rows are proven; neither family carries a waiver. #5555
+# The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls
+# BASELINE and FAULT rows, and the documentation_edges BASELINE and FAULT rows
+# are proven; none of those three families carries a waiver. #5555
 # rebuilt both SQL cells in
 # scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a
@@ -82,7 +83,10 @@
 # CloudResource). cell_killworker_sql proved green live first;
 # cell_failgraphwrite_sql looked inert for months because the assertion reading
 # its fired-fault marker called a binary the runner does not have (#5974), and
-# is green live now that the assertion matches in bash. Every other
+# is green live now that the assertion matches in bash. #5994 added the
+# documentation cassette, its per-cell absolute DOCUMENTS assertion, the static
+# gate mirrors, and two domain-scoped fault cells, retiring both of that
+# family's waivers. Every remaining
 # allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
 # `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
 # #5543, which is now decomposed into per-domain child issues #5991-#6003;
@@ -153,6 +157,33 @@ coverage:
     ref: "odu:ifa-code-call-family"
     proof_gate: ifa-fault-injection
 
+  # #5994 replays the documentation cassette in every N=1,2,4 determinism cell
+  # and asserts its hand-derived three-edge DOCUMENTS set exactly, pre- and
+  # post-delta. Two of the three targets are Function/Class entities, whose real
+  # graph uid is the derived content.CanonicalEntityID hash rather than the
+  # content_entity fact's own entity_id -- the cassette precomputes that hash and
+  # carries a matching file fact for every relative_path, or the endpoint MATCH
+  # would silently no-op (README Gotchas, #5351). The third is a SqlTable target,
+  # which could not materialize at all until this change added SqlTable to
+  # batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation; the
+  # extractor already emitted the row, so the edge was lost at the writer.
+  # The fault matrix drives the same cassette in every cell; its kill-worker cell
+  # proves a claimed documentation_materialization row is reclaimed, and its
+  # one-shot graph-write cell proves the DOCUMENTS write retries through a
+  # durable marker written by the fault decorator at injection time -- not read
+  # from the reducer log, the #5974 failure mode -- before both cells re-assert
+  # the same exact set.
+  - surface: "materialized_edges:documentation_edges"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-documentation-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:documentation_edges"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-documentation-family"
+    proof_gate: ifa-fault-injection
+
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
   # 2026-08-08 until #5974, on the belief that cell_failgraphwrite_sql did not
@@ -161,7 +192,7 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 12 other allProjectionDomains families: both gates unproven. ---
+  # --- The 11 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
   # Each names its own per-domain child issue (#5991-#6003) under the #5344
@@ -207,31 +238,16 @@ waivers:
     issue: "#5996"
     waived: "2026-07-20"
     reason: "reducer.DomainInheritanceEdges; pending #5996 for an Odù + expected-edge-set fixture"
-  # documentation_edges: the EXTRACTOR is proven by odu:ifa-documentation-family
-  # (#5994) -- ExtractDocumentationEdgeRowsWithQuarantine reproduces a
-  # hand-derived exact edge set, and mutating any of its exclusion guards turns
-  # that red. Both dimensions stay WAIVED anyway, because a coverage row names a
-  # proof GATE and neither gate executes this family: verify-ifa-determinism.sh
-  # asserts expected edges for sql_relationships and code_calls only, and
-  # MaterializedEdgeDomainEdgeTypes rejects documentation_edges outright. A
-  # coverage row here would claim a gate proves something it never runs, so
-  # breaking the live writer's Cypher would leave the claim green.
-  #
-  # To retire these: add a documentation cassette to the determinism matrix, a
-  # per-cell absolute DOCUMENTS edge assertion, the static gate mirror, and a
-  # MaterializedEdgeDomainEdgeTypes entry -- then seed the Odù with facts that
-  # create the canonical endpoint nodes the writer MATCHes, which mention facts
-  # alone do not.
-  - surface: "materialized_edges:documentation_edges"
-    proof_gate: ifa-determinism
-    issue: "#5994"
-    waived: "2026-08-09"
-    reason: "reducer.DomainDocumentationEdges extraction proven by odu:ifa-documentation-family; live determinism-gate execution pending a cassette + absolute DOCUMENTS assertion"
-  - surface: "materialized_edges:documentation_edges"
-    proof_gate: ifa-fault-injection
-    issue: "#5994"
-    waived: "2026-08-09"
-    reason: "reducer.DomainDocumentationEdges extraction proven by odu:ifa-documentation-family; fault dimension pending domain-scoped live cells"
+  # documentation_edges carries NO waiver. Both dimensions were waived from
+  # 2026-08-09 until #5994, when only the EXTRACTOR was proven and neither gate
+  # executed the family -- a coverage row would have claimed a gate proves
+  # something it never runs. #5994 retired both by doing the four things the
+  # withdrawn claim was missing (commit 42e188ba1 added a coverage row on the
+  # extractor proof alone and had to withdraw it): a live cassette in the
+  # determinism matrix, a per-cell absolute DOCUMENTS assertion, the static gate
+  # mirrors, and domain-scoped fault cells. The MaterializedEdgeDomainEdgeTypes
+  # half of that old reason was already stale when it was written -- the
+  # single-type registry resolves documentation_edges to DOCUMENTS.
   - surface: "materialized_edges:codeowners_ownership_edges"
     proof_gate: ifa-determinism
     issue: "#5992"
@@ -330,7 +346,7 @@ waivers:
 #     cell_failgraphwrite_sql are green live, so the family carries no waiver.
 #   - code_calls BASELINE and FAULT are covered by the exact-set replay and two
 #     domain-scoped recovery cells described above (#5991).
-#   - The 12 other allProjectionDomains families are blocked on the epic #5344
+#   - The 11 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------
