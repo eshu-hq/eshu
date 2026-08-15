@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -87,9 +88,9 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatalf("loadCodeownersFamilyOdu: %v", err)
 	}
 
-	expectedEdges, err := LoadExpectedEdges(codeownersFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := loadCodeownersExpectedEdges(codeownersFamilyExpectedEdgesPath(repoRoot))
 	if err != nil {
-		t.Fatalf("LoadExpectedEdges: %v", err)
+		t.Fatalf("loadCodeownersExpectedEdges: %v", err)
 	}
 	if len(expectedEdges) == 0 {
 		t.Fatal("expected-edge set is empty; an empty expectation makes this guard vacuous")
@@ -106,15 +107,19 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 
 	actual := map[string]int{}
 	for _, row := range rows {
-		actual[(ExpectedEdge{
+		actual[codeownersEdgeKey(codeownersExpectedEdge{
 			RelationshipType: "DECLARES_CODEOWNER",
 			SourceEntityID:   anyToStringValue(row["repo_id"]),
 			TargetEntityID:   anyToStringValue(row["owner_ref"]),
-		}).Key()]++
+			Identity: map[string]string{
+				"pattern":     anyToStringValue(row["pattern"]),
+				"source_path": anyToStringValue(row["source_path"]),
+			},
+		})]++
 	}
 	expected := map[string]int{}
 	for _, e := range expectedEdges {
-		expected[e.Key()]++
+		expected[codeownersEdgeKey(e)]++
 	}
 
 	var missing, extra []string
@@ -233,4 +238,64 @@ func TestMissingCodeownersOwnershipExpectedTypesCatchesAnUncoveredRegistryType(t
 	if len(missing) != 1 || missing[0] != "DECLARES_CODEOWNER" {
 		t.Fatalf("missingCodeownersOwnershipExpectedTypes(no edges, {DECLARES_CODEOWNER}) = %v, want [DECLARES_CODEOWNER]", missing)
 	}
+}
+
+// TestResolveCodeownersOwnershipMaterializedEdgesReturnsZeroRowsFalse proves
+// the guard's own non-vacuity assertion beyond the edge-set comparison: a
+// production extractor that returns zero rows must fail the guard outright,
+// never be silently compared against an empty actual set (which a "MISSING"
+// list alone would already catch, but this makes the liveness check
+// explicit and independently testable, mirroring documentation_edges'
+// zero-quarantine and code_calls' non-empty-repository-scope guard-specific
+// assertions).
+func TestResolveCodeownersOwnershipMaterializedEdgesReturnsZeroRowsFalse(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	// An Odù with a repository fact but NO codeowners.ownership facts: the
+	// extractor returns zero rows even though decoding succeeds cleanly.
+	emptyOdu := Odu{Name: "odu:ifa-codeowners-empty-probe", Facts: []facts.Envelope{codeownersFamilyRepositoryFact()}}
+	ok, detail := resolveCodeownersOwnershipMaterializedEdges(emptyOdu, codeownersFamilyExpectedEdgesPath(repoRoot))
+	if ok {
+		t.Fatal("resolveCodeownersOwnershipMaterializedEdges(zero codeowners.ownership facts) = true, want false -- a zero-row extraction must fail the guard, not vacuously compare against an empty actual set")
+	}
+	if !strings.Contains(detail, "zero rows") {
+		t.Fatalf("detail = %q, want it to name the zero-row liveness failure", detail)
+	}
+}
+
+// TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption is the
+// positive proof this family's own review-round-2 rework exists for: unlike
+// the SHARED ifa.ExpectedEdge mechanism
+// (TestExpectedEdgeDetectsCodeownersPropertyCorruption proves that gap RED),
+// THIS family's compareCodeownersOwnershipExpectedEdges DOES catch a
+// materialization bug that cross-wires pattern/source_path between two rules
+// sharing a (repo, team) pair, because its key includes pattern and
+// source_path.
+func TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption(t *testing.T) {
+	t.Parallel()
+
+	correctA := codeownersExpectedEdge{
+		RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-x", TargetEntityID: "org/docs",
+		Identity: map[string]string{"pattern": "*.md", "source_path": ".github/CODEOWNERS"},
+	}
+	correctB := codeownersExpectedEdge{
+		RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-x", TargetEntityID: "org/docs",
+		Identity: map[string]string{"pattern": "docs/**", "source_path": ".github/CODEOWNERS"},
+	}
+	// The corrupted actual set: RULE A's edge is simply missing (its pattern
+	// went unwritten), and RULE B's edge was written TWICE instead -- the
+	// exact "dropped edge masked by an unrelated duplicate" shape
+	// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate proves the
+	// shared 3-tuple mechanism cannot see. This family's own key includes
+	// pattern, so RULE A's absence and RULE B's duplication are each visible.
+	corrupted := []codeownersExpectedEdge{correctB, correctB}
+
+	mismatch := compareCodeownersOwnershipExpectedEdges("odu:probe", []codeownersExpectedEdge{correctA, correctB}, corrupted)
+	if mismatch == "" {
+		t.Fatal("compareCodeownersOwnershipExpectedEdges did not catch the property-corrupted set; this family's whole point is detecting what the shared ExpectedEdge mechanism cannot")
+	}
+	if !strings.Contains(mismatch, "*.md") {
+		t.Errorf("mismatch %q does not name the missing *.md rule", mismatch)
+	}
+	t.Logf("confirmed: family-local property-aware guard catches what the shared mechanism misses: %s", mismatch)
 }

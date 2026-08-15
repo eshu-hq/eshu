@@ -4,7 +4,9 @@
 package ifa
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -12,12 +14,88 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// codeownersExpectedEdge is this family's OWN hand-derived expected edge
+// shape (#5992 review round 2), deliberately richer than the shared
+// ifa.ExpectedEdge triple. Identity carries the relationship properties that
+// decide a DECLARES_CODEOWNER edge's real graph identity -- "pattern" and
+// "source_path", the write template's relationship MERGE key
+// (canonical_codeowners_edges.go) -- so this family's own PURE guard can
+// prove per-rule property truth even though the SHARED live assert-edges
+// path (ifa.ExpectedEdge, materialized_edges_assert.go) cannot: see
+// TestExpectedEdgeDetectsCodeownersPropertyCorruption and
+// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate
+// (materialized_edges_codeowners_property_gap_test.go) for the two RED
+// proofs of that shared-mechanism gap, reported to the #5543 coordinator.
+//
+// The field name and shape (a string-keyed Identity map alongside the
+// existing relationship_type/source_entity_id/target_entity_id triple) match
+// the coordinator-relayed precursor design under owner review as of this
+// writing (an Identity map[string]string field on ExpectedEdge itself), so
+// extending this fixture stays a mechanical edit rather than a rewrite if
+// that precursor lands. Until then this is purely a family-local extension:
+// the JSON file's relationship_type/source_entity_id/target_entity_id fields
+// alone are ALSO valid input to the shared ifa.LoadExpectedEdges loader (its
+// JSON decoding ignores the additional "identity" key), so the SAME
+// committed fixture file serves both this property-aware pure guard AND, once
+// wired, the live `eshu-ifa assert-edges` verb's coarser 3-tuple comparison
+// without maintaining two fixtures. That live path is the "clearly marked
+// seam" this family accepts today: it can only prove edge existence/count,
+// never per-rule pattern/source_path truth, until the shared type widens.
+type codeownersExpectedEdge struct {
+	RelationshipType string            `json:"relationship_type"`
+	SourceEntityID   string            `json:"source_entity_id"`
+	TargetEntityID   string            `json:"target_entity_id"`
+	Identity         map[string]string `json:"identity"`
+}
+
+type codeownersExpectedEdgesFile struct {
+	Odu   string                   `json:"odu"`
+	Edges []codeownersExpectedEdge `json:"edges"`
+}
+
+// loadCodeownersExpectedEdges reads and parses this family's own richer
+// expected-edge-set fixture, mirroring loadSQLRelationshipExpectedEdges's
+// shape and fail-closed-on-empty behavior.
+func loadCodeownersExpectedEdges(path string) ([]codeownersExpectedEdge, error) {
+	raw, err := os.ReadFile(path) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
+	if err != nil {
+		return nil, fmt.Errorf("ifa: read codeowners expected edges %s: %w", path, err)
+	}
+	var parsed codeownersExpectedEdgesFile
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("ifa: parse codeowners expected edges %s: %w", path, err)
+	}
+	if len(parsed.Edges) == 0 {
+		return nil, fmt.Errorf("ifa: codeowners expected edges %s has no edges; an empty expected set would make the gate vacuous", path)
+	}
+	for i, edge := range parsed.Edges {
+		if strings.TrimSpace(edge.Identity["pattern"]) == "" || strings.TrimSpace(edge.Identity["source_path"]) == "" {
+			return nil, fmt.Errorf("ifa: codeowners expected edges %s edge[%d] (%s|%s|%s) carries no identity.pattern/identity.source_path; this fixture's whole point is proving per-rule property truth the shared ExpectedEdge cannot", path, i, edge.RelationshipType, edge.SourceEntityID, edge.TargetEntityID)
+		}
+	}
+	return parsed.Edges, nil
+}
+
+// codeownersEdgeKey builds the canonical set-membership key for one expected
+// or derived edge, INCLUDING pattern and source_path -- the property-aware
+// identity this family's own guard proves (see codeownersExpectedEdge's doc
+// comment for why the shared ifa.ExpectedEdge.Key() cannot do the same).
+func codeownersEdgeKey(e codeownersExpectedEdge) string {
+	return e.RelationshipType + "|" + e.SourceEntityID + "|" + e.TargetEntityID + "|" + e.Identity["pattern"] + "|" + e.Identity["source_path"]
+}
+
 // resolveCodeownersOwnershipMaterializedEdges is codeowners_ownership_edges'
 // named vacuity guard (#5992), mirroring resolveCodeCallMaterializedEdges's
 // three-step shape: (1) load the hand-derived expected-edge-set fixture,
 // (2) assert it covers every relationship type the family's writer registry
 // accepts, (3) run the production extractor over odu.Facts and assert the
-// result matches the fixture EXACTLY.
+// result matches the fixture EXACTLY -- by the family's own property-aware
+// identity (relationship_type, source, target, pattern, source_path), a
+// strictly STRONGER proof than the shared ExpectedEdge triple other
+// families' guards settle for, because ExtractCodeownersOwnershipEdgeRowsWithQuarantine's
+// rows already carry pattern/source_path and this guard does not have to
+// throw that data away just because the live-gate seam cannot yet consume
+// it (see codeownersExpectedEdge's doc comment).
 //
 // codeowners_ownership_edges is single-type (DECLARES_CODEOWNER only), so
 // step 2 is a non-empty check today, not a multi-type coverage check the way
@@ -26,24 +104,13 @@ import (
 // flip this red on day one, the same fail-closed contract every other
 // family's registry-exhaustiveness check gives.
 //
-// KNOWN LIMITATION (proven by
-// TestExpectedEdgeDetectsCodeownersPropertyCorruption,
-// materialized_edges_codeowners_property_gap_test.go, reported to the #5543
-// coordinator and out of #5992's scope to fix): ExpectedEdge's identity is
-// (RelationshipType, SourceEntityID, TargetEntityID) only.
-// DECLARES_CODEOWNER's real graph identity also includes pattern and
-// source_path -- the write template's relationship MERGE key
-// (canonical_codeowners_edges.go) -- so this guard proves "the extractor
-// produces the same NUMBER of DECLARES_CODEOWNER edges between each (repo,
-// team) pair the fixture names", not "each individual rule's
-// pattern/source_path/order_index is correct". A materialization bug that
-// cross-wires those properties between two rules sharing a (repo, team) pair
-// (see codeownersFamilyOdu's RULE A/RULE B) would pass this guard undetected.
-// This is a structural gap in the shared ExpectedEdge mechanism
-// (materialized_edges_assert.go), not something this family's fixture or
-// guard can self-correct without extending that shared type.
+// A quarantined fact is fatal, not skipped (mirroring
+// resolveDocumentationEdgeMaterializedEdges): a fixture that no longer
+// decodes cleanly against the codeowners.ownership contract cannot honestly
+// claim to prove the edge set it names, so proceeding on the survivors would
+// understate the fixture's own claim rather than catch the regression.
 func resolveCodeownersOwnershipMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
-	expected, err := LoadExpectedEdges(expectedEdgesPath)
+	expected, err := loadCodeownersExpectedEdges(expectedEdgesPath)
 	if err != nil {
 		return false, err.Error()
 	}
@@ -67,27 +134,33 @@ func resolveCodeownersOwnershipMaterializedEdges(odu Odu, expectedEdgesPath stri
 		return false, fmt.Sprintf("odù %q: production extractor returned zero rows", odu.Name)
 	}
 
-	actual := make([]ExpectedEdge, 0, len(rows))
+	actual := make([]codeownersExpectedEdge, 0, len(rows))
 	for _, row := range rows {
-		actual = append(actual, ExpectedEdge{
+		actual = append(actual, codeownersExpectedEdge{
 			RelationshipType: "DECLARES_CODEOWNER",
 			SourceEntityID:   anyToStringValue(row["repo_id"]),
 			TargetEntityID:   anyToStringValue(row["owner_ref"]),
+			Identity: map[string]string{
+				"pattern":     anyToStringValue(row["pattern"]),
+				"source_path": anyToStringValue(row["source_path"]),
+			},
 		})
 	}
 	if mismatch := compareCodeownersOwnershipExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
-	return true, fmt.Sprintf("odù %q: ExtractCodeownersOwnershipEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly across all %d registry type(s)", odu.Name, len(expected), len(registry))
+	return true, fmt.Sprintf("odù %q: ExtractCodeownersOwnershipEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly (by relationship_type/source/target/pattern/source_path) across all %d registry type(s)", odu.Name, len(expected), len(registry))
 }
 
 // codeownersOwnershipFamilyGenerationID reads the shared generation ID off
 // the Odù's own facts. ExtractCodeownersOwnershipEdgeRowsWithQuarantine only
 // uses it to stamp each row's generation_id (a SET-only relationship
-// property outside this guard's comparable identity — see the KNOWN
-// LIMITATION doc comment above), so any non-empty value the fixture actually
-// carries is correct; an empty return degrades to the empty string rather
-// than failing, matching every other production caller's fallback shape.
+// property this guard does not assert -- order_index and generation_id stay
+// outside even this family's own richer identity, since neither is part of
+// the write template's relationship MERGE key), so any non-empty value the
+// fixture actually carries is correct; an empty return degrades to the empty
+// string rather than failing, matching every other production caller's
+// fallback shape.
 func codeownersOwnershipFamilyGenerationID(envelopes []facts.Envelope) string {
 	for _, env := range envelopes {
 		if strings.TrimSpace(env.GenerationID) != "" {
@@ -97,7 +170,7 @@ func codeownersOwnershipFamilyGenerationID(envelopes []facts.Envelope) string {
 	return ""
 }
 
-func missingCodeownersOwnershipExpectedTypes(expected []ExpectedEdge, registry map[string]struct{}) []string {
+func missingCodeownersOwnershipExpectedTypes(expected []codeownersExpectedEdge, registry map[string]struct{}) []string {
 	present := make(map[string]struct{}, len(expected))
 	for _, edge := range expected {
 		present[edge.RelationshipType] = struct{}{}
@@ -114,18 +187,22 @@ func missingCodeownersOwnershipExpectedTypes(expected []ExpectedEdge, registry m
 
 // compareCodeownersOwnershipExpectedEdges reports the exact-set (by
 // multiplicity, not just membership) mismatch between the hand-derived
-// expectation and what the extractor actually produced. Multiplicity matters
-// here specifically: codeownersFamilyOdu's RULE A/B/C deliberately produce
-// THREE distinct edges to the same (repo, team) pair, so a plain set
-// comparison would collapse them and hide a missing or duplicated rule.
-func compareCodeownersOwnershipExpectedEdges(oduName string, expected, actual []ExpectedEdge) string {
+// expectation and what the extractor actually produced, keyed on this
+// family's own property-aware identity (codeownersEdgeKey). Multiplicity
+// matters here specifically: codeownersFamilyOdu's RULE A/B/C deliberately
+// produce THREE distinct edges to the same (repo, team) pair, so a plain set
+// comparison would collapse them and hide a missing or duplicated rule; the
+// pattern/source_path component of the key additionally proves WHICH rule
+// contributed which edge, closing the gap the shared ExpectedEdge mechanism
+// cannot (see this file's other doc comments).
+func compareCodeownersOwnershipExpectedEdges(oduName string, expected, actual []codeownersExpectedEdge) string {
 	want := make(map[string]int, len(expected))
 	got := make(map[string]int, len(actual))
 	for _, edge := range expected {
-		want[edge.Key()]++
+		want[codeownersEdgeKey(edge)]++
 	}
 	for _, edge := range actual {
-		got[edge.Key()]++
+		got[codeownersEdgeKey(edge)]++
 	}
 	var missing, extra []string
 	for key, count := range want {
