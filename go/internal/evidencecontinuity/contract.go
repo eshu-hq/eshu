@@ -97,6 +97,13 @@ const (
 	FindingMissingProperty       FindingKind = "missing_property"
 	FindingInvalidProperty       FindingKind = "invalid_property"
 	FindingInvalidProofRef       FindingKind = "invalid_proof_ref"
+	// FindingGateTriggerGap reports a Go package named by a `go test` proof
+	// ref that the evidence-continuity CI gate cannot see: no registry
+	// trigger (specs/ci-gates.v1.yaml) or workflow path filter
+	// (static-contract-gates.yml) spans the package's _test.go files, so a
+	// rename of a referenced test would not select this gate and unrelated
+	// PRs would be the first place the stale ref fails (#6131).
+	FindingGateTriggerGap FindingKind = "gate_trigger_gap"
 )
 
 // Finding is one validation error in the evidence-continuity contract.

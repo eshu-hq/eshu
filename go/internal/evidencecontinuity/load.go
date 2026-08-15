@@ -43,6 +43,11 @@ func ValidateRepository(repoRoot string) ([]Finding, error) {
 	}
 	findings := Validate(contract, surfaces)
 	findings = append(findings, validateReferencedTests(repoRoot, contract)...)
+	gateFindings, err := validateGateTriggerCoverage(repoRoot, contract)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, gateFindings...)
 	sortFindings(findings)
 	return findings, nil
 }

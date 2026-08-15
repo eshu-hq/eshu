@@ -37,6 +37,19 @@ type pathFilterWorkflowFile struct {
 	Jobs map[string]pathFilterJob `yaml:"jobs"`
 }
 
+// DornyFilters returns the parsed "filter key -> path glob list" map from the
+// first dorny/paths-filter step found in the raw workflow file bytes, or nil
+// when no such step is present or its filters block does not parse. It is the
+// exported face of dornyFilters for gates that must assert their own workflow
+// filter covers the files their verdict depends on; the evidence-continuity
+// trigger-coverage self-check (go/internal/evidencecontinuity) is the
+// consumer. Callers that need to distinguish "no dorny step" from "empty
+// filters" must treat nil as absent and fail loudly rather than skip.
+func DornyFilters(raw []byte) map[string][]string {
+	filters, _, _ := dornyFilters(raw)
+	return filters
+}
+
 // dornyFilters returns the parsed "key -> path glob list" map from the first
 // dorny/paths-filter step found in raw, or nil if no such step is present or
 // its filters block does not parse. A workflow with no such step (true for

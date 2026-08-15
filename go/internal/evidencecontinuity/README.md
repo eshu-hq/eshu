@@ -22,9 +22,12 @@ prove runtime behavior directly.
 
 ## Dependencies
 
-The package imports only the Go standard library plus `gopkg.in/yaml.v3`. It
-reads the capability matrix under `specs/` and the generated surface inventory
-under `go/internal/capabilitycatalog/data/`.
+The package imports the Go standard library, `gopkg.in/yaml.v3`, and
+`internal/cigates` (registry loading, `MatchGlob`, `DornyFilters`). It reads
+the capability matrix under `specs/`, the generated surface inventory under
+`go/internal/capabilitycatalog/data/`, the CI gate registry
+`specs/ci-gates.v1.yaml`, and the workflow
+`.github/workflows/static-contract-gates.yml`.
 
 ## Telemetry
 
@@ -40,6 +43,14 @@ The negative evidence-loss cases stay closed over empty, missing, stale,
 truncated, and inaccessible evidence. Go proof references must use exact
 anchored test names that resolve to real `_test.go` declarations; broad regexes
 and prose are not accepted.
+
+The verifier also guards its own gate's reach (`gate_trigger_gap`): every
+package a `go test` proof ref names must be spanned by the evidence-continuity
+triggers in `specs/ci-gates.v1.yaml` AND by the `evidence` path filter in
+`.github/workflows/static-contract-gates.yml`, and the spec file itself must
+stay in both trigger sets. That anchor is what makes the check self-enforcing:
+a blind spot can only be created by editing the spec or the trigger lists, and
+all of those edits select this gate.
 
 ## Related docs
 
