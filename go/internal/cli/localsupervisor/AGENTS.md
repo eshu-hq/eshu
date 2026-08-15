@@ -27,16 +27,31 @@
   leaves nothing behind. If you add a resource, add its `defer` at the start
   site. Do not collect teardown at the end of the function.
 
-- **No process wiring in this package.** No cobra flags, no `fmt.Print*`, no
-  `os.Exit`, no writes to `os.Stdout`/`os.Stderr` for operator messages. Take
-  an `io.Writer` and write to that. `go/cmd/eshu` is `package main`, so nothing
-  can import it — anything that reads a flag or maps to an exit code stays
-  there.
+- **No process wiring for NEW operator messages.** No cobra flags, no
+  `fmt.Print*`, no `os.Exit`. Take an `io.Writer` and write to that.
+  `go/cmd/eshu` is `package main`, so nothing can import it — anything that
+  reads a flag or maps to an exit code stays there.
 
-  Two deliberate exceptions, both about a CHILD process's streams rather than
-  this package's own output: terminal log mode assigns `os.Stdout`/`os.Stderr`
-  to a child `exec.Cmd`, and the embedded graph runtime temporarily swaps the
-  process-global streams while NornicDB starts up.
+  Three writes already reach a process stream. Two are about a CHILD process's
+  streams rather than this package's own output: terminal log mode assigns
+  `os.Stdout`/`os.Stderr` to a child `exec.Cmd`, and the embedded graph runtime
+  temporarily swaps the process-global streams while NornicDB starts up.
+
+  The third is this package's own operator output, and it predates the move out
+  of `cmd/eshu`: `localHostProgressWriter` (`progress.go`) is `os.Stderr`, and
+  the whole local progress display goes through it — the plain renderer and the
+  Bubble Tea TUI both. A caller's `io.Writer` does not redirect it. Threading
+  `out` into `startLocalHostProgressReporter` would change what `eshu watch` and
+  `eshu graph start` print live, so it needs its own before/after proof rather
+  than a drive-by edit.
+
+- **The injected writer has exactly one test that reads it back.**
+  `TestRunOwnedHostWithLayoutWritesOperatorLinesToInjectedWriter` in
+  `host_writer_test.go`. Every other test passes `io.Discard`, and the CLI
+  passes `os.Stderr` — so a call site left as `fmt.Fprintf(os.Stderr, ...)`
+  produces byte-identical CLI output and no other test can see it. Add a
+  `fmt.Fprint*` call to `RunOwnedHostWithLayout` and you add a line to that
+  test's `wantLines`, or the new call site is unproven.
 
 - **Worker-count defaults never overwrite an operator's value.** The CPU-aware
   defaults apply only to `local_authoritative` + NornicDB, and only through

@@ -23,11 +23,27 @@ exit-code contract stay in `go/cmd/eshu` (`graph.go`, `local_host.go`,
 `service.go`), because `go/cmd/eshu` is `package main` and nothing can import
 it.
 
-It writes to no process stream of its own. Callers pass an `io.Writer` for
-progress output, so a test can capture what an operator would see. The one
-exception is deliberate: in terminal log mode a child process inherits
-`os.Stdout`/`os.Stderr` directly, because the point of that mode is for the
-child's own output to reach the operator's terminal.
+Callers pass an `io.Writer` and get the schema-bootstrap lines and the
+start-up warnings on it, so a test can capture what an operator would see.
+`TestRunOwnedHostWithLayoutWritesOperatorLinesToInjectedWriter` is that test,
+and it is the only one in the package that reads the writer back — the CLI
+passes `os.Stderr`, so a call site left on `os.Stderr` would look identical in
+a CLI parity check.
+
+Three writes reach a process stream directly instead. Two are a child's
+streams:
+
+- Terminal log mode gives a child `exec.Cmd` `os.Stdout`/`os.Stderr` directly,
+  because the point of that mode is for the child's own output to reach the
+  operator's terminal.
+- The embedded graph runtime swaps the process-global streams while NornicDB
+  starts, then restores them.
+
+The third is this package's own operator output: the local progress display
+writes to `localHostProgressWriter` in `progress.go`, which is `os.Stderr`.
+Both renderers use it, the plain one and the Bubble Tea TUI, and it is live on
+`eshu watch` and `eshu graph start`. A caller's `io.Writer` does not redirect
+it.
 
 Workspace layout, the owner lock, the owner record, and embedded Postgres
 belong to `internal/eshulocal`. Installing and verifying a NornicDB binary
@@ -81,7 +97,8 @@ for the in-process graph runtime.
 ## Telemetry
 
 This package emits no `eshu_dp_*` metrics and opens no spans. Its operator
-signals are the progress lines written to the caller's `io.Writer`, the child
+signals are the bootstrap and warning lines written to the caller's
+`io.Writer`, the progress display on `os.Stderr`, the child
 service logs under the workspace log directory, the graph backend log at
 `<logs>/graph-nornicdb.log`, and the owner record that `eshu graph status`
 reads back. The services it supervises carry their own instrumentation.

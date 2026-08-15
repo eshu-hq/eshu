@@ -21,8 +21,11 @@ import (
 // invokes `<binary> version` and parses the "NornicDB <version>" output, the
 // same way localsupervisor's readLocalGraphVersion (graph_process.go) does
 // for the production CLI. It is duplicated here rather than imported because
-// readLocalGraphVersion lives in package main and cannot be imported; see
-// doc.go for why that stays out of scope for this package.
+// localsupervisor imports this package (graph_process.go, lifecycle.go), so a
+// test file in package graphinstall importing it back is an import cycle:
+// "import cycle not allowed in test". Exporting it as ReadGraphVersion did not
+// change that. See doc.go for why executing the binary stays out of scope for
+// this package.
 func execNornicDBVersion(binaryPath string) (string, error) {
 	output, err := exec.Command(binaryPath, "version").Output() // #nosec G204 -- test-only invocation of a fixture binary written by writeFakeNornicDBBinary(At)
 	if err != nil {

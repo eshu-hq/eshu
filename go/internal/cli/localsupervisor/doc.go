@@ -28,12 +28,21 @@
 // graph_embedded_nornicdb.go and graph_embedded_stub.go declare the same two
 // names under mutually exclusive tags, so exactly one is ever compiled.
 //
-// This package holds no cobra wiring and writes to no process stream of its
-// own. Callers pass an io.Writer for progress output and read the results the
-// functions return; go/cmd/eshu's graph.go, local_host.go, and service.go are
-// the cobra wrappers that read flags, print, and own the exit-code contract.
+// This package holds no cobra wiring. Callers pass an io.Writer, receive the
+// schema-bootstrap lines and the start-up warnings on it, and read the results
+// the functions return; go/cmd/eshu's graph.go, local_host.go, and service.go
+// are the cobra wrappers that read flags, print, and own the exit-code contract.
 // That split is mechanical: go/cmd/eshu is `package main`, so nothing can import
 // it, and any symbol reading a flag has to stay there.
+//
+// Three writes bypass that io.Writer and reach a process stream directly. Two
+// are a child's streams: terminal log mode hands os.Stdout/os.Stderr to a child
+// exec.Cmd, and the embedded graph runtime swaps the process-global streams
+// while NornicDB starts. The third is this package's own operator output. The
+// local progress display — the plain renderer and the Bubble Tea TUI alike —
+// writes to localHostProgressWriter in progress.go, which is os.Stderr. It runs
+// live on `eshu watch` and `eshu graph start`, and the io.Writer a caller passes
+// to RunOwnedHostWithLayout does not redirect it.
 //
 // The environment is this package's main configuration surface, in both
 // directions. It READS ESHU_QUERY_PROFILE and ESHU_GRAPH_BACKEND (the owner

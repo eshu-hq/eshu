@@ -191,7 +191,7 @@ func ManagedBinaryIfPresent(readVersion VersionReader) (string, error) {
 		return "", err
 	}
 	if _, err := os.Stat(path); err != nil {
-		return "", err //nolint:wrapcheck // callers (resolveNornicDBBinary) depend on os.IsNotExist(err) matching the raw *PathError; wrapping with %w would break that detection.
+		return "", err //nolint:wrapcheck // callers (localsupervisor.ResolveGraphBinary) depend on os.IsNotExist(err) matching the raw *PathError; wrapping with %w would break that detection.
 	}
 	if _, err := readVersion(path); err != nil {
 		return "", fmt.Errorf("verify managed nornicdb binary %q: %w", path, err)

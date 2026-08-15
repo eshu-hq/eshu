@@ -58,16 +58,17 @@
   yourself wanting to add `os/exec` here for anything other than
   `expandPackage`'s `pkgutil --expand-full` call (source.go, darwin `.pkg`
   extraction, not version verification), that logic belongs in
-  `go/cmd/eshu`, not here.
+  `go/internal/cli/localsupervisor`, not here.
 - **`Options.ReadVersion` is required.** `Install` and `ManagedBinaryIfPresent`
   both fail fast with a `graphinstall:`-prefixed error when handed a nil
   `VersionReader`, rather than reaching a nil-pointer panic deeper in the
   call chain (`prepareInstallSource` → `inspectInstallSource`).
 - **`ManagedBinaryIfPresent`'s `os.Stat` error stays unwrapped.**
-  `resolveNornicDBBinary` in `go/cmd/eshu` depends on `os.IsNotExist(err)`
-  matching the raw `*os.PathError`; wrapping it with `%w` breaks that check
-  silently because `os.IsNotExist` only unwraps `*PathError`/`*LinkError`/
-  `*SyscallError` by type switch, not the general `errors.Unwrap` chain. The
+  `ResolveGraphBinary` in `go/internal/cli/localsupervisor` depends on
+  `os.IsNotExist(err)` matching the raw `*os.PathError`; wrapping it with `%w`
+  breaks that check silently because `os.IsNotExist` only unwraps
+  `*PathError`/`*LinkError`/`*SyscallError` by type switch, not the general
+  `errors.Unwrap` chain. The
   `//nolint:wrapcheck` on that line is intentional — do not "fix" it by
   wrapping.
 

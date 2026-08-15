@@ -38,9 +38,9 @@ stayed out of scope for this extraction. Callers thread their
   stable wire contract: `eshu install nornicdb` prints `Result` as-is.
 - `ManagedBinaryIfPresent` -- returns the managed binary's path if Eshu has
   one installed and it still passes version verification, or an error
-  satisfying `os.IsNotExist` when none is installed. `go/cmd/eshu`'s
-  `localsupervisor/graph_process.go` (`ResolveGraphBinary`) is the sole external
-  caller.
+  satisfying `os.IsNotExist` when none is installed.
+  `go/internal/cli/localsupervisor`'s `graph_process.go`
+  (`ResolveGraphBinary`) is the sole external caller.
 - `VersionReader` -- the function type callers implement to report a
   NornicDB binary's version without this package executing anything itself.
 
@@ -63,9 +63,10 @@ See `doc.go` for the full godoc contract.
 - `internal/buildinfo` -- `AppVersion`, used to resolve the pinned release
   manifest entry for the running Eshu version
 - Consumed by `go/cmd/eshu`: the `install nornicdb` wrapper
-  (`graph_install_cmd.go`), `graph.go`'s `eshu graph upgrade` path
-  (`localsupervisor.UpgradeForLayout`), and `graph_process.go`'s
-  `resolveNornicDBBinary`
+  (`graph_install_cmd.go`) and `graph.go`'s `eshu graph upgrade` path
+  (`localsupervisor.UpgradeForLayout`)
+- Consumed by `go/internal/cli/localsupervisor`: `graph_process.go`'s
+  `ResolveGraphBinary` and `lifecycle.go`'s `UpgradeForLayout`
 
 ## Telemetry
 
@@ -75,8 +76,8 @@ there is no background pipeline stage to instrument.
 ## Gotchas / invariants
 
 - `ManagedBinaryIfPresent`'s `os.Stat` error is returned unwrapped on
-  purpose (`//nolint:wrapcheck`): `resolveNornicDBBinary` depends on
-  `os.IsNotExist(err)` matching the raw `*PathError`, which stops working if
+  purpose (`//nolint:wrapcheck`): `localsupervisor.ResolveGraphBinary` depends
+  on `os.IsNotExist(err)` matching the raw `*PathError`, which stops working if
   the error gets wrapped with `%w` -- `os.IsNotExist` unwraps only `*PathError`,
   `*LinkError`, and `*SyscallError` by type switch, not through the general
   `errors.Unwrap` chain.

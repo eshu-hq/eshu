@@ -120,8 +120,11 @@ type RuntimeConfig struct {
 }
 
 // RunOwnedHost takes ownership of the workspace at workspaceRoot and supervises
-// its local services until ctx is cancelled. Progress lines go to out; pass
-// os.Stderr for the CLI behaviour, or a buffer to capture them.
+// its local services until ctx is cancelled. The schema-bootstrap lines and the
+// warnings for a finalizer or reporter that failed to start go to out; pass
+// os.Stderr for the CLI behaviour, or a buffer to capture those. The live
+// progress display is not among them: it writes to localHostProgressWriter,
+// which is os.Stderr whatever out is.
 func RunOwnedHost(ctx context.Context, out io.Writer, workspaceRoot string, mode HostMode) error {
 	layout, err := BuildLayout(workspaceRoot)
 	if err != nil {
