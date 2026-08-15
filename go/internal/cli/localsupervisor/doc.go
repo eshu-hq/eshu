@@ -35,14 +35,24 @@
 // That split is mechanical: go/cmd/eshu is `package main`, so nothing can import
 // it, and any symbol reading a flag has to stay there.
 //
-// Three writes bypass that io.Writer and reach a process stream directly. Two
-// are a child's streams: terminal log mode hands os.Stdout/os.Stderr to a child
-// exec.Cmd, and the embedded graph runtime swaps the process-global streams
-// while NornicDB starts. The third is this package's own operator output. The
-// local progress display — the plain renderer and the Bubble Tea TUI alike —
-// writes to localHostProgressWriter in progress.go, which is os.Stderr. It runs
-// live on `eshu watch` and `eshu graph start`, and the io.Writer a caller passes
-// to RunOwnedHostWithLayout does not redirect it.
+// Some writes bypass that io.Writer and reach a process stream directly. Two of
+// them carry no message of this package's own. Terminal log mode hands
+// os.Stdout/os.Stderr to a child exec.Cmd, because that mode exists so the
+// child's output reaches the terminal. The embedded graph runtime pipes the
+// process-global streams into the graph log while NornicDB starts, keeping the
+// library's startup chatter out of an MCP stdio session, and restores them
+// afterwards; that redirect is compiled only under the nolocalllm build tag,
+// since a plain build gets the stub instead.
+//
+// The rest is this package's own operator output, and the io.Writer a caller
+// passes to RunOwnedHostWithLayout redirects none of it. The local progress
+// display — the plain renderer and the Bubble Tea TUI alike — writes to
+// localHostProgressWriter in progress.go, which is os.Stderr. It runs live on
+// `eshu watch` and `eshu graph start`. Two paths log through slog: children.go
+// records a child that exited cleanly while the service stays up, and
+// graph_bootstrap.go hands slog.Default() to graph.EnsureSchemaWithBackend,
+// which logs a record per schema statement. The eshu binary installs no slog
+// handler, so both land on os.Stderr through Go's default one.
 //
 // The environment is this package's main configuration surface, in both
 // directions. It READS ESHU_QUERY_PROFILE and ESHU_GRAPH_BACKEND (the owner

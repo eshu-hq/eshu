@@ -28,20 +28,33 @@
   site. Do not collect teardown at the end of the function.
 
 - **No process wiring for NEW operator messages.** No cobra flags, no
-  `fmt.Print*`, no `os.Exit`. Take an `io.Writer` and write to that.
-  `go/cmd/eshu` is `package main`, so nothing can import it — anything that
-  reads a flag or maps to an exit code stays there.
+  `fmt.Print*`, no `os.Exit`, and no NEW write to `os.Stdout`/`os.Stderr` for an
+  operator message. Take an `io.Writer` and write to that. `go/cmd/eshu` is
+  `package main`, so nothing can import it — anything that reads a flag or maps
+  to an exit code stays there.
 
-  Three writes already reach a process stream. Two are about a CHILD process's
-  streams rather than this package's own output: terminal log mode assigns
+  Writes that already reach a process stream are below, deliberately without a
+  count: the set moves with the build tag and with the next call site anyone
+  adds, and nothing enforces a number written here. Re-derive it before you rely
+  on it, with
+  `rg -n 'os\.(Stdout|Stderr)|slog\.|fmt\.Print' --glob '!*_test.go'` over the
+  package.
+
+  Two of them carry no message of this package's own: terminal log mode assigns
   `os.Stdout`/`os.Stderr` to a child `exec.Cmd`, and the embedded graph runtime
-  temporarily swaps the process-global streams while NornicDB starts up.
+  temporarily pipes the process-global streams into the graph log while NornicDB
+  starts up. That redirect is compiled only under `-tags nolocalllm`; a plain
+  build gets the stub instead.
 
-  The third is this package's own operator output, and it predates the move out
-  of `cmd/eshu`: `localHostProgressWriter` (`progress.go`) is `os.Stderr`, and
+  The rest is this package's own operator output, and it predates the move out
+  of `cmd/eshu`. `localHostProgressWriter` (`progress.go`) is `os.Stderr`, and
   the whole local progress display goes through it — the plain renderer and the
-  Bubble Tea TUI both. A caller's `io.Writer` does not redirect it. Threading
-  `out` into `startLocalHostProgressReporter` would change what `eshu watch` and
+  Bubble Tea TUI both. `children.go` logs a `slog` record when a child exits
+  cleanly, and `graph_bootstrap.go` passes `slog.Default()` to
+  `graph.EnsureSchemaWithBackend`, which logs a record per schema statement;
+  `eshu` installs no `slog` handler, so both land on `os.Stderr` through Go's
+  default. A caller's `io.Writer` redirects none of it. Threading `out` into
+  `startLocalHostProgressReporter` would change what `eshu watch` and
   `eshu graph start` print live, so it needs its own before/after proof rather
   than a drive-by edit.
 

@@ -30,20 +30,28 @@ and it is the only one in the package that reads the writer back — the CLI
 passes `os.Stderr`, so a call site left on `os.Stderr` would look identical in
 a CLI parity check.
 
-Three writes reach a process stream directly instead. Two are a child's
-streams:
+Other writes reach a process stream directly instead. Two of them carry no
+message of this package's own:
 
 - Terminal log mode gives a child `exec.Cmd` `os.Stdout`/`os.Stderr` directly,
   because the point of that mode is for the child's own output to reach the
   operator's terminal.
-- The embedded graph runtime swaps the process-global streams while NornicDB
-  starts, then restores them.
+- The embedded graph runtime pipes the process-global streams into the graph
+  log while NornicDB starts, then restores them. That redirect is compiled only
+  under the `nolocalllm` build tag; a plain build gets the stub, which has no
+  swap.
 
-The third is this package's own operator output: the local progress display
-writes to `localHostProgressWriter` in `progress.go`, which is `os.Stderr`.
-Both renderers use it, the plain one and the Bubble Tea TUI, and it is live on
-`eshu watch` and `eshu graph start`. A caller's `io.Writer` does not redirect
-it.
+The rest is this package's own operator output, and a caller's `io.Writer`
+redirects none of it:
+
+- The local progress display writes to `localHostProgressWriter` in
+  `progress.go`, which is `os.Stderr`. Both renderers use it, the plain one and
+  the Bubble Tea TUI, and it is live on `eshu watch` and `eshu graph start`.
+- `children.go` logs a `slog` record when a child exits cleanly and the service
+  stays up, and `graph_bootstrap.go` passes `slog.Default()` to
+  `graph.EnsureSchemaWithBackend`, which logs a record per schema statement.
+  The `eshu` binary installs no `slog` handler, so both reach `os.Stderr`
+  through Go's default one.
 
 Workspace layout, the owner lock, the owner record, and embedded Postgres
 belong to `internal/eshulocal`. Installing and verifying a NornicDB binary
@@ -98,10 +106,12 @@ for the in-process graph runtime.
 
 This package emits no `eshu_dp_*` metrics and opens no spans. Its operator
 signals are the bootstrap and warning lines written to the caller's
-`io.Writer`, the progress display on `os.Stderr`, the child
-service logs under the workspace log directory, the graph backend log at
-`<logs>/graph-nornicdb.log`, and the owner record that `eshu graph status`
-reads back. The services it supervises carry their own instrumentation.
+`io.Writer`, the progress display on `os.Stderr`, the `slog` records for a
+clean child exit and for each graph schema statement (default handler, so
+`os.Stderr` as well), the child service logs under the workspace log directory,
+the graph backend log at `<logs>/graph-nornicdb.log`, and the owner record that
+`eshu graph status` reads back. The services it supervises carry their own
+instrumentation.
 
 ## Gotchas / invariants
 
