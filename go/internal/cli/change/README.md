@@ -101,16 +101,16 @@ owned by `go/cmd/eshu/change_impact.go`.
 - **Freshness is checked before truncation.** A stale answer reports staleness,
   not the truncation staleness often causes.
 - **The trace helpers here are copies, not shared code.** `mapValue`,
-  `sliceValue`, `stringValue`, and `intValue` mirror `go/cmd/eshu`'s
-  `traceMap` / `traceSlice` / `traceString` / `traceInt`, which still have
-  callers that have not moved (`trace.go` and `trace_render.go`), and
-  `ErrorCodeFromTransport` mirrors `traceErrorCodeFromTransport`, still called
-  from `trace.go` and `component_api.go`. `boolValue` outlived its original,
-  which left `go/cmd/eshu` with its last caller in #6059. The copies coexist
-  until a shared home exists; do not delete either side assuming the other
-  covers it. The freshness and component families keep their own sets and
-  entitymap a differently named one, so a change belongs in every set that has
-  the reader you touched. `TestEnvelopeReaderParity` in `go/cmd/eshu` compares
+  `sliceValue`, `stringValue`, and `intValue` were forked from `go/cmd/eshu`'s
+  `traceMap` / `traceSlice` / `traceString` / `traceInt`, and
+  `ErrorCodeFromTransport` from `traceErrorCodeFromTransport`, which is still
+  called from `trace.go` and `component_api.go`. The reader originals are gone:
+  the component (#6139) and trace (#6059) extractions removed their last
+  `go/cmd/eshu` callers, and the originals with them. The copies coexist until
+  a shared home exists; do not delete one set assuming another covers it. The
+  freshness, component, and trace families keep their own sets and entitymap a
+  differently named one, so a change belongs in every set that has the reader
+  you touched. `TestEnvelopeReaderParity` in `go/cmd/eshu` compares
   each reader across only the copies that reader has and fails when one drifts,
   and `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` pins the
   entitymap set. `ErrorCodeFromTransport` is the one to watch: it is the only

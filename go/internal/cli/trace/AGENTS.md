@@ -27,16 +27,22 @@ the package [`README.md`](README.md) still apply.
    pick an error code, which picks the exit code. The `//nolint:wrapcheck` is
    there for that reason — do not "fix" it.
 
-4. **The four readers in `value.go` are copies.** Their siblings are `traceMap` /
-   `traceSlice` / `traceString` / `traceInt` in `go/cmd/eshu` and `mapValue` /
-   `sliceValue` / `stringValue` / `intValue` in `internal/cli/change` and
-   `internal/cli/freshness`. Edit one and you edit all four, or
-   `TestEnvelopeReaderParity` in `go/cmd/eshu` fails and names yours.
+4. **The readers in `value.go` are copies.** Their siblings are the `mapValue`
+   / `sliceValue` / `stringValue` / `intValue` sets in `internal/cli/change`,
+   `internal/cli/freshness`, and `internal/cli/component` (component and this
+   package also carry `stringsValue`), plus entitymap's differently named set.
+   The `go/cmd/eshu` originals (`traceMap` and friends) are gone -- #6139 and
+   #6059 removed their last callers there. Edit one copy and you edit every
+   set that has that reader, or `TestEnvelopeReaderParity` in `go/cmd/eshu`
+   fails and names yours; the entitymap twin tests pin that family's set
+   against this one.
 
 5. **Do not add a `boolValue` here** unless something genuinely reads a boolean.
-   The parity test records its absence and fails when it reappears unregistered.
-   If you do add one, register it in that test's `names` map and drop the
-   `absent` entry in the same change.
+   The parity test records its absence and fails when a reader named
+   `boolValue` reappears here unregistered. That is the only name it knows, so
+   a bool reader added under another name passes it. If
+   you add one under any name, register it in that test's `names` map and drop
+   the `absent` entry in the same change.
 
 ## Common changes
 

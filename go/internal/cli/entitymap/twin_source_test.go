@@ -15,10 +15,15 @@ import (
 	"testing"
 )
 
-// The value readers here are deliberate copies of the trace* helpers in
-// go/cmd/eshu/trace.go, which cannot be imported because that is package main.
-// go/cmd/eshu/entitymap_parity_test.go is the primary guard and does more than
-// this one: it runs both implementations and compares behaviour.
+// The value readers here were forked from the trace* helpers in
+// go/cmd/eshu/trace.go, which could not be imported because that is package
+// main. Those originals are gone -- the component (#6139), entitymap (#6127),
+// and trace (#6059) extractions removed their last cmd/eshu callers -- so
+// this test pins the copies against their internal/cli/trace siblings, the
+// set TestEnvelopeReaderParity already holds to change, freshness, and
+// component. go/cmd/eshu/entitymap_parity_test.go is the primary guard and
+// does more than this one: it runs both implementations and compares
+// behaviour.
 //
 // This test exists because that guard cannot run from here. Editing values.go
 // and running the natural focused loop -- `go test ./internal/cli/entitymap/`
@@ -33,30 +38,31 @@ func TestValueReadersMatchTheirTraceOriginals(t *testing.T) {
 	t.Parallel()
 
 	const (
-		traceFile  = "../../../cmd/eshu/trace.go"
-		valuesFile = "values.go"
+		traceValueFile = "../trace/value.go"
+		valuesFile     = "values.go"
 	)
 	pairs := []struct {
+		traceFile string
 		traceName string
 		mapName   string
 	}{
-		{"traceMap", "mapField"},
-		{"traceSlice", "sliceField"},
-		{"traceString", "stringField"},
-		{"traceInt", "intField"},
-		{"traceStrings", "stringList"},
-		{"traceFirstString", "firstNonEmpty"},
+		{traceValueFile, "mapValue", "mapField"},
+		{traceValueFile, "sliceValue", "sliceField"},
+		{traceValueFile, "stringValue", "stringField"},
+		{traceValueFile, "intValue", "intField"},
+		{traceValueFile, "stringsValue", "stringList"},
+		{traceValueFile, "firstString", "firstNonEmpty"},
 	}
 
 	for _, pair := range pairs {
 		t.Run(pair.mapName, func(t *testing.T) {
 			t.Parallel()
-			original := twinFuncBody(t, traceFile, pair.traceName)
+			original := twinFuncBody(t, pair.traceFile, pair.traceName)
 			copied := twinFuncBody(t, valuesFile, pair.mapName)
 			if original != copied {
 				t.Fatalf(
-					"%s drifted from %s in go/cmd/eshu/trace.go; change both or neither\noriginal:\n%s\ncopy:\n%s",
-					pair.mapName, pair.traceName, original, copied,
+					"%s drifted from %s in %s; change both or neither\noriginal:\n%s\ncopy:\n%s",
+					pair.mapName, pair.traceName, pair.traceFile, original, copied,
 				)
 			}
 		})

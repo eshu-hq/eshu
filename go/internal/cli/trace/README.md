@@ -80,19 +80,24 @@ error as-is. `go/cmd/eshu` prints that text verbatim and matches substrings of i
 would change both the operator's message and the process exit code. The
 `//nolint:wrapcheck` on that function is load-bearing, not noise.
 
-**The envelope readers are one of four copies.** `mapValue`, `sliceValue`,
-`stringValue`, and `intValue` in `value.go` duplicate `traceMap` / `traceSlice` /
-`traceString` / `traceInt` in `go/cmd/eshu`, and the same four in
-`internal/cli/change` and `internal/cli/freshness`. Nothing can import the
-originals across the `package main` boundary. Change one and you must change the
-rest: `TestEnvelopeReaderParity` in `go/cmd/eshu` compares all four copies at the
-source level and names the one that drifted.
+**The envelope readers are one copy among siblings.** `mapValue`, `sliceValue`,
+`stringValue`, and `intValue` in `value.go` match the same-named sets in
+`internal/cli/change`, `internal/cli/freshness`, and `internal/cli/component`;
+`stringsValue` matches component's. All were forked from `go/cmd/eshu`
+originals (`traceMap` and friends) that nothing could import across the
+`package main` boundary and that are gone now -- #6139 and #6059 removed their
+last callers there. Change one copy and you must change the rest:
+`TestEnvelopeReaderParity` in `go/cmd/eshu` compares the copies at the source
+level per reader and names the one that drifted, and the entitymap twin tests
+pin that family's set against this one.
 
-This copy carries four readers, not five. The family's fifth reader — `boolValue`
-/ `traceBool` — is absent because nothing here reads a boolean out of an
-envelope, and the `unused` linter rejects a reader kept only for symmetry. That
-absence is registered in the parity test, which fails if a bool reader appears
-here without being declared, so the gap is pinned rather than merely unnoticed.
+This copy carries no bool reader. The family's `boolValue` is absent here
+because nothing in this package reads a boolean out of an envelope, and the
+`unused` linter rejects a reader kept only for symmetry. The parity test
+registers that absence and fails if `boolValue` reappears here unregistered.
+It matches on the names the other copies use, so a bool reader added under a
+name none of them uses passes it — register any bool reader you add rather
+than relying on the test to catch it.
 
 **An empty section is omitted, not printed empty.** A code-to-runtime trace with
 no segments renders nothing at all, header included. A heading with no rows would

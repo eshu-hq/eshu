@@ -15,28 +15,31 @@ import (
 )
 
 // TestEnvelopeReaderParity holds every copy of the envelope value readers to
-// the same source. cmd/eshu declares traceMap / traceSlice / traceString /
-// traceInt / traceStrings; change, freshness, component, and trace carry
-// mapValue / sliceValue / stringValue / intValue / boolValue sets (component
-// and trace add stringsValue). Not every reader lives everywhere: the bool
-// reader's cmd/eshu original left with its last caller when the component
-// family was extracted (#6139), and only families that render a string list
-// carry the strings reader -- forcing a role into a package that never calls
-// it would grow dead code the unused linter rejects. Each copy below
-// therefore maps only the roles it declares, and declares the rest absent.
+// the same source: the mapValue / sliceValue / stringValue / intValue /
+// boolValue sets that change, freshness, component, and trace each keep
+// (component and trace add stringsValue). The cmd/eshu originals -- traceMap
+// and friends -- are gone: the component extraction (#6139) and the trace
+// extraction (#6059) together removed their last callers in this package.
+// Not every reader lives everywhere: only families that read a boolean or
+// render a string list carry those readers -- forcing a role into a package
+// that never calls it would grow dead code the unused linter rejects. Each
+// copy below therefore maps only the roles it declares, and declares the
+// rest absent.
 //
 // The sets are copies with identical bodies, for the same reason the
-// transport classifier next door has copies: cmd/eshu is package main, so
-// nothing can import its declarations, and each family needs its own set.
-// The entitymap family keeps another, differently named set;
-// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins that one
-// against the originals, so it stays out of this table. Unlike the
+// transport classifier next door has copies: they were forked from one
+// cmd/eshu original that nothing could import (package main), and each family
+// needs its own set. The entitymap family keeps another, differently named
+// set; TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins that one
+// against internal/cli/trace's, so it stays out of this table. Unlike the
 // classifier, the copies here are unexported in every package, so a
 // behavioral table cannot reach them from one test -- exporting the
 // helpers to make that possible would widen the package APIs for a test's
 // convenience. Comparing the declarations at the source level pins the same
 // property without that cost, and pins every branch rather than only the
-// branches a table happens to visit.
+// branches a table happens to visit. The test stays in cmd/eshu because
+// this is where the sibling parity tests live and where the family history
+// is documented.
 //
 // This is the gap the comments alone left open. Separate comments told the
 // next editor to change every copy, and some named only one other copy
@@ -47,7 +50,7 @@ import (
 // A failure here means one copy's declaration no longer matches the others.
 // That is either an edit that reached one copy and missed the rest -- fix the
 // copies it missed -- or an intended divergence, in which case the comments
-// above every set stop being true and need rewriting along with this test.
+// above every copy stop being true and need rewriting along with this test.
 func TestEnvelopeReaderParity(t *testing.T) {
 	t.Parallel()
 
@@ -60,27 +63,15 @@ func TestEnvelopeReaderParity(t *testing.T) {
 	// reader kept for symmetry alone, so that copy declares no bool reader.
 	// Absence has to be declared in absent below rather than simply left out of
 	// names: the loop checks that a role listed there really is undeclared, so a
-	// bool reader added to that package later fails here until it is registered.
+	// reader added to that package under a name some copy already registers --
+	// boolValue for the bool role -- fails here until it is registered too. A
+	// brand new spelling is not a name this test knows, so it goes unnoticed.
 	copies := []struct {
 		name   string
 		dir    string
 		names  map[string]string
 		absent map[string]string
 	}{
-		{
-			name: "cmd/eshu",
-			dir:  ".",
-			names: map[string]string{
-				"map":     "traceMap",
-				"slice":   "traceSlice",
-				"string":  "traceString",
-				"int":     "traceInt",
-				"strings": "traceStrings",
-			},
-			absent: map[string]string{
-				"bool": "the cmd/eshu original left with its last caller when the component family was extracted (#6139)",
-			},
-		},
 		{
 			name: "internal/cli/change",
 			dir:  filepath.Join("..", "..", "internal", "cli", "change"),
@@ -142,8 +133,8 @@ func TestEnvelopeReaderParity(t *testing.T) {
 	// role dropped from a copy a failure instead of a shorter loop.
 	roles := []string{"map", "slice", "string", "int", "bool", "strings"}
 
-	if len(copies) != 5 {
-		t.Fatalf("parity covers %d copies, want 5; a copy dropped from this slice is a copy nothing pins, so move this number only alongside the copy you added or deleted", len(copies))
+	if len(copies) != 4 {
+		t.Fatalf("parity covers %d copies, want 4; a copy dropped from this slice is a copy nothing pins, so move this number only alongside the copy you added or deleted", len(copies))
 	}
 	if len(roles) != 6 {
 		t.Fatalf("parity covers %d readers, want 6; move this number only alongside the reader you added or deleted, and say which one", len(roles))

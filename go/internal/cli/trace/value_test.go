@@ -102,8 +102,12 @@ func TestIntValue(t *testing.T) {
 	}
 }
 
-// TestStringsValue pins the filtering: a non-string entry and a blank string are
-// both dropped, so the "What to worry about" list never renders an empty bullet.
+// TestStringsValue pins both list arms, which do not filter alike. A []any --
+// the only shape encoding/json produces -- drops non-strings and blanks, so no
+// API response renders an empty bullet under "What to worry about". A []string,
+// which only a Go caller can hand in, is returned untouched and does render
+// one. Asserting the second arm keeps the doc comment on stringsValue honest;
+// a case of only non-blank entries passes either way.
 func TestStringsValue(t *testing.T) {
 	t.Parallel()
 
@@ -111,8 +115,9 @@ func TestStringsValue(t *testing.T) {
 	if len(got) != 2 || got[0] != "first" || got[1] != "second" {
 		t.Fatalf("stringsValue = %#v, want [first second]", got)
 	}
-	if got := stringsValue([]string{"kept"}); len(got) != 1 || got[0] != "kept" {
-		t.Fatalf("stringsValue([]string) = %#v, want [kept]", got)
+	if got := stringsValue([]string{"kept", "", "  "}); len(got) != 3 ||
+		got[0] != "kept" || got[1] != "" || got[2] != "  " {
+		t.Fatalf("stringsValue([]string) = %#v, want the slice back unfiltered", got)
 	}
 	if got := stringsValue("not a list"); got != nil {
 		t.Fatalf("stringsValue over a string = %#v, want nil", got)

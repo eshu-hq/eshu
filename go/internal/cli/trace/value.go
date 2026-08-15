@@ -5,20 +5,27 @@ package trace
 
 import "strings"
 
-// The four readers below are a copy of four of the five envelope value readers
-// that go/cmd/eshu declares as traceMap / traceSlice / traceString / traceInt,
-// and that go/internal/cli/change and go/internal/cli/freshness each copy again
-// as mapValue / sliceValue / stringValue / intValue. cmd/eshu is package main,
-// so nothing can import the originals and every family that renders an envelope
-// takes its own set. Change one and you must change the rest:
-// TestEnvelopeReaderParity in go/cmd/eshu compares all four copies at the source
-// level and names the one that drifted.
+// The readers below are one family's copy of the envelope value readers that
+// go/internal/cli/change and go/internal/cli/freshness carry as mapValue /
+// sliceValue / stringValue / intValue and go/internal/cli/component carries
+// with stringsValue as well; entitymap keeps a differently named set. All of
+// them were forked from cmd/eshu originals (traceMap and friends) that nothing
+// could import -- package main -- and that are gone now the component (#6139)
+// and trace (#6059) extractions removed their last cmd/eshu callers. Every
+// family that renders an envelope takes its own set. Change one and you must
+// change the rest: TestEnvelopeReaderParity in go/cmd/eshu compares the
+// same-named copies at the source level per reader and names the one that
+// drifted, and the entitymap twin tests pin that family's set against this
+// one.
 //
-// The fifth reader of that set -- traceBool / boolValue -- is deliberately NOT
-// copied here. This family reads no boolean out of an envelope, and the `unused`
+// The bool reader of that family -- boolValue -- is deliberately NOT copied
+// here. This family reads no boolean out of an envelope, and the `unused`
 // linter rejects a reader carried for symmetry alone. The parity test records
-// the absence explicitly and fails if a bool reader ever appears here without
-// being registered, so the gap is pinned rather than merely unnoticed.
+// the absence explicitly: re-introducing the reader under a sibling package's
+// spelling -- boolValue -- fails there until it is registered. It matches on
+// the names the other copies already use, so a bool reader added here under a
+// fresh name goes unnoticed; register any bool reader you add rather than
+// relying on that test to catch it.
 
 // mapValue returns parent[key] as a nested object, or nil when the key is
 // missing or holds another type.
@@ -81,13 +88,21 @@ func intValue(parent map[string]any, key string) int {
 	}
 }
 
-// stringsValue returns value as a list of non-empty trimmed strings. Entries
-// that are not strings, and strings that are blank once trimmed, are dropped
-// rather than rendered as empty bullets.
+// stringsValue returns value as a list of strings, and nil for anything that is
+// not a list.
 //
-// It mirrors traceStrings in go/cmd/eshu, which keeps its own copy for the map
-// and component_api families. It is not part of the five-reader set
-// TestEnvelopeReaderParity pins.
+// The two list arms differ, which matters to a caller building an envelope in
+// Go. A []any is filtered: entries that are not strings, and strings blank once
+// trimmed, are dropped rather than rendered as empty bullets. A []string is
+// returned as it arrived, blanks included, so RenderServiceSummary prints a
+// bare "- " for each one. Only a Go caller can reach that arm -- encoding/json
+// decodes every JSON array into []any -- so no API response produces it.
+//
+// Its sibling copies are stringsValue in go/internal/cli/component and
+// stringList in go/internal/cli/entitymap; the cmd/eshu original,
+// traceStrings, left with its last caller. TestEnvelopeReaderParity pins the
+// strings role across this copy and component's, and the entitymap twin tests
+// pin stringList against this one.
 func stringsValue(value any) []string {
 	switch typed := value.(type) {
 	case []string:
@@ -109,7 +124,11 @@ func stringsValue(value any) []string {
 // every candidate is blank. Callers use it to fall back across the several key
 // spellings the API has used for one field.
 //
-// It mirrors traceFirstString in go/cmd/eshu, which the map family still calls.
+// Its cmd/eshu original, traceFirstString, was deleted when this extraction
+// and the entitymap extraction removed its last callers. The one other copy is
+// firstNonEmpty in go/internal/cli/entitymap/values.go;
+// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers in go/cmd/eshu pins
+// the two copies to each other, so an edit here belongs there too.
 func firstString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

@@ -208,81 +208,12 @@ func writeTraceJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// change, freshness, and component each copy traceMap/traceSlice/traceString/traceInt under the *Value names, component alone also copies traceStrings, and entitymap keeps a differently named set -- so edit every set that has the reader you touched. TestEnvelopeReaderParity compares each role across only the copies that role has; TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap set.
-func traceMap(parent map[string]any, key string) map[string]any {
-	if parent == nil {
-		return nil
-	}
-	if typed, ok := parent[key].(map[string]any); ok {
-		return typed
-	}
-	return nil
-}
-
-func traceSlice(parent map[string]any, key string) []any {
-	if parent == nil {
-		return nil
-	}
-	switch typed := parent[key].(type) {
-	case []any:
-		return typed
-	case []map[string]any:
-		rows := make([]any, 0, len(typed))
-		for _, row := range typed {
-			rows = append(rows, row)
-		}
-		return rows
-	default:
-		return nil
-	}
-}
-
-func traceString(parent map[string]any, key string) string {
-	if parent == nil {
-		return ""
-	}
-	if value, ok := parent[key].(string); ok {
-		return strings.TrimSpace(value)
-	}
-	return ""
-}
-
-func traceInt(parent map[string]any, key string) int {
-	if parent == nil {
-		return 0
-	}
-	switch value := parent[key].(type) {
-	case int:
-		return value
-	case float64:
-		return int(value)
-	default:
-		return 0
-	}
-}
-
-func traceStrings(value any) []string {
-	switch typed := value.(type) {
-	case []string:
-		return typed
-	case []any:
-		values := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
-				values = append(values, strings.TrimSpace(value))
-			}
-		}
-		return values
-	default:
-		return nil
-	}
-}
-
-func traceFirstString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
+// The envelope value readers (traceMap / traceSlice / traceString / traceInt
+// / traceStrings) lived here until the component extraction (#6139) and this
+// trace extraction (#6059) together removed their last cmd/eshu callers.
+// Their surviving copies are the mapValue / sliceValue / stringValue /
+// intValue / stringsValue sets in go/internal/cli/change,
+// go/internal/cli/freshness, go/internal/cli/component, and
+// go/internal/cli/trace, plus entitymap's differently named set.
+// TestEnvelopeReaderParity compares the same-named sets per role, and the
+// entitymap twin tests pin that family's set against internal/cli/trace's.

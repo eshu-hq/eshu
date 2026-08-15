@@ -49,20 +49,20 @@
 - **Renderers write through `writef`.** Not `fmt.Fprintf`. See `write.go` for
   why, and do not add a second `//nolint:wrapcheck` without reading it.
 - **The value readers are private copies.** `mapValue`, `sliceValue`,
-  `stringValue`, and `intValue` duplicate `go/cmd/eshu`'s `traceMap` /
-  `traceSlice` / `traceString` / `traceInt`; `boolValue` outlived its
-  original, which left `go/cmd/eshu` with its last caller in #6059.
+  `stringValue`, and `intValue` were forked from `go/cmd/eshu`'s `traceMap` /
+  `traceSlice` / `traceString` / `traceInt`, and `boolValue` from `traceBool`.
+  The originals are gone: the component (#6139) and trace (#6059) extractions
+  removed their last `go/cmd/eshu` callers, and the originals with them.
   `go/internal/cli/change/envelope.go` and
-  `go/internal/cli/component/values.go` hold sets under these same names, and
-  `go/internal/cli/entitymap/values.go` a differently named one. The surviving
-  originals stay in `go/cmd/eshu` for their other callers, so an edit here
-  belongs in every set that has the reader you touched;
+  `go/internal/cli/component/values.go` hold sets under these same names,
+  `go/internal/cli/trace/value.go` holds the non-bool readers plus a strings
+  reader, and `go/internal/cli/entitymap/values.go` a differently named set.
+  An edit here belongs in every set that has the reader you touched;
   `TestEnvelopeReaderParity` in `go/cmd/eshu` compares each reader across only
   the copies that reader has and fails when one drifts, and
   `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` pins the entitymap
-  set. Do not
-  try to share them through a new package without an owner's decision —
-  several command families borrow the originals and a shared home is a
+  set. Do not try to share them through a new package without an owner's
+  decision — every command family keeps its own copy and a shared home is a
   cross-family change.
 
 ## Common changes and how to scope them
