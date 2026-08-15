@@ -21,6 +21,19 @@ var embeddedURLPattern = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9+.\\-]*://[^\\s<>
 // afterwards so "reachable at http://host:1/x." keeps its full stop.
 const urlTrailingPunctuation = ".,;:!?)]}"
 
+// FreeTextRemovalMarker is what Text leaves behind where it removed a
+// credential-shaped pair from free text. It is re-exported rather than restated
+// so a caller cannot drift from the walk on what a removal looks like.
+//
+// It exists on this package's surface because a caller sometimes needs to assert
+// that a string was NOT shortened. Operator guidance is the case: a recovery
+// step phrased as "export ESHU_API_KEY=<server token>" is a credential-shaped
+// pair, and the scan removes it name and all, so the artifact stops naming the
+// variable to set. The answer is to phrase such a step without a pair, and a
+// test that watches for this marker is what keeps the pair shape from coming
+// back.
+const FreeTextRemovalMarker = urlredact.FreeTextMarker
+
 // Text makes a composed, free-form string safe for an operator artifact.
 //
 // A name-keyed redactor is correct only until a value is composed from a raw

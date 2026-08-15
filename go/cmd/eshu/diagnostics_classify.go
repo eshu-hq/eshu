@@ -139,8 +139,21 @@ func onboardingRules() []onboardingRule {
 				return onboardingDiagnostic{
 					Class:   onboardingClassAuthMismatch,
 					Summary: "API auth/token mismatch: the API rejected the request as unauthorized",
+					// Phrased without a "key=value" pair and without a
+					// credential-named word in front of a ":" on purpose. This
+					// string is copied into the shareable first-run evidence
+					// artifact, where a structural scan removes any
+					// credential-shaped pair it finds in free text — name and
+					// all, and a "token:" header takes the rest of the line with
+					// it. Written as "export ESHU_API_KEY=<server token>" this
+					// step reached the artifact as "Set a matching [redacted]",
+					// which does not tell a maintainer which variable to set.
+					// The scan is deliberately blind to whether a value is real,
+					// so a placeholder is removed exactly like a live key; the
+					// fix is to phrase the instruction without the pair, never
+					// to exempt the field.
 					RecoverySteps: []string{
-						"Set a matching token: export ESHU_API_KEY=<server token>",
+						"Put the token the API server printed into the ESHU_API_KEY environment variable",
 						"Confirm the API's configured key matches the client key",
 						"Re-run: eshu first-run",
 					},

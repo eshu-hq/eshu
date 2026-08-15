@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 )
 
 // successEvidenceResult builds a fully-successful first-run result whose query
@@ -74,6 +76,20 @@ func TestBuildFirstRunEvidencePartialReadiness(t *testing.T) {
 	}
 }
 
+// authMismatchDiagnostic returns the auth-mismatch entry of the production
+// classification table, so a test asserting on its recovery steps is asserting
+// on the strings Eshu actually ships.
+func authMismatchDiagnostic(t *testing.T) *onboardingDiagnostic {
+	t.Helper()
+	for _, rule := range onboardingRules() {
+		if d := rule.build(onboardingSignal{}); d.Class == onboardingClassAuthMismatch {
+			return &d
+		}
+	}
+	t.Fatalf("no %q rule in the classification table", onboardingClassAuthMismatch)
+	return nil
+}
+
 // TestBuildFirstRunEvidenceAuthFailureFailedState proves an auth failure during
 // the query step yields a failed indexing state when no index was proven and
 // surfaces the classified recovery steps and docs link.
@@ -83,12 +99,13 @@ func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
 	r.RepoIndexed = "unknown"
 	r.Readiness = "unknown"
 	r = r.addStep("first query", firstRunStepFailed, "GET /api/v0/repositories: 401 unauthorized")
-	r.Diagnostic = &onboardingDiagnostic{
-		Class:         onboardingClassAuthMismatch,
-		Summary:       "the API rejected the request with an authentication error",
-		RecoverySteps: []string{"export ESHU_API_KEY=<token>"},
-		DocsLink:      "docs/public/reference/http-api.md",
-	}
+	// The diagnostic comes from the production classification table, not from a
+	// literal written here. The assertions below are about what the free-text
+	// credential scan does to the REAL recovery steps, so a hand-written fixture
+	// would let the shipped string drift into a shape the scan destroys while
+	// this test stayed green.
+	r.Diagnostic = authMismatchDiagnostic(t)
+	r.Diagnostic.DocsLink = "docs/public/reference/http-api.md"
 	r.NextSteps = []string{"Re-run: eshu first-run"}
 
 	report := buildFirstRunEvidence(r, nil)
@@ -98,29 +115,35 @@ func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
 	if report.Diagnosis == nil {
 		t.Fatal("Diagnosis = nil, want the classified auth diagnostic")
 	}
-	// The recovery step is carried into the artifact, and the credential-shaped
-	// half of it does not survive: "export ESHU_API_KEY=<token>" is a
-	// credential-named pair, so the free-text walk removes the pair whole and
-	// the artifact shows "export [redacted]".
+	// The recovery step reaches the artifact READABLE, naming the variable an
+	// operator has to set.
 	//
-	// This is the price of scanning every free-form field rather than keeping a
-	// list of fields judged safe. A recovery step is a package literal today,
-	// which is what makes the loss pure cost; the reason it is scanned anyway is
-	// that a provenance list has to be re-decided every time a field changes
-	// where its bytes come from, and getting that wrong is the whole shape of
-	// the leak this walk closes. The operator loses nothing they cannot read:
-	// renderFirstRunHuman prints the raw diagnostic and the raw next steps to
-	// their terminal. Only the artifact meant for a public support thread is
-	// shortened.
+	// That is not free. Every free-form field goes through a structural scan
+	// that removes any credential-shaped "key=value" pair it finds — name and
+	// all — and a "token:" header takes the rest of its line with it. The scan
+	// is deliberately blind to whether a value is real, so a placeholder is
+	// removed exactly like a live key. Written as
+	// "Set a matching token: export ESHU_API_KEY=<server token>" this step
+	// reached the artifact as "Set a matching [redacted]", which does not tell
+	// a maintainer which variable to set.
+	//
+	// The fix was to phrase the instruction without the pair, NOT to exempt the
+	// field from the scan. An exemption list has to be re-decided every time a
+	// field changes where its bytes come from, and a field whose provenance
+	// quietly changed is the exact shape of the leak the scan closes.
+	//
+	// So this asserts the variable name survives. If a future edit reintroduces
+	// the pair shape, the name disappears and this goes red — which is the
+	// whole point of asserting on the name rather than on "export".
 	joined := strings.Join(report.NextCommands, "\n")
-	if !strings.Contains(joined, "export ") {
-		t.Fatalf("NextCommands = %v, want the recovery step carried into the report", report.NextCommands)
+	if !strings.Contains(joined, "ESHU_API_KEY") {
+		t.Fatalf("NextCommands = %v, want the recovery step to still name the variable to set", report.NextCommands)
+	}
+	if strings.Contains(joined, evidredact.FreeTextRemovalMarker) {
+		t.Fatalf("NextCommands = %v, want no recovery step shortened by the credential scan", report.NextCommands)
 	}
 	if !strings.Contains(joined, "Re-run: eshu first-run") {
 		t.Fatalf("NextCommands = %v, want the run's own next step carried through intact", report.NextCommands)
-	}
-	if strings.Contains(joined, "<token>") {
-		t.Fatalf("NextCommands = %v, want the credential-shaped pair removed", report.NextCommands)
 	}
 	if report.DocsLinks == nil || !containsString(report.DocsLinks, "docs/public/reference/http-api.md") {
 		t.Fatalf("DocsLinks = %v, want the diagnostic docs link", report.DocsLinks)

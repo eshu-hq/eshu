@@ -43,12 +43,34 @@
   holds no `=` and no `:`.
 
 - **Every free-form field is scanned. There is no safe-field list.** Recovery
-  steps and next commands are package literals today, so scanning them is pure
-  cost — `export ESHU_API_KEY=<token>` comes out `export [redacted]`. Scan them
-  anyway. A provenance list has to be re-decided every time a field changes where
-  its bytes come from, and a field whose provenance quietly changed is the exact
-  shape of the leak this package closes. If you are about to add an exemption,
-  you are adding the next carrier axis.
+  steps and next commands are package literals today, so scanning them buys
+  nothing — and it is still right to scan them. A provenance list has to be
+  re-decided every time a field changes where its bytes come from, and a field
+  whose provenance quietly changed is the exact shape of the leak this package
+  closes. If you are about to add an exemption, you are adding the next carrier
+  axis.
+
+  **Fix the STRING, not the scan.** A credential-shaped pair in free text is
+  removed name and all, and a `token:` header takes the rest of its line, so
+  `Set a matching token: export ESHU_API_KEY=<server token>` reached the
+  artifact as `Set a matching [redacted]` — losing the variable name, against a
+  placeholder that could never carry a secret. Both such strings were reworded
+  to name the variable in prose (`cmd/eshu/diagnostics_classify.go`,
+  `cmd/eshu/hosted_setup.go`) and each carries the reason inline.
+
+  When you add a recovery step, next command, or docs link: no `key=value` whose
+  key holds `token`, `secret`, `password`, `credential`, `api_key` or
+  `authorization`, and no such word directly in front of a `:`. A string with no
+  `=`, `:` or `%` in it cannot be touched at all — the walk's fast path returns
+  it unchanged.
+
+  Re-run the sweep after adding one. Build the guidance the surfaces actually
+  EMIT (walk `onboardingRules()`, `firstRunNextSteps` for every shape, and
+  `hostedNextSteps` for every failure category), push each through
+  `scrubEvidenceText`, and print anything that changes. Do not sweep source
+  literals with a regex — it picks up the examples in comments like this one and
+  reports them as hits. The last sweep covered 85 emitted strings with 0
+  rewritten.
 
 - **No value heuristics, ever.** Nothing here looks at what a value contains.
   Adding an entropy check or a secret-pattern list would turn a narrow checkable

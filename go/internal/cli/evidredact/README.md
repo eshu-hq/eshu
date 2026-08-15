@@ -72,11 +72,26 @@ literals. That is deliberate: a list of fields judged safe has to be re-decided
 every time a field changes where its bytes come from, and getting that wrong is
 the exact shape of the leak this walk closes.
 
-The price is real. `export ESHU_API_KEY=<token>` is a credential-named pair, so a
-recovery step containing it comes out as `export [redacted]`. The operator loses
-nothing they cannot read — `renderFirstRunHuman` prints the raw diagnostic and
-the raw next steps to their terminal. Only the artifact meant for a public thread
-is shortened.
+A credential-shaped pair in free text is removed **name and all**, and the header
+form takes the rest of its line. Nothing checks whether the value is real, so a
+placeholder goes exactly like a live key. A recovery step reading
+`Set a matching token: export ESHU_API_KEY=<server token>` came out as
+`Set a matching [redacted]` — the variable an operator needs to set, gone,
+against a placeholder that could never have carried a secret.
+
+**The fix for that is to phrase the string without a pair, never to exempt the
+field.** Both operator-guidance strings that had the shape were reworded
+(`diagnostics_classify.go`, `hosted_setup.go`), and a sweep of the 85 guidance
+strings the first-run and hosted surfaces emit — every diagnostic rule, every
+runtime shape, every hosted failure category — now finds none the scrub
+rewrites. `TestBuildFirstRunEvidenceAuthFailureFailedState` asserts the variable
+name survives, so reintroducing the pair shape goes red.
+
+If you are adding a recovery step or next command: no `key=value` where the key
+holds `token`, `secret`, `password`, `credential`, `api_key` or `authorization`,
+and no such word directly in front of a `:`. Name the variable in prose instead.
+`FreeTextRemovalMarker` is exported so a test can assert a string was not
+shortened.
 
 ## Fixed point
 
