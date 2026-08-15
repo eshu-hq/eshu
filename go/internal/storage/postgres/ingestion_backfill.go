@@ -249,6 +249,22 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 	relationshipStore := NewRelationshipStore(tx)
 	phaseRows := make([]reducer.GraphProjectionPhaseState, 0, len(batchRepoIDs))
 	memoCandidates := make([]scopeGenerationPartition, 0, len(batchRepoIDs))
+	// publishedPartitions dedupes phaseRows/memoCandidates to one entry per
+	// (scope, generation) partition. Readiness and the partition memo are
+	// partition facts, not per-repo facts: their conflict keys
+	// (graph_projection_phase_state's six-column PK and
+	// deferred_backfill_partition_memo's (scope_id, generation_id) PK) are both
+	// functions of (repoGeneration.ScopeID, repoGeneration.GenerationID) alone.
+	// The ingestion commit path accepts multiple repositories under one
+	// scope+generation (a multi-repo scope); without this dedupe, N repositories
+	// sharing a partition would append N byte-identical conflict keys into the
+	// same batched INSERT ... ON CONFLICT DO UPDATE below, and Postgres rejects
+	// that with SQLSTATE 21000 ("ON CONFLICT DO UPDATE command cannot affect row
+	// a second time"), rolling back the whole batch -- including well-formed
+	// repositories sharing the batch with no bug of their own. The per-repo
+	// evidence upsert above stays per-repo; only these two partition-keyed sinks
+	// dedupe.
+	publishedPartitions := make(map[scopeGenerationPartition]struct{}, len(batchRepoIDs))
 	now := s.now()
 	for _, repoID := range batchRepoIDs {
 		repoGeneration, ok := currentGenerations[repoID]
@@ -288,6 +304,14 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 				return 0, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
 			}
 		}
+		partition := scopeGenerationPartition{
+			ScopeID:      repoGeneration.ScopeID,
+			GenerationID: repoGeneration.GenerationID,
+		}
+		if _, alreadyPublished := publishedPartitions[partition]; alreadyPublished {
+			continue
+		}
+		publishedPartitions[partition] = struct{}{}
 		phaseRows = append(phaseRows, reducer.GraphProjectionPhaseState{
 			Key: reducer.GraphProjectionPhaseKey{
 				ScopeID:          repoGeneration.ScopeID,
@@ -300,10 +324,7 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 			CommittedAt: now,
 			UpdatedAt:   now,
 		})
-		memoCandidates = append(memoCandidates, scopeGenerationPartition{
-			ScopeID:      repoGeneration.ScopeID,
-			GenerationID: repoGeneration.GenerationID,
-		})
+		memoCandidates = append(memoCandidates, partition)
 	}
 	if err := NewGraphProjectionPhaseStateStore(tx).PublishGraphProjectionPhases(ctx, phaseRows); err != nil {
 		return 0, fmt.Errorf("publish backward evidence readiness: %w", err)
