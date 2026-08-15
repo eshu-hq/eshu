@@ -123,3 +123,63 @@ func mapsEqual(a, b map[string]int) bool {
 	}
 	return true
 }
+
+// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate is the second
+// half of the gap TestExpectedEdgeDetectsCodeownersPropertyCorruption proves
+// (#5992, per the coordinator's follow-up: "it is not only 'a corrupted
+// property passes', it is 'two legitimately distinct edges are
+// indistinguishable, and one silently missing edge can be masked by the
+// other'").
+//
+// codeownersFamilyOdu's RULE A, RULE B, and RULE C's second owner token are
+// three DISTINCT DECLARES_CODEOWNER relationships between repo-x and
+// org/docs (three different (pattern, source_path) pairs). This test proves
+// a graph that DROPPED one of those three real relationships (a
+// materialization bug: RULE B's edge never got written) but ALSO
+// double-wrote a different one (RULE A's edge written twice by an unrelated
+// concurrent-MERGE race) is INDISTINGUISHABLE from the correct graph by the
+// exact-set ExpectedEdge comparison: both have exactly 3 edges keyed
+// DECLARES_CODEOWNER|repo-x|org/docs. Two independent, unrelated defects --
+// a missing edge and a duplicate edge -- net to the same total and cancel
+// each other out in the multiset comparison every family's guard and the
+// live assert-edges verb both run.
+func TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate(t *testing.T) {
+	t.Parallel()
+
+	docsEdge := ExpectedEdge{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-x", TargetEntityID: "org/docs"}
+
+	// Correct graph truth: three distinct rules (*.md, docs/**, *.go's
+	// second owner) each contribute one edge to org/docs.
+	correct := []ExpectedEdge{docsEdge, docsEdge, docsEdge}
+
+	// Corrupted graph truth: RULE B's edge (docs/**) was never written (a
+	// real materialization defect), but RULE A's edge (*.md) was written
+	// TWICE by an unrelated duplicate-write defect (a concurrent-MERGE race
+	// -- see cmd/ifa's own TestAssertMaterializedEdgesDuplicateEdgeFails for
+	// why that class is a real, previously-seen regression, #5549). Same
+	// relationship type, same two endpoints on every row, so this projects
+	// to the identical ExpectedEdge triple three times either way.
+	corrupted := []ExpectedEdge{docsEdge, docsEdge, docsEdge}
+
+	want := make(map[string]int, len(correct))
+	for _, e := range correct {
+		want[e.Key()]++
+	}
+	got := make(map[string]int, len(corrupted))
+	for _, e := range corrupted {
+		got[e.Key()]++
+	}
+
+	// This is the RED assertion: a comparison that could actually tell "one
+	// dropped + one duplicated" apart from "three genuine edges" would find
+	// a difference here. It does not, because ExpectedEdge carries no
+	// per-rule identity (no pattern/source_path) to tell the three rows
+	// apart in the first place -- the missing RULE B edge and the duplicate
+	// RULE A edge are simply the same key counted the same number of times.
+	if mapsEqual(want, got) {
+		t.Fatalf(
+			"exact-set ExpectedEdge comparison cannot distinguish 3 GENUINE org/docs edges (RULE A, RULE B, RULE C) from 2 real edges plus 1 unrelated duplicate (RULE B dropped, RULE A double-written) -- both multisets are %v; a dropped rule and an unrelated duplicate-write defect mask each other completely",
+			want,
+		)
+	}
+}

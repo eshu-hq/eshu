@@ -1,0 +1,120 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "git",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-codeowners-family",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "local_path": "/repo-codeowners",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_run_id": "run-ifa-codeowners-family-1"
+          }
+        },
+        {
+          "fact_kind": "codeowners.ownership",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "codeowners.ownership:repo-ifa-codeowners-family:rule-a",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "order_index": 0,
+            "owners": [
+              "@org/docs"
+            ],
+            "pattern": "*.md",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_path": ".github/CODEOWNERS"
+          }
+        },
+        {
+          "fact_kind": "codeowners.ownership",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "codeowners.ownership:repo-ifa-codeowners-family:rule-c",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "order_index": 1,
+            "owners": [
+              "@org/backend",
+              "@org/docs"
+            ],
+            "pattern": "*.go",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_path": ".github/CODEOWNERS"
+          }
+        },
+        {
+          "fact_kind": "codeowners.ownership",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "codeowners.ownership:repo-ifa-codeowners-family:rule-b",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "order_index": 2,
+            "owners": [
+              "@org/docs"
+            ],
+            "pattern": "docs/**",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_path": ".github/CODEOWNERS"
+          }
+        },
+        {
+          "fact_kind": "codeowners.ownership",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "codeowners.ownership:repo-ifa-codeowners-family:rule-d",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "order_index": 5,
+            "owners": [
+              "@org/docs"
+            ],
+            "pattern": "*.md",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_path": ".github/CODEOWNERS"
+          }
+        },
+        {
+          "fact_kind": "codeowners.ownership",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "codeowners.ownership:repo-ifa-codeowners-family:rule-e",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "order_index": 0,
+            "owners": [
+              "@org/infra"
+            ],
+            "pattern": "*.py",
+            "repo_id": "repo-ifa-codeowners-family",
+            "source_path": "docs/CODEOWNERS"
+          }
+        }
+      ],
+      "generation_id": "gen-ifa-codeowners-family-1",
+      "metadata": {
+        "fixture": "ifa-codeowners-family"
+      },
+      "observed_at": "2026-08-15T00:00:00Z",
+      "partition_key": "scope-ifa-codeowners-family",
+      "scope_id": "scope-ifa-codeowners-family",
+      "scope_kind": "repo",
+      "source_system": "git",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

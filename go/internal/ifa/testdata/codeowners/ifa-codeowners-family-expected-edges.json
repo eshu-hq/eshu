@@ -1,0 +1,31 @@
+{
+  "odu": "odu:ifa-codeowners-family",
+  "note": "Five DECLARES_CODEOWNER edges from ExtractCodeownersOwnershipEdgeRowsWithQuarantine over the ifa-codeowners-family cassette. RULE A (*.md), RULE C's second owner token (*.go), and RULE B (docs/**) are three DISTINCT relationships from repo-ifa-codeowners-family to the SAME @org/docs team -- canonical_codeowners_edges.go's write template keys the relationship MERGE on {pattern, source_path}, not on the (repo, team) pair alone, so one team named by several rule patterns is several edges, not one overwritten edge. RULE C's first owner token (*.go -> @org/backend) is a fourth edge. RULE E (*.py under the second CODEOWNERS file docs/CODEOWNERS) is the fifth, to @org/infra. RULE D deliberately produces NO edge: it repeats RULE A's exact (repo_id, source_path, pattern, owner_ref) key at order_index 5, and the extractor's rowIndexByKey dedup collapses it into RULE A's row (keeping the higher order_index) rather than emitting a second edge -- proving the last-match-wins contract, not just adding a sixth entry here. KNOWN LIMIT (see TestExpectedEdgeDetectsCodeownersPropertyCorruption): this exact-set comparison is keyed on (relationship_type, source_entity_id, target_entity_id) only, so it cannot by itself distinguish WHICH of the three @org/docs edges corresponds to which rule's pattern/source_path/order_index -- it proves the edge COUNT between each (repo, team) pair, not each individual rule's property truth.",
+  "edges": [
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs"
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/backend"
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs"
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs"
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/infra"
+    }
+  ]
+}
