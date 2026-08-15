@@ -575,27 +575,24 @@ segments are not all hex, so the existing right boundary already handled them.
 The negatives are reported here because a sweep that only lists what it caught
 cannot be told apart from a sweep that did not run.
 
-Two independent guards, and the mutation counts below show neither one alone
-clears the table:
+Round five shipped two guards. Only the first survived review — see round six
+below, which is the record of the second one being reverted:
 
 - **at least one non-empty hextet group.** An address has hex digits somewhere;
-  a bare `::` between punctuation does not.
+  a bare `::` between punctuation does not. This one stays.
 - **an identifier character before a `[` disqualifies the brackets.** `[::2]` is
   an address and `x[::2]` is a slice, and the `x` is the only thing separating
-  them.
+  them. **Reverted in round six**: the same shape is how an address appears
+  after any word, so it published 17 real address spellings.
 
 The direction NOT taken, and why: narrowing the right-hand boundary to exclude
 `-` would also have cleared `a[::-1]`, and would have published `fd00::1-`. An
-address is still an address when a hyphen follows it. The delimiter sweep now
-wraps every carrier in `[`, `]`, `-`, `<`, `>`, and `$` on both sides — 3,060
-combinations — so a fix that tries the boundary route fails there.
-
-Still withheld, and stated rather than left to be discovered:
-
-| Shape | Why |
-| --- | --- |
-| `abc::def`, `a::b::c`, `a::b(-1)`, `DB::$connection`, `A::$b` | 1-4 hex characters on both sides IS a compressed address by shape. The pre-existing `abc::def` gap, now pinned with the language idioms that land in it |
-| `buf[fd00::1]`, `peer[::1]` — these now **publish** | the price of the identifier guard: `x[fd00::1]` is as valid a Python slice as `x[::2]` is. Every spelling this product emits (`host [fd00::1]`, `endpoint=[fd00::1]`, `bolt://[fd00::1]:7687`) puts a non-identifier character before the bracket and is still withheld — all three are pinned |
+address is still an address when a hyphen follows it. The delimiter sweep wraps
+every carrier in `[`, `]`, `-`, `<`, `>`, and `$` on both sides, so a fix that
+tries the boundary route fails there. Round five put that sweep at 37 carriers x
+18 prefixes x 17 suffixes = **11,322** combinations; round six raises it to
+13,209. (An earlier draft of this paragraph said 3,060, which is 10 x 18 x 17 —
+the `rawIPv6Carriers` subset, not the sweep.)
 
 Why the tests missed it: the false-positive table's only slice rows, `buf[0:4]`
 and `buf[0:4:8]`, carry no `::`, so neither arm of the rule was ever exercised
@@ -648,6 +645,123 @@ holds its true positives in the same map as its false positives, so a rule that
 withheld nothing would fail it — 12 rows go red there when the rule stops
 matching addresses, including the accepted-gap rows.
 
+The disjointness held. What it did not establish is whether either guard was
+correct, and the first one was not — see below. A mutation table shows that a
+guard is load-bearing for the rows already in the table; it says nothing about
+the rows nobody wrote down.
+
+### Round six: the identifier guard reopened the raw-IPv6 hole wider than it closed
+
+Round five's second guard is reverted. It read any identifier character before a
+`[` as a subscript marker, which does publish `x[::2]` — and also publishes
+every address that follows a word, because that is the same shape. The comment
+defending it said "every spelling this product emits puts a space, an `=`, or a
+`//` before the bracket". `AnswerSummary` is model-written narration over the
+user's graph, not a product-controlled format string, so that list can never be
+closed, and the guard's premise was wrong when it was written.
+
+Measured with a differential harness: the package sources at `23abf2ecd` and at
+the round-five head, each compiled into its own package, `UnsafeString` called
+on both, over 20,035 probes. `docs/internal/evidence/` carries no harness code;
+it was a scratch module outside the tree.
+
+Seventeen real spellings went from **withheld** at `23abf2ecd` to **published**
+at the round-five head. Every one is a genuine address:
+
+| Spelling | What it is |
+| --- | --- |
+| `map[fd00::1:true]`, `map[::1:true]`, `map[[fd00::1]:7687:true]` | Go's own `%v` rendering of a map keyed by an address |
+| `client[fd00::1] disconnected`, `conn[fd00::1]:7687 closed`, `sshd[::1]`, `node1[::1]` | the bracketed-tag idiom every syslog line uses |
+| `server[fd00::1]`, `addr[fd00::1]`, `peers[fd00::1]`, `hosts[fd00::1]`, `HOST[fd00::1]`, `SERVICE[fd00::1]` | a label and an address |
+| `see[fd00::1](url)`, `buf[fd00::1]`, `peer[::1]` | round five pinned the last two as accepted; they are addresses |
+| `x[fd00::1` | no closing bracket, so nothing bracket-shaped catches it |
+
+Across the whole 20,035-probe sweep the round-five head published 635
+address-carrying probes that `23abf2ecd` withheld, in 27 distinct
+prefix-and-carrier shapes. All of them are `<ascii-alnum>[<address>]`.
+
+A narrower version was built and measured rather than argued about. It fires the
+disqualifier only when the bracketed token is decimal-and-colon only, on the
+reasoning that a slice bound is decimal and `fd00` is not a plausible one:
+
+| Pattern | address-carrying probes withheld at `23abf2ecd` and published here | honest strings newly withheld |
+| --- | ---: | ---: |
+| round-five head | 635 | 0 |
+| narrowed to decimal-only | 220 | 0 |
+| guard reverted (round six) | 0 | 0 |
+
+The narrowed version recovers the twelve spellings carrying a hex letter and
+still publishes 220 probes in nine shapes — `sshd[::1]`, `client[::1]`,
+`map[::1]`, `peer[::1]`, `node1[::1]`, `buf[::1]`, `x[::1]`, `X[::1]`, `1[::1]`
+— because `::1` is a valid address and a valid slice and no boundary separates
+them. That is the loopback address in exactly the log idiom that made this
+finding worth filing, so it trades a stated false positive for an unstated false
+negative. Not taken.
+
+(Round six's residual count is 0 after subtracting ten probes such as
+`1fd00:::` and `:::1x`, which contain an address token as a substring but are
+not addresses — `1fd00::` is a five-character run, not a hextet. Those are guard
+1 working as intended on a bare `::`.)
+
+What the trade actually is, stated plainly: `a[::-1]`, `s[::-1]`, and every bare
+`::` between punctuation are fixed and stay fixed. `x[::2]`, `x[::]`, `s[::]`,
+`arr[::3]`, `path[1::2]`, and `rows[::2] takes every other row` are **still
+withheld**, and are now pinned in `codeTextIPv6Shapes` next to `abc::def`,
+because `[::2]` is the address `0:0:0:0:0:0:0:2` as surely as it is a stride.
+That is what the review thread offered as the alternative to fixing it, and it
+is the option taken.
+
+Three test defects came out of the same review and are fixed here:
+
+- the row-count guard in `TestUnsafeStringKeepsCodeTextPublishable` compared its
+  loop counter to `len()` of the map it had just ranged over — equal by
+  construction, so rows lost to a bad merge shrink both sides together. It now
+  compares against the literal `codeTextIPv6ShapeCount = 104`. Proven failable:
+  deleting ten rows reports `checked 94 values, want 104`;
+- the "identifier character" prose described `[^0-9a-z]` under `(?i)`, which is
+  ASCII alphanumerics only, so `x_[::2]`, `list_[::2]`, `_[::2]`, and `é[::2]`
+  stayed withheld while the prose said otherwise. Moot with the guard gone, and
+  the prose is gone with it;
+- the delimiter sweep's prefixes were all one character wide, so a `[` from that
+  axis only ever landed at the start of a string or after one other delimiter.
+  It never produced `<alnum>[` and reported 11,322 of 11,322 clean while the
+  round-five guard was live. Prefixes `x[`, `map[`, and `peer[` are added:
+  13,209 combinations, and re-applying the round-five pattern now produces 357
+  failures there.
+
+The regex changed again, so `BenchmarkUnsafeStringHonestCorpus` was re-run per
+the rule in `UnsafeString`'s comment, same host and method as round five, best
+of 5 at `-benchtime=2s`:
+
+| Benchmark | `23abf2ecd` | round five | round six |
+| --- | ---: | ---: | ---: |
+| `BenchmarkUnsafeStringHonestCorpus` | 7761 ns/op | 7923 ns/op | 7755 ns/op |
+| `BenchmarkUnsafeStringRejection` | 1745 ns/op | 1797 ns/op | 1778 ns/op |
+
+Round six lands back on `23abf2ecd`, which is what reverting to that pattern's
+shape should do. The same limit applies as before: the spread on this host was
+7755-15669 across the five round-six runs, so these support "no measurable
+regression" and nothing finer.
+
+### Mutation proof for round six
+
+Same method and counting command. Baseline and restored tree both report 0 leaf
+failures, and the restored `guardrail.go` is byte-identical to the pristine copy
+(`diff` clean).
+
+| Mutation | Leaf red | Sweep errors | Breakdown |
+| --- | ---: | ---: | --- |
+| both hextet groups optional again (guard 1 removed) | 21 | 0 | 20 in `KeepsCodeTextPublishable` — the 17 bare-`::` punctuation rows plus `a[::-1]`, `s[::-1]`, `reverse a list with a[::-1]` — and 1 in `KeepsOrdinaryAnswerTextPublishable` |
+| identifier-before-`[` guard re-added (the round-five shape) | 23 | 357 | all 23 in `KeepsCodeTextPublishable`: the 17 leak rows above plus the 6 pinned slice rows flipping to published |
+| unbracketed arm requires `:::`, so it matches no address | 24 | 1,748 | 15 in `KeepsCodeTextPublishable`, 5 in `RejectsRawIPv6`, 4 in `RejectsCompressedIPv6WithoutMatchingAnIdentifier` |
+| bracketed arm deleted | 4 | 0 | `[::]`, `listening on [::]:8080 now`, `s[::]`, `x[::]` |
+
+Row two is the regression test for this round: it is red on both the new true
+positives and the sweep, so the guard cannot come back without an argument. Row
+one shows guard 1 is still load-bearing on its own rows. Rows three and four are
+controls — the table holds its true positives in the same map as its false
+positives, so a rule that stopped matching addresses fails it.
+
 ## No-Observability-Change:
 
 Neither package emits telemetry, by design —
@@ -699,12 +813,12 @@ they predate the split that moved the password rule into `guardrail_password.go`
 and at `23abf2ecd` the two files were already 301 and 372. Measured again after
 round five:
 
-| File | `23abf2ecd` | Now |
-| --- | ---: | ---: |
-| `guardrail.go` | 301 | 343 |
-| `guardrail_password.go` | 194 | 194 |
-| `guardrail_shape_test.go` | 372 | 394 |
-| `guardrail_codetext_test.go` | — | 187 |
+| File | `23abf2ecd` | Round five | Round six |
+| --- | ---: | ---: | ---: |
+| `guardrail.go` | 301 | 343 | 354 |
+| `guardrail_password.go` | 194 | 194 | 194 |
+| `guardrail_shape_test.go` | 372 | 394 | 404 |
+| `guardrail_codetext_test.go` | — | 187 | 222 |
 
 The round-five language table went into its own file rather than growing
 `guardrail_shape_test.go` past 500. The pre-commit `500-line Go file cap` hook
