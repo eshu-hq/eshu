@@ -22,21 +22,34 @@
 # maintenance pass -> the fault is injected on the POST-maintenance drain,
 # which is the first point deployable_unit_correlation has real work to do.
 #
-# DELIBERATE DEVIATION from the sibling cells' shape, flagged for review, not
-# silently done: neither cell below calls capture_digest/assert_matches_baseline.
-# cell_baseline (ifa_fault_injection_cells.sh) never runs a maintenance pass,
-# so digests[baseline] reflects a graph with ZERO deployable_unit_edges
-# materialization by construction -- any cell here that DOES run the
-# maintenance pass to get a real edge to fault-test would then differ from
-# baseline by exactly that one new edge, on every run, fault or not. Comparing
-# against baseline would therefore never pass and would not be testing
-# anything about THIS family's fault recovery. ifa_deployable_unit_live_assert's
-# exact-edge-set comparison is the correct, family-specific non-vacuity proof
-# here, exactly as ifa_code_call_assert/ifa_det_assert_sql_baseline are for
-# their families -- baseline-digest comparison is an ADDITIONAL check those
-# families' cells can afford because their edges already exist in baseline,
-# which is not true here. If a shared baseline that also runs one maintenance
-# pass is added later, this decision should be revisited.
+# RULING (superseding an earlier draft that omitted baseline-digest comparison
+# entirely): the shared digests[baseline] (cell_baseline,
+# ifa_fault_injection_cells.sh) never runs a maintenance pass, so it has ZERO
+# deployable_unit_edges materialization by construction -- comparing against
+# it would never pass for a cell that DOES run the pass, fault or not. But
+# ifa_deployable_unit_live_assert's exact-edge-set check and a whole-graph
+# digest comparison prove DIFFERENT things: the exact-set check covers only
+# this family's own relationship types, while the digest catches CROSS-family
+# collateral damage from fault recovery (assert_matches_baseline's own die
+# message calls a divergence "a real recovery/concurrency defect"). This
+# family's fault path uniquely runs a bootstrap-index maintenance pass, which
+# reopens every crossScopeCorrelationReopenDomains domain and republishes
+# readiness -- collateral from a faulted-then-recovered maintenance leg is a
+# plausible defect class nothing else in the suite would see. Dropping the
+# digest check would have silently lost exactly that coverage.
+#
+# The fix is a family-scoped baseline, not an omission: cell_baseline_deployable_unit
+# below runs the SAME fresh_stack -> drive -> pre-maintenance drain -> ONE
+# maintenance pass -> post-maintenance drain shape as the two fault cells,
+# fault-free, and captures digests[baseline_deployable_unit] +
+# baseline_deployable_unit_retried. Both fault cells then call
+# assert_matches_baseline with that key (assert_matches_baseline,
+# ifa_fault_injection_driver.sh, now takes an optional baseline_key parameter
+# defaulting to "baseline" so every other family's call sites are
+# byte-identical). This restores the true invariant: every fault cell compares
+# against a fault-free baseline with the SAME terminal state -- this family
+# does not prove recovery differently from its siblings, it proves it
+# identically, against its own correctly-shaped baseline.
 
 # ifa_deployable_unit_require_fresh_intents fails closed unless a fresh
 # compose stack has a numeric zero count for the deployable_unit_edges
@@ -123,6 +136,62 @@ ifa_deployable_unit_release_intent_lock() {
 	ifa_det_untrack_bg_pid "${holder_pid}"
 }
 
+# cell_baseline_deployable_unit is this family's fault-free reference: fresh
+# stack -> drive -> pre-maintenance drain (asserts zero edges, proving the
+# readiness gate is genuinely shut, not racy) -> ONE bootstrap-index
+# maintenance pass -> post-maintenance drain -> exact-set assert -> capture
+# digests[baseline_deployable_unit] and baseline_deployable_unit_retried.
+# Both fault cells below compare against this, not the shared cell_baseline,
+# for the reason in this file's header.
+cell_baseline_deployable_unit() {
+	local cell_start
+	cell_start=$(date +%s)
+	log "cell baseline-deployable-unit: fresh stack"
+	fresh_stack baseline_deployable_unit
+	if [[ "${use_compose}" -eq 1 ]]; then
+		ifa_deployable_unit_require_fresh_intents \
+			"baseline-deployable-unit" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
+			"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+			|| die "baseline-deployable-unit: fresh-stack precondition failed"
+	fi
+	drive_all_cassettes baseline_deployable_unit
+
+	log "baseline-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
+	local projector_pid reducer_pid
+	ifa_det_start_bg "${log_dir}" "projector-baseline_deployable_unitpre" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-baseline_deployable_unitpre" reducer_pid "${bin_dir}/eshu-reducer"
+	run_drain_gate baseline_deployable_unitpre
+	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+	ifa_deployable_unit_live_assert_empty_before_maintenance \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		|| die "baseline-deployable-unit: expected zero deployable_unit_edges rows before the maintenance pass"
+
+	ifa_deployable_unit_live_run_maintenance_pass "baseline_deployable_unit" "${bin_dir}" "${log_dir}" \
+		|| die "baseline-deployable-unit: bootstrap-index maintenance pass failed"
+
+	ifa_det_start_bg "${log_dir}" "projector-baseline_deployable_unit" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-baseline_deployable_unit" reducer_pid "${bin_dir}/eshu-reducer"
+	run_drain_gate baseline_deployable_unit
+	assert_no_dead_letters baseline_deployable_unit
+	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
+		|| die "baseline-deployable-unit: fault-free graph does not match the one-edge exact set (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
+	capture_digest baseline_deployable_unit
+
+	# Snapshot the fault-free retry count so the fault cells can prove their
+	# injected fault ADDED a retry this identical drive did not produce on its
+	# own, mirroring cell_baseline's baseline_retried/baseline_code_call_retried
+	# capture exactly -- deployable_unit_correlation only does real work AFTER
+	# the maintenance pass, so this is the reference flow that establishes what
+	# "zero natural retries" means for this domain, not an assumed literal.
+	baseline_deployable_unit_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"
+	baseline_deployable_unit_retried="${baseline_deployable_unit_retried:-0}"
+	printf 'baseline-deployable-unit: fault-free deployable_unit_correlation retried rows (attempt_count>1): %s\n' "${baseline_deployable_unit_retried}"
+
+	teardown_cell baseline_deployable_unit
+	wall_times[baseline_deployable_unit]=$(( $(date +%s) - cell_start ))
+	printf 'baseline-deployable-unit: cell wall time: %ss\n' "${wall_times[baseline_deployable_unit]}"
+}
+
 # cell_killworker_deployable_unit proves a genuinely in-flight
 # deployable_unit_correlation handler is reclaimed after process death,
 # AFTER the maintenance pass has opened the readiness gate. The
@@ -146,8 +215,8 @@ cell_killworker_deployable_unit() {
 
 	log "kill-worker-after-claim-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
 	local projector_pid reducer_pid
-	ifa_det_start_bg "${log_dir}" "projector-killworkerdeployableunit-pre" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-pre" reducer_pid "${bin_dir}/eshu-reducer"
+	ifa_det_start_bg "${log_dir}" "projector-killworkerdeployableunitpre" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunitpre" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunitpre
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 	ifa_deployable_unit_live_assert_empty_before_maintenance \
@@ -172,8 +241,10 @@ cell_killworker_deployable_unit() {
 	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
 		|| die "kill-worker-after-claim-deployable-unit: recovered graph does not match the one-edge exact set"
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		0 15 "deployable_unit_correlation" \
-		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute (attempt_count>1 never appeared)"
+		"${baseline_deployable_unit_retried}" 15 "deployable_unit_correlation" \
+		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute above its fault-free retry baseline"
+	capture_digest killworkerdeployableunit
+	assert_matches_baseline killworkerdeployableunit baseline_deployable_unit
 	teardown_cell killworkerdeployableunit
 	wall_times[killworkerdeployableunit]=$(( $(date +%s) - cell_start ))
 	printf 'kill-worker-after-claim-deployable-unit: cell wall time: %ss\n' "${wall_times[killworkerdeployableunit]}"
@@ -199,8 +270,8 @@ cell_failgraphwrite_deployable_unit() {
 
 	log "fail-graph-write-once-then-succeed-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
 	local projector_pid reducer_pid
-	ifa_det_start_bg "${log_dir}" "projector-failgraphwritedeployableunit-pre" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-failgraphwritedeployableunit-pre" reducer_pid "${bin_dir}/eshu-reducer"
+	ifa_det_start_bg "${log_dir}" "projector-failgraphwritedeployableunitpre" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-failgraphwritedeployableunitpre" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate failgraphwritedeployableunitpre
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 	ifa_deployable_unit_live_assert_empty_before_maintenance \
@@ -224,6 +295,8 @@ cell_failgraphwrite_deployable_unit() {
 	ifa_fault_assert_once_fault_marker "${fault_once_script}" "${deployable_unit_edge_operation_match}" || marker_rc=$?
 	[[ "${marker_rc}" -eq 0 ]] \
 		|| die "fail-graph-write-once-then-succeed-deployable-unit: once-fired marker did not name the targeted CORRELATES_DEPLOYABLE_UNIT MERGE (marker status ${marker_rc})"
+	capture_digest failgraphwritedeployableunit
+	assert_matches_baseline failgraphwritedeployableunit baseline_deployable_unit
 	teardown_cell failgraphwritedeployableunit
 	wall_times[failgraphwritedeployableunit]=$(( $(date +%s) - cell_start ))
 	printf 'fail-graph-write-once-then-succeed-deployable-unit: cell wall time: %ss\n' "${wall_times[failgraphwritedeployableunit]}"

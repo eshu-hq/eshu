@@ -134,16 +134,24 @@ capture_digest() {
 	printf '%s: digest: %s\n' "${cell}" "${d}"
 }
 
-# assert_matches_baseline compares digests[cell] to digests[baseline], printing
-# the full canonical-dump diff (never hiding it) on a mismatch.
+# assert_matches_baseline compares digests[cell] to digests[baseline_key]
+# (default "baseline", every existing caller's unchanged behavior), printing
+# the full canonical-dump diff (never hiding it) on a mismatch. A non-default
+# baseline_key lets a family whose fault cells run an extra step the shared
+# baseline cell does not (e.g. #5993's bootstrap-index maintenance pass, which
+# adds a real edge no digests[baseline] run ever produces) compare against its
+# own family-scoped baseline instead of one that would mismatch by
+# construction on every run, fault or not.
+#
+# Args: cell [baseline_key=baseline]
 assert_matches_baseline() {
-	local cell="$1"
-	[[ "${digests[${cell}]}" == "${digests[baseline]}" ]] && return 0
-	printf 'MISMATCH: %s digest (%s) != baseline digest (%s)\n' \
-		"${cell}" "${digests[${cell}]}" "${digests[baseline]}" >&2
-	printf '\n=== full canonical graph diff: baseline vs %s (failure artifact) ===\n' "${cell}" >&2
-	diff -u "${work_dir}/graph-baseline.dump" "${work_dir}/graph-${cell}.dump" >&2 || true
-	die "${cell}: graph diverged from the fault-free baseline -- a real recovery/concurrency defect; do NOT retry, lower workers, or otherwise normalize this away"
+	local cell="$1" baseline_key="${2:-baseline}"
+	[[ "${digests[${cell}]}" == "${digests[${baseline_key}]}" ]] && return 0
+	printf 'MISMATCH: %s digest (%s) != %s digest (%s)\n' \
+		"${cell}" "${digests[${cell}]}" "${baseline_key}" "${digests[${baseline_key}]}" >&2
+	printf '\n=== full canonical graph diff: %s vs %s (failure artifact) ===\n' "${baseline_key}" "${cell}" >&2
+	diff -u "${work_dir}/graph-${baseline_key}.dump" "${work_dir}/graph-${cell}.dump" >&2 || true
+	die "${cell}: graph diverged from the fault-free baseline (${baseline_key}) -- a real recovery/concurrency defect; do NOT retry, lower workers, or otherwise normalize this away"
 }
 
 # teardown_cell reaps every backgrounded process this cell started and, when
