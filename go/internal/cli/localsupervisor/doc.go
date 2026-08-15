@@ -35,14 +35,20 @@
 // That split is mechanical: go/cmd/eshu is `package main`, so nothing can import
 // it, and any symbol reading a flag has to stay there.
 //
-// Some writes bypass that io.Writer and reach a process stream directly. Two of
-// them carry no message of this package's own. Terminal log mode hands
-// os.Stdout/os.Stderr to a child exec.Cmd, because that mode exists so the
-// child's output reaches the terminal. The embedded graph runtime pipes the
-// process-global streams into the graph log while NornicDB starts, keeping the
-// library's startup chatter out of an MCP stdio session, and restores them
-// afterwards; that redirect is compiled only under the nolocalllm build tag,
-// since a plain build gets the stub instead.
+// Some writes bypass that io.Writer and reach a process stream directly. Some
+// of them carry no message of this package's own:
+//
+//   - Terminal log mode hands os.Stdout/os.Stderr to a child exec.Cmd, because
+//     that mode exists so the child's output reaches the terminal.
+//   - The embedded graph runtime pipes the process-global streams into the
+//     graph log while NornicDB starts, keeping the library's startup chatter
+//     out of an MCP stdio session, and restores them once the backend answers.
+//   - The same runtime points the standard log package at that graph log
+//     (redirectEmbeddedNornicDBStandardLogger) and leaves it there until the
+//     backend stops, so this one covers the whole run rather than startup.
+//
+// The last two are compiled only under the nolocalllm build tag; a plain build
+// gets the stub, which redirects nothing.
 //
 // The rest is this package's own operator output, and the io.Writer a caller
 // passes to RunOwnedHostWithLayout redirects none of it. The local progress
@@ -52,7 +58,12 @@
 // records a child that exited cleanly while the service stays up, and
 // graph_bootstrap.go hands slog.Default() to graph.EnsureSchemaWithBackend,
 // which logs a record per schema statement. The eshu binary installs no slog
-// handler, so both land on os.Stderr through Go's default one.
+// handler, and Go's default one writes through the standard log package — so
+// where those two records land is whatever that package's writer points at. A
+// plain build, or ESHU_NORNICDB_RUNTIME=process, leaves it os.Stderr. Under
+// nolocalllm with the embedded runtime up, both sit inside the standard-logger
+// redirect above and land in <logs>/graph-nornicdb.log instead: the graph
+// starts before the schema bootstrap runs and before any child is supervised.
 //
 // The environment is this package's main configuration surface, in both
 // directions. It READS ESHU_QUERY_PROFILE and ESHU_GRAPH_BACKEND (the owner

@@ -136,9 +136,9 @@ func StatusForLayout(layout eshulocal.Layout) (StatusOutput, error) {
 	return status, nil
 }
 
-// LogsForLayout copies the workspace graph backend log to out. out is the
-// caller's stdout: this package never writes to the process streams directly so
-// a caller can capture the log in a test.
+// LogsForLayout copies the workspace graph backend log to out, and writes it
+// nowhere else, so a test can pass a buffer and read back exactly what an
+// operator would see. `eshu graph logs` passes os.Stdout. A nil out discards.
 func LogsForLayout(layout eshulocal.Layout, out io.Writer) error {
 	logPath := filepath.Join(layout.LogsDir, "graph-nornicdb.log")
 	file, err := os.Open(logPath) // #nosec G304 -- logPath is program-constructed from layout.LogsDir and a fixed filename literal

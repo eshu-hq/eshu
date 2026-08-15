@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -47,6 +48,42 @@ func TestEmbeddedLocalNornicDBRuntimeRedirectsStandardLogger(t *testing.T) {
 	}
 	if got := previous.String(); strings.Contains(got, "embedded startup line") {
 		t.Fatalf("previous log output = %q, want embedded line routed away", got)
+	}
+}
+
+// TestEmbeddedLocalNornicDBRuntimeRedirectStandardLoggerCapturesDefaultSlog
+// pins what doc.go, README.md, and AGENTS.md say about this package's two slog
+// paths: children.go's clean-child-exit record and graph_bootstrap.go's
+// per-schema-statement records. Go's default slog handler writes through the
+// standard log package, so while the embedded runtime holds that package's
+// writer those records go to the graph log rather than os.Stderr. If the
+// redirect stops covering slog, the docs go stale silently; this fails instead.
+func TestEmbeddedLocalNornicDBRuntimeRedirectStandardLoggerCapturesDefaultSlog(t *testing.T) {
+	original := log.Writer()
+	t.Cleanup(func() {
+		log.SetOutput(original)
+	})
+
+	var previous bytes.Buffer
+	log.SetOutput(&previous)
+
+	var embeddedLogs bytes.Buffer
+	restore := redirectEmbeddedNornicDBStandardLogger(&embeddedLogs)
+	slog.Default().Info("local graph schema statement applied")
+	restore()
+	slog.Default().Info("local Eshu service child exited cleanly")
+
+	if got := embeddedLogs.String(); !strings.Contains(got, "local graph schema statement applied") {
+		t.Fatalf("embedded log output = %q, want the slog record routed into the graph log", got)
+	}
+	if got := embeddedLogs.String(); strings.Contains(got, "local Eshu service child exited cleanly") {
+		t.Fatalf("embedded log output = %q, want the post-restore slog record routed away", got)
+	}
+	if got := previous.String(); !strings.Contains(got, "local Eshu service child exited cleanly") {
+		t.Fatalf("previous log output = %q, want the slog record back after restore", got)
+	}
+	if got := previous.String(); strings.Contains(got, "local graph schema statement applied") {
+		t.Fatalf("previous log output = %q, want the redirected slog record kept out", got)
 	}
 }
 

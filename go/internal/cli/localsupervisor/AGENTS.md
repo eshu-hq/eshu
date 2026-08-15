@@ -28,32 +28,47 @@
   site. Do not collect teardown at the end of the function.
 
 - **No process wiring for NEW operator messages.** No cobra flags, no
-  `fmt.Print*`, no `os.Exit`, and no NEW write to `os.Stdout`/`os.Stderr` for an
-  operator message. Take an `io.Writer` and write to that. `go/cmd/eshu` is
+  `fmt.Print*`, no `os.Exit`, no NEW write to `os.Stdout`/`os.Stderr`, and no
+  NEW operator message through `slog` or the standard `log` package. Take an
+  `io.Writer` and write to that. The `slog` and `log` half of that rule is not
+  hypothetical: both are already imported here, both already bypass `out`, and
+  neither is visible to `host_writer_test.go`, so a new `slog.Info(...)` would
+  otherwise break no rule and be caught by no test. `go/cmd/eshu` is
   `package main`, so nothing can import it — anything that reads a flag or maps
   to an exit code stays there.
 
   Writes that already reach a process stream are below, deliberately without a
   count: the set moves with the build tag and with the next call site anyone
   adds, and nothing enforces a number written here. Re-derive it before you rely
-  on it, with
-  `rg -n 'os\.(Stdout|Stderr)|slog\.|fmt\.Print' --glob '!*_test.go'` over the
-  package.
+  on it, from inside the package directory:
 
-  Two of them carry no message of this package's own: terminal log mode assigns
-  `os.Stdout`/`os.Stderr` to a child `exec.Cmd`, and the embedded graph runtime
-  temporarily pipes the process-global streams into the graph log while NornicDB
-  starts up. That redirect is compiled only under `-tags nolocalllm`; a plain
-  build gets the stub instead.
+  ```bash
+  rg -n 'os\.(Stdout|Stderr)|slog\.|fmt\.Print|\blog\.' --glob '!*_test.go' .
+  ```
+
+  The trailing `.` matters. Without a path, `rg` reads stdin and an agent
+  running the command hangs instead of getting output.
+
+  Some of them carry no message of this package's own: terminal log mode assigns
+  `os.Stdout`/`os.Stderr` to a child `exec.Cmd`; the embedded graph runtime
+  pipes the process-global streams into the graph log while NornicDB starts up;
+  and that same runtime points the standard `log` package at the graph log
+  (`redirectEmbeddedNornicDBStandardLogger`) and holds it there until the
+  backend stops, so unlike the stream swap it covers the whole run. The last two
+  are compiled only under `-tags nolocalllm`; a plain build gets the stub, which
+  redirects nothing.
 
   The rest is this package's own operator output, and it predates the move out
   of `cmd/eshu`. `localHostProgressWriter` (`progress.go`) is `os.Stderr`, and
   the whole local progress display goes through it — the plain renderer and the
   Bubble Tea TUI both. `children.go` logs a `slog` record when a child exits
   cleanly, and `graph_bootstrap.go` passes `slog.Default()` to
-  `graph.EnsureSchemaWithBackend`, which logs a record per schema statement;
-  `eshu` installs no `slog` handler, so both land on `os.Stderr` through Go's
-  default. A caller's `io.Writer` redirects none of it. Threading `out` into
+  `graph.EnsureSchemaWithBackend`, which logs a record per schema statement.
+  `eshu` installs no `slog` handler, and Go's default one writes through the
+  standard `log` package, so those two follow that package's writer: `os.Stderr`
+  on a plain build or under `ESHU_NORNICDB_RUNTIME=process`, and
+  `<logs>/graph-nornicdb.log` under `nolocalllm` with the embedded runtime up.
+  A caller's `io.Writer` redirects none of it. Threading `out` into
   `startLocalHostProgressReporter` would change what `eshu watch` and
   `eshu graph start` print live, so it needs its own before/after proof rather
   than a drive-by edit.
