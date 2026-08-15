@@ -47,11 +47,18 @@ var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*[A-Za-z_][A-Za-z0-
 // one per target label, so a third would be exactly the kind of drift this
 // count-based check catches that a type-only set would miss).
 //
-// AST-based, not a raw-text scan: only *ast.BasicLit STRING values inside a
-// *ast.ValueSpec are inspected, so a doc comment that quotes example Cypher
-// can never be mistaken for a production template — comments are not part of
-// the AST's literal-value tree at all, so this needs no exclusion logic the
-// way a raw-text scan would.
+// AST-based, not a raw-text scan: every *ast.BasicLit STRING node in the
+// file is inspected, wherever it appears — a const/var declaration, a
+// fmt.Sprintf call argument (the label-scoped code-call, SQL, and
+// inheritance templates build their Cypher this way), or anywhere else a
+// string literal can occur — so a doc comment that quotes example Cypher can
+// never be mistaken for a production template: comments are never part of
+// the AST's expression tree at all, unlike a raw-text scan, which would need
+// exclusion logic to tell the two apart. An earlier version of this scan
+// filtered to *ast.ValueSpec values only, which is a strict subset of "every
+// string literal" and missed every Sprintf-built template — three of the
+// four multi-type families this test exists to cover build their Cypher that
+// way (code_calls, sql_relationships, inheritance_edges).
 func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +80,8 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 
 // scanPropertyKeyedRelationshipMergeTypes parses every non-test .go file
 // directly in this package directory and counts each relationship type's
-// property-keyed MERGE occurrences across every string-literal constant.
+// property-keyed MERGE occurrences across every string literal in the file,
+// regardless of the expression context it appears in.
 func scanPropertyKeyedRelationshipMergeTypes(t *testing.T) map[string]int {
 	t.Helper()
 
@@ -96,22 +104,16 @@ func scanPropertyKeyedRelationshipMergeTypes(t *testing.T) map[string]int {
 		}
 
 		ast.Inspect(file, func(n ast.Node) bool {
-			valueSpec, ok := n.(*ast.ValueSpec)
-			if !ok {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
 				return true
 			}
-			for _, value := range valueSpec.Values {
-				lit, ok := value.(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					continue
-				}
-				text, err := strconv.Unquote(lit.Value)
-				if err != nil {
-					continue
-				}
-				for _, m := range propertyKeyedMergeTypePattern.FindAllStringSubmatch(text, -1) {
-					counts[m[1]]++
-				}
+			text, err := strconv.Unquote(lit.Value)
+			if err != nil {
+				return true
+			}
+			for _, m := range propertyKeyedMergeTypePattern.FindAllStringSubmatch(text, -1) {
+				counts[m[1]]++
 			}
 			return true
 		})
