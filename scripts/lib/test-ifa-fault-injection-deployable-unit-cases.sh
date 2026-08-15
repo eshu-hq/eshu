@@ -45,6 +45,15 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_deployable_unit_live_lib "live lib exact assertion domain" "-domain deployable_unit_edges"
 	require_deployable_unit_live_lib "live lib non-vacuity framing" "one-edge exact set"
 	require_deployable_unit_live_lib "live lib maintenance-pass invocation" '"${bin_dir}/eshu-bootstrap-index"'
+	# Pinned to the CODE SHAPE, not the bare phrase: the phrase
+	# "cross-repo relationship resolution started" also appears in this
+	# function's own header comment and in its echo/printf diagnostics, so a
+	# plain phrase needle would still match after the functional comparison
+	# below was deleted -- exactly the "cannot fail" trap this whole item
+	# exists to avoid. Each needle is the literal `if [[ ... ]]` condition, so
+	# deleting either comparison (not just the phrase) turns this red.
+	require_deployable_unit_live_lib "live lib readiness-opened resolution-started check" '"${contents}" != *"cross-repo relationship resolution started"* ]]'
+	require_deployable_unit_live_lib "live lib readiness-opened not-gated check" '"${contents}" == *"cross-repo resolution gated"* ]]'
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 	done
