@@ -146,7 +146,7 @@ unsupported targets, exit classification, and `scan_performance.wall_time_ms`.
 `TestVulnScanRepoFixtureCorpusHasParserBackedDependencyEvidence` additionally
 parses each non-OS supported-manager fixture through `internal/parser` so the
 local corpus cannot pass with empty placeholder manifests.
-`go test ./cmd/eshu -run
+`go test ./cmd/eshu ./internal/cli/vulnscan -run
 'TestRunVulnScanRepo(JSONReportPreservesScannerContractAndFindingsExit|JSONReportPreservesTargetPackageImageAndVersionContext|ExitCodesPreserveReadinessClasses|ScopedModeFailsClosedOnUnknownFreshness|TextSummaryRendersBeforeFindingsExit)|TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation'
 -count=1` proves the stable JSON report schema, target/package/image and
 version-context mapping, evidence fact handles, remediation allowlist,
