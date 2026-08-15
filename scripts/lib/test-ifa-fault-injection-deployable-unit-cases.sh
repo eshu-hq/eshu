@@ -34,6 +34,17 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
 	require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 	require_driver "deployable-unit drive in every cell" 'eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}"'
+	# Four checks against the LIVE LIB itself (ifa_deployable_unit_live.sh),
+	# mirroring the documentation family's require_documentation_lib set.
+	# Without these, require_deployable_unit_live_lib existed with zero call
+	# sites: the mirror asserted the CELLS file's shape (it calls the wrapper
+	# function names) but proved nothing about the file that does the actual
+	# drive/assert-edges/maintenance-pass work -- someone could gut this
+	# family's live proof entirely and the mirror would still pass.
+	require_deployable_unit_live_lib "live lib drive command" '"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers 1'
+	require_deployable_unit_live_lib "live lib exact assertion domain" "-domain deployable_unit_edges"
+	require_deployable_unit_live_lib "live lib non-vacuity framing" "one-edge exact set"
+	require_deployable_unit_live_lib "live lib maintenance-pass invocation" '"${bin_dir}/eshu-bootstrap-index"'
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 	done
