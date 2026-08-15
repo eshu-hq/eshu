@@ -24,7 +24,7 @@ write path.
 
 ### Revision: every comparison key is now length-prefixed, not just the identity suffix
 
-The section below this one is the ORIGINAL evidence, from when only `Key()`'s
+No-Regression Evidence: the section below this one is the ORIGINAL evidence, from when only `Key()`'s
 `Identity`-bearing suffix used a length-prefixed encoding and the
 no-`Identity` path stayed byte-identical to the pre-`Identity` raw `"|"`-join.
 Code review (two rounds) found that split left real injectivity defects
