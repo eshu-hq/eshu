@@ -79,6 +79,41 @@ func TestCodeownersOwnershipDomainEdgeTypesComeFromTheWriterRegistry(t *testing.
 // assertion is still what proves the endpoints resolve to real, correctly
 // identified graph nodes end to end (see the CodeownerTeam endpoint-identity
 // gap this package's cmd/ifa sibling test documents).
+//
+// Derivation record for ifa-codeowners-family-expected-edges.json (kept
+// here rather than as a JSON "note" field, mirroring the documentation_edges
+// precedent, commit 48d3bdf6a / #5994: codeownersExpectedEdgesFile declares
+// only "odu" and "edges" -- "identity" is a third DECLARED field this
+// family's own loadCodeownersExpectedEdges reads, unlike "note", which
+// never was declared anywhere and only parsed because encoding/json accepts
+// unknown fields by default). Five DECLARES_CODEOWNER edges from
+// ExtractCodeownersOwnershipEdgeRowsWithQuarantine over the
+// ifa-codeowners-family cassette: RULE A (*.md), RULE C's second owner token
+// (*.go), and RULE B (docs/**) are three DISTINCT relationships from
+// repo-ifa-codeowners-family to the SAME @org/docs team -- canonical_codeowners_edges.go's
+// write template keys the relationship MERGE on {pattern, source_path}, not
+// on the (repo, team) pair alone, so one team named by several rule patterns
+// is several edges, not one overwritten edge. RULE C's first owner token
+// (*.go -> @org/backend) is a fourth edge. RULE E (*.py under the second
+// CODEOWNERS file docs/CODEOWNERS) is the fifth, to @org/infra. RULE D
+// deliberately produces NO edge: it repeats RULE A's exact (repo_id,
+// source_path, pattern, owner_ref) key at order_index 5, and the
+// extractor's rowIndexByKey dedup collapses it into RULE A's row (keeping
+// the higher order_index) rather than emitting a second edge -- proving the
+// last-match-wins contract, not just adding a sixth entry here. Each edge's
+// identity object carries pattern/source_path so this family's own pure
+// guard (materialized_edges_codeowners.go) can prove per-rule property
+// truth, not just edge count between a (repo, team) pair -- see
+// TestExpectedEdgeDetectsCodeownersPropertyCorruption and
+// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate for the two
+// RED proofs that the SHARED ifa.ExpectedEdge 3-tuple (still what the live
+// assert-edges verb reads via ifa.LoadExpectedEdges, which ignores this
+// file's identity keys) cannot do the same. This is a family-local
+// strengthening, not a widening of the shared mechanism. The fixture's
+// top-level "odu" field is likewise NOT validated against
+// Catalog()/CatalogByName() or anything else -- loadCodeownersExpectedEdges
+// decodes it and never reads it back -- so "odu:ifa-codeowners-family" here
+// is a human label, not a resolvable identity.
 func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
