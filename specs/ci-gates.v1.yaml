@@ -125,9 +125,14 @@ gates:
       - "tools/golangci-lint-filelength/**"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
-      # No workflow in .github/workflows/ runs this mirror test; only the local
-      # runner does (`make pre-pr` selects go-file-cap on a go/** change). That
-      # is the existing convention, not an oversight. The closest precedent is
+      # Half of this test_command now runs in CI and half does not, and the
+      # split is deliberate. The plugin-module half (skip_parity_test.go, the
+      # regression guard for the #6104 plugin-vs-bash drift) runs in test.yml's
+      # go-core job via the "Test golangci-lint filelength plugin" step, because
+      # a guard that only fires locally cannot stop the drift it exists to catch.
+      # The shell half (test-precommit-go-filecap.sh) runs only under the local
+      # runner (`make pre-pr` selects go-file-cap on a go/** change). That is the
+      # existing convention, not an oversight. The closest precedent is
       # scripts/test-precommit-console.sh, the harness this one was modelled on:
       # a test_command names it here and nothing under .github/workflows/ ever
       # runs it. Six more are wired the same way. To re-derive that: pull every

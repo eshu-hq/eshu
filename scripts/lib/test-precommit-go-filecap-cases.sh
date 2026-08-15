@@ -155,3 +155,40 @@ test_missing_trailing_newline_counts() {
 	assert_rc 1 "a final line without a trailing newline still counts (matches the plugin)"
 	assert_contains "501 lines"
 }
+
+# ---------------------------------------------------------------------------
+# The nolint exemption must be a DIRECTIVE, not a mention.
+#
+# golangci-lint honours //nolint only where the comment's text begins with
+# `nolint:`. This check used to match the bare string anywhere in the file, so a
+# file that merely explained the marker in prose was exempt locally and still
+# capped in CI — lax in the one direction a hook whose job is agreeing with CI
+# must not be.
+#
+# Both spellings a real directive can take are covered, because the common one
+# is a trailing comment on the reported line and an earlier attempt at this
+# check only matched a comment at line start.
+# ---------------------------------------------------------------------------
+test_nolint_must_be_a_directive_not_a_mention() {
+	local repo_dir i
+	new_repo
+	repo_dir="${REPO_DIR}"
+
+	write_file "${repo_dir}" 501 "go/internal/big/trailing.go" "nolint:filelength"
+	run_gate "${repo_dir}" filecap "go/internal/big/trailing.go"
+	assert_rc 0 "a trailing //nolint:filelength directive on the package line exempts the file"
+
+	mkdir -p "${repo_dir}/go/internal/big"
+	{
+		printf '// SPDX-License-Identifier: MIT\n'
+		printf 'package fixture\n'
+		printf '// the repo uses //nolint:filelength on a few generated files\n'
+		i=4
+		while ((i <= 501)); do
+			printf '// filler line %d\n' "${i}"
+			i=$((i + 1))
+		done
+	} >"${repo_dir}/go/internal/big/prose.go"
+	run_gate "${repo_dir}" filecap "go/internal/big/prose.go"
+	assert_rc 1 "prose mentioning nolint:filelength mid-comment is not a directive and stays capped"
+}

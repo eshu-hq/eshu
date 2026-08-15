@@ -175,23 +175,61 @@ filecap_count_lines() {
 # filecap_check_file evaluates one repo-relative Go path against the cap,
 # printing the violation. Returns 1 on violation, 0 otherwise.
 #
-# One check here is deliberately laxer than CI, and it is the `rg -q` nolint
-# test: it matches `nolint:filelength` ANYWHERE in the file, while golangci-lint
-# honours a directive only on the line it reports or on the block enclosing it.
-# A file that merely mentions the string in a comment is exempt here and still
-# capped in CI. Matching the plugin would mean parsing directive attachment,
-# which a grep cannot do, and that is not worth building for this hook. Both
-# arms call this one function, so they still agree with each other; the gap is
-# against CI only. Nothing trips it today: all 13 non-test files carrying the
-# marker put it on the `package` line, which is exactly where the plugin
-# reports, and the only prose-only mentions are in `_test.go` files that the
-# skip above exempts before this line runs.
+# The nolint test below is scoped to match how golangci-lint actually
+# suppresses this diagnostic, because an unscoped match was laxer than CI.
+#
+# The plugin reports at `f.Pos()` (tools/golangci-lint-filelength/filelength.go),
+# which is the file's `package` clause. golangci-lint then honours a `//nolint`
+# directive on that line or in the comment block immediately above it. So a
+# file-scoped suppression lives at or above `package`, and nowhere else.
+#
+# This previously matched `nolint:filelength` ANYWHERE in the file, so a file
+# that merely MENTIONED the string in prose -- a comment explaining the marker,
+# for instance -- was exempt locally and still capped in CI. That is the wrong
+# direction for a hook whose entire purpose is agreeing with CI.
+#
+# filecap_nolint_directive narrows it two ways: the match must be a real comment
+# directive rather than prose, and it must appear at or above the `package`
+# clause. It is still not a parser -- it does not track `//nolint` block scoping
+# inside a file -- but that gap no longer produces a local pass CI would reject,
+# because a file-length diagnostic cannot be suppressed from inside the body.
+# filecap_nolint_directive returns 0 when the file carries a real
+# //nolint:filelength directive where golangci-lint would honour it for THIS
+# diagnostic: at or above the `package` clause, which is where the plugin
+# reports (`Pos: f.Pos()`).
+#
+# "Real directive" means the comment's TEXT begins with `nolint:` -- either as a
+# trailing comment on a line (`package x //nolint:filelength`, the common form)
+# or as its own comment line above `package`. Prose that merely mentions the
+# string mid-sentence (`// we use //nolint:filelength elsewhere`) is not a
+# directive to golangci-lint and is not one here either. That was the gap: the
+# old check matched the bare string anywhere in the file, so a file explaining
+# the marker was exempt locally and still capped in CI.
+filecap_nolint_directive() {
+	local file="$1" pkg_line
+	pkg_line="$(rg -n '^package[[:space:]]' "${file}" 2>/dev/null | head -1 | cut -d: -f1)"
+	[[ -n "${pkg_line}" ]] || return 1
+	head -n "${pkg_line}" "${file}" | awk '
+		{
+			i = index($0, "//")
+			if (i == 0) next
+			rest = substr($0, i + 2)
+			sub(/^[ \t]+/, "", rest)
+			if (rest !~ /^nolint:/) next
+			split(rest, parts, /[ \t]/)
+			linters = substr(parts[1], 8)
+			if (linters ~ /(^|,)filelength(,|$)/) found = 1
+		}
+		END { exit(found ? 0 : 1) }
+	'
+}
+
 filecap_check_file() {
 	local f="$1" lines
 	[[ "${f}" == *.go ]] || return 0
 	filecap_skip "${f}" && return 0
 	[[ -f "${repo_root}/${f}" ]] || return 0
-	rg -q 'nolint:filelength' "${repo_root}/${f}" && return 0
+	filecap_nolint_directive "${repo_root}/${f}" && return 0
 	lines="$(filecap_count_lines "${repo_root}/${f}")"
 	if (( lines > 500 )); then
 		note "${f}: ${lines} lines exceeds the 500-line cap (split it, or //nolint:filelength with a reason)"

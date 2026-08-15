@@ -432,6 +432,7 @@ test_every_input_is_checked
 test_filecap_all_walks_from_the_repo_root
 test_violation_message
 test_nolint_marker_is_read_from_the_repo_root
+test_nolint_must_be_a_directive_not_a_mention
 test_non_go_file_is_ignored
 test_outside_go_module_is_capped_locally_only
 test_leading_segment_is_exempt
@@ -456,8 +457,8 @@ test_mutation_breaks_parity
 # weakened in place, and the two bare diagnostic guards in
 # test_mutation_breaks_parity (the `cmp -s` and `bash -n`), which are backed by
 # the counted assertions after them.
-[[ "${assertions}" == 66 ]] ||
-	fail "runner made ${assertions} assertions, expected 66 — a test function or assertion went missing"
+[[ "${assertions}" == 68 ]] ||
+	fail "runner made ${assertions} assertions, expected 68 — a test function or assertion went missing"
 
 printf 'test-precommit-go-filecap: all tests passed (%d assertions, %d parity cases)\n' \
 	"${assertions}" "${parity_cases}"
