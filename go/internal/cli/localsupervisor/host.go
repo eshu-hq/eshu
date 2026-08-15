@@ -23,26 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-// Environment variables and mode values the supervisor and its CLI wrapper both
-// name. The CLI uses them as flag defaults; the supervisor reads them back out
-// of the child environment it built.
-const (
-	// ShutdownTimeout bounds how long a child service gets to exit after the
-	// supervisor interrupts it, before it is killed.
-	ShutdownTimeout                         = 5 * time.Second
-	deferContentSearchIndexesEnv            = "ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES"
-	reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
-	ProgressModeEnv                         = "ESHU_LOCAL_PROGRESS_MODE"
-	LogModeEnv                              = "ESHU_LOCAL_LOG_MODE"
-	LogDirEnv                               = "ESHU_LOCAL_LOG_DIR"
-	ProgressModeAuto                        = "auto"
-	ProgressModePlain                       = "plain"
-	ProgressModeQuiet                       = "quiet"
-	LogModeFile                             = "file"
-	LogModeTerminal                         = "terminal"
-	logModeQuiet                            = "quiet"
-)
-
 // The supervisor's injection seams. Each is a variable so a test can replace
 // the real process, filesystem, or database interaction with a double; the
 // exported ones are also the seams the CLI wrapper and the vuln-scan command
@@ -107,7 +87,17 @@ type HostMode string
 // The two owner modes. They differ in their default profile and in which child
 // services the owner starts and waits on.
 const (
-	ModeWatch    HostMode = "watch"
+	// ModeWatch is the indexer owner: the ingester, plus the reducer and the
+	// post-drain finalizers under local_authoritative, with the progress display
+	// running. It defaults to the lightweight profile, and an authoritative
+	// owner stays up when its ingester exits cleanly. `eshu watch` and
+	// `eshu graph start` re-exec into it.
+	ModeWatch HostMode = "watch"
+
+	// ModeMCPStdio runs those same children and adds an MCP server on this
+	// process's stdio; that one child may exit cleanly and end the run. It
+	// defaults to local_authoritative so `eshu mcp start` can answer
+	// graph-backed questions straight away, and it starts no progress display.
 	ModeMCPStdio HostMode = "mcp_stdio"
 )
 

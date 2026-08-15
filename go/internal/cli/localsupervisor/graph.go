@@ -24,17 +24,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-const (
-	localGraphStartupTimeout = 45 * time.Second
-	GraphHealthTimeout       = 1 * time.Second
-	GraphShutdownTimeout     = 10 * time.Second
-
-	localNornicDBBindAddress    = "127.0.0.1"
-	localNornicDBAdminUsername  = "admin"
-	GraphDatabaseName           = "nornic"
-	localNornicDBRuntimeModeEnv = "ESHU_NORNICDB_RUNTIME"
-)
-
 var (
 	localGraphLookPath = exec.LookPath
 	// ReadGraphVersion runs `<binary> version` and parses the result. It is the
