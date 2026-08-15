@@ -21,7 +21,20 @@ import (
 // (materialized_edge_families_test.go), which has no capture group because
 // its caller already knows the type it is checking; this scan does not, so
 // it needs one.
-var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Z][A-Z0-9_]*)\s*\{`)
+//
+// TYPE matches either a literal uppercase relationship type (DECLARES_CODEOWNER)
+// or a bare "%s" fmt verb: several writers build their Cypher with
+// fmt.Sprintf and substitute the relationship type at runtime
+// (buildLabelScopedInheritanceCypher, buildLabelScopedSQLRelationshipCypher,
+// and the various single-type-per-call writers under
+// azure_cloud_resource_edge_writer.go and siblings all use `[rel:%s]->`).
+// None of those templates carries a property map today, so the "%s" branch
+// is expected to match nothing in the current package -- it exists so that
+// if one of them ever grows a property-keyed MERGE, the scan counts it under
+// the "%s" key instead of silently missing it the way a literal-type-only
+// pattern would (a literal-only pattern cannot match "%s" at all, since it
+// starts with "%%", not [A-Z]).
+var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*(%s|[A-Z][A-Z0-9_]*)\s*\{`)
 
 // TestPropertyKeyedRelationshipMergesMatchKnownAllowList closes a gap
 // TestSingleTypeFamilyIdentityMatchesWriteCypher cannot: that guard only
