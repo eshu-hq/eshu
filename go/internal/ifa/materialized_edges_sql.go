@@ -6,7 +6,9 @@ package ifa
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -82,6 +84,14 @@ type sqlRelationshipExpectedEdgesFile struct {
 // expected-edge-set fixture file. The decoder disallows unknown fields so a
 // typo in a fixture (e.g. "identiy" instead of "identity") fails loudly at
 // load time instead of silently decoding to a zero value.
+//
+// json.Decoder.Decode reads exactly one JSON value off the stream and
+// stops -- unlike json.Unmarshal, it does not require the input to end
+// there, so a fixture holding a second, concatenated JSON value after a
+// valid first one would decode only the first and silently drop the rest.
+// Requiring io.EOF from a second Decode call closes that gap: any trailing
+// non-whitespace content after the first value is a fixture error, not a
+// value this loader ignores.
 func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdge, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is a checked-in repo fixture under testdata/, not external input
 	if err != nil {
@@ -92,6 +102,9 @@ func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdg
 	var parsed sqlRelationshipExpectedEdgesFile
 	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("ifa: parse sql relationship expected edges %s: %w", path, err)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has trailing content after its JSON object", path)
 	}
 	if len(parsed.Edges) == 0 {
 		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has no edges", path)

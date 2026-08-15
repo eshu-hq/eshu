@@ -4,6 +4,8 @@
 package ifa
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -142,5 +144,29 @@ func TestSQLRelationshipDeltaPureDerivationMatchesExpectedEdgesExactly(t *testin
 	}
 	if _, ok := actualSet["INDEXES|content-entity:sql-idx-users-email|content-entity:sql-tbl-users"]; ok {
 		t.Error("delta derivation still carries the stale gen-1 INDEXES->public.users edge; retarget did not take effect")
+	}
+}
+
+// TestLoadSQLRelationshipExpectedEdgesRejectsTrailingJSON is the regression
+// test for a real false-green vector: json.Decoder.Decode reads exactly one
+// JSON value off the stream and stops, silently ignoring anything that
+// follows -- unlike json.Unmarshal, which validates that the whole input is
+// one complete value. A fixture holding a valid object immediately followed
+// by a second, unrelated concatenated object decodes only the first and
+// silently drops the second: authored edges vanish while this loader reports
+// success and the exact-set gate runs (and may still pass) against a
+// truncated expectation.
+func TestLoadSQLRelationshipExpectedEdgesRejectsTrailingJSON(t *testing.T) {
+	t.Parallel()
+
+	first := `{"odu":"odu:x","note":"n","edges":[{"relationship_type":"QUERIES_TABLE","source_entity_id":"a","target_entity_id":"b"}]}`
+	second := `{"odu":"odu:y","note":"n","edges":[{"relationship_type":"HAS_COLUMN","source_entity_id":"c","target_entity_id":"d"}]}`
+	path := filepath.Join(t.TempDir(), "trailing.json")
+	if err := os.WriteFile(path, []byte(first+second), 0o600); err != nil {
+		t.Fatalf("write temp fixture: %v", err)
+	}
+
+	if _, err := loadSQLRelationshipExpectedEdges(path); err == nil {
+		t.Fatal("loadSQLRelationshipExpectedEdges accepted a fixture with a second, concatenated JSON object trailing the first")
 	}
 }
