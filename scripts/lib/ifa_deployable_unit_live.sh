@@ -251,9 +251,21 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 # `docker compose exec` hiccup on this bare command substitution would abort
 # the whole cell here, attributed to an assertion that never got to run --
 # exactly the false-red this probe exists to avoid, and a worse bug than the
-# ambiguity it fixes. The `if !` below is what actually suppresses `set -e`
-# for that one command (a `|| true` on the assignment would do the same); an
-# empty-string count on failure would also be its own false signal --
+# ambiguity it fixes. The `if !` below is what suppresses `set -e` for that
+# one command (a `|| true` on the assignment would do the same).
+#
+# That guard alone is only a real guarantee under `pipefail`: ifa_det_pg is
+# the first stage of a pipeline ending in `tr`, so WITHOUT pipefail the
+# substitution's exit status is tr's (0 even when ifa_det_pg failed), the
+# `if !` never fires, and admitted silently reads as an empty string --
+# exactly the false reading this function exists to prevent, and this file's
+# own header says the CALLER owns strict mode, so a future driver sourcing it
+# with `set -eu` and no `pipefail` would reintroduce that blank silently. The
+# `|| [[ -z "${admitted}" ]]` below makes the guard caller-independent: a
+# `SELECT count(*)` always returns exactly one row containing a number, so
+# empty output can only mean the query never ran -- this check can never mask
+# a legitimate zero, because a legitimate zero prints as the string "0", not
+# empty. An empty-string count on failure would be its own false signal --
 # "intents == 0 implicates correlation" is the WRONG diagnosis if the query
 # never ran at all, so failure gets a distinct, unmistakable reading instead.
 #
@@ -263,7 +275,7 @@ ifa_deployable_unit_live_report_intents_after_maintenance() {
 	local admitted
 	if ! admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}" | tr -d '[:space:]')"; then
+		"${compose_file}" | tr -d '[:space:]')" || [[ -z "${admitted}" ]]; then
 		admitted="unavailable (query failed)"
 	fi
 	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"

@@ -10,6 +10,7 @@
 # (ifa_deployable_unit_live_assert_empty_before_maintenance,
 # ifa_deployable_unit_live_run_maintenance_pass,
 # ifa_deployable_unit_live_assert_readiness_opened,
+# ifa_deployable_unit_live_report_intents_after_maintenance,
 # ifa_deployable_unit_live_assert).
 #
 # BOTH cells below need one thing no sibling family's cells do: a bootstrap-
@@ -193,6 +194,7 @@ cell_baseline_deployable_unit() {
 		|| die "baseline-deployable-unit: sql_relationships no longer matches its exact set AFTER the maintenance pass -- the maintenance pass corrupted an unrelated family"
 	"${bin_dir}/eshu-ifa" assert-edges -domain code_calls -expected "${code_call_expected_edges}" \
 		|| die "baseline-deployable-unit: code_calls no longer matches its exact set AFTER the maintenance pass -- the maintenance pass corrupted an unrelated family"
+	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
 		|| die "baseline-deployable-unit: fault-free graph does not match the one-edge exact set (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
 	capture_digest baseline_deployable_unit
@@ -258,6 +260,7 @@ cell_killworker_deployable_unit() {
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunit
 	assert_no_dead_letters killworkerdeployableunit
+	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
 		|| die "kill-worker-after-claim-deployable-unit: recovered graph does not match the one-edge exact set"
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
@@ -309,6 +312,7 @@ cell_failgraphwrite_deployable_unit() {
 		env "ESHU_IFA_FAULT_SCRIPT=${fault_once_script}" "${tagged_bin_dir}/eshu-reducer"
 	run_drain_gate failgraphwritedeployableunit
 	assert_no_dead_letters failgraphwritedeployableunit
+	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
 		|| die "fail-graph-write-once-then-succeed-deployable-unit: recovered graph does not match the one-edge exact set"
 	marker_rc=0
