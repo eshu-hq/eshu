@@ -13,12 +13,57 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 const (
 	deployableUnitCorrelationEvidenceSource   = "reducer/deployable-unit-correlation"
 	deployableUnitCorrelationRelationshipType = string(edgetype.CorrelatesDeployableUnit)
 )
+
+// ExtractDeployableUnitCorrelationRows runs the pure deployable-unit
+// correlation pipeline over one intent's fact envelopes and its
+// already-resolved cross-repo relationships, returning every candidate row
+// (admitted and rejected) exactly as DeployableUnitCorrelationHandler.Handle
+// computes them, plus the engine.Evaluation the rows were derived from.
+//
+// DeployableUnitCorrelationHandler.Handle calls this function for its own row
+// computation after loading `resolved` through its ResolvedRelationshipLoader
+// (the I/O stays in Handle; this function performs none). Ifá's
+// deployable_unit_edges materialized-edge vacuity guard
+// (go/internal/ifa/materialized_edges_deployable_unit.go, #5993) calls it
+// directly against a cataloged Odù's facts plus a hand-authored
+// resolved-relationship fixture, mirroring the role ExtractSQLRelationshipRows
+// and ExtractAllCodeRelationshipRows play for their families.
+//
+// Unlike those two families, deployable-unit correlation cannot derive its
+// edges from facts alone: a candidate's deployment_repo_id only exists once a
+// RelDeploysFrom resolved relationship (produced by a separate cross-repo
+// resolution phase, never by this intent's own facts) is applied by
+// applyResolvedDeploymentSources. Callers that want only the edges eligible
+// for a canonical write must additionally filter the returned rows through
+// AdmittedDeployableUnitRows, exactly as materializeDeployableUnitEdges does.
+func ExtractDeployableUnitCorrelationRows(
+	intent Intent,
+	envelopes []facts.Envelope,
+	resolved []relationships.ResolvedRelationship,
+) ([]SharedProjectionIntentRow, engine.Evaluation, error) {
+	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+	if err != nil {
+		return nil, engine.Evaluation{}, err
+	}
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	candidates = applyResolvedDeploymentSources(candidates, resolved)
+	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
+	if len(candidates) == 0 {
+		return nil, engine.Evaluation{}, nil
+	}
+	evaluation, err := evaluateDeployableUnitCandidates(intent, candidates)
+	if err != nil {
+		return nil, engine.Evaluation{}, err
+	}
+	return deployableUnitCorrelationRows(intent, evaluation), evaluation, nil
+}
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	ctx context.Context,
@@ -30,7 +75,7 @@ func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	if err := h.retractDeployableUnitEdges(ctx, rows); err != nil {
 		return 0, err
 	}
-	writeRows := admittedDeployableUnitRows(rows)
+	writeRows := AdmittedDeployableUnitRows(rows)
 	if len(writeRows) == 0 {
 		return 0, nil
 	}
@@ -60,7 +105,13 @@ func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
 	return nil
 }
 
-func admittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
+// AdmittedDeployableUnitRows filters rows down to the ones eligible for a
+// canonical CORRELATES_DEPLOYABLE_UNIT write: an admitted candidate carrying a
+// non-empty deployment_repo_id. Exported so Ifá's deployable_unit_edges
+// materialized-edge vacuity guard (#5993) can apply the SAME admission filter
+// materializeDeployableUnitEdges uses, rather than a parallel
+// re-implementation that could silently drift from it.
+func AdmittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
 	admitted := make([]SharedProjectionIntentRow, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(anyToString(row.Payload["admission_state"])) != string(correlationmodel.CandidateStateAdmitted) {
