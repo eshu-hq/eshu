@@ -57,6 +57,52 @@ func TestBuildDocumentationRowMapRoutesWorkloadTarget(t *testing.T) {
 	}
 }
 
+// TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel is the
+// regression guard for issue #5994's SqlTable fix. A documentation entity
+// mention whose candidate resolves to a SQL table (target_kind "table") is
+// NOT distinguished from a code-entity target by buildDocumentationRowMap's
+// switch (only "workload" and "service" are distinct cases; everything else,
+// including "table", falls through to the default branch and is routed to
+// batchCanonicalDocumentationEntityEdgeCypher). Before the fix, that
+// template's MATCH clause omitted SqlTable from its label alternation even
+// though SqlTable nodes are uid-keyed exactly like the labels that were
+// present (canonical.go:163's SQL relationship writer MATCHes SqlTable by
+// uid the same way): a "table"-kind mention's DOCUMENTS edge write silently
+// no-opped against a live backend. The template leads with that MATCH, and a
+// MATCH yielding no rows for an UNWIND row eliminates that row before any
+// later clause runs -- so neither the DocumentationSection MERGE nor the
+// DOCUMENTS MERGE executed for it. No node from that row, no relationship, no
+// error -- a section with other resolving mentions still gets its node from
+// those, which is this fixture's shape: all three rows share one section uid,
+// so pre-fix the section existed via the Function and Class rows. This test
+// was RED before the fix (commit a3347e898) and is GREEN after it (SqlTable
+// added to the label alternation); it stays as a permanent regression guard,
+// not a scratch artifact.
+//
+// target_entity_id uses the real production uid convention for a SqlTable
+// node -- the content_entity fact's own entity_id, used verbatim, because
+// SqlTable is not in projector.canonicalNamePathLineEntityLabels
+// (canonical_entity_identity.go:12-57) so canonicalGraphEntityID's
+// else-branch returns the incoming id unchanged. Mirrors
+// sql_relationship_odu.go:93's sqlFamilyContentEntity convention
+// ("content-entity:sql-tbl-users"), not the invented "sqltable:..." shape an
+// earlier fixture used.
+func TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel(t *testing.T) {
+	payload := map[string]any{
+		"section_uid":      "docsec:1",
+		"target_entity_id": "content-entity:sql-tbl-payments",
+		"target_kind":      "table",
+	}
+	cypher, _, ok := buildDocumentationRowMap(payload, "reducer/documentation")
+	if !ok {
+		t.Fatal("buildDocumentationRowMap ok = false, want true")
+	}
+	if !strings.Contains(cypher, "SqlTable") {
+		t.Fatalf("target_kind=\"table\" routed to a cypher template whose MATCH clause does not mention SqlTable: %q; "+
+			"a documentation mention resolving to a SQL table cannot materialize a DOCUMENTS edge against a live backend", cypher)
+	}
+}
+
 func TestBuildDocumentationRowMapDropsServiceTarget(t *testing.T) {
 	payload := map[string]any{
 		"section_uid":      "docsec:1",

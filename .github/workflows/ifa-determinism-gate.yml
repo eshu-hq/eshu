@@ -102,6 +102,7 @@ on:
       - 'go/internal/ifa/graphdump/**'
       - 'go/internal/ifa/catalog_seed.go'
       - 'go/internal/ifa/code_call_family_catalog.go'
+      - 'go/internal/ifa/documentation_family_catalog.go'
       - 'go/internal/ifa/materialized_edges*.go'
       - 'go/cmd/bootstrap-data-plane/main.go'
       - 'go/cmd/reducer/main.go'
@@ -248,6 +249,27 @@ on:
       - 'go/internal/ifa/testdata/sqlrelationships/**'
       # The live lanes compare code_calls against this exact expected set.
       - 'go/internal/ifa/testdata/codecalls/**'
+      # documentation_edges (#5994) is driven and set-exactly asserted in every
+      # determinism cell, pre- and post-delta, and in the fault-free and two
+      # domain-scoped recovery cells. Its cassette and its expected-edge set are
+      # the same two artifacts the resolver reads, so a change to either changes
+      # what the live lanes assert and MUST retrigger them.
+      - 'testdata/cassettes/documentation/**'
+      - 'go/internal/ifa/testdata/documentation/**'
+      - 'go/internal/ifa/documentation_family_odu.go'
+      - 'go/internal/reducer/documentation_edge*.go'
+      - 'sdk/go/factschema/documentation/v1/**'
+      # Glob, not the canonical_ literal: the registry declares this shape, and it
+      # is what covers edge_writer_documentation_labels.go -- buildDocumentationRowMap's
+      # target_kind switch, whose routing the family guard defers to the live assert.
+      - 'go/internal/storage/cypher/*documentation*.go'
+      - 'scripts/lib/ifa_documentation_live.sh'
+      - 'scripts/lib/ifa_fault_injection_documentation_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
+      # Pre-existing gap surfaced by the registry-derived check below: the fault
+      # gate triggers on this in the registry and the selector table, but the
+      # workflow never listed it.
+      - 'go/cmd/ifa/assert_edges.go'
       - 'go/internal/storage/cypher/materialized_edge_*.go'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'

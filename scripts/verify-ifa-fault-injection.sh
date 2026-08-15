@@ -168,6 +168,10 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
 source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 # shellcheck source=scripts/lib/ifa_code_call_live.sh
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
+# shellcheck source=scripts/lib/ifa_documentation_live.sh
+source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_documentation_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -211,6 +215,15 @@ sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships
 code_call_cassette="${repo_root}/testdata/cassettes/codecalls/ifa-code-call-family.json"
 code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 
+# documentation_edges family cassette (#5994): driven into every cell
+# alongside the SQL and code-call families, including the SqlTable-target
+# DOCUMENTS edge (batchCanonicalDocumentationEntityEdgeCypher's MATCH label
+# alternation). cell_killworker_documentation / cell_failgraphwrite_documentation
+# below back the materialized_edges:documentation_edges manifest row's
+# proof_gate: ifa-fault-injection claim.
+documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
+documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
@@ -232,6 +245,14 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 # committed sql_cassette, so this fault genuinely fires during that drive.
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
+
+# The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
+# go/internal/storage/cypher/canonical_documentation_edges.go's
+# batchCanonicalDocumentationEntityEdgeCypher emits this exact MERGE clause
+# text regardless of which target label (Function/Class/.../SqlTable) the
+# preceding MATCH picked -- a fixed, grep-stable substring, same rationale as
+# cloud_resource_operation_match/sql_edge_operation_match above.
+documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
 
 use_compose=1
 keep=0
@@ -257,6 +278,8 @@ done
 [[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
 [[ -f "${code_call_cassette}" ]] || { echo "verify-ifa-fault-injection: code-call cassette not found: ${code_call_cassette}" >&2; exit 1; }
 [[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-fault-injection: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
+[[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-fault-injection: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
+[[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-fault-injection: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -344,6 +367,7 @@ cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
 cell_killworker_code_calls
+cell_killworker_documentation
 cell_duplicatedelivery
 cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
@@ -366,6 +390,7 @@ cell_deltaretract
 # assertion itself can execute.
 cell_failgraphwrite_sql
 cell_failgraphwrite_code_calls
+cell_failgraphwrite_documentation
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

@@ -1,0 +1,295 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-documentation-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-documentation-family",
+      "metadata": {
+        "fixture": "ifa-documentation-family"
+      },
+      "generation_id": "gen-ifa-documentation-family-1",
+      "observed_at": "2026-08-15T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-documentation-family",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "source_run_id": "run-ifa-documentation-family-1",
+            "local_path": "/repo-ifa-documentation-family"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-documentation-family:app/payments.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "relative_path": "app/payments.py",
+            "parsed_file_data": {
+              "path": "/repo-ifa-documentation-family/app/payments.py"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_17b9095db873",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "entity_id": "content-entity:e_17b9095db873",
+            "entity_type": "Function",
+            "entity_name": "Charge",
+            "relative_path": "app/payments.py",
+            "start_line": 1,
+            "end_line": 10
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_6f013273c987",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "entity_id": "content-entity:e_6f013273c987",
+            "entity_type": "Class",
+            "entity_name": "PaymentGateway",
+            "relative_path": "app/payments.py",
+            "start_line": 20,
+            "end_line": 40
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-documentation-family:db/schema.sql",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "relative_path": "db/schema.sql",
+            "parsed_file_data": {
+              "path": "/repo-ifa-documentation-family/db/schema.sql"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-tbl-payments",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "entity_id": "content-entity:sql-tbl-payments",
+            "entity_type": "SqlTable",
+            "entity_name": "public.payments",
+            "relative_path": "db/schema.sql"
+          }
+        },
+        {
+          "fact_kind": "documentation_document",
+          "stable_fact_key": "documentation_document:doc-platform-guide",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "title": "Platform Guide"
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:1-charge",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "function",
+            "mention_text": "Charge",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_17b9095db873",
+                "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:2-paymentgateway",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "class",
+            "mention_text": "PaymentGateway",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_6f013273c987",
+                "kind": "class"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:3-duplicate-charge",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "function",
+            "mention_text": "Charge()",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_17b9095db873",
+                "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:4-ambiguous",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "ambiguous",
+            "mention_kind": "function",
+            "mention_text": "Refund",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_258daea46e5b",
+                "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:5-multi-candidate",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "function",
+            "mention_text": "Void",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_deadbeef0001",
+                "kind": "function"
+              },
+              {
+                "id": "content-entity:e_deadbeef0002",
+                "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:6-service-kind",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "service",
+            "mention_text": "payments service",
+            "candidate_refs": [
+              {
+                "id": "service:payments",
+                "kind": "service"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:7-blank-section",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "   ",
+            "resolution_status": "exact",
+            "mention_kind": "function",
+            "mention_text": "Settle",
+            "candidate_refs": [
+              {
+                "id": "content-entity:e_deadbeef0003",
+                "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:8-payments-table",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "table",
+            "mention_text": "payments table",
+            "candidate_refs": [
+              {
+                "id": "content-entity:sql-tbl-payments",
+                "kind": "table"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-documentation-family:documentation_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "reducer_domain": "documentation_materialization",
+            "entity_key": "repo:repo-ifa-documentation-family",
+            "reason": "documentation source emitted documentation materialization follow-up",
+            "repo_id": "repo-ifa-documentation-family"
+          }
+        }
+      ]
+    }
+  ]
+}

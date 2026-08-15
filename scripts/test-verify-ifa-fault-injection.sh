@@ -35,12 +35,15 @@ delivery_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.
 collateral_nodes_lib="${repo_root}/scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
 code_call_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
+documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
+documentation_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
+documentation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-cases.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${review_cases_lib}" "${assertions_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${assertions_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -54,6 +57,9 @@ bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh h
 bash -n "${collateral_nodes_lib}" || fail "ifa_fault_injection_collateral_nodes.sh has a syntax error"
 bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
 bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh has a syntax error"
+bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
+bash -n "${documentation_cells_lib}" || fail "ifa_fault_injection_documentation_cells.sh has a syntax error"
+bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documentation-cases.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
 bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
 
@@ -339,10 +345,44 @@ require_code_call_cells "code-call precondition rejects non-numeric output" "ret
 require_code_call_cells "code-call precondition reports stale intents" "survived fresh_stack"
 require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
 
+# documentation_edges (#5994): every cell drives the family via cell_baseline's
+# drive_all_cassettes, baseline exact-asserts it, and two dedicated cells prove
+# queue reclaim and graph-write retry against the documentation_materialization
+# domain rather than an unrelated row that happened to run first. The family
+# also proves the SqlTable target case (batchCanonicalDocumentationEntityEdgeCypher's
+# MATCH label alternation, TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel).
+require "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
+require "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+require "documentation cassette existence guard" "documentation cassette not found"
+require "documentation expected-edge set existence guard" "documentation expected-edge set not found"
+require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+require_driver "documentation drive in every cell" "ifa_documentation_drive"
+require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
+require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
+require "documentation kill-reclaim cell invocation" "cell_killworker_documentation"
+require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
+require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
+require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
+require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
+require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
+require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
+require_documentation_cells "graph-write cell probes documentation intents" "projection_domain = 'documentation_edges'"
+require_documentation_cells "documentation precondition preserves query failure" "precondition query FAILED (exit"
+require_documentation_cells "documentation precondition distinguishes empty output" "returned empty output"
+require_documentation_cells "documentation precondition rejects non-numeric output" "returned non-numeric output"
+require_documentation_cells "documentation precondition reports stale intents" "survived fresh_stack"
+require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+
 # Behavioral regressions for the two review-discovered false-green seams live
 # in a sourced case module so this structural verifier stays below 500 lines.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-review-cases.sh
 source "${review_cases_lib}"
+# documentation_edges (#5994) hermetic cases live in their own sibling module,
+# same 500-line-cap reason as review_cases_lib above.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-cases.sh
+source "${documentation_cases_lib}"
 run_ifa_fault_injection_review_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a

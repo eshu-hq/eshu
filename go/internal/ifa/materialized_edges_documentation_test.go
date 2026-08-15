@@ -10,20 +10,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // TestDocumentationFamilyOduResolvesItsExpectedEdgeSet proves the EXTRACTOR:
-// ExtractDocumentationEdgeRowsWithQuarantine, run over the cataloged Odù,
-// reproduces the hand-derived edge set exactly.
-//
-// This is deliberately not called coverage. A coverage row in the manifest
-// names a proof GATE, and neither gate executes this family today --
-// verify-ifa-determinism.sh asserts expected edges for sql_relationships and
-// code_calls only, and MaterializedEdgeDomainEdgeTypes rejects
-// documentation_edges. Breaking the
-// live writer's Cypher would leave this test green, so the family stays waived
-// with what is and is not proven recorded on the waiver.
+// ExtractDocumentationEdgeRowsWithQuarantine, run over the CATALOGED (compiled)
+// Odù, reproduces the hand-derived edge set exactly. Both dimensions are now
+// live-proven and covered (#5994); see
+// TestDocumentationFamilyCassetteDerivesTheExpectedEdgeSet
+// (documentation_family_odu_test.go) for the same assertion run directly
+// against the cassette-loaded Odù, and TestDocumentationFamilyIsCatalogedAndResolvable
+// for the proof that the two are identical.
 func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -36,7 +34,7 @@ func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	if !ok {
 		t.Fatalf("documentation family Odù does not resolve: %s", detail)
 	}
-	if !strings.Contains(detail, "reproduces the expected 2-edge set exactly") {
+	if !strings.Contains(detail, "reproduces the expected 3-edge set exactly") {
 		t.Errorf("detail = %q, want it to name the exact edge count it proved", detail)
 	}
 	t.Logf("%s", detail)
@@ -44,9 +42,7 @@ func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 
 // TestDocumentationFamilyResolvesThroughTheManifestResolver proves the vacuity
 // guard is reachable by surface name through MaterializedEdgeOduResolver, not
-// only by calling it directly — a guard nothing dispatches to would be dead on
-// the day a coverage row is finally added. It does NOT assert that such a row
-// exists today; it does not.
+// only by calling it directly.
 func TestDocumentationFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -74,22 +70,14 @@ func TestDocumentationFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	odu := CatalogByName()[documentationFamilyOduName]
 
-	expected, err := loadDocumentationExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
+	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadDocumentationExpectedEdges: %v", err)
+		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 
 	// Drop one expected edge and write the short set to a temp fixture: the
 	// extractor now produces an edge the expectation does not contain.
-	short := documentationExpectedEdgesFile{Odu: documentationFamilyOduName, Edges: expected[:len(expected)-1]}
-	raw, err := json.Marshal(short)
-	if err != nil {
-		t.Fatalf("marshal short set: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "short-expected-edges.json")
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatalf("write short set: %v", err)
-	}
+	path := writeDocumentationExpectedEdgesFixture(t, expected[:len(expected)-1])
 
 	ok, detail := resolveDocumentationEdgeMaterializedEdges(odu, path)
 	if ok {
@@ -108,26 +96,16 @@ func TestDocumentationFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	odu := CatalogByName()[documentationFamilyOduName]
 
-	expected, err := loadDocumentationExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
+	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadDocumentationExpectedEdges: %v", err)
+		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
-	padded := documentationExpectedEdgesFile{
-		Odu: documentationFamilyOduName,
-		Edges: append(append([]documentationExpectedEdge{}, expected...), documentationExpectedEdge{
-			SectionUID:     "docsection:doc-platform-guide|sec-overview",
-			TargetEntityID: "func:payments.Refund",
-			TargetKind:     "function",
-		}),
-	}
-	raw, err := json.Marshal(padded)
-	if err != nil {
-		t.Fatalf("marshal padded set: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "padded-expected-edges.json")
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatalf("write padded set: %v", err)
-	}
+	padded := append(append([]ExpectedEdge{}, expected...), ExpectedEdge{
+		RelationshipType: "DOCUMENTS",
+		SourceEntityID:   "docsection:doc-platform-guide|sec-overview",
+		TargetEntityID:   "content-entity:e_258daea46e5b",
+	})
+	path := writeDocumentationExpectedEdgesFixture(t, padded)
 
 	ok, detail := resolveDocumentationEdgeMaterializedEdges(odu, path)
 	if ok {
@@ -138,27 +116,66 @@ func TestDocumentationFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 	}
 }
 
-// TestDocumentationFamilyOduExercisesEveryExclusion pins the fixture's negative
-// cases.
+// writeDocumentationExpectedEdgesFixture writes edges in the SAME
+// {odu, edges: [{relationship_type, source_entity_id, target_entity_id}]}
+// shape LoadExpectedEdges reads, so these teeth tests exercise the identical
+// fixture format the live gate's -expected flag consumes.
+func writeDocumentationExpectedEdgesFixture(t *testing.T, edges []ExpectedEdge) string {
+	t.Helper()
+	type expectedEdgeJSON struct {
+		RelationshipType string `json:"relationship_type"`
+		SourceEntityID   string `json:"source_entity_id"`
+		TargetEntityID   string `json:"target_entity_id"`
+	}
+	type expectedEdgesFileJSON struct {
+		Odu   string             `json:"odu"`
+		Edges []expectedEdgeJSON `json:"edges"`
+	}
+	jsonEdges := make([]expectedEdgeJSON, 0, len(edges))
+	for _, e := range edges {
+		jsonEdges = append(jsonEdges, expectedEdgeJSON(e))
+	}
+	raw, err := json.Marshal(expectedEdgesFileJSON{Odu: documentationFamilyOduName, Edges: jsonEdges})
+	if err != nil {
+		t.Fatalf("marshal expected-edges fixture: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "documentation-expected-edges.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write expected-edges fixture: %v", err)
+	}
+	return path
+}
+
+// TestDocumentationFamilyOduExercisesEveryExclusion pins the cataloged Odù's
+// negative cases.
 //
-// The Odù's value is that its seven mentions produce exactly two edges. If a
-// later edit trims the fixture to the two happy-path mentions, every other test
-// here still passes while the fixture stops proving the extractor EXCLUDES
-// anything — the exclusions are the part most likely to regress silently.
+// The Odù's value is that its eight mentions produce exactly three edges. If a
+// later edit trims the fixture to the three happy-path mentions, every other
+// test here still passes while the fixture stops proving the extractor
+// EXCLUDES anything — the exclusions are the part most likely to regress
+// silently. Filters to documentation_entity_mention facts first: the Odù now
+// projects the full cassette (repository, file, content_entity,
+// documentation_document, and shared_followup facts too), not only mentions.
 func TestDocumentationFamilyOduExercisesEveryExclusion(t *testing.T) {
 	t.Parallel()
 	odu := CatalogByName()[documentationFamilyOduName]
 
-	if got, want := len(odu.Facts), 7; got != want {
+	var mentions []facts.Envelope
+	for _, env := range odu.Facts {
+		if env.FactKind == facts.DocumentationEntityMentionFactKind {
+			mentions = append(mentions, env)
+		}
+	}
+	if got, want := len(mentions), 8; got != want {
 		t.Fatalf("fixture carries %d mention(s), want %d; the exclusion cases are the proof, not padding", got, want)
 	}
 
 	var nonExact, multiCandidate, serviceKind, blankSection, duplicate int
 	seen := map[string]int{}
-	for _, env := range odu.Facts {
+	for _, env := range mentions {
 		p := env.Payload
 		status, _ := p["resolution_status"].(string)
-		refs, _ := p["candidate_refs"].([]map[string]any)
+		refs, _ := p["candidate_refs"].([]any)
 		section, _ := p["section_id"].(string)
 		if status != "exact" {
 			nonExact++
@@ -168,8 +185,9 @@ func TestDocumentationFamilyOduExercisesEveryExclusion(t *testing.T) {
 			multiCandidate++
 			continue
 		}
-		kind, _ := refs[0]["kind"].(string)
-		id, _ := refs[0]["id"].(string)
+		ref, _ := refs[0].(map[string]any)
+		kind, _ := ref["kind"].(string)
+		id, _ := ref["id"].(string)
 		if kind == "service" {
 			serviceKind++
 			continue
