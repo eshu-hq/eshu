@@ -102,7 +102,7 @@ artifact wrapper, and the share-safe scope rules live in
     `/api/v0/impact/pre-change`; `change plan` reuses the same input contract,
     accepts optional `--intent`, and posts the read-only
     `developer_change_plan.v1` request to `/api/v0/impact/developer-change-plan`
-    (`change_impact.go`, `change_plan.go`)
+    (`change_impact.go`, `internal/cli/change`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`

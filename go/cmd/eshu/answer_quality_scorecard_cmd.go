@@ -6,13 +6,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/answerquality"
+	"github.com/eshu-hq/eshu/go/internal/cli/answerqualityscorecard"
 )
 
 func init() {
@@ -46,7 +44,7 @@ or publish safety fails.`,
 func runAnswerQualityScorecard(cmd *cobra.Command, _ []string) error {
 	path, _ := cmd.Flags().GetString("from")
 	jsonOut, _ := cmd.Flags().GetBool("json")
-	raw, err := readAnswerQualityEvidence(cmd.InOrStdin(), path)
+	raw, err := answerqualityscorecard.ReadEvidence(cmd.InOrStdin(), path)
 	if err != nil {
 		return err
 	}
@@ -62,69 +60,10 @@ func runAnswerQualityScorecard(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("write answer-quality scorecard JSON: %w", err)
 		}
 	} else {
-		renderAnswerQualityVerdict(cmd.OutOrStdout(), verdict)
+		answerqualityscorecard.RenderVerdict(cmd.OutOrStdout(), verdict)
 	}
 	if !verdict.Pass {
-		return fmt.Errorf("answer-quality scorecard FAILED: %s", answerQualityFailureSummary(verdict))
+		return fmt.Errorf("answer-quality scorecard FAILED: %s", answerqualityscorecard.FailureSummary(verdict))
 	}
 	return nil
-}
-
-func readAnswerQualityEvidence(stdin io.Reader, path string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" {
-		raw, err := io.ReadAll(stdin)
-		if err != nil {
-			return nil, fmt.Errorf("read answer-quality evidence from stdin: %w", err)
-		}
-		return raw, nil
-	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local evidence artifact path, not an HTTP request param //nolint:gosec
-	if err != nil {
-		return nil, fmt.Errorf("read answer-quality evidence file %q: %w", path, err)
-	}
-	return raw, nil
-}
-
-func renderAnswerQualityVerdict(w io.Writer, verdict answerquality.Verdict) {
-	header := "Answer-quality scorecard PASSED"
-	if !verdict.Pass {
-		header = "Answer-quality scorecard FAILED"
-	}
-	_, _ = fmt.Fprintln(w, header)
-	_, _ = fmt.Fprintf(w, "  run   : %s\n", quoteIfEmpty(verdict.RunID))
-	_, _ = fmt.Fprintf(w, "  score : %d\n", verdict.Score)
-	_, _ = fmt.Fprintln(w, strings.Repeat("-", 44))
-	for _, criterion := range verdict.Criteria {
-		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", answerQualityMarker(criterion.Status), criterion.Name, criterion.Detail)
-	}
-	if len(verdict.FollowUpIssues) > 0 {
-		_, _ = fmt.Fprintln(w, "follow-up issues:")
-		for _, issue := range verdict.FollowUpIssues {
-			_, _ = fmt.Fprintf(w, "  - %s [%s]\n", issue.Title, strings.Join(issue.Labels, ", "))
-		}
-	}
-}
-
-func answerQualityMarker(status answerquality.CriterionStatus) string {
-	switch status {
-	case answerquality.CriterionPass:
-		return "[ok]"
-	case answerquality.CriterionFail:
-		return "[!!]"
-	default:
-		return "[--]"
-	}
-}
-
-func answerQualityFailureSummary(verdict answerquality.Verdict) string {
-	var failures []string
-	for _, criterion := range verdict.Criteria {
-		if criterion.Status == answerquality.CriterionFail {
-			failures = append(failures, fmt.Sprintf("%s: %s", criterion.Name, criterion.Detail))
-		}
-	}
-	if len(failures) == 0 {
-		return "unknown failure"
-	}
-	return strings.Join(failures, "; ")
 }
