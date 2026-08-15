@@ -405,7 +405,9 @@ func (o Options) BootstrapEnv(base []string) []string {
 
 // mergeEnv folds overrides onto a KEY=VALUE base, last value winning. It is a
 // copy of go/cmd/eshu's mergeEnvironment, which stays there for the seven
-// callers outside the scan family.
+// callers outside the scan family. The parity tests in
+// go/cmd/eshu/scan_parity_test.go fail when the two drift; change both or
+// neither.
 func mergeEnv(base []string, overrides map[string]string) []string {
 	merged := make(map[string]string, len(base)+len(overrides))
 	for _, entry := range base {
@@ -427,7 +429,10 @@ func mergeEnv(base []string, overrides map[string]string) []string {
 }
 
 // pathExists reports whether a path is present. It is a copy of go/cmd/eshu's
-// pathExists, which stays there for the first-run runtime probe.
+// pathExists, which stays there for the first-run runtime probe. The parity
+// tests in go/cmd/eshu/scan_parity_test.go fail when the two drift -- the
+// broken-symlink row exists because os.Stat and os.Lstat disagree there;
+// change both or neither.
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil

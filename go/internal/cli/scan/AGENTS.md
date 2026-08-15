@@ -69,6 +69,15 @@
   reuse it precisely so there is only one. A status report with no completed or
   active generation is not-ready, not drained.
 
+- **`mergeEnv` and `pathExists` are deliberate copies** of `go/cmd/eshu`'s
+  `mergeEnvironment` and `pathExists`, which stay there for their callers
+  outside the scan family. A behavior change to one is a bug unless made to
+  both. The parity tests in `go/cmd/eshu/scan_parity_test.go` enforce this:
+  `TestScanMergeEnvMatchesMergeEnvironment` and
+  `TestScanPathExistsMatchesScanCommandProbe` run shared input tables through
+  both sides, and `TestScanEnvAndPathCopiesAreTokenIdentical` pins the
+  function bodies token-identical.
+
 ## Common changes and how to scope them
 
 - **Add a readiness condition** → edit `EvaluateReadiness` in `status.go` and
