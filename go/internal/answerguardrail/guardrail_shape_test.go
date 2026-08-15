@@ -179,10 +179,20 @@ func TestUnsafeStringRejectsCompressedIPv6WithoutMatchingAnIdentifier(t *testing
 // covers on its own. It also pins the direction the fix must NOT take: an
 // address followed by "-", "$", or "]" is still an address, so the fix cannot
 // work by narrowing the right-hand boundary, and this sweep fails if it tries.
+//
+// The third group -- "x[", "map[", "peer[" -- is two characters wide, and that
+// is the whole reason it exists. Every prefix above is a single character, so a
+// "[" from this axis only ever lands at the start of the string or after one
+// other delimiter, and the sweep never produced a "[" with a letter in front of
+// it. A rule keyed on exactly that shape shipped, published seventeen real
+// address spellings, and this sweep reported 11,322 of 11,322 clean while it
+// did. A word before the bracket is how an address appears in a log line, so it
+// belongs on the delimiter axis.
 var (
 	boundaryPrefixes = []string{
 		"", " ", ":", "/", `"`, "'", "@", "?", "&", "(", "=", "\n",
 		"[", "]", "-", "<", ">", "$",
+		"x[", "map[", "peer[",
 	}
 	boundarySuffixes = []string{
 		"", " ", ":", "/", `"`, "'", "?", "&", ")", ",", "\n",
@@ -275,11 +285,11 @@ func TestUnsafeStringKeepsOrdinaryAnswerTextPublishable(t *testing.T) {
 		// or the full eight hextets.
 		"buf[0:4] holds the header",
 		"buf[0:4:8] is a three-index slice",
-		// The slice spellings that DO carry a "::". These three shipped
-		// withheld on this branch; guardrail_codetext_test.go carries the class
-		// they came from and the two guards that fixed them.
-		"x[::2]",
-		"x[::]",
+		// The reverse slice, which DOES carry a "::" and is fixed: a "-" cannot
+		// appear in an address, so the hextet guard clears it. Its siblings
+		// "x[::2]" and "x[::]" are not here, because "[::2]" is a valid
+		// compressed address and stays withheld; guardrail_codetext_test.go
+		// carries the class and pins that gap.
 		"a[::-1]",
 		// Real identifiers that end in a credential keyword. evidencebundle
 		// learned this the hard way: matching the bare keyword rejects honest

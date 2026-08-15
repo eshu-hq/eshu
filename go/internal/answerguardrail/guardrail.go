@@ -92,24 +92,23 @@ var (
 	// Within each, two groups of alternatives, deliberately not one blanket
 	// rule, because their false-positive risk is not the same.
 	//
-	// Bracketed, which is how an address appears in a host:port string. It
-	// requires either the "::" compression marker or the full eight hextets:
-	// without that, "buf[0:4]" and Go's three-index "buf[0:4:8]" are both
-	// all-hex bracketed colon runs and would be rejected as addresses.
+	// Bracketed, which is how an address appears in a host:port string. Square
+	// brackets around a run of hex digits and colons are an IPv6 literal, so
+	// this half needs no left boundary. It does require either the "::"
+	// compression marker or the full eight hextets: without that, "buf[0:4]"
+	// and Go's three-index "buf[0:4:8]" are both all-hex bracketed colon runs
+	// and would be rejected as addresses.
 	//
-	// The first version of this half had no left boundary at all, on the
-	// reasoning that square brackets around hex digits and colons are an IPv6
-	// literal and nothing else. Python's step slice is the counterexample:
-	// "[::2]" is an address and "x[::2]" is a slice, and the "x" is the only
-	// thing that tells them apart. So the boundary is about the character
-	// before the bracket -- an identifier character there means a subscript --
-	// and "\[+" then lets a doubled "[[fd00::1]" through, since the guard is
-	// what precedes the brackets, not the brackets themselves.
-	//
-	// That boundary cuts both ways, and the cut is accepted: "buf[fd00::1]"
-	// publishes, because it is as valid a Python slice as "x[::2]" is and
-	// nothing in the shape separates them. Every spelling this product emits
-	// puts a space, an "=", or a "//" before the bracket and is still caught.
+	// One earlier version of this half did carry a left boundary, to publish
+	// Python's step slice: "[::2]" is an address, "x[::2]" is a slice, and the
+	// leading "x" is the only difference. Reading that "x" as a subscript
+	// marker reopened the rule far wider than the slice, because the same
+	// shape is how an address appears after ANY word -- "client[fd00::1]
+	// disconnected", "sshd[::1]", and Go's own "map[fd00::1:true]" all publish
+	// under it. AnswerSummary is model-written narration over the user's
+	// graph, so there is no enumerable list of spellings this product emits
+	// and no way to bound that. The boundary is gone again and the slice is a
+	// stated gap below.
 	//
 	// Unbracketed, which is how one appears in free text. The left boundary
 	// here excludes letters and digits but NOT the colon, and that choice is
@@ -165,10 +164,22 @@ var (
 	// ambiguous -- timestamps ("12:30:45"), durations, and version strings
 	// carry no "::" at all, which is why the compression marker is required
 	// rather than a general run of colon-separated hextets.
-	compressedIPv6Pattern = regexp.MustCompile(`(?i)(?:^|[^0-9a-z\[])(?:` +
-		`\[+[0-9a-f:]*::[0-9a-f:]*\]` +
-		`|\[*(?:` + ipv6HextetGroups + `::(?:` + ipv6HextetGroups + `)?` +
-		`|::` + ipv6HextetGroups + `)(?:[^0-9a-z]|$))`)
+	//
+	// Second known gap, same kind and accepted for the same reason: a
+	// bracketed subscript whose contents are themselves a valid compressed
+	// address. "x[::2]", "x[::]", "arr[::3]", and "path[1::2]" are Python
+	// slices, and "[::2]" is also the address 0:0:0:0:0:0:0:2, so the two
+	// readings are the same string. The slices are withheld. Narrowing to
+	// "only disqualify a decimal-and-colon subscript" was built and measured
+	// and does recover the hex-letter half, but it publishes "sshd[::1]",
+	// "client[::1]", and "map[::1]" -- the loopback address in exactly the
+	// idiom that motivated the widening -- so it trades a stated false
+	// positive for an unstated false negative. Guard 1 below covers the
+	// reverse slice "a[::-1]", which is the one slice shape carrying a
+	// character an address cannot contain.
+	compressedIPv6Pattern = regexp.MustCompile(`(?i)(\[[0-9a-f:]*::[0-9a-f:]*\]` +
+		`|(^|[^0-9a-z])(?:` + ipv6HextetGroups + `::(?:` + ipv6HextetGroups + `)?` +
+		`|::` + ipv6HextetGroups + `)([^0-9a-z]|$))`)
 
 	// fullIPv6Pattern is the uncompressed eight-hextet form, bracketed or not.
 	// It carries no "::" so it needs its own gate, and its own pattern.

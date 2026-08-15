@@ -25,34 +25,48 @@ import "testing"
 // table, because split apart, a rule that rejects everything and a rule that
 // rejects nothing each look correct in one half.
 //
-// Two guards came out of it, and they are independent — neither one alone
-// clears the table:
+// One guard came out of it: at least one non-empty hextet group. An address has
+// hex digits somewhere; a bare "::" between punctuation does not. That clears
+// "a[::-1]", "(::)", "-::-", "]::[", and "::$x".
 //
-//   - At least one non-empty hextet group. An address has hex digits somewhere;
-//     a bare "::" between punctuation does not. Kills "a[::-1]", "(::)", "::$x".
-//   - An identifier character before "[" means a subscript, not an address.
-//     "[::2]" is an address, "x[::2]" is a slice, and the "x" is the only thing
-//     that separates them. Kills "x[::2]", "x[::]", "arr[::3]".
+// A second guard was tried and reverted, and the rows below are what reverted
+// it. It read an identifier character before "[" as a subscript marker, on the
+// reasoning that "[::2]" is an address and "x[::2]" is a slice. It does clear
+// the step slice. It also publishes every address that follows a word, which is
+// most of how an address appears in real text -- "client[fd00::1] disconnected",
+// "sshd[::1]", "conn[fd00::1]:7687 closed", and Go's own map rendering
+// "map[fd00::1:true]". Seventeen such spellings went from withheld to published.
+// Narrowing it to fire only on a decimal-and-colon subscript was built and
+// measured too: it recovers the twelve carrying a hex letter and still publishes
+// "sshd[::1]" and "map[::1]", because "::1" is a valid address AND a valid
+// slice. There is no boundary that separates them, so the guard is gone.
 //
-// What still gets withheld, and why that is the same accepted gap "abc::def"
-// already documents: when the token on either side of "::" is 1-4 hex
-// characters, it IS a valid hextet and no rule can tell it from an address.
-// "a::b::c", "::f", and PHP's "DB::$connection" all land there. Every language
-// idiom below whose segments are not all-hex publishes clean.
+// What that leaves withheld, and it is the same accepted gap "abc::def" already
+// documents: when the token beside "::" is 1-4 hex characters it IS a valid
+// hextet, and when a whole bracketed subscript is a valid compressed address it
+// IS an address. "a::b::c", PHP's "DB::$connection", and the step slices
+// "x[::2]" and "arr[::3]" all land there, pinned below rather than left for
+// someone to rediscover. Every language idiom whose segments are not all-hex
+// publishes clean.
 var codeTextIPv6Shapes = map[string]bool{
-	// Python slices. The reported bug, and the reason for both guards.
-	"x[::2]":                          false,
-	"x[::]":                           false,
-	"a[::-1]":                         false,
-	"s[::-1]":                         false,
-	"arr[::3]":                        false,
-	"path[1::2]":                      false,
-	"rows[::2] takes every other row": false,
-	"reverse a list with a[::-1]":     false,
-	"data[::step]":                    false,
+	// Python slices, the reported bug. The reverse slice is fixed: a "-" cannot
+	// appear in an address, so the hextet guard clears it wherever it sits.
+	"a[::-1]":                     false,
+	"s[::-1]":                     false,
+	"reverse a list with a[::-1]": false,
+	// A step whose value is not hex is not an address either.
+	"data[::step]": false,
+	// The step slices whose brackets hold a valid compressed address. Still
+	// withheld, pinned here so a future narrowing has to change this list and
+	// argue for it. "[::2]" is 0:0:0:0:0:0:0:2 as surely as it is a stride.
+	"x[::2]":                          true,
+	"x[::]":                           true,
+	"arr[::3]":                        true,
+	"path[1::2]":                      true,
+	"rows[::2] takes every other row": true,
 	// Go slice and range syntax. "buf[0:4]" and "buf[0:4:8]" carry no "::" and
-	// never reached the rule; "s[::]" does.
-	"s[::]":       false,
+	// never reached the rule; "s[::]" does, and lands in the gap above.
+	"s[::]":       true,
 	"buf[0:4]":    false,
 	"buf[0:4:8]":  false,
 	"x := y":      false,
@@ -130,16 +144,10 @@ var codeTextIPv6Shapes = map[string]bool{
 	"::ffff:10.0.5.3":            true,
 	"peer:fd00::1":               true,
 	"listening on [::]:8080 now": true,
-	// A doubled bracket still carries the address, so the identifier guard must
-	// read the character before the brackets, not the bracket itself.
-	"[[fd00::1]": true,
-	// Every spelling the product actually emits puts a non-identifier
-	// character before the bracket, and all of them stay caught. The row below
-	// them is the price of the identifier guard, stated with the rows it
-	// belongs to rather than left for someone to discover.
-	"host [fd00::1]":        true,
-	"endpoint=[fd00::1]":    true,
-	"bolt://[fd00::1]:7687": true,
+	"[[fd00::1]":                 true,
+	"host [fd00::1]":             true,
+	"endpoint=[fd00::1]":         true,
+	"bolt://[fd00::1]:7687":      true,
 	// Accepted gap, stated with the rows it belongs to: 1-4 hex characters on
 	// both sides of "::" IS a compressed address by shape, so these stay
 	// withheld for the same reason "abc::def" does. Pinned rather than left
@@ -150,12 +158,31 @@ var codeTextIPv6Shapes = map[string]bool{
 	"a::b(-1)":        true,
 	"DB::$connection": true,
 	"A::$b":           true,
-	// The gap the identifier guard buys, and it cuts both ways: "x[fd00::1]"
-	// is as valid a Python slice as "x[::2]" is, so no rule can call one a
-	// slice and the other an address. This one publishes, and the three rows
-	// above -- the spellings a real answer uses -- do not.
-	"buf[fd00::1]": false,
-	"peer[::1]":    false,
+	"buf[fd00::1]":    true,
+	"peer[::1]":       true,
+
+	// An address preceded by an ordinary word. AnswerSummary is model-written
+	// narration over the user's graph, not a format string this product
+	// controls, so "the spellings we emit all put a space before the bracket"
+	// is not a claim anyone can check. These are the shapes that assumption
+	// misses: Go's own %v rendering of a map keyed by an address, and the
+	// bracketed-tag idiom every syslog line uses.
+	"map[fd00::1:true]":            true,
+	"map[[fd00::1]:7687:true]":     true,
+	"client[fd00::1] disconnected": true,
+	"conn[fd00::1]:7687 closed":    true,
+	"server[fd00::1]":              true,
+	"addr[fd00::1]":                true,
+	"peers[fd00::1]":               true,
+	"hosts[fd00::1]":               true,
+	"HOST[fd00::1]":                true,
+	"SERVICE[fd00::1]":             true,
+	"see[fd00::1](url)":            true,
+	"sshd[::1]":                    true,
+	"node1[::1]":                   true,
+	"map[::1:true]":                true,
+	// No closing bracket, so nothing bracket-shaped can catch this one.
+	"x[fd00::1": true,
 }
 
 // TestUnsafeStringKeepsCodeTextPublishable runs the class the three reported
@@ -179,9 +206,17 @@ func TestUnsafeStringKeepsCodeTextPublishable(t *testing.T) {
 			}
 		})
 	}
-	// A table this long is worth counting: a map literal that lost rows to a bad
-	// merge would otherwise report a clean sweep over whatever survived.
-	if want := len(codeTextIPv6Shapes); checked != want {
-		t.Fatalf("checked %d values, want %d", checked, want)
+	// A table this long is worth counting, against a literal and not against
+	// len() of the same map. Comparing the loop counter to the map it just
+	// ranged over is true by construction: rows lost to a bad merge shrink both
+	// sides together and the guard stays green over whatever survived. Deleting
+	// ten rows was how that was proven, so the number is written out. Update it
+	// when you add a row, which is the point.
+	if checked != codeTextIPv6ShapeCount {
+		t.Fatalf("checked %d values, want %d; codeTextIPv6Shapes lost or gained rows",
+			checked, codeTextIPv6ShapeCount)
 	}
 }
+
+// codeTextIPv6ShapeCount is the number of rows codeTextIPv6Shapes must carry.
+const codeTextIPv6ShapeCount = 104

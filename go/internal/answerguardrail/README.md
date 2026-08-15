@@ -64,12 +64,19 @@ their own logs, status, responses, or scorecards.
     first segment is hex but whose second is not (`db::connect`, `ff::Field`,
     `std::vector`, `crate::mod`, `Data::Dumper`) publishes normally: the rule
     requires the whole token to be an address, not to start like one;
-  - the compressed-address rule needs a hex digit on one side of the `::` and an
-    identifier character before a `[` disqualifies the brackets, so slice syntax
-    (`x[::2]`, `a[::-1]`, `s[::]`) and a bare `::` between punctuation (`(::)`,
-    `-::-`) publish. The price is `buf[fd00::1]`, which publishes too: it is as
-    valid a Python slice as `x[::2]` is. Every spelling this product emits puts a
-    space, an `=`, or a `//` before the bracket and is still rejected;
+  - the compressed-address rule needs a hex digit on at least one side of the
+    `::`, so a bare `::` between punctuation publishes: `(::)`, `-::-`, `]::[`,
+    and Python's reverse slice `a[::-1]`, whose `-` cannot appear in an address
+    at all;
+  - a bracketed subscript whose contents are themselves a valid compressed
+    address is still rejected, and that is the same gap as `abc::def` rather
+    than a separate one. `x[::2]`, `x[::]`, `arr[::3]`, and `path[1::2]` are
+    Python slices; `[::2]` is also the address `0:0:0:0:0:0:0:2`. Reading a
+    letter before the `[` as a subscript marker was tried and reverted, because
+    it publishes every address that follows a word — `client[fd00::1]`,
+    `sshd[::1]`, `conn[fd00::1]:7687`, Go's `map[fd00::1:true]` — and
+    `AnswerSummary` is model-written narration, so no list of the spellings this
+    product emits can be closed;
   - only `password` gets a colon-spelled rule. `token`, `secret`, and `api_key`
     keep their `=` form only, because real resource types end in those words
     (`aws_appsync_api_key`, `aws_secretsmanager_secret`) and a colon rule on
