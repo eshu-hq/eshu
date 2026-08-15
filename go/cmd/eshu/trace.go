@@ -380,12 +380,12 @@ func traceExitCode(code string) int {
 	}
 }
 
-// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`,
-// `eshu map`, and component_api. It has two copies, not one:
-// change.ErrorCodeFromTransport and freshness.ErrorCodeFromTransport, both
-// taken because cmd/eshu is package main and cannot be imported. The freshness
-// family used to call this function and no longer does. Edit this body and
-// both copies need the same edit; TestTransportErrorCodeParity pins all three.
+// traceErrorCodeFromTransport classifies a failed API call for `eshu trace`
+// and component_api. It has three copies, not one: change.ErrorCodeFromTransport,
+// freshness.ErrorCodeFromTransport, and entitymap's transportErrorCode (which
+// now serves `eshu map`), all taken because cmd/eshu is package main and cannot
+// be imported. Edit this body and every copy needs the same edit;
+// TestTransportErrorCodeParity pins the first two and TestEntityMapTransportClassifierMatchesTrace pins the third.
 func traceErrorCodeFromTransport(err error) string {
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		return "backend_unavailable"
@@ -419,7 +419,7 @@ func writeTraceJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// traceMap/traceSlice/traceString/traceInt have copies in internal/cli/change and internal/cli/freshness -- edit all three; TestEnvelopeReaderParity pins them.
+// traceMap/traceSlice/traceString/traceInt have copies in internal/cli/change, internal/cli/freshness, and internal/cli/entitymap -- edit all four; TestEnvelopeReaderParity pins the first two sets and TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap set.
 func traceMap(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil

@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/entitymap"
 )
 
 func TestMapFromCommandIsRegistered(t *testing.T) {
@@ -31,6 +33,11 @@ func TestMapFromCommandIsRegistered(t *testing.T) {
 	}
 }
 
+// TestFetchEntityMapRequestsCanonicalEnvelope stays in package main because it
+// proves the wiring the extraction depends on: *APIClient satisfies
+// entitymap.EnvelopePoster, and the request it sends asks for Eshu's canonical
+// envelope. The classification and rendering built on that response are tested
+// directly in internal/cli/entitymap.
 func TestFetchEntityMapRequestsCanonicalEnvelope(t *testing.T) {
 	var gotAccept string
 	var gotPath string
@@ -40,10 +47,12 @@ func TestFetchEntityMapRequestsCanonicalEnvelope(t *testing.T) {
 		gotPath = r.URL.EscapedPath()
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			t.Fatalf("ReadAll() error = %v, want nil", err)
+			t.Errorf("ReadAll() error = %v, want nil", err)
+			return
 		}
 		if err := json.Unmarshal(body, &gotBody); err != nil {
-			t.Fatalf("json.Unmarshal(request) error = %v, want nil; body=%s", err, string(body))
+			t.Errorf("json.Unmarshal(request) error = %v, want nil; body=%s", err, string(body))
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"status":"mapped","sections":{},"evidence":{"truncated":false}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
@@ -51,7 +60,7 @@ func TestFetchEntityMapRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	got, err := fetchEntityMap(client, entityMapOptions{
+	got, err := entitymap.Fetch(client, entitymap.Options{
 		From:         "terraform/aws_lb.main",
 		FromType:     "terraform_resource",
 		Repo:         "repo-infra",
@@ -61,7 +70,7 @@ func TestFetchEntityMapRequestsCanonicalEnvelope(t *testing.T) {
 		Limit:        10,
 	})
 	if err != nil {
-		t.Fatalf("fetchEntityMap() error = %v, want nil", err)
+		t.Fatalf("entitymap.Fetch() error = %v, want nil", err)
 	}
 	if gotAccept != eshuEnvelopeMIMEType {
 		t.Fatalf("Accept = %q, want %q", gotAccept, eshuEnvelopeMIMEType)
@@ -87,8 +96,75 @@ func TestFetchEntityMapRequestsCanonicalEnvelope(t *testing.T) {
 	}
 }
 
+func TestEntityMapOptionsFromCommandNormalizesFlags(t *testing.T) {
+	cmd := newTestMapCommand()
+	for name, value := range map[string]string{
+		"from":         "  terraform/aws_lb.main  ",
+		"type":         " terraform_resource ",
+		"repo":         " repo-infra ",
+		"env":          " prod ",
+		"relationship": " provisions_dependency_for ",
+	} {
+		if err := cmd.Flags().Set(name, value); err != nil {
+			t.Fatalf("Set(%s) error = %v, want nil", name, err)
+		}
+	}
+
+	opts, err := entityMapOptionsFromCommand(cmd)
+	if err != nil {
+		t.Fatalf("entityMapOptionsFromCommand() error = %v, want nil", err)
+	}
+	want := entitymap.Options{
+		From:         "terraform/aws_lb.main",
+		FromType:     "terraform_resource",
+		Repo:         "repo-infra",
+		Environment:  "prod",
+		Relationship: "PROVISIONS_DEPENDENCY_FOR",
+		Depth:        1,
+		Limit:        25,
+	}
+	if opts != want {
+		t.Fatalf("options = %#v, want %#v", opts, want)
+	}
+}
+
+func TestRunMapFromRequiresFrom(t *testing.T) {
+	cmd := newTestMapCommand()
+	err := runMapFrom(cmd, nil)
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("error = %T (%v), want commandExitError", err, err)
+	}
+	if got, want := exitErr.ExitCode(), 2; got != want {
+		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+}
+
+func TestEntityMapExitCodeMapsEveryFailureKind(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		failure entitymap.Failure
+		want    int
+	}{
+		{"envelope ambiguous", entitymap.Failure{Kind: entitymap.FailureEnvelope, Code: "ambiguous"}, 3},
+		{"envelope stale", entitymap.Failure{Kind: entitymap.FailureEnvelope, Code: "stale"}, 4},
+		{"envelope unsupported", entitymap.Failure{Kind: entitymap.FailureEnvelope, Code: "unsupported_capability"}, 6},
+		{"envelope unknown code", entitymap.Failure{Kind: entitymap.FailureEnvelope, Code: "backend_unavailable"}, 1},
+		{"freshness", entitymap.Failure{Kind: entitymap.FailureFreshness, Code: "building"}, 4},
+		{"ambiguous", entitymap.Failure{Kind: entitymap.FailureAmbiguous, Code: "ambiguous"}, 3},
+		{"no match", entitymap.Failure{Kind: entitymap.FailureNoMatch, Code: "no_match"}, 2},
+		{"unset kind", entitymap.Failure{}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := entityMapExitCode(&tc.failure); got != tc.want {
+				t.Fatalf("entityMapExitCode(%#v) = %d, want %d", tc.failure, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRunMapFromRendersGroupedSummary(t *testing.T) {
-	reset := stubEntityMapFetch(t, entityMapEnvelope{
+	reset := stubEntityMapFetch(t, entitymap.Envelope{
 		Data: sampleEntityMapData("mapped"),
 		Truth: map[string]any{
 			"level":      "exact",
@@ -124,7 +200,7 @@ func TestRunMapFromRendersGroupedSummary(t *testing.T) {
 }
 
 func TestRunMapFromJSONPassesCanonicalEnvelope(t *testing.T) {
-	reset := stubEntityMapFetch(t, entityMapEnvelope{
+	reset := stubEntityMapFetch(t, entitymap.Envelope{
 		Data: sampleEntityMapData("mapped"),
 		Truth: map[string]any{
 			"level":     "exact",
@@ -147,7 +223,7 @@ func TestRunMapFromJSONPassesCanonicalEnvelope(t *testing.T) {
 		t.Fatalf("runMapFrom() error = %v, want nil", err)
 	}
 
-	var payload entityMapEnvelope
+	var payload entitymap.Envelope
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -160,7 +236,7 @@ func TestRunMapFromJSONPassesCanonicalEnvelope(t *testing.T) {
 }
 
 func TestRunMapFromReturnsAmbiguousExitCode(t *testing.T) {
-	reset := stubEntityMapFetch(t, entityMapEnvelope{
+	reset := stubEntityMapFetch(t, entitymap.Envelope{
 		Data: sampleEntityMapData("ambiguous"),
 		Truth: map[string]any{
 			"level":     "exact",
@@ -193,7 +269,7 @@ func TestRunMapFromReturnsAmbiguousExitCode(t *testing.T) {
 }
 
 func TestRunMapFromReturnsStaleExitCode(t *testing.T) {
-	reset := stubEntityMapFetch(t, entityMapEnvelope{
+	reset := stubEntityMapFetch(t, entitymap.Envelope{
 		Data: sampleEntityMapData("mapped"),
 		Truth: map[string]any{
 			"level":     "exact",
@@ -227,10 +303,10 @@ func newTestMapCommand() *cobra.Command {
 	return cmd
 }
 
-func stubEntityMapFetch(t *testing.T, envelope entityMapEnvelope) func() {
+func stubEntityMapFetch(t *testing.T, envelope entitymap.Envelope) func() {
 	t.Helper()
 	original := entityMapFetch
-	entityMapFetch = func(_ *APIClient, opts entityMapOptions) (entityMapEnvelope, error) {
+	entityMapFetch = func(_ entitymap.EnvelopePoster, opts entitymap.Options) (entitymap.Envelope, error) {
 		if strings.TrimSpace(opts.From) == "" {
 			t.Fatal("opts.From is empty, want --from value")
 		}
