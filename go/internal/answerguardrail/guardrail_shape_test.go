@@ -250,7 +250,8 @@ func TestUnsafeStringIsIndifferentToTheSurroundingDelimiter(t *testing.T) {
 	// and both sides shrink together, which was watched staying green. The
 	// three multi-character prefixes are the specific thing this protects.
 	// Removing just those, with the reverted identifier guard back in place,
-	// takes the sweep fully green while the guard publishes 17 addresses.
+	// would have taken the sweep fully green while the guard published 17
+	// addresses. It no longer can: this count is what fires instead.
 	if checked != boundarySweepCombinationCount {
 		t.Fatalf("checked %d combinations, want %d; a carrier, prefix, or suffix list "+
 			"changed size and the sweep no longer covers what it claims",

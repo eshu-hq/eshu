@@ -726,8 +726,9 @@ just walked is true by construction and can never fail.
   `rawIPv6CarrierCount = 10`. This one is not cosmetic on this branch: the sweep
   is the assertion that makes the round-five guard catchable, and it is the
   three new multi-character prefixes that do the catching. Removing just those
-  three, with the reverted guard back in place, takes the sweep fully green
-  while the guard publishes 17 addresses. Dropping
+  three, with the reverted guard back in place, would have taken the sweep
+  fully green while the guard published 17 addresses; the combination count
+  now fires on that mutation instead. Dropping
   `passwordAssignmentCarriers` from the append loses 4,284 combinations and was
   watched staying green, as was deleting six rows from `rawIPv6Carriers` —
   which `TestUnsafeStringRejectsRawIPv6` also failed to notice;
