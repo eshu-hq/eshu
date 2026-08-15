@@ -4,10 +4,12 @@
 # verify-ifa-fault-injection.sh; the driver owns strict mode and globals
 # (bin_dir, tagged_bin_dir, log_dir, work_dir, use_compose, compose_file,
 # FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, GATE_DRAIN_TIMEOUT, digests,
-# wall_times, bg_pids, log, die), exactly like
-# ifa_fault_injection_code_call_cells.sh. Also sources
-# ifa_deployable_unit_live.sh's helpers (ifa_deployable_unit_live_drain,
+# wall_times, bg_pids, sql_expected_edges, code_call_expected_edges, log,
+# die), exactly like ifa_fault_injection_code_call_cells.sh. Also sources
+# ifa_deployable_unit_live.sh's helpers
+# (ifa_deployable_unit_live_assert_empty_before_maintenance,
 # ifa_deployable_unit_live_run_maintenance_pass,
+# ifa_deployable_unit_live_assert_readiness_opened,
 # ifa_deployable_unit_live_assert).
 #
 # BOTH cells below need one thing no sibling family's cells do: a bootstrap-
@@ -165,6 +167,18 @@ cell_baseline_deployable_unit() {
 	ifa_deployable_unit_live_assert_empty_before_maintenance \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		|| die "baseline-deployable-unit: expected zero deployable_unit_edges rows before the maintenance pass"
+	# The other families this cell drives (sql_relationships, code_calls) are
+	# NOT gated: they already converged in the drain above. Asserting them
+	# here, then again after the maintenance pass, gives an explicit
+	# attribution point for the maintenance pass's one unproven risk (a
+	# reconcile path misreading the zero-repo filesystem collection as a
+	# removal and retracting facts) -- a divergence here names the exact
+	# family the pass corrupted, rather than only a whole-graph digest
+	# mismatch against this cell's own baseline.
+	"${bin_dir}/eshu-ifa" assert-edges -domain sql_relationships -expected "${sql_expected_edges}" \
+		|| die "baseline-deployable-unit: sql_relationships does not match its exact set BEFORE the maintenance pass"
+	"${bin_dir}/eshu-ifa" assert-edges -domain code_calls -expected "${code_call_expected_edges}" \
+		|| die "baseline-deployable-unit: code_calls does not match its exact set BEFORE the maintenance pass"
 
 	ifa_deployable_unit_live_run_maintenance_pass "baseline_deployable_unit" "${bin_dir}" "${log_dir}" \
 		|| die "baseline-deployable-unit: bootstrap-index maintenance pass failed"
@@ -173,6 +187,12 @@ cell_baseline_deployable_unit() {
 	ifa_det_start_bg "${log_dir}" "reducer-baseline_deployable_unit" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate baseline_deployable_unit
 	assert_no_dead_letters baseline_deployable_unit
+	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-baseline_deployable_unit" \
+		|| die "baseline-deployable-unit: post-maintenance reducer log does not prove the readiness gate opened"
+	"${bin_dir}/eshu-ifa" assert-edges -domain sql_relationships -expected "${sql_expected_edges}" \
+		|| die "baseline-deployable-unit: sql_relationships no longer matches its exact set AFTER the maintenance pass -- the maintenance pass corrupted an unrelated family"
+	"${bin_dir}/eshu-ifa" assert-edges -domain code_calls -expected "${code_call_expected_edges}" \
+		|| die "baseline-deployable-unit: code_calls no longer matches its exact set AFTER the maintenance pass -- the maintenance pass corrupted an unrelated family"
 	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
 		|| die "baseline-deployable-unit: fault-free graph does not match the one-edge exact set (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
 	capture_digest baseline_deployable_unit

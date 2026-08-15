@@ -63,16 +63,39 @@
 # (including deployable_unit_correlation) in the same pass, per
 # RunDeferredRelationshipMaintenance's own doc comment.
 #
-# ONE HONEST UNKNOWN, not resolved by reading code: whether a bare
-# `eshu-bootstrap-index` invocation (no repo source configured) runs clean
-# against a stack whose facts arrived via `eshu-ifa drive` rather than
-# bootstrap-index's own collection phase. verify-golden-corpus-gate.sh calls
-# it bare for both its FIRST run (against an empty DB, where it also does its
-# own filesystem collection) and every subsequent maintenance pass (against a
-# DB bootstrap-index itself already populated) -- this file's use is the
-# untested third shape: bare invocation against a DB populated by a DIFFERENT
-# committer (`ifa drive`). This must be proven the first time this cell
-# actually runs, not assumed here.
+# RESOLVED (first live run, #5993): a truly bare invocation is not the right
+# shape. bootstrap-index's collector defaults to the GitHub App auth path
+# (go/internal/collector/git_selection_github.go's mintGitHubAppToken) unless
+# told otherwise, and this cell has neither those credentials nor any repo
+# source it wants collected -- the facts it needs already landed via `ifa
+# drive`. scripts/verify-golden-corpus-gate.sh (lines ~196-212 as of #5993)
+# gets a credential-free run by exporting a filesystem-mode collector
+# configuration; ifa_deployable_unit_live_run_maintenance_pass below applies
+# the same block, scoped to this one command via `env` (not `export`) so it
+# cannot leak into `eshu-ifa drive`, the reducer, or the projector sharing
+# this shell. The filesystem root is a FRESH, EMPTY scratch directory, never
+# B-7's populated corpus_dir: reusing that would inject 20 unrelated repos
+# into a cassette-shaped cell and move every digest, silently invalidating
+# the determinism/fault-injection comparisons this cell exists to protect.
+# Collection over an empty root discovers zero repos and no-ops, so the
+# pipeline proceeds straight to the deferred-maintenance leg, which is
+# scope-agnostic: BackfillAllRelationshipEvidence walks the repo generations
+# already in Postgres (the ifa-driven ones), publishing their readiness rows,
+# and the reopen replays the correlation domains. Production bootstrap-index
+# also only ever collects what its configured source has, so a zero-repo
+# collection is an honest degenerate case, not a trick.
+#
+# STILL UNPROVEN (the successor unknown, not resolved by reading code): that
+# zero-repo filesystem collection is inert rather than actively harmful --
+# specifically, that no reconcile path reads "a repo generation present in
+# Postgres but absent from an empty collection source" as a removal and
+# retracts the cassette-deposited facts this cell depends on. Judged unlikely
+# (reconciliation is scoped to the collector's own sync scope, and an
+# empty-root first run has no prior generations of its own to reconcile
+# against), but not proven. This cell's own tripwires cover it: the
+# post-maintenance drain's exact-set assertion and the fault-injection
+# baseline's whole-graph digest would both fail loudly if the pass retracted
+# anything.
 
 # ifa_deployable_unit_live_drive replays the family cassette (all four
 # repositories: the admitted app+deploy pair and the two negative-case
@@ -148,6 +171,53 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 	printf 'deployable_unit_edges: confirmed 0 admitted edges before the maintenance pass (the readiness gate is closed, as documented)\n'
 }
 
+# ifa_deployable_unit_live_assert_readiness_opened is the exact inverse of
+# ifa_deployable_unit_live_assert_empty_before_maintenance: it reads the
+# reducer log from the POST-maintenance drain and confirms
+# CrossRepoRelationshipHandler.Resolve actually ran the readiness-gated
+# branch open, rather than inferring it from a downstream edge count alone.
+# The two source log lines (go/internal/reducer/cross_repo_resolution.go)
+# are "cross-repo relationship resolution started" (always logged on entry)
+# and "cross-repo resolution gated" (logged only when the readiness check
+# fails and the handler returns early without resolving anything). Before
+# the maintenance pass this reducer log would show the started line paired
+# with the gated line on every attempt; after it, the started line must
+# appear with no paired gated line. Having both -- the shut-gate line from a
+# pre-maintenance drain and this open-gate confirmation from the
+# post-maintenance drain -- is the complete before/after proof of the
+# mechanism, not just a downstream inference from edge counts.
+#
+# Bash substring match, NOT rg -- #5974 proved rg is absent on the
+# fault-injection CI runner: a check built on it exits "command not found",
+# which reads exactly like a negative match, and a mechanism that fired
+# correctly gets reported as broken. This function is called from both
+# gates, so it follows ifa_fault_assert_once_fault_marker's fix rather than
+# reintroducing the same failure mode in a new place.
+#
+# Args: log_dir label (the reducer log is ${log_dir}/reducer-<label>.log)
+ifa_deployable_unit_live_assert_readiness_opened() {
+	local log_dir="$1" label="$2"
+	local reducer_log="${log_dir}/${label}.log"
+	local contents
+	[[ -f "${reducer_log}" ]] || {
+		echo "deployable_unit_edges: readiness-opened check: missing reducer log ${reducer_log}" >&2
+		return 1
+	}
+	contents="$(cat "${reducer_log}")" || {
+		echo "deployable_unit_edges: readiness-opened check: could not read ${reducer_log}; treat this as unknown, not as a verdict" >&2
+		return 1
+	}
+	if [[ "${contents}" != *"cross-repo relationship resolution started"* ]]; then
+		echo "deployable_unit_edges: readiness-opened check: post-maintenance reducer log never logged cross-repo relationship resolution started -- CrossRepoRelationshipHandler.Resolve may not have run at all" >&2
+		return 1
+	fi
+	if [[ "${contents}" == *"cross-repo resolution gated"* ]]; then
+		echo "deployable_unit_edges: readiness-opened check: post-maintenance reducer log still shows cross-repo resolution gated -- the maintenance pass did not open the readiness gate" >&2
+		return 1
+	fi
+	printf 'deployable_unit_edges: confirmed cross-repo relationship resolution started with no gated line after the maintenance pass (the readiness gate is open)\n'
+}
+
 # ifa_deployable_unit_live_run_maintenance_pass runs ONE bootstrap-index
 # maintenance pass -- not the B-7 gate's three cycles. This family's
 # dependency chain is two links deep (deployment_mapping's cross-repo
@@ -156,18 +226,37 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 # maintenance cycle produces and what its second consumes for this exact
 # family ("Cycle 1's drain produces the resolved DEPLOYS_FROM relationships
 # ... cycle 2's drain re-runs deployable_unit_correlation now that the
-# resolved relationships it consumes exist"). Bare invocation, no flags --
-# identical to how verify-golden-corpus-gate.sh invokes it, both for its
-# first run and every subsequent maintenance pass.
+# resolved relationships it consumes exist").
+#
+# The invocation is credential-free filesystem-mode collection over a fresh,
+# empty scratch root (see this file's header) rather than a truly bare call:
+# without ESHU_REPO_SOURCE_MODE=filesystem the collector defaults to the
+# GitHub App auth path and fails closed with no credentials configured. The
+# env vars are scoped to this one command via `env`, not `export`, so they
+# cannot leak into `eshu-ifa drive` or the reducer/projector processes
+# sharing this shell across the other cells in the same gate run.
 ifa_deployable_unit_live_run_maintenance_pass() {
 	local pass_label="$1" bin_dir="$2" log_dir="$3"
+	local scratch_root scratch_repos_dir
 	printf '\n=== deployable_unit_edges: bootstrap-index maintenance pass (%s) ===\n' "${pass_label}"
-	if ! "${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log" 2>&1; then
+	scratch_root="$(mktemp -d)"
+	scratch_repos_dir="$(mktemp -d)"
+	if ! env \
+		ESHU_REPO_SOURCE_MODE="filesystem" \
+		ESHU_FILESYSTEM_DIRECT="false" \
+		ESHU_FILESYSTEM_ROOT="${scratch_root}" \
+		ESHU_REPOS_DIR="${scratch_repos_dir}" \
+		ESHU_GIT_AUTH_METHOD="none" \
+		ESHU_GITHUB_ORG="acme" \
+		ESHU_REPOSITORY_RULES_JSON="[]" \
+		"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log" 2>&1; then
 		tail -40 "${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log" >&2 || true
 		echo "deployable_unit_edges: bootstrap-index maintenance pass (${pass_label}) failed" >&2
+		rm -rf "${scratch_root}" "${scratch_repos_dir}"
 		return 1
 	fi
 	cat "${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log"
+	rm -rf "${scratch_root}" "${scratch_repos_dir}"
 }
 
 # ifa_deployable_unit_live_assert asserts the family's expected-edge-set
@@ -231,6 +320,7 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	ifa_deployable_unit_live_run_maintenance_pass primary "${bin_dir}" "${log_dir}" || return 1
 
 	ifa_deployable_unit_live_drain post "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
+	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-deployable-unit-post" || return 1
 
 	ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}" || return 1
 
