@@ -4,6 +4,7 @@
 package ifa
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,27 +57,40 @@ func sqlFamilyDeltaLiveExpectedEdgesPath(repoRoot string) string {
 // edge: the identity triple the #5351 vacuity guard asserts, deliberately
 // excluding source_path (production content_entity facts never carry a
 // top-level "path" key — see sql_relationship_odu.go's doc comment — so
-// source_path is not part of any edge's identity here).
+// source_path is not part of any edge's identity here). Field order and
+// types MUST stay identical to ExpectedEdge (materialized_edges_assert.go):
+// LoadExpectedEdges converts directly between the two structs, and the
+// compiler rejects that conversion the moment their shapes diverge.
 type sqlRelationshipExpectedEdge struct {
-	RelationshipType string `json:"relationship_type"`
-	SourceEntityID   string `json:"source_entity_id"`
-	TargetEntityID   string `json:"target_entity_id"`
+	RelationshipType string            `json:"relationship_type"`
+	SourceEntityID   string            `json:"source_entity_id"`
+	TargetEntityID   string            `json:"target_entity_id"`
+	Identity         map[string]string `json:"identity,omitempty"`
 }
 
 type sqlRelationshipExpectedEdgesFile struct {
-	Odu   string                        `json:"odu"`
+	Odu string `json:"odu"`
+	// Note is free-form authoring context every committed expected-edge-set
+	// fixture carries; it is modeled here (rather than left to strict-decode
+	// rejection) purely so loadSQLRelationshipExpectedEdges's
+	// DisallowUnknownFields decoder does not reject every existing fixture.
+	Note  string                        `json:"note,omitempty"`
 	Edges []sqlRelationshipExpectedEdge `json:"edges"`
 }
 
 // loadSQLRelationshipExpectedEdges reads and parses one hand-derived
-// expected-edge-set fixture file.
+// expected-edge-set fixture file. The decoder disallows unknown fields so a
+// typo in a fixture (e.g. "identiy" instead of "identity") fails loudly at
+// load time instead of silently decoding to a zero value.
 func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdge, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is a checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return nil, fmt.Errorf("ifa: read sql relationship expected edges %s: %w", path, err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
 	var parsed sqlRelationshipExpectedEdgesFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
+	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("ifa: parse sql relationship expected edges %s: %w", path, err)
 	}
 	if len(parsed.Edges) == 0 {

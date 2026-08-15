@@ -38,7 +38,7 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
 	}
 
-	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot), "code_calls")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestCodeCallFamilyCoversAllFourEdgeTypes(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot), "code_calls")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}

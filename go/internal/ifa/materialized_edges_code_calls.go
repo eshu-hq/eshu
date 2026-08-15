@@ -16,7 +16,7 @@ import (
 // exercise every writer-registry type, and compares the resulting edge
 // multiset exactly.
 func resolveCodeCallMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
-	expected, err := LoadExpectedEdges(expectedEdgesPath)
+	expected, err := LoadExpectedEdges(expectedEdgesPath, "code_calls")
 	if err != nil {
 		return false, err.Error()
 	}

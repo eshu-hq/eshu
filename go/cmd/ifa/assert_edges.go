@@ -71,7 +71,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
-	expected, err := ifa.LoadExpectedEdges(o.expected)
+	expected, err := ifa.LoadExpectedEdges(o.expected, o.domain)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
