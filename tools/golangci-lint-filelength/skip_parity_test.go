@@ -35,7 +35,7 @@ func TestSkipMatchesTheBashMirror(t *testing.T) {
 
 	// Each rule skip() implements, plus the paths that must NOT be skipped --
 	// a mirror that skipped everything would pass a one-sided table.
-	paths := []string{
+	relative := []string{
 		"go/internal/cli/admin/admin.go",
 		"go/internal/cli/admin/admin_test.go",
 		"go/cmd/eshu/main.go",
@@ -47,6 +47,15 @@ func TestSkipMatchesTheBashMirror(t *testing.T) {
 		"go/internal/x/vendored.go",
 		"go/internal/x/testdatafile.go",
 		"tools/golangci-lint-filelength/filelength.go",
+	}
+
+	// Production calls skip() with an absolute path -- golangci-lint passes
+	// pass.Fset.Position(...).Filename -- while the pre-commit hook passes
+	// repo-relative paths. Both forms have to agree across the two
+	// implementations, so every path is checked twice.
+	var paths []string
+	for _, rel := range relative {
+		paths = append(paths, rel, filepath.Join(repoRoot, rel))
 	}
 
 	for _, path := range paths {
@@ -75,6 +84,50 @@ func TestSkipMatchesTheBashMirror(t *testing.T) {
 		if got != bashSkipped {
 			t.Errorf("skip(%q): plugin=%v bash=%v -- the local hook and CI now "+
 				"disagree about this path", path, got, bashSkipped)
+		}
+	}
+}
+
+// TestBashSkipsAtLeastAsMuchAtRepoRoot pins the one place the two
+// implementations deliberately differ, and the direction of the difference.
+//
+// The plugin's generated/vendor/testdata rules require a separator on BOTH
+// sides, so a repo-root "testdata/sample.go" does not match. The bash side
+// also carries leading-segment alternatives ("testdata/*" as well as
+// "*/testdata/*"), so it skips those.
+//
+// This is safe, and the direction is what makes it safe. Bash skipping MORE
+// can only mean it declines to reject a file; bash skipping LESS would mean a
+// local rejection CI does not make, which is the exact failure this gate was
+// changed to remove (#6104). It is also unreachable for anything CI lints:
+// the plugin only ever sees files under go/, whose paths always carry a
+// leading "go/" segment, and the equality test above covers those in both
+// relative and absolute form.
+//
+// Pinned rather than "fixed" so that a change to either side has to come here
+// and state its case.
+func TestBashSkipsAtLeastAsMuchAtRepoRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+	script := filepath.Join(repoRoot, "scripts", "dev", "precommit-go.sh")
+
+	for _, path := range []string{"testdata/sample.go", "vendor/lib.go", "generated/api.go"} {
+		if skip(path) {
+			t.Errorf("skip(%q) = true; the plugin requires a separator on both "+
+				"sides, so a repo-root segment should not match. If this rule "+
+				"changed, the bash mirror must change with it", path)
+		}
+
+		cmd := exec.Command("bash", script, "filecap-skip", path)
+		cmd.Dir = repoRoot
+		if err := cmd.Run(); err != nil {
+			t.Errorf("bash filecap-skip(%q) did not skip; bash must skip at "+
+				"least as much as the plugin, never less -- skipping less "+
+				"produces a local rejection CI does not make: %v", path, err)
 		}
 	}
 }

@@ -113,6 +113,7 @@ gates:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-precommit-go-filecap.sh"
+      - "scripts/lib/test-precommit-go-filecap-cases.sh"
       # The Go plugin is the AUTHORITY the two bash variants mirror, and
       # tools/golangci-lint-filelength/skip_parity_test.go is what actually
       # compares them: it runs the plugin's skip() and the bash side (via
