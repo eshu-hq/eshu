@@ -37,8 +37,9 @@ canonical response shape; `CLIOutput` and its members are the
 `go/internal/component` (imported as `componentcore` to avoid shadowing the
 package name), `go/internal/componentindex`, `go/internal/extensionconformance`,
 `go/internal/extraction`, `go/internal/facts`, `go/internal/scope`, and
-`gopkg.in/yaml.v3` for index decoding. No cobra, no net/http: the transport
-arrives through `EnvelopeFetcher`.
+`gopkg.in/yaml.v3` for index decoding. No cobra anywhere in the dependency
+closure (`go list -deps | rg spf13` is empty) and no direct `net/http`
+import: the transport arrives through `EnvelopeFetcher`.
 
 ## Telemetry
 
