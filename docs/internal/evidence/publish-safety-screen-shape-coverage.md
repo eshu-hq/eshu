@@ -832,7 +832,7 @@ round five:
 | --- | ---: | ---: | ---: |
 | `guardrail.go` | 301 | 343 | 354 |
 | `guardrail_password.go` | 194 | 194 | 194 |
-| `guardrail_shape_test.go` | 372 | 394 | 404 |
+| `guardrail_shape_test.go` | 372 | 394 | 431 |
 | `guardrail_codetext_test.go` | — | 187 | 222 |
 
 The round-five language table went into its own file rather than growing
