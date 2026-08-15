@@ -71,6 +71,14 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
+	// Resolved before the backend opens, fail-closed like MaterializedEdgeDomainEdgeTypes
+	// above: an unregistered family (cypher.MaterializedEdgeIdentityProperties)
+	// must not silently fall back to "no relationship-property identity" once a
+	// live graph connection is on the line.
+	identity, err := cypher.MaterializedEdgeIdentityProperties(o.domain)
+	if err != nil {
+		return fmt.Errorf("ifa assert-edges: %w", err)
+	}
 	expected, err := ifa.LoadExpectedEdges(o.expected, o.domain)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
@@ -88,7 +96,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	// than a silent match-nothing.
 	endpoints, _ := cypher.MaterializedEdgeEndpointLabels(o.domain)
 
-	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, expected); err != nil {
+	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, identity, expected); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "ifa assert-edges: domain=%s expected=%d edges matched exactly\n", o.domain, len(expected))
@@ -128,12 +136,25 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // Absent constraints mean "match every edge of this family's types", never
 // "match nothing" — the latter would assert an empty population and pass any
 // graph.
+//
+// identity is cypher.MaterializedEdgeIdentityProperties(domain): the
+// relationship properties, beyond the two endpoints, that participate in a
+// type's MERGE identity (e.g. DECLARES_CODEOWNER's pattern and source_path).
+// A live edge of a type with a declared identity is keyed by
+// ifa.ExpectedEdge.Key() using those properties read from edge.Props, the
+// same way the fixture side is — otherwise two distinct rule declarations
+// between the same repo and team would collapse onto one key and the
+// duplicate/missing bookkeeping above would compare the wrong population. A
+// declared property that is absent or not a string on a live edge is a real
+// materialization defect, not an edge to silently key as "": it is reported
+// in the same loud, never-attribute-collapsing style as endpointErrs.
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
 	domain string,
 	edgeTypes map[string]struct{},
 	endpoints map[string]cypher.MaterializedEdgeEndpoint,
+	identity map[string][]string,
 	expected []ifa.ExpectedEdge,
 ) error {
 	// expectedCounts tracks per-key multiplicity, not just presence: the
@@ -150,6 +171,7 @@ func assertMaterializedEdges(
 
 	actualCounts := make(map[string]int)
 	var endpointErrs []string
+	var identityErrs []string
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
 		if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
@@ -192,7 +214,29 @@ func assertMaterializedEdges(
 			))
 			return nil
 		}
-		actualCounts[ifa.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}.Key()]++
+		liveEdge := ifa.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}
+		if declared := identity[edge.Type]; len(declared) > 0 {
+			props := make(map[string]string, len(declared))
+			var badProps []string
+			for _, key := range declared {
+				value, ok := edge.Props[key].(string)
+				if !ok || value == "" {
+					badProps = append(badProps, key)
+					continue
+				}
+				props[key] = value
+			}
+			if len(badProps) > 0 {
+				sort.Strings(badProps)
+				identityErrs = append(identityErrs, fmt.Sprintf(
+					"%s edge (from=%q to=%q) has missing or non-string declared identity properties %v — an unmaterialized identity property",
+					edge.Type, fromUID, toUID, badProps,
+				))
+				return nil
+			}
+			liveEdge.Identity = props
+		}
+		actualCounts[liveEdge.Key()]++
 		return nil
 	})
 	if err != nil {
@@ -225,8 +269,9 @@ func assertMaterializedEdges(
 	sort.Strings(extra)
 	sort.Strings(duplicate)
 	sort.Strings(endpointErrs)
+	sort.Strings(identityErrs)
 
-	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 {
+	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 && len(identityErrs) == 0 {
 		return nil
 	}
 	var b strings.Builder
@@ -252,6 +297,12 @@ func assertMaterializedEdges(
 	if len(endpointErrs) > 0 {
 		fmt.Fprintf(&b, "\n  endpoint defects (%d):", len(endpointErrs))
 		for _, e := range endpointErrs {
+			fmt.Fprintf(&b, "\n    %s", e)
+		}
+	}
+	if len(identityErrs) > 0 {
+		fmt.Fprintf(&b, "\n  identity defects (%d):", len(identityErrs))
+		for _, e := range identityErrs {
 			fmt.Fprintf(&b, "\n    %s", e)
 		}
 	}

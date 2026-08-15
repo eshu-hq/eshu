@@ -117,7 +117,7 @@ func TestAssertMaterializedEdgesExactMatch(t *testing.T) {
 		sqlEdge("REPO_CONTAINS", "r", "f"),
 	}}
 
-	if err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected); err != nil {
+	if err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected); err != nil {
 		t.Fatalf("assertMaterializedEdges(exact match) = %v, want nil", err)
 	}
 }
@@ -136,7 +136,7 @@ func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 		sqlEdge("HAS_COLUMN", "t", "c"),
 	}}
 
-	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected)
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(missing MIGRATES) = nil, want a missing-edge failure")
 	}
@@ -160,7 +160,7 @@ func TestAssertMaterializedEdgesEmptyGraphFailsNotVacuous(t *testing.T) {
 		sqlEdge("CONTAINS", "f", "t"),
 	}}
 
-	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected)
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(empty family) = nil, want failure — a silently-empty family must not pass vacuously")
 	}
@@ -182,7 +182,7 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 		sqlEdge("HAS_COLUMN", "t", "c2"),
 	}}
 
-	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected)
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(extra edge) = nil, want an extra-edge failure")
 	}
@@ -209,7 +209,7 @@ func TestAssertMaterializedEdgesMissingEndpointIdentityFails(t *testing.T) {
 		{Type: "HAS_COLUMN", FromProps: map[string]any{"uid": "t"}, ToProps: map[string]any{}},
 	}}
 
-	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected)
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(no-uid endpoint) = nil, want an endpoint-defect failure")
 	}
@@ -237,7 +237,7 @@ func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 		sqlEdge("HAS_COLUMN", "t", "c"),
 	}}
 
-	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, expected)
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(duplicate edge) = nil, want a duplicate-edge failure — a duplicate must not silently collapse")
 	}
