@@ -137,7 +137,12 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 // against a held write-Cypher const (as
 // TestSingleTypeFamilyIdentityMatchesWriteCypher does below) only works for a
 // family with one write template in this file; these four span several
-// templates across several files, so their reasoning stays there too.
+// templates across several files, so their reasoning stays there too. The
+// empty declaration itself is backed globally, not per-family, by
+// TestPropertyKeyedRelationshipMergesMatchKnownAllowList
+// (materialized_edge_property_keyed_inventory_test.go), which scans this
+// entire package's source for any property-keyed relationship MERGE and
+// fails if one appears on a type these four families own.
 var materializedEdgeIdentityByFamily = map[string]map[string][]string{
 	"repo_dependency":   {},
 	"code_calls":        {},

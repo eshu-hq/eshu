@@ -57,8 +57,8 @@ func TestExpectedEdgeKeyAppendsIdentityInSortedOrder(t *testing.T) {
 // because a fixture whose identity key SET matches but carries a blank VALUE
 // (`"pattern": ""`) would otherwise load clean and could match a genuinely
 // broken graph exactly if the codeowners extractor ever regressed to
-// emitting blank patterns — see identityPropertiesFromCypher's sibling guard
-// on the live side (assertMaterializedEdges) for the other half of this.
+// emitting blank patterns — see the badProps loop inside assertMaterializedEdges
+// (go/cmd/ifa/assert_edges.go) for the live-side sibling of this guard.
 func TestValidateExpectedEdgeIdentity(t *testing.T) {
 	t.Parallel()
 

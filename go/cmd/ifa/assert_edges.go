@@ -145,9 +145,10 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // same way the fixture side is — otherwise two distinct rule declarations
 // between the same repo and team would collapse onto one key and the
 // duplicate/missing bookkeeping above would compare the wrong population. A
-// declared property that is absent or not a string on a live edge is a real
-// materialization defect, not an edge to silently key as "": it is reported
-// in the same loud, never-attribute-collapsing style as endpointErrs.
+// declared property that is absent, not a string, or blank (TrimSpace-empty)
+// on a live edge is a real materialization defect, not an edge to silently
+// key as "": it is reported in the same loud, never-attribute-collapsing
+// style as endpointErrs.
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
