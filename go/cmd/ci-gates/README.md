@@ -70,6 +70,21 @@ qualifying bash (PATH, then `/opt/homebrew/bin/bash`, then
 the common case passes outright; each such script also carries its own
 bash >= 4.4 precondition guard as defense-in-depth.
 
+`run` also strips `GOROOT` from every gate subprocess's environment.
+`scripts/dev/run-selected-gates.sh` launches this binary via `go -C go run`,
+and when `go/go.mod` requests a newer Go than the host toolchain, the
+`GOTOOLCHAIN=auto` switch exports the downloaded toolchain's `GOROOT` to the
+runner process. Handed on to gates, that `GOROOT` makes any gate running `go`
+in a module the host toolchain already satisfies (`sdk/go/collector`,
+`examples/collector-extensions/scorecard`) pair the host `go` driver with the
+switched toolchain's tools — every package then fails with
+`compile: version "go1.X" does not match go tool version "go1.Y"`. With
+`GOROOT` cleared, each gate's `go` command derives its root from its own
+binary and re-switches per its own `go.mod`, so both module families stay
+self-consistent. This is the runner-wide form of the per-`go install`
+isolation `scripts/dev/precommit-go.sh` got in
+[#6113](https://github.com/eshu-hq/eshu/pull/6113).
+
 ### await
 
 ```bash

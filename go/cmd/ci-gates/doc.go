@@ -60,6 +60,17 @@
 // which lacks bash 4.0+ features such as `declare -A` (#5050). If no
 // candidate qualifies, PATH is left unchanged.
 //
+// run also strips GOROOT from every gate subprocess's environment. The
+// wrapper launches this binary via `go run` from go/, and when go/go.mod
+// requests a newer Go than the host, the GOTOOLCHAIN=auto switch exports the
+// downloaded toolchain's GOROOT to this process; passing it on would make any
+// gate that runs `go` in a module the host toolchain satisfies (the SDK
+// modules, the scorecard example) pair the host go driver with the switched
+// toolchain's tools and fail with a compile/tool version mismatch. With
+// GOROOT cleared, each gate's go command resolves its own toolchain from its
+// own go.mod (#6113 fixed the same leak per `go install` in
+// scripts/dev/precommit-go.sh).
+//
 // # validate
 //
 // Loads the registry and calls (*cigates.Registry).Validate against the repo
