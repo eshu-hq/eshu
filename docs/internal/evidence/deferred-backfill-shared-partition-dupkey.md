@@ -28,15 +28,15 @@ with a `publishedPartitions` seen-map, feeding both `phaseRows` and
 `memoCandidates` from the same dedupe. The per-repo relationship-evidence
 upsert above it is unchanged — evidence genuinely is per-repo.
 
-## No-Regression Evidence
+## Evidence
 
-The dedupe strictly reduces the row count fed into both batched upserts per
-batch (at most one row per distinct `(scope, generation)` partition instead of
-one row per repository), so it cannot regress row-set correctness — and the
-pre-fix behavior being compared against is not "more rows successfully
-written" but a hard transaction ABORT that published zero readiness rows for
-the whole batch, so the comparison is against complete failure, not a smaller
-success.
+No-Regression Evidence: the dedupe strictly reduces the row count fed into
+both batched upserts per batch (at most one row per distinct
+`(scope, generation)` partition instead of one row per repository), so it
+cannot regress row-set correctness — and the pre-fix behavior being compared
+against is not "more rows successfully written" but a hard transaction ABORT
+that published zero readiness rows for the whole batch, so the comparison is
+against complete failure, not a smaller success.
 
 Failing regression test first (`go/internal/storage/postgres/ingestion_backfill_shared_partition_dupkey_test.go`,
 `TestWriteDeferredBackfillBatchSharedScopeGenerationDedupesConflictKey`),
@@ -90,16 +90,14 @@ concurrency proofs (`TestWriteDeferredBackfillInBatchesRunsConcurrently`,
 `TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne`) all continue to
 pass unchanged.
 
-## No-Observability-Change
-
-The fix adds no metric, span, log key, route, worker, lease, queue domain, or
-runtime knob. `writeDeferredBackfillBatch`'s return value (`published`) already
-documented itself as "the number of readiness rows published" — it now
-correctly reports one row per distinct partition instead of double-counting
-repositories that share a partition; the one caller of that count
-(`deferred_backfill_completed`/`deferred_backfill_batch_committed` structured
-log fields) reads more accurately after the fix, with no new log key or shape.
-Operators continue to diagnose this path through the existing
+No-Observability-Change: the fix adds no metric, span, log key, route, worker,
+lease, queue domain, or runtime knob. `writeDeferredBackfillBatch`'s return
+value (`published`) already documented itself as "the number of readiness rows
+published" — it now correctly reports one row per distinct partition instead
+of double-counting repositories that share a partition; the one caller of that
+count (`deferred_backfill_completed`/`deferred_backfill_batch_committed`
+structured log fields) reads more accurately after the fix, with no new log
+key or shape. Operators continue to diagnose this path through the existing
 `eshu_dp_postgres_query_duration_seconds` Postgres query-span instrumentation
 and the existing `deferred_backfill_batch_committed`/`deferred_backfill_completed`
 structured logs.
