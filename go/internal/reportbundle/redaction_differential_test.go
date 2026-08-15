@@ -20,22 +20,33 @@ const endpointDifferentialMarker = "redacted"
 //
 // Why this exists. The boundary corpus pins what each walk emits, and both walks
 // passed every row of it while disagreeing on 72 of 594 generated inputs. Depth
-// and position are decided in two places — urlredact.Query's own scan and this
-// package's noteEscapedValueTerminators — and a shared table of expectations cannot
-// catch the two drifting apart, because whoever writes a row already knows which
-// case they are writing. Two walks deciding the same question independently is
-// how this drifted twice; a differential makes the next drift a red test.
+// and position are decided in two places — urlredact.Query's own scan and
+// urlredact's freeTextEscapedValueTerminators, which the free-text walk reads —
+// and a shared table of expectations cannot catch the two drifting apart,
+// because whoever writes a row already knows which case they are writing. Two
+// walks deciding the same question independently is how this drifted twice; a
+// differential makes the next drift a red test.
+//
+// Both walks now live in urlredact, which removes the packaging half of that
+// drift. It does not remove the reason for this test: they are still two
+// independent scans over the same question, and this driver is what compares
+// them.
 //
 // Comparing the two walks is only half of it. They also agree when both stop
 // removing — break the name predicate they share and every one of the 594 rows
 // still matches — so the driver asserts removal first, on the 378 rows whose
 // declared fragment the depth model puts inside a credential value.
 //
-// The endpoint side runs urlredact.Query rather than cmd/eshu's redactEndpoint,
-// because package main is not importable. Query is where the endpoint walk
-// decides every boundary in this table — redactEndpoint adds URL parsing, the
-// userinfo rule and the fragment rule around it, none of which touch a query
-// boundary — and cmd/eshu's own
+// The endpoint side runs urlredact.Query rather than the endpoint walk itself.
+// That used to be forced — the walk lived in package main, which is not
+// importable — and it is now a layering choice: the walk moved to
+// internal/cli/evidredact, which this package could import but should not, since
+// a service package reaching into the CLI layer inverts the dependency.
+//
+// The limit is unchanged either way. Query is where the endpoint walk decides
+// every boundary in this table — Endpoint adds URL parsing, the userinfo rule
+// and the fragment rule around it, none of which touch a query boundary — and
+// cmd/eshu's own
 // TestRedactEndpointDelegatesTheQueryWalkForTheDifferential drives redactEndpoint
 // through the identical rows and fails if that delegation stops holding. So the
 // limit is real but bounded, and it is pinned rather than assumed.

@@ -185,22 +185,23 @@ before its `:`, so the bundle records `encode oidc [redacted]` and lists
 shipping the class of message likeliest to have a real secret in it.
 
 A credential carried as a **query parameter** is covered. `https://host/mcp?token=…`
-inside a message or a note keeps the URL and loses the pair. `redactEndpoint`
-(`cmd/eshu/first_run_evidence.go`) does the same for a structured endpoint
-field.
+inside a message or a note keeps the URL and loses the pair.
+`evidredact.Endpoint` (`go/internal/cli/evidredact`) does the same for a
+structured endpoint field.
 
 Sharing `collector.IsSensitiveKeyName` is what stops the two walks drifting on
 which NAMES count. It said nothing about where a pair ENDS, and that is where
-they did drift: this package ended a value at `?`, `&` or `;`, `redactEndpoint`
-split on `&` alone, and a comment claiming the two could not disagree was read
-as covering both. Three credentials shipped through the gap —
+they did drift: this package ended a value at `?`, `&` or `;`, the endpoint
+walk split on `&` alone, and a comment claiming the two could not disagree was
+read as covering both. Three credentials shipped through the gap —
 `?a=1;token=…`, `?next=/v0/y?api_key=…`, `?redirect_uri=/cb?access_token=…`.
-The separators now live once, in `internal/urlredact`. Both of this package's
-constants derive from it — `queryPairSeparators` for the parameter-value scan
-and `freeTextValueTerminators` for the prose scan, the latter splicing the
-shared set into its wider one. Both walks are then driven through one shared
-corpus (`urlredact.BoundaryCases`) that records every row either walk cannot
-handle, with its reason.
+The separators now live once, in `internal/urlredact`, and so does the prose
+scan itself: `redactFreeText` here is a thin call to `urlredact.FreeText` that
+supplies only the DOMAIN answer — which fields are free text, and this package's
+extra inline-content key. `queryPairSeparators` for the parameter-value scan is
+the one boundary constant still derived here. Both walks are then driven through
+one shared corpus (`urlredact.BoundaryCases`) that records every row either walk
+cannot handle, with its reason.
 
 The next axis under the same boundary was **how the separator is spelled**. Both
 walks read only the literal bytes, so
@@ -245,14 +246,14 @@ redactFreeText("curl 'https://h/cb?redirect_uri=%2Fx%3Faccess_token%3D<credentia
   now  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]'
 ```
 
-`noteEscapedValueTerminators` returns the set that also counts escaped —
-`urlredact.PairSeparators` one layer down, nothing at the surface — and
+`urlredact`'s `freeTextEscapedValueTerminators` returns the set that also counts
+escaped — `urlredact.PairSeparators` one layer down, nothing at the surface — and
 `urlredact.IndexBoundaryBySpelling` takes the literal and escaped sets apart.
 `%22`, `%27`, `%09` and `%0A` all leaked the same way and are all closed by the
 same split.
 
-This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, which is
-how both leaks reached review: each passed every row of the shared corpus.
+This walk and the endpoint walk decide depth independently, which is how both
+leaks reached review: each passed every row of the shared corpus.
 `TestRedactionWalksAgreeOnTheSharedDifferential` now compares the two to each
 other over 594 generated inputs, where they disagreed on 72 before the fixes. It
 also asserts outright that both walks removed the credential on the 378 rows
@@ -263,8 +264,8 @@ Four gaps remain, each the reverse of something above:
 
 - Free text has no **userinfo** rule, so `https://alice:s3cr3t@host` passes this
   scan untouched. The token left of the `:` is `alice`, which no sensitive-key
-  rule matches. A structured field gets that case from `redactEndpoint`; a note
-  or an error message does not.
+  rule matches. A structured field gets that case from `evidredact.Endpoint`; a
+  note or an error message does not.
 - A credential on the **next line** is found only when a backslash says the line
   carried on — a wrapped `curl` writes `-H 'Authorization: \` and puts
   `Bearer …` underneath, and both lines go. Wrapped without the backslash, the

@@ -260,7 +260,13 @@ func hostedNextSteps(result hostedSetupResult) []string {
 	case hostedFailUnresolvedEndpoint:
 		return []string{"Set the deployed endpoint: export ESHU_SERVICE_URL=https://your-eshu-host", "Re-run: eshu hosted-setup"}
 	case hostedFailAuthUnavailable:
-		return []string{"Set a valid token: export ESHU_API_KEY=...", "Re-run: eshu hosted-setup"}
+		// No "key=value" pair and no credential-named word before a ":", for
+		// the reason recorded on the auth-mismatch rule in
+		// diagnostics_classify.go: a step written that way is removed whole
+		// from any artifact that runs the free-text credential scan, taking
+		// the variable name with it. This set is not scrubbed today; it is
+		// phrased this way so it stays readable if it ever is.
+		return []string{"Put a valid API token into the ESHU_API_KEY environment variable", "Re-run: eshu hosted-setup"}
 	case hostedFailUnreachable:
 		return []string{"Confirm the deployed service URL and network reachability.", "Re-run: eshu hosted-setup"}
 	case hostedFailEmptyIndex:

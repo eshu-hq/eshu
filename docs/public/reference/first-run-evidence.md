@@ -74,10 +74,36 @@ recovery steps, `next_commands`, and `docs_links` are all scrubbed. An endpoint
 or repository path that was composed into one of those sentences comes out in
 the same redacted form as the field it was built from.
 
-That has a cost, and it lands on the commands. A suggested next command is
-rewritten along with everything else, so `eshu story /home/alice/work/repo` is
-recorded as `eshu story .../repo`. Read `next_commands` as a description of
-what to run against your own paths, not as lines to paste.
+A credential does not need a URL around it to be found. The text between any
+absolute URLs is scanned for a credential-shaped pair written as `key=value` or
+as a header (`key: value`), and the pair is removed — name and all — and
+replaced with `[redacted]`. This is what catches a rejected request body quoted
+back into the diagnosis, such as
+`api returned 401; body was {"error":"unauthorized","api_key":"…"}`, which
+carries no `scheme://` anywhere for a URL rule to find. It is the same scan
+`eshu report capture` runs over a support bundle's reporter note, so the two
+artifacts remove the same things.
+
+The header form has no safe inner boundary, because an HTTP header value may
+contain spaces. It removes from the key to the **end of the line**, so a second
+`-H` on the same line goes with it. Over-removal is the side this errs on.
+
+That has a cost, and it lands on the commands.
+
+A suggested next command is rewritten along with everything else, so
+`eshu story /home/alice/work/repo` is recorded as `eshu story .../repo`. Read
+`next_commands` as a description of what to run against your own paths, not as
+lines to paste.
+
+The removal does not spare a placeholder. Nothing checks whether a value looks
+like a secret, so a fixed instruction written as
+`Set a matching token: export ESHU_API_KEY=<server token>` is recorded as
+`Set a matching [redacted]` — the pair goes name and all, and the `token:` in
+front takes the rest of the line with it. Eshu's own recovery steps are phrased
+to avoid that shape, so they reach the artifact intact and still name the
+variable to set. If you are writing a step of your own that a support artifact
+will carry, phrase it without a `key=value` pair rather than expecting the scan
+to spare it.
 
 ### What redaction does not catch
 
@@ -94,6 +120,11 @@ secret, so these reach the artifact as written:
   `?session=sk-live-abc`.
 - A bare secret in prose with no key beside it, such as
   `authenticated with sk-live-abc`.
+- A credential written **after a URL that follows its own key**, such as
+  `Authorization: Bearer https://host/x sk-live-abc`. The URL and the prose
+  around it are scrubbed separately, and a URL ends the stretch of prose the
+  header rule can reach, so the header goes and the trailing word stays. A
+  credential before the URL, or on a line with no URL, is removed.
 - A separator encoded **twice**, such as `?next=%253Ftoken%253D…`. The unwrap
   runs exactly one layer, on purpose: `%253F` asks for the literal text `%3F`,
   so a second layer would describe a request no server received, and a loop

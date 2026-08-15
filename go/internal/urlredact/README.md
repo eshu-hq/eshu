@@ -2,27 +2,30 @@
 
 ## Purpose
 
-`urlredact` owns one narrow thing: **where a `key=value` pair ends inside
-query-shaped text**, and removing the value of every pair whose name
-`collector.IsSensitiveKeyName` flags.
+`urlredact` owns one narrow thing: **where a `key=value` pair begins and ends**,
+and removing the value of every pair whose name `collector.IsSensitiveKeyName`
+flags. It does that in two shapes — a parsed query string (`Query`) and prose
+(`FreeText`).
 
 It exists because two redaction walks had to agree on that boundary and did not.
 
 ## The drift this package ends
 
-Two walks clean credentials out of operator-facing artifacts:
+Two walks clean credentials out of operator-facing artifacts. Both now live
+here, which is the strongest form of the invariant below: a boundary change
+cannot reach one and miss the other.
 
-| Walk | Where | Cleans |
+| Walk | Called by | Cleans |
 | --- | --- | --- |
-| `redactEndpoint` | `go/cmd/eshu/first_run_evidence.go` | a structured endpoint field in a first-run evidence report |
-| `redactFreeText` | `go/internal/reportbundle/redact_free_text.go` | prose in a wrong-answer report bundle |
+| `Query` | `evidredact.Endpoint` (`go/internal/cli/evidredact`) | the query string of a structured endpoint field in a first-run evidence report |
+| `FreeText` | `reportbundle.redactFreeText`, `evidredact.Text` | prose in a wrong-answer report bundle, and every free-form field of a first-run evidence artifact |
 
 Both ask `collector.IsSensitiveKeyName` about the name half of a pair, and a
 comment in each said the two therefore "cannot disagree". That is true about
-**names** and false about **boundaries**. `redactFreeText` ended a value at `?`,
-`&` or `;`. `redactEndpoint` called `strings.Split(rawQuery, "&")`. So these
-three came out of an operator artifact verbatim, each measured, none caught by a
-test:
+**names** and false about **boundaries**. The free-text walk ended a value at
+`?`, `&` or `;`. The endpoint walk called `strings.Split(rawQuery, "&")`. So
+these three came out of an operator artifact verbatim, each measured, none caught
+by a test:
 
 ```text
 …/x?a=1;token=<credential>
@@ -35,15 +38,17 @@ not two:
 
 | Consumer | Constant | What it bounds |
 | --- | --- | --- |
-| `cmd/eshu` | calls `Query` | a pair inside a structured endpoint's query string |
+| `evidredact` | calls `Query` | a pair inside a structured endpoint's query string |
 | `reportbundle` | `queryPairSeparators` | a pair inside a query-shaped parameter VALUE |
-| `reportbundle` | `freeTextValueTerminators` | where a pair's value ends in prose |
+| this package | `freeTextValueTerminators` | where a pair's value ends in prose |
 
-The third one is the one `redactFreeText` actually reads, and it was found only
-by breaking `PairSeparators` and watching which tests moved: sharing the first
-two left `reportbundle` green. It now splices `PairSeparators` into its wider
-set (`" \t\r\n" + PairSeparators + "'\"` + backtick + `"`), so one edit moves
-every walk.
+The third one is the one `FreeText` actually reads, and it was found only by
+breaking `PairSeparators` and watching which tests moved: sharing the first two
+left `reportbundle` green. It splices `PairSeparators` into its wider set
+(`" \t\r\n" + PairSeparators + "'\"` + backtick + `"`), so one edit moves every
+walk. It lived in `reportbundle` until the free-text walk moved here beside it;
+splitting a constant from the walk that reads it is what let it drift the first
+time.
 
 ## Exported surface
 
@@ -384,7 +389,7 @@ is a separator encoded twice (`%253D`), for the reason above, and so is the tail
 of a credential that holds an `&` inside an already-encoded pair, for the reason
 in the depth section.
 
-Assembling a redacted URL is not here either. `redactEndpoint` keeps that: it
-also strips userinfo and the fragment, and falls back to `mcpsetup.RedactToken`
-for a value that does not parse as a URL, which would drag a CLI dependency into
-this package for no gain.
+Assembling a redacted URL is not here either. `evidredact.Endpoint` keeps that:
+it also strips userinfo and the fragment, and falls back to
+`mcpsetup.RedactToken` for a value that does not parse as a URL, which would drag
+a CLI dependency into this package for no gain.

@@ -5,11 +5,14 @@
 1. `go/internal/urlredact/README.md` — the drift this package ends, why the walk
    is an index walk, and why the shared corpus lives in a production package.
 2. `go/internal/urlredact/doc.go` — the godoc contract.
-3. `go/cmd/eshu/first_run_evidence.go` — `redactEndpoint`, the first consumer.
-   It calls `Query` and adds the userinfo and fragment rules around it.
-4. `go/internal/reportbundle/redact_free_text.go` — `redactFreeText`, the second
-   consumer, and the one that is easy to forget because it reads only
-   `PairSeparators`, not `Query`.
+3. `go/internal/urlredact/free_text.go` — `FreeText`, the prose walk. It is the
+   half that is easy to forget, because it reads `PairSeparators` through its
+   own terminator set rather than by calling `Query`.
+4. `go/internal/cli/evidredact/endpoint.go` — `Endpoint`, the first consumer. It
+   calls `Query` and adds the userinfo and fragment rules around it.
+5. `go/internal/reportbundle/redact_free_text.go` — the second consumer. It now
+   owns only the DOMAIN question (which bundle fields are free text) and calls
+   `FreeText` for the mechanism.
 
 ## Invariants this package enforces
 
@@ -20,17 +23,21 @@
   a different boundary, that is a change to this constant plus a corpus row
   proving what the difference does — not a local copy.
 
-  There were **three** copies, not two. `reportbundle` defines both
+  There were **three** copies, not two. `reportbundle` defined both
   `queryPairSeparators` and `freeTextValueTerminators`, and the second is the
-  one `redactFreeText` reads. Wiring only the first left `reportbundle`
+  one the free-text walk reads. Wiring only the first left `reportbundle`
   completely green when `PairSeparators` was broken. Before claiming a
   consumer is wired, change `PairSeparators` to `"&"` and check that every
   consumer's tests go red — a green consumer under that probe is an unwired
   consumer, not a passing one.
 
+  `freeTextValueTerminators` now lives in `free_text.go`, beside the walk that
+  reads it. Splitting a boundary constant from its walk is what let it drift
+  the first time, so keep them in one file.
+
 - **One definition of the DEPTH, too.** `escape.go` owns reading a separator
   through percent-encoding, and every walk goes through it — `Query`,
-  `redactFreeText`, and `reportbundle.embeddedSensitiveKey`. Sharing the
+  `FreeText`, and `reportbundle.embeddedSensitiveKey`. Sharing the
   separator BYTES was not enough on its own: an HTTP client writes the structure
   encoded, so `?redirect_uri=%2Fcb%3Faccess_token%3D…` carries no bare `?` and no
   bare `=`, and it went past both walks while the literal spelling of the same
@@ -38,7 +45,7 @@
 
   **EXACTLY ONE layer, never a loop.** `%253F` asks for the text `%3F`, so a
   second layer describes a request no server received. The harder reason is that
-  `redactFreeText` emits what it scanned and `Capture` runs `Validate` over that
+  `FreeText` emits what it scanned and `Capture` runs `Validate` over that
   output: a deeper unwrap hands back a string one layer shallower than it
   arrived, the next pass finds something new, and `Capture` rejects its own
   bundle — the reporter then gets nothing. `Decode` is `url.PathUnescape`, not
@@ -224,21 +231,25 @@
   row — which is exactly how the truncation bug reached review. Do not add the
   character to one walk only.
 - **Add a boundary that is not a separator** (a new prose delimiter for the
-  free-text walk) → it belongs in `freeTextValueTerminators`, NOT in
-  `PairSeparators`, and it stays literal-only at both depths. Pass it as the
-  `literal` argument of `IndexBoundaryBySpelling` and leave `escaped` to the
+  free-text walk) → it belongs in `freeTextValueTerminators` in `free_text.go`,
+  NOT in `PairSeparators`, and it stays literal-only at both depths. Pass it as
+  the `literal` argument of `IndexBoundaryBySpelling` and leave `escaped` to the
   separators. A corpus row cannot reach it — it is not a pair boundary — so it
   needs a row in `reportbundle/redaction_boundary_test.go` at BOTH depths.
 - **Change what counts as a sensitive name** → that is `sensitiveQueryPattern`
   in `sdk/go/collector/validation.go`, not here. Every walk in the repo reads
   it through `collector.IsSensitiveKeyName` for that reason.
 - **Add a redaction rule to the endpoint URL** (a new URL part, a new fallback)
-  → that belongs in `redactEndpoint` in `go/cmd/eshu/first_run_evidence.go`,
-  which owns URL assembly. Keep this package to the query string. Watch that
-  file's line count: it sits close to the repo's 500-line cap, and
-  `go/cmd/eshu` has a digest-pinned file-count ledger entry
-  (`scripts/lib/dirgate-grandfather.tsv`), so a new file there fails the gate.
-  Extract into this package or another importable one instead.
+  → that belongs in `Endpoint` in `go/internal/cli/evidredact/endpoint.go`,
+  which owns URL assembly. Keep this package to the query string.
+
+  That code used to sit in `go/cmd/eshu/first_run_evidence.go` and was extracted
+  when it crowded the repo's 500-line cap. Do not move it back: `go/cmd/eshu`
+  has a digest-pinned file-count ledger entry
+  (`scripts/lib/dirgate-grandfather.tsv`), so a new non-test file there fails
+  the gate, and the extraction is also what made the walk unit-testable on its
+  own — the leak that prompted it survived precisely because every test reached
+  the scrub through the `first-run report` command.
 - **Record a row one walk cannot handle** → set `EndpointKeepsSecret` or
   `FreeTextKeepsSecret` with the reason. Do not delete the row. The check
   asserts the reason in both directions, so an exemption that stops being true
@@ -269,8 +280,13 @@
   that were never varied before, which is how the drift survived review.
 - **Importing a CLI or service package from here.** This package's only
   dependency beyond the standard library is `sdk/go/collector`, for the name
-  predicate. `redactEndpoint`'s `mcpsetup.RedactToken` fallback stays on the
-  `cmd/eshu` side for that reason.
+  predicate. `evidredact.Endpoint`'s `mcpsetup.RedactToken` fallback stays on
+  the `internal/cli` side for that reason.
+- **Taking a whole name predicate from a caller.** `FreeText` ORs the caller's
+  extra names with `collector.IsSensitiveKeyName` instead of accepting a
+  replacement, so a caller can add a name and can never drop one. A caller that
+  quietly stopped matching `authorization` would put every walk in the repo back
+  in disagreement about what a sensitive key is.
 
 ## What NOT to change without saying so out loud
 
