@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/trace"
 )
 
 func TestTraceServiceCommandIsRegistered(t *testing.T) {
@@ -31,7 +33,11 @@ func TestTraceServiceCommandIsRegistered(t *testing.T) {
 	}
 }
 
-func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
+// TestTraceServiceFetchSeamRequestsCanonicalEnvelope drives the real APIClient
+// through the seam runTraceService uses, so it covers what the trace package's
+// own path test cannot: that the concrete client satisfies the package's
+// EnvelopeFetcher and still sends the envelope Accept header.
+func TestTraceServiceFetchSeamRequestsCanonicalEnvelope(t *testing.T) {
 	var gotAccept string
 	var gotPath string
 	var gotQuery url.Values
@@ -45,13 +51,13 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	got, err := fetchTraceServiceStory(client, "checkout api", traceServiceOptions{
+	got, err := traceFetchServiceStory(client, "checkout api", trace.ServiceOptions{
 		Repo:        "checkout-service",
 		Environment: "prod",
 		ServiceID:   "workload:checkout",
 	})
 	if err != nil {
-		t.Fatalf("fetchTraceServiceStory() error = %v, want nil", err)
+		t.Fatalf("traceFetchServiceStory() error = %v, want nil", err)
 	}
 	if gotAccept != eshuEnvelopeMIMEType {
 		t.Fatalf("Accept = %q, want %q", gotAccept, eshuEnvelopeMIMEType)
@@ -74,7 +80,7 @@ func TestFetchTraceServiceStoryRequestsCanonicalEnvelope(t *testing.T) {
 }
 
 func TestRunTraceServiceReturnsPartialExitAndRendersOperationalSummary(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
 		Data: sampleTraceServiceStoryData(),
 		Truth: map[string]any{
 			"level":      "exact",
@@ -123,7 +129,7 @@ func TestRunTraceServiceReturnsPartialExitAndRendersOperationalSummary(t *testin
 }
 
 func TestRunTraceServiceReturnsStaleExitAndRendersTruthFreshness(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
 		Data: sampleCompleteTraceServiceStoryData(),
 		Truth: map[string]any{
 			"level":     "exact",
@@ -163,7 +169,7 @@ func TestRunTraceServiceReturnsStaleExitAndRendersTruthFreshness(t *testing.T) {
 }
 
 func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
 		Data: sampleCompleteTraceServiceStoryData(),
 		Truth: map[string]any{
 			"level":     "derived",
@@ -183,7 +189,7 @@ func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
 		t.Fatalf("runTraceService() error = %v, want nil", err)
 	}
 
-	var payload traceServiceEnvelope
+	var payload trace.ServiceEnvelope
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -196,7 +202,7 @@ func TestRunTraceServiceJSONPassesCanonicalEnvelope(t *testing.T) {
 }
 
 func TestRunTraceServiceJSONReturnsPartialExitAfterWritingEnvelope(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
 		Data: sampleTraceServiceStoryData(),
 		Truth: map[string]any{
 			"level":     "derived",
@@ -223,20 +229,20 @@ func TestRunTraceServiceJSONReturnsPartialExitAfterWritingEnvelope(t *testing.T)
 	if got, want := exitErr.ExitCode(), 5; got != want {
 		t.Fatalf("ExitCode() = %d, want %d", got, want)
 	}
-	var payload traceServiceEnvelope
+	var payload trace.ServiceEnvelope
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
-	trace := payload.Data["code_to_runtime_trace"].(map[string]any)
-	if got, want := trace["status"], "partial"; got != want {
+	codeTrace := payload.Data["code_to_runtime_trace"].(map[string]any)
+	if got, want := codeTrace["status"], "partial"; got != want {
 		t.Fatalf("code_to_runtime_trace.status = %#v, want %#v", got, want)
 	}
 }
 
 func TestRunTraceServiceJSONIncludesNullTruthForTransportFailure(t *testing.T) {
 	original := traceFetchServiceStory
-	traceFetchServiceStory = func(_ *APIClient, _ string, _ traceServiceOptions) (traceServiceEnvelope, error) {
-		return traceServiceEnvelope{}, errors.New("connection refused")
+	traceFetchServiceStory = func(_ *APIClient, _ string, _ trace.ServiceOptions) (trace.ServiceEnvelope, error) {
+		return trace.ServiceEnvelope{}, errors.New("connection refused")
 	}
 	defer func() {
 		traceFetchServiceStory = original
@@ -267,8 +273,8 @@ func TestRunTraceServiceJSONIncludesNullTruthForTransportFailure(t *testing.T) {
 }
 
 func TestRunTraceServiceReturnsTypedExitErrorForUnsupportedCapability(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
-		Error: &traceServiceError{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
+		Error: &trace.ServiceError{
 			Code:       "unsupported_capability",
 			Message:    "service story requires authoritative platform context truth",
 			Capability: "platform_impact.context_overview",
@@ -290,8 +296,8 @@ func TestRunTraceServiceReturnsTypedExitErrorForUnsupportedCapability(t *testing
 }
 
 func TestRunTraceServiceRendersAmbiguousCandidates(t *testing.T) {
-	reset := stubTraceServiceFetch(t, traceServiceEnvelope{
-		Error: &traceServiceError{
+	reset := stubTraceServiceFetch(t, trace.ServiceEnvelope{
+		Error: &trace.ServiceError{
 			Code:    "ambiguous",
 			Message: "service selector \"checkout\" matched multiple services; add --service-id, --repo, or --env",
 			Details: map[string]any{
@@ -340,10 +346,10 @@ func newTestTraceServiceCommand() *cobra.Command {
 	return cmd
 }
 
-func stubTraceServiceFetch(t *testing.T, envelope traceServiceEnvelope) func() {
+func stubTraceServiceFetch(t *testing.T, envelope trace.ServiceEnvelope) func() {
 	t.Helper()
 	original := traceFetchServiceStory
-	traceFetchServiceStory = func(_ *APIClient, selector string, opts traceServiceOptions) (traceServiceEnvelope, error) {
+	traceFetchServiceStory = func(_ *APIClient, selector string, opts trace.ServiceOptions) (trace.ServiceEnvelope, error) {
 		if selector != "checkout" {
 			t.Fatalf("selector = %q, want checkout", selector)
 		}
@@ -399,10 +405,10 @@ func sampleTraceServiceStoryData() map[string]any {
 
 func sampleCompleteTraceServiceStoryData() map[string]any {
 	data := sampleTraceServiceStoryData()
-	trace := data["code_to_runtime_trace"].(map[string]any)
-	trace["status"] = "complete"
-	trace["missing_segments"] = []any{}
-	for _, item := range trace["segments"].([]any) {
+	codeTrace := data["code_to_runtime_trace"].(map[string]any)
+	codeTrace["status"] = "complete"
+	codeTrace["missing_segments"] = []any{}
+	for _, item := range codeTrace["segments"].([]any) {
 		segment := item.(map[string]any)
 		if segment["name"] == "cloud_dependencies" {
 			segment["status"] = "derived"
