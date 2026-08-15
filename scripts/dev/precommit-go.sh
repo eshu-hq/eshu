@@ -206,22 +206,41 @@ filecap_count_lines() {
 # old check matched the bare string anywhere in the file, so a file explaining
 # the marker was exempt locally and still capped in CI.
 filecap_nolint_directive() {
-	local file="$1" pkg_line
-	pkg_line="$(rg -n '^package[[:space:]]' "${file}" 2>/dev/null | head -1 | cut -d: -f1)"
-	[[ -n "${pkg_line}" ]] || return 1
-	head -n "${pkg_line}" "${file}" | awk '
+	local file="$1"
+	# One comment-aware pass, because both halves of this question need the same
+	# state machine: where the package clause really is, and which //nolint is a
+	# real directive rather than text.
+	#
+	# A plain `rg '^package'` matches a decoy inside a /* */ block and stops the
+	# search short of the real clause, so a file carrying a valid directive gets
+	# capped locally while CI exempts it. And a `//nolint` written INSIDE a block
+	# comment is not a directive to the compiler or to golangci-lint, so it must
+	# not exempt anything here either. Both are local-vs-CI disagreements, which
+	# is the failure this gate exists to remove.
+	#
+	# The verdict is decided in END, not by `exit 0` in the main block: awk still
+	# runs END after an exit, so an `END { exit 1 }` silently overrides it.
+	awk '
 		{
-			i = index($0, "//")
-			if (i == 0) next
-			rest = substr($0, i + 2)
-			sub(/^[ \t]+/, "", rest)
-			if (rest !~ /^nolint:/) next
-			split(rest, parts, /[ \t]/)
-			linters = substr(parts[1], 8)
-			if (linters ~ /(^|,)filelength(,|$)/) found = 1
+			line = $0; code = ""; cmt = ""; i = 1
+			while (i <= length(line)) {
+				two = substr(line, i, 2)
+				if (inblk) { if (two == "*/") { inblk = 0; i += 2 } else i++ }
+				else if (two == "/*") { inblk = 1; i += 2 }
+				else if (two == "//") { cmt = substr(line, i + 2); break }
+				else { code = code substr(line, i, 1); i++ }
+			}
+			sub(/^[ \t]+/, "", cmt)
+			if (cmt ~ /^nolint:/) {
+				split(cmt, parts, /[ \t]/)
+				linters = substr(parts[1], 8)
+				if (linters ~ /(^|,)filelength(,|$)/) { found = 1 }
+			}
+			sub(/^[ \t]+/, "", code)
+			if (code ~ /^package[ \t]/) { pkgseen = 1; exit }
 		}
-		END { exit(found ? 0 : 1) }
-	'
+		END { if (pkgseen && found) { exit 0 } exit 1 }
+	' "${file}" 2>/dev/null
 }
 
 filecap_check_file() {

@@ -192,3 +192,38 @@ test_nolint_must_be_a_directive_not_a_mention() {
 	run_gate "${repo_dir}" filecap "go/internal/big/prose.go"
 	assert_rc 1 "prose mentioning nolint:filelength mid-comment is not a directive and stays capped"
 }
+
+# ---------------------------------------------------------------------------
+# The package clause must be found the way the compiler sees it.
+#
+# The plugin reports against the AST position, so the directive window ends at
+# the REAL package clause. Locating it with a plain `^package` regex matches a
+# decoy inside a /* */ block and stops the window short, capping a file that
+# carries a valid directive -- a local rejection CI does not make. And a
+# //nolint written inside a block comment is text, not a directive, so it must
+# not exempt anything.
+# ---------------------------------------------------------------------------
+test_package_clause_is_found_past_commented_decoys() {
+	local repo_dir i
+	new_repo
+	repo_dir="${REPO_DIR}"
+	mkdir -p "${repo_dir}/go/internal/big"
+
+	{
+		printf '// SPDX-License-Identifier: MIT\n/*\npackage decoy\n*/\n'
+		printf 'package fixture //nolint:filelength // deliberate\n'
+		i=6
+		while ((i <= 501)); do printf '// filler line %d\n' "${i}"; i=$((i + 1)); done
+	} >"${repo_dir}/go/internal/big/decoy.go"
+	run_gate "${repo_dir}" filecap "go/internal/big/decoy.go"
+	assert_rc 0 "a package decoy inside a block comment does not hide the real directive"
+
+	{
+		printf '// SPDX-License-Identifier: MIT\n/*\npackage decoy //nolint:filelength\n*/\n'
+		printf 'package fixture\n'
+		i=6
+		while ((i <= 501)); do printf '// filler line %d\n' "${i}"; i=$((i + 1)); done
+	} >"${repo_dir}/go/internal/big/inside.go"
+	run_gate "${repo_dir}" filecap "go/internal/big/inside.go"
+	assert_rc 1 "a nolint written inside a block comment is text, not a directive"
+}
