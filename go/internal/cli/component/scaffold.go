@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package component
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,15 +13,16 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/spf13/cobra"
-
-	"github.com/eshu-hq/eshu/go/internal/component"
+	componentcore "github.com/eshu-hq/eshu/go/internal/component"
 )
 
 const componentInitDigestPlaceholder = "0000000000000000000000000000000000000000000000000000000000000000"
 
 var componentInitIdentifierPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*[a-z0-9]$|^[a-z0-9]$`)
 
+// componentInitCollectorSpec carries every value the scaffold templates
+// render. All fields derive deterministically from the four operator inputs,
+// so the same flags always produce the same package.
 type componentInitCollectorSpec struct {
 	ComponentID      string
 	Publisher        string
@@ -39,56 +41,59 @@ type componentInitCollectorSpec struct {
 	ExampleConfigEnv string
 }
 
-func runComponentInitCollector(cmd *cobra.Command, _ []string) error {
-	spec, err := componentInitCollectorSpecFromFlags(cmd)
+// RunInitCollector validates the operator's identifiers, derives the
+// scaffold spec, writes a new collector component package under the output
+// directory, and reports where it landed. An empty output falls back to
+// ./<component-id>; the directory must not already exist.
+func RunInitCollector(w io.Writer, jsonOutput bool, id, publisher, factKind, output string) error {
+	spec, err := newCollectorSpec(id, publisher, factKind, output)
 	if err != nil {
-		return renderComponentError(cmd, "init", err)
+		return renderError(w, jsonOutput, "init", err)
 	}
 	if err := writeComponentInitCollectorScaffold(spec); err != nil {
-		return renderComponentError(cmd, "init", err)
+		return renderError(w, jsonOutput, "init", err)
 	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("init", "scaffolded")
-		componentPayload := componentCLIComponent{
+	if jsonOutput {
+		payload := newCLIOutput("init", "scaffolded")
+		componentPayload := CLIComponent{
 			ID:        spec.ComponentID,
 			Name:      spec.Name,
 			Publisher: spec.Publisher,
 			Version:   "0.1.0",
 		}
 		payload.Component = &componentPayload
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
+		return writeJSON(w, payload)
 	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "scaffolded collector component %s at %s\n", spec.ComponentID, spec.OutputDir)
-	return err
+	return writef(w, "scaffolded collector component %s at %s\n", spec.ComponentID, spec.OutputDir)
 }
 
-func componentInitCollectorSpecFromFlags(cmd *cobra.Command) (componentInitCollectorSpec, error) {
-	id, _ := cmd.Flags().GetString(componentInitIDFlag)
-	publisher, _ := cmd.Flags().GetString(componentInitPublisherFlag)
-	factKind, _ := cmd.Flags().GetString(componentInitFactKindFlag)
-	output, _ := cmd.Flags().GetString(componentInitOutputFlag)
+// newCollectorSpec validates the four operator inputs and derives every
+// template value. The output directory resolves to an absolute path relative
+// to the process working directory, which is the one piece of process state
+// this package reads: the scaffold is written where the operator stands.
+func newCollectorSpec(id, publisher, factKind, output string) (componentInitCollectorSpec, error) {
 	id = strings.TrimSpace(id)
 	publisher = strings.TrimSpace(publisher)
 	factKind = strings.TrimSpace(factKind)
 	output = strings.TrimSpace(output)
-	if err := validateComponentInitIdentifier("component id", componentInitIDFlag, id); err != nil {
+	if err := validateComponentInitIdentifier("component id", "id", id); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
-	if err := validateComponentInitIdentifier("publisher", componentInitPublisherFlag, publisher); err != nil {
+	if err := validateComponentInitIdentifier("publisher", "publisher", publisher); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
-	if err := validateComponentInitIdentifier("fact kind", componentInitFactKindFlag, factKind); err != nil {
+	if err := validateComponentInitIdentifier("fact kind", "fact-kind", factKind); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
 	if !strings.Contains(factKind, ".") {
-		return componentInitCollectorSpec{}, component.Errorf(component.ErrorCodeInvalidInput, "fact kind %q must be namespaced", factKind)
+		return componentInitCollectorSpec{}, componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "fact kind %q must be namespaced", factKind)
 	}
 	if output == "" {
 		output = id
 	}
 	absoluteOutput, err := filepath.Abs(output)
 	if err != nil {
-		return componentInitCollectorSpec{}, component.WrapError(component.ErrorCodeInvalidInput, "resolve output directory", err)
+		return componentInitCollectorSpec{}, componentcore.WrapError(componentcore.ErrorCodeInvalidInput, "resolve output directory", err) //nolint:wrapcheck // WrapError carries the component error class the CLI payload needs; %w would lose it
 	}
 	collectorKind := componentInitLastDottedSegment(id)
 	factName := componentInitLastDottedSegment(factKind)
@@ -114,30 +119,31 @@ func componentInitCollectorSpecFromFlags(cmd *cobra.Command) (componentInitColle
 
 func validateComponentInitIdentifier(field string, flag string, value string) error {
 	if strings.TrimSpace(value) == "" {
-		return component.Errorf(component.ErrorCodeInvalidInput, "--%s is required", flag)
+		return componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", flag)
 	}
 	if !componentInitIdentifierPattern.MatchString(value) {
-		return component.Errorf(component.ErrorCodeInvalidInput, "%s %q must use lowercase letters, numbers, dots, underscores, or hyphens", field, value)
+		return componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "%s %q must use lowercase letters, numbers, dots, underscores, or hyphens", field, value)
 	}
 	return nil
 }
 
+//nolint:wrapcheck // every branch returns a componentcore error carrying the class the CLI payload needs; %w would lose it
 func writeComponentInitCollectorScaffold(spec componentInitCollectorSpec) error {
 	if _, err := os.Stat(spec.OutputDir); err == nil {
-		return component.Errorf(component.ErrorCodeInvalidInput, "output directory %s already exists", spec.OutputDir)
+		return componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "output directory %s already exists", spec.OutputDir)
 	} else if !os.IsNotExist(err) {
-		return component.WrapError(component.ErrorCodeInvalidInput, "inspect output directory", err)
+		return componentcore.WrapError(componentcore.ErrorCodeInvalidInput, "inspect output directory", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(spec.OutputDir), 0o750); err != nil {
-		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create output parent", err)
+		return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "create output parent", err)
 	}
 	if err := os.Mkdir(spec.OutputDir, 0o750); err != nil {
-		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create output directory", err)
+		return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "create output directory", err)
 	}
 	for _, file := range componentInitCollectorFiles {
 		path := filepath.Join(spec.OutputDir, file.Path)
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			return component.WrapError(component.ErrorCodeRegistryWriteFailed, "create scaffold directory", err)
+			return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "create scaffold directory", err)
 		}
 		if err := writeComponentInitTemplate(path, file.Mode, file.Body, spec); err != nil {
 			return err
@@ -146,17 +152,18 @@ func writeComponentInitCollectorScaffold(spec componentInitCollectorSpec) error 
 	return nil
 }
 
+//nolint:wrapcheck // every branch returns a componentcore error carrying the class the CLI payload needs; %w would lose it
 func writeComponentInitTemplate(path string, mode os.FileMode, body string, spec componentInitCollectorSpec) error {
 	parsed, err := template.New(filepath.Base(path)).Parse(body)
 	if err != nil {
-		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "parse scaffold template", err)
+		return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "parse scaffold template", err)
 	}
 	var rendered strings.Builder
 	if err := parsed.Execute(&rendered, spec); err != nil {
-		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "render scaffold template", err)
+		return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "render scaffold template", err)
 	}
 	if err := os.WriteFile(path, []byte(rendered.String()), mode); err != nil {
-		return component.WrapError(component.ErrorCodeRegistryWriteFailed, "write scaffold file", err)
+		return componentcore.WrapError(componentcore.ErrorCodeRegistryWriteFailed, "write scaffold file", err)
 	}
 	return nil
 }

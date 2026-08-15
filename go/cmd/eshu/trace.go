@@ -419,7 +419,7 @@ func writeTraceJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// traceMap/traceSlice/traceString/traceInt have copies in internal/cli/change, internal/cli/freshness, and internal/cli/entitymap -- edit all four; TestEnvelopeReaderParity pins the first two sets and TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap set.
+// traceMap/traceSlice/traceString/traceInt/traceStrings have copies in internal/cli/{change,freshness,component}, and entitymap keeps a differently named set -- edit every set; per-role TestEnvelopeReaderParity pins the named three and TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins entitymap.
 func traceMap(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil

@@ -5,40 +5,29 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 )
+
+// This file is the cobra wiring for `eshu component inventory` and
+// `eshu component diagnostics`. The fetch and render logic lives in
+// go/internal/cli/component; this side resolves flags, builds the API
+// client, classifies transport failures, and maps envelope error codes onto
+// the process exit code -- the pieces that must stay in package main.
 
 type componentAPIOptions struct {
 	JSON  bool
 	Limit int
 }
 
-type componentAPIEnvelope struct {
-	Data  map[string]any     `json:"data"`
-	Truth map[string]any     `json:"truth"`
-	Error *componentAPIError `json:"error"`
-}
-
-type componentAPIError struct {
-	Code       string         `json:"code,omitempty"`
-	Message    string         `json:"message,omitempty"`
-	Capability string         `json:"capability,omitempty"`
-	Details    map[string]any `json:"details,omitempty"`
-}
-
+// The fetch indirection points at the extracted package; it keeps the
+// call sites in the run functions swappable in one place.
 var (
-	componentFetchInventory   = fetchComponentInventory
-	componentFetchDiagnostics = fetchComponentDiagnostics
-)
-
-const (
-	componentInventoryDefaultLimit = 100
-	componentInventoryMaxLimit     = 500
+	componentFetchInventory   = clicomponent.FetchInventory
+	componentFetchDiagnostics = clicomponent.FetchDiagnostics
 )
 
 func init() {
@@ -55,7 +44,7 @@ func init() {
 		RunE:  runComponentDiagnostics,
 	}
 	addComponentAPIFlags(inventoryCmd)
-	inventoryCmd.Flags().Int("limit", componentInventoryDefaultLimit, "Maximum number of component rows to return")
+	inventoryCmd.Flags().Int("limit", clicomponent.InventoryDefaultLimit, "Maximum number of component rows to return")
 	addComponentAPIFlags(diagnosticsCmd)
 	componentCmd.AddCommand(inventoryCmd, diagnosticsCmd)
 }
@@ -72,7 +61,7 @@ func runComponentInventory(cmd *cobra.Command, _ []string) error {
 	}
 	envelope, err := componentFetchInventory(apiClientFromCmd(cmd), opts.Limit)
 	if err != nil {
-		envelope = componentAPIEnvelope{Error: &componentAPIError{
+		envelope = clicomponent.Envelope{Error: &clicomponent.EnvelopeError{
 			Code:    traceErrorCodeFromTransport(err),
 			Message: err.Error(),
 		}}
@@ -95,7 +84,7 @@ func runComponentDiagnostics(cmd *cobra.Command, args []string) error {
 	}
 	envelope, err := componentFetchDiagnostics(apiClientFromCmd(cmd), componentID)
 	if err != nil {
-		envelope = componentAPIEnvelope{Error: &componentAPIError{
+		envelope = clicomponent.Envelope{Error: &clicomponent.EnvelopeError{
 			Code:    traceErrorCodeFromTransport(err),
 			Message: err.Error(),
 		}}
@@ -118,9 +107,9 @@ func componentAPIOptionsFromCommand(cmd *cobra.Command) (componentAPIOptions, er
 		if err != nil {
 			return componentAPIOptions{}, err
 		}
-		if limit < 1 || limit > componentInventoryMaxLimit {
+		if limit < 1 || limit > clicomponent.InventoryMaxLimit {
 			return componentAPIOptions{}, commandExitError{
-				message: fmt.Sprintf("limit must be between 1 and %d", componentInventoryMaxLimit),
+				message: fmt.Sprintf("limit must be between 1 and %d", clicomponent.InventoryMaxLimit),
 				code:    2,
 			}
 		}
@@ -129,117 +118,17 @@ func componentAPIOptionsFromCommand(cmd *cobra.Command) (componentAPIOptions, er
 	return opts, nil
 }
 
-func fetchComponentInventory(client *APIClient, limit int) (componentAPIEnvelope, error) {
-	if limit == 0 {
-		limit = componentInventoryDefaultLimit
-	}
-	params := url.Values{}
-	params.Set("limit", strconv.Itoa(limit))
-	var envelope componentAPIEnvelope
-	if err := client.GetEnvelope("/api/v0/component-extensions?"+params.Encode(), &envelope); err != nil {
-		return componentAPIEnvelope{}, err
-	}
-	return envelope, nil
+// finishComponentAPI resolves the command's stream and hands terminal output
+// to the extracted package.
+func finishComponentAPI(cmd *cobra.Command, opts componentAPIOptions, envelope clicomponent.Envelope, err error) error {
+	return clicomponent.FinishAPI(cmd.OutOrStdout(), opts.JSON, envelope, err)
 }
 
-func fetchComponentDiagnostics(client *APIClient, componentID string) (componentAPIEnvelope, error) {
-	path := "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics"
-	var envelope componentAPIEnvelope
-	if err := client.GetEnvelope(path, &envelope); err != nil {
-		return componentAPIEnvelope{}, err
-	}
-	return envelope, nil
-}
-
-func finishComponentAPI(
-	cmd *cobra.Command,
-	opts componentAPIOptions,
-	envelope componentAPIEnvelope,
-	err error,
-) error {
-	if opts.JSON {
-		if writeErr := writeTraceJSON(cmd.OutOrStdout(), envelope); writeErr != nil {
-			return writeErr
-		}
-		return err
-	}
-	if err != nil {
-		if renderErr := renderComponentAPIError(cmd.OutOrStdout(), envelope); renderErr != nil {
-			return renderErr
-		}
-		return err
-	}
-	return renderComponentAPISummary(cmd.OutOrStdout(), envelope)
-}
-
-func renderComponentAPIError(w io.Writer, envelope componentAPIEnvelope) error {
-	if envelope.Error == nil {
-		return nil
-	}
-	_, err := fmt.Fprintf(w, "Component extension error (%s): %s\n", envelope.Error.Code, envelope.Error.Message)
-	return err
-}
-
-func renderComponentAPISummary(w io.Writer, envelope componentAPIEnvelope) error {
-	if component := traceMap(envelope.Data, "component"); component != nil {
-		return renderComponentAPIRow(w, component)
-	}
-	if freshness := traceString(traceMap(envelope.Truth, "freshness"), "state"); freshness != "" {
-		if _, err := fmt.Fprintf(w, "Truth freshness: %s\n", freshness); err != nil {
-			return err
-		}
-	}
-	count := traceInt(envelope.Data, "count")
-	totalCount := traceInt(envelope.Data, "total_count")
-	limit := traceInt(envelope.Data, "limit")
-	truncated := traceBool(envelope.Data, "truncated")
-	if totalCount > 0 || limit > 0 || truncated {
-		if _, err := fmt.Fprintf(
-			w,
-			"Component extensions: %d of %d (limit=%d, truncated=%t)\n",
-			count,
-			totalCount,
-			limit,
-			truncated,
-		); err != nil {
-			return err
-		}
-	} else if _, err := fmt.Fprintf(w, "Component extensions: %d\n", count); err != nil {
-		return err
-	}
-	for _, raw := range traceSlice(envelope.Data, "components") {
-		row, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if err := renderComponentAPIRow(w, row); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func renderComponentAPIRow(w io.Writer, row map[string]any) error {
-	states := traceStrings(row["states"])
-	if _, err := fmt.Fprintf(
-		w,
-		"%s@%s states=%s\n",
-		traceString(row, "id"),
-		traceString(row, "version"),
-		strings.Join(states, ","),
-	); err != nil {
-		return err
-	}
-	if diagnostics := traceMap(row, "diagnostics"); diagnostics != nil {
-		if reason := traceString(diagnostics, "policy_reason"); reason != "" {
-			_, err := fmt.Fprintf(w, "  policy=%s reason=%s\n", traceString(diagnostics, "policy_code"), reason)
-			return err
-		}
-	}
-	return nil
-}
-
-func componentAPIEnvelopeError(e *componentAPIError) error {
+// componentAPIEnvelopeError maps an envelope error onto the CLI's exit-code
+// contract. The mapping table is traceExitCode, shared with `eshu trace` and
+// `eshu map`; commandExitError is defined in this package, so the conversion
+// stays here rather than moving out with the component logic.
+func componentAPIEnvelopeError(e *clicomponent.EnvelopeError) error {
 	if e == nil {
 		return nil
 	}

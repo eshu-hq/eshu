@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package component
 
 import (
 	"encoding/json"
@@ -9,40 +9,16 @@ import (
 	"io"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/eshu-hq/eshu/go/internal/extraction"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-const componentExtractionReadinessVerboseFlag = "verbose"
-
-func init() {
-	cmd := &cobra.Command{
-		Use:   "extraction-readiness [collector-family]",
-		Short: "Explain whether a collector is keep-in-tree, an extraction candidate, blocked, or external-ready",
-		Long: "Report the advisory collector extraction readiness checklist. The output is " +
-			"informational: it never moves code or changes runtime behavior. With no argument it " +
-			"lists every collector family the extraction policy tracks; with a family argument it " +
-			"explains that single family's per-criterion checklist.",
-		Args: cobra.MaximumNArgs(1),
-		RunE: runComponentExtractionReadiness,
-	}
-	cmd.Flags().Bool(componentJSONFlag, false, "Emit machine-readable JSON")
-	cmd.Flags().Bool(componentExtractionReadinessVerboseFlag, false, "Show every criterion, not just blockers")
-	componentCmd.AddCommand(cmd)
-}
-
-func runComponentExtractionReadiness(cmd *cobra.Command, args []string) error {
-	asJSON, err := cmd.Flags().GetBool(componentJSONFlag)
-	if err != nil {
-		return err
-	}
-	verbose, err := cmd.Flags().GetBool(componentExtractionReadinessVerboseFlag)
-	if err != nil {
-		return err
-	}
-
+// RunExtractionReadiness reports the advisory collector extraction readiness
+// checklist. With no argument it lists every collector family the extraction
+// policy tracks; with a family argument it explains that single family's
+// per-criterion checklist. The output is informational: it never moves code
+// or changes runtime behavior.
+func RunExtractionReadiness(w io.Writer, jsonOutput bool, verbose bool, args []string) error {
 	var rows []extraction.Readiness
 	if len(args) == 1 {
 		family := scope.CollectorKind(strings.TrimSpace(args[0]))
@@ -55,21 +31,24 @@ func runComponentExtractionReadiness(cmd *cobra.Command, args []string) error {
 		rows = extraction.Catalog()
 	}
 
-	out := cmd.OutOrStdout()
-	if asJSON {
-		return writeExtractionReadinessJSON(out, rows)
+	if jsonOutput {
+		return writeExtractionReadinessJSON(w, rows)
 	}
-	return renderExtractionReadiness(out, rows, verbose)
+	return renderExtractionReadiness(w, rows, verbose)
 }
 
+// writeExtractionReadinessJSON keeps its own encoder rather than using this
+// package's writeJSON: the readiness surface has always HTML-escaped its
+// output (the encoder default), and switching writers would change those
+// bytes.
 func writeExtractionReadinessJSON(w io.Writer, rows []extraction.Readiness) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(map[string]any{"collector_extraction_readiness": rows})
+	return encoder.Encode(map[string]any{"collector_extraction_readiness": rows}) //nolint:wrapcheck // the encode error is the operator-facing text of a failed write; a wrap would change it
 }
 
 func renderExtractionReadiness(w io.Writer, rows []extraction.Readiness, verbose bool) error {
-	if _, err := fmt.Fprintln(w, "Collector extraction readiness (advisory; does not move code)"); err != nil {
+	if err := writef(w, "Collector extraction readiness (advisory; does not move code)\n"); err != nil {
 		return err
 	}
 	for _, row := range rows {
@@ -77,16 +56,16 @@ func renderExtractionReadiness(w io.Writer, rows []extraction.Readiness, verbose
 		if name == "" {
 			name = string(row.Family)
 		}
-		if _, err := fmt.Fprintf(w, "\n%s [%s] %s\n", row.Family, row.Classification, name); err != nil {
+		if err := writef(w, "\n%s [%s] %s\n", row.Family, row.Classification, name); err != nil {
 			return err
 		}
 		if row.Rationale != "" {
-			if _, err := fmt.Fprintf(w, "  %s\n", row.Rationale); err != nil {
+			if err := writef(w, "  %s\n", row.Rationale); err != nil {
 				return err
 			}
 		}
 		if len(row.Blockers) > 0 {
-			if _, err := fmt.Fprintf(w, "  blockers: %s\n", strings.Join(criterionNames(row.Blockers), ", ")); err != nil {
+			if err := writef(w, "  blockers: %s\n", strings.Join(criterionNames(row.Blockers), ", ")); err != nil {
 				return err
 			}
 		}
@@ -105,7 +84,7 @@ func renderExtractionCriteria(w io.Writer, criteria []extraction.CriterionResult
 		if criterion.Detail != "" {
 			line += " (" + criterion.Detail + ")"
 		}
-		if _, err := fmt.Fprintln(w, line); err != nil {
+		if err := writef(w, "%s\n", line); err != nil {
 			return err
 		}
 	}

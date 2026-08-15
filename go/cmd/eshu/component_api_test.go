@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 )
 
 func TestComponentInventoryCommandReadsCanonicalAPIEnvelope(t *testing.T) {
@@ -134,32 +136,10 @@ func TestComponentDiagnosticsCommandReadsComponentDrilldown(t *testing.T) {
 	}
 }
 
-func TestRenderComponentAPISummaryShowsTruncationMetadata(t *testing.T) {
-	t.Parallel()
-
-	out := &bytes.Buffer{}
-	envelope := componentAPIEnvelope{
-		Data: map[string]any{
-			"components":  []any{},
-			"count":       float64(1),
-			"total_count": float64(2),
-			"limit":       float64(1),
-			"truncated":   true,
-		},
-	}
-
-	if err := renderComponentAPISummary(out, envelope); err != nil {
-		t.Fatalf("renderComponentAPISummary() error = %v, want nil", err)
-	}
-	if got, want := out.String(), "Component extensions: 1 of 2 (limit=1, truncated=true)\n"; got != want {
-		t.Fatalf("summary = %q, want %q", got, want)
-	}
-}
-
 func newComponentAPICommandForTest(out *bytes.Buffer) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 	addComponentAPIFlags(cmd)
-	cmd.Flags().Int("limit", componentInventoryDefaultLimit, "Maximum number of component rows to return")
+	cmd.Flags().Int("limit", clicomponent.InventoryDefaultLimit, "Maximum number of component rows to return")
 	return cmd
 }

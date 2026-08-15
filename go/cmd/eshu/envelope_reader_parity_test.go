@@ -14,140 +14,137 @@ import (
 	"testing"
 )
 
-// TestEnvelopeReaderParity holds all three copies of the five envelope value
-// readers to the same source: cmd/eshu's traceMap / traceSlice / traceString /
-// traceInt / traceBool, change's mapValue / sliceValue / stringValue /
-// intValue / boolValue, and freshness's set of the same five names.
+// TestEnvelopeReaderParity holds every copy of the envelope value readers to
+// the same source. cmd/eshu declares traceMap / traceSlice / traceString /
+// traceInt / traceStrings; change, freshness, and component carry mapValue /
+// sliceValue / stringValue / intValue / boolValue sets (component adds
+// stringsValue). Not every reader lives everywhere: the bool reader's
+// cmd/eshu original left with its last caller when the component family was
+// extracted (#6059), and only families that render a string list carry the
+// strings reader -- forcing a role into a package that never calls it would
+// grow dead code the unused linter rejects. The copies table below is
+// therefore per role, and each role asserts its own copy count.
 //
-// The three sets are copies with identical bodies, for the same reason the
+// The sets are copies with identical bodies, for the same reason the
 // transport classifier next door has copies: cmd/eshu is package main, so
-// nothing can import the originals, and each family needs its own set. The
-// entitymap family keeps a fourth, differently named set without the bool
+// nothing can import its declarations, and each family needs its own set.
+// The entitymap family keeps another, differently named set without the bool
 // reader; TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins that
-// one against the originals, so it stays out of this table. Unlike
-// the classifier, the copies here are unexported in every package, so a
-// behavioral table cannot reach them from one test -- exporting five helpers
-// in two packages to make that possible would widen two package APIs for a
-// test's convenience. Comparing the declarations at the source level pins the
-// same property without that cost, and pins every branch rather than only the
+// one against the originals, so it stays out of this table. Unlike the
+// classifier, the copies here are unexported in every package, so a
+// behavioral table cannot reach them from one test -- exporting the
+// helpers to make that possible would widen the package APIs for a test's
+// convenience. Comparing the declarations at the source level pins the same
+// property without that cost, and pins every branch rather than only the
 // branches a table happens to visit.
 //
-// This is the gap the comments alone left open. Three separate comments told
-// the next editor to change every copy, and two of the three named only one
-// other copy because the third arrived on a branch that predated it. A comment
-// cannot go red. TestTransportErrorCodeParity pins the classifier the same way
-// and #6117 is the edit that would have slipped past without it.
+// This is the gap the comments alone left open. Separate comments told the
+// next editor to change every copy, and some named only one other copy
+// because the rest arrived on branches that predated them. A comment cannot
+// go red. TestTransportErrorCodeParity pins the classifier the same way and
+// #6117 is the edit that would have slipped past without it.
 //
 // A failure here means one copy's declaration no longer matches the others.
 // That is either an edit that reached one copy and missed the rest -- fix the
 // copies it missed -- or an intended divergence, in which case the comments
-// above all three sets stop being true and need rewriting along with this
-// test.
+// above every set stop being true and need rewriting along with this test.
 func TestEnvelopeReaderParity(t *testing.T) {
 	t.Parallel()
 
-	// Every copy of the reader set belongs here. A copy left out is a copy
-	// nothing pins, which is the hole this test exists to close, so the count
-	// is asserted below. Directories are relative to this package.
-	copies := []struct {
+	cmdDir := "."
+	changeDir := filepath.Join("..", "..", "internal", "cli", "change")
+	freshnessDir := filepath.Join("..", "..", "internal", "cli", "freshness")
+	componentDir := filepath.Join("..", "..", "internal", "cli", "component")
+
+	type copyRef struct {
 		name  string
 		dir   string
-		names map[string]string
+		local string
+	}
+
+	// Every copy of every reader belongs here. A copy left out is a copy
+	// nothing pins, which is the hole this test exists to close, so both the
+	// role count and each role's copy count are asserted below.
+	roles := []struct {
+		role       string
+		wantCopies int
+		copies     []copyRef
 	}{
-		{
-			name: "cmd/eshu",
-			dir:  ".",
-			names: map[string]string{
-				"map":    "traceMap",
-				"slice":  "traceSlice",
-				"string": "traceString",
-				"int":    "traceInt",
-				"bool":   "traceBool",
-			},
-		},
-		{
-			name: "internal/cli/change",
-			dir:  filepath.Join("..", "..", "internal", "cli", "change"),
-			names: map[string]string{
-				"map":    "mapValue",
-				"slice":  "sliceValue",
-				"string": "stringValue",
-				"int":    "intValue",
-				"bool":   "boolValue",
-			},
-		},
-		{
-			name: "internal/cli/freshness",
-			dir:  filepath.Join("..", "..", "internal", "cli", "freshness"),
-			names: map[string]string{
-				"map":    "mapValue",
-				"slice":  "sliceValue",
-				"string": "stringValue",
-				"int":    "intValue",
-				"bool":   "boolValue",
-			},
-		},
+		{role: "map", wantCopies: 4, copies: []copyRef{
+			{name: "cmd/eshu", dir: cmdDir, local: "traceMap"},
+			{name: "internal/cli/change", dir: changeDir, local: "mapValue"},
+			{name: "internal/cli/freshness", dir: freshnessDir, local: "mapValue"},
+			{name: "internal/cli/component", dir: componentDir, local: "mapValue"},
+		}},
+		{role: "slice", wantCopies: 4, copies: []copyRef{
+			{name: "cmd/eshu", dir: cmdDir, local: "traceSlice"},
+			{name: "internal/cli/change", dir: changeDir, local: "sliceValue"},
+			{name: "internal/cli/freshness", dir: freshnessDir, local: "sliceValue"},
+			{name: "internal/cli/component", dir: componentDir, local: "sliceValue"},
+		}},
+		{role: "string", wantCopies: 4, copies: []copyRef{
+			{name: "cmd/eshu", dir: cmdDir, local: "traceString"},
+			{name: "internal/cli/change", dir: changeDir, local: "stringValue"},
+			{name: "internal/cli/freshness", dir: freshnessDir, local: "stringValue"},
+			{name: "internal/cli/component", dir: componentDir, local: "stringValue"},
+		}},
+		{role: "int", wantCopies: 4, copies: []copyRef{
+			{name: "cmd/eshu", dir: cmdDir, local: "traceInt"},
+			{name: "internal/cli/change", dir: changeDir, local: "intValue"},
+			{name: "internal/cli/freshness", dir: freshnessDir, local: "intValue"},
+			{name: "internal/cli/component", dir: componentDir, local: "intValue"},
+		}},
+		{role: "bool", wantCopies: 3, copies: []copyRef{
+			{name: "internal/cli/change", dir: changeDir, local: "boolValue"},
+			{name: "internal/cli/freshness", dir: freshnessDir, local: "boolValue"},
+			{name: "internal/cli/component", dir: componentDir, local: "boolValue"},
+		}},
+		{role: "strings", wantCopies: 2, copies: []copyRef{
+			{name: "cmd/eshu", dir: cmdDir, local: "traceStrings"},
+			{name: "internal/cli/component", dir: componentDir, local: "stringsValue"},
+		}},
 	}
 
-	// Reader roles, in the order the comments list them. Naming the roles
-	// rather than iterating a map keeps the failure output stable and makes a
-	// role dropped from a copy a failure instead of a shorter loop.
-	roles := []string{"map", "slice", "string", "int", "bool"}
-
-	if len(copies) != 3 {
-		t.Fatalf("parity covers %d copies, want 3; a copy dropped from this slice is a copy nothing pins, so move this number only alongside the copy you added or deleted", len(copies))
-	}
-	if len(roles) != 5 {
-		t.Fatalf("parity covers %d readers, want 5; move this number only alongside the reader you added or deleted, and say which one", len(roles))
+	if len(roles) != 6 {
+		t.Fatalf("parity covers %d readers, want 6; move this number only alongside the reader you added or deleted, and say which one", len(roles))
 	}
 
-	// role -> copy name -> normalized declaration.
-	decls := make(map[string]map[string]string, len(roles))
-	for _, role := range roles {
-		decls[role] = make(map[string]string, len(copies))
-	}
-
-	for _, c := range copies {
-		wanted := make(map[string]bool, len(c.names))
-		for _, local := range c.names {
-			wanted[local] = true
-		}
-		found := readerDeclarations(t, c.dir, wanted)
-		for _, role := range roles {
-			local, ok := c.names[role]
-			if !ok {
-				t.Fatalf("%s: no name mapped for the %q reader; every copy must map every role", c.name, role)
-			}
-			decl, ok := found[local]
-			if !ok {
-				// A rename or a move out of the package lands here rather than
-				// quietly reducing the set this test compares.
-				t.Fatalf("%s: no declaration of %s in %s; if it was renamed or moved, update this test and the comments above all three copies", c.name, local, c.dir)
-			}
-			decls[role][c.name] = decl
-		}
-	}
-
-	for _, role := range roles {
-		t.Run(role, func(t *testing.T) {
+	for _, r := range roles {
+		t.Run(r.role, func(t *testing.T) {
 			t.Parallel()
 
-			want := decls[role][copies[0].name]
-			disagreed := make([]string, 0, len(copies))
-			for _, c := range copies[1:] {
-				if decls[role][c.name] != want {
+			if len(r.copies) != r.wantCopies {
+				t.Fatalf("the %q reader lists %d copies, want %d; a copy dropped from this slice is a copy nothing pins, so move the count only alongside the copy you added or deleted", r.role, len(r.copies), r.wantCopies)
+			}
+
+			decls := make(map[string]string, len(r.copies))
+			for _, c := range r.copies {
+				found := readerDeclarations(t, c.dir, map[string]bool{c.local: true})
+				decl, ok := found[c.local]
+				if !ok {
+					// A rename or a move out of the package lands here rather
+					// than quietly reducing the set this test compares.
+					t.Fatalf("%s: no declaration of %s in %s; if it was renamed or moved, update this test and the comments above every copy", c.name, c.local, c.dir)
+				}
+				decls[c.name] = decl
+			}
+
+			want := decls[r.copies[0].name]
+			disagreed := make([]string, 0, len(r.copies))
+			for _, c := range r.copies[1:] {
+				if decls[c.name] != want {
 					disagreed = append(disagreed, c.name)
 				}
 			}
 			// Naming the copies that disagreed separates the two failures that
 			// land here. A subset means those copies are the ones an edit
-			// missed. All of them means cmd/eshu is the copy that moved and
-			// the others were left behind.
+			// missed. All of them means the first copy is the one that moved
+			// and the others were left behind.
 			if len(disagreed) > 0 {
 				t.Fatalf("the %q reader differs across copies: %s do not match %s\n--- %s ---\n%s\n--- %s ---\n%s",
-					role, strings.Join(disagreed, ", "), copies[0].name,
-					copies[0].name, want,
-					disagreed[0], decls[role][disagreed[0]])
+					r.role, strings.Join(disagreed, ", "), r.copies[0].name,
+					r.copies[0].name, want,
+					disagreed[0], decls[disagreed[0]])
 			}
 		})
 	}

@@ -33,8 +33,8 @@ NornicDB — installs, trusts, and enables a real out-of-tree component package
 it, and the component registry readback that backs both `eshu component list`
 and the `GET /api/v0/component-extensions` HTTP handler (both call the
 identical `component.Registry.Readback` function; see
-`go/internal/query/component_extensions.go:249` and
-`go/cmd/eshu/component.go:226`) reports `installed=true`, `enabled=true`, and
+`go/internal/query/component_extensions.go:249` and `RunList` in
+`go/internal/cli/component/registry.go`) reports `installed=true`, `enabled=true`, and
 `trusted=true` for it from real deployed runtime state, not a fixture or a
 mocked registry.
 

@@ -1,34 +1,29 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package freshness
+package component
 
 import "strings"
 
-// The freshness summaries read a decoded JSON envelope, so every field arrives
-// as an any behind a map key that may not exist. These five readers each take
-// the parent map and a key and return the zero value when the key is missing
-// or holds a different type, which is what lets a renderer print a partial row
-// instead of panicking on a server-side shape change.
+// The component API summaries read a decoded JSON envelope, so every field
+// arrives as an any behind a map key that may not exist. These readers each
+// take the parent map and a key and return the zero value when the key is
+// missing or holds a different type, which is what lets a renderer print a
+// partial row instead of panicking on a server-side shape change.
 //
 // They are private copies of go/cmd/eshu's traceMap / traceSlice /
 // traceString / traceInt (the bool reader's original left cmd/eshu with its
-// last caller in #6059), and they are not the only copies: sets with these
-// same five names live in go/internal/cli/change/envelope.go and
-// go/internal/cli/component/values.go, and the entitymap family keeps a
-// differently named set (without the bool reader) in
-// go/internal/cli/entitymap/values.go. The surviving originals stay in
+// last caller in #6059), and not the only ones: sets with these same names
+// live in go/internal/cli/change/envelope.go and
+// go/internal/cli/freshness/values.go. The surviving originals stay in
 // go/cmd/eshu and keep their other callers, because that is package main and
 // a copy is the only way to share anything out of it. Copying is deliberate
 // rather than a shared helper package: the reading shape is four lines and
 // the coupling would not be.
 //
-// An edit to any one set belongs in every set that has the reader you touched.
-// TestEnvelopeReaderParity in go/cmd/eshu compares the change, freshness, and
-// component sets per role and goes red when one drifts, which is the part a
-// comment on its own cannot do;
-// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap
-// set.
+// An edit to any one set belongs in every set. TestEnvelopeReaderParity in
+// go/cmd/eshu compares the declarations across the copies and goes red when
+// one drifts, which is the part a comment on its own cannot do.
 
 // mapValue returns parent[key] when it holds a JSON object, else nil.
 func mapValue(parent map[string]any, key string) map[string]any {
@@ -75,8 +70,8 @@ func stringValue(parent map[string]any, key string) string {
 	return ""
 }
 
-// intValue returns parent[key] as an int. It accepts float64 because that is
-// what encoding/json produces for every JSON number.
+// intValue returns parent[key] as an int. A decoded JSON number arrives as a
+// float64, so both int and float64 are accepted; anything else reads as 0.
 func intValue(parent map[string]any, key string) int {
 	if parent == nil {
 		return 0
@@ -91,8 +86,8 @@ func intValue(parent map[string]any, key string) int {
 	}
 }
 
-// boolValue returns parent[key] as a bool, or false when the key is missing or
-// holds another type.
+// boolValue returns parent[key] as a bool, or false when the key is missing
+// or holds another type.
 func boolValue(parent map[string]any, key string) bool {
 	if parent == nil {
 		return false
@@ -101,4 +96,26 @@ func boolValue(parent map[string]any, key string) bool {
 		return value
 	}
 	return false
+}
+
+// stringsValue coerces a decoded JSON array into its non-empty trimmed string
+// elements. It is a private copy of go/cmd/eshu's traceStrings, taken for the
+// same reason as the five readers above; the strings role of
+// TestEnvelopeReaderParity in go/cmd/eshu compares the two declarations and
+// goes red when one drifts.
+func stringsValue(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
+				values = append(values, strings.TrimSpace(value))
+			}
+		}
+		return values
+	default:
+		return nil
+	}
 }
