@@ -30,8 +30,11 @@ func removedCommandError(command, guidance string) error {
 }
 
 // traceBool returns parent[key] as a bool, or false when the key is missing or
-// holds another type. It is copied into go/internal/cli/freshness/values.go --
-// edit both.
+// holds another type. It has two copies, not one: boolValue in
+// go/internal/cli/change/envelope.go and boolValue in
+// go/internal/cli/freshness/values.go. Edit this body and both need the same
+// edit; TestEnvelopeReaderParity pins all three, along with the four sibling
+// readers in trace.go.
 //
 // It is here rather than next to its sibling readers in trace.go for two
 // reasons worth knowing before moving it again. It was declared in

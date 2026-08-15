@@ -107,7 +107,9 @@ owned by `go/cmd/eshu/change_impact.go`.
   (`component_api.go`, `contract.go`, `map.go`, `trace.go`, and
   `trace_render.go`). The copies coexist until a shared home exists; do not
   delete either side assuming the other covers it. The freshness family keeps
-  its own set for the same reason.
+  a third set for the same reason, so a change to any reader lands in three
+  places. `TestEnvelopeReaderParity` in `go/cmd/eshu` compares the five reader
+  declarations across all three sets and fails when one drifts.
   `ErrorCodeFromTransport` is the one to watch: it is the only copy with real
   logic in it, and #6117 already edited the original mid-epic. It now exists
   three times — here, in `go/cmd/eshu/trace.go`, and in

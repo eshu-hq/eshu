@@ -12,10 +12,16 @@ import "strings"
 // instead of panicking on a server-side shape change.
 //
 // They are private copies of go/cmd/eshu's traceMap / traceSlice / traceString
-// / traceInt / traceBool. The originals stay there and keep their other
-// callers: go/cmd/eshu is package main, so a copy is the only way to share
-// them, and copying is deliberate rather than a shared helper package because
-// the reading shape is four lines and the coupling would not be.
+// / traceInt / traceBool, and they are not the only copies: a third set with
+// these same five names lives in go/internal/cli/change/envelope.go. The
+// originals stay in go/cmd/eshu and keep their other callers, because that is
+// package main and a copy is the only way to share anything out of it. Copying
+// is deliberate rather than a shared helper package: the reading shape is four
+// lines and the coupling would not be.
+//
+// An edit to any one of the three sets belongs in all three.
+// TestEnvelopeReaderParity in go/cmd/eshu compares the declarations and goes
+// red when one drifts, which is the part a comment on its own cannot do.
 
 // mapValue returns parent[key] when it holds a JSON object, else nil.
 func mapValue(parent map[string]any, key string) map[string]any {

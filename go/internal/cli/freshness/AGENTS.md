@@ -40,10 +40,14 @@
   why, and do not add a second `//nolint:wrapcheck` without reading it.
 - **The value readers are private copies.** `mapValue`, `sliceValue`,
   `stringValue`, `intValue`, and `boolValue` duplicate `go/cmd/eshu`'s
-  `traceMap` / `traceSlice` / `traceString` / `traceInt` / `traceBool`. The
-  originals stay there for their other callers. Do not try to share them
-  through a new package without an owner's decision — several command families
-  borrow the originals and a shared home is a cross-family change.
+  `traceMap` / `traceSlice` / `traceString` / `traceInt` / `traceBool`, and
+  `go/internal/cli/change/envelope.go` holds a third set under these same
+  names. The originals stay in `go/cmd/eshu` for their other callers, so an
+  edit to any reader lands in three places; `TestEnvelopeReaderParity` in
+  `go/cmd/eshu` compares the declarations and fails when one drifts. Do not
+  try to share them through a new package without an owner's decision —
+  several command families borrow the originals and a shared home is a
+  cross-family change.
 
 ## Common changes and how to scope them
 

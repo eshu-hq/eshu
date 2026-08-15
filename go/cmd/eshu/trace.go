@@ -419,7 +419,7 @@ func writeTraceJSON(w io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// traceMap/traceSlice/traceString/traceInt are copied into go/internal/cli/freshness/values.go -- edit both.
+// traceMap/traceSlice/traceString/traceInt have copies in internal/cli/change and internal/cli/freshness -- edit all three; TestEnvelopeReaderParity pins them.
 func traceMap(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil
