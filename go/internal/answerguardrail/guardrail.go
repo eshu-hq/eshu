@@ -59,6 +59,12 @@ type Verdict struct {
 	Findings []Finding
 }
 
+// ipv6HextetGroups is one or more colon-separated hextets, the run that sits on
+// either side of a "::". It is a regex fragment and the only copy of that shape:
+// compressedIPv6Pattern interpolates it three times, once for each side and once
+// for the left-empty form, and three hand-written copies drift.
+const ipv6HextetGroups = `[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*`
+
 // The publish-safety screen's address and userinfo rules. Each one runs on a
 // publish path, so each is written to the same standard: catch the shape the
 // product actually emits, and name in a comment what it deliberately does not
@@ -68,12 +74,6 @@ type Verdict struct {
 // The "password:" assignment rule is held to the same standard and lives in
 // guardrail_password.go, because it carries a value classifier rather than a
 // pattern alone.
-// ipv6HextetGroups is one or more colon-separated hextets, the run that sits on
-// either side of a "::". It is a regex fragment and the only copy of that shape:
-// compressedIPv6Pattern interpolates it three times, once for each side and once
-// for the left-empty form, and three hand-written copies drift.
-const ipv6HextetGroups = `[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*`
-
 var (
 	// rawAddressPattern is the IPv4 half of the raw-address rule. Blanket by
 	// design: any dotted quad, private or public.

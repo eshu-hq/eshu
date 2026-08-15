@@ -711,13 +711,26 @@ because `[::2]` is the address `0:0:0:0:0:0:0:2` as surely as it is a stride.
 That is what the review thread offered as the alternative to fixing it, and it
 is the option taken.
 
-Three test defects came out of the same review and are fixed here:
+Four test defects came out of the same review and are fixed here. Three are the
+same defect in three places, which is the finding worth carrying forward: a
+count guard that compares its loop counter to `len()` of the collection the loop
+just walked is true by construction and can never fail.
 
 - the row-count guard in `TestUnsafeStringKeepsCodeTextPublishable` compared its
   loop counter to `len()` of the map it had just ranged over — equal by
   construction, so rows lost to a bad merge shrink both sides together. It now
   compares against the literal `codeTextIPv6ShapeCount = 104`. Proven failable:
   deleting ten rows reports `checked 94 values, want 104`;
+- the same shape guarded the delimiter sweep and `TestUnsafeStringRejectsRawIPv6`.
+  Both now carry literals, `boundarySweepCombinationCount = 13209` and
+  `rawIPv6CarrierCount = 10`. This one is not cosmetic on this branch: the sweep
+  is the assertion that makes the round-five guard catchable, and it is the
+  three new multi-character prefixes that do the catching. Removing just those
+  three, with the reverted guard back in place, takes the sweep fully green
+  while the guard publishes 17 addresses. Dropping
+  `passwordAssignmentCarriers` from the append loses 4,284 combinations and was
+  watched staying green, as was deleting six rows from `rawIPv6Carriers` —
+  which `TestUnsafeStringRejectsRawIPv6` also failed to notice;
 - the "identifier character" prose described `[^0-9a-z]` under `(?i)`, which is
   ASCII alphanumerics only, so `x_[::2]`, `list_[::2]`, `_[::2]`, and `é[::2]`
   stayed withheld while the prose said otherwise. Moot with the guard gone, and
@@ -731,17 +744,19 @@ Three test defects came out of the same review and are fixed here:
 
 The regex changed again, so `BenchmarkUnsafeStringHonestCorpus` was re-run per
 the rule in `UnsafeString`'s comment, same host and method as round five, best
-of 5 at `-benchtime=2s`:
+of 5 at `-benchtime=2s`.
 
-| Benchmark | `23abf2ecd` | round five | round six |
-| --- | ---: | ---: | ---: |
-| `BenchmarkUnsafeStringHonestCorpus` | 7761 ns/op | 7923 ns/op | 7755 ns/op |
-| `BenchmarkUnsafeStringRejection` | 1745 ns/op | 1797 ns/op | 1778 ns/op |
+**No measurable change.** Best-of-5 for `HonestCorpus` came in at roughly 7.8us
+across all three patterns (`23abf2ecd`, round five, round six), against a
+run-to-run spread on this host of 7755-15669 ns/op; `Rejection` at roughly
+1.8us against a spread of 1778-3519. A reviewer's host measured 8127-10056 on
+the same benchmark.
 
-Round six lands back on `23abf2ecd`, which is what reverting to that pattern's
-shape should do. The same limit applies as before: the spread on this host was
-7755-15669 across the five round-six runs, so these support "no measurable
-regression" and nothing finer.
+The spread is wider than any gap between the three patterns, so the right
+reading is that reverting the guard cost nothing and the round-five figures did
+not show a real 2% either. Quoting a per-pattern number to four significant
+figures would invite reading a 168ns "improvement" this method cannot support,
+which is why the earlier three-column table is gone.
 
 ### Mutation proof for round six
 

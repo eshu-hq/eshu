@@ -113,16 +113,29 @@ var rawIPv6Carriers = []string{
 	"2001:db8::1",
 }
 
+// rawIPv6CarrierCount is the number of carriers rawIPv6Carriers must hold. A
+// literal, not len() of the same slice: rows deleted from the slice shrink both
+// sides of a len() comparison together and the test reports a clean sweep over
+// whatever survived. Six rows were deleted to prove that, and this test stayed
+// green.
+const rawIPv6CarrierCount = 10
+
 // TestUnsafeStringRejectsRawIPv6 pins the second hole.
 func TestUnsafeStringRejectsRawIPv6(t *testing.T) {
 	t.Parallel()
 
+	checked := 0
 	for _, value := range rawIPv6Carriers {
+		checked++
 		t.Run(value, func(t *testing.T) {
 			if !UnsafeString(value) {
 				t.Fatalf("UnsafeString(%q) = false, want true", value)
 			}
 		})
+	}
+	if checked != rawIPv6CarrierCount {
+		t.Fatalf("checked %d carriers, want %d; rawIPv6Carriers lost or gained rows",
+			checked, rawIPv6CarrierCount)
 	}
 }
 
@@ -230,11 +243,25 @@ func TestUnsafeStringIsIndifferentToTheSurroundingDelimiter(t *testing.T) {
 			}
 		}
 	}
-	// Test filters and empty tables fail silently. Count what ran.
-	if want := len(carriers) * len(boundaryPrefixes) * len(boundarySuffixes); checked != want {
-		t.Fatalf("checked %d combinations, want %d", checked, want)
+	// Test filters and empty tables fail silently, so count what ran -- against
+	// a literal, not against the product of the three lists the loop just
+	// walked. That product is true by construction: dropping
+	// passwordAssignmentCarriers from the append above loses 4,284 combinations
+	// and both sides shrink together, which was watched staying green. The
+	// three multi-character prefixes are the specific thing this protects.
+	// Removing just those, with the reverted identifier guard back in place,
+	// takes the sweep fully green while the guard publishes 17 addresses.
+	if checked != boundarySweepCombinationCount {
+		t.Fatalf("checked %d combinations, want %d; a carrier, prefix, or suffix list "+
+			"changed size and the sweep no longer covers what it claims",
+			checked, boundarySweepCombinationCount)
 	}
 }
+
+// boundarySweepCombinationCount is the number of carrier/prefix/suffix
+// combinations the delimiter sweep must run: 37 carriers x 21 prefixes x 17
+// suffixes. Update it when a list changes, which is the point.
+const boundarySweepCombinationCount = 13209
 
 // TestUnsafeStringKeepsOrdinaryAnswerTextPublishable is the false-positive half
 // of the widening, and the reason the new rules are shaped the way they are.
