@@ -71,6 +71,17 @@ func TestAssertMaterializedEdgesIdentityDistinguishesSameEndpointEdges(t *testin
 // live edge whose identity property VALUE does not match the expected-set
 // entry is a real mismatch (missing + extra), not silently absorbed —
 // exercising the same Key() the fixture side builds.
+//
+// The two assertions on the exact key strings, not merely that an error
+// occurred, are load-bearing: the missing key is the fixture's own identity
+// and would report regardless of whether the live side projects identity at
+// all, but the extra key MUST carry the LIVE edge's full identity suffix
+// (pattern=*.go|source_path=CODEOWNERS). If the live identity projection
+// were silently disabled, the live edge would key bare
+// (DECLARES_CODEOWNER|repo-1|team-a, no identity suffix) instead — still a
+// mismatch, so a bare "an error happened" check would stay green, but the
+// extra-key assertion below would catch it, because a bare key does not
+// contain the identity suffix it asserts for.
 func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testing.T) {
 	t.Parallel()
 
@@ -92,8 +103,13 @@ func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testin
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(identity value mismatch) = nil, want a missing/extra failure")
 	}
-	if !strings.Contains(err.Error(), "missing") || !strings.Contains(err.Error(), "extra") {
-		t.Errorf("error %q does not report both the missing expected identity and the extra live one", err)
+	const wantMissing = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.py|source_path=CODEOWNERS"
+	const wantExtra = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.go|source_path=CODEOWNERS"
+	if !strings.Contains(err.Error(), wantMissing) {
+		t.Errorf("error %q does not name the missing fixture key %q", err, wantMissing)
+	}
+	if !strings.Contains(err.Error(), wantExtra) {
+		t.Errorf("error %q does not name the extra live key %q with its full identity suffix — a disabled identity projection would key this edge bare instead", err, wantExtra)
 	}
 }
 
