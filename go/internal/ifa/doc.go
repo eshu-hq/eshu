@@ -38,12 +38,13 @@
 //
 // RunMaterializedEdgeCoverage derives reducer edge-family requirements and
 // resolves them against hand-derived Odù expectations. SQL relationships
-// require baseline, delta-tombstone, and fault dimensions; the determinism
-// matrix proves baseline and accumulated gen-2 delta truth with live exact-set
-// assertions across all nine SQL writer-registry types, including
-// REFERENCES_TABLE and WRITES_TO, while an unproven fault dimension remains
-// explicitly waived. The registry-derived inventory fails closed if a future
-// SQL edge type is added without a matching Odù expectation.
+// require baseline, delta-tombstone, and fault dimensions; the live matrices
+// prove all three across the nine SQL writer-registry types. Code calls require
+// baseline and fault dimensions; the live matrices exact-assert their five
+// edges at N=1/2/4 and after domain-scoped worker and graph-write failures.
+// Other unproven family dimensions remain explicitly waived in the manifest.
+// Registry-derived inventories fail closed when a writer type is added without
+// a matching Odù expectation.
 //
 // P5 adds the Layer 3 load vocabulary. AmplifyAtSlot (amplify.go) replays one
 // base Odù across a scale-lab slot's disjoint synthetic scopes through the

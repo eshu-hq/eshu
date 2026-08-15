@@ -6,34 +6,14 @@ package ifa
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
-
-// codeCallExpectedEdgeFile mirrors the committed assertion fixture's shape.
-type codeCallExpectedEdgeFile struct {
-	Odu   string `json:"odu"`
-	Edges []struct {
-		RelationshipType string `json:"relationship_type"`
-		SourceEntityID   string `json:"source_entity_id"`
-		TargetEntityID   string `json:"target_entity_id"`
-	} `json:"edges"`
-}
-
-// codeCallEdgeKey renders one edge as a comparable triple.
-func codeCallEdgeKey(relType, source, target string) string {
-	// The extractor leaves relationship_type empty for a plain call; the writer's
-	// default arm turns that into CALLS (edge_writer_code_call_labels.go). The
-	// expected set names the graph type, so normalize here rather than teaching
-	// the fixture the reducer's internal blank convention.
-	if strings.TrimSpace(relType) == "" {
-		relType = "CALLS"
-	}
-	return relType + "|" + source + "|" + target
-}
 
 // TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet is the offline vacuity
 // guard for #5991: the production extractor, over the committed cassette,
@@ -47,8 +27,8 @@ func codeCallEdgeKey(relType, source, target string) string {
 // This is deliberately NOT called coverage. It proves the extractor, not the
 // gate: the live edge write is a MATCH-MATCH-MERGE on endpoint uid, so a missing
 // endpoint node makes the write a silent no-op that this test cannot see. The
-// live ifa-determinism assertion is what closes that half, and the family stays
-// waived until it runs.
+// live ifa-determinism assertion closes that half and is what justifies the
+// committed baseline coverage row.
 func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -58,15 +38,11 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
 	}
 
-	raw, err := os.ReadFile(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
 	if err != nil {
-		t.Fatalf("read expected edges: %v", err)
+		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
-	var expectedFile codeCallExpectedEdgeFile
-	if err := json.Unmarshal(raw, &expectedFile); err != nil {
-		t.Fatalf("parse expected edges: %v", err)
-	}
-	if len(expectedFile.Edges) == 0 {
+	if len(expectedEdges) == 0 {
 		t.Fatal("expected-edge set is empty; an empty expectation makes this guard vacuous")
 	}
 
@@ -90,7 +66,7 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 
 	expected := map[string]int{}
-	for _, e := range expectedFile.Edges {
+	for _, e := range expectedEdges {
 		expected[codeCallEdgeKey(e.RelationshipType, e.SourceEntityID, e.TargetEntityID)]++
 	}
 
@@ -115,7 +91,7 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Errorf("EXTRA %d edge(s) nobody derived: %s", len(extra), strings.Join(extra, ", "))
 	}
 	if len(missing) == 0 && len(extra) == 0 {
-		t.Logf("code_calls: %d rows reproduce the expected %d-edge set exactly", len(codeCallRows)+len(metaclassRows), len(expectedFile.Edges))
+		t.Logf("code_calls: %d rows reproduce the expected %d-edge set exactly", len(codeCallRows)+len(metaclassRows), len(expectedEdges))
 	}
 }
 
@@ -129,17 +105,13 @@ func TestCodeCallFamilyCoversAllFourEdgeTypes(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	raw, err := os.ReadFile(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
 	if err != nil {
-		t.Fatalf("read expected edges: %v", err)
-	}
-	var expectedFile codeCallExpectedEdgeFile
-	if err := json.Unmarshal(raw, &expectedFile); err != nil {
-		t.Fatalf("parse expected edges: %v", err)
+		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 
 	present := map[string]struct{}{}
-	for _, e := range expectedFile.Edges {
+	for _, e := range expectedEdges {
 		present[e.RelationshipType] = struct{}{}
 	}
 	registered, err := MaterializedEdgeDomainEdgeTypes("code_calls")
@@ -155,6 +127,75 @@ func TestCodeCallFamilyCoversAllFourEdgeTypes(t *testing.T) {
 	sort.Strings(uncovered)
 	if len(uncovered) > 0 {
 		t.Errorf("the expected-edge set exercises no %v edge; the family registers them, so the fixture proves exhaustiveness over less than the family owns", uncovered)
+	}
+}
+
+// TestCodeCallFamilyIsCatalogedAndResolvable pins the production coverage
+// seam, not just the extractor helper used by the tests below. A manifest row
+// cannot honestly resolve unless the installed binary carries the Odù and the
+// materialized-edge resolver dispatches through the family's own exact guard.
+func TestCodeCallFamilyIsCatalogedAndResolvable(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	catalog := CatalogByName()
+	compiled, ok := catalog[codeCallFamilyOduName]
+	if !ok {
+		t.Fatalf("CatalogByName omits %q", codeCallFamilyOduName)
+	}
+	fromCassette, err := loadCodeCallFamilyOdu(codeCallFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
+	}
+	if !reflect.DeepEqual(compiled, fromCassette) {
+		t.Fatalf("compiled catalog Odù drifted from strict cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
+	}
+
+	ok, detail := (MaterializedEdgeOduResolver{Catalog: catalog, RepoRoot: repoRoot}).Resolve(replaycoverage.CoverageEntry{
+		Surface:      MaterializedEdgeSurfacePrefix + "code_calls",
+		Scenario:     replaycoverage.ScenarioOdu,
+		ScenarioType: replaycoverage.ScenarioTypeBaseline,
+		Ref:          codeCallFamilyOduName,
+	})
+	if !ok {
+		t.Fatalf("code_calls resolver rejected the cataloged Odù: %s", detail)
+	}
+	if !strings.Contains(detail, "expected 5-edge set exactly") || !strings.Contains(detail, "all 4 registry types") {
+		t.Fatalf("resolver detail = %q, want exact edge and registry-type counts", detail)
+	}
+}
+
+// TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily pins the
+// repository and generation identity boundaries exercised by the live
+// determinism matrix. A shared local_path lets canonical path cleanup delete
+// the other repository; a shared generation ID violates the durable active
+// generation uniqueness constraint when both scopes ACK.
+func TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu, err := loadCodeCallFamilyOdu(codeCallFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
+	}
+
+	localPath := ""
+	for _, fact := range odu.Facts {
+		if fact.FactKind != "repository" {
+			continue
+		}
+		localPath = strings.TrimSpace(anyToStringValue(fact.Payload["local_path"]))
+		break
+	}
+	if localPath == "" {
+		t.Fatal("code-call repository has no local_path; canonical file and entity paths would be unanchored")
+	}
+	if localPath == sqlFamilyLocalPath {
+		t.Fatalf("code-call local_path %q collides with SQL-family repository path; canonical path cleanup can delete the other live-matrix repository", localPath)
+	}
+	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
+		t.Fatal("code-call Odù has no generation ID; active-generation publication would be unidentifiable")
+	}
+	if odu.Facts[0].GenerationID == sqlFamilyGenerationID {
+		t.Fatalf("code-call generation ID %q collides with SQL-family generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
 	}
 }
 

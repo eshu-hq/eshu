@@ -74,14 +74,12 @@ func TestMaterializedEdgeFalseGreenWrongOduBreaksSQLRelationships(t *testing.T) 
 	}
 }
 
-// TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily proves an
-// uncovered (surface × proof_gate) row with NO waiver is a required, blocking
-// failure — removing the code_calls BASELINE waiver (leaving its fault waiver
-// in place) and re-running the gate must fail on the baseline row, and the
-// failing finding must be traceable back to that exact family. Leaving the
-// fault waiver untouched also proves per-(surface, proof_gate) isolation: the
-// surviving fault waiver does not rescue the now-unwaived baseline row.
-func TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily(t *testing.T) {
+// TestMaterializedEdgeFalseGreenMissingCoverageFailsNamingFamily proves an
+// uncovered (surface × proof_gate) row with neither coverage nor a waiver is a
+// required, blocking failure. It removes only code_calls BASELINE coverage
+// from an in-memory copy of the real manifest, leaving the proven fault row in
+// place, and requires the finding to name the exact missing dimension.
+func TestMaterializedEdgeFalseGreenMissingCoverageFailsNamingFamily(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
@@ -95,29 +93,31 @@ func TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily(t *testing.T) 
 		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
 	}
 
-	var trimmed []MaterializedEdgeWaiver
+	trimmed := make([]replaycoverage.CoverageEntry, 0, len(manifest.Coverage))
 	removed := false
-	for _, w := range waivers {
-		if w.Surface == MaterializedEdgeSurfacePrefix+"code_calls" && w.ProofGate == materializedEdgeProofGateBaseline {
+	for _, entry := range manifest.Coverage {
+		if entry.Surface == MaterializedEdgeSurfacePrefix+"code_calls" &&
+			entry.ProofGate == materializedEdgeProofGateBaseline {
 			removed = true
 			continue
 		}
-		trimmed = append(trimmed, w)
+		trimmed = append(trimmed, entry)
 	}
 	if !removed {
-		t.Fatal("test setup: materialized_edges:code_calls baseline waiver not found in the real manifest (fixture drifted)")
+		t.Fatal("test setup: materialized_edges:code_calls baseline coverage not found in the real manifest (fixture drifted)")
 	}
+	manifest.Coverage = trimmed
 
 	_, gate, _ := RunMaterializedEdgeCoverage(MaterializedEdgeCoverageInputs{
 		Families: reducer.MaterializedEdgeFamilies(),
 		Manifest: manifest,
-		Waivers:  trimmed,
+		Waivers:  waivers,
 		Catalog:  CatalogByName(),
 		RepoRoot: repoRoot,
 		Blocking: true,
 	})
 	if !gate.Failed() {
-		t.Fatal("removing the code_calls waiver must fail the blocking gate (uncovered family with no coverage and no waiver)")
+		t.Fatal("removing code_calls baseline coverage must fail the blocking gate (uncovered family with no coverage and no waiver)")
 	}
 
 	foundCodeCalls := false

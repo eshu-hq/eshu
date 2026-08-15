@@ -57,7 +57,7 @@ fresh_stack() {
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-${cell}.log"; die "${cell}: bootstrap-data-plane failed"; }
 }
 
-# drive_all_cassettes drives the demo-org + synth-multiscope + SQL relationship
+# drive_all_cassettes drives demo-org, synth-multiscope, SQL, and code-call
 # family cassettes into the fresh stack and asserts the drive actually enqueued
 # work (never a vacuous drain proof). The SQL family cassette (#5351) makes
 # cells 2/3 (and the SQL-targeted cells #5555 adds) exercise the SQL
@@ -77,6 +77,8 @@ drive_all_cassettes() {
 	"${bin_dir}/eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}" \
 		>"${log_dir}/ifa-drive-sql-${cell}.log" 2>&1 \
 		|| { tail -40 "${log_dir}/ifa-drive-sql-${cell}.log" >&2; die "${cell}: eshu-ifa drive (SQL relationship family) failed"; }
+	ifa_code_call_drive "${cell}" "${bin_dir}" "${code_call_cassette}" "${drive_workers}" "${log_dir}" \
+		|| die "${cell}: eshu-ifa drive (code-call family) failed"
 	local enqueued
 	enqueued="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"

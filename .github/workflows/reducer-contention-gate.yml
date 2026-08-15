@@ -86,6 +86,7 @@ jobs:
         # while waiting, and convergence on producer activation or the elapsed
         # bound. A fake queue cannot establish any of it, which is why these live
         # here rather than beside the handler tests.
-        # TestCrossScopeReadinessProofsRunInTheReducerContentionGate is the
-        # hermetic guard that keeps that pair inside the -run filter below.
+        # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
+        # the hermetic guard that keeps all three live PostgreSQL proofs inside
+        # the -run filter below.
         run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate)' -race -count=1 -timeout 180s -v
