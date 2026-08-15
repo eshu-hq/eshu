@@ -218,7 +218,8 @@ tell a deliberate omission from drift:
   returns five files: `canonical.go` where the three builders are defined,
   `canonical_test.go` and `canonical_orphan_metadata_test.go`, and the
   `README.md` / `AGENTS.md` that cite them as a pattern to copy. No caller. The
-  live writes for those four labels are the materializers'.
+  live writes for those three labels are the materializers'. `Endpoint` is the
+  materializers' fourth label and has no dead builder here.
 - `canonical.go:72,75` and
   `canonical_relationships.go:50,53,72,75,94,97,116,119,138,141` — six more
   `Repository {id}` MERGEs, from `BuildCanonicalRepoDependencyUpsert`
