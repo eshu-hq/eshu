@@ -196,6 +196,7 @@ code_call_gate_seams=(
 	'go/internal/reducer/fact_kind_loader.go|go/internal/reducer/fact_kind_loader.go'
 	'sdk/go/factschema/decode_codegraph.go|sdk/go/factschema/decode_codegraph.go'
 	'sdk/go/factschema/codegraph/v1/file.go|sdk/go/factschema/codegraph/v1/file.go'
+	'sdk/go/factschema/codegraph/v1/repository.go|sdk/go/factschema/codegraph/v1/repository.go'
 	'go/internal/reducer/service*.go|go/internal/reducer/service_side_runners.go'
 	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection.go'
 	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_runner.go'

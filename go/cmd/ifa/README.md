@@ -115,11 +115,13 @@ session.
   assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
-  vacuously; the absolute expected set catches that regression. Wired into both
-  the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline) live
-  gates so the `materialized_edges:sql_relationships` and
-  `materialized_edges:code_calls` coverage manifest rows' two `proof_gate`s are
-  backed by live family replays. Read-only: no schema DDL, no write.
+  vacuously; the absolute expected set catches that regression. The
+  `ifa-determinism` live gate invokes it in every worker-count cell. The
+  `ifa-fault-injection` live gate runs it in the fault-free baseline. It also
+  runs in both domain-scoped `code_calls` recovery cells.
+  The SQL delta-retract cell's collateral check invokes it too. These runs back
+  both `proof_gate` rows for `materialized_edges:sql_relationships` and
+  `materialized_edges:code_calls`. Read-only: no schema DDL, no write.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
   Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads

@@ -63,6 +63,23 @@ func TestCodeCallLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"`sql_relationships` and `code_calls`",
 				"nine SQL edges and five code-call edges",
+				"`ifa-determinism` live gate invokes it in every worker-count cell",
+				"`ifa-fault-injection` live gate runs it in the fault-free baseline",
+				"both domain-scoped `code_calls` recovery cells",
+				"SQL delta-retract cell's collateral check",
+				"both `proof_gate` rows for `materialized_edges:sql_relationships`",
+			},
+			prohibited: []string{
+				"`ifa-fault-injection` (baseline) live",
+			},
+		},
+		{
+			path: filepath.Join("go", "internal", "ifa", "materialized_edges.go"),
+			required: []string{
+				"Current guards cover SQL relationships, documentation edges, code calls, and rationale edges.",
+			},
+			prohibited: []string{
+				"for \"sql_relationships\" today",
 			},
 		},
 		{
