@@ -120,6 +120,20 @@ their absence. That is why `redaction.rules` names what was screened
 (`no_private_endpoints`): treat a passing bundle as screened, not as certified,
 and review an artifact before sending it outside your organisation.
 
+Two specifics worth stating, because both are easy to assume the other way:
+
+- A private host written straight after a colon **is** screened. A scope handle
+  (`repo:db.internal:5432`) and a labelled diagnostic
+  (`upstream:db.internal:5432 refused`) put a colon immediately before the host,
+  and both rules used to treat that colon as "still part of the previous word"
+  and let the host through. They no longer do.
+- A **unique-local IPv6 address** written straight after a colon
+  (`peer:fd00::1`) is **not** screened, and that is deliberate. Hextets are
+  colon-separated, so a rule that accepted a colon before `fd00` would also read
+  the middle hextet of a public address such as `2001:db8:fd12::1` as the start
+  of a private one and reject it. Written after a space, a bracket, or at the
+  start of a value, a unique-local address is screened normally.
+
 `validation.status` is `unvalidated` as built, and the exporter sets `passed`
 only after validation actually runs green, recomputing `bundle_id` over the new
 content. `bundle_id` is a content hash for
