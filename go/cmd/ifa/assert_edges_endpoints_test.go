@@ -193,6 +193,68 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 	}
 }
 
+// TestRefFallbackResolvesCodeownerTeamEndpoint proves the third endpointID
+// fallback: a CodeownerTeam endpoint, MERGEd `{ref: row.owner_ref}`
+// (canonical_codeowners_edges.go) and carrying neither uid nor id, still
+// resolves by its ref rather than reporting as an unmaterialized endpoint —
+// the exact shape a live DECLARES_CODEOWNER edge's target carries.
+func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "DECLARES_CODEOWNER",
+		FromProps: map[string]any{"id": "repo-1"},
+		ToProps:   map[string]any{"ref": "team-a"}, // ref-only: no uid, no id.
+	}}}
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a"},
+	}
+
+	if err := assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected); err != nil {
+		t.Fatalf("assertMaterializedEdges(ref-only CodeownerTeam target) = %v, want nil; ref must resolve the endpoint", err)
+	}
+}
+
+// TestUidAndIDWinOverRef pins the fallback precedence: an endpoint carrying
+// uid or id must resolve by that property, never by a stale or unrelated ref
+// it also happens to carry.
+func TestUidAndIDWinOverRef(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
+	}
+
+	uidWins := graphdump.Edge{
+		Type:       "RUNS_IN",
+		FromLabels: []string{"Function"},
+		FromProps:  map[string]any{"uid": "u-from", "ref": "ref-from"},
+		ToLabels:   []string{"Workload"},
+		ToProps:    map[string]any{"uid": "u-to", "ref": "ref-to"},
+	}
+	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{uidWins}}, "runs_in", types, nil, nil, byUID); err != nil {
+		t.Errorf("expected set naming the uids = %v, want nil; uid must win over ref", err)
+	}
+
+	idWins := graphdump.Edge{
+		Type:       "RUNS_IN",
+		FromLabels: []string{"Function"},
+		FromProps:  map[string]any{"id": "i-from", "ref": "ref-from"},
+		ToLabels:   []string{"Workload"},
+		ToProps:    map[string]any{"id": "i-to", "ref": "ref-to"},
+	}
+	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{idWins}}, "runs_in", types, nil, nil, byID); err != nil {
+		t.Errorf("expected set naming the ids = %v, want nil; id must win over ref", err)
+	}
+}
+
 // TestEndpointDefectNamesWhichSideIsUnidentified pins the diagnostic wording.
 //
 // The endpoint check fires when EITHER side lacks an identity, so a message

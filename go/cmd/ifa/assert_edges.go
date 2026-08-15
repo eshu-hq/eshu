@@ -309,9 +309,10 @@ func assertMaterializedEdges(
 	return fmt.Errorf("%s", b.String())
 }
 
-// endpointID extracts a node's canonical identity: its "uid" when present, and
-// its "id" otherwise. It returns "" when neither is present as a string, which
-// the caller reports as an unmaterialized endpoint.
+// endpointID extracts a node's canonical identity: its "uid" when present,
+// its "id" next, and its "ref" last. It returns "" when none of the three is
+// present as a non-empty string, which the caller reports as an
+// unmaterialized endpoint.
 func endpointID(props map[string]any) string {
 	if props == nil {
 		return ""
@@ -329,8 +330,18 @@ func endpointID(props map[string]any) string {
 	// look like it had an unmaterialized endpoint, which is both wrong and a
 	// misleading diagnosis — the node exists, it is simply keyed by id. uid stays
 	// first so uid-bearing endpoints are unaffected.
-	id, _ := props["id"].(string)
-	return id
+	if id, ok := props["id"].(string); ok && id != "" {
+		return id
+	}
+	// Fall back to "ref": CodeownerTeam is MERGEd `{ref: row.owner_ref}`
+	// (canonical_codeowners_edges.go) and carries neither uid nor id — verified
+	// repo-wide, it is the only node label any writer keys on a top-level "ref"
+	// property. Without this fallback, the target endpoint of every
+	// DECLARES_CODEOWNER edge would report as unmaterialized even though the
+	// team node exists and is correctly identified by its ref. ref stays last
+	// so a uid- or id-bearing endpoint is unaffected.
+	ref, _ := props["ref"].(string)
+	return ref
 }
 
 // hasLabel reports whether a graph endpoint carries the required node label.
