@@ -82,6 +82,13 @@ writer handed a differently-named executor, or taking it as a later argument or
 a struct field, would be missed silently. Before trusting the table, confirm the
 spellings still cover the tree with
 `rg -n 'sourcecypher\.Executor|reducer\.CypherExecutor|sourcecypher\.InstrumentedExecutor\{' go/cmd/reducer --glob '!*_test.go'`.
+
+`semanticEntityExecutor` (`main.go:177`) shows how thin the coverage is. Neither
+command sees it — it is assigned from a call, so no type name is on the line —
+and its writer lands in the table only because `main.go:183` passes it to
+`semanticEntityWriterForGraphBackend`, whose parameter happens to be named
+`executor` (`neo4j_wiring.go:247`).
+
 The identity sweep below is the real backstop: it keys on emitted Cypher, so a
 writer this command misses still surfaces there as an unattributed node MERGE.
 

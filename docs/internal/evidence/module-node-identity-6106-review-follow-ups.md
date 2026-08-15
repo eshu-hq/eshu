@@ -100,12 +100,25 @@ cover the tree with:
 rg -n 'sourcecypher\.Executor|reducer\.CypherExecutor|sourcecypher\.InstrumentedExecutor\{' go/cmd/reducer --glob '!*_test.go'
 ```
 
-which today also returns `neo4jExecutor` and `cypherExecutor`
-(`observed_service_wiring.go:25-26`), `instrumentedNeo4j` (`:42`), and
-`semanticEntityExecutor` (`main.go:177`). None of the four builds a writer
-directly. The real backstop is the identity sweep in the next section: it keys
-on emitted Cypher rather than on a Go identifier, so a writer this command misses
-still shows up there as an unattributed node MERGE.
+It returns 29 lines. Pipe it through `rg -v '\b(exec|executor|neo4jExec|cypherExec)\b'`
+to see only the declaration sites the four spellings do not cover — derive that
+set rather than reading a list here, because a hand-written one goes stale and a
+#6123 review already caught one that had. None of what it leaves builds a writer
+today.
+
+One case is worth naming because neither command explains it.
+`semanticEntityExecutor` (`main.go:177`) is invisible to both: it is assigned from
+`graphWriteGate.boundSemanticEntityExecutor(...)`, so no type name appears on the
+line for the backstop command to match, and the primary sweep needs the
+identifier immediately after `.New\w+\(`. Its writer is caught anyway, by a
+rename — `main.go:183` passes it to `semanticEntityWriterForGraphBackend`, whose
+parameter is `executor` (`neo4j_wiring.go:247`), which is where the sweep picks up
+the two `SemanticEntityWriter` constructions at `:252` and `:260`. Coverage
+survives by an argument name matching, not by anything the search understands.
+
+The real backstop is the identity sweep in the next section: it keys on emitted
+Cypher rather than on a Go identifier, so a writer either command misses still
+shows up there as an unattributed node MERGE.
 
 | Construction site | Writer |
 | --- | --- |
