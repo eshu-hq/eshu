@@ -192,9 +192,22 @@ were run rather than imagined:
   `TailSentinel` is then declared by nothing, and it is the only fragment
   sitting *after* the escape, which is the only way a partial leak is visible at
   all.
+- Count those two identities per *occurrence* rather than per row, and the
+  aggregate is redistributable in turn: 57 rows declaring `TailSentinel` twice
+  and 57 declaring it not at all sum to the same `114`.
 
-Both weakenings leave the package green except for the pin written to catch
-them, and both drop the both-walks-wrong mutation from 36 red subtests to 18.
+Every one of those weakenings leaves the package green except for the pin
+written to catch it, and every one drops the both-walks-wrong mutation from 36
+red subtests to 18 — the same half, three times over.
+
+The counters are per row, and no row may declare a fragment twice. Those two
+rules make the six numbers *forcing* rather than merely consistent: a row can
+declare at most the distinct sentinels its input holds, so 792 fragments over
+594 rows leaves no slack anywhere to move an assertion off a row and hide it on
+another. What stays free is which rows take which classification, and that is
+the walks' job rather than the ledger's — declaring an outside fragment
+removable turns 36 differential subtests red. `AGENTS.md` records the one
+assumption the argument rests on.
 
 Agreement is about the **decision**, not the bytes: the two walks emit different
 text on purpose, so comparing output would need an exemption on nearly every

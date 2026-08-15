@@ -125,6 +125,35 @@
   Change an axis and all six move; the self-consistency test names the new
   numbers, and every place citing them has to move too.
 
+- **Why the ladder stops at row counts.** Four rounds of review each found the
+  same hole one level up — guards, then row counts, then fragment counts, then
+  fragment identity in aggregate — and every time the coverage lost was the same
+  half, the partial-leak case. So it is worth saying where it ends and why.
+
+  The two identity counters count **rows**, and no row may declare a fragment
+  twice. Those two rules together make the six literals *forcing* rather than
+  merely consistent. A row can declare at most the distinct sentinels its input
+  holds — one for an opening or closing value, two for an inside one — so 792
+  fragments over 594 rows leaves no slack: every row declares each of its
+  sentinels exactly once, `TailSentinel` falls in exactly one list on each of
+  the 198 inside rows, and `114`/`84` fixes the split. Counting occurrences
+  instead left the aggregate redistributable, which is how 57 rows declaring it
+  twice and 57 declaring it not at all held all six numbers.
+
+  What is still free is WHICH rows take which classification. That is not the
+  ledger's job and it does not need to be: a reclassification puts the model at
+  odds with what the walks actually do, and the walks are what the driver runs.
+  Measured — declaring an outside fragment removable turns 36 differential
+  subtests red.
+
+  **The one assumption.** The argument above needs every `Outside` fragment to
+  be one the walks genuinely keep, so there is nothing to borrow against. That
+  holds today and is NOT pinned, deliberately: asserting that an `Outside`
+  fragment survives would freeze the over-removal trade this package leaves
+  free. If over-removal ever widens far enough that both walks remove a fragment
+  declared `Outside`, that fragment becomes borrowable and a fifth level exists.
+  Check that before assuming this is settled.
+
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
   the README's narrow, checkable claim into "we scan for secrets", which nobody
