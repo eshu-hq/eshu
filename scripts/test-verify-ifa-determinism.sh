@@ -221,6 +221,30 @@ for seam in "${ifa_live_gate_common_seams[@]}"; do
 	done
 done
 
+# The loop above validates workflow ⊇ selector-cases: every seam in the
+# hand-maintained table must appear in the workflow. It cannot see a registry
+# trigger that was never added to the table, so a family could add triggers to
+# specs/ci-gates.v1.yaml, omit them here, and stay green while the workflow
+# never starts for those paths -- the registry marks both gates BLOCKING, GitHub
+# never runs them, and the required-gates publisher waits forever on checks that
+# never arrive. #5994 landed 3 of its 10 triggers that way and this loop is what
+# caught the other 7 (plus a pre-existing gap on go/cmd/ifa/assert_edges.go).
+#
+# This second loop closes the other direction: registry ⊆ workflow, derived from
+# the committed registry rather than from any hand-maintained list, so it cannot
+# drift out of date the way the table can.
+for gate_id in ifa-determinism ifa-fault-injection; do
+	case "${gate_id}" in
+	ifa-determinism) gate_block="${determinism_registry}" ;;
+	*) gate_block="${fault_registry}" ;;
+	esac
+	while IFS= read -r registry_trigger; do
+		[[ -n "${registry_trigger}" ]] || continue
+		rg --fixed-strings --quiet -- "- '${registry_trigger}'" "${workflow}" \
+			|| fail "${gate_id} registry triggers on ${registry_trigger} but ${workflow##*/} never lists it; the gate is selected as blocking and then never starts"
+	done < <(printf '%s\n' "${gate_block}" | rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
+done
+
 # Fault-only case data stays separate so the matcher proves these inputs do
 # not accidentally broaden the determinism registry.
 for seam in "${ifa_live_gate_fault_only_seams[@]}"; do

@@ -118,6 +118,11 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_documentation.go'
 	'testdata/cassettes/documentation/**|testdata/cassettes/documentation/ifa-documentation-family.json'
 	'go/internal/ifa/testdata/documentation/**|go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json'
+	'go/internal/ifa/documentation_family_odu.go|go/internal/ifa/documentation_family_odu.go'
+	'go/internal/reducer/documentation_edge*.go|go/internal/reducer/documentation_edge_materialization.go'
+	'sdk/go/factschema/documentation/v1/**|sdk/go/factschema/documentation/v1/shared.go'
+	'go/internal/storage/cypher/*documentation*.go|go/internal/storage/cypher/edge_writer_documentation_labels.go'
+	'scripts/lib/ifa_documentation_live.sh|scripts/lib/ifa_documentation_live.sh'
 	'go/cmd/bootstrap-data-plane/main.go|go/cmd/bootstrap-data-plane/main.go'
 	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
 	'go/cmd/reducer/run.go|go/cmd/reducer/run.go'
@@ -195,6 +200,8 @@ ifa_live_gate_common_seams=(
 
 ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_collateral_nodes.sh|scripts/lib/ifa_fault_injection_collateral_nodes.sh'
+	'scripts/lib/ifa_fault_injection_documentation_cells.sh|scripts/lib/ifa_fault_injection_documentation_cells.sh'
+	'scripts/lib/test-ifa-fault-injection-documentation-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
 	'go/internal/storage/cypher/fault_executor_marker.go|go/internal/storage/cypher/fault_executor_marker.go'
 	'go/internal/storage/cypher/canonical_node_writer_metadata.go|go/internal/storage/cypher/canonical_node_writer_metadata.go'
 	'go/internal/projector/scope_generation_intents.go|go/internal/projector/scope_generation_intents.go'
