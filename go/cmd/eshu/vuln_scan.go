@@ -4,20 +4,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 )
-
-const vulnScanImpactFindingsEndpoint = "/api/v0/supply-chain/impact/findings"
-
-// vulnScanNow is overridable so tests can pin wall-clock time without racing
-// the live scanner clock. Production callers use time.Now.
-var vulnScanNow = time.Now
 
 type vulnScanRepoOptions struct {
 	Scan         scanOptions
@@ -28,55 +23,10 @@ type vulnScanRepoOptions struct {
 	ExportFormat string
 }
 
-type vulnScanRepoResult struct {
-	Command        string               `json:"command"`
-	Status         string               `json:"status"`
-	ReadinessState string               `json:"readiness_state"`
-	ScopeMode      string               `json:"scope_mode"`
-	Target         scanTarget           `json:"target"`
-	RepositoryID   string               `json:"repository_id,omitempty"`
-	Scan           scanResult           `json:"scan"`
-	Findings       []map[string]any     `json:"findings"`
-	Count          int                  `json:"count"`
-	Limit          int                  `json:"limit"`
-	Truncated      bool                 `json:"truncated"`
-	NextCursor     map[string]any       `json:"next_cursor,omitempty"`
-	Readiness      map[string]any       `json:"readiness,omitempty"`
-	ScopePlan      *vulnScanScopePlan   `json:"scope_plan,omitempty"`
-	Performance    *vulnScanPerformance `json:"scan_performance,omitempty"`
-	Report         *vulnScanReport      `json:"report,omitempty"`
-	Warnings       []string             `json:"warnings,omitempty"`
-	Evidence       vulnScanRepoEvidence `json:"evidence"`
-}
-
-type vulnScanRepoEvidence struct {
-	ServiceURL       string `json:"service_url"`
-	FindingsEndpoint string `json:"findings_endpoint"`
-}
-
 type vulnScanRepoEnvelope struct {
-	Data  vulnScanRepoResult `json:"data"`
-	Truth map[string]any     `json:"truth"`
-	Error *vulnScanRepoError `json:"error"`
-}
-
-type vulnScanRepoError struct {
-	Message string `json:"message"`
-}
-
-type vulnScanImpactFindingsEnvelope struct {
-	Data  vulnScanImpactFindingsData `json:"data"`
-	Truth map[string]any             `json:"truth"`
-	Error *vulnScanRepoError         `json:"error"`
-}
-
-type vulnScanImpactFindingsData struct {
-	Findings   []map[string]any `json:"findings"`
-	Count      int              `json:"count"`
-	Limit      int              `json:"limit"`
-	Truncated  bool             `json:"truncated"`
-	NextCursor map[string]any   `json:"next_cursor,omitempty"`
-	Readiness  map[string]any   `json:"readiness,omitempty"`
+	Data  vulnscan.Result     `json:"data"`
+	Truth map[string]any      `json:"truth"`
+	Error *vulnscan.RepoError `json:"error"`
 }
 
 func init() {
@@ -119,7 +69,7 @@ func addVulnScanRepoFlags(cmd *cobra.Command) {
 }
 
 func runVulnScanRepo(cmd *cobra.Command, args []string) error {
-	startedAt := vulnScanNow()
+	startedAt := vulnscan.Now()
 	opts, err := vulnScanRepoOptionsFromCommand(cmd, args)
 	if err != nil {
 		return err
@@ -131,17 +81,26 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if localRuntime.Client == nil {
+		if strings.TrimSpace(localRuntime.BaseURL) == "" {
 			if localRuntime.Close != nil {
 				_ = localRuntime.Close()
 			}
 			return fmt.Errorf("local vulnerability scan runtime did not return an API client")
 		}
-		client = localRuntime.Client
+		client = NewAPIClient(localRuntime.BaseURL, "", "")
 		opts.Scan.RuntimeEnv = localRuntime.BootstrapEnv
 		closeLocalRuntime = localRuntime.Close
 	}
-	result := newVulnScanRepoResult(opts, client.BaseURL)
+	result := vulnscan.NewResult(
+		vulnscan.Target{
+			Path: opts.Scan.Target.Path,
+			Root: opts.Scan.Target.Root,
+			Kind: opts.Scan.Target.Kind,
+		},
+		opts.Limit,
+		opts.Broad,
+		client.BaseURL,
+	)
 	scanStdout := cmd.OutOrStdout()
 	if opts.Scan.JSON || opts.ExportFormat != "" {
 		scanStdout = cmd.ErrOrStderr()
@@ -152,12 +111,12 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.Warnings = append(result.Warnings, scanResult.Warnings...)
 	if err != nil {
 		result.ReadinessState = "target_incomplete"
-		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if scanResult.Status != "ready" {
 		result.ReadinessState = "target_incomplete"
-		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 		err := commandExitError{message: "vulnerability scan target is not ready; rerun with --wait=true before reading findings", code: 4}
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
@@ -165,20 +124,20 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	repositoryID, err := resolveVulnScanRepoID(cmd, client, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
-		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	result.RepositoryID = repositoryID
 
-	findings, err := fetchVulnScanRepoImpactFindings(client, repositoryID, opts)
+	findings, err := vulnscan.FetchImpactFindings(client, repositoryID, opts.Limit, opts.ImpactStatus)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
-		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if findings.Error != nil {
 		result.ReadinessState = "evidence_incomplete"
-		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 		err := commandExitError{message: findings.Error.Message, code: 4}
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, err, closeLocalRuntime)
 	}
@@ -188,74 +147,27 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.Truncated = findings.Data.Truncated
 	result.NextCursor = findings.Data.NextCursor
 	result.Readiness = findings.Data.Readiness
-	result.ReadinessState = vulnScanReadinessState(findings.Data.Readiness, result.Count)
+	result.ReadinessState = vulnscan.ReadinessState(findings.Data.Readiness, result.Count)
 
-	scopeErr := applyVulnScanScope(&result)
-	recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+	scopeErr := vulnScanExitError(vulnscan.ApplyScope(&result))
+	vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
 	if scopeErr == nil {
-		scopeErr = vulnScanExitErrorForResult(result)
+		scopeErr = vulnScanExitError(vulnscan.ExitFailure(result))
 	}
 	return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, scopeErr, closeLocalRuntime)
 }
 
-// applyVulnScanScope builds the scope plan from the readiness envelope, runs
-// fail-closed guards, and surfaces the broad-mode note when the operator opted
-// into wider advisory coverage. It returns the fail-closed error so the caller
-// can short-circuit the success path while still emitting the JSON envelope
-// with the scope plan attached.
-func applyVulnScanScope(result *vulnScanRepoResult) error {
-	plan := buildVulnScanScopePlan(result.ScopeMode, result.Readiness)
-	state, missing, failErr := applyScopedGuards(&plan, result.ReadinessState)
-	if plan.StopThreshold == "" {
-		plan.StopThreshold = state
-	}
-	result.ScopePlan = &plan
-
-	if plan.Mode == vulnScanScopeModeBroad {
-		if failErr != nil {
-			result.ReadinessState = state
-			if len(missing) > 0 {
-				result.Warnings = append(
-					result.Warnings,
-					fmt.Sprintf("broad mode fail-closed: %s", strings.Join(missing, ", ")),
-				)
-			}
-			return failErr
-		}
-		result.Warnings = append(
-			result.Warnings,
-			"broad mode skipped advisory freshness fail-closed guard; package-registry metadata still must be fresh when observed dependencies require it",
-		)
+// vulnScanExitError maps a vulnscan.Failure onto the CLI's exit-code contract.
+// internal/cli/vulnscan classifies the failure and chooses the number;
+// commandExitError is defined here, in package main, so the conversion has to
+// happen here too. A nil failure stays nil, which is why the parameter is the
+// concrete pointer type rather than error: a nil *Failure boxed into an error
+// is not nil, and every caller here is asking "did this fail".
+func vulnScanExitError(failure *vulnscan.Failure) error {
+	if failure == nil {
 		return nil
 	}
-	if failErr == nil {
-		return nil
-	}
-	result.ReadinessState = state
-	if len(missing) > 0 {
-		result.Warnings = append(
-			result.Warnings,
-			fmt.Sprintf("vuln-scan fail-closed: %s", strings.Join(missing, ", ")),
-		)
-	}
-	return failErr
-}
-
-// recordVulnScanPerformance stamps the scan_performance block onto the result
-// at the very end of the run so wall-time covers the full orchestrated flow
-// (bootstrap, readiness wait, findings read, scope guards) rather than a
-// single stage. The function is safe to call multiple times — the most recent
-// call wins.
-func recordVulnScanPerformance(result *vulnScanRepoResult, startedAt time.Time, repoRoot string) {
-	plan := vulnScanScopePlan{Mode: result.ScopeMode, StopThreshold: result.ReadinessState}
-	if result.ScopePlan != nil {
-		plan = *result.ScopePlan
-		if plan.StopThreshold == "" {
-			plan.StopThreshold = result.ReadinessState
-		}
-	}
-	perf := captureVulnScanPerformance(startedAt, vulnScanNow(), plan, repoRoot)
-	result.Performance = &perf
+	return commandExitError{message: failure.Message, code: failure.Code}
 }
 
 func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScanRepoOptions, error) {
@@ -291,7 +203,7 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	}
 	exportFormat = strings.ToLower(strings.TrimSpace(exportFormat))
 	switch exportFormat {
-	case "", vulnScanExportFormatSARIF, vulnScanExportFormatVEX:
+	case "", vulnscan.ExportFormatSARIF, vulnscan.ExportFormatVEX:
 	default:
 		return vulnScanRepoOptions{}, commandExitError{message: fmt.Sprintf("unsupported --export %q: expected sarif or vex", exportFormat), code: 2}
 	}
@@ -308,22 +220,6 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	}, nil
 }
 
-func newVulnScanRepoResult(opts vulnScanRepoOptions, serviceURL string) vulnScanRepoResult {
-	return vulnScanRepoResult{
-		Command:        "vuln-scan repo",
-		Status:         "failed",
-		ReadinessState: "target_incomplete",
-		ScopeMode:      resolveScopeMode(opts.Broad),
-		Target:         opts.Scan.Target,
-		Findings:       []map[string]any{},
-		Limit:          opts.Limit,
-		Evidence: vulnScanRepoEvidence{
-			ServiceURL:       serviceURL,
-			FindingsEndpoint: vulnScanImpactFindingsEndpoint,
-		},
-	}
-}
-
 func resolveVulnScanRepoID(cmd *cobra.Command, client *APIClient, opts vulnScanRepoOptions) (string, error) {
 	if opts.RepoID != "" {
 		return opts.RepoID, nil
@@ -335,73 +231,32 @@ func resolveVulnScanRepoID(cmd *cobra.Command, client *APIClient, opts vulnScanR
 	return repositoryID, nil
 }
 
-func fetchVulnScanRepoImpactFindings(
-	client *APIClient,
-	repositoryID string,
-	opts vulnScanRepoOptions,
-) (vulnScanImpactFindingsEnvelope, error) {
-	if client == nil {
-		return vulnScanImpactFindingsEnvelope{}, fmt.Errorf("missing API client")
-	}
-	repositoryID = strings.TrimSpace(repositoryID)
-	if repositoryID == "" {
-		return vulnScanImpactFindingsEnvelope{}, fmt.Errorf("repository id is required")
-	}
-	query := url.Values{}
-	query.Set("repository_id", repositoryID)
-	query.Set("limit", fmt.Sprintf("%d", opts.Limit))
-	if opts.ImpactStatus != "" {
-		query.Set("impact_status", opts.ImpactStatus)
-	}
-	var envelope vulnScanImpactFindingsEnvelope
-	path := vulnScanImpactFindingsEndpoint + "?" + query.Encode()
-	if err := client.GetEnvelope(path, &envelope); err != nil {
-		return vulnScanImpactFindingsEnvelope{}, fmt.Errorf("fetch vulnerability impact findings: %w", err)
-	}
-	return envelope, nil
-}
-
-// vulnScanReadinessState prefers the server-side readiness verdict so the CLI
-// surfaces not_configured, target_incomplete, evidence_incomplete, unsupported,
-// or readiness_unavailable when the server reports them. It only falls back to
-// the count-based heuristic when the server response does not carry a
-// readiness envelope (older API versions).
-func vulnScanReadinessState(readiness map[string]any, count int) string {
-	if state, ok := readiness["readiness_state"].(string); ok && strings.TrimSpace(state) != "" {
-		return strings.TrimSpace(state)
-	}
-	if count > 0 {
-		return "ready_with_findings"
-	}
-	return "ready_zero_findings"
-}
-
 func finishVulnScanRepo(
 	cmd *cobra.Command,
 	opts vulnScanRepoOptions,
-	result vulnScanRepoResult,
+	result vulnscan.Result,
 	truth map[string]any,
 	err error,
 ) error {
 	if truth == nil {
 		truth = scanTruth("stale", "partial", opts.Scan.Profile, currentGraphBackend())
 	}
-	report := buildVulnScanReport(result, vulnScanNow())
+	report := vulnscan.BuildReport(result, vulnscan.Now())
 	result.Report = &report
-	if opts.ExportFormat == vulnScanExportFormatSARIF {
+	if opts.ExportFormat == vulnscan.ExportFormatSARIF {
 		if err != nil && !isVulnScanScannerExit(err) {
 			return err
 		}
-		if writeErr := writeVulnScanSARIF(cmd.OutOrStdout(), result, report); writeErr != nil {
+		if writeErr := vulnscan.WriteSARIF(cmd.OutOrStdout(), result, report); writeErr != nil {
 			return writeErr
 		}
 		return err
 	}
-	if opts.ExportFormat == vulnScanExportFormatVEX {
+	if opts.ExportFormat == vulnscan.ExportFormatVEX {
 		if err != nil && !isVulnScanScannerExit(err) {
 			return err
 		}
-		if writeErr := writeVulnScanVEX(cmd.OutOrStdout(), result, report); writeErr != nil {
+		if writeErr := vulnscan.WriteVEX(cmd.OutOrStdout(), result, report); writeErr != nil {
 			return writeErr
 		}
 		return err
@@ -411,7 +266,7 @@ func finishVulnScanRepo(
 		Truth: truth,
 	}
 	if err != nil && !isVulnScanFindingsExit(err) {
-		envelope.Error = &vulnScanRepoError{Message: err.Error()}
+		envelope.Error = &vulnscan.RepoError{Message: err.Error()}
 	}
 	if opts.Scan.JSON {
 		if writeErr := writeScanJSON(cmd.OutOrStdout(), envelope); writeErr != nil {
@@ -421,19 +276,19 @@ func finishVulnScanRepo(
 	}
 	if err != nil {
 		if isVulnScanScannerExit(err) {
-			if renderErr := renderVulnScanRepoSummary(cmd.OutOrStdout(), result); renderErr != nil {
+			if renderErr := vulnscan.RenderSummary(cmd.OutOrStdout(), result); renderErr != nil {
 				return renderErr
 			}
 		}
 		return err
 	}
-	return renderVulnScanRepoSummary(cmd.OutOrStdout(), result)
+	return vulnscan.RenderSummary(cmd.OutOrStdout(), result)
 }
 
 func finishVulnScanRepoAfterCleanup(
 	cmd *cobra.Command,
 	opts vulnScanRepoOptions,
-	result vulnScanRepoResult,
+	result vulnscan.Result,
 	truth map[string]any,
 	err error,
 	cleanup func() error,
@@ -448,6 +303,34 @@ func finishVulnScanRepoAfterCleanup(
 	return finishVulnScanRepo(cmd, opts, result, truth, err)
 }
 
+// isVulnScanFindingsExit reports whether err is the findings-present exit
+// (code 3), which is a successful scan that found something rather than a
+// failure, so the JSON envelope carries no error member.
+func isVulnScanFindingsExit(err error) bool {
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	return exitErr.ExitCode() == 3
+}
+
+// isVulnScanScannerExit reports whether err is one of the scanner exits the
+// report is still written for: findings present, evidence incomplete, or
+// unsupported target evidence. Any other error skips the report, because the
+// run never produced one.
+func isVulnScanScannerExit(err error) bool {
+	var exitErr commandExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	switch exitErr.ExitCode() {
+	case 3, 4, 5:
+		return true
+	default:
+		return false
+	}
+}
+
 func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
 	serviceURL, _ := cmd.Flags().GetString("service-url")
 	if strings.TrimSpace(serviceURL) != "" {
@@ -459,3 +342,7 @@ func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
 	}
 	return strings.TrimSpace(os.Getenv("ESHU_SERVICE_URL")) != ""
 }
+
+// vulnScanPrepareLocalRuntime is the seam the command-level tests replace to
+// drive the repo subcommand without starting a real local service.
+var vulnScanPrepareLocalRuntime = vulnscan.PrepareLocalRuntime

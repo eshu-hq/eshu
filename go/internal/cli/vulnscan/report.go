@@ -1,32 +1,39 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package vulnscan
 
 import (
-	"fmt"
-	"io"
 	"strings"
 	"time"
 )
 
-const vulnScanReportSchemaVersion = "eshu.vulnerability_report.v1"
+// ReportSchemaVersion identifies the report shape embedded in the JSON
+// envelope and re-read by the SARIF and VEX writers. Consumers pin it, so a
+// shape change needs a new version rather than an edit here.
+const ReportSchemaVersion = "eshu.vulnerability_report.v1"
 
-type vulnScanReport struct {
-	SchemaVersion string                  `json:"schema_version"`
-	GeneratedAt   string                  `json:"generated_at"`
-	Command       string                  `json:"command"`
-	Target        scanTarget              `json:"target"`
-	RepositoryID  string                  `json:"repository_id,omitempty"`
-	Summary       vulnScanReportSummary   `json:"summary"`
-	Readiness     vulnScanReportReadiness `json:"readiness"`
-	Findings      []vulnScanReportFinding `json:"findings"`
-	ScopePlan     *vulnScanScopePlan      `json:"scope_plan,omitempty"`
-	Performance   *vulnScanPerformance    `json:"scan_performance,omitempty"`
-	Evidence      vulnScanRepoEvidence    `json:"evidence"`
+// Report is the scanner-style vulnerability report the vuln-scan envelope
+// carries and the SARIF and VEX exports are derived from. It is a projection
+// of Result: everything here is either copied from the result or computed from
+// its findings and readiness envelope.
+type Report struct {
+	SchemaVersion string          `json:"schema_version"`
+	GeneratedAt   string          `json:"generated_at"`
+	Command       string          `json:"command"`
+	Target        Target          `json:"target"`
+	RepositoryID  string          `json:"repository_id,omitempty"`
+	Summary       ReportSummary   `json:"summary"`
+	Readiness     ReportReadiness `json:"readiness"`
+	Findings      []ReportFinding `json:"findings"`
+	ScopePlan     *ScopePlan      `json:"scope_plan,omitempty"`
+	Performance   *Performance    `json:"scan_performance,omitempty"`
+	Evidence      RepoEvidence    `json:"evidence"`
 }
 
-type vulnScanReportSummary struct {
+// ReportSummary is the one-glance verdict: how many findings, the exit code
+// and reason the run will end with, and the readiness state it stopped at.
+type ReportSummary struct {
 	TotalFindings      int            `json:"total_findings"`
 	Truncated          bool           `json:"truncated"`
 	FindingsByStatus   map[string]int `json:"findings_by_status,omitempty"`
@@ -37,7 +44,10 @@ type vulnScanReportSummary struct {
 	EvidenceFactsTotal int            `json:"evidence_facts_total,omitempty"`
 }
 
-type vulnScanReportReadiness struct {
+// ReportReadiness is the server's readiness envelope as the report presents
+// it, with the CLI-side scope plan's missing evidence and incomplete reasons
+// merged in.
+type ReportReadiness struct {
 	State              string           `json:"state"`
 	Freshness          string           `json:"freshness,omitempty"`
 	MissingEvidence    []string         `json:"missing_evidence,omitempty"`
@@ -48,22 +58,26 @@ type vulnScanReportReadiness struct {
 	Counts             map[string]any   `json:"counts,omitempty"`
 }
 
-type vulnScanReportFinding struct {
-	FindingID       string                         `json:"finding_id"`
-	CVEID           string                         `json:"cve_id,omitempty"`
-	AdvisoryID      string                         `json:"advisory_id,omitempty"`
-	Target          vulnScanReportFindingTarget    `json:"target"`
-	Package         vulnScanReportPackageContext   `json:"package"`
-	Affected        vulnScanReportAffectedContext  `json:"affected"`
-	Priority        *vulnScanReportPriorityContext `json:"priority,omitempty"`
-	Reachability    *vulnScanReportReachability    `json:"reachability,omitempty"`
-	Remediation     map[string]any                 `json:"remediation,omitempty"`
-	MissingEvidence []string                       `json:"missing_evidence,omitempty"`
-	EvidenceHandles []vulnScanEvidenceHandle       `json:"evidence_handles,omitempty"`
-	SourceFreshness string                         `json:"source_freshness,omitempty"`
+// ReportFinding is one vulnerability impact finding, read out of the generic
+// map the API returned into the named shape the report publishes.
+type ReportFinding struct {
+	FindingID       string                 `json:"finding_id"`
+	CVEID           string                 `json:"cve_id,omitempty"`
+	AdvisoryID      string                 `json:"advisory_id,omitempty"`
+	Target          ReportFindingTarget    `json:"target"`
+	Package         ReportPackageContext   `json:"package"`
+	Affected        ReportAffectedContext  `json:"affected"`
+	Priority        *ReportPriorityContext `json:"priority,omitempty"`
+	Reachability    *ReportReachability    `json:"reachability,omitempty"`
+	Remediation     map[string]any         `json:"remediation,omitempty"`
+	MissingEvidence []string               `json:"missing_evidence,omitempty"`
+	EvidenceHandles []EvidenceHandle       `json:"evidence_handles,omitempty"`
+	SourceFreshness string                 `json:"source_freshness,omitempty"`
 }
 
-type vulnScanReportFindingTarget struct {
+// ReportFindingTarget locates a finding: where in the repository it was
+// observed, and which deployed subjects carry it.
+type ReportFindingTarget struct {
 	RepositoryID        string   `json:"repository_id,omitempty"`
 	SourcePath          string   `json:"source_path,omitempty"`
 	ManifestPath        string   `json:"manifest_path,omitempty"`
@@ -77,7 +91,9 @@ type vulnScanReportFindingTarget struct {
 	Environments        []string `json:"environments,omitempty"`
 }
 
-type vulnScanReportPackageContext struct {
+// ReportPackageContext identifies the package the advisory matched and how the
+// repository depends on it.
+type ReportPackageContext struct {
 	PackageID        string   `json:"package_id,omitempty"`
 	PackageName      string   `json:"package_name,omitempty"`
 	Ecosystem        string   `json:"ecosystem,omitempty"`
@@ -89,7 +105,9 @@ type vulnScanReportPackageContext struct {
 	DirectDependency *bool    `json:"direct_dependency,omitempty"`
 }
 
-type vulnScanReportAffectedContext struct {
+// ReportAffectedContext is the reducer's impact verdict for the finding, with
+// the version evidence the verdict rests on.
+type ReportAffectedContext struct {
 	Status          string `json:"status"`
 	Confidence      string `json:"confidence,omitempty"`
 	ObservedVersion string `json:"observed_version,omitempty"`
@@ -99,14 +117,19 @@ type vulnScanReportAffectedContext struct {
 	MatchReason     string `json:"match_reason,omitempty"`
 }
 
-type vulnScanReportPriorityContext struct {
+// ReportPriorityContext is the server-assigned priority. It is a pointer on
+// ReportFinding so a finding with no priority evidence omits the block instead
+// of publishing a zero bucket.
+type ReportPriorityContext struct {
 	Bucket      string   `json:"bucket,omitempty"`
 	Score       int      `json:"score,omitempty"`
 	Reason      string   `json:"reason,omitempty"`
 	ReasonCodes []string `json:"reason_codes,omitempty"`
 }
 
-type vulnScanReportReachability struct {
+// ReportReachability is the reachability verdict for the finding, including
+// what evidence is missing when the verdict is not conclusive.
+type ReportReachability struct {
 	State            string   `json:"state"`
 	Confidence       string   `json:"confidence,omitempty"`
 	Source           string   `json:"source,omitempty"`
@@ -116,30 +139,36 @@ type vulnScanReportReachability struct {
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
-type vulnScanEvidenceHandle struct {
+// EvidenceHandle points at a stored fact behind a finding, so an operator can
+// fetch the raw evidence rather than trusting the summary.
+type EvidenceHandle struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
 
-func buildVulnScanReport(result vulnScanRepoResult, generatedAt time.Time) vulnScanReport {
-	code, reason := vulnScanExitClassification(result.ReadinessState, result.Count)
-	readiness := buildVulnScanReportReadiness(result.Readiness, result.ReadinessState)
+// BuildReport projects a finished Result into the published report. The
+// scope plan's missing evidence and incomplete reasons are merged into the
+// readiness block, so a CLI-side fail-closed reason appears alongside the
+// server's own.
+func BuildReport(result Result, generatedAt time.Time) Report {
+	code, reason := ExitClassification(result.ReadinessState, result.Count)
+	readiness := buildReportReadiness(result.Readiness, result.ReadinessState)
 	if result.ScopePlan != nil {
 		readiness.MissingEvidence = mergeStringLists(readiness.MissingEvidence, result.ScopePlan.MissingEvidence)
 		readiness.IncompleteReasons = mergeStringLists(readiness.IncompleteReasons, result.ScopePlan.IncompleteReasons)
 	}
-	findings := buildVulnScanReportFindings(result.Findings)
-	return vulnScanReport{
-		SchemaVersion: vulnScanReportSchemaVersion,
+	findings := buildReportFindings(result.Findings)
+	return Report{
+		SchemaVersion: ReportSchemaVersion,
 		GeneratedAt:   generatedAt.UTC().Format(time.RFC3339Nano),
 		Command:       result.Command,
 		Target:        result.Target,
 		RepositoryID:  result.RepositoryID,
-		Summary: vulnScanReportSummary{
+		Summary: ReportSummary{
 			TotalFindings:      result.Count,
 			Truncated:          result.Truncated,
-			FindingsByStatus:   vulnScanFindingsByStatus(result.Findings),
-			HighestPriority:    highestVulnScanPriority(result.Findings),
+			FindingsByStatus:   findingsByStatus(result.Findings),
+			HighestPriority:    highestPriority(result.Findings),
 			ExitCode:           code,
 			ExitReason:         reason,
 			ReadinessState:     result.ReadinessState,
@@ -153,99 +182,11 @@ func buildVulnScanReport(result vulnScanRepoResult, generatedAt time.Time) vulnS
 	}
 }
 
-func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
-	mode := result.ScopeMode
-	if mode == "" {
-		mode = vulnScanScopeModeScoped
-	}
-	report := buildVulnScanReport(result, vulnScanNow())
-	if _, err := fmt.Fprintf(w, "Vulnerability scan (%s): %s\n", mode, result.ReadinessState); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "Repository: %s\n", result.RepositoryID); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "Findings: %d", result.Count); err != nil {
-		return err
-	}
-	if result.Truncated {
-		if _, err := fmt.Fprint(w, " (truncated)"); err != nil {
-			return err
-		}
-	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(
-		w,
-		"Exit: code=%d reason=%s\n",
-		report.Summary.ExitCode, report.Summary.ExitReason,
-	); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(
-		w,
-		"Readiness: state=%s freshness=%s\n",
-		report.Readiness.State, defaultString(report.Readiness.Freshness, "unknown"),
-	); err != nil {
-		return err
-	}
-	if len(report.Readiness.MissingEvidence) > 0 {
-		if _, err := fmt.Fprintf(w, "Missing evidence: %s\n", strings.Join(report.Readiness.MissingEvidence, ", ")); err != nil {
-			return err
-		}
-	}
-	if summaries := unsupportedTargetSummaries(report.Readiness.UnsupportedTargets); len(summaries) > 0 {
-		if _, err := fmt.Fprintf(w, "Unsupported targets: %s\n", strings.Join(summaries, ", ")); err != nil {
-			return err
-		}
-	}
-	if report.Summary.EvidenceFactsTotal > 0 {
-		if _, err := fmt.Fprintf(w, "Evidence facts: %d\n", report.Summary.EvidenceFactsTotal); err != nil {
-			return err
-		}
-	}
-	if plan := result.ScopePlan; plan != nil {
-		if _, err := fmt.Fprintf(
-			w,
-			"Scope: observed_dependency_facts=%d advisory_facts=%d package_registry_facts=%d freshness=%s\n",
-			plan.ObservedDependencyFacts, plan.AdvisoryFacts, plan.PackageRegistryFacts, defaultString(plan.Freshness, "unknown"),
-		); err != nil {
-			return err
-		}
-	}
-	if perf := result.Performance; perf != nil {
-		if _, err := fmt.Fprintf(
-			w,
-			"Performance: wall_time_ms=%d repo_files=%d repo_bytes=%d stop=%s\n",
-			perf.WallTimeMS, perf.RepositoryFileCount, perf.RepositorySizeBytes, perf.StopThreshold,
-		); err != nil {
-			return err
-		}
-	}
-	for _, finding := range report.Findings {
-		packageLabel := defaultString(
-			finding.Package.PackageName,
-			defaultString(finding.Package.PackageID, "-"),
-		)
-		if _, err := fmt.Fprintf(
-			w,
-			"- %s %s %s %s fixed=%s evidence=%s\n",
-			defaultString(finding.FindingID, "-"),
-			defaultString(finding.CVEID, "-"),
-			packageLabel,
-			defaultString(finding.Affected.Status, "-"),
-			defaultString(finding.Affected.FixedVersion, "unknown"),
-			strings.Join(evidenceHandleIDs(finding.EvidenceHandles), ","),
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func buildVulnScanReportReadiness(readiness map[string]any, state string) vulnScanReportReadiness {
-	report := vulnScanReportReadiness{State: strings.TrimSpace(state)}
+// buildReportReadiness reads the server's readiness map into the report's
+// named shape. A blank state is reported as `readiness_unavailable` rather
+// than empty, so the report never implies a verdict the server did not give.
+func buildReportReadiness(readiness map[string]any, state string) ReportReadiness {
+	report := ReportReadiness{State: strings.TrimSpace(state)}
 	if report.State == "" {
 		report.State = "readiness_unavailable"
 	}
@@ -266,16 +207,18 @@ func buildVulnScanReportReadiness(readiness map[string]any, state string) vulnSc
 	return report
 }
 
-func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFinding {
-	reportFindings := make([]vulnScanReportFinding, 0, len(findings))
+// buildReportFindings reads each raw finding map into the report's named
+// finding shape.
+func buildReportFindings(findings []map[string]any) []ReportFinding {
+	reportFindings := make([]ReportFinding, 0, len(findings))
 	for _, finding := range findings {
-		reportFinding := vulnScanReportFinding{
+		reportFinding := ReportFinding{
 			FindingID:  stringFromMap(finding, "finding_id"),
 			CVEID:      stringFromMap(finding, "cve_id"),
 			AdvisoryID: stringFromMap(finding, "advisory_id"),
-			Target: vulnScanReportFindingTarget{
+			Target: ReportFindingTarget{
 				RepositoryID:        stringFromMap(finding, "repository_id"),
-				SourcePath:          vulnScanFindingSourcePath(finding),
+				SourcePath:          findingSourcePath(finding),
 				ManifestPath:        stringFromMap(finding, "manifest_path"),
 				StartLine:           intFromAny(finding["start_line"]),
 				EndLine:             intFromAny(finding["end_line"]),
@@ -286,7 +229,7 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 				ServiceIDs:          stringSliceFromAny(finding["service_ids"]),
 				Environments:        stringSliceFromAny(finding["environments"]),
 			},
-			Package: vulnScanReportPackageContext{
+			Package: ReportPackageContext{
 				PackageID:        stringFromMap(finding, "package_id"),
 				PackageName:      stringFromMap(finding, "package_name"),
 				Ecosystem:        stringFromMap(finding, "ecosystem"),
@@ -297,7 +240,7 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 				DependencyDepth:  intFromAny(finding["dependency_depth"]),
 				DirectDependency: boolPtrFromAny(finding["direct_dependency"]),
 			},
-			Affected: vulnScanReportAffectedContext{
+			Affected: ReportAffectedContext{
 				Status:          stringFromMap(finding, "impact_status"),
 				Confidence:      stringFromMap(finding, "confidence"),
 				ObservedVersion: stringFromMap(finding, "observed_version"),
@@ -307,18 +250,21 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 				MatchReason:     stringFromMap(finding, "match_reason"),
 			},
 			Priority:        priorityFromFinding(finding),
-			Reachability:    reachabilityFromFinding(finding),
+			Reachability:    ReachabilityFromFinding(finding),
 			MissingEvidence: stringSliceFromAny(finding["missing_evidence"]),
 			EvidenceHandles: evidenceHandlesFromFinding(finding),
 			SourceFreshness: stringFromMap(finding, "source_freshness"),
 		}
-		reportFinding.Remediation = remediationFromFinding(finding)
+		reportFinding.Remediation = RemediationFromFinding(finding)
 		reportFindings = append(reportFindings, reportFinding)
 	}
 	return reportFindings
 }
 
-func vulnScanFindingSourcePath(finding map[string]any) string {
+// findingSourcePath prefers the finding's own source path and falls back to
+// the manifest path, so a finding located only by manifest still reports a
+// path rather than an empty string.
+func findingSourcePath(finding map[string]any) string {
 	if sourcePath := stringFromMap(finding, "source_path"); sourcePath != "" {
 		return sourcePath
 	}

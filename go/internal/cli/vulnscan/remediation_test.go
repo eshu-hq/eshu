@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package vulnscan
 
 import "testing"
 
@@ -25,7 +25,7 @@ func TestRemediationFromFindingPreservesReducerEnvelopeTruth(t *testing.T) {
 		},
 	}
 
-	remediation := remediationFromFinding(finding)
+	remediation := RemediationFromFinding(finding)
 	if remediation["match_reason"] != "maven_range_match" {
 		t.Fatalf("match_reason = %#v, want maven_range_match", remediation["match_reason"])
 	}
@@ -42,9 +42,9 @@ func TestVulnScanSARIFRemediationPreservesReducerEnvelopeTruth(t *testing.T) {
 
 	finding := remediationEnvelopeFinding()
 
-	remediation := vulnScanSARIFRemediation(finding)
+	remediation := sarifRemediation(finding)
 	if remediation == nil {
-		t.Fatal("vulnScanSARIFRemediation() = nil, want remediation")
+		t.Fatal("sarifRemediation() = nil, want remediation")
 	}
 	if remediation.MatchReason != "maven_range_match" {
 		t.Fatalf("MatchReason = %q, want maven_range_match", remediation.MatchReason)
@@ -57,11 +57,11 @@ func TestVulnScanSARIFRemediationPreservesReducerEnvelopeTruth(t *testing.T) {
 func TestRemediationForVEXPreservesReducerEnvelopeTruth(t *testing.T) {
 	t.Parallel()
 
-	finding := vulnScanReportFinding{
-		Remediation: remediationFromFinding(remediationEnvelopeFinding()),
+	finding := ReportFinding{
+		Remediation: RemediationFromFinding(remediationEnvelopeFinding()),
 	}
 
-	remediation := remediationForVEX(finding)
+	remediation := RemediationForVEX(finding)
 	if remediation["match_reason"] != "maven_range_match" {
 		t.Fatalf("match_reason = %#v, want maven_range_match", remediation["match_reason"])
 	}

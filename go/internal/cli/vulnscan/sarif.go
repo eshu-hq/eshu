@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package vulnscan
 
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,15 +14,22 @@ import (
 )
 
 const (
-	vulnScanExportFormatSARIF = "sarif"
-	vulnScanExportFormatVEX   = "vex"
+	// ExportFormatSARIF is the --export value that writes SARIF.
+	ExportFormatSARIF = "sarif"
+	// ExportFormatVEX is the --export value that writes VEX-style statements.
+	ExportFormatVEX = "vex"
 )
 
-func writeVulnScanSARIF(w io.Writer, result vulnScanRepoResult, report vulnScanReport) error {
-	snapshot, err := vulnScanSARIFSnapshot(result, report)
+// WriteSARIF renders result and report as SARIF on w. It fails rather than
+// emitting a partial document when the repository id is unresolved or the
+// report's generated_at cannot be parsed, because a SARIF run with no scope is
+// worse than no file for the tools that ingest it.
+func WriteSARIF(w io.Writer, result Result, report Report) error {
+	snapshot, err := sarifSnapshot(result, report)
 	if err != nil {
 		return err
 	}
+	//nolint:wrapcheck // the exports registry's error is the answer; a prefix here would displace what the writer reported
 	return exportspkg.NewRegistry().Export(w, exportspkg.FormatSARIF, snapshot, exportspkg.Options{
 		Tool: exportspkg.Tool{
 			Name:    "eshu",
@@ -33,7 +39,9 @@ func writeVulnScanSARIF(w io.Writer, result vulnScanRepoResult, report vulnScanR
 	})
 }
 
-func vulnScanSARIFSnapshot(result vulnScanRepoResult, report vulnScanReport) (exportspkg.Snapshot, error) {
+// sarifSnapshot maps the vuln-scan result and report onto the shared exports
+// snapshot the SARIF writer consumes.
+func sarifSnapshot(result Result, report Report) (exportspkg.Snapshot, error) {
 	repositoryID := strings.TrimSpace(result.RepositoryID)
 	if repositoryID == "" {
 		repositoryID = strings.TrimSpace(report.RepositoryID)
@@ -51,12 +59,15 @@ func vulnScanSARIFSnapshot(result vulnScanRepoResult, report vulnScanReport) (ex
 			RepositoryID: repositoryID,
 		},
 		GeneratedAt: generatedAt,
-		Findings:    vulnScanSARIFFindings(result.Findings),
-		Status:      vulnScanSARIFStatus(report, result.ScopeMode),
+		Findings:    sarifFindings(result.Findings),
+		Status:      sarifStatus(report, result.ScopeMode),
 	}, nil
 }
 
-func vulnScanSARIFStatus(report vulnScanReport, scopeMode string) exportspkg.SnapshotStatus {
+// sarifStatus carries the readiness verdict and exit classification into the
+// SARIF run, so a consumer can tell a clean empty result from one the CLI
+// refused to call clean.
+func sarifStatus(report Report, scopeMode string) exportspkg.SnapshotStatus {
 	missingEvidence := report.Readiness.MissingEvidence
 	if report.ScopePlan != nil {
 		missingEvidence = append(missingEvidence, report.ScopePlan.MissingEvidence...)
@@ -67,14 +78,17 @@ func vulnScanSARIFStatus(report vulnScanReport, scopeMode string) exportspkg.Sna
 		ReadinessFreshness:  report.Readiness.Freshness,
 		ExitCode:            report.Summary.ExitCode,
 		ExitReason:          report.Summary.ExitReason,
-		ScopeMode:           defaultString(scopeMode, vulnScanScopeModeScoped),
+		ScopeMode:           defaultString(scopeMode, ScopeModeScoped),
 		MissingEvidence:     cloneUniqueSortedStrings(missingEvidence),
 		IncompleteReasons:   cloneAndSortStrings(report.Readiness.IncompleteReasons),
-		UnsupportedTargets:  vulnScanSARIFUnsupportedTargets(report.Readiness.UnsupportedTargets),
+		UnsupportedTargets:  sarifUnsupportedTargets(report.Readiness.UnsupportedTargets),
 	}
 }
 
-func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
+// sarifFindings maps each raw finding onto the shared exports finding shape.
+// It reads the raw maps rather than the report's findings because SARIF needs
+// severity, CVSS, and advisory-source fields the JSON report does not publish.
+func sarifFindings(findings []map[string]any) []exportspkg.Finding {
 	out := make([]exportspkg.Finding, 0, len(findings))
 	for _, finding := range findings {
 		provenance := mapFromAny(finding["provenance"])
@@ -101,7 +115,7 @@ func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
 			MatchReason:         stringFromMap(finding, "match_reason"),
 			Summary:             stringFromMap(finding, "summary"),
 			Description:         stringFromMap(finding, "description"),
-			Severity:            vulnScanSARIFSeverity(finding, provenance, cvssScore),
+			Severity:            sarifSeverity(finding, provenance, cvssScore),
 			CVSSScore:           cvssScore,
 			CVSSVector:          cvssVector,
 			KnownExploited:      boolFromAny(finding["known_exploited"]),
@@ -110,7 +124,7 @@ func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
 			SubjectDigest:       stringFromMap(finding, "subject_digest"),
 			ImageRef:            stringFromMap(finding, "image_ref"),
 			RuntimeReachability: stringFromMap(finding, "runtime_reachability"),
-			Reachability:        vulnScanSARIFReachability(finding),
+			Reachability:        sarifReachability(finding),
 			ImpactStatus:        stringFromMap(finding, "impact_status"),
 			Confidence:          stringFromMap(finding, "confidence"),
 			WorkloadIDs:         cloneAndSortStrings(stringSliceFromAny(finding["workload_ids"])),
@@ -122,16 +136,19 @@ func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
 			MissingEvidence:     cloneAndSortStrings(stringSliceFromAny(finding["missing_evidence"])),
 			EvidenceFactIDs:     cloneAndSortStrings(stringSliceFromAny(finding["evidence_fact_ids"])),
 			SourceFreshness:     stringFromMap(finding, "source_freshness"),
-			Remediation:         vulnScanSARIFRemediation(finding),
-			Locations:           vulnScanSARIFLocations(finding),
-			AdvisorySources:     vulnScanSARIFAdvisorySources(finding, provenance),
-			HelpURI:             vulnScanSARIFHelpURI(finding, provenance),
+			Remediation:         sarifRemediation(finding),
+			Locations:           sarifLocations(finding),
+			AdvisorySources:     sarifAdvisorySources(finding, provenance),
+			HelpURI:             sarifHelpURI(finding, provenance),
 		})
 	}
 	return out
 }
 
-func vulnScanSARIFSeverity(
+// sarifSeverity walks the severity labels in preference order and falls back
+// to deriving one from the CVSS score, so a finding with a score but no label
+// still exports at the right level.
+func sarifSeverity(
 	finding map[string]any,
 	provenance map[string]any,
 	cvssScore float64,
@@ -149,6 +166,9 @@ func vulnScanSARIFSeverity(
 	return severityFromCVSS(cvssScore)
 }
 
+// severityFromCVSS applies the standard CVSS v3 qualitative bands. A score of
+// zero or less is unknown rather than none, because the CLI cannot tell an
+// absent score from a genuine zero.
 func severityFromCVSS(score float64) exportspkg.Severity {
 	switch {
 	case score >= 9:
@@ -164,7 +184,10 @@ func severityFromCVSS(score float64) exportspkg.Severity {
 	}
 }
 
-func vulnScanSARIFLocations(finding map[string]any) []exportspkg.Location {
+// sarifLocations collects the finding's locations from the three places the
+// API may report them — the finding itself, a source_location block, and a
+// locations list — de-duplicated by path and line span.
+func sarifLocations(finding map[string]any) []exportspkg.Location {
 	locations := make([]exportspkg.Location, 0, 2)
 	seen := map[string]struct{}{}
 	appendLocation := func(source map[string]any) {
@@ -200,7 +223,9 @@ func vulnScanSARIFLocations(finding map[string]any) []exportspkg.Location {
 	return locations
 }
 
-func vulnScanSARIFAdvisorySources(
+// sarifAdvisorySources prefers the provenance block's advisory sources and
+// falls back to the finding's own, dropping entries with no identifying field.
+func sarifAdvisorySources(
 	finding map[string]any,
 	provenance map[string]any,
 ) []exportspkg.AdvisorySource {
@@ -223,11 +248,14 @@ func vulnScanSARIFAdvisorySources(
 	return sources
 }
 
-func vulnScanSARIFHelpURI(finding map[string]any, provenance map[string]any) string {
+// sarifHelpURI picks the link a SARIF consumer should open for the rule:
+// the finding's explicit help or advisory URL, otherwise the first advisory
+// source that carries one.
+func sarifHelpURI(finding map[string]any, provenance map[string]any) string {
 	if uri := firstNonEmpty(stringFromMap(finding, "help_uri"), stringFromMap(finding, "advisory_url")); uri != "" {
 		return uri
 	}
-	for _, source := range vulnScanSARIFAdvisorySources(finding, provenance) {
+	for _, source := range sarifAdvisorySources(finding, provenance) {
 		if source.URL != "" {
 			return source.URL
 		}
@@ -235,8 +263,11 @@ func vulnScanSARIFHelpURI(finding map[string]any, provenance map[string]any) str
 	return ""
 }
 
-func vulnScanSARIFRemediation(finding map[string]any) *exportspkg.Remediation {
-	remediation := remediationFromFinding(finding)
+// sarifRemediation maps the reducer's remediation block onto the exports
+// shape, returning nil when nothing survives the mapping so the SARIF result
+// omits the fix block rather than publishing an empty one.
+func sarifRemediation(finding map[string]any) *exportspkg.Remediation {
+	remediation := RemediationFromFinding(finding)
 	if len(remediation) == 0 {
 		return nil
 	}
@@ -264,7 +295,9 @@ func vulnScanSARIFRemediation(finding map[string]any) *exportspkg.Remediation {
 	return out
 }
 
-func vulnScanSARIFUnsupportedTargets(targets []map[string]any) []exportspkg.UnsupportedTarget {
+// sarifUnsupportedTargets maps the readiness envelope's unsupported targets
+// onto the exports shape, dropping entries with no populated field.
+func sarifUnsupportedTargets(targets []map[string]any) []exportspkg.UnsupportedTarget {
 	out := make([]exportspkg.UnsupportedTarget, 0, len(targets))
 	for _, target := range targets {
 		unsupported := exportspkg.UnsupportedTarget{
@@ -282,94 +315,5 @@ func vulnScanSARIFUnsupportedTargets(targets []map[string]any) []exportspkg.Unsu
 		}
 		out = append(out, unsupported)
 	}
-	return out
-}
-
-func mapFromAny(value any) map[string]any {
-	typed, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	return typed
-}
-
-func floatFromAny(value any) float64 {
-	switch typed := value.(type) {
-	case float64:
-		return typed
-	case float32:
-		return float64(typed)
-	case int:
-		return float64(typed)
-	case int64:
-		return float64(typed)
-	default:
-		return 0
-	}
-}
-
-func boolFromAny(value any) bool {
-	typed, ok := value.(bool)
-	return ok && typed
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func firstPositiveFloat(values ...float64) float64 {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return 0
-}
-
-func firstPositiveInt(values ...int) int {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return 0
-}
-
-func cloneAndSortStrings(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, len(in))
-	copy(out, in)
-	sort.Strings(out)
-	return out
-}
-
-func cloneUniqueSortedStrings(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(in))
-	for _, value := range in {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	sort.Strings(out)
 	return out
 }
