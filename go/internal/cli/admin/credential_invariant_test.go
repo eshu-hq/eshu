@@ -158,6 +158,77 @@ func TestResetInitialCredentialAuditsFailedReset(t *testing.T) {
 	}
 }
 
+// TestResetInitialCredentialAuditsUnrecoverableUsername proves the documented
+// early-refusal path — `--username` omitted and the prior credential already
+// consumed, so there is no envelope to recover the username from — still
+// records its durable failed-reset event. This return sits before any secret
+// is generated or sealed, so the audit appender must exist before username
+// recovery, not only before the storage write.
+func TestResetInitialCredentialAuditsUnrecoverableUsername(t *testing.T) {
+	keyring := newCredentialInvariantKeyring(t, "key-a")
+	db := &fakeCredentialDB{envelopeFound: false}
+
+	_, err := ResetInitialCredential(context.Background(), db, keyring, "")
+	if err == nil {
+		t.Fatal("ResetInitialCredential() error = nil, want the cannot-recover-username error")
+	}
+	if !strings.Contains(err.Error(), "cannot recover the original username") {
+		t.Fatalf("ResetInitialCredential() error = %q, want the documented username-recovery guidance", err.Error())
+	}
+
+	got := wantExactlyOneAuditEvent(t, db, "username-unrecoverable reset")
+	if got.reason != bootstrapCredentialAuditReasonResetFailed {
+		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonResetFailed)
+	}
+	if got.decision != string(governanceaudit.DecisionDenied) {
+		t.Fatalf("audit decision = %q, want %q", got.decision, governanceaudit.DecisionDenied)
+	}
+	if got.keyID != "" {
+		t.Fatalf("audit correlation_id = %q, want empty: no envelope was ever resolved", got.keyID)
+	}
+}
+
+// TestResetInitialCredentialAuditsUndecryptablePriorCredential proves the
+// other documented username-recovery failure — the prior envelope exists but
+// is sealed under a key the configured keyring does not hold — records its
+// failed-reset event, and that the event carries the prior envelope's own key
+// id (the DEK the operator needed but did not have), matching what the
+// failed-retrieval event already records on the same decrypt failure.
+func TestResetInitialCredentialAuditsUndecryptablePriorCredential(t *testing.T) {
+	sealer := newCredentialInvariantKeyring(t, "key-a")
+	wrongKeyring, err := secretcrypto.NewKeyring(
+		"key-b",
+		map[secretcrypto.KeyID][]byte{"key-b": bytes.Repeat([]byte{9}, 32)},
+	)
+	if err != nil {
+		t.Fatalf("NewKeyring() error = %v", err)
+	}
+	db := &fakeCredentialDB{
+		envelopeFound:  true,
+		sealedEnvelope: sealCredentialInvariantEnvelope(t, sealer, `{"username":"admin","password":"pw","recovery_code":"rc"}`),
+		envelopeKeyID:  "key-a",
+	}
+
+	_, err = ResetInitialCredential(context.Background(), db, wrongKeyring, "")
+	if err == nil {
+		t.Fatal("ResetInitialCredential() error = nil, want the cannot-recover-username error")
+	}
+	if !strings.Contains(err.Error(), "cannot recover the original username") {
+		t.Fatalf("ResetInitialCredential() error = %q, want the documented username-recovery guidance", err.Error())
+	}
+
+	got := wantExactlyOneAuditEvent(t, db, "undecryptable-prior-credential reset")
+	if got.reason != bootstrapCredentialAuditReasonResetFailed {
+		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonResetFailed)
+	}
+	if got.decision != string(governanceaudit.DecisionDenied) {
+		t.Fatalf("audit decision = %q, want %q", got.decision, governanceaudit.DecisionDenied)
+	}
+	if got.keyID != "key:key-a" {
+		t.Fatalf("audit correlation_id = %q, want %q (the prior envelope's key id)", got.keyID, "key:key-a")
+	}
+}
+
 // appendedAuditEvent is the audit row as it reached the database driver,
 // read back out of the recorded INSERT arguments.
 type appendedAuditEvent struct {

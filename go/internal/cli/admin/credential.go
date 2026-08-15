@@ -97,31 +97,63 @@ func ResetInitialCredential(
 	keyring *secretcrypto.Keyring,
 	username string,
 ) (BootstrapCredentialPayload, error) {
+	// The appender exists before any reset work begins, mirroring
+	// RetrieveInitialCredential: every return below — including the early
+	// username-recovery refusal that runs before a replacement secret is
+	// even generated — records exactly one durable reset event.
+	auditAppender := newAdminCredentialAuditAppender(db)
+	payload, keyID, err := resetInitialCredential(ctx, db, keyring, username)
+	auditBootstrapCredentialReset(ctx, auditAppender, keyID, err)
+	if err != nil {
+		return BootstrapCredentialPayload{}, err
+	}
+	return payload, nil
+}
+
+// resetInitialCredential is ResetInitialCredential's worker. It performs the
+// reset and returns the key id its audit event should correlate against: the
+// freshly sealed replacement envelope's key id once sealing has succeeded,
+// before that the prior envelope's key id when blank-username recovery
+// resolved one (which DEK the operator needed but did not have — the same
+// correlation a failed retrieval records), and "" when no envelope was ever
+// resolved. Never the plaintext password, recovery code, or ciphertext.
+//
+// It stays unexported so no caller can reach the reset without the audit
+// event the exported wrapper appends on every return.
+func resetInitialCredential(
+	ctx context.Context,
+	db pgstorage.ExecQueryer,
+	keyring *secretcrypto.Keyring,
+	username string,
+) (BootstrapCredentialPayload, string, error) {
 	store := pgstorage.NewIdentitySubjectStore(db)
 
+	auditKeyID := ""
 	username = strings.TrimSpace(username)
 	if username == "" {
-		if existing, _, err := openBootstrapCredentialPayload(ctx, store, keyring); err == nil {
+		existing, priorKeyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
+		auditKeyID = priorKeyID
+		if err == nil {
 			username = existing.Username
 		}
 	}
 	if username == "" {
-		return BootstrapCredentialPayload{}, errors.New(
+		return BootstrapCredentialPayload{}, auditKeyID, errors.New(
 			"cannot recover the original username (the prior credential was already consumed, reset, or sealed under a different key); pass --username to reset-initial-credential",
 		)
 	}
 
 	password, err := generateSecret(generatedPasswordSize)
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("generate replacement password: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("generate replacement password: %w", err)
 	}
 	recoveryCode, err := generateSecret(generatedRecoverySize)
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("generate replacement recovery code: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("generate replacement recovery code: %w", err)
 	}
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("hash replacement password: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("hash replacement password: %w", err)
 	}
 
 	payload, err := json.Marshal(BootstrapCredentialPayload{ // #nosec G117 -- intentionally marshaling the replacement credential payload immediately before AEAD sealing (keyring.Seal below); the JSON never leaves this function unencrypted
@@ -130,17 +162,21 @@ func ResetInitialCredential(
 		RecoveryCode: recoveryCode,
 	})
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("encode replacement credential payload: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("encode replacement credential payload: %w", err)
 	}
 	aad := pgstorage.BootstrapCredentialAAD(pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
 	sealed, err := keyring.Seal(payload, aad)
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("seal replacement credential: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("seal replacement credential: %w", err)
 	}
 	keyID := secretcrypto.EnvelopeKeyID(sealed)
 	if keyID == "" {
-		return BootstrapCredentialPayload{}, fmt.Errorf("resolve sealed credential key id: malformed sealed envelope")
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("resolve sealed credential key id: malformed sealed envelope")
 	}
+	// From here the replacement envelope is the specific thing the reset is
+	// installing, so its key id supersedes the prior envelope's as the
+	// audit correlation.
+	auditKeyID = keyID
 
 	now := time.Now().UTC()
 	// The recovery-code factor is re-enrolled atomically alongside the
@@ -152,7 +188,7 @@ func ResetInitialCredential(
 	// a hash that has not been committed yet.
 	mfaFactorID, err := newLocalIdentityFactorID()
 	if err != nil {
-		return BootstrapCredentialPayload{}, fmt.Errorf("generate replacement mfa factor id: %w", err)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("generate replacement mfa factor id: %w", err)
 	}
 	recoveryCodeHash := query.IdentityHash(recoveryCode)
 	resetErr := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
@@ -167,22 +203,20 @@ func ResetInitialCredential(
 		RecoveryCodeHash:       recoveryCodeHash,
 		ResetAt:                now,
 	})
-	auditAppender := newAdminCredentialAuditAppender(db)
-	auditBootstrapCredentialReset(ctx, auditAppender, keyID, resetErr)
 	if resetErr != nil {
 		if errors.Is(resetErr, pgstorage.ErrBootstrapCredentialNotFound) {
-			return BootstrapCredentialPayload{}, errors.New(
+			return BootstrapCredentialPayload{}, auditKeyID, errors.New(
 				"no bootstrap credential exists for this deployment (the admin was seeded from ESHU_ADMIN_USERNAME/PASSWORD and has no generated envelope, or ESHU_AUTH_BOOTSTRAP_MODE is sso-only/disabled); there is nothing to reset",
 			)
 		}
-		return BootstrapCredentialPayload{}, fmt.Errorf("reset bootstrap credential: %w", resetErr)
+		return BootstrapCredentialPayload{}, auditKeyID, fmt.Errorf("reset bootstrap credential: %w", resetErr)
 	}
 
 	return BootstrapCredentialPayload{
 		Username:     username,
 		Password:     password,
 		RecoveryCode: recoveryCode,
-	}, nil
+	}, auditKeyID, nil
 }
 
 // openBootstrapCredentialPayload retrieves and opens the sealed bootstrap

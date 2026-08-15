@@ -38,8 +38,12 @@
   (already consumed, wrong key) is as security-relevant as a successful one.
   `credential_invariant_test.go` is the guard: it drives both exported
   functions against a fake `pgstorage.ExecQueryer` and asserts the audit
-  `INSERT` reached the connection, success and failure. Deleting either
-  audit call makes those four tests fail by name. Do not weaken them into
+  `INSERT` reached the connection, success and failure — including the reset
+  refusal that runs before any replacement secret exists (`--username`
+  omitted and the prior credential consumed or undecryptable), which is why
+  `ResetInitialCredential` creates the appender before username recovery and
+  audits in its exported wrapper, once, on every return of the unexported
+  worker. Deleting either audit call makes those six tests fail by name. Do not weaken them into
   assertions on a stubbed appender — going through the real
   `pgstorage.GovernanceAuditStore` is what keeps
   `governanceaudit.NormalizeEvent` in the path, and a rejected event is

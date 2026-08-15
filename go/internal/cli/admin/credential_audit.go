@@ -85,10 +85,13 @@ func auditBootstrapCredentialRetrieved(ctx context.Context, appender query.Gover
 // auditBootstrapCredentialReset records a reset/regeneration attempt of the
 // bootstrap admin credential via `eshu admin reset-initial-credential`,
 // success or failure (see auditBootstrapCredentialRetrieved's doc comment
-// for why both outcomes are audited). keyID is always the newly-sealed
-// replacement envelope's key id: Seal (and EnvelopeKeyID) already succeeded
-// before ResetBootstrapCredential's persistence call is attempted, so a
-// persistence failure still has a real key id to correlate against.
+// for why both outcomes are audited). ResetInitialCredential calls this on
+// every return, so keyID depends on how far the reset got: once Seal (and
+// EnvelopeKeyID) succeeded it is the newly-sealed replacement envelope's key
+// id — a later persistence failure still has a real key id to correlate
+// against — while a failure before sealing carries the prior envelope's key
+// id when blank-username recovery resolved one, and "" when no envelope was
+// ever resolved (see resetInitialCredential's doc comment).
 func auditBootstrapCredentialReset(ctx context.Context, appender query.GovernanceAuditAppender, keyID string, resetErr error) {
 	reason := bootstrapCredentialAuditReasonReset
 	decision := governanceaudit.DecisionAllowed
