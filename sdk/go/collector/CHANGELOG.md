@@ -56,6 +56,15 @@ entry — until a maintainer actually cuts the tag, per the convention below.
 - Core Eshu now generates the host-side adapter from `collector.Fact` into the
   durable fact envelope. This does not change the `collector-sdk/v1alpha1` wire
   protocol or the public Go API.
+- `ValidateResult` now refuses a `source_ref.uri` whose credential hides in an
+  opaque URL body. `url.Parse` only surfaces userinfo after `//`, so
+  `svc:SECRET@host/x` — the shape an operator produces by omitting `https://`
+  — parsed with `User == nil` and passed "must not contain credentials".
+  The validator re-parses the authority spelling when the opaque body has an
+  `@` ahead of its first `/` and lets net/url decide; purls and other
+  slash-first opaque bodies stay accepted. Validation errors for unparseable
+  URIs no longer repeat the URI value, which can carry the credential into
+  collector logs. No wire-protocol or Go API change.
 
 ## Convention for future entries
 
