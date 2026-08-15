@@ -98,9 +98,29 @@ func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
 	if report.Diagnosis == nil {
 		t.Fatal("Diagnosis = nil, want the classified auth diagnostic")
 	}
+	// The recovery step is carried into the artifact, and the credential-shaped
+	// half of it does not survive: "export ESHU_API_KEY=<token>" is a
+	// credential-named pair, so the free-text walk removes the pair whole and
+	// the artifact shows "export [redacted]".
+	//
+	// This is the price of scanning every free-form field rather than keeping a
+	// list of fields judged safe. A recovery step is a package literal today,
+	// which is what makes the loss pure cost; the reason it is scanned anyway is
+	// that a provenance list has to be re-decided every time a field changes
+	// where its bytes come from, and getting that wrong is the whole shape of
+	// the leak this walk closes. The operator loses nothing they cannot read:
+	// renderFirstRunHuman prints the raw diagnostic and the raw next steps to
+	// their terminal. Only the artifact meant for a public support thread is
+	// shortened.
 	joined := strings.Join(report.NextCommands, "\n")
-	if !strings.Contains(joined, "ESHU_API_KEY") {
-		t.Fatalf("NextCommands = %v, want the recovery step included", report.NextCommands)
+	if !strings.Contains(joined, "export ") {
+		t.Fatalf("NextCommands = %v, want the recovery step carried into the report", report.NextCommands)
+	}
+	if !strings.Contains(joined, "Re-run: eshu first-run") {
+		t.Fatalf("NextCommands = %v, want the run's own next step carried through intact", report.NextCommands)
+	}
+	if strings.Contains(joined, "<token>") {
+		t.Fatalf("NextCommands = %v, want the credential-shaped pair removed", report.NextCommands)
 	}
 	if report.DocsLinks == nil || !containsString(report.DocsLinks, "docs/public/reference/http-api.md") {
 		t.Fatalf("DocsLinks = %v, want the diagnostic docs link", report.DocsLinks)

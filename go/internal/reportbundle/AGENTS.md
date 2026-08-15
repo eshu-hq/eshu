@@ -92,7 +92,8 @@ read durable fact records itself — callers supply an already-resolved
   than for the detector: this walk EMITS what it scanned and `Validate` scans
   the output again, so a deeper unwrap makes `Capture` reject its own bundle.
 - Whether an escaped terminator ENDS a value depends on the DEPTH of the pair,
-  and `noteEscapedValueTerminators` is where that is decided. A pair joined by a
+  and `urlredact`'s `freeTextEscapedValueTerminators` is where that is decided.
+  A pair joined by a
   literal `=` was typed at the surface, so an escape inside its value is part of
   the credential: `?token=aa%26bb` is a token of `aa&bb`, and reading the `%26`
   as a terminator cut it and left `bb` in the note. Nothing is escaped-structure
@@ -106,11 +107,12 @@ read durable fact records itself — callers supply an already-resolved
   out of `?redirect_uri=%2Fx%3Faccess_token%3D…%20TAIL` and shipped `TAIL`, on
   `%20`, `%22`, `%27`, `%09` and `%0A` alike. That is why the terminator scan
   passes two sets to `urlredact.IndexBoundaryBySpelling` rather than one set and
-  a depth. Those escaped members of `freeTextValueTerminators` cannot be covered
+  a depth. Those escaped members of `urlredact.freeTextValueTerminators` cannot
+  be covered
   by a corpus row, because they are not pair boundaries, so they need rows in
   `redaction_boundary_test.go` at BOTH depths — one test per depth exists, and a
   new terminator needs a row in each.
-- This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, and
+- This walk and `evidredact.Endpoint` decide depth independently, and
   both leaks above are the two deciding differently. `urlredact.DifferentialCases`
   compares them to EACH OTHER over a generated cross-product, driven from
   `redaction_differential_test.go`; both walks passed every corpus row while

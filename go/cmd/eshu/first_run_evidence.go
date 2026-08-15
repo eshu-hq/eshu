@@ -5,12 +5,9 @@ package main
 
 import (
 	"errors"
-	"net/url"
-	"regexp"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
-	"github.com/eshu-hq/eshu/go/internal/urlredact"
+	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 )
 
 // evidenceIndexingState names whether the first-run proved indexing reached a
@@ -234,191 +231,46 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-// evidenceRedactedMarker is the placeholder this file substitutes for a removed
-// credential, in userinfo and in a query value alike. It carries no separator,
-// so a redacted endpoint stays a fixed point when the report is re-rendered
-// from a saved envelope.
-const evidenceRedactedMarker = "redacted"
+// evidenceRedactedMarker is the placeholder substituted for a removed
+// credential inside an endpoint URL. The rule lives in internal/cli/evidredact;
+// this alias is what the tests in this package and the endpoint callers here
+// read.
+const evidenceRedactedMarker = evidredact.Marker
 
-// redactEndpoint returns a display-safe form of an endpoint URL. A URL can carry
-// a credential in three places and all three are closed here: embedded userinfo
-// (user:password@), a query parameter with a credential-shaped name, and the
-// fragment. The scheme, host, path, and every other query parameter remain so
-// the operator can still recognize the target. A value that does not parse as a
-// URL is masked through mcpsetup.RedactToken so a credential-looking string
-// never survives verbatim.
+// The redaction rules below moved to internal/cli/evidredact so they can be
+// unit-tested on their own and so this file stays under the repo's 500-line
+// cap. The gap that made the move urgent survived precisely because nothing
+// exercised the scrub in isolation: every test reached it through
+// `first-run report`, and a credential carried in URL-free text was never one
+// of the inputs anybody wrote a case for.
 //
-// Each place was open until measured, and the count in this comment was wrong
-// before the fragment was added to it:
-//
-//   - Query: "could not reach http://127.0.0.1:8080/x?api_key=<credential>"
-//     came out verbatim while the same credential in userinfo was removed.
-//     Nothing upstream could help, because every composed-text path ends up
-//     back in this function.
-//   - Fragment: url.Parse lifts "#…" into Fragment and String() re-emits it
-//     untouched, so the canonical OAuth implicit-grant callback
-//     "https://app.example.com/cb#access_token=<credential>" survived whole.
-//
-// The whole fragment goes, not just its credential-named pairs. A fragment is
-// client-side and never reaches the server, so it contributes nothing to the
-// target recognition that is the stated reason the rest of the URL is kept.
-func redactEndpoint(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Host == "" {
-		return mcpsetup.RedactToken(trimmed)
-	}
-	if parsed.User != nil {
-		parsed.User = url.User(evidenceRedactedMarker)
-	}
-	// urlredact owns the pair boundary for both this walk and
-	// internal/reportbundle's. Splitting a query string here by hand is how the
-	// two drifted: this one knew only "&", so "?a=1;token=<credential>" and
-	// "?next=/v0/y?api_key=<credential>" reached the artifact whole.
-	parsed.RawQuery = urlredact.Query(parsed.RawQuery, evidenceRedactedMarker)
-	parsed.Fragment = ""
-	parsed.RawFragment = ""
-	return parsed.String()
-}
+// The wrappers stay because both the endpoint helpers have callers outside the
+// evidence report (hosted_onboard.go redacts a hosted endpoint the same way),
+// and because the boundary corpus in internal/urlredact is driven through
+// redactEndpoint by this package's own differential test.
 
-// redactPath returns a display-safe form of a filesystem path target. Absolute
-// host paths can leak a username or private layout, so only the final path
-// element is kept with a leading ellipsis. Relative paths and bare names are
-// returned unchanged because they carry no host-specific secret.
-func redactPath(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		return trimmed
-	}
-	base := trimmed[strings.LastIndex(trimmed, "/")+1:]
-	if base == "" {
-		return ".../"
-	}
-	return ".../" + base
-}
+// redactEndpoint returns a display-safe form of an endpoint URL: userinfo, any
+// credential-named query value, and the whole fragment are removed. See
+// evidredact.Endpoint for the rule and the three carriers it closes.
+func redactEndpoint(raw string) string { return evidredact.Endpoint(raw) }
 
-// evidenceEmbeddedURLPattern matches an absolute URL embedded in free-form text.
-// It stops at whitespace and at the quoting characters the evidence renderers
-// use, so a URL at the end of a sentence or inside a Markdown code span is
-// matched without swallowing the surrounding prose.
-var evidenceEmbeddedURLPattern = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9+.\\-]*://[^\\s<>\"'`]+")
-
-// evidenceURLTrailingPunctuation are characters that commonly follow a URL in a
-// sentence but are not part of it. They are trimmed before redaction and
-// restored afterwards so "reachable at http://host:1/x." keeps its full stop.
-const evidenceURLTrailingPunctuation = ".,;:!?)]}"
+// redactPath returns a display-safe form of a filesystem path target, keeping
+// only its final element. See evidredact.Path.
+func redactPath(raw string) string { return evidredact.Path(raw) }
 
 // scrubEvidenceText makes a composed, free-form string safe for an operator
-// artifact.
-//
-// A name-keyed redactor is correct only until a value is composed from a raw
-// one: the endpoint fields are redacted while a summary, hint, cause, or
-// next-command built by interpolating the same endpoint is not. This helper
-// closes that gap in two stages.
-//
-// Stage one replaces each known raw value with the same redacted form the
-// corresponding report field carries, so a composed string and the field it was
-// built from never disagree. Stage two runs redactEndpoint over any absolute URL
-// still present, which catches endpoints this call site does not know about —
-// for example one wrapped into a transport error, or one restored from a saved
-// envelope where the original inputs are no longer available.
-//
-// Stage two is what makes the guard survive a new renderer or a new composed
-// string: text reaching the report is cleaned on the way in, not at each
-// rendering surface.
-//
-// The two stages are applied to DISJOINT spans, not one after the other over
-// the whole string. Every absolute URL goes to stage two; only the text between
-// the URLs goes to stage one. Running stage one over the URLs as well corrupted
-// them, because a raw filesystem target can be a substring of a URL: a
-// RepoTarget of "//" rewrote "https://h/z" to "https:.../h/z", and "/h/z" did
-// the same to the same URL. The operator then got an endpoint they could not
-// match against their own config, and stage two no longer recognized it as a
-// URL either. Nothing leaked, but nothing was readable. A known raw value that
-// IS a URL loses nothing by the split: stage two redacts it through the same
-// redactEndpoint stage one would have called.
-//
-// Both stages recognize structure; neither judges what a value looks like. In an
-// absolute URL a credential is removed from the userinfo, from any query
-// parameter with a credential-shaped name, and from the fragment (which is
-// dropped whole). One in a PATH SEGMENT, one under a parameter name
-// collector.IsSensitiveKeyName does not match, and a bare secret with no key
-// beside it ("token is sk-live-abc") all survive.
+// artifact: embedded URLs go through redactEndpoint, and the text between them
+// is scanned for bare credential pairs and for the known raw values the report
+// already redacts into structured fields. See evidredact.Text for the three
+// carriers and the limits.
 func scrubEvidenceText(text string, rawValues []string) string {
-	if strings.TrimSpace(text) == "" {
-		return text
-	}
-	var out strings.Builder
-	out.Grow(len(text))
-	cursor := 0
-	for _, span := range evidenceEmbeddedURLPattern.FindAllStringIndex(text, -1) {
-		out.WriteString(substituteRawTargets(text[cursor:span[0]], rawValues))
-		out.WriteString(redactEmbeddedURL(text[span[0]:span[1]]))
-		cursor = span[1]
-	}
-	out.WriteString(substituteRawTargets(text[cursor:], rawValues))
-	return out.String()
-}
-
-// substituteRawTargets is stage one over one URL-free span: each known raw
-// filesystem target is replaced with the same redacted form the corresponding
-// report field carries, so a composed string and the field it was built from
-// never disagree.
-//
-// Only targets distinctive enough to identify are substituted; a bare "/a"
-// would corrupt "/api/v0". The gate is structural rather than a byte length,
-// because a length gate let "/u/bob" (6 bytes) stay whole in composed text
-// while SelectedTarget one field over already showed ".../bob" — the username
-// leak redactPath exists to prevent, readable on the same artifact.
-func substituteRawTargets(span string, rawValues []string) string {
-	if span == "" {
-		return span
-	}
-	for _, raw := range rawValues {
-		raw = strings.TrimSpace(raw)
-		if raw == "" || !strings.HasPrefix(raw, "/") || strings.Count(raw, "/") < 2 {
-			continue
-		}
-		if !strings.Contains(span, raw) {
-			continue
-		}
-		redacted := redactPath(raw)
-		if redacted == raw {
-			continue
-		}
-		span = strings.ReplaceAll(span, raw, redacted)
-	}
-	return span
-}
-
-// redactEmbeddedURL redacts a single URL matched inside free-form text,
-// preserving any trailing sentence punctuation the match absorbed.
-func redactEmbeddedURL(match string) string {
-	trimmed := strings.TrimRight(match, evidenceURLTrailingPunctuation)
-	suffix := match[len(trimmed):]
-	if trimmed == "" {
-		return match
-	}
-	return redactEndpoint(trimmed) + suffix
+	return evidredact.Text(text, rawValues)
 }
 
 // scrubEvidenceTexts applies scrubEvidenceText to every element of a slice,
 // returning a new slice so the caller's data is never mutated in place.
 func scrubEvidenceTexts(values []string, rawValues []string) []string {
-	if len(values) == 0 {
-		return values
-	}
-	out := make([]string, 0, len(values))
-	for _, v := range values {
-		out = append(out, scrubEvidenceText(v, rawValues))
-	}
-	return out
+	return evidredact.Texts(values, rawValues)
 }
 
 // scrubEvidenceDiagnostic returns a redacted copy of the diagnostic for the
@@ -444,46 +296,9 @@ func scrubEvidenceDiagnostic(d *onboardingDiagnostic, rawValues []string) *onboa
 }
 
 // scrubEvidenceTruth returns a copy of the truth metadata with every reachable
-// string scrubbed, at any depth.
-//
-// It walked only the top level at first, on the reasoning that the truth
-// vocabulary is a bounded label set. That reasoning does not hold on the re-emit
-// path: firstRunResultFromEnvelope decodes an operator-supplied envelope into
-// map[string]any, so the nesting is whatever that JSON carried, and a string one
-// level down went into the artifact verbatim.
+// string scrubbed, at any depth. firstRunResultFromEnvelope decodes an
+// operator-supplied envelope into map[string]any, so the nesting is whatever
+// that JSON carried. See evidredact.Truth.
 func scrubEvidenceTruth(truth map[string]any, rawValues []string) map[string]any {
-	if truth == nil {
-		return nil
-	}
-	out := make(map[string]any, len(truth))
-	for k, v := range truth {
-		out[k] = scrubEvidenceValue(v, rawValues)
-	}
-	return out
-}
-
-// scrubEvidenceValue scrubs every string reachable inside a decoded JSON value,
-// recursing through objects and arrays and returning anything else unchanged.
-// It mirrors reportbundle.redactValue so the two artifact walks have the same
-// shape, and it copies rather than mutating because the caller's firstRunResult
-// stays raw for the run's own error reporting.
-func scrubEvidenceValue(value any, rawValues []string) any {
-	switch typed := value.(type) {
-	case string:
-		return scrubEvidenceText(typed, rawValues)
-	case map[string]any:
-		out := make(map[string]any, len(typed))
-		for k, v := range typed {
-			out[k] = scrubEvidenceValue(v, rawValues)
-		}
-		return out
-	case []any:
-		out := make([]any, len(typed))
-		for i, v := range typed {
-			out[i] = scrubEvidenceValue(v, rawValues)
-		}
-		return out
-	default:
-		return value
-	}
+	return evidredact.Truth(truth, rawValues)
 }

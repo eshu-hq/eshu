@@ -1,23 +1,35 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package urlredact owns where one "key=value" pair ends inside query-shaped
-// text, and removes the value of every pair whose name
-// collector.IsSensitiveKeyName flags.
+// Package urlredact owns where one "key=value" pair begins and ends, and
+// removes the value of every pair whose name collector.IsSensitiveKeyName
+// flags.
 //
-// It exists because two redaction walks in this repository had to agree on that
-// boundary and did not. cmd/eshu's redactEndpoint split a query string on "&"
-// alone; internal/reportbundle's free-text scan already ended a value at "?",
-// "&" or ";". A comment claimed the two "cannot disagree" because they share
-// collector.IsSensitiveKeyName — true about NAMES, false about BOUNDARIES, and
-// the gap shipped three credentials verbatim into an operator artifact:
-// "?a=1;token=…", "?next=/v0/y?api_key=…", and
+// It does that in the two shapes a credential arrives in. Query walks a parsed
+// query string and keeps the URL readable, replacing only the value half.
+// FreeText walks PROSE line by line, finding a pair written as "key=value" or as
+// a header "key: value", and replaces the whole pair with FreeTextMarker.
+//
+// Both walks live here because they have to agree on that boundary and did not.
+// The endpoint walk split a query string on "&" alone; the free-text scan
+// already ended a value at "?", "&" or ";". A comment claimed the two "cannot
+// disagree" because they share collector.IsSensitiveKeyName — true about NAMES,
+// false about BOUNDARIES, and the gap shipped three credentials verbatim into an
+// operator artifact: "?a=1;token=…", "?next=/v0/y?api_key=…", and
 // "?redirect_uri=/cb?access_token=…".
 //
 // So PairSeparators lives here once and both walks read it, and BoundaryCases
 // is the shared corpus both walks are driven through. A row that one walk
 // handles and the other cannot is recorded in the row itself, with the reason,
 // rather than left for a reader to discover.
+//
+// The consumers keep only what is specific to them. internal/reportbundle keeps
+// the DOMAIN question — which bundle fields are free text — and passes its own
+// inline-content key name in as an ADDITION to the shared predicate, never a
+// replacement, so a caller can widen the name set and can never narrow it.
+// internal/cli/evidredact keeps URL assembly: the userinfo rule, the fragment
+// rule, and the mcpsetup.RedactToken fallback for a value that does not parse as
+// a URL, which would drag a CLI dependency in here for no gain.
 //
 // Agreeing on WHICH bytes bound a pair is only half of it. An HTTP client
 // building a nested URL writes the structure percent-encoded, so
