@@ -136,6 +136,21 @@ authoring; it does not build a second coverage framework.
   empty in all cells; the absolute expected set can. The determinism gate first
   asserts gen 1, then drives gen 2 into the same durable cell and asserts the
   accumulated exact set before comparing N=1/2/4 graph digests.
+  `ExpectedEdge` additionally carries `Identity map[string]string`: the
+  relationship-property values, beyond the endpoint pair, that participate in
+  an edge's MERGE identity for `codeowners_ownership_edges` and
+  `submodule_pin_edges` (`cypher.MaterializedEdgeIdentityProperties`) —
+  `Key()` appends them in sorted property-name order and is byte-identical to
+  the pre-`Identity` key when `Identity` is empty, so every family with no
+  declared identity needs no re-proof. `LoadExpectedEdges` now takes a
+  `family` argument and validates every loaded edge's `Identity` key set
+  matches the family's declaration exactly (a missing declared key, an
+  undeclared key, or any `Identity` on a declared-empty family is a fixture
+  error), non-blank identity-triple fields, and rejects an unknown JSON field
+  in the fixture (`DisallowUnknownFields`). `assertMaterializedEdges`
+  (`cmd/ifa/assert_edges.go`) mirrors the same validation against the LIVE
+  graph: a declared identity property missing, non-string, or blank on a live
+  edge is a loud identity defect, never silently keyed as `""`.
 
 ## Dependencies
 

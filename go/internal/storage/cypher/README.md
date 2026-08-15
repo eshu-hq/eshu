@@ -738,10 +738,24 @@ repository ids, node ids, and statements stay out of metric labels.
   written Repository->Repository by repo_dependency and Workload->Workload by
   workload_dependency, so type alone cannot partition them. A family with no
   constraints is matched by type alone, never by nothing.
+- `MaterializedEdgeIdentityProperties` - the relationship properties, beyond a
+  type's two endpoint nodes, that participate in its MERGE identity, keyed by
+  relationship type. Twelve of the fourteen families MERGE on endpoints alone
+  and declare an empty set; `codeowners_ownership_edges`
+  (`DECLARES_CODEOWNER`: `pattern`, `source_path`) and `submodule_pin_edges`
+  (`PINS_SUBMODULE`: `path`) fold a property into their MERGE key because two
+  distinct source rows can otherwise collide onto the same (source, target)
+  relationship pattern. Fails closed on an unregistered family and returns a
+  defensive copy. `TestSingleTypeFamilyIdentityMatchesWriteCypher`
+  (`materialized_edge_families_test.go`) holds each single-type family's real
+  write-path Cypher const by reference and extracts its MERGE property map
+  from it, so a declared identity can never drift from what the writer
+  actually keys on.
 
-All of these are read by `ifa.MaterializedEdgeDomainEdgeTypes` to scope the live
-`assert-edges` check, and each is pinned against what its production retract
-actually deletes.
+All of these are read by `ifa.MaterializedEdgeDomainEdgeTypes` (edge types and
+endpoint constraints) or `ifa.LoadExpectedEdges` (identity properties) to scope
+the live `assert-edges` check, and each is pinned against what its production
+write and retract templates actually do.
 
 **Core types**
 
@@ -1811,3 +1825,26 @@ removed, or renamed. The registries carry no instrumentation and their callers
 emit none; `assert-edges` reports through its exit code and stderr exactly as
 before. An operator's dashboards and alerts see no new series and lose none, so
 there is nothing to add to the telemetry contract or the operator dashboard.
+
+## Materialized-edge identity registry: performance and observability
+
+`MaterializedEdgeIdentityProperties` reads the same kind of package-level map
+literal `SingleTypeMaterializedEdgeTypes` already reads, folded into
+`singleTypeMaterializedEdgeFamilies` in `materialized_edge_families.go`. Its
+callers are `ifa.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
+`assertMaterializedEdges`, both `cmd/ifa` gate-tool read paths, same as the
+edge-type and endpoint-label registries above: no fact is emitted, no work
+item enqueued, no graph statement written or retracted by this lookup.
+`BenchmarkExpectedEdgeKey` (`go/internal/ifa/materialized_edges_assert_test.go`)
+measures the one place this identity is consulted per-edge: an edge whose
+type declares no identity (twelve of the fourteen families) takes the
+byte-identical pre-identity `Key()` path (21.6 ns/op, 1 alloc); an edge whose
+type declares two identity properties (`codeowners_ownership_edges`,
+`submodule_pin_edges`) pays a bounded sort-and-build cost (107.0 ns/op, 3
+allocs) once per streamed graph edge in a CI gate run, not a request or
+write path.
+
+No-Observability-Change: no span, metric, log, or status field is added,
+removed, or renamed by the identity registry or its `assertMaterializedEdges`
+consumer; a live-gate identity mismatch surfaces through the same
+`assert-edges` exit code and stderr report as every other exact-set defect.
