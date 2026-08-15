@@ -60,11 +60,16 @@ import (
 func TestWriteDeferredBackfillBatchDedupesSharedPartitionHermetic(t *testing.T) {
 	t.Parallel()
 
-	// repo-shared-a and repo-shared-b share one (scope, generation) partition;
-	// repo-solo owns its own. 3 repos, 2 distinct partitions.
+	// repo-shared-a and repo-shared-b share one (scope, generation) partition
+	// (scope-shared, gen-shared). repo-shared-c exercises the axis a
+	// ScopeID-only key would miss: SAME scope (scope-shared) but a DIFFERENT
+	// generation (gen-other) -- it must NOT collapse onto repo-shared-a/b's
+	// partition. repo-solo owns its own scope and generation outright. 4
+	// repos, 3 distinct (scope, generation) partitions.
 	activeGen := [][]any{
 		{"repo-shared-a", "scope-shared", "gen-shared"},
 		{"repo-shared-b", "scope-shared", "gen-shared"},
+		{"repo-shared-c", "scope-shared", "gen-other"},
 		{"repo-solo", "scope-solo", "gen-solo"},
 	}
 	db := &concurrencyProbeDB{activeGenRows: activeGen}
@@ -73,7 +78,7 @@ func TestWriteDeferredBackfillBatchDedupesSharedPartitionHermetic(t *testing.T) 
 
 	published, err := store.writeDeferredBackfillBatch(
 		context.Background(),
-		[]string{"repo-shared-a", "repo-shared-b", "repo-solo"},
+		[]string{"repo-shared-a", "repo-shared-b", "repo-shared-c", "repo-solo"},
 		map[string][]relationships.EvidenceFact{},
 		nil,
 		"fingerprint-hermetic",
@@ -81,17 +86,17 @@ func TestWriteDeferredBackfillBatchDedupesSharedPartitionHermetic(t *testing.T) 
 	if err != nil {
 		t.Fatalf("writeDeferredBackfillBatch() error = %v, want nil", err)
 	}
-	if published != 2 {
-		t.Fatalf("writeDeferredBackfillBatch() published = %d, want 2 (one per distinct partition, not one per repo)", published)
+	if published != 3 {
+		t.Fatalf("writeDeferredBackfillBatch() published = %d, want 3 (one per distinct (scope, generation) partition, not one per repo and not one per scope)", published)
 	}
 
 	phaseRows := batchedUpsertRowCount(t, db.allEvidence, upsertGraphProjectionPhaseStateBatchPrefix, graphProjectionPhaseColumnsPerRow)
-	if phaseRows != 2 {
-		t.Fatalf("graph_projection_phase_state batch upsert carried %d row(s), want 2", phaseRows)
+	if phaseRows != 3 {
+		t.Fatalf("graph_projection_phase_state batch upsert carried %d row(s), want 3", phaseRows)
 	}
 	memoRows := batchedUpsertRowCount(t, db.allEvidence, upsertDeferredBackfillPartitionMemoBatchPrefix, deferredBackfillPartitionMemoColumnsPerRow)
-	if memoRows != 2 {
-		t.Fatalf("deferred_backfill_partition_memo batch upsert carried %d row(s), want 2", memoRows)
+	if memoRows != 3 {
+		t.Fatalf("deferred_backfill_partition_memo batch upsert carried %d row(s), want 3", memoRows)
 	}
 }
 
