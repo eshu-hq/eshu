@@ -80,6 +80,17 @@ stdout, stderr, and exit code identical on all 19. The `--json` case compares a
 4507-byte envelope carrying the full `data`, `report`, `scope_plan`, and
 `scan_performance` blocks.
 
+**That parity run is now re-runnable in-tree.** The harness above needed both
+binaries and was never committed, so the envelope it compared had no standing
+pin. It has one now:
+`go/cmd/eshu/testdata/vuln_scan_json/ready_with_findings.envelope.json`, compared
+byte for byte by `TestRunVulnScanRepoJSONReportPreservesScannerContractAndFindingsExit`.
+The same test names `data.scan` on its own, because that member had no assertion
+anywhere and `Result.Scan` is typed `any` — dropping its assignment in
+`runVulnScanRepo` still compiles and ships `"scan": null`. Both halves were
+broken and restored: removing the assignment fails on the named member, and
+changing `findings_endpoint` fails on the golden.
+
 **The harness can fail.** Rebuilding the after-binary with one mutated line in
 `vulnScanRepoOptionsFromCommand` (`--limit must be 200 or lower` ->
 `... lowerX`, a one-line source diff) produced exactly one DIFFERS, on the one
