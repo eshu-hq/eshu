@@ -45,6 +45,78 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// TestWriteDeferredBackfillBatchDedupesSharedPartitionHermetic is the
+// DSN-independent sibling of the live proof above. The live test is the real
+// end-to-end proof (it alone observes an actual Postgres SQLSTATE 21000), but
+// it self-skips whenever ESHU_POSTGRES_DSN is unset, and CI is not guaranteed
+// to set it -- a DSN-gated-only regression test is a guard that exists on
+// paper and never runs in that case. This test needs no database: it drives
+// the same real writeDeferredBackfillBatch against the package's existing
+// concurrencyProbeDB fake (ingestion_backfill_concurrency_test.go), which
+// records every ExecContext call verbatim instead of enforcing Postgres
+// conflict-key semantics, and asserts directly on the CONSTRUCTED row count in
+// the batched upsert SQL args -- the exact quantity the dedupe fix controls --
+// so it has teeth without needing a live ON CONFLICT rejection to prove it.
+func TestWriteDeferredBackfillBatchDedupesSharedPartitionHermetic(t *testing.T) {
+	t.Parallel()
+
+	// repo-shared-a and repo-shared-b share one (scope, generation) partition;
+	// repo-solo owns its own. 3 repos, 2 distinct partitions.
+	activeGen := [][]any{
+		{"repo-shared-a", "scope-shared", "gen-shared"},
+		{"repo-shared-b", "scope-shared", "gen-shared"},
+		{"repo-solo", "scope-solo", "gen-solo"},
+	}
+	db := &concurrencyProbeDB{activeGenRows: activeGen}
+	store := NewIngestionStore(db)
+	store.Now = func() time.Time { return time.Unix(0, 0).UTC() }
+
+	published, err := store.writeDeferredBackfillBatch(
+		context.Background(),
+		[]string{"repo-shared-a", "repo-shared-b", "repo-solo"},
+		map[string][]relationships.EvidenceFact{},
+		nil,
+		"fingerprint-hermetic",
+	)
+	if err != nil {
+		t.Fatalf("writeDeferredBackfillBatch() error = %v, want nil", err)
+	}
+	if published != 2 {
+		t.Fatalf("writeDeferredBackfillBatch() published = %d, want 2 (one per distinct partition, not one per repo)", published)
+	}
+
+	phaseRows := batchedUpsertRowCount(t, db.allEvidence, upsertGraphProjectionPhaseStateBatchPrefix, graphProjectionPhaseColumnsPerRow)
+	if phaseRows != 2 {
+		t.Fatalf("graph_projection_phase_state batch upsert carried %d row(s), want 2", phaseRows)
+	}
+	memoRows := batchedUpsertRowCount(t, db.allEvidence, upsertDeferredBackfillPartitionMemoBatchPrefix, deferredBackfillPartitionMemoColumnsPerRow)
+	if memoRows != 2 {
+		t.Fatalf("deferred_backfill_partition_memo batch upsert carried %d row(s), want 2", memoRows)
+	}
+}
+
+// batchedUpsertRowCount finds the single recorded ExecContext call whose query
+// starts with prefix and returns how many rows its VALUES list carried
+// (len(args) / columnsPerRow). Fails the test if zero or more than one
+// matching call was recorded, since writeDeferredBackfillBatch issues exactly
+// one batched upsert per sink per call.
+func batchedUpsertRowCount(t *testing.T, calls []fakeExecCall, prefix string, columnsPerRow int) int {
+	t.Helper()
+	var matched []fakeExecCall
+	for _, call := range calls {
+		if strings.HasPrefix(call.query, prefix) {
+			matched = append(matched, call)
+		}
+	}
+	if len(matched) != 1 {
+		t.Fatalf("recorded %d ExecContext call(s) matching prefix %q, want exactly 1", len(matched), prefix)
+	}
+	if columnsPerRow <= 0 || len(matched[0].args)%columnsPerRow != 0 {
+		t.Fatalf("batched upsert args len = %d not divisible by columnsPerRow = %d", len(matched[0].args), columnsPerRow)
+	}
+	return len(matched[0].args) / columnsPerRow
+}
+
 // sharedPartitionDupKeyProofDSN reads the throwaway live-Postgres DSN this
 // proof runs against, following the same ESHU_POSTGRES_DSN convention as the
 // sibling derived-evidence fencing proof

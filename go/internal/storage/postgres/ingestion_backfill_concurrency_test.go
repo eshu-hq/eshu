@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,7 +55,16 @@ type concurrencyProbeTx struct {
 	gens [][]any
 }
 
-func (tx *concurrencyProbeTx) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (tx *concurrencyProbeTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+	if strings.HasPrefix(query, listArgoCDBearingPartitionsQuery) {
+		// The memo-write path's ArgoCD-bearing-partition probe (only reached
+		// when a caller supplies a non-blank catalogFingerprint) expects a
+		// 2-column (scope_id, generation_id) row shape, not the 3-column
+		// active-generation shape below. No caller of this fake seeds an
+		// ArgoCD-bearing fixture, so every candidate partition is treated as
+		// non-bearing (empty result set) here.
+		return &queueFakeRows{}, nil
+	}
 	// Each batch re-reads active generations under its lock.
 	return &queueFakeRows{rows: tx.gens}, nil
 }
