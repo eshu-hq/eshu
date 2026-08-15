@@ -1,0 +1,11 @@
+{
+  "odu": "odu:ifa-deployable-unit-family",
+  "note": "One CORRELATES_DEPLOYABLE_UNIT edge from the app repository (repo-ifa-deployable-unit-app) to the deployment/control repository (repo-ifa-deployable-unit-deploy). source_entity_id/target_entity_id are the two Repository nodes' own ids -- CORRELATES_DEPLOYABLE_UNIT MERGEs on (source_repo:Repository{id})-[:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo:Repository{id}) with no property in the merge key (canonical_deployable_unit_edges.go), so this 3-tuple is the edge's full structural identity. The deployment_repo_id comes from a RelDeploysFrom resolved relationship the real evidence/resolution seams (DiscoveredEvidence -> relationships.Resolve) derive from the deploy repository's ArgoCD Application file evidence (source_repo pointing at the app repository) -- never a hand-authored relationships.ResolvedRelationship.",
+  "edges": [
+    {
+      "relationship_type": "CORRELATES_DEPLOYABLE_UNIT",
+      "source_entity_id": "repo-ifa-deployable-unit-app",
+      "target_entity_id": "repo-ifa-deployable-unit-deploy"
+    }
+  ]
+}
