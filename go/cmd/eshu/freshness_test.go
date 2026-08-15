@@ -8,12 +8,19 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/freshness"
 )
+
+// The command logic these tests used to cover now lives in
+// internal/cli/freshness and is tested there. What is left here is the wrapper
+// contract: the commands are registered with the flags operators type, the
+// flag values reach the options struct unchanged, and a freshness.Failure
+// becomes the CLI's exit-code error.
 
 func newTestFreshnessGenerationsCommand() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -22,13 +29,17 @@ func newTestFreshnessGenerationsCommand() *cobra.Command {
 	return cmd
 }
 
-func stubFreshnessFetch(t *testing.T, envelope freshnessGenerationsEnvelope, err error) func() {
+// freshnessTestServer serves one canned response for every freshness route, so
+// a wrapper test can drive the real RunE path end to end through --service-url.
+func freshnessTestServer(t *testing.T, status int, body string) *httptest.Server {
 	t.Helper()
-	original := freshnessFetchGenerations
-	freshnessFetchGenerations = func(_ *APIClient, _ freshnessGenerationsOptions) (freshnessGenerationsEnvelope, error) {
-		return envelope, err
-	}
-	return func() { freshnessFetchGenerations = original }
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
 func TestFreshnessGenerationsCommandIsRegistered(t *testing.T) {
@@ -46,65 +57,46 @@ func TestFreshnessGenerationsCommandIsRegistered(t *testing.T) {
 	}
 }
 
-func TestFetchFreshnessGenerationsRequestsCanonicalEnvelope(t *testing.T) {
-	var gotAccept string
-	var gotPath string
-	var gotQuery url.Values
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAccept = r.Header.Get("Accept")
-		gotPath = r.URL.EscapedPath()
-		gotQuery = r.URL.Query()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"count":0,"truncated":false,"generations":[]},"truth":{"freshness":{"state":"fresh"}},"error":null}`))
-	}))
-	defer server.Close()
-
-	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	if _, err := fetchFreshnessGenerations(client, freshnessGenerationsOptions{
-		ScopeID: "git-repository-scope:acme/app",
-		Status:  "active",
-		Limit:   25,
-	}); err != nil {
-		t.Fatalf("fetchFreshnessGenerations() error = %v", err)
-	}
-	if gotAccept != eshuEnvelopeMIMEType {
-		t.Fatalf("Accept = %q, want %q", gotAccept, eshuEnvelopeMIMEType)
-	}
-	if gotPath != "/api/v0/freshness/generations" {
-		t.Fatalf("path = %q", gotPath)
-	}
-	for key, want := range map[string]string{
-		"scope_id": "git-repository-scope:acme/app",
-		"status":   "active",
-		"limit":    "25",
+// TestFreshnessGenerationsOptionsCarryEveryFlag proves the wrapper reads every
+// flag it declares. A flag added to addFreshnessGenerationsFlags but never read
+// would leave its field at the zero value here.
+func TestFreshnessGenerationsOptionsCarryEveryFlag(t *testing.T) {
+	cmd := newTestFreshnessGenerationsCommand()
+	for name, value := range map[string]string{
+		"json": "true", "scope-id": "s", "repository": "r", "collector-kind": "git",
+		"source-system": "github", "generation-id": "g", "status": "active", "limit": "7",
 	} {
-		if got := gotQuery.Get(key); got != want {
-			t.Fatalf("query[%s] = %q, want %q", key, got, want)
+		if err := cmd.Flags().Set(name, value); err != nil {
+			t.Fatalf("set %s: %v", name, err)
 		}
+	}
+	opts, err := freshnessGenerationsOptionsFromCommand(cmd)
+	if err != nil {
+		t.Fatalf("freshnessGenerationsOptionsFromCommand() error = %v", err)
+	}
+	want := freshness.GenerationsOptions{
+		JSON: true, ScopeID: "s", Repository: "r", CollectorKind: "git",
+		SourceSystem: "github", GenerationID: "g", Status: "active", Limit: 7,
+	}
+	if opts != want {
+		t.Fatalf("options = %#v, want %#v", opts, want)
 	}
 }
 
 func TestRunFreshnessGenerationsRendersSummary(t *testing.T) {
-	reset := stubFreshnessFetch(t, freshnessGenerationsEnvelope{
-		Data: map[string]any{
-			"count":     float64(1),
-			"truncated": false,
-			"generations": []any{map[string]any{
-				"generation_id": "gen-active",
-				"status":        "active",
-				"scope_id":      "git-repository-scope:acme/app",
-				"trigger_kind":  "snapshot",
-				"is_active":     true,
-				"queue_status":  map[string]any{"outstanding": float64(0), "failed": float64(0), "dead_letter": float64(0)},
-			}},
-		},
-		Truth: map[string]any{"freshness": map[string]any{"state": "fresh"}},
-	}, nil)
-	defer reset()
+	server := freshnessTestServer(t, http.StatusOK,
+		`{"data":{"count":1,"truncated":false,"generations":[`+
+			`{"generation_id":"gen-active","status":"active","scope_id":"git-repository-scope:acme/app",`+
+			`"trigger_kind":"snapshot","is_active":true,`+
+			`"queue_status":{"outstanding":0,"failed":0,"dead_letter":0}}]},`+
+			`"truth":{"freshness":{"state":"fresh"}},"error":null}`)
 
 	out := &bytes.Buffer{}
 	cmd := newTestFreshnessGenerationsCommand()
 	cmd.SetOut(out)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("set service-url: %v", err)
+	}
 
 	if err := runFreshnessGenerations(cmd, nil); err != nil {
 		t.Fatalf("runFreshnessGenerations() error = %v", err)
@@ -118,15 +110,19 @@ func TestRunFreshnessGenerationsRendersSummary(t *testing.T) {
 	}
 }
 
-func TestRunFreshnessGenerationsNotFoundExits(t *testing.T) {
-	reset := stubFreshnessFetch(t, freshnessGenerationsEnvelope{
-		Error: &freshnessGenerationError{Code: "scope_not_found", Message: "no records for scope"},
-	}, nil)
-	defer reset()
+// TestRunFreshnessGenerationsMapsFailureToTheExitContract is the wrapper's own
+// job: internal/cli/freshness picks the number, and this proves the number
+// survives the conversion into the type main's exit path reads.
+func TestRunFreshnessGenerationsMapsFailureToTheExitContract(t *testing.T) {
+	server := freshnessTestServer(t, http.StatusOK,
+		`{"data":null,"truth":null,"error":{"code":"scope_not_found","message":"no records for scope"}}`)
 
 	out := &bytes.Buffer{}
 	cmd := newTestFreshnessGenerationsCommand()
 	cmd.SetOut(out)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("set service-url: %v", err)
+	}
 
 	err := runFreshnessGenerations(cmd, nil)
 	if err == nil {
@@ -138,5 +134,29 @@ func TestRunFreshnessGenerationsNotFoundExits(t *testing.T) {
 	}
 	if got, want := exitErr.ExitCode(), 2; got != want {
 		t.Fatalf("ExitCode() = %d, want %d", got, want)
+	}
+	if got, want := exitErr.Error(), "no records for scope"; got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+}
+
+// TestFreshnessExitErrorPassesOtherErrorsThrough proves the conversion is
+// narrow: only a *freshness.Failure becomes a commandExitError, so an unrelated
+// error keeps the default exit 1 rather than picking up a borrowed code.
+func TestFreshnessExitErrorPassesOtherErrorsThrough(t *testing.T) {
+	if got := freshnessExitError(nil); got != nil {
+		t.Fatalf("freshnessExitError(nil) = %v, want nil", got)
+	}
+	plain := errors.New("disk full")
+	if got := freshnessExitError(plain); !errors.Is(got, plain) {
+		t.Fatalf("freshnessExitError(plain) = %v, want the same error back", got)
+	}
+	converted := freshnessExitError(&freshness.Failure{Message: "capability off", Code: 6})
+	var exitErr commandExitError
+	if !errors.As(converted, &exitErr) {
+		t.Fatalf("converted = %T, want commandExitError", converted)
+	}
+	if got := exitErr.ExitCode(); got != 6 {
+		t.Fatalf("ExitCode() = %d, want 6", got)
 	}
 }

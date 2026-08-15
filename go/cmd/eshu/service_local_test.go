@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
@@ -103,9 +104,9 @@ func TestRunMCPStartStdioProfileFlagInjectsLightweight(t *testing.T) {
 	// An inherited ESHU_GRAPH_BACKEND (e.g. from a Compose/local shell) must be
 	// cleared by --profile local_lightweight; otherwise the child resolves
 	// lightweight + a non-empty backend and fails.
-	originalEnviron := eshuEnviron
-	eshuEnviron = func() []string { return []string{"PATH=/tmp", "ESHU_GRAPH_BACKEND=nornicdb"} }
-	defer func() { eshuEnviron = originalEnviron }()
+	originalEnviron := procexec.Environ
+	procexec.Environ = func() []string { return []string{"PATH=/tmp", "ESHU_GRAPH_BACKEND=nornicdb"} }
+	defer func() { procexec.Environ = originalEnviron }()
 
 	wantExecErr := errors.New("exec sentinel")
 	calls.executable = func() (string, error) { return "/tmp/eshu", nil }
@@ -309,46 +310,46 @@ type serviceRuntimeCalls struct {
 func stubServiceRuntime() (func(), *serviceRuntimeCalls) {
 	calls := &serviceRuntimeCalls{}
 
-	originalExecutable := eshuExecutable
-	originalGetwd := eshuGetwd
-	originalLookPath := eshuLookPath
-	originalExec := eshuExec
-	originalEnviron := eshuEnviron
+	originalExecutable := procexec.Executable
+	originalGetwd := procexec.Getwd
+	originalLookPath := procexec.LookPath
+	originalExec := procexec.Exec
+	originalEnviron := procexec.Environ
 
-	eshuExecutable = func() (string, error) {
+	procexec.Executable = func() (string, error) {
 		if calls.executable == nil {
-			return "", errors.New("eshuExecutable not stubbed")
+			return "", errors.New("procexec.Executable not stubbed")
 		}
 		return calls.executable()
 	}
-	eshuGetwd = func() (string, error) {
+	procexec.Getwd = func() (string, error) {
 		if calls.getwd == nil {
-			return "", errors.New("eshuGetwd not stubbed")
+			return "", errors.New("procexec.Getwd not stubbed")
 		}
 		return calls.getwd()
 	}
-	eshuLookPath = func(binary string) (string, error) {
+	procexec.LookPath = func(binary string) (string, error) {
 		if calls.lookPath == nil {
-			return "", errors.New("eshuLookPath not stubbed")
+			return "", errors.New("procexec.LookPath not stubbed")
 		}
 		return calls.lookPath(binary)
 	}
-	eshuExec = func(binary string, args []string, env []string) error {
+	procexec.Exec = func(binary string, args []string, env []string) error {
 		if calls.exec == nil {
-			return errors.New("eshuExec not stubbed")
+			return errors.New("procexec.Exec not stubbed")
 		}
 		return calls.exec(binary, args, env)
 	}
-	eshuEnviron = func() []string {
+	procexec.Environ = func() []string {
 		return []string{"PATH=/tmp"}
 	}
 
 	return func() {
-		eshuExecutable = originalExecutable
-		eshuGetwd = originalGetwd
-		eshuLookPath = originalLookPath
-		eshuExec = originalExec
-		eshuEnviron = originalEnviron
+		procexec.Executable = originalExecutable
+		procexec.Getwd = originalGetwd
+		procexec.LookPath = originalLookPath
+		procexec.Exec = originalExec
+		procexec.Environ = originalEnviron
 	}, calls
 }
 

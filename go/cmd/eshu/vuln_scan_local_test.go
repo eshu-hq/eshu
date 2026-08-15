@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
@@ -419,14 +420,14 @@ func TestStartVulnScanLocalOwnerDoesNotCreateWorkspaceLogsBeforeOwnerStartup(t *
 		LogsDir:       filepath.Join(t.TempDir(), "workspace-root", "logs"),
 	}
 
-	originalExecutable := eshuExecutable
-	originalEnviron := eshuEnviron
+	originalExecutable := procexec.Executable
+	originalEnviron := procexec.Environ
 	defer func() {
-		eshuExecutable = originalExecutable
-		eshuEnviron = originalEnviron
+		procexec.Executable = originalExecutable
+		procexec.Environ = originalEnviron
 	}()
-	eshuExecutable = func() (string, error) { return truePath, nil }
-	eshuEnviron = func() []string { return []string{"PATH=/tmp"} }
+	procexec.Executable = func() (string, error) { return truePath, nil }
+	procexec.Environ = func() []string { return []string{"PATH=/tmp"} }
 
 	cmd, err := startVulnScanLocalOwner(context.Background(), layout)
 	if err != nil {

@@ -8,12 +8,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -98,14 +98,6 @@ func init() {
 	rootCmd.AddCommand(startAlias)
 }
 
-var (
-	eshuExecutable = os.Executable
-	eshuGetwd      = os.Getwd
-	eshuLookPath   = exec.LookPath
-	eshuExec       = func(binary string, args []string, env []string) error { return syscall.Exec(binary, args, env) } // #nosec G204 -- binary is resolved via LookPath from a fixed name; args are program-constructed
-	eshuEnviron    = os.Environ
-)
-
 func runMCPStart(cmd *cobra.Command, args []string) error {
 	rawTransport, _ := cmd.Flags().GetString("transport")
 	host, _ := cmd.Flags().GetString("host")
@@ -126,7 +118,7 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	}
 
 	if transport == "stdio" {
-		startPath, err := eshuGetwd()
+		startPath, err := procexec.Getwd()
 		if err != nil {
 			return fmt.Errorf("resolve current working directory: %w", err)
 		}
@@ -135,18 +127,18 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		binary, err := eshuExecutable()
+		binary, err := procexec.Executable()
 		if err != nil {
 			return fmt.Errorf("resolve eshu executable: %w", err)
 		}
-		env := eshuEnviron()
+		env := procexec.Environ()
 		if len(profileOverrides) > 0 {
-			env = mergeEnvironment(env, profileOverrides)
+			env = procexec.MergeEnvironment(env, profileOverrides)
 		}
-		return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, env)
+		return procexec.Exec(binary, []string{procexec.CleanExecutableArg0(binary), "local-host", "mcp-stdio", workspaceRoot}, env)
 	}
 
-	binary, err := eshuLookPath("eshu-mcp-server")
+	binary, err := procexec.LookPath("eshu-mcp-server")
 	if err != nil {
 		printError("eshu-mcp-server binary not found in PATH.")
 		fmt.Println("\nThe MCP server is a Go binary. Ensure:")
@@ -162,9 +154,9 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	for key, value := range mcpHTTPAllowUnauthenticatedOverride(host) {
 		httpOverrides[key] = value
 	}
-	env := mergeEnvironment(eshuEnviron(), httpOverrides)
+	env := procexec.MergeEnvironment(procexec.Environ(), httpOverrides)
 	if strings.TrimSpace(workspaceRootFlag) != "" {
-		startPath, err := eshuGetwd()
+		startPath, err := procexec.Getwd()
 		if err != nil {
 			return fmt.Errorf("resolve current working directory: %w", err)
 		}
@@ -183,7 +175,7 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Starting Eshu MCP Server (%s transport)...\n", transport)
-	return eshuExec(binary, []string{"eshu-mcp-server"}, env)
+	return procexec.Exec(binary, []string{"eshu-mcp-server"}, env)
 }
 
 // mcpStartProfileOverrides translates an explicit --profile request into the
@@ -304,7 +296,7 @@ func localMCPHTTPEnvFromOwner(layout eshulocal.Layout, host string, port int) ([
 // governs there; if that deployment's ESHU_API_KEY secret ever resolved
 // empty, the pod fails closed instead of serving an open MCP transport. The
 // chart also sets ESHU_MCP_ALLOW_UNAUTHENTICATED=false explicitly as
-// defense-in-depth; that explicit value (visible via eshuEnviron) wins here
+// defense-in-depth; that explicit value (visible via procexec.Environ) wins here
 // regardless of host. A directly launched eshu-mcp-server binary (Compose or
 // any deployment that does not go through this CLI command) never runs this
 // code at all and keeps the strict default.
@@ -312,7 +304,7 @@ func mcpHTTPAllowUnauthenticatedOverride(host string) map[string]string {
 	if !isLoopbackBindHost(host) {
 		return nil
 	}
-	if localHostEnvValue(eshuEnviron(), "ESHU_MCP_ALLOW_UNAUTHENTICATED") != "" {
+	if localHostEnvValue(procexec.Environ(), "ESHU_MCP_ALLOW_UNAUTHENTICATED") != "" {
 		return nil
 	}
 	return map[string]string{"ESHU_MCP_ALLOW_UNAUTHENTICATED": "true"}
@@ -365,12 +357,4 @@ func runServeStart(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Starting Eshu service (HTTP API + MCP) on %s:%d...\n", host, port)
 	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ()) // #nosec G204 -- binary is LookPath("eshu-api"); args literal
-}
-
-func cleanExecutableArg0(binary string) string {
-	name := strings.TrimSpace(filepath.Base(binary))
-	if name == "" {
-		return "eshu"
-	}
-	return name
 }

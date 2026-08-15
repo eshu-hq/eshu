@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -222,11 +223,11 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 	if err := validateLocalLogMode(logMode); err != nil {
 		return err
 	}
-	binary, err := eshuExecutable()
+	binary, err := procexec.Executable()
 	if err != nil {
 		return fmt.Errorf("resolve eshu executable: %w", err)
 	}
-	env := mergeEnvironment(eshuEnviron(), map[string]string{
+	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
 		"ESHU_QUERY_PROFILE":     string(query.ProfileLocalAuthoritative),
 		"ESHU_GRAPH_BACKEND":     string(query.GraphBackendNornicDB),
 		localHostProgressModeEnv: progressMode,
@@ -237,7 +238,7 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 	if logMode == localHostLogModeFile {
 		fmt.Fprintf(os.Stderr, "Child service logs: %s\n", layout.LogsDir)
 	}
-	return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
+	return procexec.Exec(binary, []string{procexec.CleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
 }
 
 func validateLocalProgressMode(mode string) error {

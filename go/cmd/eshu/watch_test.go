@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 )
 
 func TestRunWatchExecsIngesterWithResolvedWorkspaceRoot(t *testing.T) {
@@ -161,30 +163,30 @@ type watchRuntimeCalls struct {
 func stubWatchRuntime() (func(), *watchRuntimeCalls) {
 	calls := &watchRuntimeCalls{}
 
-	originalExecutable := eshuExecutable
-	originalExec := eshuExec
-	originalEnviron := eshuEnviron
+	originalExecutable := procexec.Executable
+	originalExec := procexec.Exec
+	originalEnviron := procexec.Environ
 
-	eshuExecutable = func() (string, error) {
+	procexec.Executable = func() (string, error) {
 		if calls.executable == nil {
-			return "", errors.New("eshuExecutable not stubbed")
+			return "", errors.New("procexec.Executable not stubbed")
 		}
 		return calls.executable()
 	}
-	eshuExec = func(binary string, args []string, env []string) error {
+	procexec.Exec = func(binary string, args []string, env []string) error {
 		if calls.exec == nil {
-			return errors.New("eshuExec not stubbed")
+			return errors.New("procexec.Exec not stubbed")
 		}
 		return calls.exec(binary, args, env)
 	}
-	eshuEnviron = func() []string {
+	procexec.Environ = func() []string {
 		return []string{"PATH=/tmp"}
 	}
 
 	return func() {
-		eshuExecutable = originalExecutable
-		eshuExec = originalExec
-		eshuEnviron = originalEnviron
+		procexec.Executable = originalExecutable
+		procexec.Exec = originalExec
+		procexec.Environ = originalEnviron
 	}, calls
 }
 

@@ -7,11 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
-	"github.com/eshu-hq/eshu/go/internal/mcp"
+	"github.com/eshu-hq/eshu/go/internal/cli/assistantguidance"
 	"github.com/spf13/cobra"
 )
 
@@ -74,62 +71,10 @@ func init() {
 	})
 }
 
-// fileSystem abstracts the file operations the guidance flows need so tests can
-// inject a temp dir and exercise preservation without touching a real repo.
-type fileSystem interface {
-	ReadFile(path string) ([]byte, error)
-	WriteFile(path string, data []byte, perm os.FileMode) error
-	MkdirAll(path string, perm os.FileMode) error
-	Remove(path string) error
-	Stat(path string) (os.FileInfo, error)
-}
-
-// osFileSystem is the production fileSystem backed by the os package.
-type osFileSystem struct{}
-
-func (osFileSystem) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) } // #nosec G304 -- path is a project-directory file path managed by guidanceEngine, not an HTTP request param
-func (osFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
-	return os.WriteFile(path, data, perm)
-}
-func (osFileSystem) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
-func (osFileSystem) Remove(path string) error                     { return os.Remove(path) }
-func (osFileSystem) Stat(path string) (os.FileInfo, error)        { return os.Stat(path) }
-
-// guidanceEngine performs install/status/uninstall against an injectable
-// fileSystem rooted at a project directory.
-type guidanceEngine struct {
-	fs   fileSystem
-	root string
-}
-
-// platformResult records the outcome of an install/status/uninstall action for
-// one platform, used to render output and assert in tests.
-type platformResult struct {
-	platform assistantPlatform
-	path     string
-	status   blockStatus
-	// changed reports whether the file content was modified by the action.
-	changed bool
-	// created reports whether the action created a new file.
-	created bool
-	// removed reports whether uninstall deleted a now-empty Eshu-created file.
-	removed bool
-}
-
-// selectPlatforms returns the platforms to operate on, honoring the --platform
-// filter. An unknown filter is an error so unsupported platforms are explicit.
-func selectPlatforms(filter string) ([]assistantPlatform, error) {
-	if filter == "" {
-		return supportedPlatforms(), nil
-	}
-	p, ok := lookupPlatform(strings.ToLower(strings.TrimSpace(filter)))
-	if !ok {
-		return nil, fmt.Errorf("unsupported assistant platform %q (supported: claude, codex, cursor)", filter)
-	}
-	return []assistantPlatform{p}, nil
-}
-
-// resolveRoot returns the absolute project root from the --path flag or cwd.
+// resolveRoot returns the absolute project root from the --path flag or the
+// process working directory. It stays in the command wrapper because both
+// branches read process state: os.Getwd, and filepath.Abs, which resolves a
+// relative --path against the same working directory.
 func resolveRoot(path string) (string, error) {
 	if path == "" {
 		wd, err := os.Getwd()
@@ -145,305 +90,53 @@ func resolveRoot(path string) (string, error) {
 	return abs, nil
 }
 
-// readFileOrEmpty returns the file content, or empty string when the file does
-// not exist. Any other read error is returned.
-func (e *guidanceEngine) readFileOrEmpty(path string) (string, bool, error) {
-	data, err := e.fs.ReadFile(path)
+// assistantSelection resolves the two persistent flags into the plain values
+// internal/cli/assistantguidance takes: an absolute root and a platform list.
+func assistantSelection() (string, []assistantguidance.Platform, error) {
+	root, err := resolveRoot(assistantGuidanceRoot)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("read %s: %w", path, err)
+		return "", nil, err
 	}
-	return string(data), true, nil
-}
-
-// install writes or refreshes the managed block for each selected platform,
-// preserving any pre-existing file content outside the managed block.
-func (e *guidanceEngine) install(platforms []assistantPlatform) ([]platformResult, error) {
-	results := make([]platformResult, 0, len(platforms))
-	for _, p := range platforms {
-		path := filepath.Join(e.root, p.relPath)
-		existing, existed, err := e.readFileOrEmpty(path)
-		if err != nil {
-			return nil, err
-		}
-		body := guidanceBody(p)
-		updated := upsertManagedBlock(existing, body)
-		res := platformResult{platform: p, path: path, status: classifyBlock(updated, body)}
-		if updated == existing {
-			results = append(results, res)
-			continue
-		}
-		// Ensure the parent directory exists (Cursor rules live under
-		// .cursor/rules/). MkdirAll is a no-op when the directory already exists.
-		if err := e.fs.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return nil, fmt.Errorf("create dir for %s: %w", path, err)
-		}
-		if err := e.fs.WriteFile(path, []byte(updated), 0o644); err != nil {
-			return nil, fmt.Errorf("write %s: %w", path, err)
-		}
-		res.changed = true
-		res.created = !existed
-		results = append(results, res)
+	platforms, err := assistantguidance.SelectPlatforms(assistantPlatformFilter)
+	if err != nil {
+		return "", nil, err
 	}
-	return results, nil
-}
-
-// status reports the managed-block state for each selected platform without
-// modifying any file.
-func (e *guidanceEngine) status(platforms []assistantPlatform) ([]platformResult, error) {
-	results := make([]platformResult, 0, len(platforms))
-	for _, p := range platforms {
-		path := filepath.Join(e.root, p.relPath)
-		existing, _, err := e.readFileOrEmpty(path)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, platformResult{
-			platform: p,
-			path:     path,
-			status:   classifyBlock(existing, guidanceBody(p)),
-		})
-	}
-	return results, nil
-}
-
-// uninstall removes the managed block for each selected platform. It deletes a
-// file only when that file becomes empty AND Eshu created it (the file is
-// nothing but the managed block). Files with other content are preserved with
-// just the block stripped; files Eshu did not create are never deleted.
-func (e *guidanceEngine) uninstall(platforms []assistantPlatform) ([]platformResult, error) {
-	results := make([]platformResult, 0, len(platforms))
-	for _, p := range platforms {
-		path := filepath.Join(e.root, p.relPath)
-		existing, existed, err := e.readFileOrEmpty(path)
-		if err != nil {
-			return nil, err
-		}
-		res := platformResult{platform: p, path: path, status: blockAbsent}
-		if !existed {
-			results = append(results, res)
-			continue
-		}
-		updated, removed := removeManagedBlock(existing)
-		if !removed {
-			results = append(results, res)
-			continue
-		}
-		res.changed = true
-		// Delete only a file that is now empty: that means it held nothing but
-		// the Eshu block, so Eshu effectively owned it. Never delete a file that
-		// still has user content.
-		if strings.TrimSpace(updated) == "" {
-			if err := e.fs.Remove(path); err != nil {
-				return nil, fmt.Errorf("remove %s: %w", path, err)
-			}
-			res.removed = true
-			results = append(results, res)
-			continue
-		}
-		if err := e.fs.WriteFile(path, []byte(updated), 0o644); err != nil {
-			return nil, fmt.Errorf("write %s: %w", path, err)
-		}
-		results = append(results, res)
-	}
-	return results, nil
-}
-
-// newEngine builds a guidanceEngine from the resolved root and the production
-// filesystem.
-func newEngine(root string) *guidanceEngine {
-	return &guidanceEngine{fs: osFileSystem{}, root: root}
+	return root, platforms, nil
 }
 
 func runAssistantInstall(cmd *cobra.Command, _ []string) error {
-	root, err := resolveRoot(assistantGuidanceRoot)
+	root, platforms, err := assistantSelection()
 	if err != nil {
 		return err
 	}
-	platforms, err := selectPlatforms(assistantPlatformFilter)
+	results, err := assistantguidance.NewEngine(root).Install(platforms)
 	if err != nil {
 		return err
 	}
-	results, err := newEngine(root).install(platforms)
-	if err != nil {
-		return err
-	}
-	return renderAssistantInstall(root, results, assistantInstallVerify)
+	return assistantguidance.RenderInstall(cmd.OutOrStdout(), root, results, assistantInstallVerify)
 }
 
 func runAssistantStatus(cmd *cobra.Command, _ []string) error {
-	root, err := resolveRoot(assistantGuidanceRoot)
+	root, platforms, err := assistantSelection()
 	if err != nil {
 		return err
 	}
-	platforms, err := selectPlatforms(assistantPlatformFilter)
+	results, err := assistantguidance.NewEngine(root).Status(platforms)
 	if err != nil {
 		return err
 	}
-	results, err := newEngine(root).status(platforms)
-	if err != nil {
-		return err
-	}
-	return renderAssistantStatus(root, results, assistantStatusVerify)
+	return assistantguidance.RenderStatus(cmd.OutOrStdout(), root, results, assistantStatusVerify)
 }
 
 func runAssistantUninstall(cmd *cobra.Command, _ []string) error {
-	root, err := resolveRoot(assistantGuidanceRoot)
+	root, platforms, err := assistantSelection()
 	if err != nil {
 		return err
 	}
-	platforms, err := selectPlatforms(assistantPlatformFilter)
+	results, err := assistantguidance.NewEngine(root).Uninstall(platforms)
 	if err != nil {
 		return err
 	}
-	results, err := newEngine(root).uninstall(platforms)
-	if err != nil {
-		return err
-	}
-	for _, r := range results {
-		rel := relOrPath(root, r.path)
-		switch {
-		case r.removed:
-			printSuccess(fmt.Sprintf("%s: removed Eshu-created %s", r.platform.label, rel))
-		case r.changed:
-			printSuccess(fmt.Sprintf("%s: removed Eshu guidance block from %s", r.platform.label, rel))
-		default:
-			fmt.Printf("- %s: no Eshu guidance block in %s\n", r.platform.label, rel)
-		}
-	}
+	assistantguidance.RenderUninstall(cmd.OutOrStdout(), root, results)
 	return nil
-}
-
-// renderInstall prints per-platform install outcomes followed by `git add`
-// hints for the commit-worthy files that changed.
-func renderInstall(_ *cobra.Command, root string, results []platformResult) {
-	var addHints []string
-	for _, r := range results {
-		rel := relOrPath(root, r.path)
-		switch {
-		case r.created:
-			printSuccess(fmt.Sprintf("%s: created %s with Eshu guidance", r.platform.label, rel))
-		case r.changed:
-			printSuccess(fmt.Sprintf("%s: updated Eshu guidance in %s", r.platform.label, rel))
-		default:
-			fmt.Printf("- %s: %s already current (%s)\n", r.platform.label, rel, managedBlockSummary(r.status))
-		}
-		if r.changed && r.platform.commit {
-			addHints = append(addHints, rel)
-		}
-	}
-	if len(addHints) == 0 {
-		return
-	}
-	sort.Strings(addHints)
-	fmt.Println("\nCommit the guidance so teammates and CI agents share it:")
-	for _, h := range addHints {
-		fmt.Printf("  git add %s\n", h)
-	}
-}
-
-// renderAssistantInstall prints install outcomes and, when verify is set,
-// appends the same local ritual diagnostics used by status --verify.
-func renderAssistantInstall(root string, results []platformResult, verify bool) error {
-	renderInstall(nil, root, results)
-	if !verify {
-		return nil
-	}
-	report, err := assistantRitualVerification(results)
-	if err != nil {
-		return err
-	}
-	fmt.Print(renderAssistantVerifyReport(report))
-	if !report.AllOK() {
-		return fmt.Errorf("assistant ritual verification failed")
-	}
-	return nil
-}
-
-// renderAssistantStatus prints the normal status table and, when verify is set,
-// appends first-run diagnostics that prove the ritual guidance and local MCP
-// tool surface are visible without making a broad graph read.
-func renderAssistantStatus(root string, results []platformResult, verify bool) error {
-	headers := []string{"Platform", "File", "Guidance"}
-	rows := make([][]string, 0, len(results))
-	for _, r := range results {
-		rel := relOrPath(root, r.path)
-		rows = append(rows, []string{r.platform.label, rel, managedBlockSummary(r.status)})
-	}
-	printTable(headers, rows)
-	if !verify {
-		return nil
-	}
-	report, err := assistantRitualVerification(results)
-	if err != nil {
-		return err
-	}
-	fmt.Print(renderAssistantVerifyReport(report))
-	if !report.AllOK() {
-		return fmt.Errorf("assistant ritual verification failed")
-	}
-	return nil
-}
-
-// assistantRitualVerification builds the verification report for
-// `assistant status --verify`. It checks committed guidance state first, then
-// reuses the local stdio MCP setup verification seam for safe tool visibility.
-func assistantRitualVerification(results []platformResult) (mcpsetup.VerifyReport, error) {
-	report := mcpsetup.VerifyReport{
-		Stages: []mcpsetup.StageResult{assistantGuidanceStage(results)},
-	}
-	p, err := mcpsetup.ResolvePlatform("generic")
-	if err != nil {
-		return mcpsetup.VerifyReport{}, err
-	}
-	snippet, err := mcpsetup.RenderSetupSnippet(p, mcpsetup.SetupRequest{Mode: mcpsetup.ModeLocalStdio})
-	if err != nil {
-		return mcpsetup.VerifyReport{}, err
-	}
-	mcpReport := mcpsetup.RunVerification(snippet, mcp.ReadOnlyTools, nil, nil, "")
-	report.Stages = append(report.Stages, mcpReport.Stages...)
-	return report, nil
-}
-
-func assistantGuidanceStage(results []platformResult) mcpsetup.StageResult {
-	current := 0
-	for _, r := range results {
-		if r.status == blockCurrent {
-			current++
-		}
-	}
-	ok := len(results) > 0 && current == len(results)
-	return mcpsetup.StageResult{
-		Stage:  mcpsetup.VerifyStage("guidance installed"),
-		OK:     ok,
-		Detail: fmt.Sprintf("%d/%d platform guidance blocks current", current, len(results)),
-	}
-}
-
-func renderAssistantVerifyReport(report mcpsetup.VerifyReport) string {
-	var b strings.Builder
-	b.WriteString("\nAssistant ritual verification\n")
-	for _, s := range report.Stages {
-		marker := "[ok]"
-		switch {
-		case s.Skipped:
-			marker = "[--]"
-		case !s.OK:
-			marker = "[!!]"
-		}
-		fmt.Fprintf(&b, "  %s %s: %s\n", marker, s.Stage, s.Detail)
-	}
-	return b.String()
-}
-
-// relOrPath returns path relative to root for display, or the absolute path if
-// it cannot be made relative.
-func relOrPath(root, path string) string {
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return path
-	}
-	return rel
 }

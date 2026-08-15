@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -41,7 +42,7 @@ func localHostEnv(dsn string, runtimeConfig localHostRuntimeConfig, graph *manag
 	for key, value := range overrides {
 		values[key] = value
 	}
-	return mergeEnvironment(eshuEnviron(), values)
+	return procexec.MergeEnvironment(procexec.Environ(), values)
 }
 
 func localHostIngesterOverrides(
@@ -201,26 +202,6 @@ func runtimeConfigFromOwnerRecord(record eshulocal.OwnerRecord) (localHostRuntim
 		Profile:      profile,
 		GraphBackend: graphBackend,
 	}, nil
-}
-
-func mergeEnvironment(base []string, overrides map[string]string) []string {
-	merged := make(map[string]string, len(base)+len(overrides))
-	for _, entry := range base {
-		for i := 0; i < len(entry); i++ {
-			if entry[i] == '=' {
-				merged[entry[:i]] = entry[i+1:]
-				break
-			}
-		}
-	}
-	for key, value := range overrides {
-		merged[key] = value
-	}
-	env := make([]string, 0, len(merged))
-	for key, value := range merged {
-		env = append(env, key+"="+value)
-	}
-	return env
 }
 
 func applyLocalBootstrap(ctx context.Context, dsn string) error {

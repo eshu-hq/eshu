@@ -75,11 +75,12 @@ func (f Failure) Error() string { return f.Message }
 // code the change commands render and exit on.
 //
 // It is a copy of traceErrorCodeFromTransport in go/cmd/eshu/trace.go, which
-// still serves `eshu trace`, `eshu map`, component_api, and the freshness
-// family. That directory is package main, so neither side can import the
-// other, and both keep their callers. Change one and you must change the
-// other: TestTransportErrorCodeParity in go/cmd/eshu feeds one error table to
-// both and fails when their answers differ.
+// still serves `eshu trace`, `eshu map`, and component_api. That directory is
+// package main, so neither side can import the other, and both keep their
+// callers. The freshness family holds a third copy,
+// freshness.ErrorCodeFromTransport, for the same reason. Change one and you
+// must change all three: TestTransportErrorCodeParity in go/cmd/eshu feeds one
+// error table to every copy and fails when their answers differ.
 //
 // The two message checks run before the status switch, and that order is the
 // contract, not an accident. An error whose text names a refused connection or

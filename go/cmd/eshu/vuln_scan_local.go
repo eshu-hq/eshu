@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -215,11 +216,11 @@ func reserveVulnScanLocalAPIPort() (int, error) {
 }
 
 func startVulnScanLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exec.Cmd, error) {
-	binary, err := eshuExecutable()
+	binary, err := procexec.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("resolve eshu executable: %w", err)
 	}
-	env := mergeEnvironment(eshuEnviron(), map[string]string{
+	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
 		"ESHU_QUERY_PROFILE":     string(query.ProfileLocalAuthoritative),
 		"ESHU_GRAPH_BACKEND":     string(query.GraphBackendNornicDB),
 		localHostProgressModeEnv: localHostProgressModeQuiet,
@@ -230,7 +231,7 @@ func startVulnScanLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exe
 		ctx = context.Background()
 	}
 	args := []string{
-		cleanExecutableArg0(binary),
+		procexec.CleanExecutableArg0(binary),
 		"local-host",
 		"watch",
 		layout.WorkspaceRoot,
