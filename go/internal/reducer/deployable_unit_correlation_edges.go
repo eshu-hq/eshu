@@ -43,10 +43,23 @@ const (
 // applyResolvedDeploymentSources. Callers that want only the edges eligible
 // for a canonical write must additionally filter the returned rows through
 // AdmittedDeployableUnitRows, exactly as materializeDeployableUnitEdges does.
+//
+// now supplies the wall-clock reading each row's CreatedAt is stamped with
+// (mirroring the AdmissionDecisionNow injection point on
+// DeployableUnitCorrelationHandler); pass nil for real time.Now(), as Handle
+// does. This function otherwise performs no I/O and reads no other
+// process-global state, so it is safe for Ifá's deployable_unit_edges
+// materialized-edge vacuity guard to call directly against a cataloged Odù --
+// go/internal/ifa/AGENTS.md forbids wall-clock time inside Ifá derivation, and
+// a caller that left this defaulting to real time.Now would have silently
+// violated that invariant without any comparison failing to catch it, since
+// CreatedAt is a SharedProjectionIntentRow struct field, not a Payload key,
+// and is never asserted by an edge-identity comparison.
 func ExtractDeployableUnitCorrelationRows(
 	intent Intent,
 	envelopes []facts.Envelope,
 	resolved []relationships.ResolvedRelationship,
+	now func() time.Time,
 ) ([]SharedProjectionIntentRow, engine.Evaluation, error) {
 	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 	if err != nil {
@@ -62,7 +75,7 @@ func ExtractDeployableUnitCorrelationRows(
 	if err != nil {
 		return nil, engine.Evaluation{}, err
 	}
-	return deployableUnitCorrelationRows(intent, evaluation), evaluation, nil
+	return deployableUnitCorrelationRows(intent, evaluation, now), evaluation, nil
 }
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
@@ -128,6 +141,7 @@ func AdmittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjec
 func deployableUnitCorrelationRows(
 	intent Intent,
 	evaluation engine.Evaluation,
+	now func() time.Time,
 ) []SharedProjectionIntentRow {
 	rows := make([]SharedProjectionIntentRow, 0, len(evaluation.Results))
 	for _, result := range evaluation.Results {
@@ -141,7 +155,7 @@ func deployableUnitCorrelationRows(
 			deploymentRepoIDs = []string{""}
 		}
 		for _, deploymentRepoID := range deploymentRepoIDs {
-			rows = append(rows, deployableUnitCorrelationRow(intent, candidate, repoID, deploymentRepoID))
+			rows = append(rows, deployableUnitCorrelationRow(intent, candidate, repoID, deploymentRepoID, now))
 		}
 	}
 	return rows
@@ -185,6 +199,7 @@ func deployableUnitCorrelationRow(
 	candidate correlationmodel.Candidate,
 	repoID string,
 	deploymentRepoID string,
+	now func() time.Time,
 ) SharedProjectionIntentRow {
 	unitKey := deployableUnitEvidenceValue(candidate, "deployable_unit_key")
 	acceptanceUnitID := deployableUnitAcceptanceUnitID(intent)
@@ -197,7 +212,7 @@ func deployableUnitCorrelationRow(
 		RepositoryID:     repoID,
 		SourceRunID:      intent.GenerationID,
 		GenerationID:     intent.GenerationID,
-		CreatedAt:        time.Now().UTC(),
+		CreatedAt:        admissionNow(now),
 		Payload: map[string]any{
 			"repo_id":             repoID,
 			"deployment_repo_id":  deploymentRepoID,

@@ -8,10 +8,21 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
+
+// deployableUnitGuardClock is the fixed, deterministic wall-clock reading
+// this guard hands to reducer.ExtractDeployableUnitCorrelationRows for every
+// row's CreatedAt. go/internal/ifa/AGENTS.md forbids wall-clock time inside
+// Ifá derivation; the extraction seam takes an injectable clock exactly so
+// this guard never calls real time.Now(). The value matches the committed
+// cassette's observed_at so a reader correlating the two finds the same
+// instant, though CreatedAt itself is never part of the edge-identity
+// comparison this guard performs.
+var deployableUnitGuardClock = time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC)
 
 // deployableUnitExpectedEdgesPath is where the family's hand-derived
 // expected-edge-set fixture lives. Under go/internal/ifa/testdata/, not
@@ -68,7 +79,7 @@ func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	if err != nil {
 		return false, err.Error()
 	}
-	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, odu.Facts, resolved)
+	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, odu.Facts, resolved, func() time.Time { return deployableUnitGuardClock })
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractDeployableUnitCorrelationRows: %v", odu.Name, err)
 	}

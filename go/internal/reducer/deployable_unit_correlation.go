@@ -73,8 +73,12 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 
 	// Same pure seam Ifá's deployable_unit_edges vacuity guard calls (#5993),
-	// so production and the conformance proof cannot silently diverge.
-	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, resolved)
+	// so production and the conformance proof cannot silently diverge. `nil`
+	// preserves the pre-refactor behavior exactly: CreatedAt was always real
+	// time.Now().UTC(), never h.AdmissionDecisionNow (a distinct clock for a
+	// distinct field, admission_decision_mapping_test.go's fixed-clock cases
+	// must stay unaffected by this row's CreatedAt).
+	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, resolved, nil)
 	if err != nil {
 		return Result{}, err
 	}
