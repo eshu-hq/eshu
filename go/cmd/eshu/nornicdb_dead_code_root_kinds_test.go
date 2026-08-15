@@ -10,6 +10,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -60,7 +61,7 @@ RETURN count(*) AS processed_rows`
 
 		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 			AccessMode:   neo4jdriver.AccessModeWrite,
-			DatabaseName: localNornicDBDefaultDatabase,
+			DatabaseName: localsupervisor.GraphDatabaseName,
 		})
 		defer func() {
 			_ = session.Close(ctx)
@@ -80,7 +81,7 @@ func TestNornicDBCanonicalWriterFunctionSourceRemoveCompatibility(t *testing.T) 
 	withNornicDBSyntaxDriver(t, func(ctx context.Context, driver neo4jdriver.DriverWithContext) {
 		executor := nornicDBConformanceExecutor{
 			driver:       driver,
-			databaseName: localNornicDBDefaultDatabase,
+			databaseName: localsupervisor.GraphDatabaseName,
 			txTimeout:    15 * time.Second,
 		}
 		writer := sourcecypher.NewCanonicalNodeWriter(executor, 5, nil).

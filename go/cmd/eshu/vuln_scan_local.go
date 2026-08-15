@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -38,12 +39,12 @@ var (
 	vulnScanReserveLocalAPIPort = reserveVulnScanLocalAPIPort
 	vulnScanStartLocalOwner     = startVulnScanLocalOwner
 	vulnScanStartLocalAPI       = startVulnScanLocalAPI
-	vulnScanStopLocalProcess    = stopLocalChildProcess
+	vulnScanStopLocalProcess    = localsupervisor.StopChildProcess
 	vulnScanWaitLocalAPI        = waitVulnScanLocalAPI
 )
 
 func prepareVulnScanLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Writer) (vulnScanLocalRuntime, error) {
-	layout, err := localHostBuildLayout(workspaceRoot)
+	layout, err := localsupervisor.BuildLayout(workspaceRoot)
 	if err != nil {
 		return vulnScanLocalRuntime{}, err
 	}
@@ -65,7 +66,7 @@ func prepareVulnScanLocalRuntime(ctx context.Context, workspaceRoot string, stde
 		}
 		record, runtimeConfig, err = waitForVulnScanLocalOwner(ctx, layout, vulnScanLocalStartupTimeout)
 		if err != nil {
-			_ = vulnScanStopLocalProcess(ownerCmd, localHostShutdownTimeout)
+			_ = vulnScanStopLocalProcess(ownerCmd, localsupervisor.ShutdownTimeout)
 			return vulnScanLocalRuntime{}, err
 		}
 	}
@@ -110,39 +111,39 @@ func prepareVulnScanLocalRuntime(ctx context.Context, workspaceRoot string, stde
 	}, nil
 }
 
-func attachVulnScanLocalOwner(layout eshulocal.Layout) (eshulocal.OwnerRecord, localHostRuntimeConfig, bool, error) {
-	record, err := localHostReadOwnerRecord(layout.OwnerRecordPath)
+func attachVulnScanLocalOwner(layout eshulocal.Layout) (eshulocal.OwnerRecord, localsupervisor.RuntimeConfig, bool, error) {
+	record, err := localsupervisor.ReadOwnerRecord(layout.OwnerRecordPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false, nil
+			return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false, nil
 		}
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false, err
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false, err
 	}
 	if record.WorkspaceID != "" && record.WorkspaceID != layout.WorkspaceID {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false,
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("owner record workspace %q does not match requested workspace %q", record.WorkspaceID, layout.WorkspaceID)
 	}
-	if !localHostProcessAlive(record.PID) {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false, nil
+	if !localsupervisor.ProcessAlive(record.PID) {
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false, nil
 	}
-	if !localHostSocketHealthy(record.PostgresSocketPath) {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false,
+	if !localsupervisor.SocketHealthy(record.PostgresSocketPath) {
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy Postgres socket", layout.WorkspaceRoot)
 	}
 	if record.PostgresPort <= 0 {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false,
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("owner record for workspace %q missing postgres_port", layout.WorkspaceRoot)
 	}
-	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
+	runtimeConfig, err := localsupervisor.RuntimeConfigFromOwnerRecord(record)
 	if err != nil {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false, err
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false, err
 	}
 	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false,
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("vuln-scan repo requires local_authoritative; running local Eshu service profile is %q", runtimeConfig.Profile)
 	}
-	if !localHostGraphHealthy(record) {
-		return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, false,
+	if !localsupervisor.GraphHealthy(record) {
+		return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, false,
 			fmt.Errorf("local Eshu service owner for workspace %q has an unhealthy graph backend", layout.WorkspaceRoot)
 	}
 	return record, runtimeConfig, true, nil
@@ -152,7 +153,7 @@ func waitForVulnScanLocalOwner(
 	ctx context.Context,
 	layout eshulocal.Layout,
 	timeout time.Duration,
-) (eshulocal.OwnerRecord, localHostRuntimeConfig, error) {
+) (eshulocal.OwnerRecord, localsupervisor.RuntimeConfig, error) {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -162,7 +163,7 @@ func waitForVulnScanLocalOwner(
 	for {
 		record, runtimeConfig, attached, err := attachVulnScanLocalOwner(layout)
 		if err != nil {
-			return eshulocal.OwnerRecord{}, localHostRuntimeConfig{}, err
+			return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{}, err
 		}
 		if attached {
 			return record, runtimeConfig, nil
@@ -170,7 +171,7 @@ func waitForVulnScanLocalOwner(
 
 		select {
 		case <-waitCtx.Done():
-			return eshulocal.OwnerRecord{}, localHostRuntimeConfig{},
+			return eshulocal.OwnerRecord{}, localsupervisor.RuntimeConfig{},
 				fmt.Errorf("wait for local Eshu service owner timed out after %s; see %s: %w", timeout, layout.LogsDir, waitCtx.Err())
 		case <-ticker.C:
 		}
@@ -180,7 +181,7 @@ func waitForVulnScanLocalOwner(
 func vulnScanEnvFromOwner(
 	layout eshulocal.Layout,
 	record eshulocal.OwnerRecord,
-	runtimeConfig localHostRuntimeConfig,
+	runtimeConfig localsupervisor.RuntimeConfig,
 	overrides map[string]string,
 ) ([]string, error) {
 	if record.PostgresPort <= 0 {
@@ -190,11 +191,11 @@ func vulnScanEnvFromOwner(
 	for key, value := range overrides {
 		childOverrides[key] = value
 	}
-	env := localHostEnv(
+	env := localsupervisor.ChildEnv(
 		eshulocal.PostgresDSN(vulnScanLocalAPIBindAddress, record.PostgresPort),
 		runtimeConfig,
-		managedGraphFromRecord(record),
-		localHostChildOverrides(layout, childOverrides, os.Getenv),
+		localsupervisor.ManagedGraphFromRecord(record),
+		localsupervisor.ChildOverrides(layout, childOverrides, os.Getenv),
 	)
 	return env, nil
 }
@@ -221,11 +222,11 @@ func startVulnScanLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exe
 		return nil, fmt.Errorf("resolve eshu executable: %w", err)
 	}
 	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
-		"ESHU_QUERY_PROFILE":     string(query.ProfileLocalAuthoritative),
-		"ESHU_GRAPH_BACKEND":     string(query.GraphBackendNornicDB),
-		localHostProgressModeEnv: localHostProgressModeQuiet,
-		localHostLogModeEnv:      localHostLogModeFile,
-		localHostLogDirEnv:       layout.LogsDir,
+		"ESHU_QUERY_PROFILE":            string(query.ProfileLocalAuthoritative),
+		"ESHU_GRAPH_BACKEND":            string(query.GraphBackendNornicDB),
+		localsupervisor.ProgressModeEnv: localsupervisor.ProgressModeQuiet,
+		localsupervisor.LogModeEnv:      localsupervisor.LogModeFile,
+		localsupervisor.LogDirEnv:       layout.LogsDir,
 	})
 	if ctx == nil {
 		ctx = context.Background()
@@ -248,14 +249,14 @@ func startVulnScanLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exe
 }
 
 func startVulnScanLocalAPI(env []string) (*exec.Cmd, error) {
-	return localHostStartChildProcess("eshu-api", []string{"eshu-api"}, env)
+	return localsupervisor.StartChildProcess("eshu-api", []string{"eshu-api"}, env)
 }
 
 func waitVulnScanLocalAPI(ctx context.Context, baseURL string, timeout time.Duration) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	client := &http.Client{Timeout: localGraphHealthTimeout}
+	client := &http.Client{Timeout: localsupervisor.GraphHealthTimeout}
 	ticker := time.NewTicker(vulnScanLocalPollInterval)
 	defer ticker.Stop()
 
@@ -284,10 +285,10 @@ func waitVulnScanLocalAPI(ctx context.Context, baseURL string, timeout time.Dura
 func stopVulnScanLocalRuntime(apiCmd, ownerCmd *exec.Cmd) error {
 	var err error
 	if apiCmd != nil {
-		err = errors.Join(err, vulnScanStopLocalProcess(apiCmd, localHostShutdownTimeout))
+		err = errors.Join(err, vulnScanStopLocalProcess(apiCmd, localsupervisor.ShutdownTimeout))
 	}
 	if ownerCmd != nil {
-		err = errors.Join(err, vulnScanStopLocalProcess(ownerCmd, localHostShutdownTimeout))
+		err = errors.Join(err, vulnScanStopLocalProcess(ownerCmd, localsupervisor.ShutdownTimeout))
 	}
 	return err
 }

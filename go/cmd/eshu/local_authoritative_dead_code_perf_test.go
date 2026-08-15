@@ -19,6 +19,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -55,20 +56,20 @@ func TestLocalAuthoritativeDeadCodeSyntheticEnvelope(t *testing.T) {
 }
 
 func measureLocalAuthoritativeDeadCodeLatency(layout eshulocal.Layout) (time.Duration, error) {
-	originalStartChild := localHostStartChildProcess
-	originalWaitManagedChildren := localHostWaitManagedChildren
-	originalWaitOwnerChildren := localHostWaitOwnerChildren
+	originalStartChild := localsupervisor.StartChildProcess
+	originalWaitManagedChildren := localsupervisor.WaitManagedChildren
+	originalWaitOwnerChildren := localsupervisor.WaitOwnerChildren
 	defer func() {
-		localHostStartChildProcess = originalStartChild
-		localHostWaitManagedChildren = originalWaitManagedChildren
-		localHostWaitOwnerChildren = originalWaitOwnerChildren
+		localsupervisor.StartChildProcess = originalStartChild
+		localsupervisor.WaitManagedChildren = originalWaitManagedChildren
+		localsupervisor.WaitOwnerChildren = originalWaitOwnerChildren
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	var measured time.Duration
-	localHostStartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
+	localsupervisor.StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
 		if name == "eshu-reducer" {
 			return &exec.Cmd{}, nil
 		}
@@ -86,14 +87,14 @@ func measureLocalAuthoritativeDeadCodeLatency(layout eshulocal.Layout) (time.Dur
 		}
 		return &exec.Cmd{}, nil
 	}
-	localHostWaitManagedChildren = func(ctx context.Context, children []localHostChild, allowCleanExit string) error {
+	localsupervisor.WaitManagedChildren = func(ctx context.Context, children []localsupervisor.Child, allowCleanExit string) error {
 		return nil
 	}
-	localHostWaitOwnerChildren = func(ctx context.Context, children []localHostChild, allowedCleanExits map[string]struct{}) error {
+	localsupervisor.WaitOwnerChildren = func(ctx context.Context, children []localsupervisor.Child, allowedCleanExits map[string]struct{}) error {
 		return nil
 	}
 
-	if err := runOwnedLocalHostWithLayout(ctx, layout, localHostModeWatch); err != nil {
+	if err := localsupervisor.RunOwnedHostWithLayout(ctx, os.Stderr, layout, localsupervisor.ModeWatch); err != nil {
 		return 0, err
 	}
 	if measured <= 0 {
@@ -119,7 +120,7 @@ func runLocalAuthoritativeDeadCodeProbe(ctx context.Context, record eshulocal.Ow
 		return 0, err
 	}
 
-	reader := query.NewNeo4jReader(driver, localNornicDBDefaultDatabase)
+	reader := query.NewNeo4jReader(driver, localsupervisor.GraphDatabaseName)
 	handler := &query.CodeHandler{
 		GraphBackend: query.GraphBackendNornicDB,
 		Neo4j:        reader,
@@ -231,7 +232,7 @@ func seedSyntheticDeadCodeGraph(ctx context.Context, driver neo4jdriver.DriverWi
 
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)
@@ -319,7 +320,7 @@ func assertSyntheticDeadCodeSeedVisible(
 ) error {
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeRead,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)

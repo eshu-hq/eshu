@@ -125,13 +125,17 @@ artifact wrapper, and the share-safe scope rules live in
     `component_conform.go`, `component_index.go`, `component_init.go`,
     `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
-    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`,
-    `local_graph.go`; the install logic itself lives in
+    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`; the status,
+    stop, logs, and upgrade logic lives in
+    `internal/cli/localsupervisor` and the install logic in
     `internal/cli/graphinstall`)
   - `admin`: `facts`, `reindex`, `tuning-report`, `list`, `decisions`,
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
-  - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`,
-    `local-host`
+  - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`
+  - `local-host` (hidden): the local Eshu service re-exec target
+    (`local_host.go`). It registers the command and handles signals; the
+    supervisor that owns embedded Postgres, the graph backend, and the
+    child services is `internal/cli/localsupervisor`
   - `demo`: `up`, `status`, `down` (`demo.go`, `demo_runtime.go`,
     `demo_teardown.go`, `demo_manifest.go`) — the credential-free demo
     stack. Unlike the rest of this binary, `demo` owns a Compose

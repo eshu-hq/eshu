@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
@@ -356,14 +357,14 @@ func stubServiceRuntime() (func(), *serviceRuntimeCalls) {
 func stubLocalOwnerForMCP(t *testing.T, repoRoot string, record eshulocal.OwnerRecord) func() {
 	t.Helper()
 
-	originalBuildLayout := localHostBuildLayout
-	originalReadOwnerRecord := localHostReadOwnerRecord
-	originalProcessAlive := localHostProcessAlive
-	originalSocketHealthy := localHostSocketHealthy
-	originalGraphHealthy := localHostGraphHealthy
+	originalBuildLayout := localsupervisor.BuildLayout
+	originalReadOwnerRecord := localsupervisor.ReadOwnerRecord
+	originalProcessAlive := localsupervisor.ProcessAlive
+	originalSocketHealthy := localsupervisor.SocketHealthy
+	originalGraphHealthy := localsupervisor.GraphHealthy
 
 	workspaceRoot := mustEvalSymlinks(t, repoRoot)
-	localHostBuildLayout = func(root string) (eshulocal.Layout, error) {
+	localsupervisor.BuildLayout = func(root string) (eshulocal.Layout, error) {
 		if got := mustEvalSymlinks(t, root); got != workspaceRoot {
 			t.Fatalf("BuildLayout(%q) resolved to %q, want %q", root, got, workspaceRoot)
 		}
@@ -373,22 +374,22 @@ func stubLocalOwnerForMCP(t *testing.T, repoRoot string, record eshulocal.OwnerR
 			OwnerRecordPath: filepath.Join(t.TempDir(), "owner.json"),
 		}, nil
 	}
-	localHostReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) {
+	localsupervisor.ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) {
 		if record.PID == 0 {
 			return eshulocal.OwnerRecord{}, os.ErrNotExist
 		}
 		return record, nil
 	}
-	localHostProcessAlive = func(int) bool { return record.PID != 0 }
-	localHostSocketHealthy = func(string) bool { return record.PID != 0 }
-	localHostGraphHealthy = func(eshulocal.OwnerRecord) bool { return record.PID != 0 }
+	localsupervisor.ProcessAlive = func(int) bool { return record.PID != 0 }
+	localsupervisor.SocketHealthy = func(string) bool { return record.PID != 0 }
+	localsupervisor.GraphHealthy = func(eshulocal.OwnerRecord) bool { return record.PID != 0 }
 
 	return func() {
-		localHostBuildLayout = originalBuildLayout
-		localHostReadOwnerRecord = originalReadOwnerRecord
-		localHostProcessAlive = originalProcessAlive
-		localHostSocketHealthy = originalSocketHealthy
-		localHostGraphHealthy = originalGraphHealthy
+		localsupervisor.BuildLayout = originalBuildLayout
+		localsupervisor.ReadOwnerRecord = originalReadOwnerRecord
+		localsupervisor.ProcessAlive = originalProcessAlive
+		localsupervisor.SocketHealthy = originalSocketHealthy
+		localsupervisor.GraphHealthy = originalGraphHealthy
 	}
 }
 

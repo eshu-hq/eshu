@@ -22,9 +22,10 @@ commit `71fad840a` ("Default eshu mcp start to local_authoritative (#3026)").
 
 ### Code
 
-- Default selection: [`go/cmd/eshu/local_host.go:147`](../../go/cmd/eshu/local_host.go)
+- Default selection:
+  [`go/internal/cli/localsupervisor/host.go`](../../go/internal/cli/localsupervisor/host.go)
   — `defaultProfileForMode` returns `query.ProfileLocalAuthoritative` for
-  `localHostModeMCPStdio` and `query.ProfileLocalLightweight` for watch-mode
+  `ModeMCPStdio` and `query.ProfileLocalLightweight` for watch-mode
   owners (the lightweight indexer stays Postgres-only).
 - Explicit opt-out preserved: `resolveLocalHostRuntimeConfigWithDefault` still
   honors an explicit `ESHU_QUERY_PROFILE`, and `eshu mcp start --profile` accepts
@@ -73,7 +74,8 @@ which states the `local_authoritative` default correctly. No README edit needed.
 
 ### Tests
 
-`go/cmd/eshu/local_host_profile_test.go` covers the contract:
+`go/internal/cli/localsupervisor/host_profile_test.go` and
+`go/cmd/eshu/service_local_test.go` cover the contract:
 `TestDefaultProfileForMode`, `TestResolveLocalHostRuntimeConfigWithDefault`,
 `TestRunMCPStartStdioProfileFlagInjectsLightweight`,
 `TestRunMCPStartStdioProfileFlagInjectsAuthoritative`, and

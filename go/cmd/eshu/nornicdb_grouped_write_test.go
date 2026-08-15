@@ -14,6 +14,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -22,7 +23,7 @@ func TestNornicDBGroupedWriteSafetyProbe(t *testing.T) {
 	withNornicDBSyntaxDriver(t, func(ctx context.Context, driver neo4jdriver.DriverWithContext) {
 		executor := nornicDBConformanceExecutor{
 			driver:       driver,
-			databaseName: localNornicDBDefaultDatabase,
+			databaseName: localsupervisor.GraphDatabaseName,
 			txTimeout:    15 * time.Second,
 		}
 
@@ -171,7 +172,7 @@ func TestNornicDBGroupedWriteRollbackConformance(t *testing.T) {
 	withNornicDBSyntaxDriver(t, func(ctx context.Context, driver neo4jdriver.DriverWithContext) {
 		executor := nornicDBConformanceExecutor{
 			driver:       driver,
-			databaseName: localNornicDBDefaultDatabase,
+			databaseName: localsupervisor.GraphDatabaseName,
 			txTimeout:    15 * time.Second,
 		}
 		nodeID := "eshu-nornicdb-grouped-rollback-conformance"
@@ -386,7 +387,7 @@ func executeExplicitRollbackProbe(
 ) error {
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)
@@ -427,7 +428,7 @@ func executeCleanExplicitRollbackProbe(
 ) error {
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)
@@ -471,7 +472,7 @@ func nornicDBReadCount(
 ) (int64, error) {
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeRead,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)

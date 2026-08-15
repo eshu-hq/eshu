@@ -1118,6 +1118,7 @@ gates:
     triggers:
       - "docs/public/**"
       - "go/cmd/eshu/**"
+      - "go/internal/cli/**"
       - "go/internal/envregistry/**"
       - "go/cmd/docs-cli-env-refs/**"
       - "scripts/verify-docs-cli-env-refs.sh"

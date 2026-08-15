@@ -20,9 +20,7 @@ import (
 // TestRunInstallNornicDBPrintsJSON exercise runInstallNornicDB itself --
 // cobra flag reading and the printed exit-code-path JSON -- so they stay
 // here rather than moving to graphinstall with the rest of
-// graph_install_test.go. TestResolveNornicDBBinaryPrefersManagedInstall
-// exercises resolveNornicDBBinary (local_graph_process.go), a non-family
-// function that is also out of scope for the graphinstall extraction.
+// graph_install_test.go.
 
 func TestRunInstallNornicDBRejectsFullWithExplicitSource(t *testing.T) {
 	cmd := &cobra.Command{}
@@ -68,35 +66,6 @@ func TestRunInstallNornicDBPrintsJSON(t *testing.T) {
 	}
 	if !got.Installed {
 		t.Fatal("Installed = false for first install, want true")
-	}
-}
-
-func TestResolveNornicDBBinaryPrefersManagedInstall(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("test uses a Unix executable script")
-	}
-
-	originalLookPath := localGraphLookPath
-	t.Cleanup(func() {
-		localGraphLookPath = originalLookPath
-	})
-
-	homeDir := t.TempDir()
-	t.Setenv("ESHU_HOME", homeDir)
-	t.Setenv("ESHU_NORNICDB_BINARY", "")
-	managedPath := filepath.Join(homeDir, "bin", "nornicdb-headless")
-	writeFakeNornicDBBinaryAtForCmdTest(t, managedPath, "NornicDB v1.0.43\n")
-	localGraphLookPath = func(file string) (string, error) {
-		t.Fatalf("localGraphLookPath(%q) called; managed install should win", file)
-		return "", nil
-	}
-
-	got, err := resolveNornicDBBinary()
-	if err != nil {
-		t.Fatalf("resolveNornicDBBinary() error = %v, want nil", err)
-	}
-	if got != managedPath {
-		t.Fatalf("resolveNornicDBBinary() = %q, want %q", got, managedPath)
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
@@ -329,22 +330,22 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 		GraphPassword:      "workspace-secret",
 	}
 
-	originalBuildLayout := localHostBuildLayout
-	originalReadOwnerRecord := localHostReadOwnerRecord
-	originalProcessAlive := localHostProcessAlive
-	originalSocketHealthy := localHostSocketHealthy
-	originalGraphHealthy := localHostGraphHealthy
+	originalBuildLayout := localsupervisor.BuildLayout
+	originalReadOwnerRecord := localsupervisor.ReadOwnerRecord
+	originalProcessAlive := localsupervisor.ProcessAlive
+	originalSocketHealthy := localsupervisor.SocketHealthy
+	originalGraphHealthy := localsupervisor.GraphHealthy
 	originalStartOwner := vulnScanStartLocalOwner
 	originalReservePort := vulnScanReserveLocalAPIPort
 	originalStartAPI := vulnScanStartLocalAPI
 	originalWaitAPI := vulnScanWaitLocalAPI
 	originalStopProcess := vulnScanStopLocalProcess
 	defer func() {
-		localHostBuildLayout = originalBuildLayout
-		localHostReadOwnerRecord = originalReadOwnerRecord
-		localHostProcessAlive = originalProcessAlive
-		localHostSocketHealthy = originalSocketHealthy
-		localHostGraphHealthy = originalGraphHealthy
+		localsupervisor.BuildLayout = originalBuildLayout
+		localsupervisor.ReadOwnerRecord = originalReadOwnerRecord
+		localsupervisor.ProcessAlive = originalProcessAlive
+		localsupervisor.SocketHealthy = originalSocketHealthy
+		localsupervisor.GraphHealthy = originalGraphHealthy
 		vulnScanStartLocalOwner = originalStartOwner
 		vulnScanReserveLocalAPIPort = originalReservePort
 		vulnScanStartLocalAPI = originalStartAPI
@@ -353,21 +354,21 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 	}()
 
 	var readCount atomic.Int64
-	localHostBuildLayout = func(root string) (eshulocal.Layout, error) {
+	localsupervisor.BuildLayout = func(root string) (eshulocal.Layout, error) {
 		if mustEvalSymlinks(t, root) != workspaceRoot {
 			t.Fatalf("BuildLayout(%q), want %q", root, workspaceRoot)
 		}
 		return layout, nil
 	}
-	localHostReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) {
+	localsupervisor.ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) {
 		if readCount.Add(1) == 1 {
 			return eshulocal.OwnerRecord{}, os.ErrNotExist
 		}
 		return record, nil
 	}
-	localHostProcessAlive = func(pid int) bool { return pid == record.PID }
-	localHostSocketHealthy = func(path string) bool { return path == record.PostgresSocketPath }
-	localHostGraphHealthy = func(eshulocal.OwnerRecord) bool { return true }
+	localsupervisor.ProcessAlive = func(pid int) bool { return pid == record.PID }
+	localsupervisor.SocketHealthy = func(path string) bool { return path == record.PostgresSocketPath }
+	localsupervisor.GraphHealthy = func(eshulocal.OwnerRecord) bool { return true }
 
 	ownerCmd := &exec.Cmd{}
 	apiCmd := &exec.Cmd{}

@@ -11,13 +11,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 )
 
 // runInstallNornicDB is the `eshu install nornicdb` RunE. It resolves the
 // cobra flags and the exit-code contract -- the parts that must stay in
 // cmd/eshu because it is `package main` -- and delegates verification and
-// the actual install to graphinstall.Install, wiring localGraphReadVersion
-// (local_graph_process.go) as the VersionReader so graphinstall never has to
+// the actual install to graphinstall.Install, wiring localsupervisor.ReadGraphVersion
+// as the VersionReader so graphinstall never has to
 // execute a binary itself.
 func runInstallNornicDB(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
@@ -49,7 +50,7 @@ func runInstallNornicDB(cmd *cobra.Command, args []string) error {
 		SHA256:      expectedSHA,
 		Force:       force,
 		Full:        full,
-		ReadVersion: localGraphReadVersion,
+		ReadVersion: localsupervisor.ReadGraphVersion,
 	})
 	if err != nil {
 		return err

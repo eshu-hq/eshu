@@ -35,7 +35,8 @@ read-only Cypher, call-graph metrics) instead of returning
 `unsupported_capability`. `eshu index` and other watch-mode owners keep the
 `local_lightweight` default. The owner profile resolves in
 `defaultProfileForMode` / `resolveLocalHostRuntimeConfigWithDefault`
-(`go/cmd/eshu/local_host.go`, `go/cmd/eshu/local_host_config.go`); it is a
+(`go/internal/cli/localsupervisor/host.go`,
+`go/internal/cli/localsupervisor/config.go`); it is a
 default-selection change only, not a change to either profile's runtime path.
 
 - Affected stage: local owner cold start for the `eshu mcp start` stdio
