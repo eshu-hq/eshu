@@ -70,7 +70,7 @@ func TestDocumentationFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	odu := CatalogByName()[documentationFamilyOduName]
 
-	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
+	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot), "documentation_edges")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestDocumentationFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	odu := CatalogByName()[documentationFamilyOduName]
 
-	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot))
+	expected, err := LoadExpectedEdges(documentationFamilyExpectedEdgesPath(repoRoot), "documentation_edges")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -133,7 +133,18 @@ func writeDocumentationExpectedEdgesFixture(t *testing.T, edges []ExpectedEdge) 
 	}
 	jsonEdges := make([]expectedEdgeJSON, 0, len(edges))
 	for _, e := range edges {
-		jsonEdges = append(jsonEdges, expectedEdgeJSON(e))
+		// Explicit field mapping, not a raw struct conversion: ExpectedEdge
+		// gained an Identity field this test's 3-field expectedEdgeJSON never
+		// had, so the two shapes no longer convert directly. documentation_edges
+		// declares no identity properties (MaterializedEdgeIdentityProperties
+		// returns an empty map for it), so every edge here carries a nil
+		// Identity anyway -- dropping it is the correct shape for this family,
+		// not a narrowing.
+		jsonEdges = append(jsonEdges, expectedEdgeJSON{
+			RelationshipType: e.RelationshipType,
+			SourceEntityID:   e.SourceEntityID,
+			TargetEntityID:   e.TargetEntityID,
+		})
 	}
 	raw, err := json.Marshal(expectedEdgesFileJSON{Odu: documentationFamilyOduName, Edges: jsonEdges})
 	if err != nil {

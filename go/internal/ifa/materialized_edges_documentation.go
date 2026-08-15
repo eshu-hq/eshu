@@ -65,7 +65,7 @@ func documentationFamilyExpectedEdgesPath(repoRoot string) string {
 // target_kind to this guard would mean re-splitting the fixture format, which is
 // what bound the coverage rows to an artifact the live gate never drove.
 func resolveDocumentationEdgeMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
-	expected, err := LoadExpectedEdges(expectedEdgesPath)
+	expected, err := LoadExpectedEdges(expectedEdgesPath, "documentation_edges")
 	if err != nil {
 		return false, err.Error()
 	}
