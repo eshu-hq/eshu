@@ -149,6 +149,34 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // on a live edge is a real materialization defect, not an edge to silently
 // key as "": it is reported in the same loud, never-attribute-collapsing
 // style as endpointErrs.
+// expectedEdgeLabel renders e as a human-readable "TYPE|source|target"
+// diagnostic label, with "|k=v" appended per Identity property in sorted
+// order -- the same shape ExpectedEdge.Key() rendered before it needed to
+// become an injective netstring encoding (materialized_edges_assert.go).
+// Deliberately NOT Key(): injectivity matters for equality comparison, not
+// for display, and printing Key()'s netstring in the assert-edges failure
+// report ("18:DECLARES_CODEOWNER6:repo-1...") would make the one surface an
+// operator reads at 3 AM illegible. Mirrors rationaleEdgeLabel's key/label
+// split (go/internal/ifa/materialized_edges_rationale.go), the existing
+// precedent for this exact pattern in the sibling package.
+func expectedEdgeLabel(e ifa.ExpectedEdge) string {
+	label := fmt.Sprintf("%s|%s|%s", e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
+	if len(e.Identity) == 0 {
+		return label
+	}
+	keys := make([]string, 0, len(e.Identity))
+	for k := range e.Identity {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString(label)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "|%s=%s", k, e.Identity[k])
+	}
+	return b.String()
+}
+
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
@@ -165,9 +193,18 @@ func assertMaterializedEdges(
 	// set. In practice the reducer dedups its edge rows (seenEdges) and the
 	// hand-derived expected-set names each edge once, so any key with an actual
 	// count above its expected count is a real duplicate-edge defect.
+	//
+	// labels is a parallel key -> human-readable-label map, populated
+	// alongside both counts maps: Key() is the injective netstring the
+	// comparison logic below needs, but printing it in the failure report
+	// would be illegible ("18:DECLARES_CODEOWNER6:repo-1..."). See
+	// expectedEdgeLabel's doc comment for the display-vs-comparison split.
 	expectedCounts := make(map[string]int, len(expected))
+	labels := make(map[string]string, len(expected))
 	for _, e := range expected {
-		expectedCounts[e.Key()]++
+		key := e.Key()
+		expectedCounts[key]++
+		labels[key] = expectedEdgeLabel(e)
 	}
 
 	actualCounts := make(map[string]int)
@@ -237,7 +274,9 @@ func assertMaterializedEdges(
 			}
 			liveEdge.Identity = props
 		}
-		actualCounts[liveEdge.Key()]++
+		key := liveEdge.Key()
+		actualCounts[key]++
+		labels[key] = expectedEdgeLabel(liveEdge)
 		return nil
 	})
 	if err != nil {
@@ -247,22 +286,24 @@ func assertMaterializedEdges(
 	var missing, extra, duplicate []string
 	for key, want := range expectedCounts {
 		got := actualCounts[key]
+		label := labels[key]
 		switch {
 		case got == 0:
-			missing = append(missing, key)
+			missing = append(missing, label)
 		case got > want:
 			// Present, but materialized more times than expected: a duplicate.
-			duplicate = append(duplicate, fmt.Sprintf("%s (graph=%d, expected=%d)", key, got, want))
+			duplicate = append(duplicate, fmt.Sprintf("%s (graph=%d, expected=%d)", label, got, want))
 		}
 	}
 	for key, got := range actualCounts {
 		if _, ok := expectedCounts[key]; !ok {
 			// Not in the expected set at all. Report the count so a spurious
 			// duplicate of an unexpected edge is not undercounted either.
+			label := labels[key]
 			if got > 1 {
-				extra = append(extra, fmt.Sprintf("%s (x%d)", key, got))
+				extra = append(extra, fmt.Sprintf("%s (x%d)", label, got))
 			} else {
-				extra = append(extra, key)
+				extra = append(extra, label)
 			}
 		}
 	}

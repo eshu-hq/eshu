@@ -104,13 +104,21 @@ func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testin
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(identity value mismatch) = nil, want a missing/extra failure")
 	}
-	const wantMissing = "18:DECLARES_CODEOWNER6:repo-16:team-a7:pattern4:*.py11:source_path10:CODEOWNERS"
-	const wantExtra = "18:DECLARES_CODEOWNER6:repo-16:team-a7:pattern4:*.go11:source_path10:CODEOWNERS"
+	// Readable "TYPE|source|target|k=v|k=v" labels, not Key()'s netstring
+	// comparison encoding: an operator reading this report at 3 AM must be
+	// able to see the pattern/source_path values directly, not
+	// "18:DECLARES_CODEOWNER6:repo-1...". expectedEdgeLabel renders the
+	// readable form; Key() stays the injective comparison key underneath.
+	const wantMissing = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.py|source_path=CODEOWNERS"
+	const wantExtra = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.go|source_path=CODEOWNERS"
 	if !strings.Contains(err.Error(), wantMissing) {
-		t.Errorf("error %q does not name the missing fixture key %q", err, wantMissing)
+		t.Errorf("error %q does not name the missing fixture edge %q in readable form", err, wantMissing)
 	}
 	if !strings.Contains(err.Error(), wantExtra) {
-		t.Errorf("error %q does not name the extra live key %q with its full identity suffix — a disabled identity projection would key this edge bare instead", err, wantExtra)
+		t.Errorf("error %q does not name the extra live edge %q in readable form — a disabled identity projection would key this edge bare instead", err, wantExtra)
+	}
+	if strings.Contains(err.Error(), ":DECLARES_CODEOWNER") {
+		t.Errorf("error %q leaks Key()'s netstring encoding into the operator-facing report", err)
 	}
 }
 

@@ -140,9 +140,9 @@ func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(missing MIGRATES) = nil, want a missing-edge failure")
 	}
-	wantKey := ifa.ExpectedEdge{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"}.Key()
-	if !strings.Contains(err.Error(), wantKey) {
-		t.Errorf("error %q does not name the missing MIGRATES edge (want key %q)", err, wantKey)
+	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"})
+	if !strings.Contains(err.Error(), wantLabel) {
+		t.Errorf("error %q does not name the missing MIGRATES edge (want label %q)", err, wantLabel)
 	}
 }
 
@@ -187,9 +187,9 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(extra edge) = nil, want an extra-edge failure")
 	}
-	wantKey := ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c2"}.Key()
-	if !strings.Contains(err.Error(), "extra") || !strings.Contains(err.Error(), wantKey) {
-		t.Errorf("error %q does not name the extra edge (want key %q)", err, wantKey)
+	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c2"})
+	if !strings.Contains(err.Error(), "extra") || !strings.Contains(err.Error(), wantLabel) {
+		t.Errorf("error %q does not name the extra edge (want label %q)", err, wantLabel)
 	}
 }
 
@@ -246,8 +246,8 @@ func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate") {
 		t.Errorf("error %q does not report the duplicate edge", err)
 	}
-	wantKey := ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"}.Key()
-	if !strings.Contains(err.Error(), wantKey) {
-		t.Errorf("error %q does not name the duplicated edge (want key %q)", err, wantKey)
+	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"})
+	if !strings.Contains(err.Error(), wantLabel) {
+		t.Errorf("error %q does not name the duplicated edge (want label %q)", err, wantLabel)
 	}
 }
