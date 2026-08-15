@@ -204,6 +204,8 @@ code_call_gate_seams=(
 	'go/internal/storage/cypher/edge_writer_retract*.go|go/internal/storage/cypher/edge_writer_retract_scope.go'
 	'go/internal/content/writer.go|go/internal/content/writer.go'
 	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
+	'go/internal/projector/runtime_stages.go|go/internal/projector/runtime_stages.go'
+	'go/cmd/projector/runtime_wiring.go|go/cmd/projector/runtime_wiring.go'
 	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
 	'go/internal/storage/postgres/facts_active_code_call_symbols.go|go/internal/storage/postgres/facts_active_code_call_symbols.go'
 	'go/internal/storage/postgres/facts_filtered.go|go/internal/storage/postgres/facts_filtered.go'
