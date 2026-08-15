@@ -35,6 +35,14 @@ require_code_call_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${code_call_cells_lib}" || fail "missing ${label} (code-call cells lib): ${needle}"
 }
+require_documentation_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"
+}
+require_documentation_cells() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_cells_lib}" || fail "missing ${label} (documentation cells lib): ${needle}"
+}
 
 # Deleting only the function name from a continued call leaves its arguments
 # behind, so multiline call assertions use -U and bind the whole invocation.

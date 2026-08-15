@@ -21,7 +21,13 @@
 #
 #   - cell_killworker_documentation provably targets the documentation work
 #     item by scoping ifa_fault_wait_for_claimed to
-#     domain=documentation_materialization.
+#     domain=documentation_materialization, holds a deterministic
+#     shared_projection_intents lock so the short handler cannot acknowledge
+#     between the claimed-row observation and the kill (the code_calls #5991
+#     pattern, cell_killworker_code_calls -- the newer and stronger proof
+#     shape than the plain cell_killworker_sql one, adopted here on review),
+#     and asserts a post-recovery attempt_count > fault-free-baseline delta,
+#     not just a digest match.
 #   - cell_failgraphwrite_documentation anchors the graph-write fault to the
 #     DOCUMENTS edge MERGE and proves the fault fired via
 #     ifa_fault_assert_once_fault_marker, reading the durable marker the fault
@@ -32,52 +38,139 @@
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
 # function here reads driver-owned globals (bin_dir, tagged_bin_dir, log_dir,
-# work_dir, wall_times, documentation_edge_operation_match,
-# documentation_expected_edges, CLAIMED_ROW_WAIT_TIMEOUT, log, die, plus the
-# fresh_stack / drive_all_cassettes / run_drain_gate / assert_no_dead_letters
-# / capture_digest / assert_matches_baseline / teardown_cell helpers) rather
-# than taking them as arguments. Sources scripts/lib/ifa_documentation_live.sh
-# for ifa_documentation_assert.
+# work_dir, wall_times, use_compose, compose_file, documentation_edge_operation_match,
+# documentation_expected_edges, baseline_documentation_retried,
+# CLAIMED_ROW_WAIT_TIMEOUT, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, bg_pids,
+# log, die, plus the fresh_stack / drive_all_cassettes / run_drain_gate /
+# assert_no_dead_letters / capture_digest / assert_matches_baseline /
+# teardown_cell helpers) rather than taking them as arguments. Sources
+# scripts/lib/ifa_documentation_live.sh for ifa_documentation_assert.
+#
+# baseline_documentation_retried is NOT set by this file -- it must be
+# captured against a genuinely fault-free drive, the same way
+# baseline_code_call_retried is captured inside cell_baseline
+# (ifa_fault_injection_cells.sh:74-76, a shared file this worktree does not
+# own). Until that splice lands, cell_killworker_documentation's retry-delta
+# assertion below reads an unset global and fails closed rather than silently
+# comparing against zero.
 
-# cell_killworker_documentation: kill -9 the live host eshu-reducer process
-# after a row is PROVABLY a documentation_materialization row (not any
-# domain), then start a fresh reducer process and let the fixed 1-minute lease
-# expire and get reclaimed. Mirrors cell_killworker_sql; the only difference
-# is the domain-scoped wait_for_claimed precondition.
-#
-# What this proves, exactly: a documentation row was claimed before the kill,
-# so the cell is aimed at documentation work rather than at whatever the demo
-# cassette happens to schedule first. Proven by seeding the domain argument to
-# a name no domain uses: the cell then times out naming that domain instead of
-# latching an unrelated claimed row.
-#
-# What it does NOT prove: that the kill landed mid-handler. The documentation
-# handler is short, so it can acknowledge its row between the claimed-row read
-# and the kill, in which case the restart exercises an already-finished unit
-# and the digest match afterwards says nothing about documentation recovery
-# specifically. The separate graph-write cell supplies the durable
-# family-targeted retry proof; together the two live cells back the
-# manifest's documentation_edges fault row.
+# ifa_documentation_require_fresh_intents fails closed unless a fresh compose
+# stack has a numeric zero count for the documentation_edges intent domain.
+# Mirrors ifa_code_call_require_fresh_intents exactly, scoped to
+# projection_domain = 'documentation_edges' -- the shared-projection domain
+# buildDocumentationIntentRows (documentation_edge_materialization.go:264-275)
+# writes, not documentation_materialization (the queue-intent domain the
+# extraction handler itself runs under).
+ifa_documentation_require_fresh_intents() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" postgres_dsn="$4" compose_file_arg="$5"
+	local pre_intents pre_intents_rc
+	if pre_intents="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
+		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'documentation_edges';" \
+		"${compose_file_arg}")"; then
+		pre_intents_rc=0
+	else
+		pre_intents_rc=$?
+	fi
+	if [[ "${pre_intents_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${pre_intents_rc}" >&2
+		return "${pre_intents_rc}"
+	fi
+	pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
+	if [[ -z "${pre_intents}" ]]; then
+		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
+		return 1
+	fi
+	if [[ ! "${pre_intents}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
+			"${cell}" "${pre_intents}" >&2
+		return 1
+	fi
+	if [[ "${pre_intents}" != "0" ]]; then
+		printf '%s: %s documentation_edges intent row(s) survived fresh_stack\n' "${cell}" "${pre_intents}" >&2
+		return 1
+	fi
+	printf '%s: fresh-stack precondition: 0 documentation_edges shared_projection_intents\n' "${cell}"
+}
+
+# ifa_documentation_start_intent_lock holds the first durable write used by
+# documentation_materialization. This makes the claimed-row observation and
+# kill deterministic: the handler cannot acknowledge between the observation
+# and kill, and the post-restart attempt_count proof identifies the same
+# domain. Mirrors ifa_code_call_start_intent_lock exactly.
+ifa_documentation_start_intent_lock() {
+	local cell="$1" pid_var="$2"
+	local app_name="ifa_documentation_lock_${cell}"
+	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
+	if [[ "${use_compose}" -eq 1 ]]; then
+		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
+			>"${log_dir}/documentation-lock-${cell}.log" 2>&1 &
+	else
+		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -c "${lock_sql}" \
+			>"${log_dir}/documentation-lock-${cell}.log" 2>&1 &
+	fi
+	local holder_pid=$!
+	bg_pids+=("${holder_pid}")
+	printf -v "${pid_var}" '%s' "${holder_pid}"
+
+	local i lock_count
+	for i in $(seq 1 60); do
+		lock_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.application_name = '${app_name}' AND l.relation = 'shared_projection_intents'::regclass AND l.mode = 'AccessExclusiveLock' AND l.granted;" \
+			"${compose_file}" | tr -d '[:space:]')"
+		if [[ "${lock_count}" == "1" ]]; then
+			return 0
+		fi
+		sleep 0.25
+	done
+	return 1
+}
+
+# ifa_documentation_release_intent_lock terminates the named lock-holder
+# backend, then joins its local psql/docker process before the replacement
+# reducer starts. Mirrors ifa_code_call_release_intent_lock exactly.
+ifa_documentation_release_intent_lock() {
+	local cell="$1" holder_pid="$2"
+	local app_name="ifa_documentation_lock_${cell}"
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
+		"${compose_file}" >/dev/null
+	wait "${holder_pid}" 2>/dev/null || true
+	ifa_det_untrack_bg_pid "${holder_pid}"
+}
+
+# cell_killworker_documentation proves a genuinely in-flight documentation
+# handler is reclaimed after process death. The table lock prevents the short
+# handler from acknowledging before kill; attempt_count > the clean baseline
+# proves the replacement reducer re-executed that domain, not merely another
+# queued row. Mirrors cell_killworker_code_calls (#5991) -- adopted over the
+# simpler cell_killworker_sql shape on review because a marker/digest match
+# alone does not prove the kill landed mid-handler, only that recovery
+# reached the same end state; the retry-count delta closes that gap.
 cell_killworker_documentation() {
 	local cell_start
 	cell_start=$(date +%s)
 	log "cell kill-worker-after-claim-documentation: fresh stack"
 	fresh_stack killworkerdocumentation
 	drive_all_cassettes killworkerdocumentation
-	local projector_pid reducer_pid_before reducer_pid_after claimed_before
+	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-killworkerdocumentation" projector_pid "${bin_dir}/eshu-projector"
+	ifa_documentation_start_intent_lock "killworkerdocumentation" lock_holder_pid \
+		|| die "kill-worker-after-claim-documentation: could not acquire the deterministic shared_projection_intents blocker"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-before" reducer_pid_before "${bin_dir}/eshu-reducer"
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "documentation_materialization")" \
-		|| die "kill-worker-after-claim-documentation: no documentation_materialization row was ever claimed before the kill -- non-vacuous documentation-targeted precondition failed"
-	printf 'kill-worker-after-claim-documentation: non-vacuous: %s claimed/running documentation_materialization row(s) observed before kill\n' "${claimed_before}"
-	log "kill-worker-after-claim-documentation: kill -9 the live reducer (pid ${reducer_pid_before})"
+		|| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed while its durable write was blocked"
+	printf 'kill-worker-after-claim-documentation: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
 	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
-	log "kill-worker-after-claim-documentation: start a fresh reducer process (1-minute lease expiry reclaim)"
+	ifa_documentation_release_intent_lock "killworkerdocumentation" "${lock_holder_pid}"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdocumentation
 	assert_no_dead_letters killworkerdocumentation
 	ifa_documentation_assert "killworkerdocumentation" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "kill-worker-after-claim-documentation: recovered graph does not match the two-edge exact set"
+	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${baseline_documentation_retried}" 15 "documentation_materialization" \
+		|| die "kill-worker-after-claim-documentation: documentation_materialization did not re-execute above its fault-free retry baseline"
 	capture_digest killworkerdocumentation
 	assert_matches_baseline killworkerdocumentation
 	teardown_cell killworkerdocumentation
@@ -96,34 +189,18 @@ cell_failgraphwrite_documentation() {
 	log "cell fail-graph-write-once-then-succeed-documentation: fresh stack"
 	fresh_stack failgraphwritedocumentation
 
-	# Probe 1 (#5974): a genuinely fresh stack has no shared-projection intents.
-	# Survivors mean this cell is replaying an earlier cell's completed work --
-	# intent IDs are deterministic and completed rows are never reopened, so the
-	# drive produces no new graph writes, nothing reaches the fault decorator,
-	# and every later assertion still passes on edges that are already there.
-	# Only meaningful when this script owns the stack. Under --no-compose
-	# fresh_stack deliberately skips teardown, so surviving intents are the
-	# operator's pre-existing state rather than a leak, and asserting zero would
-	# fail a legitimately-configured run.
+	# Probe 1 (#5974): a genuinely fresh stack has no documentation_edges
+	# shared-projection intents. Survivors mean this cell is replaying an
+	# earlier cell's completed work -- intent IDs are deterministic and
+	# completed rows are never reopened, so the drive produces no new graph
+	# writes, nothing reaches the fault decorator, and every later assertion
+	# still passes on edges that are already there. Only meaningful when this
+	# script owns the stack; --no-compose skips it (see
+	# ifa_documentation_require_fresh_intents).
 	if [[ "${use_compose}" -eq 1 ]]; then
-		local pre_intents pre_intents_rc
-		# Captured WITHOUT a pipe so a failed query is distinguishable from a
-		# count. Piping through tr collapses an error into an empty string, and
-		# an empty string is not "0" -- the cell would then die reporting a stale
-		# stack when Postgres was simply unreachable.
-		set +e
-		pre_intents="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			'SELECT count(*) FROM shared_projection_intents;' "${compose_file}")"
-		pre_intents_rc=$?
-		set -e
-		[[ "${pre_intents_rc}" -eq 0 ]] \
-			|| die "fail-graph-write-once-then-succeed-documentation: the fresh-stack precondition query FAILED (exit ${pre_intents_rc}); that says nothing about whether the stack is fresh -- fix the query or the backend before reading this cell's result (#5974)"
-		pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
-		[[ "${pre_intents}" =~ ^[0-9]+$ ]] \
-			|| die "fail-graph-write-once-then-succeed-documentation: the fresh-stack precondition query returned non-numeric output; treat that as unknown, not as zero (#5974)"
-		[[ "${pre_intents}" == "0" ]] \
-			|| die "fail-graph-write-once-then-succeed-documentation: ${pre_intents} shared_projection_intents row(s) survived fresh_stack -- the stack is not fresh, so this cell would replay completed work and prove nothing (#5974)"
-		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition: 0 shared_projection_intents\n'
+		ifa_documentation_require_fresh_intents "fail-graph-write-once-then-succeed-documentation" \
+			"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+			|| die "fail-graph-write-once-then-succeed-documentation: fresh-stack precondition failed"
 	else
 		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n'
 	fi

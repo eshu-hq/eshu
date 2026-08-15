@@ -450,9 +450,21 @@ test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 		|| fail "teardown stopped tracking the still-owned background PID"
 )
 
+# The documentation_edges cases (#5994) live in
+# test-ifa-fault-injection-documentation-cases.sh, a sibling file: adding
+# them inline here would have pushed this file past the repository's 500-line
+# cap, and the sql/code_call cells already split per-family into their own
+# scripts/lib/ifa_fault_injection_<family>_cells.sh files, so a per-family
+# split of their hermetic review cases matches existing precedent rather than
+# inventing a new one. scripts/test-verify-ifa-fault-injection.sh (the
+# top-level verifier this file is sourced by) must source that sibling file
+# too, the same way it already sources this one.
+
 run_ifa_fault_injection_review_cases() {
 	test_ifa_fault_collateral_compare_is_scoped_and_fail_closed
 	test_ifa_fault_collateral_nodes_preserve_full_multiset
 	test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed
 	test_ifa_fault_released_lock_holder_is_not_torn_down_twice
+	test_ifa_documentation_fresh_stack_intent_guard_is_typed_and_fail_closed
+	test_ifa_documentation_released_lock_holder_is_not_torn_down_twice
 }
