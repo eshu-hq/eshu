@@ -208,3 +208,34 @@ func TestSQLRelationshipExpectedEdgesFileRoundTripsNote(t *testing.T) {
 		t.Fatalf("Note = %q, want %q", parsed.Note, "authoring context")
 	}
 }
+
+// BenchmarkExpectedEdgeKey is the prove-theory-first shim for the per-edge
+// Key() cost assertMaterializedEdges pays once per streamed graph edge
+// (go/cmd/ifa/assert_edges.go). The "nil identity" case takes the
+// byte-identical early-return path every already-proven family with no
+// declared identity (sql_relationships, code_calls, ...) always paid — this
+// is the "before" baseline, unchanged by the Identity field's addition. The
+// "two-property identity" case is the "after" cost codeowners_ownership_edges
+// and submodule_pin_edges now pay: a map key collection, a sort, and a
+// string-builder pass.
+func BenchmarkExpectedEdgeKey(b *testing.B) {
+	b.Run("nil identity (before)", func(b *testing.B) {
+		edge := ExpectedEdge{RelationshipType: "QUERIES_TABLE", SourceEntityID: "content-entity:a", TargetEntityID: "content-entity:b"}
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = edge.Key()
+		}
+	})
+	b.Run("two-property identity (after)", func(b *testing.B) {
+		edge := ExpectedEdge{
+			RelationshipType: "DECLARES_CODEOWNER",
+			SourceEntityID:   "repo-1",
+			TargetEntityID:   "codeowner:team-a",
+			Identity:         map[string]string{"source_path": "CODEOWNERS", "pattern": "*.go"},
+		}
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = edge.Key()
+		}
+	})
+}
