@@ -74,8 +74,13 @@ func newFirstRunReportCmd() *cobra.Command {
 		Long: `report renders a redacted first-run evidence artifact (Markdown or JSON)
 from a previously captured 'eshu first-run --json' envelope. It re-uses the
 result first-run already computed and never re-runs indexing or queries, so it
-is safe to run offline against a saved envelope. Tokens, local secrets, and
-private endpoints are redacted in every output.`,
+is safe to run offline against a saved envelope.
+
+Every endpoint, path, and free-text field is scrubbed before it is rendered: an
+embedded 'user:password@' credential and a credential-shaped query parameter are
+both replaced, and an absolute path is reduced to its final element. A secret in
+a URL path segment, or written as bare prose with no key beside it, is not
+detected. See docs/public/reference/first-run-evidence.md for the full limits.`,
 		Args: cobra.NoArgs,
 		RunE: runFirstRunReport,
 	}

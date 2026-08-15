@@ -59,7 +59,7 @@ The rule is attached to where the data came from, not to how it arrived:
 | Provenance domain | Fields | Treatment |
 | --- | --- | --- |
 | Reporter-typed query input | `query.target`, all of `query.params`, `response.error.details` | key-name walk **plus** the `embeddedSensitiveKey` structural scan, at any depth; unparseable target fails closed |
-| Reporter-typed free text | `reporter_note` | line-by-line scan for a sensitive-named key beside `=` or `:` (`redactReporterNote`); the matched span is replaced, the rest of the note kept |
+| Free text | `reporter_note`, `response.error.message`, `response.error.correlation_id` | line-by-line scan for a sensitive-named key beside `=` or `:` (`redactFreeText`); the matched span is replaced, the rest of the text kept |
 | Server-produced evidence | `response.data`, `response.truth` | key-name walk only |
 
 `Capture` merges the target's query string into `query.params` first and then
@@ -88,7 +88,8 @@ a property of the text, so the decode happens inside `embeddedSensitiveKey`
 rather than at one arrival point. It runs **exactly one layer** and never feeds
 its own output back in — re-decoding until the text stops changing would let a
 crafted value drive the loop — so a double-encoded nesting (`%253F`) still
-passes.
+passes. The decoder is `urlredact.Decode`, shared with the free-text walk and
+with `cmd/eshu`, so the three cannot drift on how deep they look.
 
 #### The note is scanned too, and why it is scanned differently
 
@@ -142,6 +143,139 @@ What the note scan does **not** find, stated so nobody reads more into it:
 The cost is a false positive on prose: `no authorization: the call 403s` loses
 the rest of that line, and `SELECT token = 1` loses the pair. That trade is a
 shortened note against a live credential on a public issue.
+
+#### The error envelope's prose is scanned too
+
+`response.error.message` was left alone on the recorded belief that it was a
+"fixed contract field the redactor has no key names to work with", covered by
+`Validate`. Neither half was true. The message is composed: an ambiguous service
+story formats the caller's selector into
+`service selector %q matched multiple services`
+(`query/service_workload_resolution.go:39`) and emits it beside a
+`details.selector` holding the same string
+(`query/service_story_seam.go:129`). So the redactor dropped the selector from
+`details` — recording rule `selector` — and shipped it verbatim one field over,
+in a bundle stamped `profile: public` / `validation: passed`, which the reporter
+guide tells people to attach to a public issue. And `Validate` never named
+`message` at all.
+
+The mechanism is worth stating because it generalises: `redactErrorEnvelope`
+does `redacted := *envelope` and then walks only `Details`. A struct copy takes
+every scalar field along, so any field not explicitly scanned afterwards is
+shipped as-is. `Message` is assigned a non-literal value at more than twenty
+sites in `internal/query` — some interpolating `err.Error()` directly, most
+passing a variable composed further up — so the rule lives at this egress
+boundary rather than at each composer.
+
+`correlation_id` is scanned for the same reason one level over: it is the
+request's own `X-Correlation-ID` / `X-Request-ID` header when the caller sent one
+(`query/documentation.go:470`), and `query/auth.go:430` puts it in an error
+envelope without the character allowlist the audit path applies.
+
+`code`, `capability` and `profiles` are still copied unscanned. That is a
+different claim, not the same one restated: each is a server-side constant — an
+`ErrorCode` enum value, a capability name declared as a package const, a
+`QueryProfile` pair — with no route from caller input.
+
+The false positives are the same trade the note scan makes, and a message pays
+it more often than a note does, because a message is short. `encode oidc secret:
+%w` (`query/admin_provider_config_build.go:107`) has a sensitive name directly
+before its `:`, so the bundle records `encode oidc [redacted]` and lists
+`response_error_message`. A maintainer loses that sentence; the alternative is
+shipping the class of message likeliest to have a real secret in it.
+
+A credential carried as a **query parameter** is covered. `https://host/mcp?token=…`
+inside a message or a note keeps the URL and loses the pair. `redactEndpoint`
+(`cmd/eshu/first_run_evidence.go`) does the same for a structured endpoint
+field.
+
+Sharing `collector.IsSensitiveKeyName` is what stops the two walks drifting on
+which NAMES count. It said nothing about where a pair ENDS, and that is where
+they did drift: this package ended a value at `?`, `&` or `;`, `redactEndpoint`
+split on `&` alone, and a comment claiming the two could not disagree was read
+as covering both. Three credentials shipped through the gap —
+`?a=1;token=…`, `?next=/v0/y?api_key=…`, `?redirect_uri=/cb?access_token=…`.
+The separators now live once, in `internal/urlredact`. Both of this package's
+constants derive from it — `queryPairSeparators` for the parameter-value scan
+and `freeTextValueTerminators` for the prose scan, the latter splicing the
+shared set into its wider one. Both walks are then driven through one shared
+corpus (`urlredact.BoundaryCases`) that records every row either walk cannot
+handle, with its reason.
+
+The next axis under the same boundary was **how the separator is spelled**. Both
+walks read only the literal bytes, so
+`?redirect_uri=%2Fcb%3Faccess_token%3D…` — the third credential in that list,
+written the way a browser or an HTTP client writes it — went straight back
+through. Only the structured domain decoded, because `embeddedSensitiveKey` had
+its own unwrap, so a reviewer flipping a test constant to its encoded spelling
+watched `query.target` stay green while `reporter_note` and
+`response.error.message` both leaked: one verdict per field, for text the same
+person typed.
+
+Reading a separator through one layer of percent-encoding now lives in
+`urlredact/escape.go` and every walk uses it, `embeddedSensitiveKey` included.
+The free-text scan reads `%3D` as `=`, `%3A` as `:`, `%26`/`%3F`/`%3B` as pair
+boundaries and `api%5Fkey` as `api_key`, in either hex case, and emits the bytes
+around the removal in the spelling they arrived in. **One layer, never a loop** —
+here the reason is sharper than for the detector: this walk emits what it
+scanned and `Validate` scans that output again, so a reader that peeled until the
+text stopped changing would make `Capture` reject its own bundle. `%253D` is
+therefore three characters of text, and that is pinned by a corpus row rather
+than left implicit.
+
+Decoding a separator is not the same as decoding a **boundary**, and treating
+them alike introduced a partial leak worse than the whole one it closed. A pair
+joined by a literal `=` is text at the depth the reporter typed, so an escape
+inside its value belongs to the value: `?token=aa%26bb` is a token whose value
+is `aa&bb`. Cutting there left `bb` in the note. An escape now ends a value only
+when that value's own `=` arrived encoded too — one rule at that depth, covering
+`%26`, `%3B`, `%3F`, `%20`, `%22` and `%27`, which all truncated identically.
+The accepted cost is over-removal, the same trade the header rule already makes.
+
+One layer down, where the pair's own `=` arrived encoded, it is **not** one
+rule. Only `?`, `&` and `;` are structure there. Whitespace, a quote and a
+backtick end a value because they bound a pasted shell word, and an encoder
+writes `%20` precisely because the space is *inside* a value — so the escaped
+spelling is evidence of content. Counting it a layer down cut the credential out
+of the nested callback URL and left the tail:
+
+```text
+redactFreeText("curl 'https://h/cb?redirect_uri=%2Fx%3Faccess_token%3D<credential>%20TAIL'")
+  was  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]%20TAIL'
+  now  curl 'https://h/cb?redirect_uri=%2Fx%3F[redacted]'
+```
+
+`noteEscapedValueTerminators` returns the set that also counts escaped —
+`urlredact.PairSeparators` one layer down, nothing at the surface — and
+`urlredact.IndexBoundaryBySpelling` takes the literal and escaped sets apart.
+`%22`, `%27`, `%09` and `%0A` all leaked the same way and are all closed by the
+same split.
+
+This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, which is
+how both leaks reached review: each passed every row of the shared corpus.
+`TestRedactionWalksAgreeOnTheSharedDifferential` now compares the two to each
+other over 594 generated inputs, where they disagreed on 72 before the fixes. It
+also asserts outright that both walks removed the credential on the 378 rows
+that carry one — comparing the walks to each other says nothing when they stop
+removing together, which is what breaking the name predicate they share does.
+
+Four gaps remain, each the reverse of something above:
+
+- Free text has no **userinfo** rule, so `https://alice:s3cr3t@host` passes this
+  scan untouched. The token left of the `:` is `alice`, which no sensitive-key
+  rule matches. A structured field gets that case from `redactEndpoint`; a note
+  or an error message does not.
+- A credential on the **next line** is found only when a backslash says the line
+  carried on — a wrapped `curl` writes `-H 'Authorization: \` and puts
+  `Bearer …` underneath, and both lines go. Wrapped without the backslash, the
+  second line is a bare secret with no key in front of it, which is the standing
+  limit.
+- A separator encoded **twice** is out of reach, by the rule above.
+- Inside an **already-encoded** pair, a value that genuinely contains an `&` is
+  spelled `%26` — the same bytes as the separator there. `?a=1%26token%3Dse%26cret`
+  reads as a token of `se` followed by a parameter `cret`, so `cret` stays. The
+  bytes do not carry the encoder's intent, so nothing inside this walk can tell
+  the two apart.
 
 #### Why `response.data` is exempt, and what that costs
 

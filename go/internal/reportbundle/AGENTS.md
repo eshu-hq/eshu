@@ -19,11 +19,16 @@ read durable fact records itself — callers supply an already-resolved
     and `Response.Error.Details` (which echoes the caller's own selector back).
     These get the key-name walk PLUS the `embeddedSensitiveKey` structural
     re-parse, at any depth, via `redactQueryInput`.
-  - **Reporter-typed free text** — `ReporterNote`, via `redactReporterNote`.
-    Scanned line by line for a sensitive-named key beside `=` or `:`. It is a
-    separate function from `embeddedSensitiveKey` on purpose: that one splits on
-    query separators and skips any candidate key containing whitespace, which is
-    right for a parsed parameter and wrong for prose.
+  - **Free text** — `ReporterNote`, `Response.Error.Message`, and
+    `Response.Error.CorrelationID`, via `redactFreeText`. Scanned line by line
+    for a sensitive-named key beside `=` or `:`. It is a separate function from
+    `embeddedSensitiveKey` on purpose: that one splits on query separators and
+    skips any candidate key containing whitespace, which is right for a parsed
+    parameter and wrong for prose. A server-COMPOSED string is in this domain,
+    not out of it: `Message` is built by interpolating the caller's own selector
+    (`query/service_workload_resolution.go:39`), and `CorrelationID` is the
+    caller's own `X-Correlation-ID` header when one was sent
+    (`query/documentation.go:470`).
   - **Server-produced evidence** — `Response.Data`, `Response.Truth`. Key-name
     walk only, via `redactValue`.
 - The note scan covers BOTH the `key=value` and the `key: value` header form. Do
@@ -76,6 +81,48 @@ read durable fact records itself — callers supply an already-resolved
   package exists to remove. The decode runs EXACTLY ONE layer and never feeds
   its output back in; do not turn it into a loop, and do not move it to an
   arrival point.
+- The free-text walk reads the SAME one layer, through
+  `urlredact.DecodedByteAt` / `DecodedEscapeBefore` / `Decode`, so `%3D` is an
+  `=`, `%3A` is a `:` and `api%5Fkey` is `api_key`. It had none of that while
+  `embeddedSensitiveKey` did, which is how
+  the encoded spelling of an already-fixed credential
+  (`?redirect_uri=%2Fcb%3Faccess_token%3D…`) stayed green in `query.target` and
+  leaked from `reporter_note` and `response.error.message`. Use the shared
+  reader; do not add a second decoder. The one-layer rule is even stricter here
+  than for the detector: this walk EMITS what it scanned and `Validate` scans
+  the output again, so a deeper unwrap makes `Capture` reject its own bundle.
+- Whether an escaped terminator ENDS a value depends on the DEPTH of the pair,
+  and `noteEscapedValueTerminators` is where that is decided. A pair joined by a
+  literal `=` was typed at the surface, so an escape inside its value is part of
+  the credential: `?token=aa%26bb` is a token of `aa&bb`, and reading the `%26`
+  as a terminator cut it and left `bb` in the note. Nothing is escaped-structure
+  there, and at that depth do not special-case one separator — `%26`, `%3B`,
+  `%3F`, `%20`, `%22` and `%27` all truncated the same way.
+- One layer down, where the pair's own `=` arrived encoded, the rule is NOT
+  uniform and treating it as uniform is the leak that came next. Only
+  `urlredact.PairSeparators` is structure there. Whitespace, a quote and a
+  backtick are prose delimiters — an encoder writes `%20` precisely because the
+  space is inside a value — and counting them a layer down cut the credential
+  out of `?redirect_uri=%2Fx%3Faccess_token%3D…%20TAIL` and shipped `TAIL`, on
+  `%20`, `%22`, `%27`, `%09` and `%0A` alike. That is why the terminator scan
+  passes two sets to `urlredact.IndexBoundaryBySpelling` rather than one set and
+  a depth. Those escaped members of `freeTextValueTerminators` cannot be covered
+  by a corpus row, because they are not pair boundaries, so they need rows in
+  `redaction_boundary_test.go` at BOTH depths — one test per depth exists, and a
+  new terminator needs a row in each.
+- This walk and `cmd/eshu`'s `redactEndpoint` decide depth independently, and
+  both leaks above are the two deciding differently. `urlredact.DifferentialCases`
+  compares them to EACH OTHER over a generated cross-product, driven from
+  `redaction_differential_test.go`; both walks passed every corpus row while
+  disagreeing on 72 of its 594 inputs. Widen the walk's terminator handling and
+  you widen that cross-product, not only the corpus. The driver calls
+  `CheckRemoval` before `CheckAgreement`, because comparing the two walks is
+  silent when both stop removing together — 378 of the rows declare a fragment
+  both must remove, and that is the half a shared-predicate regression trips.
+- Any test constant carrying a credential must exist in more than one spelling.
+  `symmetryBytes` was a single unencoded string driving all three placements, so
+  one fix closed the axis for every placement at once and a placement the fix
+  missed still looked covered. `symmetrySpellings` is a grid now; keep it one.
 - No user-supplied string is interpolated into an error this package returns.
   Name the field (`query.target`, `query.params.next`), never the value. A
   parameter NAME is reporter-typed too and can itself be a `key=value` pair, so

@@ -102,6 +102,7 @@ A captured bundle looks like this:
       "profile_payloads_consistency",
       "query_inputs",
       "reporter_note",
+      "response_error_text",
       "share_safe_keys"
     ]
   }
@@ -158,11 +159,26 @@ tends to land. Two shapes are removed:
 The rest of the note is kept, so the repro you wrote is still readable, and
 `redaction.rules` lists `reporter_note` whenever anything was taken out.
 
-Five limits, worth knowing before you paste something unusual:
+The error message Eshu returned gets the same scan. That is not a formality: a
+few routes build their message by quoting the selector you asked about, so a
+selector like `checkout?token=...` comes back inside `response.error.message`
+even when the structured `response.error.details` beside it was already cleaned.
+The credential is cut out of the sentence and the sentence is kept, listed as
+`response_error_message` in `redaction.rules`. `response.error.correlation_id`
+is scanned the same way, because it is your own `X-Correlation-ID` header when
+you sent one.
+
+Eight limits, worth knowing before you paste something unusual:
 
 - The rule matches credential-shaped key **names**. A secret sitting in a
   parameter named something innocuous, with no `key=` in front of it, is not
   detected.
+- A credential in the **user info** part of a URL is not detected in free text.
+  In `https://alice:s3cr3t@host/x` the name to the left of the `:` is `alice`,
+  which is not credential-shaped, so the password after it is stored as you
+  wrote it. A URL sitting in a structured field is handled elsewhere and does
+  lose its user info; a URL inside your note or inside a returned error message
+  does not.
 - The same goes for your note. `sk-live-abc` written in a sentence, or sitting
   in a URL path rather than a parameter, is stored as you wrote it. Nothing here
   guesses whether a piece of text looks like a secret; it only recognises a
@@ -172,9 +188,40 @@ Five limits, worth knowing before you paste something unusual:
   comes back shorter than you wrote it, that is why, and `redaction.rules` says
   so.
 - A percent-encoded parameter (`/x%3Fapi_key%3D...`, the form a browser or an
-  HTTP client writes) is unwrapped one layer before the check, so it is found
-  wherever you typed it. Encode it a second time (`%253F`) and it is not: the
-  unwrap runs exactly one layer, never in a loop.
+  HTTP client writes) is unwrapped **one layer** before the check, in your note
+  and in the returned error message as well as in `query.target` and
+  `query.params`. Encode it a second time (`%253F`) and it is not found: the
+  unwrap runs exactly one layer, never in a loop, because every further layer
+  describes a request no server received. `%3D`, `%3d` and the literal `=` are
+  all read the same way, and your note keeps the spelling you typed — only the
+  credential is cut out.
+- A credential that itself **contains** an encoded character (`?token=aa%26bb`,
+  a token whose real value is `aa&bb`) is removed whole, wherever that `%26`
+  sits in it — first character, middle, or last. Eshu cannot tell a `%26` inside
+  a value from the `%26` that separates one parameter from the next, so it
+  treats it as part of the value and keeps going to the next boundary written as
+  itself — a bare `?`, `&` or `;`, or in your note a bare space or quote as
+  well. Anything in between goes with it. If your note comes back missing a
+  parameter you wanted, a credential just before it is why.
+
+  The reverse case is the one gap, and it is narrower than the sentence above:
+  when the whole URL was already encoded (`?a=1%26token%3D…`), a value that
+  genuinely contains an `&`, a `?` or a `;` is spelled the same as the separator
+  there, so the part after it is kept. Only those three characters. A space,
+  tab, newline, quote or backtick written `%20`, `%09`, `%0A`, `%22`, `%27` or
+  `%60` is content at every depth, so a credential holding one is still removed
+  whole.
+- A credential that continues onto the **next line** is found only when a
+  backslash says the line carried on, as in a wrapped `curl`:
+
+  ```text
+  -H 'Authorization: \
+  Bearer sk-live-...'
+  ```
+
+  Both lines go. Break the same header without the backslash and the second
+  line is a bare secret with no key in front of it, which is the first limit
+  above.
 - `response.data` is scanned by key name only. Some Eshu routes echo your
   request parameters back inside the answer, so a credential you typed can
   reappear there even though it was dropped from `query.params`. Read the

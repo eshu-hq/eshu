@@ -37,18 +37,70 @@ renders the same redacted report.
 
 ## Redaction
 
-Redaction is mandatory and applied before any value enters the report model, so
-both the terminal summary and the on-disk artifact are safe to share:
+Every value is scrubbed before it enters the report model, so the terminal
+summary and the on-disk artifact carry the same redacted text.
 
-- API and MCP endpoints have any embedded `user:password@` credentials replaced
-  with `redacted`; an endpoint that does not parse as a URL is masked entirely.
+The endpoint and target fields are rewritten like this:
+
+- An API or MCP endpoint loses any embedded `user:password@` credential, and
+  loses the value of any query parameter whose name looks like a credential
+  (`token`, `api_key`, `access_token`, `authorization`, and similar), replaced
+  with `redacted`. "Any" means any: pairs are separated by `?`, `&` or `;`, so a
+  second query string nested inside a parameter value
+  (`?next=/v0/y?api_key=…`) is walked too. Each of those separators, and the `=`
+  that joins a name to its value, counts whether it is written literally or
+  percent-encoded, so `?a=1&b=%3Ftoken%3D…` — how an HTTP client writes a nested
+  URL — is walked exactly like `?a=1&b=?token=…`. Hex case does not matter, and a
+  percent-encoded name (`api%5Fkey`) is decoded before the match. The escapes are
+  copied through in the spelling they arrived in, so you can still match the
+  endpoint against your own config. A parameter with no value at all
+  (`?token` or `?token=`) is left alone rather than shown as `token=redacted`,
+  which would report a credential the URL never carried.
+- The **fragment** — everything after `#` — is dropped whole. A fragment never
+  reaches the server, so it tells you nothing about which target the report
+  describes, and it is where an OAuth implicit-grant callback puts its token
+  (`https://app.example.com/cb#access_token=…`).
+- The scheme, host, path, and every other query parameter stay, so you can still
+  tell which target the report describes. An endpoint that does not parse as a
+  URL is masked entirely.
 - The selected repository target is reduced to its final path element
-  (`.../<name>`) so an absolute host path does not leak a username or private
-  layout.
-- Tokens and bearer secrets are never recorded; only redacted references appear.
+  (`.../<name>`) so an absolute host path does not leak your username or your
+  private directory layout.
 
-Artifacts are written with owner-only (`0600`) permissions because they may
-still contain endpoint hostnames.
+The free-text fields go through the same pass, and it rewrites them.
+`readiness`, `query_summary`, `truth` (at every depth, including values nested
+inside objects and arrays), the diagnosis summary, its preserved cause, its
+recovery steps, `next_commands`, and `docs_links` are all scrubbed. An endpoint
+or repository path that was composed into one of those sentences comes out in
+the same redacted form as the field it was built from.
+
+That has a cost, and it lands on the commands. A suggested next command is
+rewritten along with everything else, so `eshu story /home/alice/work/repo` is
+recorded as `eshu story .../repo`. Read `next_commands` as a description of
+what to run against your own paths, not as lines to paste.
+
+### What redaction does not catch
+
+The rules recognize structure: a URL, an absolute path, a credential-shaped
+parameter name. Nothing here judges whether a piece of text looks like a
+secret, so these reach the artifact as written:
+
+- A credential in a URL **path segment**, such as
+  `https://host/x/sk-live-abc/story`. This covers a `#` written as `%23`
+  (`https://host/cb%23access_token=…`): a percent-encoded `#` is a literal
+  character in the path, not a fragment, so the fragment rule above does not
+  reach it.
+- A credential under a parameter name the rule does not match, such as
+  `?session=sk-live-abc`.
+- A bare secret in prose with no key beside it, such as
+  `authenticated with sk-live-abc`.
+- A separator encoded **twice**, such as `?next=%253Ftoken%253D…`. The unwrap
+  runs exactly one layer, on purpose: `%253F` asks for the literal text `%3F`,
+  so a second layer would describe a request no server received, and a loop
+  would let the input decide how long it runs.
+
+Artifacts are written with owner-only (`0600`) permissions because they still
+contain endpoint hostnames.
 
 ## Indexing state
 
