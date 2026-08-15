@@ -175,7 +175,7 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"go/internal/storage/cypher/*code_call*.go",
 			"sdk/go/factschema/codegraph/v1/repository.go",
 			"go/internal/ifa/documentation_family_odu.go",
-			"go/internal/ifa/documentation_family_live_test.go",
+			"go/internal/ifa/documentation_family_catalog.go",
 			"go/internal/reducer/documentation_edge*.go",
 			"go/internal/storage/cypher/*documentation*.go",
 			"sdk/go/factschema/documentation/v1/**",

@@ -51,6 +51,19 @@ func documentationFamilyExpectedEdgesPath(repoRoot string) string {
 // ignored: quarantined facts mean the fixture no longer validates against the
 // contract, and silently projecting the survivors would let the fixture rot
 // into a smaller proof than it claims to be.
+//
+// target_kind is deliberately NOT asserted here, and that is a narrowing from
+// the family-specific fixture this guard replaced. ExpectedEdge carries only
+// the identity triple (type, source, target), so the writer's target_kind-driven
+// template routing -- "workload" to the Workload template keyed on id,
+// everything else to the entity template keyed on uid
+// (edge_writer_documentation_labels.go) -- is proven by the live assert-edges
+// call, not by this guard. A mention whose target_kind flipped while its
+// target_entity_id stayed put would read identical here and route to a template
+// that finds nothing live; assert-edges reports that as a MISSING edge, and the
+// gate triggers cover both the writer and the reducer's extraction. Restoring
+// target_kind to this guard would mean re-splitting the fixture format, which is
+// what bound the coverage rows to an artifact the live gate never drove.
 func resolveDocumentationEdgeMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath)
 	if err != nil {
