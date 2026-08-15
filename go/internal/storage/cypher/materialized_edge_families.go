@@ -3,6 +3,8 @@
 
 package cypher
 
+import "fmt"
+
 // Materialized-edge family registry for the Ifá exhaustiveness gates (#5543).
 //
 // ifa.MaterializedEdgeDomainEdgeTypes reads these sets to scope
@@ -29,7 +31,9 @@ package cypher
 // retract changed underneath it.
 
 // materializedEdgeFamily is one family's ownership record: the relationship
-// types its write path materializes, and the retract statement that reaps them.
+// types its write path materializes, the retract statement that reaps them,
+// and (for a family whose relationship MERGE keys on more than its two
+// endpoint nodes) the write template that owns that identity.
 type materializedEdgeFamily struct {
 	// EdgeTypes are the relationship types the family owns, mapped to a short
 	// reason naming what writes each.
@@ -38,6 +42,24 @@ type materializedEdgeFamily struct {
 	// alternation must name exactly EdgeTypes. Holding the real const (not a
 	// copy of its text) is what makes the drift guard meaningful.
 	RetractCypher string
+	// IdentityCypher is the production write template whose relationship
+	// MERGE clause is this family's source of truth for IdentityProperties.
+	// Every single-type family in this table names one, so
+	// TestSingleTypeFamilyIdentityMatchesWriteCypher can extract the real
+	// MERGE property map from it rather than trusting a hand-copied literal
+	// — the same "hold the const, not its text" principle as RetractCypher.
+	IdentityCypher string
+	// IdentityProperties are the relationship properties — beyond the two
+	// endpoint nodes — that participate in this family's single edge type's
+	// MERGE identity. Nil for a family whose relationship MERGEs on its
+	// endpoints alone (`MERGE (a)-[rel:TYPE]->(b)`, no property map).
+	// codeowners_ownership_edges and submodule_pin_edges are the two
+	// exceptions: their writers fold a relationship property into the MERGE
+	// key itself (canonical_codeowners_edges.go, canonical_submodule_edges.go)
+	// because two distinct source rows can otherwise collide onto the same
+	// (source, target) relationship pattern and silently overwrite each
+	// other.
+	IdentityProperties []string
 }
 
 // singleTypeMaterializedEdgeFamilies indexes the one-relationship-type families
@@ -50,45 +72,110 @@ type materializedEdgeFamily struct {
 // for those the retract is the load-bearing confirmation.
 var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	"shell_exec": {
-		EdgeTypes:     map[string]string{"EXECUTES_SHELL": "shell invocation edge (batchCanonicalShellExecUpsertCypher)"},
-		RetractCypher: retractShellExecEdgesCypher,
+		EdgeTypes:      map[string]string{"EXECUTES_SHELL": "shell invocation edge (batchCanonicalShellExecUpsertCypher)"},
+		RetractCypher:  retractShellExecEdgesCypher,
+		IdentityCypher: batchCanonicalShellExecUpsertCypher,
 	},
 	"workload_dependency": {
-		EdgeTypes:     map[string]string{"DEPENDS_ON": "workload-to-workload dependency (batchCanonicalWorkloadDependencyUpsertCypher)"},
-		RetractCypher: retractWorkloadDependencyEdgesCypher,
+		EdgeTypes:      map[string]string{"DEPENDS_ON": "workload-to-workload dependency (batchCanonicalWorkloadDependencyUpsertCypher)"},
+		RetractCypher:  retractWorkloadDependencyEdgesCypher,
+		IdentityCypher: batchCanonicalWorkloadDependencyUpsertCypher,
 	},
 	"deployable_unit_edges": {
-		EdgeTypes:     map[string]string{"CORRELATES_DEPLOYABLE_UNIT": "deployable-unit correlation (batchCanonicalDeployableUnitCorrelationUpsertCypher)"},
-		RetractCypher: retractDeployableUnitCorrelationEdgesCypher,
+		EdgeTypes:      map[string]string{"CORRELATES_DEPLOYABLE_UNIT": "deployable-unit correlation (batchCanonicalDeployableUnitCorrelationUpsertCypher)"},
+		RetractCypher:  retractDeployableUnitCorrelationEdgesCypher,
+		IdentityCypher: batchCanonicalDeployableUnitCorrelationUpsertCypher,
 	},
 	"handles_route": {
-		EdgeTypes:     map[string]string{"HANDLES_ROUTE": "handler-to-route binding (batchCanonicalHandlesRouteEdgeUpsertCypher)"},
-		RetractCypher: retractHandlesRouteEdgesCypher,
+		EdgeTypes:      map[string]string{"HANDLES_ROUTE": "handler-to-route binding (batchCanonicalHandlesRouteEdgeUpsertCypher)"},
+		RetractCypher:  retractHandlesRouteEdgesCypher,
+		IdentityCypher: batchCanonicalHandlesRouteEdgeUpsertCypher,
 	},
 	"runs_in": {
-		EdgeTypes:     map[string]string{"RUNS_IN": "entity-runs-in-workload edge (batchCanonicalRunsInEdgeUpsertCypher)"},
-		RetractCypher: retractRunsInEdgesCypher,
+		EdgeTypes:      map[string]string{"RUNS_IN": "entity-runs-in-workload edge (batchCanonicalRunsInEdgeUpsertCypher)"},
+		RetractCypher:  retractRunsInEdgesCypher,
+		IdentityCypher: batchCanonicalRunsInEdgeUpsertCypher,
 	},
 	"invokes_cloud_action": {
-		EdgeTypes:     map[string]string{"INVOKES_CLOUD_ACTION": "code-to-cloud-action invocation (batchCanonicalInvokesCloudActionUpsertCypher)"},
-		RetractCypher: retractInvokesCloudActionEdgesCypher,
+		EdgeTypes:      map[string]string{"INVOKES_CLOUD_ACTION": "code-to-cloud-action invocation (batchCanonicalInvokesCloudActionUpsertCypher)"},
+		RetractCypher:  retractInvokesCloudActionEdgesCypher,
+		IdentityCypher: batchCanonicalInvokesCloudActionUpsertCypher,
 	},
 	"codeowners_ownership_edges": {
-		EdgeTypes:     map[string]string{"DECLARES_CODEOWNER": "CODEOWNERS ownership declaration (batchCanonicalCodeownersOwnershipEdgeCypher)"},
-		RetractCypher: retractCodeownersOwnershipEdgesCypher,
+		EdgeTypes:          map[string]string{"DECLARES_CODEOWNER": "CODEOWNERS ownership declaration (batchCanonicalCodeownersOwnershipEdgeCypher)"},
+		RetractCypher:      retractCodeownersOwnershipEdgesCypher,
+		IdentityCypher:     batchCanonicalCodeownersOwnershipEdgeCypher,
+		IdentityProperties: []string{"pattern", "source_path"},
 	},
 	"submodule_pin_edges": {
-		EdgeTypes:     map[string]string{"PINS_SUBMODULE": "submodule commit pin (batchCanonicalSubmodulePinEdgeCypher)"},
-		RetractCypher: retractSubmodulePinEdgesCypher,
+		EdgeTypes:          map[string]string{"PINS_SUBMODULE": "submodule commit pin (batchCanonicalSubmodulePinEdgeCypher)"},
+		RetractCypher:      retractSubmodulePinEdgesCypher,
+		IdentityCypher:     batchCanonicalSubmodulePinEdgeCypher,
+		IdentityProperties: []string{"path"},
 	},
 	"documentation_edges": {
-		EdgeTypes:     map[string]string{"DOCUMENTS": "doc-section-to-entity edge (batchCanonicalDocumentationEntityEdgeCypher)"},
-		RetractCypher: retractDocumentationEdgesCypher,
+		EdgeTypes:      map[string]string{"DOCUMENTS": "doc-section-to-entity edge (batchCanonicalDocumentationEntityEdgeCypher)"},
+		RetractCypher:  retractDocumentationEdgesCypher,
+		IdentityCypher: batchCanonicalDocumentationEntityEdgeCypher,
 	},
 	"rationale_edges": {
-		EdgeTypes:     map[string]string{"EXPLAINS": "rationale-to-entity edge (batchCanonicalRationaleExplainsEdgeCypher)"},
-		RetractCypher: retractRationaleEdgesCypher,
+		EdgeTypes:      map[string]string{"EXPLAINS": "rationale-to-entity edge (batchCanonicalRationaleExplainsEdgeCypher)"},
+		RetractCypher:  retractRationaleEdgesCypher,
+		IdentityCypher: batchCanonicalRationaleExplainsEdgeCypher,
 	},
+}
+
+// materializedEdgeIdentityByFamily declares identity for the four
+// reducer.MaterializedEdgeFamilies() entries NOT covered by
+// singleTypeMaterializedEdgeFamilies: code_calls, sql_relationships, and
+// inheritance_edges keep their own multi-type registries next to their
+// writers (see the package doc comment above), and repo_dependency shares
+// the DEPENDS_ON type with workload_dependency. Each declares an explicit
+// empty identity — their relationship MERGEs key on endpoint nodes alone —
+// matching the scope TestMaterializedEdgeFamilyRegistryMatchesItsRetract
+// already draws around singleTypeMaterializedEdgeFamilies: proving identity
+// against a held write-Cypher const (as
+// TestSingleTypeFamilyIdentityMatchesWriteCypher does below) only works for a
+// family with one write template in this file; these four span several
+// templates across several files, so their reasoning stays there too.
+var materializedEdgeIdentityByFamily = map[string]map[string][]string{
+	"repo_dependency":   {},
+	"code_calls":        {},
+	"sql_relationships": {},
+	"inheritance_edges": {},
+}
+
+// MaterializedEdgeIdentityProperties returns a copy of the relationship
+// property names that participate in family's edge MERGE identity, keyed by
+// relationship type. A relationship type with no entry in the returned map
+// (or an entry with zero properties) MERGEs on its endpoint nodes alone.
+//
+// An unregistered family fails closed with an error, mirroring
+// MaterializedEdgeDomainEdgeTypes in go/internal/ifa rather than the nil-ok
+// shape of MaterializedEdgeEndpointLabels: a family with no declared identity
+// is a real, explicit "no relationship properties" entry, not the absence of
+// one, so a lookup miss here is always a registration bug, never a valid
+// steady state.
+//
+// The returned map (and each of its property slices) is a copy, mirroring
+// SingleTypeMaterializedEdgeTypes's copy-on-read contract, so a caller cannot
+// mutate the package-level tables through the returned value.
+func MaterializedEdgeIdentityProperties(family string) (map[string][]string, error) {
+	if entry, ok := singleTypeMaterializedEdgeFamilies[family]; ok {
+		out := make(map[string][]string, len(entry.EdgeTypes))
+		if len(entry.IdentityProperties) > 0 {
+			for edgeType := range entry.EdgeTypes {
+				propsCopy := make([]string, len(entry.IdentityProperties))
+				copy(propsCopy, entry.IdentityProperties)
+				out[edgeType] = propsCopy
+			}
+		}
+		return out, nil
+	}
+	if _, ok := materializedEdgeIdentityByFamily[family]; ok {
+		return map[string][]string{}, nil
+	}
+	return nil, fmt.Errorf("cypher: no materialized-edge identity registered for family %q; register it before proving it on a live gate", family)
 }
 
 // SingleTypeMaterializedEdgeFamilyNames returns the registered family names, so
