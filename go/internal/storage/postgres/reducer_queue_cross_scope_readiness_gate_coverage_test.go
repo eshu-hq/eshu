@@ -35,7 +35,7 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
-		t.Fatalf("%s no longer names this three-proof enrollment guard; update the guard reference in lockstep", workflowPath)
+		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
 
 	runFilter := reducerContentionGateRunFilter(t, string(workflow))
