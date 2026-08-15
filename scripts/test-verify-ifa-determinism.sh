@@ -177,139 +177,11 @@ post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post
 	|| fail "every N cell must exact-assert code_calls after the SQL gen-2 drain and before its post-delta graph dump"
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
-ifa_live_gate_common_seams=(
-	'docker-compose.yaml|docker-compose.yaml'
-	'testdata/cassettes/gcpcloud/supply-chain-demo.json|testdata/cassettes/gcpcloud/supply-chain-demo.json'
-	'testdata/golden/e2e-20repo-snapshot.json|testdata/golden/e2e-20repo-snapshot.json'
-	'go/cmd/golden-corpus-gate/main.go|go/cmd/golden-corpus-gate/main.go'
-	'go/cmd/golden-corpus-gate/runner.go|go/cmd/golden-corpus-gate/runner.go'
-	'go/cmd/golden-corpus-gate/drains.go|go/cmd/golden-corpus-gate/drains.go'
-	'go/cmd/golden-corpus-gate/shared.go|go/cmd/golden-corpus-gate/shared.go'
-	'go/internal/goldengate/snapshot.go|go/internal/goldengate/snapshot.go'
-	'go/internal/goldengate/evaluate_drains.go|go/internal/goldengate/evaluate_drains.go'
-	'go/internal/goldengate/report.go|go/internal/goldengate/report.go'
-	'go/internal/replay/cassette/**|go/internal/replay/cassette/source.go'
-	'go/internal/replay/cassette/**|go/internal/replay/cassette/format.go'
-	'go/internal/replay/concurrentreplay/**|go/internal/replay/concurrentreplay/driver.go'
-	'go/internal/replay/concurrentreplay/**|go/internal/replay/concurrentreplay/source.go'
-	'go/internal/storage/postgres/ingestion.go|go/internal/storage/postgres/ingestion.go'
-	'go/internal/storage/postgres/ingestion_queries.go|go/internal/storage/postgres/ingestion_queries.go'
-	'go/internal/storage/postgres/ingestion_catalog*.go|go/internal/storage/postgres/ingestion_catalog_cache.go'
-	'go/internal/storage/postgres/ingestion_catalog*.go|go/internal/storage/postgres/ingestion_catalog_parse.go'
-	'go/internal/storage/postgres/ingestion_backfill_generation_guard.go|go/internal/storage/postgres/ingestion_backfill_generation_guard.go'
-	'go/internal/storage/postgres/facts_streaming.go|go/internal/storage/postgres/facts_streaming.go'
-	'go/internal/storage/postgres/facts.go|go/internal/storage/postgres/facts.go'
-	'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql|go/internal/storage/postgres/migrations/008_shared_projection_intents.sql'
-	'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql|go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql'
-	'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql|go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql'
-	'go/cmd/bootstrap-data-plane/schema_adoption.go|go/cmd/bootstrap-data-plane/schema_adoption.go'
-	'go/internal/graph/schema*.go|go/internal/graph/schema.go'
-	'go/internal/graph/schema*.go|go/internal/graph/schema_application.go'
-	'go/internal/graph/schema*.go|go/internal/graph/schema_execution.go'
-	'go/cmd/projector/config.go|go/cmd/projector/config.go'
-	'go/cmd/projector/nornicdb_wiring.go|go/cmd/projector/nornicdb_wiring.go'
-	'go/internal/projector/service.go|go/internal/projector/service.go'
-	'go/internal/projector/service_superseded.go|go/internal/projector/service_superseded.go'
-	'go/internal/storage/postgres/projector_queue.go|go/internal/storage/postgres/projector_queue.go'
-	'go/internal/storage/postgres/projector_queue_claim_sql.go|go/internal/storage/postgres/projector_queue_claim_sql.go'
-	'go/internal/storage/postgres/projector_queue_scan.go|go/internal/storage/postgres/projector_queue_scan.go'
-	'go/internal/storage/postgres/projector_queue_sql.go|go/internal/storage/postgres/projector_queue_sql.go'
-	'go/internal/storage/nornicdb/**|go/internal/storage/nornicdb/config.go'
-	'go/internal/storage/nornicdb/**|go/internal/storage/nornicdb/phase_group_executor.go'
-	'go/internal/storage/nornicdb/**|go/internal/storage/nornicdb/phase_group_executor_retract.go'
-	'go/internal/storage/cypher/canonical_node_writer_options.go|go/internal/storage/cypher/canonical_node_writer_options.go'
-	'go/internal/storage/cypher/instrumented.go|go/internal/storage/cypher/instrumented.go'
-	'go/internal/storage/cypher/retrying_executor.go|go/internal/storage/cypher/retrying_executor.go'
-	'go/internal/storage/cypher/retryable_error.go|go/internal/storage/cypher/retryable_error.go'
-	'go/internal/storage/cypher/timeout_executor.go|go/internal/storage/cypher/timeout_executor.go'
-	'go/internal/graphbackpressure/**|go/internal/graphbackpressure/backpressure.go'
-	'go/internal/graphbackpressure/**|go/internal/graphbackpressure/materializer_backpressure.go'
-	'go/cmd/reducer/observed_service_wiring.go|go/cmd/reducer/observed_service_wiring.go'
-	'go/cmd/reducer/neo4j_wiring.go|go/cmd/reducer/neo4j_wiring.go'
-	'go/cmd/reducer/reducer_executor_adapters.go|go/cmd/reducer/reducer_executor_adapters.go'
-	'go/cmd/reducer/graph_write_backpressure_wiring.go|go/cmd/reducer/graph_write_backpressure_wiring.go'
-	'go/cmd/reducer/worker_gauge.go|go/cmd/reducer/worker_gauge.go'
-	'go/internal/storage/postgres/reducer_queue.go|go/internal/storage/postgres/reducer_queue.go'
-	'go/internal/storage/postgres/reducer_queue_batch.go|go/internal/storage/postgres/reducer_queue_batch.go'
-	'go/internal/storage/postgres/reducer_queue_batch_query.go|go/internal/storage/postgres/reducer_queue_batch_query.go'
-	'go/internal/storage/postgres/reducer_queue_helpers.go|go/internal/storage/postgres/reducer_queue_helpers.go'
-	'go/internal/storage/postgres/reducer_queue_readiness_sql.go|go/internal/storage/postgres/reducer_queue_readiness_sql.go'
-	'go/internal/storage/postgres/reducer_queue_validation.go|go/internal/storage/postgres/reducer_queue_validation.go'
-	'go/internal/storage/postgres/reducer_queue_ack.go|go/internal/storage/postgres/reducer_queue_ack.go'
-	'go/internal/ifa/catalog_seed.go|go/internal/ifa/catalog_seed.go'
-	'go/internal/ifa/code_call_family_catalog.go|go/internal/ifa/code_call_family_catalog.go'
-	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_code_calls.go'
-	'go/cmd/bootstrap-data-plane/main.go|go/cmd/bootstrap-data-plane/main.go'
-	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
-	'go/cmd/reducer/run.go|go/cmd/reducer/run.go'
-	'go/cmd/reducer/config_projection.go|go/cmd/reducer/config_projection.go'
-	'go/internal/reducer/intent.go|go/internal/reducer/intent.go'
-	'go/internal/reducer/domain.go|go/internal/reducer/domain.go'
-	'go/internal/reducer/defaults.go|go/internal/reducer/defaults.go'
-	'go/internal/reducer/defaults_registry.go|go/internal/reducer/defaults_registry.go'
-	'go/internal/reducer/registry.go|go/internal/reducer/registry.go'
-	'go/internal/reducer/defaults_domain_catalog.go|go/internal/reducer/defaults_domain_catalog.go'
-	'go/internal/reducer/code_call*.go|go/internal/reducer/code_call_projection_runner.go'
-	'go/internal/reducer/python_metaclass_materialization.go|go/internal/reducer/python_metaclass_materialization.go'
-	'go/internal/reducer/factschema_decode_codegraph.go|go/internal/reducer/factschema_decode_codegraph.go'
-	'go/internal/reducer/factschema_decode.go|go/internal/reducer/factschema_decode.go'
-	'go/internal/reducer/fact_kind_loader.go|go/internal/reducer/fact_kind_loader.go'
-	'sdk/go/factschema/decode_codegraph.go|sdk/go/factschema/decode_codegraph.go'
-	'sdk/go/factschema/codegraph/v1/file.go|sdk/go/factschema/codegraph/v1/file.go'
-	'sdk/go/factschema/codegraph/v1/repository.go|sdk/go/factschema/codegraph/v1/repository.go'
-	'go/internal/reducer/service*.go|go/internal/reducer/service_side_runners.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_runner.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_worker.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_readiness.go'
-	'go/internal/storage/cypher/*code_call*.go|go/internal/storage/cypher/canonical_code_call_edges.go'
-	'go/internal/storage/cypher/edge_writer_payload.go|go/internal/storage/cypher/edge_writer_payload.go'
-	'go/internal/storage/cypher/canonical_instantiates_edges.go|go/internal/storage/cypher/canonical_instantiates_edges.go'
-	'go/internal/storage/cypher/edge_writer.go|go/internal/storage/cypher/edge_writer.go'
-	'go/internal/storage/cypher/canonical_retract.go|go/internal/storage/cypher/canonical_retract.go'
-	'go/internal/storage/cypher/edge_writer_retract*.go|go/internal/storage/cypher/edge_writer_retract.go'
-	'go/internal/storage/cypher/edge_writer_retract*.go|go/internal/storage/cypher/edge_writer_retract_scope.go'
-	'go/internal/content/writer.go|go/internal/content/writer.go'
-	'go/internal/projector/canonical_builder.go|go/internal/projector/canonical_builder.go'
-	'go/internal/projector/canonical_codegraph_extract.go|go/internal/projector/canonical_codegraph_extract.go'
-	'go/internal/projector/canonical_delta.go|go/internal/projector/canonical_delta.go'
-	'go/internal/projector/factschema_decode_codegraph.go|go/internal/projector/factschema_decode_codegraph.go'
-	'go/internal/projector/stage_facts.go|go/internal/projector/stage_facts.go'
-	'go/internal/projector/canonical.go|go/internal/projector/canonical.go'
-	'go/internal/projector/runtime.go|go/internal/projector/runtime.go'
-	'go/internal/projector/runtime_phase.go|go/internal/projector/runtime_phase.go'
-	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
-	'go/internal/projector/runtime_stages.go|go/internal/projector/runtime_stages.go'
-	'go/cmd/projector/main.go|go/cmd/projector/main.go'
-	'go/cmd/projector/runtime_wiring.go|go/cmd/projector/runtime_wiring.go'
-	'go/internal/storage/cypher/canonical_node_writer.go|go/internal/storage/cypher/canonical_node_writer.go'
-	'go/internal/storage/cypher/canonical_node_writer_phases.go|go/internal/storage/cypher/canonical_node_writer_phases.go'
-	'go/internal/storage/cypher/canonical_node_writer_entities.go|go/internal/storage/cypher/canonical_node_writer_entities.go'
-	'go/internal/storage/cypher/canonical_node_cypher.go|go/internal/storage/cypher/canonical_node_cypher.go'
-	'go/internal/storage/cypher/canonical_node_writer_retract.go|go/internal/storage/cypher/canonical_node_writer_retract.go'
-	'go/internal/storage/cypher/canonical_node_writer_delta_retract.go|go/internal/storage/cypher/canonical_node_writer_delta_retract.go'
-	'go/internal/storage/cypher/canonical_node_writer_retract_labels.go|go/internal/storage/cypher/canonical_node_writer_retract_labels.go'
-	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
-	'go/internal/storage/postgres/facts_active_code_call_symbols.go|go/internal/storage/postgres/facts_active_code_call_symbols.go'
-	'go/internal/storage/postgres/facts_filtered.go|go/internal/storage/postgres/facts_filtered.go'
-	'go/internal/storage/postgres/shared_intent_acceptance_writer.go|go/internal/storage/postgres/shared_intent_acceptance_writer.go'
-	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance.go'
-	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance_rowcount_test.go'
-	'go/internal/storage/postgres/accepted_generation.go|go/internal/storage/postgres/accepted_generation.go'
-	'go/internal/storage/postgres/graph_projection_phase_state.go|go/internal/storage/postgres/graph_projection_phase_state.go'
-	'go/internal/storage/postgres/reducer_queue_conflict.go|go/internal/storage/postgres/reducer_queue_conflict.go'
-	'go/internal/storage/postgres/schema.go|go/internal/storage/postgres/schema.go'
-	'go/internal/storage/postgres/schema_bootstrap_lock.go|go/internal/storage/postgres/schema_bootstrap_lock.go'
-	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents.go'
-	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_upsert.go'
-	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_history.go'
-	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_partition_candidates.go'
-	'schema/data-plane/postgres/008_shared_projection_intents.sql|schema/data-plane/postgres/008_shared_projection_intents.sql'
-	'schema/data-plane/postgres/011_shared_projection_acceptance.sql|schema/data-plane/postgres/011_shared_projection_acceptance.sql'
-	'schema/data-plane/postgres/012_graph_projection_phase_state.sql|schema/data-plane/postgres/012_graph_projection_phase_state.sql'
-	'go/cmd/reducer/config.go|go/cmd/reducer/config.go'
-	'go/cmd/reducer/main_helpers.go|go/cmd/reducer/main_helpers.go'
-)
+selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
+rg --quiet --fixed-strings --line-regexp -- 'source "${selector_cases_lib}"' "${BASH_SOURCE[0]}" \
+	|| fail "selector cases must be sourced from scripts/lib/ifa_live_gate_selector_cases.sh"
+# shellcheck source=scripts/lib/ifa_live_gate_selector_cases.sh
+source "${selector_cases_lib}"
 for seam in "${ifa_live_gate_common_seams[@]}"; do
 	trigger="${seam%%|*}"
 	concrete_path="${seam#*|}"
@@ -329,38 +201,25 @@ for seam in "${ifa_live_gate_common_seams[@]}"; do
 	done
 done
 
-# The collateral node comparator is sourced only by the fault-injection
-# driver. Keep the workflow filter and registry selector in lockstep without
-# making an isolated helper change run the unrelated determinism matrix.
-fault_collateral_nodes_lib='scripts/lib/ifa_fault_injection_collateral_nodes.sh'
-rg --quiet --fixed-strings --line-regexp -- "      - '${fault_collateral_nodes_lib}'" "${workflow}" \
-	|| fail "workflow does not retrigger fault injection for collateral node helper: ${fault_collateral_nodes_lib}"
-printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${fault_collateral_nodes_lib}\"" \
-	|| fail "ifa-fault-injection registry entry omits collateral node helper: ${fault_collateral_nodes_lib}"
-collateral_selection="$(printf '%s\n' "${fault_collateral_nodes_lib}" | (
-	cd "${repo_root}/go"
-	go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
-))"
-printf '%s\n' "${collateral_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
-	|| fail "collateral node helper does not select ifa-fault-injection through the real registry matcher"
-if printf '%s\n' "${collateral_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
-	fail "collateral node helper must not select ifa-determinism; that driver does not source it"
-fi
-
-fault_executor_marker='go/internal/storage/cypher/fault_executor_marker.go'
-rg --quiet --fixed-strings --line-regexp -- "      - '${fault_executor_marker}'" "${workflow}" \
-	|| fail "workflow does not retrigger fault injection for executor marker: ${fault_executor_marker}"
-printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${fault_executor_marker}\"" \
-	|| fail "ifa-fault-injection registry entry omits executor marker: ${fault_executor_marker}"
-marker_selection="$(printf '%s\n' "${fault_executor_marker}" | (
-	cd "${repo_root}/go"
-	go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
-))"
-printf '%s\n' "${marker_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
-	|| fail "executor marker does not select ifa-fault-injection through the real registry matcher"
-if printf '%s\n' "${marker_selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
-	fail "executor marker must not select ifa-determinism; determinism does not compile the fault decorator"
-fi
+# Fault-only case data stays separate so the matcher proves these inputs do
+# not accidentally broaden the determinism registry.
+for seam in "${ifa_live_gate_fault_only_seams[@]}"; do
+	trigger="${seam%%|*}"
+	concrete_path="${seam#*|}"
+	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
+		|| fail "workflow does not retrigger fault injection for fault-only input: ${trigger}"
+	printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
+		|| fail "ifa-fault-injection registry entry omits fault-only input: ${trigger}"
+	selection="$(printf '%s\n' "${concrete_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
+		|| fail "${concrete_path} does not select ifa-fault-injection through the real registry matcher"
+	if printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
+		fail "fault-only input must not select ifa-determinism: ${concrete_path}"
+	fi
+done
 
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
