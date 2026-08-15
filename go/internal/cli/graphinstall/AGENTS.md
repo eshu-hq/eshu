@@ -9,9 +9,10 @@
    resolves process state (flags, `localGraphReadVersion`) and calls into
    this package. This is the file that shows how the two halves fit
    together.
-4. `go/cmd/eshu/local_graph_process.go` — the other caller
-   (`resolveNornicDBBinary`), and the home of `readLocalGraphVersion`, the
-   subprocess-execution logic this package deliberately does not have.
+4. `go/internal/cli/localsupervisor/graph_process.go` — the other caller
+   (`ResolveGraphBinary`), and the home of `readLocalGraphVersion` (exported
+   as `ReadGraphVersion`), the subprocess-execution logic this package
+   deliberately does not have.
 
 ## Invariants this package enforces
 
@@ -49,7 +50,8 @@
   binary by calling the `VersionReader` it was handed
   (`Options.ReadVersion` / `ManagedBinaryIfPresent`'s parameter), never by
   running `exec.Command` itself. The real implementation
-  (`readLocalGraphVersion`) stays in `go/cmd/eshu/local_graph_process.go`
+  (`readLocalGraphVersion`) stays in
+  `go/internal/cli/localsupervisor/graph_process.go`
   because it is part of the local_graph process-supervision cluster, which
   `docs/internal/design/package-restructure.md` documents as a real
   bidirectional cycle that must move as one unit or not at all. If you find

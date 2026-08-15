@@ -12,154 +12,34 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-func TestGraphStatusForLayoutWithoutOwnerRecord(t *testing.T) {
-	originalReadOwnerRecord := graphReadOwnerRecord
-	originalResolveBinary := graphResolveBinary
+// stubGraphLayout points the graph subcommands at a fixed layout so a wrapper
+// test exercises flag reading and output without touching a real workspace.
+func stubGraphLayout(t *testing.T, layout eshulocal.Layout, err error) {
+	t.Helper()
+	original := localsupervisor.LayoutForWorkspaceRoot
 	t.Cleanup(func() {
-		graphReadOwnerRecord = originalReadOwnerRecord
-		graphResolveBinary = originalResolveBinary
+		localsupervisor.LayoutForWorkspaceRoot = original
 	})
-
-	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
-		return eshulocal.OwnerRecord{}, os.ErrNotExist
-	}
-	graphResolveBinary = func() (string, error) {
-		return "", errors.New("not installed")
-	}
-
-	got, err := graphStatusForLayout(eshulocal.Layout{
-		WorkspaceRoot:   "/workspace/repo",
-		WorkspaceID:     "workspace-id",
-		OwnerRecordPath: "/workspace/owner.json",
-	})
-	if err != nil {
-		t.Fatalf("graphStatusForLayout() error = %v, want nil", err)
-	}
-	if got.OwnerPresent {
-		t.Fatal("OwnerPresent = true, want false")
-	}
-	if got.GraphRunning {
-		t.Fatal("GraphRunning = true, want false")
-	}
-	if got.WorkspaceRoot != "/workspace/repo" {
-		t.Fatalf("WorkspaceRoot = %q, want %q", got.WorkspaceRoot, "/workspace/repo")
-	}
-}
-
-func TestGraphStatusForLayoutReportsRunningAuthoritativeBackend(t *testing.T) {
-	originalReadOwnerRecord := graphReadOwnerRecord
-	originalResolveBinary := graphResolveBinary
-	originalReadVersion := graphReadVersion
-	originalProcessAlive := localHostProcessAlive
-	originalGraphHTTPHealthy := localGraphHTTPHealthy
-	originalGraphBoltHealthy := localGraphBoltHealthy
-	t.Cleanup(func() {
-		graphReadOwnerRecord = originalReadOwnerRecord
-		graphResolveBinary = originalResolveBinary
-		graphReadVersion = originalReadVersion
-		localHostProcessAlive = originalProcessAlive
-		localGraphHTTPHealthy = originalGraphHTTPHealthy
-		localGraphBoltHealthy = originalGraphBoltHealthy
-	})
-
-	record := eshulocal.OwnerRecord{
-		PID:           100,
-		StartedAt:     "2026-04-22T20:00:00Z",
-		Profile:       string(query.ProfileLocalAuthoritative),
-		GraphBackend:  string(query.GraphBackendNornicDB),
-		GraphAddress:  "127.0.0.1",
-		GraphPID:      200,
-		GraphBoltPort: 17687,
-		GraphHTTPPort: 17474,
-		GraphDataDir:  "/workspace/graph/nornicdb",
-		GraphVersion:  "1.0.42",
-	}
-	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
-		return record, nil
-	}
-	graphResolveBinary = func() (string, error) {
-		return "/tmp/nornicdb", nil
-	}
-	graphReadVersion = func(binaryPath string) (string, error) {
-		return "1.0.42", nil
-	}
-	localHostProcessAlive = func(pid int) bool {
-		return pid == record.GraphPID
-	}
-	localGraphHTTPHealthy = func(address string, port int, timeout time.Duration) bool {
-		return address == record.GraphAddress && port == record.GraphHTTPPort
-	}
-	localGraphBoltHealthy = func(address string, port int, timeout time.Duration) bool {
-		return address == record.GraphAddress && port == record.GraphBoltPort
-	}
-
-	got, err := graphStatusForLayout(eshulocal.Layout{
-		WorkspaceRoot:   "/workspace/repo",
-		WorkspaceID:     "workspace-id",
-		OwnerRecordPath: "/workspace/owner.json",
-	})
-	if err != nil {
-		t.Fatalf("graphStatusForLayout() error = %v, want nil", err)
-	}
-	if !got.OwnerPresent {
-		t.Fatal("OwnerPresent = false, want true")
-	}
-	if got.Profile != string(query.ProfileLocalAuthoritative) {
-		t.Fatalf("Profile = %q, want %q", got.Profile, query.ProfileLocalAuthoritative)
-	}
-	if got.GraphBackend != string(query.GraphBackendNornicDB) {
-		t.Fatalf("GraphBackend = %q, want %q", got.GraphBackend, query.GraphBackendNornicDB)
-	}
-	if !got.GraphInstalled {
-		t.Fatal("GraphInstalled = false, want true")
-	}
-	if got.GraphBinaryPath != "/tmp/nornicdb" {
-		t.Fatalf("GraphBinaryPath = %q, want %q", got.GraphBinaryPath, "/tmp/nornicdb")
-	}
-	if !got.GraphRunning {
-		t.Fatal("GraphRunning = false, want true")
-	}
-	if got.GraphBoltPort != 17687 {
-		t.Fatalf("GraphBoltPort = %d, want %d", got.GraphBoltPort, 17687)
-	}
-	if got.GraphHTTPPort != 17474 {
-		t.Fatalf("GraphHTTPPort = %d, want %d", got.GraphHTTPPort, 17474)
+	localsupervisor.LayoutForWorkspaceRoot = func(string) (eshulocal.Layout, error) {
+		return layout, err
 	}
 }
 
 func TestRunGraphStatusPrintsJSON(t *testing.T) {
-	originalGetwd := graphGetwd
-	originalBuildLayout := graphBuildLayout
-	originalReadOwnerRecord := graphReadOwnerRecord
-	t.Cleanup(func() {
-		graphGetwd = originalGetwd
-		graphBuildLayout = originalBuildLayout
-		graphReadOwnerRecord = originalReadOwnerRecord
-	})
-
-	workspaceRoot := t.TempDir()
-	graphGetwd = func() (string, error) {
-		return workspaceRoot, nil
-	}
-	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
-		return eshulocal.Layout{
-			WorkspaceRoot:   workspaceRoot,
-			WorkspaceID:     "workspace-id",
-			OwnerRecordPath: "/workspace/owner.json",
-		}, nil
-	}
-	graphReadOwnerRecord = func(path string) (eshulocal.OwnerRecord, error) {
-		return eshulocal.OwnerRecord{}, os.ErrNotExist
-	}
+	stubGraphLayout(t, eshulocal.Layout{
+		WorkspaceRoot:   t.TempDir(),
+		WorkspaceID:     "workspace-id",
+		OwnerRecordPath: filepath.Join(t.TempDir(), "absent-owner.json"),
+	}, nil)
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("workspace-root", "", "")
@@ -170,24 +50,19 @@ func TestRunGraphStatusPrintsJSON(t *testing.T) {
 		}
 	})
 
-	var got graphStatusOutput
+	var got localsupervisor.StatusOutput
 	if err := json.Unmarshal([]byte(output), &got); err != nil {
 		t.Fatalf("json.Unmarshal(output) error = %v, output=%q", err, output)
 	}
 	if got.WorkspaceID != "workspace-id" {
 		t.Fatalf("WorkspaceID = %q, want %q", got.WorkspaceID, "workspace-id")
 	}
+	if got.OwnerPresent {
+		t.Fatal("OwnerPresent = true, want false for an absent owner record")
+	}
 }
 
 func TestRunGraphLogsPrintsWorkspaceGraphLog(t *testing.T) {
-	originalGetwd := graphGetwd
-	originalBuildLayout := graphBuildLayout
-	t.Cleanup(func() {
-		graphGetwd = originalGetwd
-		graphBuildLayout = originalBuildLayout
-	})
-
-	workspaceRoot := t.TempDir()
 	logsDir := filepath.Join(t.TempDir(), "logs")
 	if err := os.MkdirAll(logsDir, 0o700); err != nil {
 		t.Fatalf("os.MkdirAll(logsDir) error = %v, want nil", err)
@@ -195,16 +70,11 @@ func TestRunGraphLogsPrintsWorkspaceGraphLog(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(logsDir, "graph-nornicdb.log"), []byte("graph ready\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(graph log) error = %v, want nil", err)
 	}
-	graphGetwd = func() (string, error) {
-		return workspaceRoot, nil
-	}
-	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
-		return eshulocal.Layout{
-			WorkspaceRoot: workspaceRoot,
-			WorkspaceID:   "workspace-id",
-			LogsDir:       logsDir,
-		}, nil
-	}
+	stubGraphLayout(t, eshulocal.Layout{
+		WorkspaceRoot: t.TempDir(),
+		WorkspaceID:   "workspace-id",
+		LogsDir:       logsDir,
+	}, nil)
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("workspace-root", "", "")
@@ -219,45 +89,22 @@ func TestRunGraphLogsPrintsWorkspaceGraphLog(t *testing.T) {
 	}
 }
 
-func TestRunGraphLogsReturnsMissingLogGuidance(t *testing.T) {
-	layout := eshulocal.Layout{LogsDir: t.TempDir()}
-
-	err := graphLogsForLayout(layout)
-	if err == nil {
-		t.Fatal("graphLogsForLayout() error = nil, want missing log error")
-	}
-	if !strings.Contains(err.Error(), "graph log does not exist") {
-		t.Fatalf("graphLogsForLayout() error = %q, want missing log guidance", err.Error())
-	}
-}
-
 func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
-	originalGetwd := graphGetwd
-	originalBuildLayout := graphBuildLayout
 	originalExecutable := procexec.Executable
 	originalExec := procexec.Exec
 	originalEnviron := procexec.Environ
 	t.Cleanup(func() {
-		graphGetwd = originalGetwd
-		graphBuildLayout = originalBuildLayout
 		procexec.Executable = originalExecutable
 		procexec.Exec = originalExec
 		procexec.Environ = originalEnviron
 	})
 
 	workspaceRoot := t.TempDir()
-	graphGetwd = func() (string, error) {
-		return workspaceRoot, nil
-	}
-	var resolvedWorkspaceRoot string
-	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
-		resolvedWorkspaceRoot = workspaceRoot
-		return eshulocal.Layout{
-			WorkspaceRoot: workspaceRoot,
-			WorkspaceID:   "workspace-id",
-			LogsDir:       filepath.Join(workspaceRoot, ".eshu-logs"),
-		}, nil
-	}
+	stubGraphLayout(t, eshulocal.Layout{
+		WorkspaceRoot: workspaceRoot,
+		WorkspaceID:   "workspace-id",
+		LogsDir:       filepath.Join(workspaceRoot, ".eshu-logs"),
+	}, nil)
 	procexec.Executable = func() (string, error) {
 		return "/usr/local/bin/eshu", nil
 	}
@@ -293,7 +140,7 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	if gotBinary != "/usr/local/bin/eshu" {
 		t.Fatalf("exec binary = %q, want eshu path", gotBinary)
 	}
-	wantArgs := []string{"eshu", "local-host", "watch", resolvedWorkspaceRoot}
+	wantArgs := []string{"eshu", "local-host", "watch", workspaceRoot}
 	if strings.Join(gotArgs, "\x00") != strings.Join(wantArgs, "\x00") {
 		t.Fatalf("exec args = %#v, want %#v", gotArgs, wantArgs)
 	}
@@ -309,52 +156,46 @@ func TestRunGraphStartExecsAuthoritativeLocalHost(t *testing.T) {
 	if envValue(gotEnv, "ESHU_LOCAL_LOG_MODE") != "file" {
 		t.Fatalf("ESHU_LOCAL_LOG_MODE = %q, want file", envValue(gotEnv, "ESHU_LOCAL_LOG_MODE"))
 	}
-	if envValue(gotEnv, "ESHU_LOCAL_LOG_DIR") != filepath.Join(resolvedWorkspaceRoot, ".eshu-logs") {
+	if envValue(gotEnv, "ESHU_LOCAL_LOG_DIR") != filepath.Join(workspaceRoot, ".eshu-logs") {
 		t.Fatalf("ESHU_LOCAL_LOG_DIR = %q, want workspace log dir", envValue(gotEnv, "ESHU_LOCAL_LOG_DIR"))
 	}
 }
 
-func TestLoadOrCreateLocalGraphCredentialsReusesWorkspaceSecret(t *testing.T) {
-	originalGeneratePassword := localGraphGeneratePassword
-	t.Cleanup(func() {
-		localGraphGeneratePassword = originalGeneratePassword
-	})
+func TestRunGraphStatusReturnsBuildLayoutError(t *testing.T) {
+	stubGraphLayout(t, eshulocal.Layout{}, errors.New("layout failed"))
 
-	credentialPath := filepath.Join(t.TempDir(), "graph", "nornicdb", "eshu-credentials.json")
-	generated := 0
-	localGraphGeneratePassword = func() (string, error) {
-		generated++
-		return "workspace-secret", nil
-	}
+	cmd := &cobra.Command{}
+	cmd.Flags().String("workspace-root", "", "")
 
-	first, err := loadOrCreateLocalGraphCredentials(credentialPath)
-	if err != nil {
-		t.Fatalf("loadOrCreateLocalGraphCredentials() error = %v, want nil", err)
+	err := runGraphStatus(cmd, nil)
+	if err == nil || err.Error() != "layout failed" {
+		t.Fatalf("runGraphStatus() error = %v, want %q", err, "layout failed")
 	}
-	if first.Username != localNornicDBAdminUsername || first.Password != "workspace-secret" {
-		t.Fatalf("credentials = %+v, want generated admin secret", first)
-	}
-	info, err := os.Stat(credentialPath)
-	if err != nil {
-		t.Fatalf("os.Stat(credentials) error = %v, want nil", err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("credentials mode = %v, want 0600", info.Mode().Perm())
-	}
+}
 
-	localGraphGeneratePassword = func() (string, error) {
-		generated++
-		return "rotated-secret", nil
+// TestRunGraphUpgradeForwardsSourceFlags proves the cobra wrapper hands
+// --from/--sha256 to the installer instead of dropping them: the source path
+// does not exist, so the install error must name it.
+func TestRunGraphUpgradeForwardsSourceFlags(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	missingSource := filepath.Join(t.TempDir(), "nornicdb-headless")
+	stubGraphLayout(t, eshulocal.Layout{
+		WorkspaceRoot:   workspaceRoot,
+		WorkspaceID:     "workspace-id",
+		OwnerRecordPath: filepath.Join(t.TempDir(), "absent-owner.json"),
+	}, nil)
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("workspace-root", "", "")
+	cmd.Flags().String("from", missingSource, "")
+	cmd.Flags().String("sha256", "", "")
+
+	err := runGraphUpgrade(cmd, nil)
+	if err == nil {
+		t.Fatal("runGraphUpgrade() error = nil, want missing-source error")
 	}
-	second, err := loadOrCreateLocalGraphCredentials(credentialPath)
-	if err != nil {
-		t.Fatalf("second loadOrCreateLocalGraphCredentials() error = %v, want nil", err)
-	}
-	if second.Password != "workspace-secret" {
-		t.Fatalf("second password = %q, want persisted workspace secret", second.Password)
-	}
-	if generated != 1 {
-		t.Fatalf("password generated %d times, want 1", generated)
+	if !strings.Contains(err.Error(), missingSource) {
+		t.Fatalf("runGraphUpgrade() error = %q, want the --from path %q", err.Error(), missingSource)
 	}
 }
 
@@ -412,27 +253,13 @@ func captureStderr(t *testing.T, fn func()) string {
 	return got
 }
 
-func TestRunGraphStatusReturnsBuildLayoutError(t *testing.T) {
-	originalGetwd := graphGetwd
-	originalBuildLayout := graphBuildLayout
-	t.Cleanup(func() {
-		graphGetwd = originalGetwd
-		graphBuildLayout = originalBuildLayout
-	})
-
-	workspaceRoot := t.TempDir()
-	graphGetwd = func() (string, error) {
-		return workspaceRoot, nil
+// envValue reads one KEY=VALUE entry out of a child-process environment slice.
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimPrefix(entry, prefix)
+		}
 	}
-	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
-		return eshulocal.Layout{}, errors.New("layout failed")
-	}
-
-	cmd := &cobra.Command{}
-	cmd.Flags().String("workspace-root", "", "")
-
-	err := runGraphStatus(cmd, nil)
-	if err == nil || err.Error() != "layout failed" {
-		t.Fatalf("runGraphStatus() error = %v, want %q", err, "layout failed")
-	}
+	return ""
 }

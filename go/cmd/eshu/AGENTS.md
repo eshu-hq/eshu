@@ -14,9 +14,14 @@
 4. `go/cmd/eshu/basic.go` — indexing subcommands (`index`, `list`, `watch`,
    `query`, `stats`); `runIndex` delegates to `eshu-bootstrap-index` via
    `indexLookPath`
-5. `go/cmd/eshu/graph.go` — `graph` subcommand tree, `graphStatusOutput`,
-   `graphStatusForLayout`, `runGraphStart`, `runGraphStop`
-6. `go/internal/cli/procexec` — the shared re-exec seam: `procexec.Executable`,
+5. `go/cmd/eshu/graph.go` — the `graph` and `install` subcommand trees and
+   their `RunE`s (`runGraphStatus`, `runGraphStart`, `runGraphStop`,
+   `runGraphLogs`, `runGraphUpgrade`). The status, stop, logs, and upgrade
+   logic itself is in `go/internal/cli/localsupervisor`.
+6. `go/cmd/eshu/local_host.go` — the hidden `local-host` supervisor entry
+   point. Registration and signal handling only; the supervisor is
+   `go/internal/cli/localsupervisor`.
+7. `go/internal/cli/procexec` — the shared re-exec seam: `procexec.Executable`,
    `procexec.Getwd`, `procexec.LookPath`, `procexec.Exec`, `procexec.Environ`,
    `procexec.CleanExecutableArg0`, `procexec.MergeEnvironment`. `eshu mcp start`
    (both the stdio and the HTTP path), `eshu graph start`, and `eshu watch` hand
@@ -28,10 +33,12 @@
    through its own `indexLookPath` / `indexExec` pair in `basic.go`, which
    `basic_test.go` substitutes instead. Route a new re-exec through `procexec`;
    its `AGENTS.md` carries the substitution rules tests must follow
-7. `go/internal/cli/` — where command logic that is not process wiring lives,
+8. `go/internal/cli/` — where command logic that is not process wiring lives,
    because this directory is `package main`. `eshu report`'s digest and
-   artifact logic is in `go/internal/cli/opdigest`; read that package's
-   `AGENTS.md` before changing `operator_digest_cmd.go`.
+   artifact logic is in `go/internal/cli/opdigest`; the local Eshu service and
+   every `eshu graph` subcommand's logic is in
+   `go/internal/cli/localsupervisor`. Read the target package's `AGENTS.md`
+   before changing the wrapper that calls it.
 
 ## Invariants this package enforces
 
@@ -64,9 +71,11 @@
   scattering admin commands into other files makes auditing harder.
 
 - **Add a new `graph` subcommand** → add a `cobra.Command` to `graph.go`'s
-  `init()` and add its `run*` func in the same file. Why: the `graph`
-  subcommand tree is fully wired in `graph.go`; the `graphCmd` var is defined
-  there.
+  `init()` and add its `run*` func in the same file, but put the behaviour it
+  invokes in `go/internal/cli/localsupervisor`. Why: the `graph` subcommand
+  tree is fully wired in `graph.go` and the `graphCmd` var is defined there,
+  while everything that is not flag reading, printing, or the exit-code
+  contract belongs in a package that can be imported and tested.
 
 - **Add a new persistent flag** → add it in `root.go` and thread it through
   `PersistentPreRunE` if it affects child-process env. Why: persistent flags
@@ -74,9 +83,11 @@
   invisible to sibling commands.
 
 - **Add a new local-host subcommand** → add a `cobra.Command` inside the
-  `init()` in `local_host.go`; keep the command `Hidden: true`. Why:
+  `init()` in `local_host.go`; keep the command `Hidden: true`, and put the
+  supervision behaviour in `go/internal/cli/localsupervisor`. Why:
   `local-host` is the internal supervisor entry point, not a public user
-  command.
+  command, and `eshu watch` reaches it through a `syscall.Exec` string
+  argument (`basic.go`) that no symbol search can see.
 
 ## Failure modes and how to debug
 

@@ -34,7 +34,8 @@ var (
 // VersionReader reports the version string a NornicDB binary prints in
 // response to `<binary> version`. graphinstall never executes a binary
 // itself: running a subprocess is owned by the local_graph process-supervision
-// cluster in go/cmd/eshu (readLocalGraphVersion in local_graph_process.go),
+// cluster in internal/cli/localsupervisor (readLocalGraphVersion in
+// graph_process.go, exported as ReadGraphVersion),
 // which is out of scope for this extraction (package-restructure.md calls it
 // out as a real bidirectional cycle that moves as one unit or not at all).
 // Callers supply their real implementation through Options.ReadVersion and
@@ -178,7 +179,7 @@ func installManifestPath() (string, error) {
 // Eshu has one installed and it still passes version verification via
 // readVersion. It returns an error satisfying os.IsNotExist when no managed
 // binary is installed, matching os.Stat's contract for the same case.
-// go/cmd/eshu's local_graph_process.go is the sole external caller, wiring
+// internal/cli/localsupervisor's graph_process.go is the sole external caller, wiring
 // readLocalGraphVersion as readVersion when resolving which NornicDB binary
 // to run.
 func ManagedBinaryIfPresent(readVersion VersionReader) (string, error) {

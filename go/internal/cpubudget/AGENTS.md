@@ -77,7 +77,8 @@
   `cpubudget.UsableCPUs()` → fix: grep
   `rg 'runtime\.NumCPU' go/cmd go/internal -g '*.go' | rg -v _test`
   for stragglers (matches with or without parens — some sites store the bare
-  function value, e.g. `cmd/eshu/local_host.go`'s `localHostNumCPU` var). This
+  function value, e.g. `internal/cli/localsupervisor/host.go`'s
+  `localHostNumCPU` var). This
   should be empty across `go/cmd` and `go/internal`; every worker-count default
   that was on `runtime.NumCPU()` (including `internal/parser`'s
   `go_package_interface_prescan.go` since #4759) routes through

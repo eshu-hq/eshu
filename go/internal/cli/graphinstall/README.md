@@ -22,7 +22,8 @@ source -- archive extraction, not version verification.) Verifying that a
 candidate really is NornicDB means invoking `<binary> version`, and that
 subprocess-execution logic belongs to the local_graph process-supervision
 cluster in
-`go/cmd/eshu` (`readLocalGraphVersion` in `local_graph_process.go`) --
+`go/internal/cli/localsupervisor` (`readLocalGraphVersion` in
+`graph_process.go`, exported as `ReadGraphVersion`) --
 `docs/internal/design/package-restructure.md` calls that cluster out as a
 real bidirectional cycle that has to move as one unit or not at all, so it
 stayed out of scope for this extraction. Callers thread their
@@ -38,7 +39,7 @@ stayed out of scope for this extraction. Callers thread their
 - `ManagedBinaryIfPresent` -- returns the managed binary's path if Eshu has
   one installed and it still passes version verification, or an error
   satisfying `os.IsNotExist` when none is installed. `go/cmd/eshu`'s
-  `local_graph_process.go` (`resolveNornicDBBinary`) is the sole external
+  `localsupervisor/graph_process.go` (`ResolveGraphBinary`) is the sole external
   caller.
 - `VersionReader` -- the function type callers implement to report a
   NornicDB binary's version without this package executing anything itself.
@@ -63,7 +64,7 @@ See `doc.go` for the full godoc contract.
   manifest entry for the running Eshu version
 - Consumed by `go/cmd/eshu`: the `install nornicdb` wrapper
   (`graph_install_cmd.go`), `graph.go`'s `eshu graph upgrade` path
-  (`graphUpgradeForLayout`), and `local_graph_process.go`'s
+  (`localsupervisor.UpgradeForLayout`), and `graph_process.go`'s
   `resolveNornicDBBinary`
 
 ## Telemetry

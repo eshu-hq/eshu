@@ -40,10 +40,9 @@
 // graphinstall never executes the candidate NornicDB binary. Verifying that a
 // candidate really is NornicDB requires running `<binary> version`, and that
 // subprocess-execution logic belongs to the local_graph process-supervision
-// cluster in go/cmd/eshu (readLocalGraphVersion in local_graph_process.go) --
-// a cluster docs/internal/design/package-restructure.md calls out as a real
-// bidirectional cycle that has to move as one unit or not at all, so it is
-// out of scope for this extraction. Callers thread their VersionReader
+// cluster, which #6059 moved out of go/cmd/eshu into
+// internal/cli/localsupervisor (readLocalGraphVersion in graph_process.go,
+// exported as ReadGraphVersion). Callers thread their VersionReader
 // implementation through Options.ReadVersion and ManagedBinaryIfPresent
 // instead. The package does run one other subprocess:
 // exec.Command("pkgutil", "--expand-full", ...) in source.go, to expand a

@@ -334,7 +334,7 @@ linters:
       - path: 'cmd/eshu/diagnostics_classify\.go'
         linters:
           - funlen
-      - path: 'cmd/eshu/local_host\.go'
+      - path: 'internal/cli/localsupervisor/host\.go'
         linters:
           - funlen
       - path: 'cmd/ingester/wiring_nornicdb_phase_group_streaming\.go'
@@ -651,6 +651,16 @@ linters:
       # either return an error directly to the operator or call
       # os.Exit after logging. Wrapping there adds no context.
       - path: 'cmd/'
+        linters:
+          - wrapcheck
+          - exhaustive
+      # internal/cli/localsupervisor is the local Eshu service lifted out of
+      # cmd/eshu (#6059). It is still the top of the call stack: cmd/eshu's
+      # RunE returns its error straight to the operator, so the message a
+      # user sees is produced here. It keeps the cmd/ exemption it already
+      # had -- wrapping now would rewrite operator-visible error text during
+      # what is otherwise a move, and the CLI parity check pins that text.
+      - path: 'internal/cli/localsupervisor/'
         linters:
           - wrapcheck
           - exhaustive

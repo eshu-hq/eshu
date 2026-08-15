@@ -19,7 +19,7 @@ import (
 
 // execNornicDBVersion is the test double for VersionReader: it really
 // invokes `<binary> version` and parses the "NornicDB <version>" output, the
-// same way go/cmd/eshu's readLocalGraphVersion (local_graph_process.go) does
+// same way localsupervisor's readLocalGraphVersion (graph_process.go) does
 // for the production CLI. It is duplicated here rather than imported because
 // readLocalGraphVersion lives in package main and cannot be imported; see
 // doc.go for why that stays out of scope for this package.

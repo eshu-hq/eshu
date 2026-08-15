@@ -35,7 +35,7 @@ stay in `README.md`.
   projector, and reducer worker env vars to the developer machine's CPU count
   before launching `eshu-ingester` and `eshu-reducer`. Explicit env vars still
   win, so a developer can lower or raise a single pool without changing the
-  owner code (`local_host_config.go` and `local_host.go`).
+  owner code (`internal/cli/localsupervisor/config.go` and `host.go`).
 - Foreground `eshu graph start` defaults child service logs to workspace log
   files (`eshu-ingester.log`, `eshu-reducer.log`) while `--progress auto`
   renders a branded Bubble Tea progress panel on the terminal alternate screen.
