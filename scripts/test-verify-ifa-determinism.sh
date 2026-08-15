@@ -212,6 +212,7 @@ code_call_gate_seams=(
 	'go/internal/content/writer.go|go/internal/content/writer.go'
 	'go/internal/projector/canonical_builder.go|go/internal/projector/canonical_builder.go'
 	'go/internal/projector/canonical_codegraph_extract.go|go/internal/projector/canonical_codegraph_extract.go'
+	'go/internal/projector/canonical_delta.go|go/internal/projector/canonical_delta.go'
 	'go/internal/projector/factschema_decode_codegraph.go|go/internal/projector/factschema_decode_codegraph.go'
 	'go/internal/projector/stage_facts.go|go/internal/projector/stage_facts.go'
 	'go/internal/projector/canonical.go|go/internal/projector/canonical.go'
