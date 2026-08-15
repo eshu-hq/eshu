@@ -67,14 +67,23 @@ leans on it. Only `CanonicalNodeWriter` accepts a fence
 ### The reducer writer inventory
 
 Regenerate it rather than trusting the prose; the list below is what this
-command returned. It keys on the Cypher executor handed to a constructor, not on
-the package the constructor lives in — a package-keyed search misses the two
+command returned. It keys on the constructor's first argument, not on the
+package the constructor is imported from — a package-keyed search misses the two
 materializers in `go/internal/reducer`, which is how they went unlisted until a
 #6123 review caught it:
 
 ```bash
 rg -n '\.New\w+\((exec|executor|neo4jExec|cypherExec)[,)]' go/cmd/reducer --glob '!*_test.go'
 ```
+
+This matches four hard-coded identifier spellings. It is not a type check, and
+`rg` cannot do one. The four cover every writer constructor at this SHA, but a
+writer handed a differently-named executor, or taking it as a later argument or
+a struct field, would be missed silently. Before trusting the table, confirm the
+spellings still cover the tree with
+`rg -n 'sourcecypher\.Executor|reducer\.CypherExecutor|sourcecypher\.InstrumentedExecutor\{' go/cmd/reducer --glob '!*_test.go'`.
+The identity sweep below is the real backstop: it keys on emitted Cypher, so a
+writer this command misses still surfaces there as an unattributed node MERGE.
 
 | Construction site | Writer |
 | --- | --- |
@@ -122,6 +131,22 @@ Paths are relative to `go/internal`. Re-derive with
 `rg -n 'MERGE \(\w+:' go/internal --glob '!*_test.go' --glob '!*.md'`, then trace
 each constant to the writer that issues it. Sweeping `go/internal/storage/cypher`
 alone, as this file used to say, misses the four materializer labels.
+
+The sweep returns non-`uid` clusters that have no row here because nothing
+issues them in production: `storage/cypher/canonical.go:24,36,50` (dead Workload
+/ WorkloadInstance / Platform builders), `canonical.go:72,75` plus
+`canonical_relationships.go:50-141` (dead `Repository {id}` builders), and
+`writer.go:26,36`, the `SourceLocalRecord` composite key belonging to
+`Adapter`, the projector's pre-canonical write path that the canonical types
+replaced. Nothing constructs `Adapter` outside tests. The evidence record has the
+commands that prove each one dead.
+
+**No test enforces any of this.** `write_fence_test.go`,
+`module_identity_fence_test.go`, and `compatibility_test.go` cover the fence's
+admission decision and its marker caching, nothing else. Adding a reducer writer,
+renaming an executor variable, or changing a label's identity key breaks none of
+them, and both tables above go stale silently. Re-run the two commands before
+relying on either.
 
 `Repository` is the sharpest case: the fenced `CanonicalNodeWriter` MERGEs
 `(r:Repository {id: $repo_id})` at `storage/cypher/canonical_node_cypher.go:115`

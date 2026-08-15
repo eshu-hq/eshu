@@ -79,13 +79,33 @@ running, in either deployment path. Stopping those is a manual step.
 Every graph writer `cmd/reducer` constructs, enumerated from the constructor
 call sites rather than from memory of what the reducer "does". A #6123 review
 caught the earlier command here — `rg -n 'sourcecypher\.New|graphowner\.New'` —
-missing two writers and returning four lines that are not writers at all. It
-keyed on the package a constructor lives in. This one keys on what actually
-makes something a graph writer, the Cypher executor handed to it:
+missing two writers and returning four lines that are not writers at all,
+because it keyed on the package a constructor is imported from. This one keys
+on the first argument instead:
 
 ```bash
 rg -n '\.New\w+\((exec|executor|neo4jExec|cypherExec)[,)]' go/cmd/reducer --glob '!*_test.go'
 ```
+
+Be exact about what that does, because a later review was right to push back on
+an earlier draft that called it shape-based: it matches four hard-coded
+identifier spellings in first-argument position. It is not a type check, and
+`rg` cannot do one. The output is complete for this SHA, and the four spellings
+are the only ones a writer constructor is currently handed, but a writer built
+from a differently-named executor, or taking the executor second, or holding it
+as a struct field, would be invisible with no signal. Check the spellings still
+cover the tree with:
+
+```bash
+rg -n 'sourcecypher\.Executor|reducer\.CypherExecutor|sourcecypher\.InstrumentedExecutor\{' go/cmd/reducer --glob '!*_test.go'
+```
+
+which today also returns `neo4jExecutor` and `cypherExecutor`
+(`observed_service_wiring.go:25-26`), `instrumentedNeo4j` (`:42`), and
+`semanticEntityExecutor` (`main.go:177`). None of the four builds a writer
+directly. The real backstop is the identity sweep in the next section: it keys
+on emitted Cypher rather than on a Go identifier, so a writer this command misses
+still shows up there as an unattributed node MERGE.
 
 | Construction site | Writer |
 | --- | --- |
@@ -175,14 +195,39 @@ nine exceptions. Named, because a count on its own is not checkable:
 | `Platform` | `id` | `reducer/workload_materializer.go:400` and `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer` and `InfrastructurePlatformMaterializer` |
 | `Endpoint` | `id` | `reducer/workload_materializer.go:435` | `WorkloadMaterializer` |
 
-`storage/cypher/canonical.go:24,36,50` holds a second set of Workload,
-WorkloadInstance, and Platform upserts on the same `id` keys, but nothing calls
-their builders in production.
-`rg -n 'BuildCanonicalWorkloadUpsert|BuildCanonicalWorkloadInstanceUpsert|BuildCanonicalRuntimePlatformUpsert' go/ -l`
-returns five files: `storage/cypher/canonical.go` where the three builders are
-defined, `canonical_test.go` and `canonical_orphan_metadata_test.go`, and the
-`README.md` / `AGENTS.md` that cite them as a pattern to copy. No caller. The
-live writes for those four labels are the materializers'.
+Four clusters the sweep returns inside `storage/cypher` have no table row,
+because nothing in production issues them. Each is listed so the next reader can
+tell a deliberate omission from drift:
+
+- `canonical.go:24,36,50` — a second set of Workload, WorkloadInstance, and
+  Platform upserts on the same `id` keys.
+  `rg -n 'BuildCanonicalWorkloadUpsert|BuildCanonicalWorkloadInstanceUpsert|BuildCanonicalRuntimePlatformUpsert' go/ -l`
+  returns five files: `canonical.go` where the three builders are defined,
+  `canonical_test.go` and `canonical_orphan_metadata_test.go`, and the
+  `README.md` / `AGENTS.md` that cite them as a pattern to copy. No caller. The
+  live writes for those four labels are the materializers'.
+- `canonical.go:72,75` and
+  `canonical_relationships.go:50,53,72,75,94,97,116,119,138,141` — six more
+  `Repository {id}` MERGEs, from `BuildCanonicalRepoDependencyUpsert`
+  (`canonical.go:384`) and `BuildCanonicalRepoRelationshipUpsert`
+  (`canonical_relationships.go:377`).
+  `rg -n 'BuildCanonicalRepoDependencyUpsert|BuildCanonicalRepoRelationshipUpsert' go/`
+  returns only the two definitions, three test files, and `README.md`. The live
+  `Repository {id}` writes are the batched `EdgeWriter` statements already in the
+  table, so this changes no row — but an unannotated `Repository` cluster would
+  read as one.
+- `writer.go:26,36` —
+  `MERGE (n:SourceLocalRecord {scope_id, generation_id, record_id})`, a composite
+  non-`uid` identity, and the only label in this section that appears in no table
+  row at all. It belongs to `Adapter` (`writer.go:110`), the projector's
+  pre-canonical write path. `projector/canonical.go:6` records the replacement in
+  its own words: the canonical materialization types "replace SourceLocalRecord as
+  the projector's Neo4j write output". Nothing constructs the type any more —
+  `rg -n '\bAdapter\{' go/internal/storage/cypher --glob '!*_test.go'` and
+  `rg -n 'cypher\.Adapter|sourcecypher\.Adapter' go --glob '!*_test.go'` both exit
+  1 with no output, and there is no `NewAdapter`. The label still has schema
+  objects in `graph/schema_tables.go`, because nodes written by older releases
+  can still be in a deployed graph.
 
 `Repository` is the sharpest one: `CanonicalNodeWriter` MERGEs
 `(r:Repository {id: $repo_id})` at `canonical_node_cypher.go:115`, issued through
