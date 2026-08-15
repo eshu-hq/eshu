@@ -35,30 +35,30 @@ func TestPrepareVulnScanLocalRuntimeAttachesExistingAuthoritativeOwner(t *testin
 	})
 	defer restoreOwner()
 
-	originalReservePort := ReserveLocalAPIPort
-	originalStartAPI := StartLocalAPI
-	originalWaitAPI := WaitLocalAPI
-	originalStopProcess := StopLocalProcess
+	originalReservePort := reserveLocalAPIPortFn
+	originalStartAPI := startLocalAPIFn
+	originalWaitAPI := waitLocalAPIFn
+	originalStopProcess := stopLocalProcessFn
 	defer func() {
-		ReserveLocalAPIPort = originalReservePort
-		StartLocalAPI = originalStartAPI
-		WaitLocalAPI = originalWaitAPI
-		StopLocalProcess = originalStopProcess
+		reserveLocalAPIPortFn = originalReservePort
+		startLocalAPIFn = originalStartAPI
+		waitLocalAPIFn = originalWaitAPI
+		stopLocalProcessFn = originalStopProcess
 	}()
 
-	ReserveLocalAPIPort = func() (int, error) { return 19090, nil }
+	reserveLocalAPIPortFn = func() (int, error) { return 19090, nil }
 	var gotAPIEnv []string
-	StartLocalAPI = func(env []string) (*exec.Cmd, error) {
+	startLocalAPIFn = func(env []string) (*exec.Cmd, error) {
 		gotAPIEnv = append([]string(nil), env...)
 		return nil, nil
 	}
-	WaitLocalAPI = func(_ context.Context, baseURL string, _ time.Duration) error {
+	waitLocalAPIFn = func(_ context.Context, baseURL string, _ time.Duration) error {
 		if baseURL != "http://127.0.0.1:19090" {
 			t.Fatalf("baseURL = %q, want local API URL", baseURL)
 		}
 		return nil
 	}
-	StopLocalProcess = func(*exec.Cmd, time.Duration) error { return nil }
+	stopLocalProcessFn = func(*exec.Cmd, time.Duration) error { return nil }
 
 	runtime, err := prepareLocalRuntime(context.Background(), repoPath, io.Discard)
 	if err != nil {
@@ -110,22 +110,22 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 	originalProcessAlive := localsupervisor.ProcessAlive
 	originalSocketHealthy := localsupervisor.SocketHealthy
 	originalGraphHealthy := localsupervisor.GraphHealthy
-	originalStartOwner := StartLocalOwner
-	originalReservePort := ReserveLocalAPIPort
-	originalStartAPI := StartLocalAPI
-	originalWaitAPI := WaitLocalAPI
-	originalStopProcess := StopLocalProcess
+	originalStartOwner := startLocalOwnerFn
+	originalReservePort := reserveLocalAPIPortFn
+	originalStartAPI := startLocalAPIFn
+	originalWaitAPI := waitLocalAPIFn
+	originalStopProcess := stopLocalProcessFn
 	defer func() {
 		localsupervisor.BuildLayout = originalBuildLayout
 		localsupervisor.ReadOwnerRecord = originalReadOwnerRecord
 		localsupervisor.ProcessAlive = originalProcessAlive
 		localsupervisor.SocketHealthy = originalSocketHealthy
 		localsupervisor.GraphHealthy = originalGraphHealthy
-		StartLocalOwner = originalStartOwner
-		ReserveLocalAPIPort = originalReservePort
-		StartLocalAPI = originalStartAPI
-		WaitLocalAPI = originalWaitAPI
-		StopLocalProcess = originalStopProcess
+		startLocalOwnerFn = originalStartOwner
+		reserveLocalAPIPortFn = originalReservePort
+		startLocalAPIFn = originalStartAPI
+		waitLocalAPIFn = originalWaitAPI
+		stopLocalProcessFn = originalStopProcess
 	}()
 
 	var readCount atomic.Int64
@@ -149,17 +149,17 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 	apiCmd := &exec.Cmd{}
 	var ownerStarted atomic.Bool
 	var ownerStopped atomic.Bool
-	StartLocalOwner = func(_ context.Context, gotLayout eshulocal.Layout) (*exec.Cmd, error) {
+	startLocalOwnerFn = func(_ context.Context, gotLayout eshulocal.Layout) (*exec.Cmd, error) {
 		ownerStarted.Store(true)
 		if gotLayout.WorkspaceRoot != workspaceRoot {
 			t.Fatalf("owner workspace = %q, want %q", gotLayout.WorkspaceRoot, workspaceRoot)
 		}
 		return ownerCmd, nil
 	}
-	ReserveLocalAPIPort = func() (int, error) { return 19090, nil }
-	StartLocalAPI = func([]string) (*exec.Cmd, error) { return apiCmd, nil }
-	WaitLocalAPI = func(context.Context, string, time.Duration) error { return nil }
-	StopLocalProcess = func(cmd *exec.Cmd, _ time.Duration) error {
+	reserveLocalAPIPortFn = func() (int, error) { return 19090, nil }
+	startLocalAPIFn = func([]string) (*exec.Cmd, error) { return apiCmd, nil }
+	waitLocalAPIFn = func(context.Context, string, time.Duration) error { return nil }
+	stopLocalProcessFn = func(cmd *exec.Cmd, _ time.Duration) error {
 		if cmd == ownerCmd {
 			ownerStopped.Store(true)
 		}

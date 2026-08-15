@@ -50,9 +50,9 @@ See [`doc.go`](doc.go) for the godoc contract. In outline:
   `RenderSummary`, `ReachabilityFromFinding`, `RemediationFromFinding`.
 - **Exports** — `WriteSARIF`, `WriteVEX`, `BuildVEXDocument`,
   `RemediationForVEX`, `ExportFormatSARIF`, `ExportFormatVEX`.
-- **Local runtime** — `LocalRuntime` and the `PrepareLocalRuntime`,
-  `ReserveLocalAPIPort`, `StartLocalOwner`, `StartLocalAPI`, `StopLocalProcess`,
-  `WaitLocalAPI` seams.
+- **Local runtime** — `LocalRuntime` and `PrepareLocalRuntime`. The individual
+  startup steps are unexported seams; see
+  [Gotchas / invariants](#gotchas--invariants).
 - **Provider parity** — `ParityOptions`, `ParitySource`, `ParityData`,
   `ParityEvidenceSource`, `ParityEvidenceFromReadiness`, `RenderParitySummary`,
   `EshuSource`, `MapEshuFindings`, `NormalizeProviderName`, `CleanStringSlice`.
@@ -113,6 +113,12 @@ and the process exit code.
   started stops what it started. Attaching to an existing owner is refused —
   not replaced — when the workspace, Postgres socket, profile, or graph backend
   does not match, because the answer depends on which service was read.
+- **The startup steps are unexported on purpose.** Port reservation, owner
+  start, API start, process stop, and the health wait are package variables
+  (`reserveLocalAPIPortFn` and friends) so this package's own tests can drive
+  startup without binding a port or spawning a process. They stay unexported
+  because nothing outside substitutes them, and an exported one would let any
+  importer swap the path that spawns the local service owner.
 
 ## Related docs
 

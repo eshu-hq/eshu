@@ -53,20 +53,25 @@ type LocalRuntime struct {
 // The seams below are variables so tests can drive the startup sequence
 // without binding ports or spawning processes. Production callers leave them
 // as declared.
+//
+// Only PrepareLocalRuntime is exported, because the command wrapper reads it.
+// The individual startup steps stay unexported: no caller outside this package
+// substitutes them, and exporting them would let any future importer swap the
+// path that spawns the local service owner and the one-shot API.
 var (
 	// PrepareLocalRuntime attaches to, or starts, the local runtime a
 	// repository scan needs.
 	PrepareLocalRuntime = prepareLocalRuntime
-	// ReserveLocalAPIPort picks the free loopback port the one-shot API binds.
-	ReserveLocalAPIPort = reserveLocalAPIPort
-	// StartLocalOwner launches `eshu local-host watch` for the workspace.
-	StartLocalOwner = startLocalOwner
-	// StartLocalAPI launches the one-shot eshu-api child.
-	StartLocalAPI = startLocalAPI
-	// StopLocalProcess terminates a child started by this package.
-	StopLocalProcess = localsupervisor.StopChildProcess
-	// WaitLocalAPI blocks until the one-shot API answers /healthz.
-	WaitLocalAPI = waitLocalAPI
+	// reserveLocalAPIPortFn picks the free loopback port the one-shot API binds.
+	reserveLocalAPIPortFn = reserveLocalAPIPort
+	// startLocalOwnerFn launches `eshu local-host watch` for the workspace.
+	startLocalOwnerFn = startLocalOwner
+	// startLocalAPIFn launches the one-shot eshu-api child.
+	startLocalAPIFn = startLocalAPI
+	// stopLocalProcessFn terminates a child started by this package.
+	stopLocalProcessFn = localsupervisor.StopChildProcess
+	// waitLocalAPIFn blocks until the one-shot API answers /healthz.
+	waitLocalAPIFn = waitLocalAPI
 )
 
 // prepareLocalRuntime brings up everything a repository scan needs when no
@@ -94,13 +99,13 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 			_, _ = fmt.Fprintf(stderr, "Starting local Eshu service for %s...\n", layout.WorkspaceRoot)
 			_, _ = fmt.Fprintf(stderr, "Child service logs: %s\n", layout.LogsDir)
 		}
-		ownerCmd, err = StartLocalOwner(ctx, layout)
+		ownerCmd, err = startLocalOwnerFn(ctx, layout)
 		if err != nil {
 			return LocalRuntime{}, err
 		}
 		record, runtimeConfig, err = waitForLocalOwner(ctx, layout, LocalStartupTimeout)
 		if err != nil {
-			_ = StopLocalProcess(ownerCmd, localsupervisor.ShutdownTimeout)
+			_ = stopLocalProcessFn(ownerCmd, localsupervisor.ShutdownTimeout)
 			return LocalRuntime{}, err
 		}
 	}
@@ -111,7 +116,7 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 		return LocalRuntime{}, err
 	}
 
-	apiPort, err := ReserveLocalAPIPort()
+	apiPort, err := reserveLocalAPIPortFn()
 	if err != nil {
 		_ = stopLocalRuntime(nil, ownerCmd)
 		return LocalRuntime{}, err
@@ -124,14 +129,14 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 		_ = stopLocalRuntime(nil, ownerCmd)
 		return LocalRuntime{}, err
 	}
-	apiCmd, err := StartLocalAPI(apiEnv)
+	apiCmd, err := startLocalAPIFn(apiEnv)
 	if err != nil {
 		_ = stopLocalRuntime(nil, ownerCmd)
 		return LocalRuntime{}, err
 	}
 
 	baseURL := "http://" + apiAddr
-	if err := WaitLocalAPI(ctx, baseURL, LocalStartupTimeout); err != nil {
+	if err := waitLocalAPIFn(ctx, baseURL, LocalStartupTimeout); err != nil {
 		_ = stopLocalRuntime(apiCmd, ownerCmd)
 		return LocalRuntime{}, err
 	}
@@ -352,10 +357,10 @@ func waitLocalAPI(ctx context.Context, baseURL string, timeout time.Duration) er
 func stopLocalRuntime(apiCmd, ownerCmd *exec.Cmd) error {
 	var err error
 	if apiCmd != nil {
-		err = errors.Join(err, StopLocalProcess(apiCmd, localsupervisor.ShutdownTimeout))
+		err = errors.Join(err, stopLocalProcessFn(apiCmd, localsupervisor.ShutdownTimeout))
 	}
 	if ownerCmd != nil {
-		err = errors.Join(err, StopLocalProcess(ownerCmd, localsupervisor.ShutdownTimeout))
+		err = errors.Join(err, stopLocalProcessFn(ownerCmd, localsupervisor.ShutdownTimeout))
 	}
 	return err
 }

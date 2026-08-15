@@ -50,8 +50,9 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
   the scanner-exit predicate in `go/cmd/eshu/vuln_scan.go`, which lists the
   codes a report is still written for.
 - **Local runtime change:** the seams are package variables so tests can drive
-  startup without binding ports. Keep new steps behind a seam, and keep every
-  post-start failure path calling `stopLocalRuntime`.
+  startup without binding ports. Keep new steps behind a seam, keep that seam
+  unexported (`PrepareLocalRuntime` is the only one the wrapper reads), and keep
+  every post-start failure path calling `stopLocalRuntime`.
 
 ## Failure modes seen here
 
