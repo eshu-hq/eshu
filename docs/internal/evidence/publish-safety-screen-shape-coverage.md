@@ -542,6 +542,112 @@ The limit worth stating: minimum-of-N on a loaded host establishes that round
 three is not a regression against round two. It is not precise enough to defend
 the 79ns gap between them as real.
 
+### Round five: the widened IPv6 rule withheld Python slices
+
+Review found this after the last push, and it is a regression this branch
+introduced: `x[::2]`, `x[::]`, and `a[::-1]` all publish clean on `origin/main`
+and were withheld by the compressed-IPv6 rule as it stood at `23abf2ecd`.
+
+`a[::-1]` is the one with no defence. A `-` cannot appear anywhere in an IPv6
+address, so nothing about that string is address-shaped. It matched because both
+hextet groups around the `::` were written optional, which left the rule reading
+a bare `::` between any two non-alphanumeric characters as an address — the
+reverse slice, and also `(::)`, `-::-`, `$::$`, `]::[`, and `::` alone.
+
+Reproduced against the shipped pattern before any fix, and swept across the
+languages whose scope-resolution or slice syntax puts `::` next to a character an
+address cannot hold:
+
+| Probed | Withheld at `23abf2ecd` | After |
+| --- | --- | --- |
+| Python `x[::2]`, `x[::]`, `a[::-1]`, `s[::-1]`, `arr[::3]`, `path[1::2]` | all 6 | none |
+| Go `s[::]` | yes | no |
+| bare `::` between punctuation — `(::)`, `{::}`, `-::-`, `$::$`, `<::>`, `]::[`, `*::*`, `&::&`, `?::?`, `,::,`, `.::.`, `;::;`, `'::'`, `"::"`, `a-::-b`, `::$x`, `::` | all 17 | none |
+| C++ `std::vector`, `Foo::Bar`, `::global`, `MyClass::~MyClass`, `std::map<K,V>::iterator`, `ns::fn(-1)` | none | none |
+| Rust `crate::mod`, `<T as Trait>::method`, `Vec::<u8>::new`, `Option::<i32>::None`, `T::default()` | none | none |
+| PHP `self::CONST`, `Class::$var`, `parent::__construct`, `Foo::class` | none | none |
+| Ruby `Module::CONST`, `Net::HTTP`, `::TopLevel` | none | none |
+| Perl `Data::Dumper`, `List::Util`, `$Foo::bar`, `main::` | none | none |
+| Go `buf[0:4]`, `buf[0:4:8]`, `x := y` | none | none |
+
+C++, Rust, PHP, Ruby, and Perl came through clean both before and after: their
+segments are not all hex, so the existing right boundary already handled them.
+The negatives are reported here because a sweep that only lists what it caught
+cannot be told apart from a sweep that did not run.
+
+Two independent guards, and the mutation counts below show neither one alone
+clears the table:
+
+- **at least one non-empty hextet group.** An address has hex digits somewhere;
+  a bare `::` between punctuation does not.
+- **an identifier character before a `[` disqualifies the brackets.** `[::2]` is
+  an address and `x[::2]` is a slice, and the `x` is the only thing separating
+  them.
+
+The direction NOT taken, and why: narrowing the right-hand boundary to exclude
+`-` would also have cleared `a[::-1]`, and would have published `fd00::1-`. An
+address is still an address when a hyphen follows it. The delimiter sweep now
+wraps every carrier in `[`, `]`, `-`, `<`, `>`, and `$` on both sides — 3,060
+combinations — so a fix that tries the boundary route fails there.
+
+Still withheld, and stated rather than left to be discovered:
+
+| Shape | Why |
+| --- | --- |
+| `abc::def`, `a::b::c`, `a::b(-1)`, `DB::$connection`, `A::$b` | 1-4 hex characters on both sides IS a compressed address by shape. The pre-existing `abc::def` gap, now pinned with the language idioms that land in it |
+| `buf[fd00::1]`, `peer[::1]` — these now **publish** | the price of the identifier guard: `x[fd00::1]` is as valid a Python slice as `x[::2]` is. Every spelling this product emits (`host [fd00::1]`, `endpoint=[fd00::1]`, `bolt://[fd00::1]:7687`) puts a non-identifier character before the bracket and is still withheld — all three are pinned |
+
+Why the tests missed it: the false-positive table's only slice rows, `buf[0:4]`
+and `buf[0:4:8]`, carry no `::`, so neither arm of the rule was ever exercised
+negatively, and the delimiter sweep wrapped carriers in spaces, quotes, and
+slashes but never a bracket or a hyphen. That is the same fixture-shape blind
+spot this whole branch exists to close, one level down.
+
+No gate changed, but the regex did, so `BenchmarkUnsafeStringHonestCorpus` was
+re-run per the rule stated in `UnsafeString`'s comment. Both patterns were
+measured on this host by swapping the pattern in place and rebuilding, best of 5
+at `-benchtime=2s`:
+
+| Benchmark | `23abf2ecd` pattern | round five | Delta |
+| --- | ---: | ---: | ---: |
+| `BenchmarkUnsafeStringHonestCorpus` | 7761 ns/op | 7923 ns/op | +2.1% |
+| `BenchmarkUnsafeStringRejection` | 1745 ns/op | 1797 ns/op | +3.0% |
+
+The limit on that: the run-to-run spread on this host was 7761-12479 before and
+7923-31022 after, so both deltas sit well inside the noise. What these numbers
+support is "no measurable regression", not a 2% figure anyone should quote.
+
+### Mutation proof for round five
+
+Same method and same counting command as rounds three and four — leaf subtest
+failures across the whole package, each mutation applied with an exact-match
+edit that fails loudly rather than a `perl` expression, each confirmed landed by
+`diff` against a pristine copy, each confirmed to compile (`go build` exit 0),
+and the tree restored and re-diffed after every one:
+
+```bash
+go test ./internal/answerguardrail/ -count=1 -v 2>&1 | grep -cE '^ +--- FAIL:'
+```
+
+Baseline and restored tree both report 0.
+
+| Mutation | Red | Breakdown |
+| --- | ---: | --- |
+| identifier-before-`[` guard dropped (`[^0-9a-z\[]` back to `[^0-9a-z]`) | 7 | 6 in `KeepsCodeTextPublishable` — `x[::2]`, `arr[::3]`, `path[1::2]`, `rows[::2] takes every other row`, and both accepted-gap rows `buf[fd00::1]` and `peer[::1]` flipping to withheld — plus `x[::2]` in `KeepsOrdinaryAnswerTextPublishable` |
+| both hextet groups optional again | 17 | all 17 bare-`::` punctuation rows in `KeepsCodeTextPublishable` |
+| unbracketed arm requires `:::`, so it matches no address | 21 | 12 in `KeepsCodeTextPublishable`, 5 in `RejectsRawIPv6`, 4 in `RejectsCompressedIPv6WithoutMatchingAnIdentifier` — plus 1,508 `want true` errors in `IsIndifferentToTheSurroundingDelimiter`, which reports at top level rather than as subtests and so is outside the count above |
+
+The first two rows are the point: they redden **disjoint** row sets, so neither
+guard is a tidier spelling of the other. Three shapes — `a[::-1]`, `x[::]`, and
+`s[::]` — appear under neither, because both guards independently fix them; the
+mutation table cannot show a row that two guards cover, which is why it is read
+next to the third mutation rather than alone.
+
+The third mutation is the control for the table itself. `KeepsCodeTextPublishable`
+holds its true positives in the same map as its false positives, so a rule that
+withheld nothing would fail it — 12 rows go red there when the rule stops
+matching addresses, including the accepted-gap rows.
+
 ## No-Observability-Change:
 
 Neither package emits telemetry, by design —
@@ -574,7 +680,8 @@ cd go && go test ./internal/answerguardrail/... ./internal/answerquality/... \
 cd go && golangci-lint run ./internal/answerguardrail/... \
   ./internal/answerquality/...                                             rc=0
 gofumpt -l go/internal/answerguardrail/guardrail.go \
-  go/internal/answerguardrail/guardrail_shape_test.go   (no output)        rc=0
+  go/internal/answerguardrail/guardrail_shape_test.go \
+  go/internal/answerguardrail/guardrail_codetext_test.go (no output)       rc=0
 bash scripts/verify-package-docs.sh                                        rc=0
 bash scripts/verify-performance-evidence.sh                                rc=0
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
@@ -586,11 +693,24 @@ Earlier rounds also ran `bash scripts/verify-dirgate.sh --all` (rc=0) and the
 `internal/query` race suite; the block above supersedes them by covering the same
 packages plus `answerquality` and `evidencebundle` under `-race`.
 
-Go source line counts against the 500-line cap, after this round:
-`guardrail.go` 499, `guardrail_shape_test.go` 490. The pre-commit
-`500-line Go file cap` hook passes. This evidence file is 577 lines, which is
-normal for its class — eight docs under `docs/internal/evidence/` are longer, up
-to 1502 — and the cap the repo enforces is on Go source.
+Go source line counts against the 500-line cap. The figures this section carried
+before round five (`guardrail.go` 499, `guardrail_shape_test.go` 490) were stale:
+they predate the split that moved the password rule into `guardrail_password.go`,
+and at `23abf2ecd` the two files were already 301 and 372. Measured again after
+round five:
+
+| File | `23abf2ecd` | Now |
+| --- | ---: | ---: |
+| `guardrail.go` | 301 | 343 |
+| `guardrail_password.go` | 194 | 194 |
+| `guardrail_shape_test.go` | 372 | 394 |
+| `guardrail_codetext_test.go` | — | 187 |
+
+The round-five language table went into its own file rather than growing
+`guardrail_shape_test.go` past 500. The pre-commit `500-line Go file cap` hook
+passes. This evidence file is 831 lines, which is normal for its class — several
+docs under `docs/internal/evidence/` are longer, up to 1502 — and the cap the
+repo enforces is on Go source.
 
 ### Mutation proof for round one
 

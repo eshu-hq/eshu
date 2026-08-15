@@ -59,9 +59,17 @@ their own logs, status, responses, or scorecards.
   own outage. Each rule's comment in `guardrail.go` names what it deliberately
   does not catch. The limits worth knowing before relying on it:
   - an all-hex identifier pair such as `abc::def` is shape-identical to a
-    compressed IPv6 address and is rejected. A namespace whose first segment is
-    hex but whose second is not (`db::connect`, `ff::Field`) publishes normally:
-    the rule requires the whole token to be an address, not to start like one;
+    compressed IPv6 address and is rejected. C++'s `a::b::c`, Rust's `a::b(-1)`,
+    and PHP's `DB::$connection` land there for the same reason. A namespace whose
+    first segment is hex but whose second is not (`db::connect`, `ff::Field`,
+    `std::vector`, `crate::mod`, `Data::Dumper`) publishes normally: the rule
+    requires the whole token to be an address, not to start like one;
+  - the compressed-address rule needs a hex digit on one side of the `::` and an
+    identifier character before a `[` disqualifies the brackets, so slice syntax
+    (`x[::2]`, `a[::-1]`, `s[::]`) and a bare `::` between punctuation (`(::)`,
+    `-::-`) publish. The price is `buf[fd00::1]`, which publishes too: it is as
+    valid a Python slice as `x[::2]` is. Every spelling this product emits puts a
+    space, an `=`, or a `//` before the bracket and is still rejected;
   - only `password` gets a colon-spelled rule. `token`, `secret`, and `api_key`
     keep their `=` form only, because real resource types end in those words
     (`aws_appsync_api_key`, `aws_secretsmanager_secret`) and a colon rule on

@@ -169,9 +169,25 @@ func TestUnsafeStringRejectsCompressedIPv6WithoutMatchingAnIdentifier(t *testing
 // the boundary — which is exactly why it is worth pinning: a future narrowing
 // that accidentally anchors one of these rules to a space would show up here
 // rather than in production.
+//
+// The second group -- "[", "]", "-", "<", ">", "$" -- is the set that appears in
+// code text around a "::", and it is here because the first version of this
+// sweep did not carry it. Nothing wrapped a carrier in a bracket or a hyphen, so
+// neither arm of the compressed-IPv6 rule was ever exercised against the shape
+// Python's "a[::-1]" takes, and the rule withheld it. Adding these characters is
+// what turns that from a row somebody has to think of into something the sweep
+// covers on its own. It also pins the direction the fix must NOT take: an
+// address followed by "-", "$", or "]" is still an address, so the fix cannot
+// work by narrowing the right-hand boundary, and this sweep fails if it tries.
 var (
-	boundaryPrefixes = []string{"", " ", ":", "/", `"`, "'", "@", "?", "&", "(", "=", "\n"}
-	boundarySuffixes = []string{"", " ", ":", "/", `"`, "'", "?", "&", ")", ",", "\n"}
+	boundaryPrefixes = []string{
+		"", " ", ":", "/", `"`, "'", "@", "?", "&", "(", "=", "\n",
+		"[", "]", "-", "<", ">", "$",
+	}
+	boundarySuffixes = []string{
+		"", " ", ":", "/", `"`, "'", "?", "&", ")", ",", "\n",
+		"[", "]", "-", "<", ">", "$",
+	}
 )
 
 // TestUnsafeStringIsIndifferentToTheSurroundingDelimiter runs every newly
@@ -259,6 +275,12 @@ func TestUnsafeStringKeepsOrdinaryAnswerTextPublishable(t *testing.T) {
 		// or the full eight hextets.
 		"buf[0:4] holds the header",
 		"buf[0:4:8] is a three-index slice",
+		// The slice spellings that DO carry a "::". These three shipped
+		// withheld on this branch; guardrail_codetext_test.go carries the class
+		// they came from and the two guards that fixed them.
+		"x[::2]",
+		"x[::]",
+		"a[::-1]",
 		// Real identifiers that end in a credential keyword. evidencebundle
 		// learned this the hard way: matching the bare keyword rejects honest
 		// content, which is why the password rule needs a word boundary.

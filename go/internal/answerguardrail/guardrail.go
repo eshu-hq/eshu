@@ -68,6 +68,12 @@ type Verdict struct {
 // The "password:" assignment rule is held to the same standard and lives in
 // guardrail_password.go, because it carries a value classifier rather than a
 // pattern alone.
+// ipv6HextetGroups is one or more colon-separated hextets, the run that sits on
+// either side of a "::". It is a regex fragment and the only copy of that shape:
+// compressedIPv6Pattern interpolates it three times, once for each side and once
+// for the left-empty form, and three hand-written copies drift.
+const ipv6HextetGroups = `[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*`
+
 var (
 	// rawAddressPattern is the IPv4 half of the raw-address rule. Blanket by
 	// design: any dotted quad, private or public.
@@ -86,12 +92,24 @@ var (
 	// Within each, two groups of alternatives, deliberately not one blanket
 	// rule, because their false-positive risk is not the same.
 	//
-	// Bracketed, which is how an address appears in a host:port string. Square
-	// brackets around a run of hex digits and colons are an IPv6 literal and
-	// nothing else, so this half needs no left boundary. It does require
-	// either the "::" compression marker or the full eight hextets: without
-	// that, "buf[0:4]" and Go's three-index "buf[0:4:8]" are both all-hex
-	// bracketed colon runs and would be rejected as addresses.
+	// Bracketed, which is how an address appears in a host:port string. It
+	// requires either the "::" compression marker or the full eight hextets:
+	// without that, "buf[0:4]" and Go's three-index "buf[0:4:8]" are both
+	// all-hex bracketed colon runs and would be rejected as addresses.
+	//
+	// The first version of this half had no left boundary at all, on the
+	// reasoning that square brackets around hex digits and colons are an IPv6
+	// literal and nothing else. Python's step slice is the counterexample:
+	// "[::2]" is an address and "x[::2]" is a slice, and the "x" is the only
+	// thing that tells them apart. So the boundary is about the character
+	// before the bracket -- an identifier character there means a subscript --
+	// and "\[+" then lets a doubled "[[fd00::1]" through, since the guard is
+	// what precedes the brackets, not the brackets themselves.
+	//
+	// That boundary cuts both ways, and the cut is accepted: "buf[fd00::1]"
+	// publishes, because it is as valid a Python slice as "x[::2]" is and
+	// nothing in the shape separates them. Every spelling this product emits
+	// puts a space, an "=", or a "//" before the bracket and is still caught.
 	//
 	// Unbracketed, which is how one appears in free text. The left boundary
 	// here excludes letters and digits but NOT the colon, and that choice is
@@ -119,14 +137,38 @@ var (
 	// and requiring a boundary after the last one is what makes the rule mean
 	// "this token IS an address" rather than "this token starts like one".
 	//
+	// At least one of the two hextet groups must be non-empty, and that is a
+	// second guard rather than a tidier spelling of the first. With both
+	// optional, the rule read a bare "::" between any two non-alphanumeric
+	// characters as an address, so Python's reverse slice "a[::-1]" was
+	// withheld -- left boundary "[", nothing, "::", nothing, right boundary
+	// "-" -- along with "(::)", "-::-", "$::$", and "]::[". A "-" cannot
+	// appear anywhere in an IPv6 address, so none of those is a shape
+	// ambiguity; the rule simply was not asking for any hex. Requiring a
+	// hextet drops the bare "::" (the unspecified address, which this product
+	// does not publish as an endpoint) and keeps "::1", "fd00::", and
+	// "::ffff:10.0.5.3".
+	//
+	// Note what the fix deliberately does NOT do: narrow the right-hand
+	// boundary. Excluding "-" would have cleared "a[::-1]" too, and would also
+	// have published "fd00::1-" -- an address is still an address when a
+	// hyphen follows it. The delimiter sweep in the tests wraps every carrier
+	// in "-", "$", "[", and "]" for exactly that reason.
+	//
 	// Known gap, accepted: an all-hex identifier pair such as "abc::def" is
 	// indistinguishable from a compressed address by shape alone and IS
 	// rejected -- both sides are valid hextets, so no boundary can separate
-	// them. Nothing else in the honest corpus is -- timestamps ("12:30:45"),
-	// durations, and version strings carry no "::" at all, which is why the
-	// compression marker is required rather than a general run of
-	// colon-separated hextets.
-	compressedIPv6Pattern = regexp.MustCompile(`(?i)(\[[0-9a-f:]*::[0-9a-f:]*\]|(^|[^0-9a-z])(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?::(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?([^0-9a-z]|$))`)
+	// them. C++'s "a::b::c", Rust's "a::b(-1)", and PHP's "DB::$connection"
+	// land in the same place ("db" is a hextet), while "std::vector",
+	// "crate::mod", "Data::Dumper", and "Class::$var" all publish, because
+	// their segments are not all hex. Nothing else in the honest corpus is
+	// ambiguous -- timestamps ("12:30:45"), durations, and version strings
+	// carry no "::" at all, which is why the compression marker is required
+	// rather than a general run of colon-separated hextets.
+	compressedIPv6Pattern = regexp.MustCompile(`(?i)(?:^|[^0-9a-z\[])(?:` +
+		`\[+[0-9a-f:]*::[0-9a-f:]*\]` +
+		`|\[*(?:` + ipv6HextetGroups + `::(?:` + ipv6HextetGroups + `)?` +
+		`|::` + ipv6HextetGroups + `)(?:[^0-9a-z]|$))`)
 
 	// fullIPv6Pattern is the uncompressed eight-hextet form, bracketed or not.
 	// It carries no "::" so it needs its own gate, and its own pattern.
