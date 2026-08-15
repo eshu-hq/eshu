@@ -200,4 +200,7 @@ ifa_live_gate_fault_only_seams=(
 	'go/internal/reducer/defaults_additive_domains_cloud_nodes.go|go/internal/reducer/defaults_additive_domains_cloud_nodes.go'
 	'go/internal/reducer/defaults_additive_domains_gcp.go|go/internal/reducer/defaults_additive_domains_gcp.go'
 	'go/cmd/reducer/canonical_graph_writers.go|go/cmd/reducer/canonical_graph_writers.go'
+	'go/internal/graphowner/family_writers.go|go/internal/graphowner/family_writers.go'
+	'go/internal/graphowner/gated_writer.go|go/internal/graphowner/gated_writer.go'
+	'go/internal/storage/postgres/graph_node_owner_store.go|go/internal/storage/postgres/graph_node_owner_store.go'
 )
