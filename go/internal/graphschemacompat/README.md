@@ -76,13 +76,15 @@ existing queue and status telemetry.
 - The fence covers less than "canonical writers", so check before an identity
   cutover leans on it. Only `CanonicalNodeWriter` accepts one, and only
   `cmd/ingester` and `cmd/projector` wire it; `cmd/bootstrap-index` skips it on
-  purpose as a one-shot seeder. Every writer `cmd/reducer` builds runs unfenced
-  — `EdgeWriter` (built twice), `SemanticEntityWriter`, `SecretsIAMGraphWriter`,
-  the `OrphanSweepStore`, and every field of `cmd/reducer`'s
-  `canonicalGraphWriters` struct — so a marker recorded under a running reducer
-  does not stop its writes. `AGENTS.md` carries the constructor-level inventory,
-  the command that regenerates it, the five labels those writers MERGE on a key
-  that is not `uid`, and why the #6102 Module cutover is unaffected.
+  purpose as a one-shot seeder. Every writer `cmd/reducer` builds runs unfenced:
+  `EdgeWriter` (built twice), `SemanticEntityWriter`, `SecretsIAMGraphWriter`,
+  the `OrphanSweepStore`, every field of `cmd/reducer`'s `canonicalGraphWriters`
+  struct, and the `WorkloadMaterializer` and `InfrastructurePlatformMaterializer`
+  that live in `internal/reducer` rather than `internal/storage/cypher`. A marker
+  recorded under a running reducer does not stop any of their writes. `AGENTS.md`
+  carries the constructor-level inventory, the command that regenerates it, the
+  nine labels those writers MERGE on a key that is not `uid`, and why the #6102
+  Module cutover is unaffected.
 - Deployment ordering does not substitute for the fence. It decides when a
   writer may start, not whether one already running stops: the Helm schema Job
   is a pre-upgrade hook, so it records the marker while the outgoing

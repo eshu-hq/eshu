@@ -67,49 +67,72 @@ leans on it. Only `CanonicalNodeWriter` accepts a fence
 ### The reducer writer inventory
 
 Regenerate it rather than trusting the prose; the list below is what this
-command returned:
+command returned. It keys on the Cypher executor handed to a constructor, not on
+the package the constructor lives in — a package-keyed search misses the two
+materializers in `go/internal/reducer`, which is how they went unlisted until a
+#6123 review caught it:
 
 ```bash
-rg -n 'sourcecypher\.New|graphowner\.New' go/cmd/reducer --glob '!*_test.go'
+rg -n '\.New\w+\((exec|executor|neo4jExec|cypherExec)[,)]' go/cmd/reducer --glob '!*_test.go'
 ```
 
 | Construction site | Writer |
 | --- | --- |
 | `main.go:360` | `EdgeWriter` (shared-projection edges, every domain) |
+| `main.go:234` | `WorkloadMaterializer` |
+| `main.go:235` | `InfrastructurePlatformMaterializer` |
 | `endpoint_presence_wiring.go:90` | a second `EdgeWriter` |
 | `neo4j_wiring.go:252,260` | `SemanticEntityWriter` / `SemanticEntityWriterWithCanonicalNodeRows` |
 | `secrets_iam_graph_wiring.go:63` | `SecretsIAMGraphWriter` |
 | `graph_orphan_sweep_wiring.go:27` | `OrphanSweepStore` |
-| `canonical_graph_writers.go:78-127` | every field of the `canonicalGraphWriters` struct |
+| `canonical_graph_writers.go:78-124` | the `canonicalGraphWriters` struct's directly-constructed writers |
 
-That last row used to be described here as "the specialized cloud, Kubernetes,
-and IAM writers", which under-counted it: the struct also holds
-`incidentRoutingEvidence`, `codeTaintEvidence`, `codeInterprocEvidence`,
+The command omits one thing on purpose, so an omission is distinguishable from
+drift: the eight `graphowner` gate wrappers take `ownerGate` or `lockGate` as
+their first argument, not the executor. They emit no Cypher of their own, and
+every one's raw writer is already in the output at
+`canonical_graph_writers.go:78-86`. List them with
+`rg -n '\*graphowner\.\w+Writer$' go/cmd/reducer/canonical_graph_writers.go`.
+
+The `canonicalGraphWriters` row used to be described here as "the specialized
+cloud, Kubernetes, and IAM writers", which under-counted it: the struct also
+holds `incidentRoutingEvidence`, `codeTaintEvidence`, `codeInterprocEvidence`,
 `provenanceEdge`, `crossplaneSatisfiedByEdge`, `observabilityCoverageEdge`, and
 `s3ExternalPrincipalGrant`. Read the struct definition at
-`canonical_graph_writers.go:17-68` for the current set. The `graphowner` gates
-wrapping several of them emit no Cypher of their own, so they add no identity
-surface.
+`canonical_graph_writers.go:17-68` for the current set.
 
 ### The node identities those writers key on
 
 Every node MERGE an unfenced reducer writer performs is keyed on `uid`, with
-five exceptions. Each is named, because a bare count is not checkable:
+nine exceptions. Each is named, because a bare count is not checkable:
 
 | Label | Key | Statement | Writer |
 | --- | --- | --- | --- |
-| `Repository` | `id` | `canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
-| `EvidenceArtifact` | `id` | `canonical_relationships.go:278` | `EdgeWriter` |
-| `CloudAction` | `id` | `canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
-| `CodeownerTeam` | `ref` | `canonical_codeowners_edges.go:34` | `EdgeWriter` |
-| `Environment` | `name` | `canonical_relationships.go:311`, `kubernetes_namespace_node_writer.go:89` | `EdgeWriter`, `KubernetesNamespaceNodeWriter` |
+| `Repository` | `id` | `storage/cypher/canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
+| `EvidenceArtifact` | `id` | `storage/cypher/canonical_relationships.go:278` | `EdgeWriter` |
+| `CloudAction` | `id` | `storage/cypher/canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
+| `CodeownerTeam` | `ref` | `storage/cypher/canonical_codeowners_edges.go:34` | `EdgeWriter` |
+| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311`, `kubernetes_namespace_node_writer.go:89` | `EdgeWriter`, `KubernetesNamespaceNodeWriter` |
+| `Workload` | `id` | `reducer/workload_materializer.go:351` | `WorkloadMaterializer` |
+| `WorkloadInstance` | `id` | `reducer/workload_materializer.go:370` | `WorkloadMaterializer` |
+| `Platform` | `id` | `reducer/workload_materializer.go:400`, `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer`, `InfrastructurePlatformMaterializer` |
+| `Endpoint` | `id` | `reducer/workload_materializer.go:435` | `WorkloadMaterializer` |
 
-Paths are relative to `go/internal/storage/cypher`. Re-derive with
-`rg -n 'MERGE \(\w+:' go/internal/storage/cypher --glob '!*_test.go'`, then trace
-each constant to the writer that issues it. `Environment` is the sharpest case:
-`CanonicalNodeWriter` and an unfenced reducer writer MERGE the same label on the
-same key, so an identity change there is fenced on one side of a rollout and not
-the other.
+Paths are relative to `go/internal`. Re-derive with
+`rg -n 'MERGE \(\w+:' go/internal --glob '!*_test.go' --glob '!*.md'`, then trace
+each constant to the writer that issues it. Sweeping `go/internal/storage/cypher`
+alone, as this file used to say, misses the four materializer labels.
+
+`Repository` is the sharpest case: the fenced `CanonicalNodeWriter` MERGEs
+`(r:Repository {id: $repo_id})` at `storage/cypher/canonical_node_cypher.go:115`
+and the unfenced `EdgeWriter` MERGEs the same label on the same key, so an
+identity change there is fenced on one side of a rollout and not the other.
+
+This file previously named `Environment` as that case. It is not one — a #6123
+review was right that `CanonicalNodeWriter` never references the label, and
+`rg -n Environment go/internal/storage/cypher/canonical_node_cypher.go go/internal/storage/cypher/canonical_node_writer.go`
+exits 1 with no output. Both `Environment` writers in the table are unfenced, so
+that cutover has no fenced side at all.
 
 The #6102 Module cutover is unaffected: no unfenced writer keys a Module node on
 name. `MERGE (m:Module {name, lang})` belongs to `CanonicalNodeWriter`, the

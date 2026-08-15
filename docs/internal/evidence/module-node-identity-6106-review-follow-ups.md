@@ -77,57 +77,126 @@ running, in either deployment path. Stopping those is a manual step.
 ### The reducer graph writer inventory
 
 Every graph writer `cmd/reducer` constructs, enumerated from the constructor
-call sites rather than from memory of what the reducer "does":
+call sites rather than from memory of what the reducer "does". A #6123 review
+caught the earlier command here — `rg -n 'sourcecypher\.New|graphowner\.New'` —
+missing two writers and returning four lines that are not writers at all. It
+keyed on the package a constructor lives in. This one keys on what actually
+makes something a graph writer, the Cypher executor handed to it:
 
 ```bash
-rg -n 'sourcecypher\.New|graphowner\.New' go/cmd/reducer --glob '!*_test.go'
+rg -n '\.New\w+\((exec|executor|neo4jExec|cypherExec)[,)]' go/cmd/reducer --glob '!*_test.go'
 ```
 
 | Construction site | Writer |
 | --- | --- |
 | `main.go:360` | `EdgeWriter` (shared-projection edges, every domain) |
+| `main.go:234` | `WorkloadMaterializer` |
+| `main.go:235` | `InfrastructurePlatformMaterializer` |
 | `endpoint_presence_wiring.go:90` | a second `EdgeWriter` |
 | `neo4j_wiring.go:252,260` | `SemanticEntityWriter` / `SemanticEntityWriterWithCanonicalNodeRows` |
 | `secrets_iam_graph_wiring.go:63` | `SecretsIAMGraphWriter` |
 | `graph_orphan_sweep_wiring.go:27` | `OrphanSweepStore` |
-| `canonical_graph_writers.go:78-127` | every field of the `canonicalGraphWriters` struct |
+| `canonical_graph_writers.go:78-124` | the `canonicalGraphWriters` struct's directly-constructed writers |
 
-That last row is the one the old "cloud, Kubernetes, and IAM writers" phrasing
-under-described. The struct's fields also include `incidentRoutingEvidence`,
-`codeTaintEvidence`, `codeInterprocEvidence`, `provenanceEdge`,
-`crossplaneSatisfiedByEdge`, `observabilityCoverageEdge`, and
+The two materializers live in `go/internal/reducer`, not `go/internal/storage/cypher`,
+which is why a package-keyed search missed them. They are graph writers all the
+same: `workload_materializer.go:351,370,400,435` and
+`infrastructure_platform_materializer.go:138` MERGE nodes.
+
+What the command deliberately leaves out, so a reader can tell an omission from
+drift: the eight `graphowner` gate wrappers, which take `ownerGate` or `lockGate`
+as their first argument rather than the executor. They emit no Cypher of their
+own, and each one's raw writer already appears in the output at
+`canonical_graph_writers.go:78-86`. Enumerate them with:
+
+```bash
+rg -n '\*graphowner\.\w+Writer$' go/cmd/reducer/canonical_graph_writers.go
+```
+
+which returns `cloudResourceNode`, `ec2InstanceNode`, `kubernetesWorkloadNode`,
+`rdsPostureNode`, `ec2InternetExposureNode`, `ec2BlockDeviceKMSPostureNode`,
+`s3InternetExposureNode`, and `ec2InstanceIdentityNode` — eight, where an earlier
+draft of this record said seven.
+
+The gates hold no Cypher of their own. `rg -n 'MERGE \(' go/internal/graphowner`
+returns three lines, all `MERGE (n:OwnerGateProbe …)`, `MERGE (n:LockOnlyPerfProbe …)`,
+and `MERGE (n:LockOnlyRaceProbe …)` in `*_live_test.go` probe fixtures. Nothing in
+the package's production code writes a node.
+
+The `canonicalGraphWriters` row is the one the old "cloud, Kubernetes, and IAM
+writers" phrasing under-described. The struct's fields also include
+`incidentRoutingEvidence`, `codeTaintEvidence`, `codeInterprocEvidence`,
+`provenanceEdge`, `crossplaneSatisfiedByEdge`, `observabilityCoverageEdge`, and
 `s3ExternalPrincipalGrant`, none of which read as cloud/Kubernetes/IAM. The
-struct definition at `canonical_graph_writers.go:17-68` is the list; the
-`graphowner` gates wrapping seven of them emit no Cypher of their own, so they
-add no identity surface.
-
-The `graphowner` gates are wrappers only — `rg -n 'MERGE \(' go/internal/graphowner`
-returns nothing outside comments.
+struct definition at `canonical_graph_writers.go:17-68` is the list.
 
 ### Which node identities those writers actually key on
 
 This is the part an identity cutover needs. Derived by sweeping every node MERGE
-in the statement package and tracing each constant back to the writer that
-issues it:
+under `go/internal` and tracing each constant back to the writer that issues it.
+The earlier sweep here was scoped to `go/internal/storage/cypher` alone, which is
+the same package assumption that lost the two materializers above:
 
 ```bash
-rg -n 'MERGE \(\w+:' go/internal/storage/cypher --glob '!*_test.go'
+rg -n 'MERGE \(\w+:' go/internal --glob '!*_test.go' --glob '!*.md'
 ```
 
+Widening rather than narrowing is deliberate. Narrowing the sweep back to a
+fixed set of writer directories would reproduce the exact bug a #6123 review
+found, so the command stays broad and the non-writer hits are named instead.
+Outside `go/internal/storage/cypher` and `go/internal/reducer` it returns ten
+files, in three groups:
+
+- Prose that quotes Cypher inside a comment: `graphschemacompat/write_fence.go`
+  (this fence's own doc comment), `ifa/graphdump/doc.go`,
+  `ifa/sql_relationship_odu.go`, `projector/canonical_import_extract.go`,
+  `graph/schema_tables.go`, and `storage/postgres/reducer_queue_conflict.go`.
+  `mcp/route_serves_data_registry_routes.go` is the same shape — marker strings
+  that point back at the `storage/cypher` files.
+- `backendconformance/corpus.go`, the backend conformance corpus. It runs
+  against a test backend, not a production graph.
+- `graph/entity.go:103` and `graph/batch.go:122,135,176`, the generic
+  dynamic-label merges on the `graph` port. No reducer path calls them:
+  `rg -n 'BatchMergeEntities|BatchMergeFiles|BatchMergeRelationships|MergeEntity\(' go/cmd go/internal/reducer --glob '!*_test.go'`
+  exits 1 with no output.
+
 Every node MERGE an unfenced reducer writer performs is keyed on `uid`, with
-five exceptions. Named, because a count on its own is not checkable:
+nine exceptions. Named, because a count on its own is not checkable:
 
 | Label | Key | Statement | Writer |
 | --- | --- | --- | --- |
-| `Repository` | `id` | `canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
-| `EvidenceArtifact` | `id` | `canonical_relationships.go:278` | `EdgeWriter` |
-| `CloudAction` | `id` | `canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
-| `CodeownerTeam` | `ref` | `canonical_codeowners_edges.go:34` | `EdgeWriter` |
-| `Environment` | `name` | `canonical_relationships.go:311` and `kubernetes_namespace_node_writer.go:89` | `EdgeWriter` and `KubernetesNamespaceNodeWriter` |
+| `Repository` | `id` | `storage/cypher/canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
+| `EvidenceArtifact` | `id` | `storage/cypher/canonical_relationships.go:278` | `EdgeWriter` |
+| `CloudAction` | `id` | `storage/cypher/canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
+| `CodeownerTeam` | `ref` | `storage/cypher/canonical_codeowners_edges.go:34` | `EdgeWriter` |
+| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311` and `kubernetes_namespace_node_writer.go:89` | `EdgeWriter` and `KubernetesNamespaceNodeWriter` |
+| `Workload` | `id` | `reducer/workload_materializer.go:351` | `WorkloadMaterializer` |
+| `WorkloadInstance` | `id` | `reducer/workload_materializer.go:370` | `WorkloadMaterializer` |
+| `Platform` | `id` | `reducer/workload_materializer.go:400` and `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer` and `InfrastructurePlatformMaterializer` |
+| `Endpoint` | `id` | `reducer/workload_materializer.go:435` | `WorkloadMaterializer` |
 
-`Environment` is the sharpest one: `CanonicalNodeWriter` and an unfenced reducer
-writer MERGE the same label on the same `name` key, so an identity change there
-would be fenced on one side and unfenced on the other during the same rollout.
+`storage/cypher/canonical.go:24,36,50` holds a second set of Workload,
+WorkloadInstance, and Platform upserts on the same `id` keys, but nothing calls
+their builders in production.
+`rg -n 'BuildCanonicalWorkloadUpsert|BuildCanonicalWorkloadInstanceUpsert|BuildCanonicalRuntimePlatformUpsert' go/ -l`
+returns five files: `storage/cypher/canonical.go` where the three builders are
+defined, `canonical_test.go` and `canonical_orphan_metadata_test.go`, and the
+`README.md` / `AGENTS.md` that cite them as a pattern to copy. No caller. The
+live writes for those four labels are the materializers'.
+
+`Repository` is the sharpest one: `CanonicalNodeWriter` MERGEs
+`(r:Repository {id: $repo_id})` at `canonical_node_cypher.go:115`, issued through
+`canonical_node_writer_phases.go:36`, and the unfenced `EdgeWriter` MERGEs the
+same label on the same `id` key. An identity change there would be fenced on one
+side and unfenced on the other during the same rollout.
+
+`Environment` is not that shape, though an earlier draft of this record and of
+`go/internal/graphschemacompat/AGENTS.md` both said it was. A #6123 review was
+right: `CanonicalNodeWriter` never touches the label.
+`rg -n Environment go/internal/storage/cypher/canonical_node_cypher.go go/internal/storage/cypher/canonical_node_writer.go`
+exits 1 with no output, and the two writers in the table row above are both
+unfenced. An `Environment` cutover has no fenced side at all. That is worse than
+the sentence claimed, not a smaller problem.
 
 The `uid`-keyed remainder, for completeness: `EdgeWriter` also MERGEs
 `DocumentationSection`, `Rationale`, and `ShellCommand`; `SemanticEntityWriter`

@@ -45,10 +45,14 @@ const DefaultWriteFenceInterval = 30 * time.Second
 // and cmd/projector wire one; cmd/bootstrap-index deliberately does not, being a
 // one-shot seeder. Every writer cmd/reducer builds runs unfenced -- EdgeWriter
 // (built twice), SemanticEntityWriter, SecretsIAMGraphWriter, the OrphanSweepStore,
-// and every field of cmd/reducer's canonicalGraphWriters struct, which is wider
-// than the cloud/Kubernetes/IAM writers it is often described as. AGENTS.md
-// carries the constructor-level inventory and the command that regenerates it.
-// A marker recorded under a running reducer stops none of them.
+// every field of cmd/reducer's canonicalGraphWriters struct, which is wider than
+// the cloud/Kubernetes/IAM writers it is often described as, and the two
+// reducer-native materializers WorkloadMaterializer and
+// InfrastructurePlatformMaterializer, which live in internal/reducer rather than
+// internal/storage/cypher and so are missed by any inventory search keyed on the
+// writer package. AGENTS.md carries the constructor-level inventory and the
+// command that regenerates it. A marker recorded under a running reducer stops
+// none of them.
 //
 // Deployment ordering is not a substitute. It gates when a writer may start,
 // not whether one already running stops: the Helm schema Job is a pre-upgrade
@@ -62,10 +66,14 @@ const DefaultWriteFenceInterval = 30 * time.Second
 // Module node on name: the canonical `MERGE (m:Module {name, lang})` belongs to
 // CanonicalNodeWriter, the reducer's only Module upsert MERGEs on uid, and the
 // orphan sweep already keys Module on (name, lang). Other labels are less
-// lucky. Unfenced reducer writers MERGE five labels on a key that is not uid --
-// Repository, EvidenceArtifact, and CloudAction on id, CodeownerTeam on ref,
-// and Environment on name -- and a cutover on any of those lands in the gap,
-// with those pods checked at startup and writing through the whole rollout.
+// lucky. Unfenced reducer writers MERGE nine labels on a key that is not uid --
+// Repository, EvidenceArtifact, CloudAction, Workload, WorkloadInstance,
+// Platform, and Endpoint on id, CodeownerTeam on ref, and Environment on name --
+// and a cutover on any of those lands in the gap, with those pods checked at
+// startup and writing through the whole rollout. Repository is the sharpest:
+// the fenced CanonicalNodeWriter MERGEs it on the same id key the unfenced
+// EdgeWriter does, so that cutover is fenced on one side of a rollout and not
+// the other. The last four come from the two materializers named above.
 //
 // Two gaps stay open regardless. A writer from a release that predates the fence
 // contains no call to it, and an unfenced writer has none to make. Only stopping
