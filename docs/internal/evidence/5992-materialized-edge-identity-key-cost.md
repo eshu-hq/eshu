@@ -22,24 +22,74 @@ write path.
 
 ## No-Regression Evidence
 
-No-Regression Evidence: `Key()` with a nil or empty `Identity` takes the
-byte-identical early-return path that existed before this field, so every
-family with no declared identity (twelve of fourteen, including the two
-already-proven families `sql_relationships` and `code_calls`) pays no added
-cost and needs no re-proof — pinned by
-`TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity` and
-`TestLoadExpectedEdgesCommittedFixturesStillLoad`
-(`go/internal/ifa/materialized_edges_assert_test.go`).
+### Revision: every comparison key is now length-prefixed, not just the identity suffix
 
-The added cost applies ONLY to the two families that declare identity
-properties. `BenchmarkExpectedEdgeKey` measures both paths directly (same
-file):
+The section below this one is the ORIGINAL evidence, from when only `Key()`'s
+`Identity`-bearing suffix used a length-prefixed encoding and the
+no-`Identity` path stayed byte-identical to the pre-`Identity` raw `"|"`-join.
+Code review (two rounds) found that split left real injectivity defects
+behind: `Key()`'s no-`Identity` path delegates to `sqlRelationshipEdgeKey`,
+which still joined `RelationshipType`, `SourceEntityID`, and `TargetEntityID`
+with a raw, unescaped `"|"` — the same defect class, just one level down —
+and `codeCallEdgeKey` (`code_calls`'s own comparison key, unrelated to
+`Key()`) had it too. `code_calls` is already proven live on both live gates;
+a `"|"` inside a code-entity uid (legal — these uids are path-derived) could
+silently collapse two of its five expected edges, with the exact-set
+assertion unable to tell (`TestCodeCallEdgeKeyIsInjective`,
+`TestSQLRelationshipEdgeKeyIsInjective`, both RED before the fix and GREEN
+after).
+
+Verified before changing the encoding: every consumer of `Key()`,
+`sqlRelationshipEdgeKey`, and `codeCallEdgeKey` builds the key fresh, in
+memory, on both sides of a `map` or `==` comparison inside one process run —
+grepped across `internal/ifa` and `cmd/ifa`. Nothing persists a key, logs it
+as a stored artifact, or compares it against a fixture-authored literal, so
+changing the byte format cannot invalidate a prior live-gate proof: what
+those proofs established is that the same extraction logic reproduces the
+same edge set, which holds regardless of how set membership is encoded. All
+three functions now share ONE injective, length-prefixed
+(`writeLengthPrefixedField`) encoding, so `Key()` no longer branches on
+encoding at all — only on whether `Identity` fields exist to append.
+
+The practical consequence: the twelve families that declare no identity no
+longer get a free, near-zero-cost key — `sqlRelationshipEdgeKey` (their
+shared delegate) now pays the same length-prefixing cost the two
+identity-bearing families always did, just for three fields instead of five
+or seven. Current numbers, Apple M5 Max,
+`go test ./internal/ifa/... -run '^$' -bench BenchmarkExpectedEdgeKey -benchmem -count=3`:
 
 ```
-go test ./internal/ifa/... -run '^$' -bench BenchmarkExpectedEdgeKey -benchmem -count=3
+BenchmarkExpectedEdgeKey/nil_identity_(before)-18            67.9–70.9 ns/op  120 B/op  4 allocs/op
+BenchmarkExpectedEdgeKey/two-property_identity_(after)-18   140.2–141.5 ns/op 176 B/op  4 allocs/op
 ```
 
-Apple M5 Max, three iterations each:
+At 10^4-10^5 edges per `assert-edges` invocation, that is roughly 0.7 ms to
+7.1 ms of CPU time for every family (up from effectively zero before), and
+roughly 1.4 ms to 14.1 ms for a family entirely composed of identity-bearing
+edges in the worst case — still negligible against a live gate whose wall
+time is dominated by minutes of Docker bring-up and Bolt streaming, and the
+`nil` path's own before/after numbers below show this class of cost was
+never actually free; it was only unmeasured until an injectivity fix forced
+the comparison.
+
+A precomputed key (caching `Key()` on `ExpectedEdge` or the live edge
+struct) was considered and rejected, now for a stronger reason than before:
+correctness, not just cost, is at stake, and caching would add a
+cache-invalidation surface across the fixture-load and live-stream paths for
+a saving these numbers show is not needed at this scale.
+
+### Original evidence: identity-suffix-only length-prefixing (superseded above)
+
+`Key()` with a nil or empty `Identity` took the byte-identical early-return
+path that existed before the `Identity` field, so every family with no
+declared identity (twelve of fourteen, including the two already-proven
+families `sql_relationships` and `code_calls`) paid no added cost and needed
+no re-proof — pinned at the time by `TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity`
+(since renamed and repurposed;
+see `TestExpectedEdgeKeyEmptyIdentityMatchesSQLRelationshipEdgeKey`) and
+`TestLoadExpectedEdgesCommittedFixturesStillLoad`.
+
+`BenchmarkExpectedEdgeKey` measured both paths directly at that point:
 
 ```
 BenchmarkExpectedEdgeKey/nil_identity_(before)-18           21.6–22.8 ns/op    48 B/op   1 allocs/op
@@ -53,42 +103,13 @@ BenchmarkExpectedEdgeKey/nil_identity_(before)-18          23.99 ns/op    48 B/o
 BenchmarkExpectedEdgeKey/two-property_identity_(after)-18  112.6  ns/op  192 B/op   3 allocs/op
 ```
 
-Both runs land in the same range: roughly a 5x per-key cost for the two
-identity-bearing families, still sub-microsecond.
-
-### Update: the injectivity fix raised the identity-path cost
-
-Review found `Key()`'s original identity-suffix encoding (raw `"|"`-joined
-components) was not injective -- two structurally distinct edges could render
-the same string (see `TestExpectedEdgeKeyIsInjective`). The fix switches the
-non-empty-`Identity` path to a length-prefixed ("<byte length>:<content>")
-encoding of every component, which costs more per key: an initial
-`fmt.Fprintf`-based implementation measured 440-461 ns/op, 312 B/op, 11
-allocs/op -- roughly 4x the pre-fix "after" number. Replacing `fmt.Fprintf`
-with direct `strconv.Itoa` plus `strings.Builder` writes
-(`writeLengthPrefixedField`) brought it back down:
-
-```
-BenchmarkExpectedEdgeKey/nil_identity_(before)-18            26.5–26.7 ns/op    48 B/op   1 allocs/op
-BenchmarkExpectedEdgeKey/two-property_identity_(after)-18   161.4–167.7 ns/op  176 B/op   4 allocs/op
-```
-
-The nil-identity path is unchanged (it never runs the length-prefixed
-encoding at all -- confirmed by `TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity`
-still passing byte-for-byte). The identity-bearing path now costs about 6x
-the nil path instead of 5x, still under 200 ns per key. At the same
-10^4-10^5 edges-per-assertion scale, that is roughly 1.6 ms to 16.4 ms of
-added CPU time for a family entirely composed of identity-bearing edges in
-the worst case -- still negligible against a live gate whose wall time is
-dominated by minutes of Docker bring-up and Bolt streaming. The other twelve
-families see no change: their edges stay on the nil-identity path at the
-"before" cost with a byte-identical key.
-
-A precomputed key (caching `Key()` on `ExpectedEdge` or the live edge struct)
-was considered and rejected: it would add a cache-invalidation surface —
-keeping a cached key consistent with a mutated `Identity` map across the
-fixture-load and live-stream paths — for a cost that this measurement shows
-is irrelevant at the scale these gates run at.
+An intermediate `fmt.Fprintf`-based implementation of the length-prefixed
+encoding cost 440-461 ns/op, 312 B/op, 11 allocs/op — roughly 4x the
+`fmt`-free version — before being replaced with direct `strconv.Itoa` plus
+`strings.Builder` writes (`writeLengthPrefixedField`), which brought it down
+to 161.4-167.7 ns/op, 176 B/op, 4 allocs/op at that time. See the revision
+above for the current, final numbers now that the same encoding covers every
+path.
 
 ## Observability Evidence
 
