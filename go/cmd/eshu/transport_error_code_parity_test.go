@@ -20,9 +20,12 @@ import (
 //
 // The three are copies with identical bodies. cmd/eshu is package main, so
 // nothing can import the original, and each copy has its own callers:
-// `eshu trace`, `eshu map`, and component_api use the original, `eshu change
-// impact` and `eshu change plan` use the change copy, and the freshness
-// commands use the freshness copy. #6117 edited the original mid-epic.
+// `eshu trace` and component_api use the original, `eshu change impact` and
+// `eshu change plan` use the change copy, and the freshness commands use the
+// freshness copy. A fourth copy, entitymap's unexported transportErrorCode,
+// serves `eshu map` behind a wrapper that answers 409 and nil differently, so
+// it cannot join this table; TestEntityMapTransportClassifierMatchesTrace
+// pins it against the original instead. #6117 edited the original mid-epic.
 // Without this test the next such edit would reach one copy and leave the
 // others classifying on the old table, with nothing in the tree going red.
 //
@@ -41,9 +44,13 @@ import (
 func TestTransportErrorCodeParity(t *testing.T) {
 	t.Parallel()
 
-	// Every copy of the classifier belongs here. A copy left out of this slice
-	// is a copy nothing pins, which is the exact hole this test exists to
-	// close, so the count is asserted below.
+	// Every copy of the classifier that answers the shared table belongs
+	// here. A copy left out of this slice is a copy nothing pins, which is
+	// the exact hole this test exists to close, so the count is asserted
+	// below. The one deliberate absence is entitymap's transportErrorCode:
+	// it is unexported and reachable only through a wrapper whose 409 and
+	// nil answers differ, so TestEntityMapTransportClassifierMatchesTrace
+	// pins it instead.
 	subjects := []struct {
 		name string
 		fn   func(error) string

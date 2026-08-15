@@ -94,7 +94,11 @@ metrics.
   these are its first candidates for deletion. Until then the parity tests
   in `go/cmd/eshu/entitymap_parity_test.go` hold the copies to their
   originals: token-identical bodies for the readers, and a shared input
-  table for the transport classifier.
+  table for the transport classifier. `twin_source_test.go` in this package
+  repeats the source checks from the focused
+  `go test ./internal/cli/entitymap/` loop -- for the classifier it first
+  normalises the `http.Status*` constants to the numbers the original
+  spells out.
 
 ## Related docs
 

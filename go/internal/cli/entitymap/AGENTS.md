@@ -32,7 +32,11 @@
   `go/cmd/eshu/entitymap_parity_test.go` enforces this by running one input
   table through both classifiers, and
   `TestEntityMapTransportClassifierPinnedDivergences` pins the only allowed
-  differences (409 and nil).
+  differences (409 and nil). From inside this package,
+  `TestTransportClassifierMatchesItsTraceOriginal` in `twin_source_test.go`
+  compares the two bodies' source with the `http.Status*` constants
+  normalised to their numeric values, so the focused loop
+  `go test ./internal/cli/entitymap/` also goes red on drift.
 - **The value readers in `values.go` are copies too**, of the `trace*`
   helpers in the same file. Do not "deduplicate" them by importing
   `go/cmd/eshu`; it cannot be imported.
@@ -41,6 +45,9 @@
   bodies for all six readers (change both or neither), and
   `TestEntityMapFreshnessStateMatchesTraceReaders` adds a behavioral table
   for the two reachable through the exported surface.
+  `TestValueReadersMatchTheirTraceOriginals` in `twin_source_test.go` runs
+  the same source comparison from inside this package, so the focused loop
+  catches a reader edit too.
 
 ## Common changes and how to scope them
 

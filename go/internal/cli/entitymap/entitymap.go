@@ -214,7 +214,10 @@ func ErrorCodeFromTransport(err error) string {
 // go/cmd/eshu/trace.go, kept byte-for-byte in behavior.
 // TestEntityMapTransportClassifierMatchesTrace in
 // go/cmd/eshu/entitymap_parity_test.go runs one input table through both and
-// fails when they diverge.
+// fails when they diverge, and TestTransportClassifierMatchesItsTraceOriginal
+// in twin_source_test.go compares the two bodies from this package's own test
+// run, with the http.Status* constants normalised to the numbers the
+// original spells out.
 //
 // The message checks run BEFORE the status switch on purpose: an error that
 // carries both a status and "connection refused" reached the API layer through

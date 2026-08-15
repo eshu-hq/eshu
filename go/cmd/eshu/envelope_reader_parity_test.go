@@ -20,8 +20,11 @@ import (
 // intValue / boolValue, and freshness's set of the same five names.
 //
 // The three sets are copies with identical bodies, for the same reason the
-// transport classifier next door has three: cmd/eshu is package main, so
-// nothing can import the originals, and each family needs its own set. Unlike
+// transport classifier next door has copies: cmd/eshu is package main, so
+// nothing can import the originals, and each family needs its own set. The
+// entitymap family keeps a fourth, differently named set without the bool
+// reader; TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins that
+// one against the originals, so it stays out of this table. Unlike
 // the classifier, the copies here are unexported in every package, so a
 // behavioral table cannot reach them from one test -- exporting five helpers
 // in two packages to make that possible would widen two package APIs for a
