@@ -18,9 +18,16 @@
    `graphStatusForLayout`, `runGraphStart`, `runGraphStop`
 6. `go/internal/cli/procexec` — the shared re-exec seam: `procexec.Executable`,
    `procexec.Getwd`, `procexec.LookPath`, `procexec.Exec`, `procexec.Environ`,
-   `procexec.CleanExecutableArg0`, `procexec.MergeEnvironment`. Every command
-   family here that hands the process over to another binary goes through it,
-   and its `AGENTS.md` carries the substitution rules tests must follow
+   `procexec.CleanExecutableArg0`, `procexec.MergeEnvironment`. `eshu mcp start`
+   (both the stdio and the HTTP path), `eshu graph start`, and `eshu watch` hand
+   the process over through it, which is what lets their tests substitute the
+   seams instead of losing the test process to a real `syscall.Exec`. Three
+   re-exec paths do not, so do not assume you can stub them the same way:
+   `eshu api start` and `eshu serve` call `syscall.Exec` directly in
+   `service.go` with `exec.LookPath` and `os.Environ`, and `eshu index` goes
+   through its own `indexLookPath` / `indexExec` pair in `basic.go`, which
+   `basic_test.go` substitutes instead. Route a new re-exec through `procexec`;
+   its `AGENTS.md` carries the substitution rules tests must follow
 7. `go/internal/cli/` — where command logic that is not process wiring lives,
    because this directory is `package main`. `eshu report`'s digest and
    artifact logic is in `go/internal/cli/opdigest`; read that package's
@@ -35,10 +42,15 @@
   that same `rootCmd` literal calls
   `os.Setenv("ESHU_RUNTIME_DB_TYPE", globalDatabase)`. This affects every child
   process exec'd in the same process.
-- **Service-launch via `syscall.Exec`** — `eshu mcp start` (stdio path),
-  `eshu api start`, and `eshu graph start` replace the current process image via
-  `procexec.Exec` (backed by `syscall.Exec`). No Eshu logic runs after the exec
-  point. Enforced in `service.go` and `graph.go`.
+- **Service-launch replaces the process image** — `eshu mcp start` (both paths),
+  `eshu api start`, `eshu serve`, `eshu graph start`, `eshu watch`, and
+  `eshu index` all reach `syscall.Exec`, so no Eshu logic runs after the exec
+  point: nothing deferred, no flush, no cleanup. Anything the operator must see
+  has to be written before the call. Which route they take differs and matters
+  when you write a test — `procexec.Exec` for `mcp start` (`service.go`),
+  `graph start` (`graph.go`), and `watch` (`basic.go`); a bare `syscall.Exec`
+  for `api start` and `serve` (`service.go`); the local `indexExec` var for
+  `index` (`basic.go`).
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
   `removedCommandError` in `contract.go` instead of silently succeeding or

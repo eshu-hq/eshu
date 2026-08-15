@@ -90,6 +90,13 @@ telemetry.
   "harmonize" the families without deciding to change these commands' exit
   codes on purpose. `TestRunGenerationsExitsZeroWhileTheIndexIsBuilding` and
   `TestExitCodeForErrorCodeRejectsBuildingSpelling` fail if someone does.
+- **The exit-code table is one of two identical copies.** `traceExitCode` in
+  `go/cmd/eshu/trace.go` is the original — `go/cmd/eshu` is package main and
+  cannot be imported, so this family carries its own. `TestExitCodeTableParity`
+  there holds both to the same answers, which matters more here than for the
+  other shared helpers: an exit code is what an operator's script branches on,
+  so a one-sided edit would surface as a pipeline taking the wrong branch, not
+  as a failure anyone could trace back.
 - **Message checks precede the status switch in `ErrorCodeFromTransport`.** An
   error carrying both an HTTP status and the text "connection refused"
   classifies as `backend_unavailable`. The `err != nil` guards on those two

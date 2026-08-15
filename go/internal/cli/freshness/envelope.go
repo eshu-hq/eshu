@@ -70,13 +70,24 @@ func EnvelopeFailure(e *EnvelopeError) *Failure {
 }
 
 // ExitCodeForErrorCode maps an envelope error code to the process exit code
-// the freshness commands have always returned for it. The mapping is over
-// error *codes* only. Freshness *states* -- "building", "stale" as they appear
-// under truth.freshness.state -- are not codes and are deliberately absent:
-// this family reports a non-fresh state in its output and still exits 0, which
-// is where it differs from `eshu trace service`, `eshu change impact`, and
-// `eshu map`, all of which exit 4 on a non-fresh state. See
-// TestExitCodeForErrorCodeRejectsBuildingSpelling.
+// the freshness commands have always returned for it.
+//
+// It is one of two identical copies. The original is traceExitCode in
+// go/cmd/eshu/trace.go, which serves `eshu trace`, `eshu map`, component_api,
+// and the envelope arm of `eshu change impact`. cmd/eshu is package main, so
+// nothing can import the original, and each copy keeps its own callers. Change
+// one and you must change the other: TestExitCodeTableParity in go/cmd/eshu
+// feeds one code table to both copies and names the one that answered
+// differently. An exit code is what operator scripts branch on, so a drift
+// between the copies would first show up as a pipeline taking the wrong branch
+// rather than as a test failure.
+//
+// The mapping is over error *codes* only. Freshness *states* -- "building",
+// "stale" as they appear under truth.freshness.state -- are not codes and are
+// deliberately absent: this family reports a non-fresh state in its output and
+// still exits 0, which is where it differs from `eshu trace service`,
+// `eshu change impact`, and `eshu map`, all of which exit 4 on a non-fresh
+// state. See TestExitCodeForErrorCodeRejectsBuildingSpelling.
 func ExitCodeForErrorCode(code string) int {
 	switch strings.TrimSpace(code) {
 	case "ambiguous":

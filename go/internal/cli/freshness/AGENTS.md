@@ -25,6 +25,14 @@
   strings to the switch would change operator-visible exit codes and is a
   decision, not a cleanup. `TestExitCodeForErrorCodeRejectsBuildingSpelling`
   and `TestRunGenerationsExitsZeroWhileTheIndexIsBuilding` guard it.
+- **`ExitCodeForErrorCode` is one of two identical copies.** The other is
+  `traceExitCode` in `go/cmd/eshu/trace.go` (the original, serving
+  `eshu trace`, `eshu map`, component_api, and the envelope arm of
+  `eshu change impact`). `go/cmd/eshu` is package main, so nothing can import
+  it. Edit one and you must edit both — `TestExitCodeTableParity` in
+  `go/cmd/eshu` feeds one code table to both copies and names the one that
+  answered differently. Without it a one-sided edit ships an exit code that
+  scripts branch on, with every test in the tree still green.
 - **`ErrorCodeFromTransport` checks the message before the status.** The two
   `strings.Contains` calls run first and their `err != nil` guards are load
   bearing. `TestErrorCodeFromTransportMessagePrecedesStatus` fails if the
@@ -65,9 +73,11 @@
   route constant, an options struct, a path builder, a `Fetch`, a `Run`, and a
   `RenderXSummary`. Reuse `fetch`, `finish`, `failureOf`, and
   `RenderEnvelopeError` rather than reimplementing the failure path.
-- **Change an exit code** → change `ExitCodeForErrorCode` and the table in
-  `TestExitCodeForErrorCodeTable` in the same commit, and say in the PR body
-  which scripted callers the change affects.
+- **Change an exit code** → change `ExitCodeForErrorCode`, its copy
+  `traceExitCode` in `go/cmd/eshu/trace.go`, the table in
+  `TestExitCodeForErrorCodeTable`, and the table in `TestExitCodeTableParity`
+  in the same commit, and say in the PR body which scripted callers the change
+  affects.
 
 ## Failure modes and how to debug
 
