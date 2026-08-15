@@ -57,6 +57,37 @@ func TestBuildDocumentationRowMapRoutesWorkloadTarget(t *testing.T) {
 	}
 }
 
+// TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel pins production
+// truth for issue #5994: a documentation entity mention whose candidate
+// resolves to a SQL table (target_kind "table") is NOT distinguished from a
+// code-entity target by buildDocumentationRowMap's switch (only "workload"
+// and "service" are distinct cases; everything else, including "table",
+// falls through to the default branch and is routed to
+// batchCanonicalDocumentationEntityEdgeCypher). That template's MATCH clause
+// is `(target:Function|Class|Struct|Interface|TypeAlias|Enum|File {uid:
+// row.target_entity_id})` -- SqlTable is absent from the label alternation,
+// even though SqlTable nodes are uid-keyed exactly like the labels that ARE
+// present (canonical.go:163's SQL relationship writer MATCHes SqlTable by
+// uid the same way). So a "table"-kind mention's DOCUMENTS edge write
+// silently no-ops against a live backend: the MERGE half creates the
+// DocumentationSection node, but the target MATCH never finds a SqlTable
+// node, so no relationship is ever created and no error surfaces.
+func TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel(t *testing.T) {
+	payload := map[string]any{
+		"section_uid":      "docsec:1",
+		"target_entity_id": "sqltable:public.payments",
+		"target_kind":      "table",
+	}
+	cypher, _, ok := buildDocumentationRowMap(payload, "reducer/documentation")
+	if !ok {
+		t.Fatal("buildDocumentationRowMap ok = false, want true")
+	}
+	if !strings.Contains(cypher, "SqlTable") {
+		t.Fatalf("target_kind=\"table\" routed to a cypher template whose MATCH clause does not mention SqlTable: %q; "+
+			"a documentation mention resolving to a SQL table cannot materialize a DOCUMENTS edge against a live backend", cypher)
+	}
+}
+
 func TestBuildDocumentationRowMapDropsServiceTarget(t *testing.T) {
 	payload := map[string]any{
 		"section_uid":      "docsec:1",
