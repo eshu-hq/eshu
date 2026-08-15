@@ -197,6 +197,7 @@ code_call_gate_seams=(
 	'go/internal/content/writer.go|go/internal/content/writer.go'
 	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
 	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
+	'go/internal/storage/postgres/facts_active_code_call_symbols.go|go/internal/storage/postgres/facts_active_code_call_symbols.go'
 	'go/internal/storage/postgres/shared_intent_acceptance_writer.go|go/internal/storage/postgres/shared_intent_acceptance_writer.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance_rowcount_test.go'
@@ -207,6 +208,8 @@ code_call_gate_seams=(
 	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_upsert.go'
 	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_history.go'
 	'go/internal/storage/postgres/shared_intents*.go|go/internal/storage/postgres/shared_intents_partition_candidates.go'
+	'go/cmd/reducer/config.go|go/cmd/reducer/config.go'
+	'go/cmd/reducer/main_helpers.go|go/cmd/reducer/main_helpers.go'
 )
 for seam in "${code_call_gate_seams[@]}"; do
 	trigger="${seam%%|*}"

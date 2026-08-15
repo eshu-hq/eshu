@@ -41,6 +41,7 @@ func TestCrossScopeReadinessProofsRunInTheReducerContentionGate(t *testing.T) {
 		t.Fatalf("compile the gate's -run filter %q: %v", runFilter, err)
 	}
 	for _, name := range []string{
+		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
 		"TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
 	} {
