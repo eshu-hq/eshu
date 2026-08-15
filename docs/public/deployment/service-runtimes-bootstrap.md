@@ -51,16 +51,30 @@ expected/applied fingerprint message the startup refusal uses. A marker the
 writer cannot read is not a refusal — it holds the last decision, so an
 unreachable Postgres does not stop those writers at once.
 
-Two kinds of writer never make that call, so nothing checks a marker for them
-after startup. One is a pod from a release built before the write-path check
-existed. The other is the resolution engine, whose graph writers are checked at
-startup only.
+Three kinds of writer never make that call, so nothing checks a marker for them
+after startup:
+
+- A pod from a release built before the write-path check existed.
+- The resolution engine, whose graph writers are checked at startup only.
+- `eshu-bootstrap-index`, which is checked at startup and then writes to
+  completion. It is a one-shot seeder, so it takes no fence by design.
+
+Deployment ordering does not close this. It decides when a writer may start, not
+whether one already running stops: the Helm schema-bootstrap Job is a
+pre-upgrade hook, so it records the marker while the outgoing pods are still
+serving at their configured replica count, and Compose's `depends_on` gate is a
+start condition on a container that is not yet running.
 
 So upgrading across a schema change that leaves the compatible list empty still
-means stopping the old writers before bootstrap records the marker — scale
-ingester, projector, and resolution engine to zero, run the upgrade, then scale
-back up — or accepting that pods of the outgoing release keep writing until
-Kubernetes replaces them.
+means stopping the old writers before bootstrap records the marker — or
+accepting that they keep writing until they are replaced:
+
+- **Kubernetes.** Scale ingester, projector, and resolution engine to zero, run
+  the upgrade, then scale back up.
+- **Direct and Compose installs.** Do the same for the long-lived runtimes, and
+  let any active `eshu-bootstrap-index` run finish or stop it first. A
+  bootstrap-index run that overlaps schema bootstrap keeps writing across the
+  new marker, the same way the long-lived runtimes do.
 
 Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
 `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
@@ -121,6 +135,11 @@ exists, bootstrap-index applies the same strict checked-in graph schema, writes
 the marker only after all graph statements succeed, then opens the normal
 projection writer. If a latest marker exists but is incompatible, bootstrap-index
 fails closed instead of applying schema or writing graph data.
+
+That check runs at startup only. A bootstrap-index run already in flight when a
+schema upgrade records a new marker keeps writing under the old one, so let it
+finish or stop it before running schema bootstrap. See
+[Deployment Contract](#deployment-contract).
 
 Repeated restarts or long-running bootstrap activity are incidents. Use the
 ingester, workflow coordinator, hosted collectors, and resolution engine for

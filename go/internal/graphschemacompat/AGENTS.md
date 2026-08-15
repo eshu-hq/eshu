@@ -57,13 +57,114 @@ leans on it. Only `CanonicalNodeWriter` accepts a fence
 
 - **Fenced** - `cmd/ingester` (`wiring_canonical_writer_open.go`) and
   `cmd/projector` (`runtime_wiring.go`).
-- **Unfenced on purpose** - `cmd/bootstrap-index` (`wiring.go`), a one-shot
-  seeder that applies or adopts the schema itself and exits.
-- **Unfenced** - every writer `cmd/reducer` builds: `EdgeWriter`,
-  `SemanticEntityWriter`, `SecretsIAMGraphWriter`, the specialized cloud,
-  Kubernetes, and IAM writers in `cmd/reducer/canonical_graph_writers.go`, and
-  the orphan sweep store. A marker recorded under a running reducer does not
-  stop its writes.
+- **Unfenced on purpose** - `cmd/bootstrap-index` (`wiring.go:248`), a one-shot
+  seeder that applies or adopts the schema itself and exits. It builds a
+  `CanonicalNodeWriter` with no `WithSchemaWriteFence`, so a run that overlaps a
+  schema upgrade keeps writing past its own startup check.
+- **Unfenced** - every writer `cmd/reducer` builds. A marker recorded under a
+  running reducer stops none of them.
+
+### The reducer writer inventory
+
+Regenerate it rather than trusting the prose; the list below is what this
+command returned. It keys on the constructor's first argument, not on the
+package the constructor is imported from — a package-keyed search misses the two
+materializers in `go/internal/reducer`, which is how they went unlisted until a
+#6123 review caught it:
+
+```bash
+rg -n '\.New\w+\((exec|executor|neo4jExec|cypherExec)[,)]' go/cmd/reducer --glob '!*_test.go'
+```
+
+This matches four hard-coded identifier spellings. It is not a type check, and
+`rg` cannot do one. The four cover every writer constructor at this SHA, but a
+writer handed a differently-named executor, or taking it as a later argument or
+a struct field, would be missed silently. Before trusting the table, confirm the
+spellings still cover the tree with
+`rg -n 'sourcecypher\.Executor|reducer\.CypherExecutor|sourcecypher\.InstrumentedExecutor\{' go/cmd/reducer --glob '!*_test.go'`.
+
+`semanticEntityExecutor` (`main.go:177`) shows how thin the coverage is. Neither
+command sees it — it is assigned from a call, so no type name is on the line —
+and its writer lands in the table only because `main.go:183` passes it to
+`semanticEntityWriterForGraphBackend`, whose parameter happens to be named
+`executor` (`neo4j_wiring.go:247`).
+
+The identity sweep below is the real backstop: it keys on emitted Cypher, so a
+writer this command misses still surfaces there as an unattributed node MERGE.
+
+| Construction site | Writer |
+| --- | --- |
+| `main.go:360` | `EdgeWriter` (shared-projection edges, every domain) |
+| `main.go:234` | `WorkloadMaterializer` |
+| `main.go:235` | `InfrastructurePlatformMaterializer` |
+| `endpoint_presence_wiring.go:90` | a second `EdgeWriter` |
+| `neo4j_wiring.go:252,260` | `SemanticEntityWriter` / `SemanticEntityWriterWithCanonicalNodeRows` |
+| `secrets_iam_graph_wiring.go:63` | `SecretsIAMGraphWriter` |
+| `graph_orphan_sweep_wiring.go:27` | `OrphanSweepStore` |
+| `canonical_graph_writers.go:78-124` | the `canonicalGraphWriters` struct's directly-constructed writers |
+
+The command omits one thing on purpose, so an omission is distinguishable from
+drift: the eight `graphowner` gate wrappers take `ownerGate` or `lockGate` as
+their first argument, not the executor. They emit no Cypher of their own, and
+every one's raw writer is already in the output at
+`canonical_graph_writers.go:78-86`. List them with
+`rg -n '\*graphowner\.\w+Writer$' go/cmd/reducer/canonical_graph_writers.go`.
+
+The `canonicalGraphWriters` row used to be described here as "the specialized
+cloud, Kubernetes, and IAM writers", which under-counted it: the struct also
+holds `incidentRoutingEvidence`, `codeTaintEvidence`, `codeInterprocEvidence`,
+`provenanceEdge`, `crossplaneSatisfiedByEdge`, `observabilityCoverageEdge`, and
+`s3ExternalPrincipalGrant`. Read the struct definition at
+`canonical_graph_writers.go:17-68` for the current set.
+
+### The node identities those writers key on
+
+Every node MERGE an unfenced reducer writer performs is keyed on `uid`, with
+nine exceptions. Each is named, because a bare count is not checkable:
+
+| Label | Key | Statement | Writer |
+| --- | --- | --- | --- |
+| `Repository` | `id` | `storage/cypher/canonical.go:131,134`, `canonical_relationships.go:161-256`, `canonical_codeowners_edges.go:33`, `canonical_submodule_edges.go:30-31` | `EdgeWriter` |
+| `EvidenceArtifact` | `id` | `storage/cypher/canonical_relationships.go:278` | `EdgeWriter` |
+| `CloudAction` | `id` | `storage/cypher/canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
+| `CodeownerTeam` | `ref` | `storage/cypher/canonical_codeowners_edges.go:34` | `EdgeWriter` |
+| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311`, `kubernetes_namespace_node_writer.go:89` | `EdgeWriter`, `KubernetesNamespaceNodeWriter` |
+| `Workload` | `id` | `reducer/workload_materializer.go:351` | `WorkloadMaterializer` |
+| `WorkloadInstance` | `id` | `reducer/workload_materializer.go:370` | `WorkloadMaterializer` |
+| `Platform` | `id` | `reducer/workload_materializer.go:400`, `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer`, `InfrastructurePlatformMaterializer` |
+| `Endpoint` | `id` | `reducer/workload_materializer.go:435` | `WorkloadMaterializer` |
+
+Paths are relative to `go/internal`. Re-derive with
+`rg -n 'MERGE \(\w+:' go/internal --glob '!*_test.go' --glob '!*.md'`, then trace
+each constant to the writer that issues it. Sweeping `go/internal/storage/cypher`
+alone, as this file used to say, misses the four materializer labels.
+
+The sweep returns non-`uid` clusters that have no row here because nothing
+issues them in production: `storage/cypher/canonical.go:24,36,50` (dead Workload
+/ WorkloadInstance / Platform builders), `canonical.go:72,75` plus
+`canonical_relationships.go:50-141` (dead `Repository {id}` builders), and
+`writer.go:26,36`, the `SourceLocalRecord` composite key belonging to
+`Adapter`, the projector's pre-canonical write path that the canonical types
+replaced. Nothing constructs `Adapter` outside tests. The evidence record has the
+commands that prove each one dead.
+
+**No test enforces any of this.** `write_fence_test.go`,
+`module_identity_fence_test.go`, and `compatibility_test.go` cover the fence's
+admission decision and its marker caching, nothing else. Adding a reducer writer,
+renaming an executor variable, or changing a label's identity key breaks none of
+them, and both tables above go stale silently. Re-run the two commands before
+relying on either.
+
+`Repository` is the sharpest case: the fenced `CanonicalNodeWriter` MERGEs
+`(r:Repository {id: $repo_id})` at `storage/cypher/canonical_node_cypher.go:115`
+and the unfenced `EdgeWriter` MERGEs the same label on the same key, so an
+identity change there is fenced on one side of a rollout and not the other.
+
+This file previously named `Environment` as that case. It is not one — a #6123
+review was right that `CanonicalNodeWriter` never references the label, and
+`rg -n Environment go/internal/storage/cypher/canonical_node_cypher.go go/internal/storage/cypher/canonical_node_writer.go`
+exits 1 with no output. Both `Environment` writers in the table are unfenced, so
+that cutover has no fenced side at all.
 
 The #6102 Module cutover is unaffected: no unfenced writer keys a Module node on
 name. `MERGE (m:Module {name, lang})` belongs to `CanonicalNodeWriter`, the
@@ -73,9 +174,13 @@ sweep already keys Module on `(name, lang)`.
 
 A future cutover on a label a reducer writer MERGEs on gets no such protection -
 those pods would be checked at startup only and keep writing through the
-rollout. Two gaps stay open either way: a release older than the fence contains
-no call to it, and an unfenced writer has none to make. Both need those pods
-stopped before bootstrap records the marker.
+rollout. Deployment ordering does not help: it decides when a writer may start,
+not whether one already running stops. Two gaps stay open either way: a release
+older than the fence contains no call to it, and an unfenced writer has none to
+make. Both need those pods stopped before bootstrap records the marker.
+
+The full working is in
+`docs/internal/evidence/module-node-identity-6106-review-follow-ups.md`.
 
 ## Anti-patterns specific to this package
 
