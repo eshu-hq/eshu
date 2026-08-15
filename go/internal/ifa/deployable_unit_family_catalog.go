@@ -64,10 +64,18 @@ const (
 // of the deployable_unit_edges family fixture.
 func deployableUnitFamilyOdu() CatalogOdu {
 	sourceRunID := "run-ifa-deployable-unit-family-1"
+	// LocalPath values are distinct from every other cataloged family's
+	// (sqlFamilyLocalPath "/repo", code_calls' "/repo-code-calls") so the
+	// live determinism matrix's canonical path cleanup for one family cannot
+	// delete this family's repository, mirroring
+	// TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily's proof.
+	appLocalPath := "/repo-deployable-unit-app"
+	deployLocalPath := "/repo-deployable-unit-deploy"
 	factsForOdu := []facts.Envelope{
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID:      deployableUnitFamilyAppRepoID,
 			SourceRunID: &sourceRunID,
+			LocalPath:   &appLocalPath,
 			GraphID:     strPtr(deployableUnitFamilyAppRepoID),
 			Name:        strPtr(deployableUnitFamilyAppRepoName),
 		}),
@@ -83,6 +91,7 @@ func deployableUnitFamilyOdu() CatalogOdu {
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID:      deployableUnitFamilyDeployRepoID,
 			SourceRunID: &sourceRunID,
+			LocalPath:   &deployLocalPath,
 			GraphID:     strPtr(deployableUnitFamilyDeployRepoID),
 			Name:        strPtr(deployableUnitFamilyDeployRepoName),
 		}),
