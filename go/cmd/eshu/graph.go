@@ -1,65 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 576 lines: graph subcommand tree, status output, and start/stop. The `graphCmd` var and its init()-registered children are wired in this file by design (see cmd/eshu/AGENTS.md).
+package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/graphinstall"
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
-
-var (
-	graphGetwd       = os.Getwd
-	graphBuildLayout = func(workspaceRoot string) (eshulocal.Layout, error) {
-		return eshulocal.BuildLayout(os.Getenv, os.UserHomeDir, runtime.GOOS, workspaceRoot)
-	}
-	graphReadOwnerRecord    = eshulocal.ReadOwnerRecord
-	graphAcquireOwnerLock   = eshulocal.AcquireOwnerLock
-	graphResolveBinary      = resolveNornicDBBinary
-	graphReadVersion        = readLocalGraphVersion
-	graphProcessAlive       = eshulocal.ProcessAlive
-	graphOwnerSocketHealthy = eshulocal.SocketHealthy
-	graphStopPostgres       = eshulocal.StopEmbeddedPostgres
-	graphStopGraphHealthy   = graphHealthyFromOwnerRecord
-	graphStopRecordedGraph  = stopRecordedLocalGraph
-	graphSignalProcess      = signalProcess
-	graphStopPollInterval   = 200 * time.Millisecond
-	graphStopTimeout        = localGraphShutdownTimeout
-	graphInstallNornicDB    = graphinstall.Install
-)
-
-type graphStatusOutput struct {
-	WorkspaceRoot   string `json:"workspace_root"`
-	WorkspaceID     string `json:"workspace_id"`
-	OwnerPresent    bool   `json:"owner_present"`
-	OwnerPID        int    `json:"owner_pid,omitempty"`
-	OwnerStarted    string `json:"owner_started_at,omitempty"`
-	Profile         string `json:"profile,omitempty"`
-	GraphBackend    string `json:"graph_backend,omitempty"`
-	GraphInstalled  bool   `json:"graph_installed"`
-	GraphBinaryPath string `json:"graph_binary_path,omitempty"`
-	GraphRunning    bool   `json:"graph_running"`
-	GraphPID        int    `json:"graph_pid,omitempty"`
-	GraphAddress    string `json:"graph_address,omitempty"`
-	GraphBoltPort   int    `json:"graph_bolt_port,omitempty"`
-	GraphHTTPPort   int    `json:"graph_http_port,omitempty"`
-	GraphDataDir    string `json:"graph_data_dir,omitempty"`
-	GraphLogPath    string `json:"graph_log_path,omitempty"`
-	GraphVersion    string `json:"graph_version,omitempty"`
-}
 
 func init() {
 	graphCmd := &cobra.Command{
@@ -129,8 +85,8 @@ another terminal for the same workspace.
 		RunE: runGraphStart,
 	}
 	graphStartCmd.Flags().String("workspace-root", "", "Explicit workspace root for local graph start")
-	graphStartCmd.Flags().String("progress", localHostProgressModeAuto, "Progress output mode: auto, plain, or quiet")
-	graphStartCmd.Flags().String("logs", localHostLogModeFile, "Child service log output mode: file, terminal, or quiet")
+	graphStartCmd.Flags().String("progress", localsupervisor.ProgressModeAuto, "Progress output mode: auto, plain, or quiet")
+	graphStartCmd.Flags().String("logs", localsupervisor.LogModeFile, "Child service log output mode: file, terminal, or quiet")
 	graphStartCmd.Flags().Bool("verbose", false, "Show child service logs in the terminal")
 	graphCmd.AddCommand(graphStartCmd)
 	graphStopCmd := &cobra.Command{
@@ -174,7 +130,7 @@ func runGraphStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	status, err := graphStatusForLayout(layout)
+	status, err := localsupervisor.StatusForLayout(layout)
 	if err != nil {
 		return err
 	}
@@ -190,7 +146,7 @@ func runGraphLogs(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return graphLogsForLayout(layout)
+	return localsupervisor.LogsForLayout(layout, os.Stdout)
 }
 
 func runGraphStart(cmd *cobra.Command, args []string) error {
@@ -206,7 +162,7 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	progressMode = strings.TrimSpace(progressMode)
-	if err := validateLocalProgressMode(progressMode); err != nil {
+	if err := localsupervisor.ValidateProgressMode(progressMode); err != nil {
 		return err
 	}
 	logMode, err := cmd.Flags().GetString("logs")
@@ -217,45 +173,27 @@ func runGraphStart(cmd *cobra.Command, args []string) error {
 	if verbose, err := cmd.Flags().GetBool("verbose"); err != nil {
 		return err
 	} else if verbose {
-		logMode = localHostLogModeTerminal
+		logMode = localsupervisor.LogModeTerminal
 	}
-	if err := validateLocalLogMode(logMode); err != nil {
+	if err := localsupervisor.ValidateLogMode(logMode); err != nil {
 		return err
 	}
-	binary, err := eshuExecutable()
+	binary, err := procexec.Executable()
 	if err != nil {
 		return fmt.Errorf("resolve eshu executable: %w", err)
 	}
-	env := mergeEnvironment(eshuEnviron(), map[string]string{
-		"ESHU_QUERY_PROFILE":     string(query.ProfileLocalAuthoritative),
-		"ESHU_GRAPH_BACKEND":     string(query.GraphBackendNornicDB),
-		localHostProgressModeEnv: progressMode,
-		localHostLogModeEnv:      logMode,
-		localHostLogDirEnv:       layout.LogsDir,
+	env := procexec.MergeEnvironment(procexec.Environ(), map[string]string{
+		"ESHU_QUERY_PROFILE":            string(query.ProfileLocalAuthoritative),
+		"ESHU_GRAPH_BACKEND":            string(query.GraphBackendNornicDB),
+		localsupervisor.ProgressModeEnv: progressMode,
+		localsupervisor.LogModeEnv:      logMode,
+		localsupervisor.LogDirEnv:       layout.LogsDir,
 	})
 	fmt.Fprintf(os.Stderr, "Starting local Eshu service for %s...\n", layout.WorkspaceRoot)
-	if logMode == localHostLogModeFile {
+	if logMode == localsupervisor.LogModeFile {
 		fmt.Fprintf(os.Stderr, "Child service logs: %s\n", layout.LogsDir)
 	}
-	return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
-}
-
-func validateLocalProgressMode(mode string) error {
-	switch mode {
-	case localHostProgressModeAuto, localHostProgressModePlain, localHostProgressModeQuiet:
-		return nil
-	default:
-		return fmt.Errorf("unsupported --progress %q; expected %s, %s, or %s", mode, localHostProgressModeAuto, localHostProgressModePlain, localHostProgressModeQuiet)
-	}
-}
-
-func validateLocalLogMode(mode string) error {
-	switch mode {
-	case localHostLogModeFile, localHostLogModeTerminal, localHostLogModeQuiet:
-		return nil
-	default:
-		return fmt.Errorf("unsupported --logs %q; expected %s, %s, or %s", mode, localHostLogModeFile, localHostLogModeTerminal, localHostLogModeQuiet)
-	}
+	return procexec.Exec(binary, []string{procexec.CleanExecutableArg0(binary), "local-host", "watch", layout.WorkspaceRoot}, env)
 }
 
 func runGraphStop(cmd *cobra.Command, args []string) error {
@@ -266,7 +204,7 @@ func runGraphStop(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return graphStopForLayout(layout)
+	return localsupervisor.StopForLayout(layout)
 }
 
 func runGraphUpgrade(cmd *cobra.Command, args []string) error {
@@ -285,11 +223,11 @@ func runGraphUpgrade(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := graphUpgradeForLayout(layout, graphinstall.Options{
+	result, err := localsupervisor.UpgradeForLayout(layout, graphinstall.Options{
 		From:        from,
 		SHA256:      checksum,
 		Force:       true,
-		ReadVersion: localGraphReadVersion,
+		ReadVersion: localsupervisor.ReadGraphVersion,
 	})
 	if err != nil {
 		return err
@@ -298,279 +236,12 @@ func runGraphUpgrade(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// graphLayoutFromCommand reads the --workspace-root flag and hands it to the
+// supervisor, which owns workspace resolution.
 func graphLayoutFromCommand(cmd *cobra.Command) (eshulocal.Layout, error) {
-	startPath, err := graphGetwd()
-	if err != nil {
-		return eshulocal.Layout{}, fmt.Errorf("resolve current working directory: %w", err)
-	}
 	explicitRoot, err := cmd.Flags().GetString("workspace-root")
 	if err != nil {
 		return eshulocal.Layout{}, err
 	}
-	workspaceRoot, err := eshulocal.ResolveWorkspaceRoot(startPath, explicitRoot)
-	if err != nil {
-		return eshulocal.Layout{}, err
-	}
-	layout, err := graphBuildLayout(workspaceRoot)
-	if err != nil {
-		return eshulocal.Layout{}, err
-	}
-	return layout, nil
-}
-
-func graphStatusForLayout(layout eshulocal.Layout) (graphStatusOutput, error) {
-	status := graphStatusOutput{
-		WorkspaceRoot: layout.WorkspaceRoot,
-		WorkspaceID:   layout.WorkspaceID,
-		GraphLogPath:  filepath.Join(layout.LogsDir, "graph-nornicdb.log"),
-	}
-	if binaryPath, err := graphResolveBinary(); err == nil {
-		status.GraphInstalled = true
-		status.GraphBinaryPath = binaryPath
-		if version, versionErr := graphReadVersion(binaryPath); versionErr == nil {
-			status.GraphVersion = version
-		}
-	}
-
-	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return status, nil
-		}
-		return graphStatusOutput{}, err
-	}
-
-	status.OwnerPresent = true
-	status.OwnerPID = record.PID
-	status.OwnerStarted = record.StartedAt
-	status.GraphPID = record.GraphPID
-	status.GraphAddress = record.GraphAddress
-	status.GraphBoltPort = record.GraphBoltPort
-	status.GraphHTTPPort = record.GraphHTTPPort
-	status.GraphDataDir = record.GraphDataDir
-	if record.GraphVersion != "" {
-		status.GraphVersion = record.GraphVersion
-	}
-
-	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
-	if err != nil {
-		return graphStatusOutput{}, err
-	}
-	status.Profile = string(runtimeConfig.Profile)
-	status.GraphBackend = string(runtimeConfig.GraphBackend)
-
-	if runtimeConfig.Profile == query.ProfileLocalAuthoritative {
-		status.GraphRunning = graphHealthyFromOwnerRecord(record)
-	}
-
-	return status, nil
-}
-
-func graphLogsForLayout(layout eshulocal.Layout) error {
-	logPath := filepath.Join(layout.LogsDir, "graph-nornicdb.log")
-	file, err := os.Open(logPath) // #nosec G304 -- logPath is program-constructed from layout.LogsDir and a fixed filename literal
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("graph log does not exist at %q; start local_authoritative with eshu watch first", logPath)
-		}
-		return fmt.Errorf("open graph log %q: %w", logPath, err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-	if _, err := io.Copy(os.Stdout, file); err != nil {
-		return fmt.Errorf("print graph log %q: %w", logPath, err)
-	}
-	return nil
-}
-
-func graphStopForLayout(layout eshulocal.Layout) error {
-	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("no local Eshu service record for workspace %q", layout.WorkspaceRoot)
-		}
-		return err
-	}
-
-	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
-	if err != nil {
-		return err
-	}
-
-	if runtimeConfig.Profile == query.ProfileLocalLightweight {
-		if !graphLightweightOwnerHealthy(record) {
-			return graphReclaimStaleLightweightOwner(layout)
-		}
-		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return fmt.Errorf("signal local Eshu service pid %d: %w", record.PID, err)
-		}
-		return waitForOwnerStop(record, graphStopTimeout)
-	}
-
-	if record.GraphPID <= 0 {
-		return fmt.Errorf("workspace %q has no local_authoritative graph backend to stop", layout.WorkspaceRoot)
-	}
-
-	if graphProcessAlive(record.PID) {
-		if err := graphSignalProcess(record.PID, syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return fmt.Errorf("signal local Eshu service pid %d to stop graph backend: %w", record.PID, err)
-		}
-		return waitForGraphStop(record, graphStopTimeout)
-	}
-
-	if !graphStopGraphHealthy(record) {
-		return graphReclaimStaleAuthoritativeOwner(layout)
-	}
-	if err := graphStopRecordedGraph(record); err != nil {
-		return err
-	}
-	return waitForGraphStop(record, graphStopTimeout)
-}
-
-func graphLightweightOwnerHealthy(record eshulocal.OwnerRecord) bool {
-	return graphProcessAlive(record.PID) && graphOwnerSocketHealthy(record.PostgresSocketPath)
-}
-
-func graphReclaimStaleLightweightOwner(layout eshulocal.Layout) (retErr error) {
-	lock, err := graphAcquireOwnerLock(layout.OwnerLockPath)
-	if err != nil {
-		return fmt.Errorf("reclaim stale local lightweight owner: %w", err)
-	}
-	defer func() {
-		if err := lock.Close(); err != nil && retErr == nil {
-			retErr = fmt.Errorf("release owner lock: %w", err)
-		}
-	}()
-
-	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
-	if err != nil {
-		return err
-	}
-	if runtimeConfig.Profile != query.ProfileLocalLightweight {
-		return fmt.Errorf("owner record changed to profile %q while reclaiming local lightweight stop", runtimeConfig.Profile)
-	}
-	if graphOwnerSocketHealthy(record.SocketPath) {
-		return fmt.Errorf("%w: socket=%q", eshulocal.ErrWorkspaceOwnerActive, record.SocketPath)
-	}
-	if graphRecordedPostgresActive(record) {
-		if record.PostgresDataDir == "" {
-			return fmt.Errorf("%w: postgres_data_dir is required when postgres appears active", eshulocal.ErrInvalidOwnerRecord)
-		}
-		if err := graphStopPostgres(record.PostgresDataDir); err != nil {
-			return fmt.Errorf("stop stale embedded postgres: %w", err)
-		}
-		if graphRecordedPostgresActive(record) {
-			return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", eshulocal.ErrEmbeddedPostgresActive, record.PostgresPID, record.PostgresSocketPath, record.PostgresDataDir)
-		}
-	}
-	return removeStaleOwnerRecord(layout.OwnerRecordPath)
-}
-
-func graphReclaimStaleAuthoritativeOwner(layout eshulocal.Layout) (retErr error) {
-	lock, err := graphAcquireOwnerLock(layout.OwnerLockPath)
-	if err != nil {
-		return fmt.Errorf("reclaim stale local authoritative owner: %w", err)
-	}
-	defer func() {
-		if err := lock.Close(); err != nil && retErr == nil {
-			retErr = fmt.Errorf("release owner lock: %w", err)
-		}
-	}()
-
-	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	runtimeConfig, err := runtimeConfigFromOwnerRecord(record)
-	if err != nil {
-		return err
-	}
-	if runtimeConfig.Profile != query.ProfileLocalAuthoritative {
-		return fmt.Errorf("owner record changed to profile %q while reclaiming local authoritative stop", runtimeConfig.Profile)
-	}
-	if graphProcessAlive(record.PID) || graphStopGraphHealthy(record) {
-		return fmt.Errorf("%w: pid=%d graph_pid=%d", eshulocal.ErrWorkspaceOwnerActive, record.PID, record.GraphPID)
-	}
-	if graphRecordedPostgresActive(record) {
-		if record.PostgresDataDir == "" {
-			return fmt.Errorf("%w: postgres_data_dir is required when postgres appears active", eshulocal.ErrInvalidOwnerRecord)
-		}
-		if err := graphStopPostgres(record.PostgresDataDir); err != nil {
-			return fmt.Errorf("stop stale embedded postgres: %w", err)
-		}
-		if graphRecordedPostgresActive(record) {
-			return fmt.Errorf("%w: pid=%d socket=%q data_dir=%q", eshulocal.ErrEmbeddedPostgresActive, record.PostgresPID, record.PostgresSocketPath, record.PostgresDataDir)
-		}
-	}
-	return removeStaleOwnerRecord(layout.OwnerRecordPath)
-}
-
-func graphRecordedPostgresActive(record eshulocal.OwnerRecord) bool {
-	return graphProcessAlive(record.PostgresPID) || graphOwnerSocketHealthy(record.PostgresSocketPath)
-}
-
-func removeStaleOwnerRecord(path string) error {
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove stale owner record %q: %w", path, err)
-	}
-	return nil
-}
-
-func waitForOwnerStop(record eshulocal.OwnerRecord, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if !graphProcessAlive(record.PID) {
-			return nil
-		}
-		time.Sleep(graphStopPollInterval)
-	}
-	return fmt.Errorf("local Eshu service pid %d did not stop within %s", record.PID, timeout)
-}
-
-func graphUpgradeForLayout(layout eshulocal.Layout, opts graphinstall.Options) (graphinstall.Result, error) {
-	record, err := graphReadOwnerRecord(layout.OwnerRecordPath)
-	if err == nil && (graphProcessAlive(record.PID) || graphStopGraphHealthy(record)) {
-		return graphinstall.Result{}, fmt.Errorf("workspace graph backend is running; run eshu graph stop before upgrade")
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return graphinstall.Result{}, err
-	}
-	opts.Force = true
-	return graphInstallNornicDB(opts)
-}
-
-func waitForGraphStop(record eshulocal.OwnerRecord, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if !graphStopGraphHealthy(record) {
-			return nil
-		}
-		time.Sleep(graphStopPollInterval)
-	}
-	return fmt.Errorf("graph backend pid %d did not stop within %s", record.GraphPID, timeout)
-}
-
-func signalProcess(pid int, signal os.Signal) error {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("find process %d: %w", pid, err)
-	}
-	return process.Signal(signal)
-}
-
-func graphLifecycleNotWired(command string) error {
-	printError(fmt.Sprintf("%q is not wired yet.", command))
-	fmt.Println("Graph sidecar lifecycle commands will ship with the next local_authoritative slice.")
-	return fmt.Errorf("%s not wired yet", command)
+	return localsupervisor.LayoutForWorkspaceRoot(explicitRoot)
 }

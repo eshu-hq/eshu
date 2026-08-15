@@ -2560,7 +2560,7 @@ add `GenerateBootstrapCredential`, `SelectBootstrapCredential`,
 sealed AES-256-GCM envelope (`go/internal/secretcrypto`) so an operator can
 retrieve it via `eshu admin initial-credential`; the store never seals, opens,
 hashes, or generates plaintext itself, only pre-sealed/pre-hashed values the
-caller (`go/cmd/api/seed_initial_admin.go`, `go/cmd/eshu/admin_initial_credential.go`)
+caller (`go/cmd/api/seed_initial_admin.go`, `go/internal/cli/admin/credential.go`)
 supplies. `AuthenticateLocalIdentity` (`identity_local.go`) calls
 `ConsumeBootstrapCredential` unconditionally on every successful local login;
 it is a no-op UPDATE affecting zero rows for every subject except the
@@ -2584,7 +2584,7 @@ reset must never revoke a TOTP factor the admin enrolled after bootstrap.
 `TestBootstrapCredentialConcurrencyGateGenerateConsumeReset` (below) asserts
 exactly one active recovery-code row carries the reset's new hash after the
 concurrent round; `TestAdminInitialCredentialAndResetRoundTrip`
-(`go/cmd/eshu/admin_initial_credential_test.go`) is the real-Postgres proof
+(`go/internal/cli/admin/credential_test.go`) is the real-Postgres proof
 that the printed code actually authenticates, the code it replaced does not,
 and a pre-seeded active TOTP factor survives untouched.
 

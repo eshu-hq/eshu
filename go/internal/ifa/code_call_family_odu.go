@@ -14,16 +14,15 @@ import (
 
 // The code_calls family Odù (#5991, under the #5543 umbrella).
 //
-// Unlike sqlFamilyOdu, which hand-builds its envelopes in Go while a separate
-// committed cassette drives the live gate, this family derives its Odù FROM the
-// committed cassette, so the two cannot drift. A hand-built twin is a second
-// source of truth that agrees on the day it is written and silently stops
-// agreeing the first time only one side is edited.
+// codeCallFamilyOdu in code_call_family_catalog.go is the binary-portable
+// compiled catalog representation. This file projects the committed cassette
+// through the same strict envelope boundary for
+// TestCodeCallFamilyIsCatalogedAndResolvable, which deeply compares the two
+// representations so a one-sided edit fails the focused suite.
 //
-// Note what is NOT yet true: no gate script drives this cassette. Once it is
-// wired into scripts/verify-ifa-determinism.sh and the fault-injection gate, the
-// offline guard and the live drive will assert the same bytes. Until then this
-// proves the extractor only, and the family's waiver rows stand.
+// Both live gate scripts drive this cassette. The offline extractor guard and
+// the determinism/fault-injection matrices therefore assert the same committed
+// bytes rather than maintaining parallel fixtures that can drift.
 const (
 	codeCallFamilyOduName      = "odu:ifa-code-call-family"
 	codeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
@@ -74,10 +73,10 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 // loadCodeCallFamilyOdu reads the committed cassette and projects it onto the
 // fact envelopes the reducer's extractor consumes.
 //
-// Unexported because it has no consumer outside its own test. It does NOT mirror
-// sqlFamilyOdu in the load-bearing respect: that one is registered in
-// catalogSeed, and this one is registered nowhere yet, so nothing dispatches to
-// it. Wiring it into the catalog belongs with the live proof, not here.
+// Unexported because it is the test-side lockstep loader for the committed
+// cassette. Production registers the compiled codeCallFamilyOdu in catalogSeed;
+// TestCodeCallFamilyIsCatalogedAndResolvable compares that registered Odù with
+// this strict cassette projection and exercises the code_calls resolver guard.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts would
 // make every downstream assertion vacuous, which is the failure mode the whole

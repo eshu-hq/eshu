@@ -9,17 +9,36 @@
    and `gotchas-local-runtime-and-graph.md`
 2. `go/cmd/eshu/root.go` — `rootCmd`, persistent flags (`--database`,
    `--visual`), and root subcommand registration
-3. `go/cmd/eshu/service.go` — `runMCPStart`, `runAPIStart`, `eshuExec`,
-   `eshuExecutable`; how the binary execs runtime processes
+3. `go/cmd/eshu/service.go` — `runMCPStart`, `runAPIStart`, `procexec.Exec`,
+   `procexec.Executable`; how the binary execs runtime processes
 4. `go/cmd/eshu/basic.go` — indexing subcommands (`index`, `list`, `watch`,
    `query`, `stats`); `runIndex` delegates to `eshu-bootstrap-index` via
    `indexLookPath`
-5. `go/cmd/eshu/graph.go` — `graph` subcommand tree, `graphStatusOutput`,
-   `graphStatusForLayout`, `runGraphStart`, `runGraphStop`
-6. `go/internal/cli/` — where command logic that is not process wiring lives,
+5. `go/cmd/eshu/graph.go` — the `graph` and `install` subcommand trees and
+   their `RunE`s (`runGraphStatus`, `runGraphStart`, `runGraphStop`,
+   `runGraphLogs`, `runGraphUpgrade`). The status, stop, logs, and upgrade
+   logic itself is in `go/internal/cli/localsupervisor`.
+6. `go/cmd/eshu/local_host.go` — the hidden `local-host` supervisor entry
+   point. Registration and signal handling only; the supervisor is
+   `go/internal/cli/localsupervisor`.
+7. `go/internal/cli/procexec` — the shared re-exec seam: `procexec.Executable`,
+   `procexec.Getwd`, `procexec.LookPath`, `procexec.Exec`, `procexec.Environ`,
+   `procexec.CleanExecutableArg0`, `procexec.MergeEnvironment`. `eshu mcp start`
+   (both the stdio and the HTTP path), `eshu graph start`, and `eshu watch` hand
+   the process over through it, which is what lets their tests substitute the
+   seams instead of losing the test process to a real `syscall.Exec`. Three
+   re-exec paths do not, so do not assume you can stub them the same way:
+   `eshu api start` and `eshu serve` call `syscall.Exec` directly in
+   `service.go` with `exec.LookPath` and `os.Environ`, and `eshu index` goes
+   through its own `indexLookPath` / `indexExec` pair in `basic.go`, which
+   `basic_test.go` substitutes instead. Route a new re-exec through `procexec`;
+   its `AGENTS.md` carries the substitution rules tests must follow
+8. `go/internal/cli/` — where command logic that is not process wiring lives,
    because this directory is `package main`. `eshu report`'s digest and
-   artifact logic is in `go/internal/cli/opdigest`; read that package's
-   `AGENTS.md` before changing `operator_digest_cmd.go`.
+   artifact logic is in `go/internal/cli/opdigest`; the local Eshu service and
+   every `eshu graph` subcommand's logic is in
+   `go/internal/cli/localsupervisor`. Read the target package's `AGENTS.md`
+   before changing the wrapper that calls it.
 
 ## Invariants this package enforces
 
@@ -30,10 +49,15 @@
   that same `rootCmd` literal calls
   `os.Setenv("ESHU_RUNTIME_DB_TYPE", globalDatabase)`. This affects every child
   process exec'd in the same process.
-- **Service-launch via `syscall.Exec`** — `eshu mcp start` (stdio path),
-  `eshu api start`, and `eshu graph start` replace the current process image via
-  `eshuExec` (backed by `syscall.Exec`). No Eshu logic runs after the exec
-  point. Enforced in `service.go` and `graph.go`.
+- **Service-launch replaces the process image** — `eshu mcp start` (both paths),
+  `eshu api start`, `eshu serve`, `eshu graph start`, `eshu watch`, and
+  `eshu index` all reach `syscall.Exec`, so no Eshu logic runs after the exec
+  point: nothing deferred, no flush, no cleanup. Anything the operator must see
+  has to be written before the call. Which route they take differs and matters
+  when you write a test — `procexec.Exec` for `mcp start` (`service.go`),
+  `graph start` (`graph.go`), and `watch` (`basic.go`); a bare `syscall.Exec`
+  for `api start` and `serve` (`service.go`); the local `indexExec` var for
+  `index` (`basic.go`).
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
   `removedCommandError` in `contract.go` instead of silently succeeding or
@@ -41,15 +65,21 @@
 
 ## Common changes and how to scope them
 
-- **Add a new `admin` subcommand** → add a `cobra.Command` in `admin.go`,
-  wire it to `adminCmd` or `adminFactsCmd`, call `apiClientFromCmd` for
-  authenticated requests. Why: `admin.go` owns the full admin subcommand tree;
-  scattering admin commands into other files makes auditing harder.
+- **Add a new `admin` subcommand** → put the request shaping (endpoint,
+  request body, validation) in `go/internal/cli/admin`, then add a
+  `cobra.Command` in `admin.go`, wire it to `adminCmd` or `adminFactsCmd`,
+  and have its `RunE` read the flags, call `apiClientFromCmd`, and
+  `printJSON` the result. Why: `admin.go` owns the full admin subcommand
+  tree, so scattering admin commands into other files makes auditing harder;
+  the endpoint and body are the decision worth testing and live outside
+  `package main` (issue #6059, epic #6053).
 
 - **Add a new `graph` subcommand** → add a `cobra.Command` to `graph.go`'s
-  `init()` and add its `run*` func in the same file. Why: the `graph`
-  subcommand tree is fully wired in `graph.go`; the `graphCmd` var is defined
-  there.
+  `init()` and add its `run*` func in the same file, but put the behaviour it
+  invokes in `go/internal/cli/localsupervisor`. Why: the `graph` subcommand
+  tree is fully wired in `graph.go` and the `graphCmd` var is defined there,
+  while everything that is not flag reading, printing, or the exit-code
+  contract belongs in a package that can be imported and tested.
 
 - **Add a new persistent flag** → add it in `root.go` and thread it through
   `PersistentPreRunE` if it affects child-process env. Why: persistent flags
@@ -57,9 +87,11 @@
   invisible to sibling commands.
 
 - **Add a new local-host subcommand** → add a `cobra.Command` inside the
-  `init()` in `local_host.go`; keep the command `Hidden: true`. Why:
+  `init()` in `local_host.go`; keep the command `Hidden: true`, and put the
+  supervision behaviour in `go/internal/cli/localsupervisor`. Why:
   `local-host` is the internal supervisor entry point, not a public user
-  command.
+  command, and `eshu watch` reaches it through a `syscall.Exec` string
+  argument (`basic.go`) that no symbol search can see.
 
 ## Failure modes and how to debug
 
@@ -116,9 +148,13 @@
 ## Anti-patterns specific to this package
 
 - **Business logic in subcommand `RunE` functions** — `RunE` functions should
-  call `apiClientFromCmd`, `eshuExec`, or a delegating helper. Domain logic
+  call `apiClientFromCmd`, `procexec.Exec`, or a delegating helper. Domain logic
   (graph writes, fact queries, schema checks) belongs in the `internal/*`
-  packages that own those surfaces.
+  packages that own those surfaces. `go/internal/cli/<family>` is where a
+  command family's own logic goes when no other package owns it — see
+  `internal/cli/admin` and `internal/cli/mcpsetup`. This package is
+  `package main` and cannot grow subdirectories, so that is the only place
+  it can go.
 
 - **Direct driver or Postgres calls in this package** — this binary is a CLI
   dispatcher. It must not open Postgres or graph driver connections except
@@ -133,7 +169,7 @@
 
 - The `local-host watch` and `local-host mcp-stdio` subcommand contract — the
   `eshu mcp start` and `eshu graph start` paths hard-code these subcommand names
-  when calling `eshuExec`; renaming them silently breaks both flows.
+  when calling `procexec.Exec`; renaming them silently breaks both flows.
 - The `--database` flag name and its effect on `ESHU_RUNTIME_DB_TYPE` — external
   scripts and the local-authoritative profile depend on this flag; see
   `docs/public/reference/cli-reference.md`.

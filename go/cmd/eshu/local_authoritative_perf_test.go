@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -73,11 +74,11 @@ func assertLocalAuthoritativeOwnerLockReleased(t *testing.T, layout eshulocal.La
 }
 
 func measureLocalAuthoritativeStartup(layout eshulocal.Layout) (time.Duration, error) {
-	originalStartChild := localHostStartChildProcess
-	originalWaitManagedChildren := localHostWaitManagedChildren
+	originalStartChild := localsupervisor.StartChildProcess
+	originalWaitManagedChildren := localsupervisor.WaitManagedChildren
 	defer func() {
-		localHostStartChildProcess = originalStartChild
-		localHostWaitManagedChildren = originalWaitManagedChildren
+		localsupervisor.StartChildProcess = originalStartChild
+		localsupervisor.WaitManagedChildren = originalWaitManagedChildren
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -85,7 +86,7 @@ func measureLocalAuthoritativeStartup(layout eshulocal.Layout) (time.Duration, e
 
 	startedAt := time.Now()
 	var readyAt time.Duration
-	localHostStartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
+	localsupervisor.StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
 		if name == "eshu-reducer" {
 			return &exec.Cmd{}, nil
 		}
@@ -111,11 +112,11 @@ func measureLocalAuthoritativeStartup(layout eshulocal.Layout) (time.Duration, e
 		readyAt = time.Since(startedAt)
 		return &exec.Cmd{}, nil
 	}
-	localHostWaitManagedChildren = func(ctx context.Context, children []localHostChild, allowCleanExit string) error {
+	localsupervisor.WaitManagedChildren = func(ctx context.Context, children []localsupervisor.Child, allowCleanExit string) error {
 		return nil
 	}
 
-	if err := runOwnedLocalHostWithLayout(ctx, layout, localHostModeWatch); err != nil {
+	if err := localsupervisor.RunOwnedHostWithLayout(ctx, os.Stderr, layout, localsupervisor.ModeWatch); err != nil {
 		return 0, err
 	}
 	if readyAt <= 0 {

@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 )
 
 func TestRunVulnScanRepoSARIFExportPreservesScannerReportContract(t *testing.T) {
@@ -258,14 +260,14 @@ func requireSARIFRun(t *testing.T, sarif map[string]any) map[string]any {
 
 func stubVulnScanClock(t *testing.T) func() {
 	t.Helper()
-	original := vulnScanNow
+	original := vulnscan.Now
 	now := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
-	vulnScanNow = func() time.Time {
+	vulnscan.Now = func() time.Time {
 		current := now
 		now = now.Add(time.Second)
 		return current
 	}
 	return func() {
-		vulnScanNow = original
+		vulnscan.Now = original
 	}
 }

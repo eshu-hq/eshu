@@ -9,9 +9,10 @@
    resolves process state (flags, `localGraphReadVersion`) and calls into
    this package. This is the file that shows how the two halves fit
    together.
-4. `go/cmd/eshu/local_graph_process.go` — the other caller
-   (`resolveNornicDBBinary`), and the home of `readLocalGraphVersion`, the
-   subprocess-execution logic this package deliberately does not have.
+4. `go/internal/cli/localsupervisor/graph_process.go` — the other caller
+   (`ResolveGraphBinary`), and the home of `readLocalGraphVersion` (exported
+   as `ReadGraphVersion`), the subprocess-execution logic this package
+   deliberately does not have.
 
 ## Invariants this package enforces
 
@@ -49,23 +50,25 @@
   binary by calling the `VersionReader` it was handed
   (`Options.ReadVersion` / `ManagedBinaryIfPresent`'s parameter), never by
   running `exec.Command` itself. The real implementation
-  (`readLocalGraphVersion`) stays in `go/cmd/eshu/local_graph_process.go`
+  (`readLocalGraphVersion`) stays in
+  `go/internal/cli/localsupervisor/graph_process.go`
   because it is part of the local_graph process-supervision cluster, which
   `docs/internal/design/package-restructure.md` documents as a real
   bidirectional cycle that must move as one unit or not at all. If you find
   yourself wanting to add `os/exec` here for anything other than
   `expandPackage`'s `pkgutil --expand-full` call (source.go, darwin `.pkg`
   extraction, not version verification), that logic belongs in
-  `go/cmd/eshu`, not here.
+  `go/internal/cli/localsupervisor`, not here.
 - **`Options.ReadVersion` is required.** `Install` and `ManagedBinaryIfPresent`
   both fail fast with a `graphinstall:`-prefixed error when handed a nil
   `VersionReader`, rather than reaching a nil-pointer panic deeper in the
   call chain (`prepareInstallSource` → `inspectInstallSource`).
 - **`ManagedBinaryIfPresent`'s `os.Stat` error stays unwrapped.**
-  `resolveNornicDBBinary` in `go/cmd/eshu` depends on `os.IsNotExist(err)`
-  matching the raw `*os.PathError`; wrapping it with `%w` breaks that check
-  silently because `os.IsNotExist` only unwraps `*PathError`/`*LinkError`/
-  `*SyscallError` by type switch, not the general `errors.Unwrap` chain. The
+  `ResolveGraphBinary` in `go/internal/cli/localsupervisor` depends on
+  `os.IsNotExist(err)` matching the raw `*os.PathError`; wrapping it with `%w`
+  breaks that check silently because `os.IsNotExist` only unwraps
+  `*PathError`/`*LinkError`/`*SyscallError` by type switch, not the general
+  `errors.Unwrap` chain. The
   `//nolint:wrapcheck` on that line is intentional — do not "fix" it by
   wrapping.
 

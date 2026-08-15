@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -41,7 +42,7 @@ func TestRunDocsVerifyJSONReportsContradictedClaims(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -51,7 +52,7 @@ func TestRunDocsVerifyJSONReportsContradictedClaims(t *testing.T) {
 		t.Fatal("docs verify error = nil, want non-zero for contradicted finding")
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -77,7 +78,7 @@ func TestRunDocsVerifyTextReportsValidCommandAndEndpoint(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -90,32 +91,6 @@ func TestRunDocsVerifyTextReportsValidCommandAndEndpoint(t *testing.T) {
 	}
 }
 
-func TestDocsVerifyHTTPEndpointTruthIncludesMountedNonOpenAPIRoutes(t *testing.T) {
-	t.Parallel()
-
-	endpoints := map[string]struct{}{}
-	for _, endpoint := range docsVerifyHTTPEndpointTruth() {
-		endpoints[endpoint.Method+" "+endpoint.Path] = struct{}{}
-	}
-	for _, want := range []string{
-		"GET /api/v0/docs",
-		"GET /api/v0/redoc",
-		"GET /health",
-		"GET /sse",
-		"POST /mcp/message",
-		"GET /healthz",
-		"GET /readyz",
-		"GET /admin/status",
-		"POST /admin/replay",
-		"POST /admin/refinalize",
-		"GET /metrics",
-	} {
-		if _, ok := endpoints[want]; !ok {
-			t.Fatalf("docsVerifyHTTPEndpointTruth() missing %s", want)
-		}
-	}
-}
-
 func TestRunDocsVerifyPersistCommitsDocumentationFacts(t *testing.T) {
 	t.Parallel()
 
@@ -125,9 +100,9 @@ func TestRunDocsVerifyPersistCommitsDocumentationFacts(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
 	persistence := &recordingDocsVerifyPersistence{}
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
-		openPersistence: fixedDocsPersistence(persistence),
-		now:             fixedDocsNow,
+	cmd := newTestDocsVerifyCommand(docs.Deps{
+		OpenPersistence: fixedDocsPersistence(persistence),
+		Now:             fixedDocsNow,
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -157,7 +132,7 @@ func TestRunDocsVerifyPersistCommitsDocumentationFacts(t *testing.T) {
 		}
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -177,16 +152,16 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 	if err := os.WriteFile(docPath, []byte("Run `eshu vaporize all`.\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
-	inventory, err := inventoryDocs(docsVerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 256 * 1024})
+	inventory, err := docs.InventoryDocuments(docs.VerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 256 * 1024})
 	if err != nil {
-		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+		t.Fatalf("docs.InventoryDocuments() error = %v, want nil", err)
 	}
-	scopeID := docsVerifyScopeID(docPath, "")
+	scopeID := docs.ScopeID(docPath, "")
 	generationID := "docs-verify-generation-existing"
 	persistence := &recordingDocsVerifyPersistence{
-		current: docsPersistedGeneration{
+		current: docs.PersistedGeneration{
 			GenerationID:  generationID,
-			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, 256*1024, 50, "local"),
+			FreshnessHint: docs.InventoryFreshnessHint(inventory.Documents, 256*1024, 50, "local"),
 		},
 		currentFound: true,
 		listed: []facts.Envelope{
@@ -194,9 +169,9 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 			storedDocumentationPacket(scopeID, generationID),
 		},
 	}
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
-		openPersistence: fixedDocsPersistence(persistence),
-		now:             fixedDocsNow,
+	cmd := newTestDocsVerifyCommand(docs.Deps{
+		OpenPersistence: fixedDocsPersistence(persistence),
+		Now:             fixedDocsNow,
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -210,7 +185,7 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 		t.Fatalf("commit count = %d, want 0 for unchanged persisted docs", got)
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -233,21 +208,21 @@ func TestRunDocsVerifyPersistDoesNotSkipWhenMaxBytesChanges(t *testing.T) {
 	if err := os.WriteFile(docPath, []byte("Run `eshu docs verify .`.\nThis suffix keeps the file truncated.\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
-	previousInventory, err := inventoryDocs(docsVerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 8})
+	previousInventory, err := docs.InventoryDocuments(docs.VerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 8})
 	if err != nil {
-		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+		t.Fatalf("docs.InventoryDocuments() error = %v, want nil", err)
 	}
-	scopeID := docsVerifyScopeID(docPath, "")
+	scopeID := docs.ScopeID(docPath, "")
 	persistence := &recordingDocsVerifyPersistence{
-		current: docsPersistedGeneration{
+		current: docs.PersistedGeneration{
 			GenerationID:  "docs-verify-generation-existing",
-			FreshnessHint: docsInventoryFreshnessHint(previousInventory.Documents, 8, 50, "local"),
+			FreshnessHint: docs.InventoryFreshnessHint(previousInventory.Documents, 8, 50, "local"),
 		},
 		currentFound: true,
 	}
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
-		openPersistence: fixedDocsPersistence(persistence),
-		now:             fixedDocsNow,
+	cmd := newTestDocsVerifyCommand(docs.Deps{
+		OpenPersistence: fixedDocsPersistence(persistence),
+		Now:             fixedDocsNow,
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -263,7 +238,7 @@ func TestRunDocsVerifyPersistDoesNotSkipWhenMaxBytesChanges(t *testing.T) {
 	if got := persistence.commits[0].scopeValue.ScopeID; got != scopeID {
 		t.Fatalf("committed scope = %q, want %q", got, scopeID)
 	}
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -281,17 +256,17 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 	if err := os.WriteFile(docPath, content, 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
-	opts := docsVerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 12}
-	inventory, err := inventoryDocs(opts)
+	opts := docs.VerifyOptions{Path: docPath, Limit: 50, MaxDocumentBytes: 12}
+	inventory, err := docs.InventoryDocuments(opts)
 	if err != nil {
-		t.Fatalf("inventoryDocs() error = %v, want nil", err)
+		t.Fatalf("docs.InventoryDocuments() error = %v, want nil", err)
 	}
-	scopeID := docsVerifyScopeID(docPath, "")
+	scopeID := docs.ScopeID(docPath, "")
 	generationID := "docs-verify-generation-existing"
 	persistence := &recordingDocsVerifyPersistence{
-		current: docsPersistedGeneration{
+		current: docs.PersistedGeneration{
 			GenerationID:  generationID,
-			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, "local"),
+			FreshnessHint: docs.InventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, "local"),
 		},
 		currentFound: true,
 		listed: []facts.Envelope{
@@ -299,9 +274,9 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 			storedDocumentationPacket(scopeID, generationID),
 		},
 	}
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{
-		openPersistence: fixedDocsPersistence(persistence),
-		now:             fixedDocsNow,
+	cmd := newTestDocsVerifyCommand(docs.Deps{
+		OpenPersistence: fixedDocsPersistence(persistence),
+		Now:             fixedDocsNow,
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -311,7 +286,7 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 		t.Fatalf("docs verify error = %v, want nil; output=%s", err, out.String())
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -329,9 +304,9 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 	}
 }
 
-func newTestDocsVerifyCommand(deps docsVerifyDeps) *cobra.Command {
-	if deps.commandTruth == nil {
-		deps.commandTruth = fixedDocsCommandTruth
+func newTestDocsVerifyCommand(deps docs.Deps) *cobra.Command {
+	if deps.CommandTruth == nil {
+		deps.CommandTruth = fixedDocsCommandTruth
 	}
 	return newDocsVerifyCommandWithDeps(deps)
 }
@@ -352,7 +327,7 @@ type docsVerifyCommit struct {
 }
 
 type recordingDocsVerifyPersistence struct {
-	current      docsPersistedGeneration
+	current      docs.PersistedGeneration
 	currentFound bool
 	listed       []facts.Envelope
 	commits      []docsVerifyCommit
@@ -361,7 +336,7 @@ type recordingDocsVerifyPersistence struct {
 func (p *recordingDocsVerifyPersistence) CurrentGeneration(
 	context.Context,
 	string,
-) (docsPersistedGeneration, bool, error) {
+) (docs.PersistedGeneration, bool, error) {
 	return p.current, p.currentFound, nil
 }
 
@@ -388,8 +363,8 @@ func (p *recordingDocsVerifyPersistence) CommitScopeGeneration(
 	return nil
 }
 
-func fixedDocsPersistence(p docsVerifyPersistence) docsPersistenceFactory {
-	return func(context.Context) (docsVerifyPersistence, func() error, error) {
+func fixedDocsPersistence(p docs.Persistence) docs.PersistenceFactory {
+	return func(context.Context) (docs.Persistence, func() error, error) {
 		return p, func() error { return nil }, nil
 	}
 }

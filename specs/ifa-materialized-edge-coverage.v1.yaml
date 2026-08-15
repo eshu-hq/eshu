@@ -66,15 +66,16 @@
 # Each waiver carries a `proof_gate:` (one of ifa-determinism / ifa-fault-injection)
 # so its key EQUALS the reconciled (surface, proof_gate) row key. Waiving the
 # fault gate does NOT revoke credit for a proven baseline (determinism) row and
-# vice versa — this is exactly why the SQL family below keeps a green baseline
-# while its confirmed-false fault row is waived. A per-family waiver (no
-# proof_gate) is too coarse and fails to load. A waived (surface, proof_gate)
+# vice versa: one proven dimension does not grant credit to another dimension
+# that still needs a waiver. A per-family waiver (no proof_gate) is too coarse
+# and fails to load. A waived (surface, proof_gate)
 # that later gains real coverage must have its waiver row removed in the same
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# The sql_relationships BASELINE, DELTA, and FAULT rows are all proven; the
-# family carries no waiver. #5555 rebuilt both SQL cells in
+# The sql_relationships BASELINE, DELTA, and FAULT rows and the code_calls
+# BASELINE and FAULT rows are proven; neither family carries a waiver. #5555
+# rebuilt both SQL cells in
 # scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a
 # domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
@@ -134,6 +135,24 @@ coverage:
     ref: "odu:ifa-sql-family"
     proof_gate: ifa-fault-injection
 
+  # #5991 replays the compiled code-call Odù's cassette in every N=1,2,4
+  # determinism cell and asserts its hand-derived five-edge set (two CALLS,
+  # one INSTANTIATES, one REFERENCES, and one USES_METACLASS) exactly. The
+  # fault matrix drives the same cassette in every cell; its dedicated
+  # kill-worker cell proves a claimed code_call_materialization row is
+  # reclaimed, and its one-shot graph-write cell proves the CALLS write retries
+  # through a durable marker before both cells assert the same exact set.
+  - surface: "materialized_edges:code_calls"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-code-call-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:code_calls"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-code-call-family"
+    proof_gate: ifa-fault-injection
+
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
   # 2026-08-08 until #5974, on the belief that cell_failgraphwrite_sql did not
@@ -142,7 +161,7 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 13 other allProjectionDomains families: both gates unproven. ---
+  # --- The 12 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
   # Each names its own per-domain child issue (#5991-#6003) under the #5344
@@ -168,16 +187,6 @@ waivers:
     issue: "#6003"
     waived: "2026-07-20"
     reason: "reducer.DomainWorkloadDependency; pending #6003 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:code_calls"
-    proof_gate: ifa-determinism
-    issue: "#5991"
-    waived: "2026-07-20"
-    reason: "reducer.DomainCodeCalls (CALLS edges); pending #5991 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:code_calls"
-    proof_gate: ifa-fault-injection
-    issue: "#5991"
-    waived: "2026-07-20"
-    reason: "reducer.DomainCodeCalls (CALLS edges); pending #5991 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:shell_exec"
     proof_gate: ifa-determinism
     issue: "#6001"
@@ -203,8 +212,8 @@ waivers:
   # hand-derived exact edge set, and mutating any of its exclusion guards turns
   # that red. Both dimensions stay WAIVED anyway, because a coverage row names a
   # proof GATE and neither gate executes this family: verify-ifa-determinism.sh
-  # asserts expected edges for sql_relationships only, and
-  # MaterializedEdgeDomainEdgeTypes rejects every other domain outright. A
+  # asserts expected edges for sql_relationships and code_calls only, and
+  # MaterializedEdgeDomainEdgeTypes rejects documentation_edges outright. A
   # coverage row here would claim a gate proves something it never runs, so
   # breaking the live writer's Cypher would leave the claim green.
   #
@@ -249,8 +258,9 @@ waivers:
   # comment kind in the node identity each turns it red. Both dimensions stay
   # WAIVED anyway: a coverage row names a proof GATE, and neither gate executes
   # this family. verify-ifa-determinism.sh asserts expected edges for
-  # sql_relationships only, and MaterializedEdgeDomainEdgeTypes rejects every
-  # other domain, so a row here would claim a gate proves something it never runs.
+  # sql_relationships and code_calls only, and MaterializedEdgeDomainEdgeTypes
+  # rejects rationale_edges, so a row here would claim a gate proves something
+  # it never runs.
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-determinism
     issue: "#5998"
@@ -312,15 +322,15 @@ waivers:
 #     the ifa-determinism matrix drives gen 1, asserts its exact nine-edge set,
 #     drives gen 2 with the reused source_run_id, drains again, and asserts the
 #     accumulated exact nine-edge set with INDEXES retargeted to orders.
-#   - sql_relationships FAULT is NOT covered -- see the waiver row below.
-#     #5555 rebuilt both cells (scripts/lib/ifa_fault_injection_sql_cells.sh)
-#     so they target the sql_relationship_materialization / sql_relationships
-#     work item specifically (a domain-scoped claimed-row precondition and a
-#     SQL edge MERGE anchor, not CloudResource). cell_killworker_sql proves
-#     green live first; cell_failgraphwrite_sql is green live too since #5974
-#     fixed the assertion that read its fired-fault marker, so the fault
-#     dimension is covered and the family carries no waiver.
-#   - The 13 other allProjectionDomains families are blocked on the epic #5344
+#   - sql_relationships FAULT is covered. #5555 rebuilt both cells
+#     (scripts/lib/ifa_fault_injection_sql_cells.sh) so they target the
+#     sql_relationship_materialization / sql_relationships work item
+#     specifically (a domain-scoped claimed-row precondition and a SQL edge
+#     MERGE anchor, not CloudResource). cell_killworker_sql and
+#     cell_failgraphwrite_sql are green live, so the family carries no waiver.
+#   - code_calls BASELINE and FAULT are covered by the exact-set replay and two
+#     domain-scoped recovery cells described above (#5991).
+#   - The 12 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------

@@ -11,6 +11,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // TestExecuteFirstRunAttachesComposeDiagnostic proves a compose-down failure
@@ -19,7 +21,7 @@ import (
 func TestExecuteFirstRunAttachesComposeDiagnostic(t *testing.T) {
 	deps := firstRunDeps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{"/ws/docker-compose.yaml": true}),
-		FetchStatus:   func(*APIClient) (scanPipelineStatus, error) { return scanPipelineStatus{}, nil },
+		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
 		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
 		WorkspaceRoot: "/ws",
 	}
@@ -44,7 +46,7 @@ func TestExecuteFirstRunAttachesComposeDiagnostic(t *testing.T) {
 func TestExecuteFirstRunAttachsBinariesDiagnostic(t *testing.T) {
 	deps := firstRunDeps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{}),
-		FetchStatus:   func(*APIClient) (scanPipelineStatus, error) { return scanPipelineStatus{}, nil },
+		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
 		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
 		WorkspaceRoot: "/ws",
 	}
@@ -64,19 +66,19 @@ func TestExecuteFirstRunAttachesQueueDiagnostic(t *testing.T) {
 	t.Setenv("ESHU_HOME", t.TempDir())
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{
-				Health: scanHealth{State: "healthy"},
-				Queue:  scanQueue{DeadLetter: 4},
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{
+				Health: scan.Health{State: "healthy"},
+				Queue:  scan.Queue{DeadLetter: 4},
 			}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			return repositoryListResponse{}, nil
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
-			return scanResult{
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
+			return scan.Result{
 				Status:       "partial",
-				StatusReport: scanPipelineStatus{Queue: scanQueue{DeadLetter: 4}},
+				StatusReport: scan.PipelineStatus{Queue: scan.Queue{DeadLetter: 4}},
 			}, errors.New("scan readiness: queue has dead-letter work")
 		},
 		ReposDir:      fakeReposDir,
@@ -105,15 +107,15 @@ func TestExecuteFirstRunAttachesNoRepositoriesDiagnostic(t *testing.T) {
 	var scanCalled bool
 	deps := firstRunDeps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(*APIClient) (scanPipelineStatus, error) {
-			return scanPipelineStatus{Health: scanHealth{State: "progressing"}}, nil
+		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
+			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
 		ListRepos: func(*APIClient) (repositoryListResponse, error) {
 			return repositoryListResponse{}, nil
 		},
-		RunScan: func(context.Context, io.Writer, io.Writer, *APIClient, scanOptions, bool) (scanResult, error) {
+		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
 			scanCalled = true
-			return scanResult{Status: "ready"}, nil
+			return scan.Result{Status: "ready"}, nil
 		},
 		ReposDir:      fakeReposDir,
 		WorkspaceRoot: "/ws",

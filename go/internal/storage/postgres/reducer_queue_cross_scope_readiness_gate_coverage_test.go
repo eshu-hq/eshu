@@ -11,9 +11,9 @@ import (
 	"testing"
 )
 
-// TestCrossScopeReadinessProofsRunInTheReducerContentionGate is the hermetic
-// sibling of the two live proofs above, and it exists because a DSN-gated test
-// that quietly skips in CI is a guard that proves nothing there.
+// TestReducerContentionPostgresProofsRunInTheReducerContentionGate is the
+// hermetic enrollment guard for the three live PostgreSQL proofs, and it exists
+// because a DSN-gated test that quietly skips in CI proves nothing there.
 //
 // The live proofs need real PostgreSQL, so they skip on a developer machine
 // with no DSN. CI does provide one -- the reducer contention gate runs a
@@ -23,7 +23,7 @@ import (
 // running in CI without a single failure.
 //
 // This test runs everywhere, needs no database, and reads the real workflow.
-func TestCrossScopeReadinessProofsRunInTheReducerContentionGate(t *testing.T) {
+func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing.T) {
 	t.Parallel()
 
 	workflowPath := filepath.Join("..", "..", "..", "..", ".github", "workflows", "reducer-contention-gate.yml")
@@ -34,6 +34,9 @@ func TestCrossScopeReadinessProofsRunInTheReducerContentionGate(t *testing.T) {
 	if !bytes.Contains(workflow, []byte("ESHU_POSTGRES_DSN:")) {
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
+	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
+		t.Fatalf("%s no longer names this three-proof enrollment guard; update the guard reference in lockstep", workflowPath)
+	}
 
 	runFilter := reducerContentionGateRunFilter(t, string(workflow))
 	selects, err := regexp.Compile(runFilter)
@@ -41,6 +44,7 @@ func TestCrossScopeReadinessProofsRunInTheReducerContentionGate(t *testing.T) {
 		t.Fatalf("compile the gate's -run filter %q: %v", runFilter, err)
 	}
 	for _, name := range []string{
+		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
 		"TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
 	} {

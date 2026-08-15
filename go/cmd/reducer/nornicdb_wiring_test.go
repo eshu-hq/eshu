@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -13,10 +14,22 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
+type drainAwareReducerDB struct {
+	fakeReducerDB
+	reducerGraphWork bool
+}
+
+func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, args ...any) (postgres.Rows, error) {
+	if strings.Contains(query, "active_fact_work_items AS (") {
+		return &fakeExistsRows{value: f.reducerGraphWork}, nil
+	}
+	return f.fakeReducerDB.QueryContext(ctx, query, args...)
+}
+
 func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
+	db := &drainAwareReducerDB{reducerGraphWork: true}
 	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
@@ -40,6 +53,31 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 	}
 	if service.CodeCallProjectionRunner.ReducerGraphDrain == nil {
 		t.Fatal("CodeCallProjectionRunner.ReducerGraphDrain = nil, want local-authoritative drain")
+	}
+	active, err := service.CodeCallProjectionRunner.ReducerGraphDrain.HasActiveReducerGraphWork(context.Background())
+	if err != nil {
+		t.Fatalf("ReducerGraphDrain.HasActiveReducerGraphWork() error = %v, want nil", err)
+	}
+	if !active {
+		t.Fatal("ReducerGraphDrain.HasActiveReducerGraphWork() = false, want injected live query result")
+	}
+}
+
+func TestBuildReducerServiceLeavesProjectorDrainDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	db := &drainAwareReducerDB{reducerGraphWork: true}
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+		if name == "ESHU_GRAPH_BACKEND" {
+			return string(runtimecfg.GraphBackendNornicDB)
+		}
+		return ""
+	}, nil, nil, slog.Default(), nil)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v, want nil", err)
+	}
+	if service.CodeCallProjectionRunner.ReducerGraphDrain != nil {
+		t.Fatal("CodeCallProjectionRunner.ReducerGraphDrain != nil with default profile, want disabled drain")
 	}
 }
 

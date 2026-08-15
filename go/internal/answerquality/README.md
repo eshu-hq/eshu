@@ -14,6 +14,64 @@ capture answers from the real surfaces, redact them, then pass the evidence to
 `Score`. That keeps private paths, hostnames, credentials, raw addresses, and
 sensitive excerpts out of versioned artifacts.
 
+## A publish-safety failure names the field, never the value
+
+`publish_safety` is the one criterion whose input is, by definition, something
+that must not be published. Its `Detail` therefore names where the value was
+found (`unsafe publishable evidence in api result answer_summary`) and never
+what it was. This is the same contract `answerguardrail.Finding` documents for
+itself, and the reason it matters here is that a `CriterionScore.Detail` is not
+a local diagnostic: it is printed to stdout, returned in the CLI's error to
+stderr, serialized into the `--json` verdict, and copied verbatim into a
+generated `FollowUpIssue` body.
+
+`Verdict.RunID` follows the same rule. A run id that itself fails the scan is
+replaced by `RedactedRunID`, because the CLI prints it in the scorecard header
+and it is carried in the JSON artifact.
+
+So does every other captured value the verdict renders — and that closure is the
+part it is easy to leave half done. Failing `publish_safety` on a field while the
+same field ships raw in the `--json` payload refuses nothing: the payload is the
+artifact meant to be safe to hand to someone else. The fields this covers, all of
+them unmarshalled from an evidence file and none of them validated:
+
+- `PromptScore.ID` and `PromptScore.Family`, copied straight into
+  `prompt_scores[]`;
+- the family interpolated into every aggregate criterion detail;
+- the expected truth class rendered as the `want` half of a `truth_honesty`
+  mismatch — the observed half was already screened, the expected half was not;
+- the required surfaces and required next calls rendered as missing by `parity`
+  and `follow_up_usefulness`; and
+- the narration status, both truth classes, both freshness values, and the
+  dropped citation, limitation, and next-call lists in a `narration_fallback`
+  detail.
+
+`required_surfaces` was the only one the scan never saw at all — each result's
+own surface had a `locatedString` row, the required list did not. It now has one.
+
+Comparisons use the raw value; only the rendering is screened. A criterion has to
+stay diagnosable, so honest values are carried through untouched — see the
+negative-control tests in `publish_safety_echo_test.go`, which fail if a fix
+degrades into redacting everything.
+
+Use `locatedString` and `firstUnsafeLocation` when adding a value to the
+screened set, not `answerguardrail.FirstUnsafeString` — the latter returns the
+value, which is what this contract exists to keep out of the output.
+
+The locator itself has to obey the same rule, and this is the easy half to get
+wrong. A locator such as `api result answer_summary` names a surface, and
+`SurfaceResult.Surface` is a plain string field unmarshalled from an evidence
+file — it is not validated, so it can carry anything the capture tooling wrote.
+Building the locator by concatenating that field put an unscreened value into
+the published half of the contract. Every rendering of a surface, a family, or a
+narration status now goes through `Surface.label()`, `PromptFamily.label()`, or
+`NarrationStatus.label()`, which return the enum's own spelling or a fixed
+marker, so a value the scanner happens to miss cannot ride out through a locator.
+Screening the field instead would inherit whatever the scanner misses, which is
+the thing being defended against; an enum has a fixed set of legal spellings and
+needs no scan. A field with no enum — a prompt id, a truth class, a next call —
+falls back to `screened`, which is best-effort and says so.
+
 ## Evidence
 
 `EvidenceVersion` is `answer-quality-scorecard/v1`. A complete run must include

@@ -11,7 +11,7 @@
       "metadata": {
         "fixture": "ifa-code-call-family"
       },
-      "generation_id": "gen-1",
+      "generation_id": "gen-ifa-code-call-family-1",
       "observed_at": "2026-08-09T00:00:00Z",
       "trigger_kind": "snapshot",
       "facts": [
@@ -24,7 +24,7 @@
           "payload": {
             "repo_id": "repo-ifa-code-call-family",
             "source_run_id": "run-ifa-code-call-family-1",
-            "local_path": "/repo"
+            "local_path": "/repo-code-calls"
           }
         },
         {
@@ -37,7 +37,7 @@
             "repo_id": "repo-ifa-code-call-family",
             "relative_path": "app/calls.py",
             "parsed_file_data": {
-              "path": "/repo/app/calls.py",
+              "path": "/repo-code-calls/app/calls.py",
               "functions": [
                 {
                   "name": "ifaCcAlpha",
@@ -133,7 +133,7 @@
             "repo_id": "repo-ifa-code-call-family",
             "relative_path": "app/dup_one.py",
             "parsed_file_data": {
-              "path": "/repo/app/dup_one.py",
+              "path": "/repo-code-calls/app/dup_one.py",
               "functions": [
                 {
                   "name": "ifaCcDup",
@@ -155,7 +155,7 @@
             "repo_id": "repo-ifa-code-call-family",
             "relative_path": "app/dup_two.py",
             "parsed_file_data": {
-              "path": "/repo/app/dup_two.py",
+              "path": "/repo-code-calls/app/dup_two.py",
               "functions": [
                 {
                   "name": "ifaCcDup",

@@ -6,10 +6,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 )
 
 func TestRunDocsVerifyChecksTerraformAddressClaims(t *testing.T) {
@@ -48,7 +49,7 @@ module "network" {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -58,7 +59,7 @@ module "network" {
 		t.Fatal("docs verify error = nil, want non-zero for contradicted Terraform address")
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
 	}
@@ -72,20 +73,6 @@ module "network" {
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "terraform_address", "data.aws_iam_policy_document.reader", "valid")
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "terraform_address", "module.network", "valid")
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "terraform_address", "aws_sqs_queue.missing", "contradicted")
-}
-
-func TestDocsVerifyTerraformTruthMarksInvalidHCLIncomplete(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "main.tf"), []byte(`resource "aws_s3_bucket" "logs" {`), 0o600); err != nil {
-		t.Fatalf("WriteFile(main.tf) error = %v, want nil", err)
-	}
-
-	_, complete := docsVerifyTerraformAddressTruth(root)
-	if complete {
-		t.Fatal("docsVerifyTerraformAddressTruth complete = true, want false for invalid HCL")
-	}
 }
 
 func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *testing.T) {
@@ -103,7 +90,7 @@ func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *test
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 
-	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	cmd := newTestDocsVerifyCommand(docs.Deps{})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -112,7 +99,7 @@ func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *test
 		t.Fatalf("docs verify error = %v, want nil for missing evidence with --fail-on contradicted; output=%s", err, out.String())
 	}
 
-	var envelope docsVerifyEnvelope
+	var envelope docs.Envelope
 	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
 	}
@@ -123,34 +110,4 @@ func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *test
 		t.Fatalf("Summary.Contradicted = %d, want 0", got)
 	}
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "terraform_address", "aws_s3_bucket.logs", "missing_evidence")
-}
-
-func BenchmarkDocsVerifyTerraformAddressTruthLargeTree(b *testing.B) {
-	root := b.TempDir()
-	stack := filepath.Join(root, "terraform")
-	if err := os.MkdirAll(stack, 0o700); err != nil {
-		b.Fatalf("MkdirAll(terraform) error = %v, want nil", err)
-	}
-	for i := range 200 {
-		content := fmt.Sprintf(`resource "aws_s3_bucket" "logs_%d" {}
-data "aws_iam_policy_document" "reader_%d" {}
-module "network_%d" {
-  source = "../modules/network"
-}
-`, i, i, i)
-		if err := os.WriteFile(filepath.Join(stack, fmt.Sprintf("main_%03d.tf", i)), []byte(content), 0o600); err != nil {
-			b.Fatalf("WriteFile(main_%03d.tf) error = %v, want nil", i, err)
-		}
-	}
-
-	b.ReportAllocs()
-	for b.Loop() {
-		addresses, complete := docsVerifyTerraformAddressTruth(root)
-		if !complete {
-			b.Fatal("docsVerifyTerraformAddressTruth complete = false, want true")
-		}
-		if got, want := len(addresses), 600; got != want {
-			b.Fatalf("address count = %d, want %d", got, want)
-		}
-	}
 }

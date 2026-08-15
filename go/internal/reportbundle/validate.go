@@ -34,11 +34,12 @@ var ValidationChecks = []string{
 	"profile_payloads_consistency",
 	"query_inputs",
 	"reporter_note",
+	"response_error_text",
 	"share_safe_keys",
 }
 
 // validateReporterNote rejects a bundle whose reporter_note still carries a
-// credential-shaped pair. It calls redactReporterNote, the same function
+// credential-shaped pair. It calls redactFreeText, the same function
 // Capture calls, and rejects when that function would have changed something —
 // so the two cannot drift. A separate predicate written to "mirror" the
 // redactor is how the query-input half went wrong the first time: Capture was
@@ -49,10 +50,41 @@ var ValidationChecks = []string{
 // have been hand-edited, written by another tool, or produced before this scan
 // existed.
 func validateReporterNote(bundle Bundle) error {
-	if _, redacted := redactReporterNote(bundle.ReporterNote); redacted {
+	if _, redacted := redactFreeText(bundle.ReporterNote); redacted {
 		return fmt.Errorf("reporter_note carries a credential-shaped key=value or header pair: free text is never inspected by the share-safe key walk, so it reached the bundle unredacted; recapture the bundle instead of editing it")
 	}
 	return nil
+}
+
+// validateResponseErrorText rejects a bundle whose error envelope still carries
+// a credential-shaped pair in one of its free-text fields. Like
+// validateReporterNote it calls the redactor rather than a predicate written to
+// mirror it, so the two cannot drift.
+//
+// It exists for the reason the whole Validate half exists — a maintainer runs
+// --require-public against a file somebody else sent — plus one specific to
+// these fields: a bundle captured before the Message scan existed passed its own
+// Capture-time gate and is stamped validation=passed, so the recorded stamp is
+// not evidence about the fields. Validate has to look for itself.
+//
+// Only the FIELD is named, never the text. These messages land in terminals and
+// CI logs, which is the same egress the bundle is redacted for; quoting the
+// message back would re-leak exactly what the check just caught.
+func validateResponseErrorText(bundle Bundle) error {
+	if bundle.Response.Error == nil {
+		return nil
+	}
+	var offending []string
+	if _, redacted := redactFreeText(bundle.Response.Error.Message); redacted {
+		offending = append(offending, "response.error.message")
+	}
+	if _, redacted := redactFreeText(bundle.Response.Error.CorrelationID); redacted {
+		offending = append(offending, "response.error.correlation_id")
+	}
+	if len(offending) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s carries a credential-shaped key=value or header pair: the share-safe key walk never inspects string values, and a composed error message interpolates the caller's own selector, so it reached the bundle unredacted; recapture the bundle instead of editing it", strings.Join(offending, ", "))
 }
 
 // validateQueryInputs rejects a bundle whose reporter-typed query inputs still
@@ -193,8 +225,8 @@ func embeddedCredentialPaths(prefix string, value any) []string {
 
 // Validate checks a finished Bundle: schema_version fail-closed (mirroring
 // evidencebundle/validate.go:14-15), a required bundle_id, profile↔payloads
-// consistency, the two reporter-typed input scans (query_inputs and
-// reporter_note, both of which read string VALUES the key-name gate cannot
+// consistency, the three free-string scans (query_inputs, reporter_note and
+// response_error_text, all of which read string VALUES the key-name gate cannot
 // see), the --require-public posture when requested, and the share-safe
 // key-name gate — collector.ValidateShareSafeKeys applied to the whole bundle
 // document except the PayloadAttachment section, which is the one place a
@@ -244,6 +276,9 @@ func Validate(bundle Bundle, opts ValidateOptions) error {
 		return err
 	}
 	if err := validateReporterNote(bundle); err != nil {
+		return err
+	}
+	if err := validateResponseErrorText(bundle); err != nil {
 		return err
 	}
 	if opts.RequirePublic && profile != ProfilePublic {

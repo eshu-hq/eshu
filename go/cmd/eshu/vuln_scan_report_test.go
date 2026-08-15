@@ -10,6 +10,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -19,6 +22,8 @@ func TestRunVulnScanRepoJSONReportPreservesScannerContractAndFindingsExit(t *tes
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
 	defer reset()
+	resetVulnScanClock := stubVulnScanClock(t)
+	defer resetVulnScanClock()
 
 	server := vulnScanReportTestServer(t, repoPath, `{"data":{"findings":[{"finding_id":"finding-1","cve_id":"CVE-2026-0001","advisory_id":"GHSA-xxxx-yyyy-zzzz","package_id":"npm://registry.npmjs.org/ws","package_name":"ws","ecosystem":"npm","impact_status":"affected_exact","priority_bucket":"high","priority_score":91,"fixed_version":"8.17.1","evidence_fact_ids":["fact-package-1","fact-advisory-1"],"remediation":{"first_patched_version":"8.17.1","confidence":"exact","provider_payload_url":"https://private.example/alert/1"}}],"count":1,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":2,"freshness":"fresh"},{"family":"package.registry","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":80,"freshness":"fresh"}],"unsupported_targets":[{"target_kind":"ecosystem","reason":"matcher_not_available","ecosystem":"swift","count":1}],"freshness":"fresh","counts":{"findings_returned":1,"evidence_facts_total":83}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`)
 	defer server.Close()
@@ -40,6 +45,17 @@ func TestRunVulnScanRepoJSONReportPreservesScannerContractAndFindingsExit(t *tes
 		t.Fatalf("payload[error] = %#v, want nil for scanner findings exit", payload["error"])
 	}
 	data := payload["data"].(map[string]any)
+	// Result.Scan is typed any, so nothing at compile time keeps the command
+	// wrapper from dropping the assignment and shipping "scan": null. Name the
+	// member here, before the golden compare, so that regression reads as a
+	// missing member rather than an 8KB envelope diff.
+	scan, ok := data["scan"].(map[string]any)
+	if !ok {
+		t.Fatalf("data[scan] = %#v, want the eshu scan result object", data["scan"])
+	}
+	if got, want := scan["status"], "ready"; got != want {
+		t.Fatalf("data[scan][status] = %#v, want %#v", got, want)
+	}
 	report := data["report"].(map[string]any)
 	if got, want := report["schema_version"], "eshu.vulnerability_report.v1"; got != want {
 		t.Fatalf("report[schema_version] = %#v, want %#v", got, want)
@@ -72,6 +88,8 @@ func TestRunVulnScanRepoJSONReportPreservesScannerContractAndFindingsExit(t *tes
 	if _, ok := remediation["provider_payload_url"]; ok {
 		t.Fatalf("remediation copied private provider payload field: %#v", remediation)
 	}
+
+	assertVulnScanEnvelopeGolden(t, out.Bytes(), repoPath, server.URL, "ready_with_findings.envelope.json")
 }
 
 func TestRunVulnScanRepoJSONReportPreservesTargetPackageImageAndVersionContext(t *testing.T) {
@@ -304,51 +322,6 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnUnknownFreshness(t *testing.T) {
 	}
 }
 
-func TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation(t *testing.T) {
-	result := vulnScanRepoResult{
-		ReadinessState: "unsupported",
-		ScopeMode:      vulnScanScopeModeScoped,
-		RepositoryID:   "repo-local",
-		Count:          1,
-		Readiness: map[string]any{
-			"freshness":        "fresh",
-			"missing_evidence": []any{"unsupported_targets"},
-			"unsupported_targets": []any{
-				map[string]any{"target_kind": "ecosystem", "reason": "matcher_not_available", "ecosystem": "swift", "count": float64(1)},
-			},
-			"counts": map[string]any{"evidence_facts_total": float64(82)},
-		},
-		Findings: []map[string]any{
-			{
-				"finding_id":        "finding-1",
-				"cve_id":            "CVE-2026-0001",
-				"package_name":      "ws",
-				"impact_status":     "affected_exact",
-				"fixed_version":     "8.17.1",
-				"evidence_fact_ids": []any{"fact-package-1"},
-			},
-		},
-	}
-	out := &bytes.Buffer{}
-
-	if err := renderVulnScanRepoSummary(out, result); err != nil {
-		t.Fatalf("renderVulnScanRepoSummary() error = %v, want nil", err)
-	}
-
-	rendered := out.String()
-	for _, want := range []string{
-		"Readiness: state=unsupported freshness=fresh",
-		"Missing evidence: unsupported_targets",
-		"Unsupported targets: ecosystem/matcher_not_available count=1",
-		"Evidence facts: 82",
-		"finding-1 CVE-2026-0001 ws affected_exact fixed=8.17.1 evidence=fact-package-1",
-	} {
-		if !bytes.Contains([]byte(rendered), []byte(want)) {
-			t.Fatalf("summary missing %q; output:\n%s", want, rendered)
-		}
-	}
-}
-
 func TestRunVulnScanRepoTextSummaryRendersBeforeFindingsExit(t *testing.T) {
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
@@ -405,6 +378,53 @@ func newReportTestVulnScanRepoCommand(t *testing.T, serviceURL string, out io.Wr
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 	return cmd
+}
+
+// assertVulnScanEnvelopeGolden pins the whole `eshu vuln-scan repo --json`
+// envelope byte for byte against a committed fixture. The per-field assertions
+// above cover the members the report contract names; this covers everything
+// they do not, including members no assertion mentions -- `data.scan` is the
+// one that went unguarded, and dropping its assignment emits "scan": null with
+// nothing else noticing.
+//
+// The caller must pin both clocks (stubScanRuntime for scanNow,
+// stubVulnScanClock for vulnscan.Now) or every timestamp and elapsed-ms value
+// in the envelope moves per run. Two values still cannot be pinned at the
+// source -- the t.TempDir() target and the httptest listener address -- so they
+// are substituted for placeholders before the compare. Substituting exact known
+// host-specific strings can only mask a difference in those strings themselves;
+// anything else that changed still fails the compare.
+func assertVulnScanEnvelopeGolden(t *testing.T, got []byte, repoPath, serviceURL, fixture string) {
+	t.Helper()
+	goldenPath := filepath.Join("testdata", "vuln_scan_json", fixture)
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden %s: %v", goldenPath, err)
+	}
+	normalized := normalizeVulnScanEnvelope(t, string(got), repoPath, serviceURL)
+	if normalized == string(want) {
+		return
+	}
+	t.Fatalf("--json envelope diverges from golden %s:\nwant (%d bytes):\n%s\ngot (%d bytes):\n%s",
+		goldenPath, len(want), want, len(normalized), normalized)
+}
+
+// normalizeVulnScanEnvelope replaces the two host-specific values in the
+// envelope with stable placeholders. The scan target is reported twice, once as
+// the path the operator passed and once as the symlink-resolved root; on macOS
+// those differ (/var vs /private/var) and on Linux they are the same string, so
+// both collapse to one placeholder rather than two that would only match on one
+// platform. The resolved form is substituted first because it contains the
+// other as a substring.
+func normalizeVulnScanEnvelope(t *testing.T, envelope, repoPath, serviceURL string) string {
+	t.Helper()
+	resolvedPath, err := filepath.EvalSymlinks(repoPath)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%s) error = %v, want nil", repoPath, err)
+	}
+	envelope = strings.ReplaceAll(envelope, resolvedPath, "{{repo}}")
+	envelope = strings.ReplaceAll(envelope, repoPath, "{{repo}}")
+	return strings.ReplaceAll(envelope, serviceURL, "{{service_url}}")
 }
 
 func decodeVulnScanPayload(t *testing.T, out *bytes.Buffer) map[string]any {

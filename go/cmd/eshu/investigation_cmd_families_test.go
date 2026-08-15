@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/investigation"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-func runExportWithDeps(t *testing.T, args []string, deps investigationExportDeps) (string, error) {
+func runExportWithDeps(t *testing.T, args []string, deps investigation.Deps) (string, error) {
 	t.Helper()
 	prev := investigationExportDepsValue
 	investigationExportDepsValue = deps
@@ -34,10 +35,10 @@ func (s *strBuf) String() string              { return string(s.b) }
 
 func TestInvestigationExportDeployableUnit(t *testing.T) {
 	var gotParams url.Values
-	deps := investigationExportDeps{
-		FetchAdmissionDecisions: func(_ *APIClient, params url.Values) (admissionDecisionsEnvelope, error) {
+	deps := investigation.Deps{
+		FetchAdmissionDecisions: func(_ investigation.Client, params url.Values) (investigation.AdmissionDecisionsEnvelope, error) {
 			gotParams = params
-			env := admissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
+			env := investigation.AdmissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
 			env.Data.Decisions = []query.AdmissionDecisionResult{
 				{DecisionID: "d1", Domain: "deployable_unit_correlation", State: "admitted", ScopeID: "s1", GenerationID: "g1", AnchorKind: "repository", AnchorID: "repo-1", CandidateKind: "deployable_unit", CandidateID: "w1", CanonicalWrite: query.AdmissionDecisionCanonicalWrite{Written: true, TargetKind: "CORRELATES_DEPLOYABLE_UNIT", TargetID: "w1"}},
 			}
@@ -61,10 +62,10 @@ func TestInvestigationExportDeployableUnit(t *testing.T) {
 }
 
 func TestInvestigationExportDeployableUnitRequiresScopeAndGeneration(t *testing.T) {
-	deps := investigationExportDeps{
-		FetchAdmissionDecisions: func(*APIClient, url.Values) (admissionDecisionsEnvelope, error) {
+	deps := investigation.Deps{
+		FetchAdmissionDecisions: func(investigation.Client, url.Values) (investigation.AdmissionDecisionsEnvelope, error) {
 			t.Fatal("fetch should not run without scope_id and generation_id")
-			return admissionDecisionsEnvelope{}, nil
+			return investigation.AdmissionDecisionsEnvelope{}, nil
 		},
 	}
 	for _, args := range [][]string{
@@ -87,10 +88,10 @@ func TestInvestigationExportDeployableUnitRequiresScopeAndGeneration(t *testing.
 
 func TestInvestigationExportDeployableUnitDoesNotUseUnsupportedWorkloadAnchor(t *testing.T) {
 	var gotParams url.Values
-	deps := investigationExportDeps{
-		FetchAdmissionDecisions: func(_ *APIClient, params url.Values) (admissionDecisionsEnvelope, error) {
+	deps := investigation.Deps{
+		FetchAdmissionDecisions: func(_ investigation.Client, params url.Values) (investigation.AdmissionDecisionsEnvelope, error) {
 			gotParams = params
-			return admissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph}}, nil
+			return investigation.AdmissionDecisionsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisAuthoritativeGraph}}, nil
 		},
 	}
 	if _, err := runExportWithDeps(t, []string{"--family", "deployable_unit", "--subject", "scope_id=s1", "--subject", "generation_id=g1", "--subject", "workload_id=w1", "--format", "json"}, deps); err != nil {
@@ -103,10 +104,10 @@ func TestInvestigationExportDeployableUnitDoesNotUseUnsupportedWorkloadAnchor(t 
 
 func TestInvestigationExportDrift(t *testing.T) {
 	var gotBody map[string]any
-	deps := investigationExportDeps{
-		FetchDriftFindings: func(_ *APIClient, body map[string]any) (driftFindingsEnvelope, error) {
+	deps := investigation.Deps{
+		FetchDriftFindings: func(_ investigation.Client, body map[string]any) (investigation.DriftFindingsEnvelope, error) {
 			gotBody = body
-			env := driftFindingsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisRuntimeState, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
+			env := investigation.DriftFindingsEnvelope{Truth: &query.TruthEnvelope{Level: query.TruthLevelExact, Basis: query.TruthBasisRuntimeState, Freshness: query.TruthFreshness{State: query.FreshnessFresh}}}
 			env.Data.DriftFindings = []query.CloudRuntimeDriftFindingView{
 				{FactID: "f1", Provider: "aws", ScopeID: "acct1", CloudResourceUID: "aws:s3:b", FindingKind: "orphaned_cloud_resource", MatchedTerraformStateAddress: "aws_s3_bucket.b"},
 			}

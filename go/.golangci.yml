@@ -334,7 +334,7 @@ linters:
       - path: 'cmd/eshu/diagnostics_classify\.go'
         linters:
           - funlen
-      - path: 'cmd/eshu/local_host\.go'
+      - path: 'internal/cli/localsupervisor/host\.go'
         linters:
           - funlen
       - path: 'cmd/ingester/wiring_nornicdb_phase_group_streaming\.go'
@@ -654,6 +654,18 @@ linters:
         linters:
           - wrapcheck
           - exhaustive
+      # internal/cli/localsupervisor is the local Eshu service lifted out of
+      # cmd/eshu (#6059). It is still the top of the call stack: cmd/eshu's
+      # RunE returns its error straight to the operator, so the message a
+      # user sees is produced here. It keeps the wrapcheck half of the cmd/
+      # exemption it had before the move -- wrapping now would rewrite
+      # operator-visible error text during what is otherwise a move, and the
+      # CLI parity check pins that text. It does NOT keep the exhaustive
+      # half: removing exhaustive from this block was measured at 0 issues
+      # under both build tags, so the package earns no grant it does not use.
+      - path: 'internal/cli/localsupervisor/'
+        linters:
+          - wrapcheck
       # AWS SDK adapter packages sit at the boundary between the
       # Eshu runtime and the AWS SDK. They translate typed AWS
       # errors into scanner-owned errors; the audit confirms the

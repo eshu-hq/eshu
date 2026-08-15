@@ -2,7 +2,7 @@
 // initial-credential` for the browser-auth E2E runner (issue #4971 phase 2).
 //
 // The generated one-time bootstrap admin credential lives sealed in Postgres
-// (see go/cmd/eshu/admin_initial_credential.go); the only supported way to
+// (see go/internal/cli/admin/credential.go); the only supported way to
 // read it is the `eshu` CLI itself, run directly against the same Postgres
 // DSN and data-encryption key the `eshu` API container uses. This module
 // runs an explicit exact-source `eshu` binary when the fresh-stack wrappers
@@ -155,7 +155,7 @@ const recoveryLine = /^recovery code:\s+(\S+)/m;
 // e2e stack's Postgres and returns the parsed one-time credential, or `null`
 // once it has already been consumed (claimed) or was never generated — both
 // of which exit non-zero with an explanatory stderr message
-// (go/cmd/eshu/admin_initial_credential.go's openBootstrapCredentialPayload).
+// (go/internal/cli/admin/credential.go's openBootstrapCredentialPayload).
 // A `null` return is an expected outcome, not a runner failure: callers use
 // it both to fetch the credential the first time and to prove consumption
 // after the setup wizard completes (acceptance item 2).

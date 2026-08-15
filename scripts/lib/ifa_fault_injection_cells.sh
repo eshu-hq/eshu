@@ -58,6 +58,8 @@ cell_baseline() {
 		-domain sql_relationships \
 		-expected "${sql_expected_edges}" \
 		|| die "baseline: SQL relationship family materialized edge set did not match the expected set (fault-free baseline must materialize all nine SQL edges before the recovery cells compare against it)"
+	ifa_code_call_assert "baseline" "${bin_dir}" "${code_call_expected_edges}" \
+		|| die "baseline: code-call family materialized edge set did not match the five-edge exact set"
 	# Snapshot the fault-free retry count so cell_failgraphwrite can prove its
 	# injected fault ADDED a retry this identical drive did not produce on
 	# its own (guards the non-vacuity check against a natural counting-class
@@ -69,6 +71,9 @@ cell_baseline() {
 	baseline_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
 	baseline_retried="${baseline_retried:-0}"
 	printf 'baseline: fault-free gcp_resource_materialization retried rows (attempt_count>1): %s\n' "${baseline_retried}"
+	baseline_code_call_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "code_call_materialization")"
+	baseline_code_call_retried="${baseline_code_call_retried:-0}"
+	printf 'baseline: fault-free code_call_materialization retried rows (attempt_count>1): %s\n' "${baseline_code_call_retried}"
 	teardown_cell baseline
 	wall_times[baseline]=$(( $(date +%s) - cell_start ))
 	printf 'baseline: cell wall time: %ss\n' "${wall_times[baseline]}"

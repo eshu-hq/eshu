@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // firstRunQueryEndpoint is the bounded, API-backed query the command runs to
@@ -23,9 +25,9 @@ const firstRunQueryEndpoint = "/api/v0/repositories?limit=5"
 // step is unit-testable with fakes. Production wiring lives in runFirstRun.
 type firstRunDeps struct {
 	Probe          firstRunRuntimeProbe
-	FetchStatus    func(client *APIClient) (scanPipelineStatus, error)
+	FetchStatus    func(client scan.Client) (scan.PipelineStatus, error)
 	ListRepos      func(client *APIClient) (repositoryListResponse, error)
-	RunScan        func(ctx context.Context, stdout, stderr io.Writer, client *APIClient, opts scanOptions, announce bool) (scanResult, error)
+	RunScan        func(ctx context.Context, stdout, stderr io.Writer, rt scan.Runtime, opts scan.Options, announce bool) (scan.Result, error)
 	ReposDir       func(root string) (string, error)
 	WorkspaceRoot  string
 	WorkspaceError error
@@ -90,13 +92,13 @@ func runFirstRun(cmd *cobra.Command, args []string) error {
 	}
 	client := apiClientFromCmd(cmd)
 
-	root, rootErr := resolveScanTarget(opts.Path, "")
+	root, rootErr := scan.ResolveTarget(opts.Path, "")
 	deps := firstRunDeps{
 		Probe:       defaultFirstRunRuntimeProbe(),
-		FetchStatus: scanFetchPipelineStatus,
+		FetchStatus: scan.FetchPipelineStatus,
 		ListRepos:   firstRunListRepositories,
-		RunScan:     executeScan,
-		ReposDir:    scanReposDir,
+		RunScan:     scan.Execute,
+		ReposDir:    scan.ReposDir,
 	}
 	if rootErr != nil {
 		deps.WorkspaceError = rootErr
@@ -355,5 +357,5 @@ func firstRunTruth(result firstRunResult, profile string) map[string]any {
 		freshness = "current"
 		completeness = "complete"
 	}
-	return scanTruth(freshness, completeness, profile, currentGraphBackend())
+	return scan.Truth(freshness, completeness, profile, scan.CurrentGraphBackend())
 }

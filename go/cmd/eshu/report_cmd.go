@@ -4,32 +4,14 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/url"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/reportbundle"
+	"github.com/eshu-hq/eshu/go/internal/cli/report"
 )
-
-// includePayloadsWarning is printed to stderr, loudly, whenever
-// --include-payloads is set — in addition to the same warning the bundle
-// itself carries in Bundle.Payloads.Warning — so a terminal user sees it even
-// if they only read stdout for the bundle JSON and skim past it.
-const includePayloadsWarning = `
-!!! PRIVATE TRIAGE ONLY !!!
-This bundle includes raw fact payloads and citation excerpts because
---include-payloads was set. Do NOT attach this bundle to a public GitHub
-issue or share it outside your own local triage workflow. Run without
---include-payloads for a share-safe bundle, or run
-"eshu report validate --require-public" to confirm before sharing.
-`
 
 // addReportBundleSubcommands attaches the wrong-answer report bundle
 // subcommands (`capture`, `validate`) to the existing top-level `report`
@@ -39,9 +21,12 @@ issue or share it outside your own local triage workflow. Run without
 // one of the two features unreachable. Instead both features share the one
 // report parent — `eshu report` renders the operator digest, `eshu report
 // capture`/`eshu report validate` handle report bundles.
-func addReportBundleSubcommands(report *cobra.Command) {
-	report.AddCommand(newReportCaptureCommand())
-	report.AddCommand(newReportValidateCommand())
+//
+// The parameter is named parent rather than report so it does not shadow the
+// internal/cli/report package this file imports.
+func addReportBundleSubcommands(parent *cobra.Command) {
+	parent.AddCommand(newReportCaptureCommand())
+	parent.AddCommand(newReportValidateCommand())
 }
 
 func newReportCaptureCommand() *cobra.Command {
@@ -91,27 +76,16 @@ func runReportCapture(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	endpoint = strings.TrimSpace(endpoint)
-	if endpoint == "" {
+	if strings.TrimSpace(endpoint) == "" {
 		return commandExitError{message: "--endpoint is required", code: 2}
 	}
 	method, err := cmd.Flags().GetString("method")
 	if err != nil {
 		return err
 	}
-	method = strings.ToUpper(strings.TrimSpace(method))
-	if method == "" {
-		method = "GET"
-	}
 	paramsRaw, err := cmd.Flags().GetString("params")
 	if err != nil {
 		return err
-	}
-	params := map[string]any{}
-	if strings.TrimSpace(paramsRaw) != "" {
-		if err := json.Unmarshal([]byte(paramsRaw), &params); err != nil {
-			return fmt.Errorf("--params must be a JSON object: %w", err)
-		}
 	}
 	note, err := cmd.Flags().GetString("note")
 	if err != nil {
@@ -130,158 +104,35 @@ func runReportCapture(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	surface := "api"
-	target := endpoint
-	if strings.TrimSpace(tool) != "" {
-		surface = "mcp"
-		target = strings.TrimSpace(tool)
-	}
-
-	envelope, err := fetchReportEnvelope(apiClientFromCmd(cmd), method, endpoint, params)
-	if err != nil {
-		return fmt.Errorf("fetch query envelope: %w", err)
-	}
-
-	bundle, err := reportbundle.Capture(reportbundle.CaptureInput{
-		Surface:         surface,
-		Target:          target,
+	result, err := report.CaptureBundle(apiClientFromCmd(cmd), report.CaptureOptions{
+		Endpoint:        endpoint,
+		Tool:            tool,
 		Method:          method,
-		Params:          params,
-		Profile:         string(envelopeProfile(envelope)),
-		ReporterNote:    note,
-		Envelope:        envelope,
-		Truncated:       observedTruncation(envelope),
+		ParamsJSON:      paramsRaw,
+		Note:            note,
 		IncludePayloads: includePayloads,
 	})
 	if err != nil {
-		return fmt.Errorf("capture report bundle: %w", err)
+		// A target carrying a credential is a usage mistake the reporter can
+		// fix, so it takes the usage exit code rather than the generic one.
+		var credentialErr *report.TargetCredentialError
+		if errors.As(err, &credentialErr) {
+			return commandExitError{message: credentialErr.Error(), code: 2}
+		}
+		return err
 	}
 
 	if includePayloads {
-		_, _ = fmt.Fprint(cmd.ErrOrStderr(), includePayloadsWarning)
+		_, _ = fmt.Fprint(cmd.ErrOrStderr(), report.IncludePayloadsWarning)
 	}
-
-	raw, err := json.MarshalIndent(bundle, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal report bundle: %w", err)
-	}
-	raw = append(raw, '\n')
 
 	if strings.TrimSpace(outPath) != "" {
-		if err := os.WriteFile(outPath, raw, 0o600); err != nil {
-			return fmt.Errorf("write report bundle: %w", err)
-		}
-		return nil
+		return report.WriteBundle(outPath, result.JSON)
 	}
-	if _, err := cmd.OutOrStdout().Write(raw); err != nil {
+	if _, err := cmd.OutOrStdout().Write(result.JSON); err != nil {
 		return fmt.Errorf("write report bundle: %w", err)
 	}
 	return nil
-}
-
-// fetchReportEnvelope issues the query the reporter ran and decodes it into
-// the canonical query.ResponseEnvelope shape, reusing APIClient exactly as
-// every other envelope-backed verb does (client.go:80-93).
-func fetchReportEnvelope(client *APIClient, method, endpoint string, params map[string]any) (query.ResponseEnvelope, error) {
-	var envelope query.ResponseEnvelope
-	switch method {
-	case "GET":
-		// --endpoint may already carry its own query string. Splitting it and
-		// re-encoding both sources together builds one well-formed URL;
-		// appending "?"+params to a path that already had a "?" produced a
-		// malformed second query string. reportbundle.SplitTargetQuery is the
-		// same function Capture uses to keep the credential out of the
-		// recorded bundle, so the request and the record cannot drift.
-		//
-		// A query string it cannot parse stops the run here, before the
-		// request goes out. Capture would refuse the same target anyway, and
-		// issuing a query the reporter did not type only to throw the answer
-		// away is worse than not issuing it.
-		path, targetParams, err := reportbundle.SplitTargetQuery(endpoint)
-		if err != nil {
-			return query.ResponseEnvelope{}, err
-		}
-		values := url.Values{}
-		for key, value := range targetParams {
-			repeated, ok := value.([]any)
-			if !ok {
-				values.Set(key, fmt.Sprintf("%v", value))
-				continue
-			}
-			for _, item := range repeated {
-				values.Add(key, fmt.Sprintf("%v", item))
-			}
-		}
-		// An explicit --params entry replaces a same-named endpoint parameter,
-		// matching how Capture resolves the same collision.
-		for key, value := range params {
-			values.Set(key, fmt.Sprintf("%v", value))
-		}
-		requestPath := path
-		if len(values) > 0 {
-			requestPath += "?" + values.Encode()
-		}
-		if err := client.GetEnvelope(requestPath, &envelope); err != nil {
-			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, path)
-		}
-	case "POST":
-		postPath, _, err := reportbundle.SplitTargetQuery(endpoint)
-		if err != nil {
-			return query.ResponseEnvelope{}, err
-		}
-		if err := client.PostEnvelope(endpoint, params, &envelope); err != nil {
-			return query.ResponseEnvelope{}, requestErrorWithoutURL(err, postPath)
-		}
-	default:
-		return query.ResponseEnvelope{}, fmt.Errorf("unsupported --method %q: want GET or POST", method)
-	}
-	return envelope, nil
-}
-
-// requestErrorWithoutURL strips the request URL out of a transport error and
-// puts the bare endpoint path in its place.
-//
-// The capture command has to issue the reporter's real request, credentials and
-// all — reproducing the exact query is the feature. net/http reports a failed
-// request as a *url.Error whose Error() quotes that whole URL, so a wrong port
-// or an unreachable service printed the credential to stderr and into any CI
-// log that captured the run. None of the bundle-side redaction applies: this
-// error exists before Capture is ever called.
-//
-// The wrapped transport error is preserved with %w, so errors.Is/As still work
-// and the reader still learns what actually failed (connection refused, TLS
-// handshake, timeout). Those carry host:port, never the query string.
-//
-// Not covered: a server that echoes the request URL back inside a 4xx/5xx
-// response body, which arrives as apiHTTPError.Body rather than a *url.Error.
-func requestErrorWithoutURL(err error, safePath string) error {
-	var urlErr *url.Error
-	if !errors.As(err, &urlErr) {
-		return err
-	}
-	return fmt.Errorf("%s %s: %w", urlErr.Op, safePath, urlErr.Err)
-}
-
-// observedTruncation looks for a top-level "truncated" boolean in the
-// captured response data. Truncation is a read-model field, not part of the
-// envelope contract (query/answer_packet.go:88-89), so this is a best-effort
-// read of the SAME shape a maintainer would see, not a new contract.
-func observedTruncation(envelope query.ResponseEnvelope) bool {
-	data, ok := envelope.Data.(map[string]any)
-	if !ok {
-		return false
-	}
-	truncated, ok := data["truncated"].(bool)
-	return ok && truncated
-}
-
-// envelopeProfile returns the query profile the envelope's truth reports, or
-// empty when no truth envelope is present (for example an error response).
-func envelopeProfile(envelope query.ResponseEnvelope) query.QueryProfile {
-	if envelope.Truth == nil {
-		return ""
-	}
-	return envelope.Truth.Profile
 }
 
 func runReportValidate(cmd *cobra.Command, _ []string) error {
@@ -293,33 +144,9 @@ func runReportValidate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := readReportBundleInput(cmd.InOrStdin(), from)
+	raw, err := report.ReadBundleInput(cmd.InOrStdin(), from)
 	if err != nil {
 		return err
 	}
-	var bundle reportbundle.Bundle
-	if err := json.Unmarshal(raw, &bundle); err != nil {
-		return fmt.Errorf("decode report bundle: %w", err)
-	}
-	if err := reportbundle.Validate(bundle, reportbundle.ValidateOptions{RequirePublic: requirePublic}); err != nil {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "report bundle validation: failed")
-		return err
-	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "report bundle validation: passed")
-	return nil
-}
-
-func readReportBundleInput(in io.Reader, path string) ([]byte, error) {
-	if strings.TrimSpace(path) != "" {
-		raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local validation path, not an HTTP request param //nolint:gosec
-		if err != nil {
-			return nil, fmt.Errorf("read report bundle: %w", err)
-		}
-		return raw, nil
-	}
-	raw, err := io.ReadAll(in)
-	if err != nil {
-		return nil, fmt.Errorf("read report bundle stdin: %w", err)
-	}
-	return raw, nil
+	return report.ValidateBundle(cmd.OutOrStdout(), raw, requirePublic)
 }

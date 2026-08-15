@@ -4,10 +4,12 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/freshness"
 )
 
 func TestFreshnessServiceChangedSinceCommandIsRegistered(t *testing.T) {
@@ -25,35 +27,52 @@ func TestFreshnessServiceChangedSinceCommandIsRegistered(t *testing.T) {
 	}
 }
 
-func TestFetchFreshnessServiceChangedSinceRequestsCanonicalEnvelope(t *testing.T) {
-	var gotPath string
-	var gotQuery url.Values
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.EscapedPath()
-		gotQuery = r.URL.Query()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"service_id":"svc-a","categories":[]},"truth":{"freshness":{"state":"fresh"}},"error":null}`))
-	}))
-	defer server.Close()
-
-	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	if _, err := fetchFreshnessServiceChangedSince(client, freshnessServiceChangedSinceOptions{
-		ServiceID:         "svc-a",
-		SinceGenerationID: "gen-prior",
-		SampleLimit:       40,
-	}); err != nil {
-		t.Fatalf("fetchFreshnessServiceChangedSince() error = %v", err)
-	}
-	if gotPath != "/api/v0/freshness/services/changed-since" {
-		t.Fatalf("path = %q", gotPath)
-	}
-	for key, want := range map[string]string{
-		"service_id":          "svc-a",
-		"since_generation_id": "gen-prior",
-		"sample_limit":        "40",
+func TestFreshnessServiceChangedSinceOptionsCarryEveryFlag(t *testing.T) {
+	cmd := newFreshnessServiceChangedSinceCommand()
+	for name, value := range map[string]string{
+		"json": "true", "service-id": "svc-a", "since-generation-id": "gen-prior", "sample-limit": "40",
 	} {
-		if got := gotQuery.Get(key); got != want {
-			t.Fatalf("query[%s] = %q, want %q", key, got, want)
+		if err := cmd.Flags().Set(name, value); err != nil {
+			t.Fatalf("set %s: %v", name, err)
 		}
+	}
+	opts, err := freshnessServiceChangedSinceOptionsFromCommand(cmd)
+	if err != nil {
+		t.Fatalf("freshnessServiceChangedSinceOptionsFromCommand() error = %v", err)
+	}
+	want := freshness.ServiceChangedSinceOptions{
+		JSON: true, ServiceID: "svc-a", SinceGenerationID: "gen-prior", SampleLimit: 40,
+	}
+	if opts != want {
+		t.Fatalf("options = %#v, want %#v", opts, want)
+	}
+}
+
+func TestRunFreshnessServiceChangedSinceRendersSummary(t *testing.T) {
+	server := freshnessTestServer(t, http.StatusOK,
+		`{"data":{"service_id":"svc-a","since_generation_id":"gen-prior",`+
+			`"current_active_generation_id":"gen-current","unavailable":false,"categories":[`+
+			`{"category":"evidence","unavailable":false,"counts":{"added":4,"updated":0,"unchanged":9,`+
+			`"retired":2,"superseded":3}}]},"truth":{"freshness":{"state":"stale"}},"error":null}`)
+
+	out := &bytes.Buffer{}
+	cmd := newFreshnessServiceChangedSinceCommand()
+	cmd.SetOut(out)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("set service-url: %v", err)
+	}
+
+	if err := runFreshnessServiceChangedSince(cmd, nil); err != nil {
+		t.Fatalf("runFreshnessServiceChangedSince() error = %v", err)
+	}
+	output := out.String()
+	if !strings.Contains(output, "Service changed since gen-prior -> gen-current (service=svc-a)") {
+		t.Fatalf("summary missing baseline line: %q", output)
+	}
+	if !strings.Contains(output, "retired=2 superseded=3") {
+		t.Fatalf("summary missing counts: %q", output)
+	}
+	if !strings.Contains(output, "Truth freshness: stale") {
+		t.Fatalf("summary missing freshness: %q", output)
 	}
 }

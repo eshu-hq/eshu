@@ -13,10 +13,15 @@
 ## Invariants this package enforces
 
 - **One method on the interface.** `HTTPStatusError` promises a status code and
-  nothing else. Five sites in `go/cmd/eshu` classify API errors and all five
-  read the status; none reads the response body. Adding a second method obliges
-  every future implementation to supply it, for a reader that does not exist
-  yet.
+  nothing else. Seven sites classify API errors — four in `go/cmd/eshu`
+  (`trace.go`, `map.go`, `hosted_setup_verify.go`, `diagnostics_classify.go`)
+  and three in extracted families (`internal/cli/investigation`,
+  `internal/cli/change`, `internal/cli/freshness`) — and all seven read the
+  status; none reads the response body. The split moves as families leave
+  `cmd/eshu`, so re-count from the tree rather than trusting this line —
+  `rg -n 'apierr\.StatusCode\(' go -g '*.go' -g '!*_test.go'` prints those
+  seven and nothing else. Adding a second method obliges every future implementation
+  to supply it, for a reader that does not exist yet.
 - **No dependency outside `errors`.** Every CLI package that classifies a
   transport error imports this one, so a dependency added here lands in all of
   them. If new code needs an HTTP client, a config value, or a telemetry

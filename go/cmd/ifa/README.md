@@ -107,16 +107,31 @@ session.
   `-expected` (same count, same `relationship_type`/source/target triples, where
   an endpoint's identity is its `uid` when present and its `id` otherwise —
   `Repository`, `Workload`, `WorkloadInstance` and `Platform` carry no uid).
-  Families sharing a relationship type with another family are additionally
-  scoped by endpoint label, so repo_dependency and workload_dependency do not
-  count each other's DEPENDS_ON edges. This is the assertion `ifa graph-dump -digest`'s determinism
+  The live matrices invoke this verb for `sql_relationships` and `code_calls`,
+  requiring nine SQL edges and five code-call edges exactly in every applicable
+  cell. Families sharing a relationship type with another family are
+  additionally scoped by endpoint label, so repo_dependency and
+  workload_dependency do not count each other's DEPENDS_ON edges. This is the
+  assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
-  vacuously; the absolute expected set catches that regression. Wired into both
-  the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline) live
-  gates so the `materialized_edges:sql_relationships` coverage manifest row's
-  two `proof_gate`s are actually backed by a replay of the family. Read-only:
-  no schema DDL, no write.
+  vacuously; the absolute expected set catches that regression. The coverage
+  manifest records five rows under two proof-gate IDs.
+  `sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;
+  fault uses `ifa-fault-injection`.
+  `code_calls` has two rows: baseline uses `ifa-determinism`; fault uses
+  `ifa-fault-injection`.
+
+  The `ifa-determinism` live gate invokes it in every worker-count cell for the
+  baseline families, then asserts the generation-2 SQL set and reasserts code
+  calls after the delta. In fault injection, the fault-free baseline asserts
+  both families.
+  The SQL kill/reclaim cell compares its graph with the baseline digest; the
+  SQL write-retry cell repeats the exact nine-edge assertion.
+  Both code-call recovery cells repeat the exact five-edge assertion.
+  In the SQL delta-retract cell, the generation-2 SQL assertion runs first. The
+  post-delta code-call assertion follows before the collateral comparison.
+  Read-only: no schema DDL, no write.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
   Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads

@@ -95,14 +95,17 @@ artifact wrapper, and the share-safe scope rules live in
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
     operator-local provider alert summaries to Eshu findings with
-    aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
+    aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go` for
+    the cobra wrappers, and `go/internal/cli/vulnscan` for the scope guards,
+    report, SARIF and VEX exports, one-shot local runtime, and parity mapping
+    the wrappers call into)
   - pre-change impact and developer plan: `change impact` derives local
     rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves
     changed-file status, and posts the canonical envelope request to
     `/api/v0/impact/pre-change`; `change plan` reuses the same input contract,
     accepts optional `--intent`, and posts the read-only
     `developer_change_plan.v1` request to `/api/v0/impact/developer-change-plan`
-    (`change_impact.go`, `change_plan.go`)
+    (`change_impact.go`, `internal/cli/change`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
@@ -125,13 +128,17 @@ artifact wrapper, and the share-safe scope rules live in
     `component_conform.go`, `component_index.go`, `component_init.go`,
     `component_output.go`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
-    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`,
-    `local_graph.go`; the install logic itself lives in
+    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`; the status,
+    stop, logs, and upgrade logic lives in
+    `internal/cli/localsupervisor` and the install logic in
     `internal/cli/graphinstall`)
   - `admin`: `facts`, `reindex`, `tuning-report`, `list`, `decisions`,
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
-  - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`,
-    `local-host`
+  - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`
+  - `local-host` (hidden): the local Eshu service re-exec target
+    (`local_host.go`). It registers the command and handles signals; the
+    supervisor that owns embedded Postgres, the graph backend, and the
+    child services is `internal/cli/localsupervisor`
   - `demo`: `up`, `status`, `down` (`demo.go`, `demo_runtime.go`,
     `demo_teardown.go`, `demo_manifest.go`) — the credential-free demo
     stack. Unlike the rest of this binary, `demo` owns a Compose

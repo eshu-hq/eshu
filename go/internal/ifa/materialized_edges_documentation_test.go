@@ -19,8 +19,9 @@ import (
 //
 // This is deliberately not called coverage. A coverage row in the manifest
 // names a proof GATE, and neither gate executes this family today --
-// verify-ifa-determinism.sh asserts expected edges for sql_relationships only,
-// and MaterializedEdgeDomainEdgeTypes rejects every other domain. Breaking the
+// verify-ifa-determinism.sh asserts expected edges for sql_relationships and
+// code_calls only, and MaterializedEdgeDomainEdgeTypes rejects
+// documentation_edges. Breaking the
 // live writer's Cypher would leave this test green, so the family stays waived
 // with what is and is not proven recorded on the waiver.
 func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {

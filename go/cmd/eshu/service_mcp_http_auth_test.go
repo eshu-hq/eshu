@@ -3,7 +3,11 @@
 
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
+)
 
 // TestRunMCPStartHTTPWithoutWorkspaceRootDefaultsAllowUnauthenticated proves
 // the SAME default applies to the direct (no --workspace-root, no running
@@ -55,7 +59,7 @@ func TestRunMCPStartHTTPWithoutWorkspaceRootDefaultsAllowUnauthenticated(t *test
 func TestRunMCPStartHTTPRespectsExplicitAllowUnauthenticatedOverride(t *testing.T) {
 	restore, calls := stubServiceRuntime()
 	defer restore()
-	eshuEnviron = func() []string {
+	procexec.Environ = func() []string {
 		return []string{"PATH=/tmp", "ESHU_MCP_ALLOW_UNAUTHENTICATED=false"}
 	}
 
@@ -93,7 +97,7 @@ func TestRunMCPStartHTTPRespectsExplicitAllowUnauthenticatedOverride(t *testing.
 func TestRunMCPStartHTTPNonLoopbackHostDoesNotDefaultAllowUnauthenticated(t *testing.T) {
 	restore, calls := stubServiceRuntime()
 	defer restore()
-	eshuEnviron = func() []string { return []string{"PATH=/tmp"} }
+	procexec.Environ = func() []string { return []string{"PATH=/tmp"} }
 
 	calls.lookPath = func(string) (string, error) { return "/tmp/eshu-mcp-server", nil }
 	calls.exec = func(binary string, args []string, env []string) error {

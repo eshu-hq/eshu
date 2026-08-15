@@ -1,0 +1,282 @@
+{
+  "data": {
+    "command": "vuln-scan repo",
+    "status": "ready",
+    "readiness_state": "ready_with_findings",
+    "scope_mode": "scoped",
+    "target": {
+      "path": "{{repo}}",
+      "root": "{{repo}}",
+      "kind": "directory"
+    },
+    "repository_id": "repo-local",
+    "scan": {
+      "command": "scan",
+      "status": "ready",
+      "target": {
+        "path": "{{repo}}",
+        "root": "{{repo}}",
+        "kind": "directory"
+      },
+      "timings": {
+        "bootstrap_complete_ms": 1000,
+        "collector_complete_ms": null,
+        "projection_complete_ms": null,
+        "queue_zero_ms": 3000,
+        "readiness_wait_ms": 1000
+      },
+      "evidence": {
+        "bootstrap_binary": "/bin/eshu-bootstrap-index",
+        "service_url": "{{service_url}}",
+        "status_endpoint": "/api/v0/status/pipeline",
+        "query_endpoint": "/api/v0/repositories?limit=1"
+      },
+      "status_report": {
+        "health": {
+          "state": "healthy"
+        },
+        "queue": {},
+        "generation_history": {
+          "completed": 1
+        },
+        "scope_activity": {}
+      },
+      "query_probe": {
+        "data": {
+          "repositories": []
+        },
+        "error": null,
+        "truth": {
+          "basis": "authoritative_graph"
+        }
+      },
+      "warnings": [
+        "collector_complete_ms is unavailable because eshu-bootstrap-index does not emit a structured parent-process collector timestamp yet",
+        "projection_complete_ms is unavailable because source-local projection completion is only logged by the bootstrap child today"
+      ]
+    },
+    "findings": [
+      {
+        "advisory_id": "GHSA-xxxx-yyyy-zzzz",
+        "cve_id": "CVE-2026-0001",
+        "ecosystem": "npm",
+        "evidence_fact_ids": [
+          "fact-package-1",
+          "fact-advisory-1"
+        ],
+        "finding_id": "finding-1",
+        "fixed_version": "8.17.1",
+        "impact_status": "affected_exact",
+        "package_id": "npm://registry.npmjs.org/ws",
+        "package_name": "ws",
+        "priority_bucket": "high",
+        "priority_score": 91,
+        "remediation": {
+          "confidence": "exact",
+          "first_patched_version": "8.17.1",
+          "provider_payload_url": "https://private.example/alert/1"
+        }
+      }
+    ],
+    "count": 1,
+    "limit": 50,
+    "truncated": false,
+    "readiness": {
+      "counts": {
+        "evidence_facts_total": 83,
+        "findings_returned": 1
+      },
+      "evidence_sources": [
+        {
+          "fact_count": 2,
+          "family": "package.consumption",
+          "freshness": "fresh"
+        },
+        {
+          "fact_count": 1,
+          "family": "package.registry",
+          "freshness": "fresh"
+        },
+        {
+          "fact_count": 80,
+          "family": "vulnerability.advisory",
+          "freshness": "fresh"
+        }
+      ],
+      "freshness": "fresh",
+      "readiness_state": "ready_with_findings",
+      "target_scope": {
+        "repository_id": "repo-local"
+      },
+      "unsupported_targets": [
+        {
+          "count": 1,
+          "ecosystem": "swift",
+          "reason": "matcher_not_available",
+          "target_kind": "ecosystem"
+        }
+      ]
+    },
+    "scope_plan": {
+      "mode": "scoped",
+      "observed_dependency_facts": 2,
+      "advisory_facts": 80,
+      "package_registry_facts": 1,
+      "package_registry_freshness": "fresh",
+      "package_registry_complete": true,
+      "freshness": "fresh",
+      "stop_threshold": "ready_with_findings"
+    },
+    "scan_performance": {
+      "started_at": "2026-05-21T12:00:00Z",
+      "completed_at": "2026-05-21T12:00:01Z",
+      "wall_time_ms": 1000,
+      "repository_size_bytes": 0,
+      "repository_file_count": 0,
+      "observed_dependency_facts": 2,
+      "advisory_facts": 80,
+      "package_registry_facts": 1,
+      "package_registry_freshness": "fresh",
+      "package_registry_complete": true,
+      "cache_freshness": "fresh",
+      "scope_mode": "scoped",
+      "stop_threshold": "ready_with_findings"
+    },
+    "report": {
+      "schema_version": "eshu.vulnerability_report.v1",
+      "generated_at": "2026-05-21T12:00:02Z",
+      "command": "vuln-scan repo",
+      "target": {
+        "path": "{{repo}}",
+        "root": "{{repo}}",
+        "kind": "directory"
+      },
+      "repository_id": "repo-local",
+      "summary": {
+        "total_findings": 1,
+        "truncated": false,
+        "findings_by_status": {
+          "affected_exact": 1
+        },
+        "highest_priority": "high",
+        "exit_code": 3,
+        "exit_reason": "findings_present",
+        "readiness_state": "ready_with_findings",
+        "evidence_facts_total": 83
+      },
+      "readiness": {
+        "state": "ready_with_findings",
+        "freshness": "fresh",
+        "unsupported_targets": [
+          {
+            "count": 1,
+            "ecosystem": "swift",
+            "reason": "matcher_not_available",
+            "target_kind": "ecosystem"
+          }
+        ],
+        "evidence_sources": [
+          {
+            "fact_count": 2,
+            "family": "package.consumption",
+            "freshness": "fresh"
+          },
+          {
+            "fact_count": 1,
+            "family": "package.registry",
+            "freshness": "fresh"
+          },
+          {
+            "fact_count": 80,
+            "family": "vulnerability.advisory",
+            "freshness": "fresh"
+          }
+        ],
+        "counts": {
+          "evidence_facts_total": 83,
+          "findings_returned": 1
+        }
+      },
+      "findings": [
+        {
+          "finding_id": "finding-1",
+          "cve_id": "CVE-2026-0001",
+          "advisory_id": "GHSA-xxxx-yyyy-zzzz",
+          "target": {},
+          "package": {
+            "package_id": "npm://registry.npmjs.org/ws",
+            "package_name": "ws",
+            "ecosystem": "npm"
+          },
+          "affected": {
+            "status": "affected_exact",
+            "fixed_version": "8.17.1"
+          },
+          "priority": {
+            "bucket": "high",
+            "score": 91
+          },
+          "remediation": {
+            "confidence": "exact",
+            "first_patched_version": "8.17.1",
+            "fixed_version": "8.17.1"
+          },
+          "evidence_handles": [
+            {
+              "kind": "fact",
+              "id": "fact-package-1"
+            },
+            {
+              "kind": "fact",
+              "id": "fact-advisory-1"
+            }
+          ]
+        }
+      ],
+      "scope_plan": {
+        "mode": "scoped",
+        "observed_dependency_facts": 2,
+        "advisory_facts": 80,
+        "package_registry_facts": 1,
+        "package_registry_freshness": "fresh",
+        "package_registry_complete": true,
+        "freshness": "fresh",
+        "stop_threshold": "ready_with_findings"
+      },
+      "scan_performance": {
+        "started_at": "2026-05-21T12:00:00Z",
+        "completed_at": "2026-05-21T12:00:01Z",
+        "wall_time_ms": 1000,
+        "repository_size_bytes": 0,
+        "repository_file_count": 0,
+        "observed_dependency_facts": 2,
+        "advisory_facts": 80,
+        "package_registry_facts": 1,
+        "package_registry_freshness": "fresh",
+        "package_registry_complete": true,
+        "cache_freshness": "fresh",
+        "scope_mode": "scoped",
+        "stop_threshold": "ready_with_findings"
+      },
+      "evidence": {
+        "service_url": "{{service_url}}",
+        "findings_endpoint": "/api/v0/supply-chain/impact/findings"
+      }
+    },
+    "warnings": [
+      "collector_complete_ms is unavailable because eshu-bootstrap-index does not emit a structured parent-process collector timestamp yet",
+      "projection_complete_ms is unavailable because source-local projection completion is only logged by the bootstrap child today"
+    ],
+    "evidence": {
+      "service_url": "{{service_url}}",
+      "findings_endpoint": "/api/v0/supply-chain/impact/findings"
+    }
+  },
+  "truth": {
+    "freshness": {
+      "state": "fresh"
+    },
+    "level": "exact"
+  },
+  "error": null
+}

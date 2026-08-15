@@ -4,52 +4,28 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
+	"context"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/query"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
-type docsVerifyOptions struct {
-	Path             string
-	Limit            int
-	MaxDocumentBytes int
-	FailOn           []string
-	JSON             bool
-	Persist          bool
-	Scope            string
-	Repo             string
-	ImageTruth       string
-}
-
-type docsVerifyEnvelope struct {
-	Data  docsVerifyData   `json:"data"`
-	Truth map[string]any   `json:"truth"`
-	Error *docsVerifyError `json:"error"`
-}
-
-type docsVerifyData struct {
-	Findings        []doctruth.VerificationFinding        `json:"findings"`
-	EvidencePackets []doctruth.VerificationEvidencePacket `json:"evidence_packets"`
-	Summary         doctruth.VerificationSummary          `json:"summary"`
-	Truncated       bool                                  `json:"truncated"`
-	Persistence     docsVerifyPersistenceSummary          `json:"persistence,omitempty"`
-}
-
-type docsInventory struct {
-	Documents []doctruth.DocumentInput
-	Truncated bool
-}
-
-type docsVerifyError struct {
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
+// docsVerifyFlags is the resolved flag state for one `docs verify` run. It
+// holds the CLI-only knobs alongside the options the docs package consumes:
+// failOn selects which finding statuses become a non-zero exit, and jsonOutput
+// picks the output format. Neither is the docs package's business.
+type docsVerifyFlags struct {
+	verify     docs.VerifyOptions
+	failOn     []string
+	jsonOutput bool
 }
 
 func init() {
@@ -69,7 +45,9 @@ func newDocsVerifyCommand() *cobra.Command {
 	return newDocsVerifyCommandWithDeps(defaultDocsVerifyDeps())
 }
 
-func newDocsVerifyCommandWithDeps(deps docsVerifyDeps) *cobra.Command {
+// newDocsVerifyCommandWithDeps builds `docs verify` against injectable
+// dependencies so tests can supply a fake persistence store and a fixed clock.
+func newDocsVerifyCommandWithDeps(deps docs.Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "verify [path]",
 		Short: "Verify documentation claims against Eshu truth sources",
@@ -92,160 +70,156 @@ func newDocsVerifyCommandWithDeps(deps docsVerifyDeps) *cobra.Command {
 	return cmd
 }
 
-func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDeps) error {
-	opts, err := docsVerifyOptionsFromCommand(cmd, args)
+// runDocsVerifyWithDeps resolves process state -- flags, the effective image
+// truth source, and the cobra output stream -- then hands the verification
+// itself to the docs package and maps its result onto the CLI's exit contract.
+func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docs.Deps) error {
+	flags, err := docsVerifyFlagsFromCommand(cmd, args)
 	if err != nil {
 		return err
 	}
-	opts.ImageTruth = effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth)
-	inventory, err := inventoryDocs(opts)
+	flags.verify.ImageTruth = effectiveDocsVerifyImageTruth(cmd, flags.verify.ImageTruth)
+	deps.ContainerImageResolver = docsVerifyContainerImageResolver(cmd, flags.verify)
+	result, err := docs.Verify(cmd.Context(), flags.verify, deps)
 	if err != nil {
 		return err
 	}
-	persistence, closePersistence, persistSummary, err := prepareDocsVerifyPersistence(cmd.Context(), opts, inventory, deps)
-	if err != nil {
-		return err
-	}
-	if closePersistence != nil {
-		defer func() { _ = closePersistence() }()
-	}
-	if persistSummary.Skipped {
-		result, err := docsVerifyResultFromPersisted(cmd.Context(), persistence, persistSummary)
-		if err != nil {
-			return err
-		}
-		applyDocsVerifyInventorySummary(&result, inventory)
-		exitErr := docsVerifyFailure(opts, result)
-		envelope := docsVerifyEnvelopeForResult(result, exitErr)
-		envelope.Data.Persistence = persistSummary
-		return writeDocsVerifyOutput(cmd, opts, result, envelope, exitErr)
-	}
-	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
-		Commands:               docsVerifyCommandTruth(deps),
-		HTTPEndpoints:          docsVerifyHTTPEndpointTruth(),
-		EnvironmentVariables:   docsVerifyEnvironmentTruth(opts.Path),
-		LocalPathResolver:      docsVerifyLocalPathResolver(opts.Path),
-		ContainerImageResolver: docsVerifyContainerImageResolver(cmd, opts),
-		TerraformResolver:      docsVerifyTerraformAddressResolver(opts.Path),
-		MaxDocuments:           opts.Limit,
-		MaxDocumentBytes:       opts.MaxDocumentBytes,
-		ScopeID:                persistSummary.ScopeID,
-		GenerationID:           persistSummary.GenerationID,
-	})
-	result, err := verifier.Verify(cmd.Context(), inventory.Documents)
-	if err != nil {
-		return err
-	}
-	result.Truncated = result.Truncated || inventory.Truncated
-	if persistence != nil {
-		if err := commitDocsVerifyResult(cmd.Context(), persistence, persistSummary, result, deps.now); err != nil {
-			return err
-		}
-		persistSummary.Persisted = true
-	}
-	exitErr := docsVerifyFailure(opts, result)
-	envelope := docsVerifyEnvelopeForResult(result, exitErr)
-	envelope.Data.Persistence = persistSummary
-	return writeDocsVerifyOutput(cmd, opts, result, envelope, exitErr)
+	exitErr := docsVerifyFailure(flags.failOn, result.Verification)
+	envelope := docs.NewEnvelope(result.Verification, exitErr)
+	envelope.Data.Persistence = result.Persistence
+	return writeDocsVerifyOutput(cmd, flags, result.Verification, envelope, exitErr)
 }
 
-func docsVerifyCommandTruth(deps docsVerifyDeps) []doctruth.CommandTruth {
-	if deps.commandTruth == nil {
-		return nil
-	}
-	return deps.commandTruth()
-}
-
+// writeDocsVerifyOutput renders the run to the command's output stream and then
+// returns the exit error, so a failing run still prints its report.
 func writeDocsVerifyOutput(
 	cmd *cobra.Command,
-	opts docsVerifyOptions,
+	flags docsVerifyFlags,
 	result doctruth.VerificationResult,
-	envelope docsVerifyEnvelope,
+	envelope docs.Envelope,
 	exitErr error,
 ) error {
-	if opts.JSON {
-		if err := writeDocsVerifyJSON(cmd.OutOrStdout(), envelope); err != nil {
+	if flags.jsonOutput {
+		if err := docs.WriteJSON(cmd.OutOrStdout(), envelope); err != nil {
 			return err
 		}
 		return exitErr
 	}
-	if err := renderDocsVerifyText(cmd.OutOrStdout(), result); err != nil {
+	if err := docs.RenderText(cmd.OutOrStdout(), result); err != nil {
 		return err
 	}
 	return exitErr
 }
 
-func docsVerifyOptionsFromCommand(cmd *cobra.Command, args []string) (docsVerifyOptions, error) {
+// docsVerifyFlagsFromCommand reads the flag set into resolved options,
+// rejecting invalid values with the CLI's usage exit code 2.
+func docsVerifyFlagsFromCommand(cmd *cobra.Command, args []string) (docsVerifyFlags, error) {
 	limit, err := cmd.Flags().GetInt("limit")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	maxBytes, err := cmd.Flags().GetInt("max-bytes")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	failOn, err := cmd.Flags().GetString("fail-on")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	persist, err := cmd.Flags().GetBool("persist")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	scopeID, err := cmd.Flags().GetString("scope")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	repo, err := cmd.Flags().GetString("repo")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
 	imageTruth, err := cmd.Flags().GetString("image-truth")
 	if err != nil {
-		return docsVerifyOptions{}, err
+		return docsVerifyFlags{}, err
 	}
-	imageTruth = strings.TrimSpace(strings.ToLower(imageTruth))
-	imageTruth = normalizedDocsVerifyImageTruth(imageTruth)
+	imageTruth = docs.NormalizeImageTruthMode(imageTruth)
 	switch imageTruth {
 	case "auto", "local", "api":
 	default:
-		return docsVerifyOptions{}, commandExitError{message: "--image-truth must be auto, local, or api", code: 2}
+		return docsVerifyFlags{}, commandExitError{message: "--image-truth must be auto, local, or api", code: 2}
 	}
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
 	}
 	if limit <= 0 {
-		return docsVerifyOptions{}, commandExitError{message: "--limit must be greater than 0", code: 2}
+		return docsVerifyFlags{}, commandExitError{message: "--limit must be greater than 0", code: 2}
 	}
 	if maxBytes <= 0 {
-		return docsVerifyOptions{}, commandExitError{message: "--max-bytes must be greater than 0", code: 2}
+		return docsVerifyFlags{}, commandExitError{message: "--max-bytes must be greater than 0", code: 2}
 	}
-	return docsVerifyOptions{
-		Path:             path,
-		Limit:            limit,
-		MaxDocumentBytes: maxBytes,
-		FailOn:           splitCSV(failOn),
-		JSON:             jsonOutput,
-		Persist:          persist,
-		Scope:            scopeID,
-		Repo:             repo,
-		ImageTruth:       imageTruth,
+	return docsVerifyFlags{
+		verify: docs.VerifyOptions{
+			Path:             path,
+			Limit:            limit,
+			MaxDocumentBytes: maxBytes,
+			Persist:          persist,
+			Scope:            scopeID,
+			Repo:             repo,
+			ImageTruth:       imageTruth,
+		},
+		failOn:     splitCSV(failOn),
+		jsonOutput: jsonOutput,
 	}, nil
 }
 
-func normalizedDocsVerifyImageTruth(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "" {
-		return "auto"
+// docsVerifyFailure maps the verification result onto the CLI exit contract:
+// exit 1 when any finding carries a status the caller listed in --fail-on.
+func docsVerifyFailure(failOn []string, result doctruth.VerificationResult) error {
+	statuses := map[string]struct{}{}
+	for _, status := range failOn {
+		statuses[status] = struct{}{}
 	}
-	return value
+	for _, finding := range result.Findings {
+		if _, ok := statuses[finding.Status]; ok {
+			return commandExitError{
+				message: "documentation verification has " + finding.Status + " findings",
+				code:    1,
+			}
+		}
+	}
+	return nil
 }
 
+// defaultDocsVerifyDeps wires the production dependencies: Postgres opened from
+// the process environment, and the command surface walked off the live cobra
+// tree.
+func defaultDocsVerifyDeps() docs.Deps {
+	return docs.Deps{
+		OpenPersistence: openDocsVerifyPostgresPersistence,
+		CommandTruth:    func() []doctruth.CommandTruth { return commandTruthFromCobra(rootCmd) },
+		Now:             func() time.Time { return time.Now().UTC() },
+	}
+}
+
+// openDocsVerifyPostgresPersistence opens the fact store `docs verify --persist`
+// writes to. It lives here rather than in the docs package because resolving
+// the DSN reads the process environment.
+func openDocsVerifyPostgresPersistence(ctx context.Context) (docs.Persistence, func() error, error) {
+	db, err := runtimecfg.OpenPostgres(ctx, os.Getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	return docs.NewPostgresPersistence(db), db.Close, nil
+}
+
+// commandTruthFromCobra walks the live command tree into the command surface
+// documentation claims are checked against. Hidden commands are excluded: a
+// document should not be able to cite one as supported.
 func commandTruthFromCobra(root *cobra.Command) []doctruth.CommandTruth {
 	out := []doctruth.CommandTruth{}
 	var walk func(*cobra.Command, []string)
@@ -267,115 +241,10 @@ func commandTruthFromCobra(root *cobra.Command) []doctruth.CommandTruth {
 	return out
 }
 
+// commandUseAllowsArgs reports whether a cobra Use string declares positional
+// arguments, which is what lets a documented `eshu docs verify .` be valid.
 func commandUseAllowsArgs(use string) bool {
 	return len(strings.Fields(use)) > 1
-}
-
-func endpointTruthFromOpenAPI(spec string) []doctruth.HTTPEndpointTruth {
-	var raw struct {
-		Paths map[string]map[string]any `json:"paths"`
-	}
-	if err := json.Unmarshal([]byte(spec), &raw); err != nil {
-		return nil
-	}
-	out := []doctruth.HTTPEndpointTruth{}
-	for path, methods := range raw.Paths {
-		for method := range methods {
-			method = strings.ToUpper(method)
-			switch method {
-			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-				out = append(out, doctruth.HTTPEndpointTruth{Method: method, Path: path})
-			}
-		}
-	}
-	return out
-}
-
-func docsVerifyHTTPEndpointTruth() []doctruth.HTTPEndpointTruth {
-	out := endpointTruthFromOpenAPI(query.OpenAPISpec())
-	out = append(
-		out,
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/docs"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/api/v0/redoc"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/health"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/sse"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/mcp/message"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/healthz"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/readyz"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/admin/status"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/admin/replay"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodPost, Path: "/admin/refinalize"},
-		doctruth.HTTPEndpointTruth{Method: http.MethodGet, Path: "/metrics"},
-	)
-	return out
-}
-
-func docsVerifyFailure(opts docsVerifyOptions, result doctruth.VerificationResult) error {
-	failOn := map[string]struct{}{}
-	for _, status := range opts.FailOn {
-		failOn[status] = struct{}{}
-	}
-	for _, finding := range result.Findings {
-		if _, ok := failOn[finding.Status]; ok {
-			return commandExitError{
-				message: "documentation verification has " + finding.Status + " findings",
-				code:    1,
-			}
-		}
-	}
-	return nil
-}
-
-func docsVerifyEnvelopeForResult(result doctruth.VerificationResult, err error) docsVerifyEnvelope {
-	envelope := docsVerifyEnvelope{
-		Data: docsVerifyData{
-			Findings:        result.Findings,
-			EvidencePackets: result.EvidencePackets,
-			Summary:         result.Summary,
-			Truncated:       result.Truncated,
-		},
-		Truth: map[string]any{
-			"capability": "documentation.verify",
-			"basis":      "active documentation claim verification",
-			"freshness":  map[string]any{"state": "fresh"},
-		},
-	}
-	if err != nil {
-		envelope.Error = &docsVerifyError{Code: "documentation_verification_failed", Message: err.Error()}
-	}
-	return envelope
-}
-
-func renderDocsVerifyText(w io.Writer, result doctruth.VerificationResult) error {
-	summary := result.Summary
-	if _, err := fmt.Fprintf(
-		w,
-		"Docs verify: documents=%d claims=%d valid=%d contradicted=%d missing_evidence=%d unsupported=%d truncated=%t\n",
-		summary.DocumentsScanned,
-		summary.ClaimsChecked,
-		summary.Valid,
-		summary.Contradicted,
-		summary.MissingEvidence,
-		summary.UnsupportedClaimType,
-		result.Truncated,
-	); err != nil {
-		return err
-	}
-	for _, finding := range result.Findings {
-		if finding.Status == doctruth.VerificationStatusValid {
-			continue
-		}
-		if _, err := fmt.Fprintf(w, "- %s %s %s\n", finding.Status, finding.ClaimType, finding.NormalizedClaim); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func writeDocsVerifyJSON(w io.Writer, envelope docsVerifyEnvelope) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(envelope)
 }
 
 func splitCSV(value string) []string {

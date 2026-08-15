@@ -8,7 +8,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,16 +18,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
 )
 
-// canaryEnvelopeServer returns a canned query.ResponseEnvelope carrying a
-// verbatim truth envelope plus a citation embedding an Excerpt (inline
-// content bytes), so the capture command's assertions can prove the truth
-// envelope survives byte-for-byte and the excerpt never reaches a
-// public-profile bundle.
-func canaryEnvelopeServer(t *testing.T, wantPath string) *httptest.Server {
+// These tests cover what this file owns: cobra flags reaching
+// internal/cli/report, the package's results reaching the right stream or file,
+// and errors reaching the right exit code. The bundle's content and its
+// redaction rules are proven in internal/cli/report's own tests, against the
+// same production functions these commands call.
+
+// envelopeServer returns a canned query.ResponseEnvelope carrying a truth
+// envelope and a citation with an inline excerpt, so the wiring assertions run
+// against realistic bytes.
+func envelopeServer(t *testing.T, wantPath string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if wantPath != "" && r.URL.Path != wantPath {
-			t.Fatalf("request path = %q, want %q", r.URL.Path, wantPath)
+			t.Errorf("request path = %q, want %q", r.URL.Path, wantPath)
 		}
 		w.Header().Set("Content-Type", "application/eshu.envelope+json")
 		_, _ = w.Write([]byte(`{
@@ -35,37 +40,36 @@ func canaryEnvelopeServer(t *testing.T, wantPath string) *httptest.Server {
 				"truncated": true,
 				"citations": [{"repo_id": "demo/service", "relative_path": "main.go", "excerpt": "func Handler() { return nil }"}]
 			},
-			"truth": {
-				"level": "exact",
-				"capability": "trace.service_story",
-				"profile": "local_authoritative",
-				"basis": "authoritative_graph",
-				"backend": "nornicdb",
-				"freshness": {"state": "fresh"}
-			},
+			"truth": {"level": "exact", "profile": "local_authoritative", "backend": "nornicdb"},
 			"error": null
 		}`))
 	}))
 }
 
-// TestReportCapture_AgainstEnvelopeServer proves `eshu report capture` fetches
-// the envelope via the API client, stores the query.TruthEnvelope verbatim,
-// drops the embedded citation excerpt, and produces a bundle that passes its
-// own Validate gate.
-func TestReportCapture_AgainstEnvelopeServer(t *testing.T) {
-	t.Parallel()
-
-	server := canaryEnvelopeServer(t, "/api/v0/services/checkout/story")
-	defer server.Close()
-
+// newCaptureCmd builds a capture command wired to buffers, matching how the
+// real command resolves its streams.
+func newCaptureCmd(t *testing.T, serverURL string) (*cobra.Command, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
 	cmd := &cobra.Command{}
 	addReportCaptureFlags(cmd)
 	addRemoteFlags(cmd)
-	var out, errOut bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	cmd.SetOut(out)
+	cmd.SetErr(errOut)
+	mustSetFlag(t, cmd, "service-url", serverURL)
+	return cmd, out, errOut
+}
 
-	mustSetFlag(t, cmd, "service-url", server.URL)
+// TestReportCapture_WritesBundleToStdout proves the flags reach the capture
+// path through the production APIClient and the bundle lands on stdout.
+func TestReportCapture_WritesBundleToStdout(t *testing.T) {
+	t.Parallel()
+
+	server := envelopeServer(t, "/api/v0/services/checkout/story")
+	defer server.Close()
+
+	cmd, out, _ := newCaptureCmd(t, server.URL)
 	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story")
 	mustSetFlag(t, cmd, "params", `{"repo":"demo/service","api_key":"sk-live-should-not-leak"}`)
 	mustSetFlag(t, cmd, "note", "expected the owning team, got an empty list")
@@ -78,235 +82,121 @@ func TestReportCapture_AgainstEnvelopeServer(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &bundle); err != nil {
 		t.Fatalf("decode captured bundle: %v\noutput: %s", err, out.String())
 	}
-
-	if bundle.SchemaVersion != reportbundle.SchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", bundle.SchemaVersion, reportbundle.SchemaVersion)
-	}
-	if bundle.Response.Truth == nil {
-		t.Fatalf("Response.Truth is nil, want the verbatim truth envelope")
-	}
-	if bundle.Response.Truth.Level != "exact" || bundle.Response.Truth.Backend != "nornicdb" {
-		t.Fatalf("Response.Truth = %+v, want verbatim server truth envelope", bundle.Response.Truth)
+	if bundle.Response.Truth == nil || bundle.Response.Truth.Backend != "nornicdb" {
+		t.Errorf("Response.Truth = %+v, want the server's verbatim truth envelope", bundle.Response.Truth)
 	}
 	if !bundle.Response.Truncated {
-		t.Fatalf("Response.Truncated = false, want true (observed from response data)")
+		t.Errorf("Response.Truncated = false, want the observed read-model flag")
 	}
-	if bundle.Redaction.Profile != reportbundle.ProfilePublic {
-		t.Fatalf("Redaction.Profile = %q, want %q", bundle.Redaction.Profile, reportbundle.ProfilePublic)
-	}
-
-	raw := out.String()
-	if strings.Contains(raw, "sk-live-should-not-leak") {
-		t.Fatalf("captured bundle leaks the api_key sentinel value:\n%s", raw)
-	}
-	if strings.Contains(raw, "\"excerpt\":") {
-		t.Fatalf("captured bundle carries a live excerpt key:\n%s", raw)
-	}
-
-	if err := reportbundle.Validate(bundle, reportbundle.ValidateOptions{RequirePublic: true}); err != nil {
-		t.Fatalf("Validate(bundle, RequirePublic=true) error = %v, want nil", err)
+	if strings.Contains(out.String(), "sk-live-should-not-leak") {
+		t.Errorf("captured bundle leaks the api_key sentinel value:\n%s", out.String())
 	}
 }
 
-// TestReportCapture_GETMergesEndpointQueryWithParams is the CLI-level proof for
-// the request URL fetchReportEnvelope builds. The other capture tests all pass
-// an --endpoint with no query string, so none of them reaches the merge loop,
-// the repeated-value branch, or the collision rule — a regression there would
-// build a wrong request and, because Capture splits the same target, record
-// parameters that no longer describe it.
-//
-// It also pins the deliberate asymmetry: the request keeps the credential
-// (it is the reporter's own API call, and the answer under investigation is the
-// one that credential returns), the bundle does not.
-func TestReportCapture_GETMergesEndpointQueryWithParams(t *testing.T) {
+// TestReportCapture_WritesBundleToOutPath proves --out diverts the bytes to a
+// file, owner-only, and leaves stdout empty.
+func TestReportCapture_WritesBundleToOutPath(t *testing.T) {
 	t.Parallel()
 
-	var gotQuery url.Values
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotQuery = r.URL.Query()
-		if r.URL.Path != "/api/v0/services/checkout/story" {
-			t.Errorf("request path = %q, want the bare path with the query string split off", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/eshu.envelope+json")
-		_, _ = w.Write([]byte(`{"data":{"owner":"platform-team"},"truth":{"level":"exact","profile":"local_authoritative"},"error":null}`))
-	}))
+	server := envelopeServer(t, "")
 	defer server.Close()
 
-	cmd := &cobra.Command{}
-	addReportCaptureFlags(cmd)
-	addRemoteFlags(cmd)
-	var out, errOut bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	mustSetFlag(t, cmd, "service-url", server.URL)
-	mustSetFlag(t, cmd, "endpoint",
-		"/api/v0/services/checkout/story?repo=demo%2Fservice&tag=alpha&tag=beta&limit=5&api_key=sk-live-should-not-leak")
-	mustSetFlag(t, cmd, "params", `{"limit":25}`)
+	outPath := filepath.Join(t.TempDir(), "bundle.json")
+	cmd, out, _ := newCaptureCmd(t, server.URL)
+	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story")
+	mustSetFlag(t, cmd, "out", outPath)
 
 	if err := runReportCapture(cmd, nil); err != nil {
 		t.Fatalf("runReportCapture() error = %v, want nil", err)
 	}
-
-	// The request the server actually received.
-	if got := gotQuery.Get("repo"); got != "demo/service" {
-		t.Errorf("request repo = %q, want the endpoint parameter merged in", got)
+	if out.Len() != 0 {
+		t.Errorf("stdout = %q, want nothing written when --out is set", out.String())
 	}
-	if got := gotQuery["tag"]; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
-		t.Errorf("request tag = %#v, want both repeated endpoint values in order", got)
+	info, err := os.Stat(outPath)
+	if err != nil {
+		t.Fatalf("stat --out bundle: %v", err)
 	}
-	if got := gotQuery["limit"]; len(got) != 1 || got[0] != "25" {
-		t.Errorf("request limit = %#v, want the explicit --params value to replace the endpoint's, not append to it", got)
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("--out bundle mode = %04o, want 0600", got)
 	}
-	if got := gotQuery.Get("api_key"); got != "sk-live-should-not-leak" {
-		t.Errorf("request api_key = %q, want the reporter's own credential still sent with the query under investigation", got)
+	raw, err := os.ReadFile(outPath) // #nosec G304 -- test-owned temp path
+	if err != nil {
+		t.Fatalf("read --out bundle: %v", err)
 	}
-
-	// The bundle recorded alongside it.
 	var bundle reportbundle.Bundle
-	if err := json.Unmarshal(out.Bytes(), &bundle); err != nil {
-		t.Fatalf("decode captured bundle: %v\noutput: %s", err, out.String())
-	}
-	if bundle.Query.Target != "/api/v0/services/checkout/story" {
-		t.Errorf("Query.Target = %q, want the bare path", bundle.Query.Target)
-	}
-	if got := bundle.Query.Params["repo"]; got != "demo/service" {
-		t.Errorf("Query.Params[\"repo\"] = %#v, want the endpoint parameter recorded", got)
-	}
-	tags, ok := bundle.Query.Params["tag"].([]any)
-	if !ok || len(tags) != 2 || tags[0] != "alpha" || tags[1] != "beta" {
-		t.Errorf("Query.Params[\"tag\"] = %#v, want both repeated values recorded in order", bundle.Query.Params["tag"])
-	}
-	if got := bundle.Query.Params["limit"]; got != float64(25) {
-		t.Errorf("Query.Params[\"limit\"] = %#v, want the explicit --params value, matching what was issued", got)
-	}
-	if _, present := bundle.Query.Params["api_key"]; present {
-		t.Errorf("Query.Params carries api_key; the request may send it, the shared artifact may not")
-	}
-	if strings.Contains(out.String(), "sk-live-should-not-leak") {
-		t.Errorf("captured bundle leaks the endpoint credential:\n%s", out.String())
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		t.Fatalf("decode --out bundle: %v\ncontent: %s", err, raw)
 	}
 }
 
-// TestReportCapture_RefusesUnparseableEndpointQueryString proves the CLI fails
-// closed on an endpoint whose query string net/url cannot parse, instead of
-// issuing a request with the query silently emptied and writing a bundle that
-// still carries the raw target.
-func TestReportCapture_RefusesUnparseableEndpointQueryString(t *testing.T) {
+// TestReportCapture_RequiresEndpoint pins the usage exit code for the one flag
+// check this wrapper still owns.
+func TestReportCapture_RequiresEndpoint(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		t.Error("server was called; capture must refuse the malformed endpoint before issuing the request")
-		w.WriteHeader(http.StatusOK)
-	}))
+	cmd, _, _ := newCaptureCmd(t, "http://127.0.0.1:1")
+	mustSetFlag(t, cmd, "endpoint", "   ")
+
+	err := runReportCapture(cmd, nil)
+	var exitErr commandExitError
+	if !asCommandExitError(err, &exitErr) {
+		t.Fatalf("runReportCapture() error = %#v, want commandExitError", err)
+	}
+	if exitErr.ExitCode() != 2 {
+		t.Errorf("exit code = %d, want 2", exitErr.ExitCode())
+	}
+}
+
+// TestReportCapture_TargetCredentialTakesUsageExitCode proves the wrapper maps
+// report.TargetCredentialError to the usage exit code rather than the generic
+// one, and that nothing carrying the credential reaches a stream.
+func TestReportCapture_TargetCredentialTakesUsageExitCode(t *testing.T) {
+	t.Parallel()
+
+	const sentinel = "ESHU6059SENTINELc47e09"
+
+	server := envelopeServer(t, "")
 	defer server.Close()
 
-	cmd := &cobra.Command{}
-	addReportCaptureFlags(cmd)
-	addRemoteFlags(cmd)
-	var out, errOut bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	mustSetFlag(t, cmd, "service-url", server.URL)
-	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story?api_key=sk-live-should-not-leak&bad=%ZZ")
+	cmd, out, errOut := newCaptureCmd(t, server.URL)
+	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story")
+	mustSetFlag(t, cmd, "tool", "https://svc:"+sentinel+"@mcp.internal:5432/tool")
 
 	err := runReportCapture(cmd, nil)
-	if err == nil {
-		t.Fatalf("runReportCapture() error = nil, want refusal; stdout = %s", out.String())
+	var exitErr commandExitError
+	if !asCommandExitError(err, &exitErr) {
+		t.Fatalf("runReportCapture() error = %#v, want commandExitError", err)
 	}
-	if strings.Contains(out.String(), "sk-live-should-not-leak") {
-		t.Errorf("refused capture still wrote a bundle carrying the credential:\n%s", out.String())
+	if exitErr.ExitCode() != 2 {
+		t.Errorf("exit code = %d, want 2", exitErr.ExitCode())
 	}
-}
-
-// TestReportCapture_RequestFailureDoesNotEchoEndpointQueryString covers the
-// last place a reporter's credential reaches a terminal. The CLI has to put the
-// real query string on the wire — the whole point is to reproduce the request
-// the reporter actually ran — and net/http embeds the full request URL in the
-// error it returns when that request fails. So a mistyped host, an unreachable
-// service, or a dropped connection printed
-// `Get "http://host/path?api_key=sk-live-...": dial tcp ...` straight to stderr
-// and into whatever CI log captured it.
-//
-// The bundle-side redaction cannot help here: this error is produced before
-// Capture ever runs. The command replaces the URL with the bare endpoint path
-// instead, which is what a reader needs to fix the problem anyway.
-func TestReportCapture_RequestFailureDoesNotEchoEndpointQueryString(t *testing.T) {
-	t.Parallel()
-
-	// Port 1 on loopback: the dial is refused immediately, so the request fails
-	// with a *url.Error carrying the full URL, which is the shape under test.
-	//
-	// It is a fixed address rather than a just-closed httptest server on
-	// purpose. Closing a server hands its ephemeral port back to the OS, and
-	// any process on the machine — including a sibling package's tests under
-	// `go test ./...` — can bind it before this dial goes out, at which point
-	// the request succeeds and the assertion below passes while proving
-	// nothing. Port 1 is privileged, so an unprivileged test run cannot bind
-	// it and cannot race for it.
-	const unreachableURL = "http://127.0.0.1:1"
-
-	const endpointSentinel = "CLI-ENDPOINT-SENTINEL-3f8b21"
-	const paramSentinel = "CLI-PARAM-SENTINEL-c47e09"
-
-	cmd := &cobra.Command{}
-	addReportCaptureFlags(cmd)
-	addRemoteFlags(cmd)
-	var out, errOut bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	mustSetFlag(t, cmd, "service-url", unreachableURL)
-	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story?api_key="+endpointSentinel)
-	mustSetFlag(t, cmd, "params", `{"access_token":"`+paramSentinel+`"}`)
-
-	err := runReportCapture(cmd, nil)
-	if err == nil {
-		t.Fatalf("runReportCapture() error = nil, want a request failure against a closed port")
-	}
-
 	egress := err.Error() + "\n" + out.String() + "\n" + errOut.String()
-	for _, sentinel := range []string{endpointSentinel, paramSentinel} {
-		if strings.Contains(egress, sentinel) {
-			t.Errorf("request failure echoed the credential sentinel %q to the user:\n%s", sentinel, egress)
-		}
+	if strings.Contains(egress, sentinel) {
+		t.Errorf("credential sentinel reached the operator:\n%s", egress)
 	}
-	// The message still has to be actionable: the path a reader needs to fix
-	// survives, only its query string is gone.
-	if !strings.Contains(err.Error(), "/api/v0/services/checkout/story") {
-		t.Errorf("request failure error = %q, want it to name the endpoint path so the reporter can act on it", err.Error())
+	if !strings.Contains(err.Error(), "--tool") {
+		t.Errorf("error = %q, want it to name the flag the reporter must fix", err.Error())
 	}
 }
 
-// TestReportCapture_IncludePayloadsWarnsLoudlyAndFailsRequirePublic proves
-// --include-payloads flips the bundle profile, prints a loud stderr warning,
-// and that the resulting bundle fails a subsequent --require-public check.
-func TestReportCapture_IncludePayloadsWarnsLoudlyAndFailsRequirePublic(t *testing.T) {
+// TestReportCapture_IncludePayloadsWarnsOnStderr proves the loud warning goes
+// to stderr, not into the bundle on stdout.
+func TestReportCapture_IncludePayloadsWarnsOnStderr(t *testing.T) {
 	t.Parallel()
 
-	server := canaryEnvelopeServer(t, "")
+	server := envelopeServer(t, "")
 	defer server.Close()
 
-	cmd := &cobra.Command{}
-	addReportCaptureFlags(cmd)
-	addRemoteFlags(cmd)
-	var out, errOut bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	mustSetFlag(t, cmd, "service-url", server.URL)
+	cmd, out, errOut := newCaptureCmd(t, server.URL)
 	mustSetFlag(t, cmd, "endpoint", "/api/v0/services/checkout/story")
 	mustSetFlag(t, cmd, "include-payloads", "true")
 
 	if err := runReportCapture(cmd, nil); err != nil {
 		t.Fatalf("runReportCapture() error = %v, want nil", err)
 	}
-
 	if !strings.Contains(strings.ToLower(errOut.String()), "private") {
 		t.Fatalf("stderr = %q, want a loud private-triage-only warning", errOut.String())
 	}
-
 	var bundle reportbundle.Bundle
 	if err := json.Unmarshal(out.Bytes(), &bundle); err != nil {
 		t.Fatalf("decode captured bundle: %v", err)
@@ -314,15 +204,11 @@ func TestReportCapture_IncludePayloadsWarnsLoudlyAndFailsRequirePublic(t *testin
 	if bundle.Redaction.Profile != reportbundle.ProfilePrivateTriage {
 		t.Fatalf("Redaction.Profile = %q, want %q", bundle.Redaction.Profile, reportbundle.ProfilePrivateTriage)
 	}
-
-	if err := reportbundle.Validate(bundle, reportbundle.ValidateOptions{RequirePublic: true}); err == nil {
-		t.Fatalf("Validate(bundle, RequirePublic=true) error = nil, want rejection of a private-triage bundle")
-	}
 }
 
-// TestReportValidate_RequirePublic proves `eshu report validate
-// --require-public` passes a public bundle and rejects a private-triage one.
-func TestReportValidate_RequirePublic(t *testing.T) {
+// TestReportValidate_ReadsStdinAndPrintsVerdict proves the validate wrapper
+// wires cobra's stdin and stdout into the package, on both outcomes.
+func TestReportValidate_ReadsStdinAndPrintsVerdict(t *testing.T) {
 	t.Parallel()
 
 	publicBundle, err := reportbundle.Capture(reportbundle.CaptureInput{
@@ -342,12 +228,13 @@ func TestReportValidate_RequirePublic(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		bundle  reportbundle.Bundle
-		wantErr bool
+		name        string
+		bundle      reportbundle.Bundle
+		wantErr     bool
+		wantVerdict string
 	}{
-		{name: "public bundle passes --require-public", bundle: publicBundle, wantErr: false},
-		{name: "private-triage bundle fails --require-public", bundle: privateBundle, wantErr: true},
+		{name: "public bundle passes --require-public", bundle: publicBundle, wantErr: false, wantVerdict: "report bundle validation: passed"},
+		{name: "private-triage bundle fails --require-public", bundle: privateBundle, wantErr: true, wantVerdict: "report bundle validation: failed"},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -370,7 +257,42 @@ func TestReportValidate_RequirePublic(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("runReportValidate() error = %v, wantErr %v (output: %s)", err, tt.wantErr, out.String())
 			}
+			if !strings.Contains(out.String(), tt.wantVerdict) {
+				t.Errorf("verdict = %q, want %q", out.String(), tt.wantVerdict)
+			}
 		})
+	}
+}
+
+// TestReportValidate_ReadsFromPath proves --from wins over stdin.
+func TestReportValidate_ReadsFromPath(t *testing.T) {
+	t.Parallel()
+
+	bundle, err := reportbundle.Capture(reportbundle.CaptureInput{Surface: "api", Target: "/api/v0/x"})
+	if err != nil {
+		t.Fatalf("Capture() error = %v, want nil", err)
+	}
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "bundle.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	addReportValidateFlags(cmd)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetIn(strings.NewReader("this stdin must not be read"))
+	mustSetFlag(t, cmd, "from", path)
+
+	if err := runReportValidate(cmd, nil); err != nil {
+		t.Fatalf("runReportValidate() error = %v, want nil (output: %s)", err, out.String())
+	}
+	if !strings.Contains(out.String(), "report bundle validation: passed") {
+		t.Errorf("verdict = %q, want the passed line", out.String())
 	}
 }
 
@@ -379,4 +301,18 @@ func mustSetFlag(t *testing.T, cmd *cobra.Command, name, value string) {
 	if err := cmd.Flags().Set(name, value); err != nil {
 		t.Fatalf("Set(%q, %q) error = %v", name, value, err)
 	}
+}
+
+// asCommandExitError is errors.As for the value-typed commandExitError, kept
+// here so the two exit-code assertions above read the same way.
+func asCommandExitError(err error, target *commandExitError) bool {
+	if err == nil {
+		return false
+	}
+	typed, ok := err.(commandExitError) //nolint:errorlint // commandExitError is returned as a value, never wrapped
+	if !ok {
+		return false
+	}
+	*target = typed
+	return true
 }

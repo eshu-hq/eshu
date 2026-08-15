@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
 // narrowOnboardOptions returns onboarding options that pass rule validation: an
@@ -208,8 +209,8 @@ func TestHostedOnboardArtifactRedactsEndpointCredentials(t *testing.T) {
 func TestHostedOnboardIncompleteConnectionStillSafeArtifact(t *testing.T) {
 	t.Parallel()
 	deps := okHostedDeps()
-	deps.FetchStatus = func(*APIClient) (scanPipelineStatus, error) {
-		return scanPipelineStatus{Health: scanHealth{State: "healthy"}}, nil
+	deps.FetchStatus = func(*APIClient) (scan.PipelineStatus, error) {
+		return scan.PipelineStatus{Health: scan.Health{State: "healthy"}}, nil
 	}
 	deps.ListRepos = func(*APIClient) (repositoryListResponse, error) {
 		return repositoryListResponse{}, nil

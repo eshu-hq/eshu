@@ -46,7 +46,7 @@ type CaptureInput struct {
 	// ReporterNote is the reporter's own description of what they expected.
 	// Capture scans it — it is reporter-typed input like Params, and the guide
 	// asks for a repro, so it commonly holds a pasted curl. Callers must not
-	// pre-redact it; see redactReporterNote for what the scan does and does not
+	// pre-redact it; see redactFreeText for what the scan does and does not
 	// find.
 	ReporterNote string
 
@@ -129,8 +129,8 @@ func Capture(input CaptureInput) (Bundle, error) {
 	redactedError, errorRules := redactErrorEnvelope(input.Envelope.Error)
 
 	// The note is reporter-typed input like the parameters above, just free text
-	// rather than a parsed query string — see redactReporterNote.
-	reporterNote, noteRedacted := redactReporterNote(input.ReporterNote)
+	// rather than a parsed query string — see redactFreeText.
+	reporterNote, noteRedacted := redactFreeText(input.ReporterNote)
 	var noteRules []string
 	if noteRedacted {
 		noteRules = []string{reporterNoteRule}
@@ -367,9 +367,10 @@ func dedupeSorted(rules []string) []string {
 	return out
 }
 
-// redactErrorEnvelope routes an error envelope's Details map through
-// redactQueryInput — the query-input walk, not the key-name-only one Data
-// gets — returning a copy so the caller's envelope is never mutated.
+// redactErrorEnvelope redacts an error envelope in two domains and returns a
+// copy, so the caller's envelope is never mutated: Details goes through
+// redactQueryInput (the query-input walk, not the key-name-only one Data gets),
+// and the free-text fields Message and CorrelationID go through redactFreeText.
 //
 // Details belongs to the query-input domain because it echoes the reporter's
 // own selectors back: query/service_story_seam.go:131 puts the caller's
@@ -386,9 +387,23 @@ func dedupeSorted(rules []string) []string {
 // error happened to carry a "token" key got no bundle instead of a redacted
 // one, and nothing tested the difference (#5059).
 //
-// Only Details is redacted. Code, Message, Capability, CorrelationID and
-// Profiles are not key-value payload — they are fixed contract fields the
-// redactor has no key names to work with, and Validate still covers them.
+// Message and CorrelationID were once left alone, on the recorded belief that
+// they were "fixed contract fields the redactor has no key names to work with,
+// and Validate still covers them". Both halves were wrong. Message is composed:
+// query/service_workload_resolution.go:39 formats the caller's service selector
+// into it, and query/service_story_seam.go:129 emits that sentence beside a
+// details.selector holding the identical string — so the redactor DROPPED the
+// selector from Details, on rule "selector", and kept it verbatim one field over
+// in a bundle stamped profile=public / validation=passed. `redacted := *envelope`
+// is what carries it: the struct copy takes every scalar field along and only
+// Details was ever walked afterwards. And Validate did not cover them — before
+// this change validate.go named Message nowhere at all.
+//
+// Code, Capability and Profiles are still copied unscanned, and that is not the
+// same claim: each is a server-side constant (an ErrorCode enum value, a
+// capability name declared as a package const, a QueryProfile pair) with no
+// route from caller input. See redactFreeText for why CorrelationID is not one
+// of them.
 //
 // Every non-nil Details map is copied, including an empty one. Skipping the
 // copy when there is nothing to redact looks free and is not: the bundle would
@@ -401,25 +416,33 @@ func redactErrorEnvelope(envelope *query.ErrorEnvelope) (*query.ErrorEnvelope, [
 		return nil, nil
 	}
 	redacted := *envelope
+	var rules []string
+	if message, changed := redactFreeText(envelope.Message); changed {
+		redacted.Message = message
+		rules = append(rules, errorMessageRule)
+	}
+	if correlationID, changed := redactFreeText(envelope.CorrelationID); changed {
+		redacted.CorrelationID = correlationID
+		rules = append(rules, errorCorrelationIDRule)
+	}
 	if envelope.Details == nil {
 		redacted.Details = nil
-		return &redacted, nil
+		return &redacted, rules
 	}
 
-	value, rules := redactQueryInput(copyParams(envelope.Details))
+	value, detailRules := redactQueryInput(copyParams(envelope.Details))
+	rules = append(rules, detailRules...)
 	details, ok := value.(map[string]any)
 	if !ok {
 		// copyParams yields a map and redactQueryInput's map branch returns one, so
 		// this cannot happen today. Drop the details rather than pass through
 		// an unredacted value if that ever stops being true: losing diagnostic
-		// context is recoverable, leaking is not.
-		return &query.ErrorEnvelope{
-			Code:          envelope.Code,
-			Message:       envelope.Message,
-			Capability:    envelope.Capability,
-			CorrelationID: envelope.CorrelationID,
-			Profiles:      envelope.Profiles,
-		}, rules
+		// context is recoverable, leaking is not. The redacted scalars above are
+		// kept — building a fresh envelope out of the ORIGINAL fields here is how
+		// a fix applied at the top of this function would quietly not apply on
+		// this branch.
+		redacted.Details = nil
+		return &redacted, rules
 	}
 	redacted.Details = details
 	return &redacted, rules

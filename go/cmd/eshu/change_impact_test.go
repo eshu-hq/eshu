@@ -10,25 +10,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/change"
 )
 
-func stubChangeImpactFetch(t *testing.T, envelope changeImpactEnvelope, err error) func() {
+func stubChangeImpactFetch(t *testing.T, envelope change.Envelope, err error) func() {
 	t.Helper()
 	original := changeImpactFetch
-	changeImpactFetch = func(_ *APIClient, _ changeImpactOptions) (changeImpactEnvelope, error) {
+	changeImpactFetch = func(_ *APIClient, _ change.Options) (change.Envelope, error) {
 		return envelope, err
 	}
 	return func() { changeImpactFetch = original }
 }
 
-func stubChangePlanFetch(t *testing.T, envelope changeImpactEnvelope, err error) func() {
+func stubChangePlanFetch(t *testing.T, envelope change.Envelope, err error) func() {
 	t.Helper()
 	original := changePlanFetch
-	changePlanFetch = func(_ *APIClient, _ changeImpactOptions) (changeImpactEnvelope, error) {
+	changePlanFetch = func(_ *APIClient, _ change.Options) (change.Envelope, error) {
 		return envelope, err
 	}
 	return func() { changePlanFetch = original }
@@ -80,12 +80,12 @@ func TestFetchChangeImpactRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	if _, err := fetchChangeImpact(client, changeImpactOptions{
+	if _, err := fetchChangeImpact(client, change.Options{
 		RepoID:       "repo-1",
 		BaseRef:      "main",
 		HeadRef:      "feature/pre-change",
 		ChangedPaths: []string{"go/internal/query/prechange_impact.go"},
-		Changes: []changeImpactFileChange{{
+		Changes: []change.FileChange{{
 			Path:    "go/internal/query/prechange_impact.go",
 			OldPath: "go/internal/query/change_impact.go",
 			Status:  "renamed",
@@ -135,10 +135,10 @@ func TestFetchChangePlanRequestsDeveloperPlanRoute(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	if _, err := fetchChangePlan(client, changeImpactOptions{
+	if _, err := fetchChangePlan(client, change.Options{
 		RepoID:          "repo-1",
 		DeveloperIntent: "rename helper safely",
-		Changes: []changeImpactFileChange{{
+		Changes: []change.FileChange{{
 			Path:    "go/internal/query/developer_change_plan.go",
 			OldPath: "go/internal/query/prechange_impact.go",
 			Status:  "renamed",
@@ -161,78 +161,8 @@ func TestFetchChangePlanRequestsDeveloperPlanRoute(t *testing.T) {
 	}
 }
 
-func TestParseGitNameStatusDiffPreservesDeletedAndRenamedFiles(t *testing.T) {
-	t.Parallel()
-
-	changes := parseGitNameStatusDiff("M\tgo/a.go\nD\tgo/deleted.go\nR100\tgo/old.go\tgo/new.go\n")
-	if got, want := len(changes), 3; got != want {
-		t.Fatalf("len(changes) = %d, want %d", got, want)
-	}
-	if got, want := changes[1].Status, "deleted"; got != want {
-		t.Fatalf("deleted status = %q, want %q", got, want)
-	}
-	if got, want := changes[2].OldPath, "go/old.go"; got != want {
-		t.Fatalf("renamed old path = %q, want %q", got, want)
-	}
-	if got, want := changes[2].Path, "go/new.go"; got != want {
-		t.Fatalf("renamed path = %q, want %q", got, want)
-	}
-}
-
-func TestGitDiffNameStatusDetectsCopiedFiles(t *testing.T) {
-	t.Parallel()
-
-	repoPath := t.TempDir()
-	runGit(t, repoPath, "init")
-	runGit(t, repoPath, "config", "user.email", "test"+"@example.invalid")
-	runGit(t, repoPath, "config", "user.name", "Test User")
-	if err := os.MkdirAll(filepath.Join(repoPath, "go"), 0o755); err != nil {
-		t.Fatalf("MkdirAll() error = %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(repoPath, "go", "original.go"), []byte("package fixture\n\nfunc Original() {}\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile(original) error = %v", err)
-	}
-	runGit(t, repoPath, "add", "go/original.go")
-	runGit(t, repoPath, "commit", "-m", "seed original")
-	original, err := os.ReadFile(filepath.Join(repoPath, "go", "original.go"))
-	if err != nil {
-		t.Fatalf("ReadFile(original) error = %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(repoPath, "go", "copy.go"), original, 0o644); err != nil {
-		t.Fatalf("WriteFile(copy) error = %v", err)
-	}
-	runGit(t, repoPath, "add", "go/copy.go")
-
-	changes, err := gitDiffNameStatus(repoPath, "HEAD", "")
-	if err != nil {
-		t.Fatalf("gitDiffNameStatus() error = %v", err)
-	}
-	if got, want := len(changes), 1; got != want {
-		t.Fatalf("len(changes) = %d, want %d: %+v", got, want, changes)
-	}
-	if got, want := changes[0].Status, "copied"; got != want {
-		t.Fatalf("copy status = %q, want %q; changes=%+v", got, want, changes)
-	}
-	if got, want := changes[0].OldPath, "go/original.go"; got != want {
-		t.Fatalf("copy old path = %q, want %q", got, want)
-	}
-	if got, want := changes[0].Path, "go/copy.go"; got != want {
-		t.Fatalf("copy path = %q, want %q", got, want)
-	}
-}
-
-func runGit(t *testing.T, repoPath string, args ...string) {
-	t.Helper()
-
-	cmd := exec.Command("git", append([]string{"-C", repoPath}, args...)...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s error = %v output=%s", strings.Join(args, " "), err, string(out))
-	}
-}
-
 func TestRunChangeImpactRendersSummary(t *testing.T) {
-	reset := stubChangeImpactFetch(t, changeImpactEnvelope{
+	reset := stubChangeImpactFetch(t, change.Envelope{
 		Data: map[string]any{
 			"changed_file_count": float64(2),
 			"truncated":          false,
@@ -269,7 +199,7 @@ func TestRunChangeImpactRendersSummary(t *testing.T) {
 }
 
 func TestRunChangePlanRendersSummary(t *testing.T) {
-	reset := stubChangePlanFetch(t, changeImpactEnvelope{
+	reset := stubChangePlanFetch(t, change.Envelope{
 		Data: map[string]any{
 			"changed_file_count": float64(1),
 			"blocked":            true,
@@ -306,7 +236,7 @@ func TestRunChangePlanRendersSummary(t *testing.T) {
 }
 
 func TestRunChangeImpactRendersPartialSummaryBeforeFailClosed(t *testing.T) {
-	reset := stubChangeImpactFetch(t, changeImpactEnvelope{
+	reset := stubChangeImpactFetch(t, change.Envelope{
 		Data: map[string]any{
 			"changed_file_count": float64(1),
 			"truncated":          true,
@@ -386,5 +316,109 @@ func TestPreChangeImpactDogfoodFixtureProvesWorkflowAdvantage(t *testing.T) {
 	}
 	if strings.Join(preChange.AffectedEntityIDs, ",") != strings.Join(fixture.Task.ExpectedAffectedEntityIDs, ",") {
 		t.Fatalf("pre-change affected ids = %v, want %v", preChange.AffectedEntityIDs, fixture.Task.ExpectedAffectedEntityIDs)
+	}
+}
+
+// TestChangeExitCodeMapping pins the reason-to-exit-code table this wrapper
+// owns, including the two rows where answering directly differs from routing
+// through traceExitCode.
+//
+// The freshness and incomplete rows are the ones that matter. traceExitCode
+// answers 1 for both "building" and "truncated"; the change family exits 4 and
+// 5. A future simplification that fed change.Failure.Kind into traceExitCode
+// would leave every other row identical and silently change these two, so they
+// are asserted against traceExitCode explicitly as well as against the number.
+func TestChangeExitCodeMapping(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		failure change.Failure
+		want    int
+	}{
+		{name: "invalid argument", failure: change.Failure{Kind: change.KindInvalidArgument}, want: 2},
+		{name: "freshness", failure: change.Failure{Kind: change.KindFreshness}, want: 4},
+		{name: "incomplete", failure: change.Failure{Kind: change.KindIncomplete}, want: 5},
+		{name: "envelope not_found", failure: change.Failure{Kind: change.KindEnvelope, Code: "not_found"}, want: 2},
+		{name: "envelope ambiguous", failure: change.Failure{Kind: change.KindEnvelope, Code: "ambiguous"}, want: 3},
+		{name: "envelope stale", failure: change.Failure{Kind: change.KindEnvelope, Code: "stale"}, want: 4},
+		{name: "envelope partial", failure: change.Failure{Kind: change.KindEnvelope, Code: "partial"}, want: 5},
+		{name: "envelope unsupported_capability", failure: change.Failure{Kind: change.KindEnvelope, Code: "unsupported_capability"}, want: 6},
+		{name: "envelope backend_unavailable", failure: change.Failure{Kind: change.KindEnvelope, Code: "backend_unavailable"}, want: 1},
+		{name: "unknown kind", failure: change.Failure{Kind: change.FailureKind("something_new")}, want: 1},
+	}
+
+	// Every kind change.Kinds() declares needs a row here, and at least one of
+	// its rows must expect something other than what an unrecognised kind gets.
+	// Without this the table guards only the kinds someone remembered to type:
+	// a new kind added without its changeExitCode arm falls to the default,
+	// exits 1, and reads as correct. The exhaustive linter cannot cover the
+	// gap either, because go/.golangci.yml sets default-signifies-exhaustive
+	// and that switch has a default.
+	kinds := change.Kinds()
+	if len(kinds) == 0 {
+		t.Fatal("change.Kinds() returned nothing; this check would pass having evaluated no kinds")
+	}
+	unrecognised := changeExitCode(change.Failure{Kind: change.FailureKind("something_new")})
+	for _, kind := range kinds {
+		rows, offDefault := 0, 0
+		for _, tc := range cases {
+			if tc.failure.Kind != kind {
+				continue
+			}
+			rows++
+			if tc.want != unrecognised {
+				offDefault++
+			}
+		}
+		if rows == 0 {
+			t.Fatalf("no row exercises change.FailureKind %q; add the row and the changeExitCode arm it needs", kind)
+		}
+		if offDefault == 0 {
+			t.Fatalf("every row for %q expects %d, which is what an unrecognised kind gets, so changeExitCode has no arm of its own for it", kind, unrecognised)
+		}
+	}
+	t.Logf("checked %d declared kinds against %d table rows", len(kinds), len(cases))
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := changeExitCode(tc.failure); got != tc.want {
+				t.Fatalf("changeExitCode(%+v) = %d, want %d", tc.failure, got, tc.want)
+			}
+		})
+	}
+
+	if got, want := traceExitCode("building"), 1; got != want {
+		t.Fatalf("traceExitCode(building) = %d, want %d; the divergence this table documents is gone", got, want)
+	}
+	if got, want := traceExitCode("truncated"), 1; got != want {
+		t.Fatalf("traceExitCode(truncated) = %d, want %d; the divergence this table documents is gone", got, want)
+	}
+	if got := changeExitCode(change.Failure{Kind: change.KindFreshness}); got == traceExitCode("building") {
+		t.Fatal("freshness now maps to the same code as traceExitCode(building); update changeExitCode's comment or this test")
+	}
+}
+
+// TestChangeExitErrorPassesThroughForeignErrors proves changeExitError only
+// rewrites this family's own failures. A cobra flag error must reach the
+// operator unchanged rather than being relabelled with an exit code it never
+// had.
+func TestChangeExitErrorPassesThroughForeignErrors(t *testing.T) {
+	t.Parallel()
+
+	if err := changeExitError(nil); err != nil {
+		t.Fatalf("changeExitError(nil) = %v, want nil", err)
+	}
+	foreign := errors.New("flag accessed but not defined: intent")
+	if got := changeExitError(foreign); !errors.Is(got, foreign) {
+		t.Fatalf("changeExitError(foreign) = %v, want the original error", got)
+	}
+	var exitErr commandExitError
+	if got := changeExitError(change.Failure{Kind: change.KindFreshness, Message: "pre-change impact freshness is building"}); !errors.As(got, &exitErr) {
+		t.Fatalf("changeExitError(failure) = %#v, want commandExitError", got)
+	}
+	if exitErr.ExitCode() != 4 || exitErr.Error() != "pre-change impact freshness is building" {
+		t.Fatalf("commandExitError = {%q %d}, want {%q 4}", exitErr.Error(), exitErr.ExitCode(), "pre-change impact freshness is building")
 	}
 }

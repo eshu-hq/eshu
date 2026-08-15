@@ -3,7 +3,11 @@
 
 package main
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
+)
 
 // attachFirstRunDiagnostic classifies a failure signal and, when a class
 // matches, attaches the diagnostic to the result. The underlying error remains
@@ -61,7 +65,7 @@ func firstRunReadinessSignal(deps firstRunDeps, client *APIClient, detection fir
 	// Reflect a known terminal/building state even when the live status fetch is
 	// unavailable, so the readiness completeness label still informs the class.
 	if !ok && strings.EqualFold(indexed.Completeness, "failed") {
-		signal.Readiness = scanReadinessVerdict{Terminal: true, Reason: indexed.Readiness}
+		signal.Readiness = scan.ReadinessVerdict{Terminal: true, Reason: indexed.Readiness}
 	}
 	return signal
 }
@@ -69,15 +73,15 @@ func firstRunReadinessSignal(deps firstRunDeps, client *APIClient, detection fir
 // firstRunReadinessStatus fetches the live pipeline status and readiness verdict
 // for diagnosis. It returns ok=false when the status seam is unavailable or the
 // fetch fails, so the classifier falls back to the preserved error.
-func firstRunReadinessStatus(deps firstRunDeps, client *APIClient) (scanPipelineStatus, scanReadinessVerdict, bool) {
+func firstRunReadinessStatus(deps firstRunDeps, client *APIClient) (scan.PipelineStatus, scan.ReadinessVerdict, bool) {
 	if deps.FetchStatus == nil {
-		return scanPipelineStatus{}, scanReadinessVerdict{}, false
+		return scan.PipelineStatus{}, scan.ReadinessVerdict{}, false
 	}
 	status, err := deps.FetchStatus(client)
 	if err != nil {
-		return scanPipelineStatus{}, scanReadinessVerdict{}, false
+		return scan.PipelineStatus{}, scan.ReadinessVerdict{}, false
 	}
-	return status, evaluateScanReadiness(status), true
+	return status, scan.EvaluateReadiness(status), true
 }
 
 // firstRunQuerySignal builds the classifier input for a failed bounded query.

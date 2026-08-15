@@ -11,60 +11,45 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/eshulocal"
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
+	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
-const (
-	scanStatusEndpoint     = "/api/v0/status/pipeline"
-	scanQueryProbeEndpoint = "/api/v0/repositories?limit=1"
-)
+// scanRuntimeFor builds the production scan runtime for a resolved API client.
+// It is the single place the scan family's process contact is wired: PATH
+// lookup, the bootstrap child process, the inherited environment, and the API
+// reads. Tests replace it to inject fakes.
+var scanRuntimeFor = defaultScanRuntime
 
-var (
-	scanLookPath = exec.LookPath
-	scanNow      = time.Now
-	scanWait     = func(ctx context.Context, interval time.Duration) error {
-		if interval <= 0 {
-			return nil
-		}
-		timer := time.NewTimer(interval)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-			return nil
-		}
+// defaultScanRuntime wires the real seams. The clock seams stay nil so
+// internal/cli/scan applies its own time.Now and cancellable-timer defaults.
+func defaultScanRuntime(client *APIClient) scan.Runtime {
+	return scan.Runtime{
+		Client:          client,
+		ServiceURL:      client.BaseURL,
+		Environ:         procexec.Environ(),
+		LookPath:        exec.LookPath,
+		RunBootstrap:    runScanBootstrap,
+		FetchStatus:     scan.FetchPipelineStatus,
+		FetchQueryProbe: scan.FetchQueryProbe,
 	}
+}
 
-	scanRunBootstrap = func(ctx context.Context, binary string, args []string, env []string, stdout, stderr io.Writer) error {
-		cmd := exec.CommandContext(ctx, binary)
-		cmd.Args = args
-		cmd.Env = env
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		return cmd.Run()
-	}
-	scanFetchPipelineStatus = func(client *APIClient) (scanPipelineStatus, error) {
-		var status scanPipelineStatus
-		if err := client.Get(scanStatusEndpoint, &status); err != nil {
-			return scanPipelineStatus{}, err
-		}
-		return status, nil
-	}
-	scanFetchQueryProbe = func(client *APIClient) (map[string]any, error) {
-		var probe map[string]any
-		if err := client.Get(scanQueryProbeEndpoint, &probe); err != nil {
-			return nil, err
-		}
-		return probe, nil
-	}
-)
+// runScanBootstrap runs the bootstrap-index child to completion. args carries
+// its own argv[0], so the command is built from binary and then overridden.
+func runScanBootstrap(ctx context.Context, binary string, args []string, env []string, stdout, stderr io.Writer) error {
+	cmd := exec.CommandContext(ctx, binary)
+	cmd.Args = args
+	cmd.Env = env
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	return cmd.Run()
+}
 
 func init() {
 	scanCmd := &cobra.Command{
@@ -95,139 +80,35 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	client := apiClientFromCmd(cmd)
-	result, err := executeScan(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), client, opts, !opts.JSON)
+	result, err := scan.Execute(
+		cmd.Context(),
+		cmd.OutOrStdout(),
+		cmd.ErrOrStderr(),
+		scanRuntimeFor(client),
+		opts,
+		!opts.JSON,
+	)
 	return finishScan(cmd, opts, result, err)
 }
 
-func executeScan(
-	parentCtx context.Context,
-	stdout io.Writer,
-	stderr io.Writer,
-	client *APIClient,
-	opts scanOptions,
-	announce bool,
-) (scanResult, error) {
-	result := newScanResult(opts, client.BaseURL)
-	startedAt := scanNow()
-	if parentCtx == nil {
-		parentCtx = context.Background()
-	}
-	runCtx, cancel := context.WithTimeout(parentCtx, opts.Timeout)
-	defer cancel()
-
-	preflight, err := scanFetchPipelineStatus(client)
-	if err != nil {
-		return result, fmt.Errorf("scan preflight status check: %w", err)
-	}
-	result.StatusReport = preflight
-	queryProbe, err := scanFetchQueryProbe(client)
-	if err != nil {
-		return result, fmt.Errorf("scan preflight query check: %w", err)
-	}
-	result.QueryProbe = queryProbe
-
-	binary, err := scanLookPath("eshu-bootstrap-index")
-	if err != nil {
-		return result, fmt.Errorf("eshu-bootstrap-index not found in PATH: %w", err)
-	}
-	result.Evidence.BootstrapBinary = binary
-
-	bootstrapStartedAt := scanNow()
-	if announce {
-		_, _ = fmt.Fprintf(stdout, "Scanning %s...\n", opts.Target.Root)
-	}
-	if err := scanRunBootstrap(
-		runCtx,
-		binary,
-		opts.BootstrapArgs(),
-		opts.BootstrapEnv(),
-		stdout,
-		stderr,
-	); err != nil {
-		return result, fmt.Errorf("run bootstrap index: %w", err)
-	}
-	bootstrapCompletedAt := scanNow()
-	result.Timings.BootstrapCompleteMS = durationMillis(bootstrapCompletedAt.Sub(bootstrapStartedAt))
-
-	if !opts.Wait {
-		result.Status = "submitted"
-		result.Truth = scanTruth("stale", "partial", opts.Profile, currentGraphBackend())
-		return result, nil
-	}
-
-	readyResult, err := waitForScanReadiness(runCtx, client, opts, result, startedAt, bootstrapCompletedAt)
-	if err != nil {
-		if opts.AllowPartial && readyResult.StatusReport.Health.State != "" {
-			readyResult.Status = "partial"
-			readyResult.Truth = scanTruth("stale", "partial", opts.Profile, currentGraphBackend())
-			readyResult.Warnings = append(readyResult.Warnings, err.Error())
-			return readyResult, nil
-		}
-		return readyResult, err
-	}
-	readyResult.Status = "ready"
-	queryProbe, err = scanFetchQueryProbe(client)
-	if err != nil {
-		return readyResult, fmt.Errorf("scan query readiness check: %w", err)
-	}
-	readyResult.QueryProbe = queryProbe
-	readyResult.Truth = scanTruth("current", "complete", opts.Profile, currentGraphBackend())
-	return readyResult, nil
-}
-
-func newScanResult(opts scanOptions, serviceURL string) scanResult {
-	return scanResult{
-		Command: "scan",
-		Status:  "failed",
-		Target:  opts.Target,
-		Evidence: scanEvidence{
-			ServiceURL:     serviceURL,
-			StatusEndpoint: scanStatusEndpoint,
-			QueryEndpoint:  scanQueryProbeEndpoint,
-		},
-		Warnings: []string{
-			"collector_complete_ms is unavailable because eshu-bootstrap-index does not emit a structured parent-process collector timestamp yet",
-			"projection_complete_ms is unavailable because source-local projection completion is only logged by the bootstrap child today",
-		},
-	}
-}
-
-type scanOptions struct {
-	Force           bool
-	JSON            bool
-	Wait            bool
-	AllowPartial    bool
-	Timeout         time.Duration
-	PollInterval    time.Duration
-	DiscoveryReport string
-	ReposDir        string
-	Profile         string
-	Target          scanTarget
-	RuntimeEnv      []string
-}
-
-type scanTarget struct {
-	Path string `json:"path"`
-	Root string `json:"root"`
-	Kind string `json:"kind"`
-}
-
-func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scanOptions, error) {
+// scanOptionsFromCommand resolves the cobra flags into a scan.Options. Flag
+// reading stays here because internal/cli/scan cannot see cobra's state.
+func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scan.Options, error) {
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
 	}
 	explicitRoot, err := cmd.Flags().GetString("workspace-root")
 	if err != nil {
-		return scanOptions{}, err
+		return scan.Options{}, err
 	}
-	target, err := resolveScanTarget(path, explicitRoot)
+	target, err := scan.ResolveTarget(path, explicitRoot)
 	if err != nil {
-		return scanOptions{}, err
+		return scan.Options{}, err
 	}
-	reposDir, err := scanReposDir(target.Root)
+	reposDir, err := scan.ReposDir(target.Root)
 	if err != nil {
-		return scanOptions{}, err
+		return scan.Options{}, err
 	}
 	force, _ := cmd.Flags().GetBool("force")
 	jsonOutput, _ := cmd.Flags().GetBool("json")
@@ -240,16 +121,16 @@ func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scanOptions, err
 	if strings.TrimSpace(discoveryReport) != "" {
 		discoveryReport, err = filepath.Abs(discoveryReport)
 		if err != nil {
-			return scanOptions{}, fmt.Errorf("resolve discovery report path %q: %w", discoveryReport, err)
+			return scan.Options{}, fmt.Errorf("resolve discovery report path %q: %w", discoveryReport, err)
 		}
 	}
 	if timeout <= 0 {
-		return scanOptions{}, fmt.Errorf("timeout must be greater than zero")
+		return scan.Options{}, fmt.Errorf("timeout must be greater than zero")
 	}
 	if pollInterval <= 0 {
-		return scanOptions{}, fmt.Errorf("poll-interval must be greater than zero")
+		return scan.Options{}, fmt.Errorf("poll-interval must be greater than zero")
 	}
-	return scanOptions{
+	return scan.Options{
 		Force:           force,
 		JSON:            jsonOutput,
 		Wait:            wait,
@@ -263,77 +144,16 @@ func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scanOptions, err
 	}, nil
 }
 
-func scanReposDir(root string) (string, error) {
-	layout, err := eshulocal.BuildLayout(os.Getenv, os.UserHomeDir, runtime.GOOS, root)
-	if err != nil {
-		return "", fmt.Errorf("resolve scan cache: %w", err)
-	}
-	return filepath.Join(layout.CacheDir, "repos"), nil
-}
-
-func resolveScanTarget(path, explicitRoot string) (scanTarget, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return scanTarget{}, err
-	}
-	root, err := eshulocal.ResolveWorkspaceRoot(absPath, explicitRoot)
-	if err != nil {
-		return scanTarget{}, err
-	}
-	return scanTarget{
-		Path: absPath,
-		Root: root,
-		Kind: scanTargetKind(root, strings.TrimSpace(explicitRoot) != ""),
-	}, nil
-}
-
-func scanTargetKind(root string, explicit bool) string {
-	if explicit {
-		return "workspace"
-	}
-	if pathExists(filepath.Join(root, ".eshu.yaml")) {
-		return "workspace"
-	}
-	if pathExists(filepath.Join(root, ".git")) {
-		return "repository"
-	}
-	return "directory"
-}
-
+// pathExists reports whether a path is present on disk.
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-func (o scanOptions) BootstrapArgs() []string {
-	args := []string{"eshu-bootstrap-index", "--path", o.Target.Root}
-	if o.Force {
-		args = append(args, "--force")
-	}
-	return args
-}
-
-func (o scanOptions) BootstrapEnv() []string {
-	overrides := map[string]string{
-		"ESHU_REPO_SOURCE_MODE":  "filesystem",
-		"ESHU_FILESYSTEM_ROOT":   o.Target.Root,
-		"ESHU_FILESYSTEM_DIRECT": "true",
-		"ESHU_REPOS_DIR":         o.ReposDir,
-	}
-	if strings.TrimSpace(o.DiscoveryReport) != "" {
-		overrides["ESHU_DISCOVERY_REPORT"] = o.DiscoveryReport
-	}
-	base := eshuEnviron()
-	if len(o.RuntimeEnv) > 0 {
-		base = append([]string(nil), o.RuntimeEnv...)
-	}
-	return mergeEnvironment(base, overrides)
-}
-
-func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err error) error {
+func finishScan(cmd *cobra.Command, opts scan.Options, result scan.Result, err error) error {
 	if opts.JSON {
 		if result.Truth == nil {
-			result.Truth = scanTruth("stale", "partial", opts.Profile, currentGraphBackend())
+			result.Truth = scan.Truth("stale", "partial", opts.Profile, scan.CurrentGraphBackend())
 		}
 		envelope := map[string]any{
 			"data":  result,
@@ -363,30 +183,12 @@ func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err err
 	return nil
 }
 
+// writeScanJSON writes an indented JSON envelope without HTML escaping. It is
+// the shared writer for every CLI command that emits the canonical envelope,
+// not only scan.
 func writeScanJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	enc.SetEscapeHTML(false)
 	return enc.Encode(v)
-}
-
-func scanTruth(freshness, completeness, profile, backend string) map[string]any {
-	return map[string]any{
-		"level":        "runtime",
-		"freshness":    freshness,
-		"completeness": completeness,
-		"profile":      profile,
-		"backend":      backend,
-	}
-}
-
-func currentGraphBackend() string {
-	if backend := strings.TrimSpace(os.Getenv("ESHU_GRAPH_BACKEND")); backend != "" {
-		return backend
-	}
-	return "unknown"
-}
-
-func durationMillis(d time.Duration) int64 {
-	return d.Milliseconds()
 }

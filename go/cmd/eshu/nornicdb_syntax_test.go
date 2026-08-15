@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 566 lines, 565 of them pre-existing: the NornicDB syntax compatibility gate was already over the cap before #6059 added one import line here. The pre-commit `filecap` variant flags any file over 500 lines; the CI plugin and `filecap-all` exempt _test.go, so this suppresses a local-only gate. Splitting it is separate from the move.
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 )
@@ -139,7 +140,7 @@ RETURN count(*) AS processed_rows`
 
 		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 			AccessMode:   neo4jdriver.AccessModeWrite,
-			DatabaseName: localNornicDBDefaultDatabase,
+			DatabaseName: localsupervisor.GraphDatabaseName,
 		})
 		defer func() {
 			_ = session.Close(ctx)
@@ -256,7 +257,7 @@ RETURN count(*) AS processed_rows`
 
 		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 			AccessMode:   neo4jdriver.AccessModeWrite,
-			DatabaseName: localNornicDBDefaultDatabase,
+			DatabaseName: localsupervisor.GraphDatabaseName,
 		})
 		defer func() {
 			_ = session.Close(ctx)
@@ -372,7 +373,7 @@ RETURN count(*) AS processed_rows`
 
 		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 			AccessMode:   neo4jdriver.AccessModeWrite,
-			DatabaseName: localNornicDBDefaultDatabase,
+			DatabaseName: localsupervisor.GraphDatabaseName,
 		})
 		defer func() {
 			_ = session.Close(ctx)
@@ -480,9 +481,9 @@ func withNornicDBSyntaxDriver(t *testing.T, fn func(context.Context, neo4jdriver
 		t.Skip("set ESHU_NORNICDB_BINARY to run the NornicDB syntax compatibility gate")
 	}
 
-	binaryPath, err := resolveNornicDBBinary()
+	binaryPath, err := localsupervisor.ResolveGraphBinary()
 	if err != nil {
-		t.Fatalf("resolveNornicDBBinary() error = %v", err)
+		t.Fatalf("localsupervisor.ResolveGraphBinary() error = %v", err)
 	}
 	t.Logf("using NornicDB binary %s", binaryPath)
 
@@ -490,16 +491,16 @@ func withNornicDBSyntaxDriver(t *testing.T, fn func(context.Context, neo4jdriver
 	defer cancel()
 
 	root := t.TempDir()
-	graph, err := startManagedLocalNornicDB(ctx, eshulocal.Layout{
+	graph, err := localsupervisor.StartManagedNornicDB(ctx, eshulocal.Layout{
 		GraphDir: filepath.Join(root, "graph"),
 		LogsDir:  filepath.Join(root, "logs"),
 	})
 	if err != nil {
-		t.Fatalf("startManagedLocalNornicDB() error = %v", err)
+		t.Fatalf("localsupervisor.StartManagedNornicDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := stopManagedLocalGraph(graph, localGraphShutdownTimeout); err != nil {
-			t.Errorf("stopManagedLocalGraph() error = %v, want nil", err)
+		if err := localsupervisor.StopManagedGraph(graph, localsupervisor.GraphShutdownTimeout); err != nil {
+			t.Errorf("localsupervisor.StopManagedGraph() error = %v, want nil", err)
 		}
 	})
 
@@ -550,7 +551,7 @@ func runNornicDBSyntaxSequence(t *testing.T, ctx context.Context, driver neo4jdr
 func runNornicDBSyntaxCypher(ctx context.Context, driver neo4jdriver.DriverWithContext, cypher string) error {
 	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeWrite,
-		DatabaseName: localNornicDBDefaultDatabase,
+		DatabaseName: localsupervisor.GraphDatabaseName,
 	})
 	defer func() {
 		_ = session.Close(ctx)

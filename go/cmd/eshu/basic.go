@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
@@ -321,14 +322,14 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	binary, err := eshuExecutable()
+	binary, err := procexec.Executable()
 	if err != nil {
 		printError("eshu executable not found.")
 		return fmt.Errorf("eshu executable not found")
 	}
 
 	fmt.Printf("Watching %s for changes...\n", workspaceRoot)
-	return eshuExec(binary, []string{cleanExecutableArg0(binary), "local-host", "watch", workspaceRoot}, eshuEnviron())
+	return procexec.Exec(binary, []string{procexec.CleanExecutableArg0(binary), "local-host", "watch", workspaceRoot}, procexec.Environ())
 }
 
 func runUnwatch(cmd *cobra.Command, args []string) error {

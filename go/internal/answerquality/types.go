@@ -43,8 +43,68 @@ const (
 	SurfaceHosted Surface = "hosted"
 )
 
+// unrecognizedSurface and unrecognizedFamily stand in for a captured surface or
+// family that is not one of the values above, wherever the scorer renders one
+// into published text.
+//
+// Both fields are plain string types unmarshalled straight from an evidence
+// file, so neither is validated and either can carry anything the capture
+// tooling wrote. The scorer builds criterion details and publish-safety
+// locators out of them, and those strings are printed to stdout, returned in
+// the CLI's error, serialized into the --json verdict, and copied into a
+// generated follow-up issue body. Rendering the raw field there would publish
+// an unscreened value through the one command whose job is to refuse exactly
+// that -- the same defect as quoting the unsafe value in the finding, one field
+// over. An enum has a fixed set of legal spellings, so it does not need the
+// screen: anything outside the set is replaced.
+const (
+	unrecognizedSurface         = "[unrecognized surface]"
+	unrecognizedFamily          = "[unrecognized family]"
+	unrecognizedNarrationStatus = "[unrecognized narration status]"
+)
+
+// label returns the surface's own name when it is one of the four known
+// surfaces, and unrecognizedSurface otherwise. Every rendering of a surface
+// into a criterion detail or a publish-safety locator goes through it.
+func (s Surface) label() string {
+	switch s {
+	case SurfaceAPI, SurfaceMCP, SurfaceCLI, SurfaceHosted:
+		return string(s)
+	default:
+		return unrecognizedSurface
+	}
+}
+
+// label returns the family's own name when it is one of the known families, and
+// unrecognizedFamily otherwise. See label on Surface.
+func (f PromptFamily) label() string {
+	switch f {
+	case PromptFamilyServiceStory, PromptFamilyCodeTopic, PromptFamilyIncidentContext,
+		PromptFamilySupplyChainImpact, PromptFamilyDocumentationTruth,
+		PromptFamilyFreshnessReadiness, PromptFamilyHostedGovernance:
+		return string(f)
+	default:
+		return unrecognizedFamily
+	}
+}
+
 // NarrationStatus records whether optional governed narration was used.
 type NarrationStatus string
+
+// label returns the status's own name when it is one of the four known statuses,
+// and unrecognizedNarrationStatus otherwise. The narration scorer renders an
+// unrecognized status into its failure detail, and the field is unmarshalled
+// straight from an evidence file, so that detail was the one place a captured
+// status reached the --json verdict unscreened. See label on Surface.
+func (s NarrationStatus) label() string {
+	switch s {
+	case NarrationStatusNotRequested, NarrationStatusAccepted,
+		NarrationStatusRejected, NarrationStatusUnavailable:
+		return string(s)
+	default:
+		return unrecognizedNarrationStatus
+	}
+}
 
 const (
 	// NarrationStatusNotRequested means no optional narration was attempted.
@@ -99,6 +159,16 @@ const (
 
 // ReportEvidenceVersion is the service intelligence report scorecard schema.
 const ReportEvidenceVersion = "service-intelligence-report-scorecard/v1"
+
+// RedactedRunID replaces a run id that itself failed the publish-safety scan.
+// Verdict.RunID is printed in the CLI header and serialized into the --json
+// artifact, so carrying the offending value there would publish exactly what
+// the scorecard refused. The publish-safety criterion names the field instead.
+const RedactedRunID = "[redacted: run_id failed publish safety]"
+
+// RedactedValue replaces any other captured evidence string that fails the
+// publish-safety scan on its way into a criterion detail. See screened.
+const RedactedValue = "[redacted: failed publish safety]"
 
 // CriterionStatus is the outcome of a scored criterion.
 type CriterionStatus string
