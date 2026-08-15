@@ -177,7 +177,8 @@ row, not just those 18.
 Seven totals are pinned, and they answer four different questions. **How many
 rows:** `594`, of which `378` carry a removable fragment. **How many
 fragments:** `492` removable, `300` outside. **Which fragment:** `TailSentinel`
-declared removable on `114` rows and outside on `84`.
+declared removable on `114` rows and outside on `84`. **How much room the table
+has:** `198` inputs hold `TailSentinel`.
 
 Each level is there because a weakening walked past the one above it, and both
 were run rather than imagined:
@@ -195,6 +196,10 @@ were run rather than imagined:
 - Count those two identities per *occurrence* rather than per row, and the
   aggregate is redistributable in turn: 57 rows declaring `TailSentinel` twice
   and 57 declaring it not at all sum to the same `114`.
+- Point one axis cell at another cell's text — the `"an escaped line feed"`
+  entry at `%20` — and the cross-product still has eleven escapes, every literal
+  holds, and the line-feed byte is crossed with nothing. Cardinality pins do not
+  look inside a cell.
 - Let a fragment be anything the input contains, and a row buys itself capacity
   with a proper prefix of a sentinel. Drop the head-of-value `Sentinel` from all
   114 credential *inside* rows and pay the count back with a prefix on the 114
@@ -212,13 +217,17 @@ partial-leak case.
 Three rules make the numbers *forcing* rather than merely consistent. The
 counters are per row. No row may declare a fragment twice. And a fragment must
 BE one of the two sentinels — containment alone would admit any substring, which
-is what the fourth weakening above exploited.
+is what the last weakening above exploited. A fourth rule sits beside rather
+than under them: no two cells of one axis may spell the same text, because the
+seven literals count cells and never look inside one.
 
-The budget is then arithmetic rather than argument. Every input holds `Sentinel`
-and 198 of them hold `TailSentinel`, so declaring capacity is `594 + 198 = 792`,
-and `492 + 300` is exactly `792`. No row can carry a fragment another row gave
-up. The `198` is pinned too, because capacity is `594` plus that number and only
-equality makes it tight.
+The budget is then arithmetic, and the equality is *forced* rather than
+observed. Vocabulary and no-duplicates cap each row at the distinct sentinels
+its input holds, so capacity is at most `594 + 198 = 792`; containment puts the
+`792` the table declares at or below capacity. Both bounds are `792`, so every
+row declares every sentinel its input holds — which is also why every input
+holds `Sentinel`, a consequence of the arithmetic rather than a premise of it.
+No row can carry a fragment another row gave up.
 
 What stays free is which rows take which classification, and that is the walks'
 job rather than the ledger's — declaring an outside fragment removable turns 36

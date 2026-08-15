@@ -97,9 +97,11 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	// the docs cite would quietly stop meaning anything. A deliberate new axis
 	// fails here, tells you the new totals, and asks you to update the prose.
 	//
-	// Five questions. Each was added because a weakening walked past the level
-	// above it, and every one of those weakenings cost the same half of the
-	// coverage -- the partial-leak case.
+	// Five levels, each added because a weakening walked past the one above it,
+	// and every one of those weakenings cost the same half of the coverage -- the
+	// partial-leak case. (The package docs group the SEVEN literals into four
+	// questions; these five are the levels the weakenings climbed. Different
+	// things counted, both true.)
 	//
 	// HOW MANY ROWS. 594, and 378 of them carrying a removable fragment.
 	//
@@ -140,11 +142,14 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	// rows that carried them. The vocabulary check above is what makes the cap
 	// real: a fragment must BE one of the two sentinels.
 	//
-	// The budget is then arithmetic rather than argument. Every input holds
-	// Sentinel and 198 of them hold TailSentinel, so capacity is 594 + 198 =
-	// 792, and 492 + 300 is exactly 792. No row can carry a fragment another row
-	// gave up. wantTailInputRows pins the 198, because capacity is 594 + that
-	// number and only equality makes it tight.
+	// The budget is then arithmetic rather than argument, and equality is FORCED
+	// rather than observed. Vocabulary and no-duplicates cap each row's declared
+	// set at the distinct sentinels its input holds, so capacity is at most
+	// 594 + 198 = 792. Containment puts the 792 the table declares at or below
+	// capacity. Both bounds are 792, so capacity is exactly 792 and every row
+	// declares every sentinel its input holds -- which also means every input
+	// holds Sentinel, a consequence of the arithmetic rather than a premise of
+	// it. No row can carry a fragment another row gave up.
 	const (
 		wantRows               = 594
 		wantRemovableRows      = 378
@@ -232,5 +237,83 @@ func TestCheckRemovalFiresWhenBothWalksKeepTheCredential(t *testing.T) {
 	outside := DifferentialCase{Outside: []string{Sentinel}}
 	if err := outside.CheckRemoval(Sentinel, Sentinel); err != nil {
 		t.Errorf("an Outside fragment was held to a removal requirement: %v", err)
+	}
+}
+
+// differentialAxisValue is one cell of one axis: the label that names it in a
+// row name, and the text the generator actually splices into the input.
+type differentialAxisValue struct{ label, text string }
+
+// differentialAxis is one axis of the cross-product, flattened so a single loop
+// can ask the same question of all of them.
+type differentialAxis struct {
+	name   string
+	values []differentialAxisValue
+}
+
+// differentialAxes flattens the four TEXT-valued axes. The position axis is not
+// here because its cells are functions, not strings, and retargeting one changes
+// which fragments the row declares -- something the count pins already see.
+func differentialAxes() []differentialAxis {
+	keys := make([]differentialAxisValue, 0, len(differentialKeyNames))
+	for _, key := range differentialKeyNames {
+		keys = append(keys, differentialAxisValue{label: key.name, text: key.name})
+	}
+	spellings := make([]differentialAxisValue, 0, len(differentialSeparatorSpellings))
+	for _, spelling := range differentialSeparatorSpellings {
+		spellings = append(spellings, differentialAxisValue{label: spelling.name, text: spelling.text})
+	}
+	escapes := make([]differentialAxisValue, 0, len(differentialEscapes))
+	for _, escape := range differentialEscapes {
+		escapes = append(escapes, differentialAxisValue{label: escape.name, text: escape.text})
+	}
+	suffixes := make([]differentialAxisValue, 0, len(differentialSuffixes))
+	for _, suffix := range differentialSuffixes {
+		suffixes = append(suffixes, differentialAxisValue{label: suffix.name, text: suffix.text})
+	}
+	return []differentialAxis{
+		{name: "key name", values: keys},
+		{name: "separator spelling", values: spellings},
+		{name: "escape", values: escapes},
+		{name: "suffix", values: suffixes},
+	}
+}
+
+// TestDifferentialAxisValuesAreDistinct pins that each axis crosses what its
+// labels say it crosses.
+//
+// The seven literals next door are CARDINALITY pins. They notice an axis growing
+// or shrinking and are blind to what is in a cell. Point the "an escaped line
+// feed" cell at "%20" instead of "%0A", keep its label and the axis at eleven
+// entries, and every literal holds, all three declaration rules hold, and the
+// whole package is green -- while the line-feed byte, one of the eleven this
+// cross-product exists to cross, is exercised nowhere. Two cells spelling the
+// same text are two cells doing one cell's work.
+//
+// Labels need no check of their own: two cells sharing one collide on the row
+// name, which TestDifferentialCasesAreSelfConsistent already rejects. Text is
+// what nothing was looking at.
+//
+// The limit, so nobody reads more into this than it does: it catches a cell
+// retargeted onto a text some other cell already has. A cell retargeted onto a
+// NEW distinct text -- "%0A" to "%0B" -- leaves the axis crossing eleven
+// different bytes under one wrong label, and nothing here notices. Pinning that
+// would mean writing the axis down twice.
+func TestDifferentialAxisValuesAreDistinct(t *testing.T) {
+	t.Parallel()
+
+	for _, axis := range differentialAxes() {
+		if len(axis.values) == 0 {
+			t.Errorf("the %s axis is empty, so the cross-product collapses", axis.name)
+			continue
+		}
+		seen := make(map[string]string, len(axis.values))
+		for _, value := range axis.values {
+			if first, dup := seen[value.text]; dup {
+				t.Errorf("the %s axis spells %q twice, as %q and %q -- two cells doing one cell's work, with every count still exact", axis.name, value.text, first, value.label)
+				continue
+			}
+			seen[value.text] = value.label
+		}
 	}
 }

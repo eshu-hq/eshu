@@ -124,30 +124,41 @@
   half `TailSentinel` exists to catch, since it is the only fragment sitting
   after the escape.
 
-  Change an axis and all seven move; the self-consistency test names the new
-  numbers, and every place citing them has to move too.
+  Change an axis's SIZE and all seven move; the self-consistency test names the
+  new numbers, and every place citing them has to move too. They are cardinality
+  pins, though, and blind to what is IN a cell: retarget the "an escaped line
+  feed" cell from `%0A` to `%20`, keep its label and the axis at eleven entries,
+  and every literal holds while the line-feed byte is exercised nowhere. That is
+  what `TestDifferentialAxisValuesAreDistinct` is for. Its own limit is stated
+  on it — a cell retargeted onto a text no other cell has is a wrong label, not
+  a duplicate, and nothing catches that short of writing the axis down twice.
 
 - **What is pinned, what is assumed, and what a further level would need.**
-  Five rounds of review each found the same hole one level up — guards, then row
+  Six rounds of review each found the same hole one level up — guards, then row
   counts, then fragment counts, then fragment identity, then identity spread
-  across rows — and the coverage lost was the same half every time, the
-  partial-leak case. So do not read the list below as "this is closed". Read it
-  as the current boundary.
+  across rows, then what counts as a fragment at all — and the coverage lost was
+  the same half every time, the partial-leak case. So do not read the list below
+  as "this is closed". Read it as the current boundary.
 
   **Pinned.** Seven literals. The two identity counters count **rows**. No row
   may declare a fragment twice. A fragment must BE `Sentinel` or `TailSentinel`
   — containment is `strings.Contains`, which admits any substring, so without
   the vocabulary check a row buys capacity with a proper prefix of a sentinel.
-  That was the fifth level and it was measured: drop the head-of-value
+  That was the sixth level and it was measured: drop the head-of-value
   `Sentinel` from all 114 credential inside rows, pay the count back with a
   prefix on the 114 credential opening rows, and every literal holds while 114
   assertions move off the rows that carried them.
 
-  With those, the budget is arithmetic. Every input holds `Sentinel` and 198
-  hold `TailSentinel`, so declaring capacity is `594 + 198 = 792` and the table
-  declares exactly `492 + 300 = 792`. Saturated, so no row can carry a fragment
-  another row gave up. The `198` is pinned as well, because capacity is `594`
-  plus that number and anything above it is slack.
+  No two cells of one axis may spell the same text, which is the level after
+  that: the literals count cells and never look inside them.
+
+  With those, the budget is arithmetic and the equality is **forced**, not
+  observed. The two rules cap each row at the distinct sentinels its input
+  holds, so capacity is at most `594 + 198 = 792`; containment puts the `792`
+  the table declares at or below capacity. Both bounds are `792`, so every row
+  declares every sentinel its input holds — which is why every input holds
+  `Sentinel`, a consequence rather than a premise. No row can carry a fragment
+  another row gave up.
 
   **Free, and deliberately so.** Which rows take which classification. That is
   not the ledger's job: a reclassification puts the model at odds with what the
@@ -163,7 +174,8 @@
   `Outside`, that fragment becomes borrowable.
 
   **What a further level would need.** Slack in the declaring budget. Capacity
-  is `594 + `(rows whose input holds `TailSentinel`), and the table saturates it
+  is `594` plus the number of rows whose input holds `TailSentinel`, and the
+  table saturates it
   only while that second number stays `198`. Adding an axis, a third sentinel,
   or a fourth position moves it — the pins will say so, and the arithmetic has
   to be redone rather than assumed to carry over. Anyone widening the generator
