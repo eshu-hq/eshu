@@ -34,7 +34,16 @@ import (
 // the "%s" key instead of silently missing it the way a literal-type-only
 // pattern would (a literal-only pattern cannot match "%s" at all, since it
 // starts with "%%", not [A-Z]).
-var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*(%s|[A-Z][A-Z0-9_]*)\s*\{`)
+//
+// The relationship variable before the colon is OPTIONAL
+// ((?:[A-Za-z_][A-Za-z0-9_]*)?): Cypher allows an anonymous relationship
+// pattern, `-[:TYPE {prop: x}]->`, with no bound variable at all, and every
+// production MERGE in this package happens to name one today, but nothing
+// stops a future writer from omitting it. A pattern that required a variable
+// name would silently miss a property-keyed anonymous MERGE the same way
+// the pre-fix pattern silently missed a "%s"-typed one (see
+// TestPropertyKeyedRelationshipMergesMatchKnownAllowList's doc comment).
+var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-z0-9_]*)?\s*:\s*(%s|[A-Z][A-Z0-9_]*)\s*\{`)
 
 // TestPropertyKeyedRelationshipMergesMatchKnownAllowList closes a gap
 // TestSingleTypeFamilyIdentityMatchesWriteCypher cannot: that guard only

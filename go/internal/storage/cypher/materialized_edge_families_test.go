@@ -133,13 +133,17 @@ func TestSingleTypeMaterializedEdgeTypesReturnsACopy(t *testing.T) {
 	}
 }
 
-// identityMergePropertyOpen finds a relationship variable declaration in
-// MERGE-pattern edge-bracket position (`-[var:TYPE {`) carrying an inline
-// property map — the shape a family's write template uses when it folds a
-// property into its relationship MERGE key. It requires the `-[` edge-bracket
-// prefix so a node pattern with properties (`(repo:Repository {id: ...})`) is
-// never mistaken for a relationship MERGE.
-var identityMergePropertyOpen = regexp.MustCompile(`-\[\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[A-Z][A-Z0-9_]*\s*\{`)
+// identityMergePropertyOpen finds a relationship-MERGE property map in
+// MERGE-pattern edge-bracket position (`-[var:TYPE {`, or the anonymous
+// `-[:TYPE {` Cypher also allows) carrying an inline property map — the
+// shape a family's write template uses when it folds a property into its
+// relationship MERGE key. It requires the `-[` edge-bracket prefix so a node
+// pattern with properties (`(repo:Repository {id: ...})`) is never mistaken
+// for a relationship MERGE. The relationship variable before the colon is
+// OPTIONAL: every production MERGE in this package happens to bind one
+// today, but Cypher does not require it, and a pattern that did would
+// silently miss a property-keyed anonymous MERGE.
+var identityMergePropertyOpen = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-z0-9_]*)?\s*:\s*[A-Z][A-Z0-9_]*\s*\{`)
 
 // identityMatchingBrace returns the index in cypher of the '}' that closes
 // the '{' at index open, counting nested '(){}[]' so a property value
@@ -260,6 +264,11 @@ func TestIdentityPropertiesFromCypher(t *testing.T) {
 			name:   "nested-call property value does not split the segment early",
 			cypher: `MERGE (a)-[rel:EXAMPLE {key: coalesce(row.a, row.b)}]->(b)`,
 			want:   []string{"key"},
+		},
+		{
+			name:   "anonymous relationship (no bound variable) is not missed",
+			cypher: `MERGE (repo)-[:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)`,
+			want:   []string{"pattern", "source_path"},
 		},
 	}
 	for _, tc := range cases {
