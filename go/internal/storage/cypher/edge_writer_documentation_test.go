@@ -68,9 +68,10 @@ func TestBuildDocumentationRowMapRoutesWorkloadTarget(t *testing.T) {
 // though SqlTable nodes are uid-keyed exactly like the labels that were
 // present (canonical.go:163's SQL relationship writer MATCHes SqlTable by
 // uid the same way): a "table"-kind mention's DOCUMENTS edge write silently
-// no-opped against a live backend -- the MERGE half created the
-// DocumentationSection node, but the target MATCH never found a SqlTable
-// node, so no relationship was ever created and no error surfaced. This test
+// no-opped against a live backend. The template leads with that MATCH, and a
+// MATCH yielding no rows for an UNWIND row eliminates that row before any
+// later clause runs -- so neither the DocumentationSection MERGE nor the
+// DOCUMENTS MERGE executed for it. No node, no relationship, no error. This test
 // was RED before the fix (commit a3347e898) and is GREEN after it (SqlTable
 // added to the label alternation); it stays as a permanent regression guard,
 // not a scratch artifact.

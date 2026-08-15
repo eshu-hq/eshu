@@ -102,6 +102,7 @@ on:
       - 'go/internal/ifa/graphdump/**'
       - 'go/internal/ifa/catalog_seed.go'
       - 'go/internal/ifa/code_call_family_catalog.go'
+      - 'go/internal/ifa/documentation_family_catalog.go'
       - 'go/internal/ifa/materialized_edges*.go'
       - 'go/cmd/bootstrap-data-plane/main.go'
       - 'go/cmd/reducer/main.go'
@@ -248,8 +249,16 @@ on:
       - 'go/internal/ifa/testdata/sqlrelationships/**'
       # The live lanes compare code_calls against this exact expected set.
       - 'go/internal/ifa/testdata/codecalls/**'
+      # documentation_edges (#5994) is driven and set-exactly asserted in every
+      # determinism cell, pre- and post-delta, and in the fault-free and two
+      # domain-scoped recovery cells. Its cassette and its expected-edge set are
+      # the same two artifacts the resolver reads, so a change to either changes
+      # what the live lanes assert and MUST retrigger them.
+      - 'testdata/cassettes/documentation/**'
+      - 'go/internal/ifa/testdata/documentation/**'
       - 'go/internal/storage/cypher/materialized_edge_*.go'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
+      - 'go/internal/storage/cypher/canonical_documentation_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
       - '.github/workflows/ifa-determinism-gate.yml'
 
