@@ -174,7 +174,7 @@ walks to each other is silent when they are both right *and* when they are both
 wrong, so a regression that stopped removing anything would have passed on every
 row, not just those 18.
 
-Six totals are pinned, and they answer three different questions. **How many
+Seven totals are pinned, and they answer four different questions. **How many
 rows:** `594`, of which `378` carry a removable fragment. **How many
 fragments:** `492` removable, `300` outside. **Which fragment:** `TailSentinel`
 declared removable on `114` rows and outside on `84`.
@@ -195,6 +195,12 @@ were run rather than imagined:
 - Count those two identities per *occurrence* rather than per row, and the
   aggregate is redistributable in turn: 57 rows declaring `TailSentinel` twice
   and 57 declaring it not at all sum to the same `114`.
+- Let a fragment be anything the input contains, and a row buys itself capacity
+  with a proper prefix of a sentinel. Drop the head-of-value `Sentinel` from all
+  114 credential *inside* rows and pay the count back with a prefix on the 114
+  credential *opening* rows: every literal holds, no fragment is declared twice,
+  every fragment is contained — and 114 head-of-value assertions have moved off
+  the rows that carried them.
 
 Every one of those weakenings leaves the package green except for the pin
 written to catch it, and every one takes the same half of the coverage with it.
@@ -203,14 +209,21 @@ fragment weakening, and to 27 under the occurrence one — how far it falls
 depends on which rows are demoted, but what goes quiet is always the
 partial-leak case.
 
-The counters are per row, and no row may declare a fragment twice. Those two
-rules make the six numbers *forcing* rather than merely consistent: a row can
-declare at most the distinct sentinels its input holds, so 792 fragments over
-594 rows leaves no slack anywhere to move an assertion off a row and hide it on
-another. What stays free is which rows take which classification, and that is
-the walks' job rather than the ledger's — declaring an outside fragment
-removable turns 36 differential subtests red. `AGENTS.md` records the one
-assumption the argument rests on.
+Three rules make the numbers *forcing* rather than merely consistent. The
+counters are per row. No row may declare a fragment twice. And a fragment must
+BE one of the two sentinels — containment alone would admit any substring, which
+is what the fourth weakening above exploited.
+
+The budget is then arithmetic rather than argument. Every input holds `Sentinel`
+and 198 of them hold `TailSentinel`, so declaring capacity is `594 + 198 = 792`,
+and `492 + 300` is exactly `792`. No row can carry a fragment another row gave
+up. The `198` is pinned too, because capacity is `594` plus that number and only
+equality makes it tight.
+
+What stays free is which rows take which classification, and that is the walks'
+job rather than the ledger's — declaring an outside fragment removable turns 36
+differential subtests red. `AGENTS.md` records the assumption still underneath
+all of this.
 
 Agreement is about the **decision**, not the bytes: the two walks emit different
 text on purpose, so comparing output would need an exemption on nearly every

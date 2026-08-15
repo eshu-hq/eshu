@@ -26,6 +26,7 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	outsideFragments := 0
 	tailRemovableRows := 0
 	tailOutsideRows := 0
+	tailInputRows := 0
 	for _, tc := range cases {
 		if _, dup := seen[tc.Name]; dup {
 			t.Errorf("duplicate row name %q", tc.Name)
@@ -35,21 +36,27 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 		if len(tc.Fragments()) == 0 {
 			t.Errorf("row %q declares no fragment, so it compares nothing", tc.Name)
 		}
-		// Containment is checked with strings.Contains, which cannot count, so
-		// a row declaring the same fragment twice passes it. That is not a
-		// pedantic case: a duplicate is what lets a fragment be dropped from one
-		// row and doubled on another while every aggregate below stays exact.
-		// Distinctness is also what makes those aggregates forcing — see the
-		// note on the pins.
+		// Three checks, and the counts below are only forcing because all three
+		// hold. Containment is strings.Contains, which neither counts nor cares
+		// WHAT it matched, so on its own it admits a fragment declared twice and
+		// a fragment that is any substring of the input. Either one turns the
+		// per-row cap into "unbounded" and hands a weakening somewhere to hide
+		// an assertion it took off another row.
 		declared := make(map[string]struct{}, len(tc.Fragments()))
 		for _, fragment := range tc.Fragments() {
 			if !strings.Contains(tc.Input, fragment) {
 				t.Errorf("row %q declares a fragment that is not in its input", tc.Name)
 			}
+			if fragment != Sentinel && fragment != TailSentinel {
+				t.Errorf("row %q declares %q, which is neither sentinel -- a proper substring passes containment and buys a row capacity it should not have", tc.Name, fragment)
+			}
 			if _, dup := declared[fragment]; dup {
 				t.Errorf("row %q declares %q more than once, which lets a count stay exact while an assertion moves off a row", tc.Name, fragment)
 			}
 			declared[fragment] = struct{}{}
+		}
+		if strings.Contains(tc.Input, TailSentinel) {
+			tailInputRows++
 		}
 		if len(tc.Removable) > 0 {
 			removableRows++
@@ -84,13 +91,15 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 		t.Error("no differential row puts the escape at the start of a value, which is the position that shipped a whole credential")
 	}
 
-	// All six totals are written down rather than derived from the axis tables.
+	// All seven totals are written down rather than derived from the axis tables.
 	// Deriving them re-runs the generator's own arithmetic, so a change that
 	// hollowed out the table would move the expectation with it and the numbers
 	// the docs cite would quietly stop meaning anything. A deliberate new axis
 	// fails here, tells you the new totals, and asks you to update the prose.
 	//
-	// Three questions, each of which a weakening slipped past the level above.
+	// Five questions. Each was added because a weakening walked past the level
+	// above it, and every one of those weakenings cost the same half of the
+	// coverage -- the partial-leak case.
 	//
 	// HOW MANY ROWS. 594, and 378 of them carrying a removable fragment.
 	//
@@ -111,21 +120,31 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	//
 	// ON WHICH ROWS, because an identity count is redistributable too. Counting
 	// occurrences, 57 rows declaring TailSentinel twice and 57 declaring it not
-	// at all sum to the same 114: measured, all six literals exact, package
+	// at all sum to the same 114: measured, every literal then in place exact, package
 	// green, and the mutation down from 36 red subtests to 27. How far it falls
 	// depends on WHICH rows are demoted -- aim the demotion at the
 	// literal-equals separator rows and more of the 36 go quiet -- but every
 	// choice buys the silence with partial-leak assertions the numbers cannot
-	// see leaving. The counters are per row and no row
-	// may declare a fragment twice, which together make these numbers FORCING
-	// rather than merely consistent. Each row can declare at most the distinct
-	// sentinels its input holds -- one for an opening or closing value, two for
-	// an inside one -- so 792 fragments over 594 rows leaves no slack: every row
-	// declares each of its sentinels exactly once, TailSentinel lands in exactly
-	// one list on each of the 198 inside rows, and 114/84 fixes the split.
+	// see leaving. So the counters are per row, and no row may declare a
+	// fragment twice.
 	//
-	// That is where the ladder stops. See AGENTS.md for the one assumption the
-	// argument rests on.
+	// WHAT COUNTS AS A FRAGMENT, because the per-row cap the argument above
+	// rests on was asserted and not enforced. Containment is strings.Contains,
+	// which admits ANY substring of the input, so a row could declare a proper
+	// prefix of Sentinel and buy itself capacity. Measured: drop the
+	// head-of-value Sentinel from all 114 credential inside rows and pay the
+	// count back with a prefix on the 114 credential opening rows, and every
+	// literal then in place holds, no fragment is declared twice, every fragment
+	// is contained,
+	// package green -- while 114 head-of-value assertions have moved off the
+	// rows that carried them. The vocabulary check above is what makes the cap
+	// real: a fragment must BE one of the two sentinels.
+	//
+	// The budget is then arithmetic rather than argument. Every input holds
+	// Sentinel and 198 of them hold TailSentinel, so capacity is 594 + 198 =
+	// 792, and 492 + 300 is exactly 792. No row can carry a fragment another row
+	// gave up. wantTailInputRows pins the 198, because capacity is 594 + that
+	// number and only equality makes it tight.
 	const (
 		wantRows               = 594
 		wantRemovableRows      = 378
@@ -133,6 +152,7 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 		wantOutsideFragments   = 300
 		wantTailRemovableRows  = 114
 		wantTailOutsideRows    = 84
+		wantTailInputRows      = 198
 	)
 	if len(cases) != wantRows {
 		t.Errorf("the differential generates %d rows, want %d -- update the figure wherever it is cited", len(cases), wantRows)
@@ -151,6 +171,9 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	}
 	if tailOutsideRows != wantTailOutsideRows {
 		t.Errorf("TailSentinel is declared outside on %d rows, want %d -- see above; the two halves are pinned separately because a fragment moving between them holds every other total", tailOutsideRows, wantTailOutsideRows)
+	}
+	if tailInputRows != wantTailInputRows {
+		t.Errorf("%d inputs hold TailSentinel, want %d -- declaring capacity is 594 plus this number, so anything above it is slack a weakening can move an assertion into", tailInputRows, wantTailInputRows)
 	}
 }
 

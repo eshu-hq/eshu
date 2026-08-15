@@ -106,10 +106,12 @@
   reclassify every row the moment the code it checks moves, and the table would
   go green asserting nothing.
 
-  **Six totals are pinned, answering three questions.** How many rows: `594`,
+  **Seven totals are pinned, answering four questions.** How many rows: `594`,
   and `378` carrying a removable fragment. How many fragments: `492` removable,
   `300` outside. Which fragment: `TailSentinel` declared removable on `114` rows
-  and outside on `84`.
+  and outside on `84`. How much room the table has: `198` inputs hold
+  `TailSentinel`, which with the vocabulary check fixes declaring capacity at
+  `594 + 198`.
 
   Each level exists because a weakening walked past the one above it, and both
   were measured, not imagined. 114 rows carry two removable fragments, so
@@ -122,37 +124,50 @@
   half `TailSentinel` exists to catch, since it is the only fragment sitting
   after the escape.
 
-  Change an axis and all six move; the self-consistency test names the new
+  Change an axis and all seven move; the self-consistency test names the new
   numbers, and every place citing them has to move too.
 
-- **Why the ladder stops at row counts.** Four rounds of review each found the
-  same hole one level up — guards, then row counts, then fragment counts, then
-  fragment identity in aggregate — and every time the coverage lost was the same
-  half, the partial-leak case. So it is worth saying where it ends and why.
+- **What is pinned, what is assumed, and what a further level would need.**
+  Five rounds of review each found the same hole one level up — guards, then row
+  counts, then fragment counts, then fragment identity, then identity spread
+  across rows — and the coverage lost was the same half every time, the
+  partial-leak case. So do not read the list below as "this is closed". Read it
+  as the current boundary.
 
-  The two identity counters count **rows**, and no row may declare a fragment
-  twice. Those two rules together make the six literals *forcing* rather than
-  merely consistent. A row can declare at most the distinct sentinels its input
-  holds — one for an opening or closing value, two for an inside one — so 792
-  fragments over 594 rows leaves no slack: every row declares each of its
-  sentinels exactly once, `TailSentinel` falls in exactly one list on each of
-  the 198 inside rows, and `114`/`84` fixes the split. Counting occurrences
-  instead left the aggregate redistributable, which is how 57 rows declaring it
-  twice and 57 declaring it not at all held all six numbers.
+  **Pinned.** Seven literals. The two identity counters count **rows**. No row
+  may declare a fragment twice. A fragment must BE `Sentinel` or `TailSentinel`
+  — containment is `strings.Contains`, which admits any substring, so without
+  the vocabulary check a row buys capacity with a proper prefix of a sentinel.
+  That was the fifth level and it was measured: drop the head-of-value
+  `Sentinel` from all 114 credential inside rows, pay the count back with a
+  prefix on the 114 credential opening rows, and every literal holds while 114
+  assertions move off the rows that carried them.
 
-  What is still free is WHICH rows take which classification. That is not the
-  ledger's job and it does not need to be: a reclassification puts the model at
-  odds with what the walks actually do, and the walks are what the driver runs.
-  Measured — declaring an outside fragment removable turns 36 differential
-  subtests red.
+  With those, the budget is arithmetic. Every input holds `Sentinel` and 198
+  hold `TailSentinel`, so declaring capacity is `594 + 198 = 792` and the table
+  declares exactly `492 + 300 = 792`. Saturated, so no row can carry a fragment
+  another row gave up. The `198` is pinned as well, because capacity is `594`
+  plus that number and anything above it is slack.
 
-  **The one assumption.** The argument above needs every `Outside` fragment to
-  be one the walks genuinely keep, so there is nothing to borrow against. That
-  holds today and is NOT pinned, deliberately: asserting that an `Outside`
+  **Free, and deliberately so.** Which rows take which classification. That is
+  not the ledger's job: a reclassification puts the model at odds with what the
+  walks do, and the walks are what the driver runs. Measured — declaring an
+  outside fragment removable turns 36 differential subtests red.
+
+  **Assumed, and not pinned on purpose.** The argument needs every `Outside`
+  fragment to be one the walks genuinely keep, so there is nothing to borrow
+  against. That holds today and stays unpinned: asserting that an `Outside`
   fragment survives would freeze the over-removal trade this package leaves
-  free. If over-removal ever widens far enough that both walks remove a fragment
-  declared `Outside`, that fragment becomes borrowable and a fifth level exists.
-  Check that before assuming this is settled.
+  free, which is the one behaviour here nobody wants nailed down. If
+  over-removal ever widens far enough that both walks remove a fragment declared
+  `Outside`, that fragment becomes borrowable.
+
+  **What a further level would need.** Slack in the declaring budget. Capacity
+  is `594 + `(rows whose input holds `TailSentinel`), and the table saturates it
+  only while that second number stays `198`. Adding an axis, a third sentinel,
+  or a fourth position moves it — the pins will say so, and the arithmetic has
+  to be redone rather than assumed to carry over. Anyone widening the generator
+  should check saturation before trusting the numbers below it.
 
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
