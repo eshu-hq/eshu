@@ -54,6 +54,18 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# deleting either comparison (not just the phrase) turns this red.
 	require_deployable_unit_live_lib "live lib readiness-opened resolution-started check" '"${contents}" != *"cross-repo relationship resolution started"* ]]'
 	require_deployable_unit_live_lib "live lib readiness-opened not-gated check" '"${contents}" == *"cross-repo resolution gated"* ]]'
+	# Post-maintenance intents diagnostic (#5993 follow-up): separates the two
+	# indistinguishable causes of the live gate's "expected 1, got 0" failure --
+	# a writer endpoint-MATCH miss (intents > 0, 0 edges) vs. correlation never
+	# admitting a row (intents == 0). Three needles: the function exists, it
+	# states BOTH interpretations (not just a count), and it is actually wired
+	# into the standalone cell before the final edge assertion -- pinning only
+	# the definition would still pass if someone added a dead, never-called
+	# diagnostic function.
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic call site (wired before the final edge assertion)" 'ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}"'
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 	done

@@ -218,6 +218,39 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 	printf 'deployable_unit_edges: confirmed cross-repo relationship resolution started with no gated line after the maintenance pass (the readiness gate is open)\n'
 }
 
+# ifa_deployable_unit_live_report_intents_after_maintenance is a DIAGNOSTIC
+# companion to ifa_deployable_unit_live_assert_empty_before_maintenance, not a
+# second pass/fail gate: ifa_deployable_unit_live_assert below remains the
+# sole authority on whether this cell passes or fails. This is a real problem
+# to fix, not scaffolding: the live gate's edge assertion fails as a single
+# symptom, "expected 1, got 0", with two indistinguishable causes --
+#
+#   (a) correlation admitted rows, but the WRITER dropped them. The two MATCH
+#       clauses in canonical_deployable_unit_edges.go
+#       (MATCH (source_repo:Repository {id: row.repo_id}) and
+#       MATCH (deployment_repo:Repository {id: row.deployment_repo_id})) are
+#       filters, not outer joins: if either endpoint Repository node is
+#       absent, the row is eliminated, the statement still succeeds, zero
+#       rows are affected, and nothing counts it -- no error, no dead letter.
+#   (b) correlation produced nothing at all (the reopen either did not fire
+#       or found nothing to correlate).
+#
+# Re-running the SAME shared_projection_intents count query used by the
+# BEFORE probe, but AFTER the maintenance pass and BEFORE the final edge
+# assertion, separates them: a nonzero count here proves admitted rows
+# existed, so a subsequent "expected 1, got 0" implicates the writer; a zero
+# count here means correlation itself produced nothing.
+#
+# Args: compose_project use_compose dsn compose_file
+ifa_deployable_unit_live_report_intents_after_maintenance() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local admitted
+	admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
+		"${compose_file}" | tr -d '[:space:]')"
+	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced)\n' "${admitted}"
+}
+
 # ifa_deployable_unit_live_run_maintenance_pass runs ONE bootstrap-index
 # maintenance pass -- not the B-7 gate's three cycles. This family's
 # dependency chain is two links deep (deployment_mapping's cross-repo
@@ -321,6 +354,7 @@ ifa_deployable_unit_live_run_standalone_cell() {
 
 	ifa_deployable_unit_live_drain post "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
 	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-deployable-unit-post" || return 1
+	ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}"
 
 	ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}" || return 1
 
