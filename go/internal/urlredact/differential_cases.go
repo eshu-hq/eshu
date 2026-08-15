@@ -61,9 +61,10 @@ type DifferentialCase struct {
 	// honest. They were all in one list, and 234 of 594 rows landed where BOTH
 	// walks keep the fragment, 36 of those under a credential-shaped name. Not
 	// a leak — one layer down "token%3D%26X" really does carry an empty value
-	// and X is a separate bare parameter — but a row that cannot produce a
-	// removal signal was counted as removal coverage, and a regression that
-	// stopped removing anything on it would have passed.
+	// and X is a separate bare parameter. But 18 of those 36 declared nothing
+	// else, so they carried no removal assertion at all while counting toward
+	// the coverage the guard's justification rests on. The other 18 also
+	// declared a fragment that IS in the value, and did signal.
 	Outside []string
 	// WalksDisagree records why the two walks provably cannot agree on this
 	// row. Empty means they must. CheckAgreement asserts both directions, so an
@@ -288,7 +289,7 @@ func DifferentialCases() []DifferentialCase {
 // separator — so the value stops there and everything after it is a separate
 // parameter. "token%3D%26X" decodes to "token=&X": the pair carries an empty
 // value and X is a bare parameter name, not a credential. Declaring X a secret
-// there is what made 36 credential-named rows unable to signal anything.
+// there is what left 18 credential-named rows with no removal assertion at all.
 func classifyFragments(credentialShaped, escapeEndsValue bool, beforeEscape, afterEscape []string) (removable, outside []string) {
 	switch {
 	case !credentialShaped:

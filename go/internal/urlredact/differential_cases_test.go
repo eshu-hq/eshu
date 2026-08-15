@@ -24,6 +24,8 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	removableRows := 0
 	removableFragments := 0
 	outsideFragments := 0
+	tailRemovable := 0
+	tailOutside := 0
 	for _, tc := range cases {
 		if _, dup := seen[tc.Name]; dup {
 			t.Errorf("duplicate row name %q", tc.Name)
@@ -43,6 +45,16 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 		}
 		removableFragments += len(tc.Removable)
 		outsideFragments += len(tc.Outside)
+		for _, fragment := range tc.Removable {
+			if fragment == TailSentinel {
+				tailRemovable++
+			}
+		}
+		for _, fragment := range tc.Outside {
+			if fragment == TailSentinel {
+				tailOutside++
+			}
+		}
 		// The cell that leaked: the escape is the first byte of the value, so
 		// the text pending at it is a bare "name=".
 		for _, escape := range differentialEscapes {
@@ -56,26 +68,37 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 		t.Error("no differential row puts the escape at the start of a value, which is the position that shipped a whole credential")
 	}
 
-	// All four totals are written down rather than derived from the axis
-	// tables. Deriving them re-runs the generator's own arithmetic, so a change
-	// that hollowed out the table would move the expectation with it and the
-	// numbers the docs cite would quietly stop meaning anything. A deliberate
-	// new axis fails here, tells you the new totals, and asks you to update the
-	// prose.
+	// All six totals are written down rather than derived from the axis tables.
+	// Deriving them re-runs the generator's own arithmetic, so a change that
+	// hollowed out the table would move the expectation with it and the numbers
+	// the docs cite would quietly stop meaning anything. A deliberate new axis
+	// fails here, tells you the new totals, and asks you to update the prose.
 	//
-	// The FRAGMENT counts are here because the row counts alone were not enough.
-	// 114 of the 594 rows carry two Removable fragments -- 492 fragments across
-	// 378 rows, and a row holds at most two -- so demoting the second one to
-	// Outside leaves BOTH row totals untouched. Measured on that weakening:
-	// removable fragments 492 -> 378, outside 300 -> 414, every other test in
-	// the package still green, and the both-walks-wrong-the-same-way mutation
-	// down from 36 red subtests to 18. The half that disappears is exactly the
-	// partial-leak case TailSentinel exists to catch.
+	// Three questions, each of which a weakening slipped past the level above.
+	//
+	// HOW MANY ROWS. 594, and 378 of them carrying a removable fragment.
+	//
+	// HOW MANY FRAGMENTS, because a row count cannot see an assertion leave.
+	// 114 rows carry two removable fragments -- 492 fragments over 378 rows,
+	// two at most per row -- so demoting the second to Outside holds both row
+	// totals exactly. Measured on that weakening: removable 492 -> 378, outside
+	// 300 -> 414, everything else in the package green, and the
+	// both-walks-wrong-the-same-way mutation down from 36 red subtests to 18.
+	//
+	// WHICH FRAGMENT, because a count cannot see one identity substituted for
+	// another. Declare Sentinel twice in the "inside the value" position and all
+	// four totals above stay exact, every fragment is still contained in its
+	// input, the whole suite passes -- and TailSentinel is declared by nothing.
+	// It is the fragment that sits AFTER the escape, so losing it loses the
+	// partial-leak assertion, and the same mutation drops 36 red subtests to 18
+	// again. The two counters below are the only thing that notices.
 	const (
 		wantRows               = 594
 		wantRemovableRows      = 378
 		wantRemovableFragments = 492
 		wantOutsideFragments   = 300
+		wantTailRemovable      = 114
+		wantTailOutside        = 84
 	)
 	if len(cases) != wantRows {
 		t.Errorf("the differential generates %d rows, want %d -- update the figure wherever it is cited", len(cases), wantRows)
@@ -88,6 +111,12 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	}
 	if outsideFragments != wantOutsideFragments {
 		t.Errorf("%d outside fragments, want %d -- a fragment promoted to Removable claims the walks must remove text the depth model puts past the separator", outsideFragments, wantOutsideFragments)
+	}
+	if tailRemovable != wantTailRemovable {
+		t.Errorf("TailSentinel is declared removable on %d rows, want %d -- it is the fragment after the escape, so a count that stays exact while this moves has swapped the partial-leak assertion for a duplicate", tailRemovable, wantTailRemovable)
+	}
+	if tailOutside != wantTailOutside {
+		t.Errorf("TailSentinel is declared outside on %d rows, want %d -- see above; the two halves are pinned separately because a fragment moving between them holds every other total", tailOutside, wantTailOutside)
 	}
 }
 
