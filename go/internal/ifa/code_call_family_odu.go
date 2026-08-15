@@ -4,8 +4,11 @@
 package ifa
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -29,21 +32,45 @@ const (
 	codeCallExpectedEdgesPath  = "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 )
 
-// codeCallFamilyCassetteFile mirrors the cassette envelope fields that decide
-// whether a fact is accepted at all.
+// codeCallFamilyCassetteFile declares the cassette's COMPLETE envelope
+// schema -- every field the real committed cassette
+// (testdata/cassettes/codecalls/ifa-code-call-family.json) carries at the
+// file, scope, and fact level, verified against that file directly -- not
+// just the load-bearing subset loadCodeCallFamilyOdu actually consumes.
 //
-// schema_version is load-bearing and was originally dropped here. An empty
-// version reads as "latest", so a cassette carrying an unsupported major would
-// sail through this projection and satisfy the offline guard while live replay
-// preserved the version and quarantined the fact — the extractor guard would
-// then certify input the live gate rejects. stable_fact_key, collector_kind and
-// source_confidence ride along for the same reason: this projection must never
-// be more permissive than production.
+// Declaring the full schema, rather than only the fields this loader reads,
+// is what makes DisallowUnknownFields (below) safe to enable: a decoder that
+// only declared the load-bearing subset would reject the real cassette's
+// Collector, top-level SchemaVersion, and every scope-level field but
+// ScopeID/GenerationID/Facts as "unknown". Fields declared here purely to
+// satisfy that constraint (Collector, the scopes' SourceSystem/ScopeKind/
+// PartitionKey/Metadata/ObservedAt/TriggerKind) are read but never used
+// downstream; they exist only so a genuine typo elsewhere in the envelope
+// still fails loudly instead of being masked by an intentionally-narrow
+// struct.
+//
+// The per-fact fields ARE load-bearing: schema_version was originally
+// dropped here, and an empty version reads as "latest", so a cassette
+// carrying an unsupported major would sail through this projection and
+// satisfy the offline guard while live replay preserved the version and
+// quarantined the fact -- the extractor guard would then certify input the
+// live gate rejects. stable_fact_key, collector_kind and source_confidence
+// ride along for the same reason: this projection must never be more
+// permissive than production.
 type codeCallFamilyCassetteFile struct {
-	Scopes []struct {
-		ScopeID      string `json:"scope_id"`
-		GenerationID string `json:"generation_id"`
-		Facts        []struct {
+	Collector     string `json:"collector"`
+	SchemaVersion string `json:"schema_version"`
+	Scopes        []struct {
+		ScopeID       string         `json:"scope_id"`
+		SourceSystem  string         `json:"source_system"`
+		ScopeKind     string         `json:"scope_kind"`
+		CollectorKind string         `json:"collector_kind"`
+		PartitionKey  string         `json:"partition_key"`
+		Metadata      map[string]any `json:"metadata"`
+		GenerationID  string         `json:"generation_id"`
+		ObservedAt    string         `json:"observed_at"`
+		TriggerKind   string         `json:"trigger_kind"`
+		Facts         []struct {
 			FactKind         string         `json:"fact_kind"`
 			SchemaVersion    string         `json:"schema_version"`
 			StableFactKey    string         `json:"stable_fact_key"`
@@ -81,14 +108,30 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 // It fails closed on an empty scope or fact list: an Odù carrying no facts would
 // make every downstream assertion vacuous, which is the failure mode the whole
 // #5543 exhaustiveness effort exists to remove.
+//
+// The decoder disallows unknown fields, so a typo anywhere in the envelope
+// (e.g. "fact_knd" instead of "fact_kind") fails loudly at load time instead
+// of silently decoding to a zero value. Without this, an unnoticed typo would
+// silently project the WRONG fact set from the cassette, and the resulting
+// Odù would still drive an exact-set gate whose green result would then
+// attest to something the cassette did not actually say -- the same
+// false-attestation shape that forced a coverage-row withdrawal on #5994.
+// json.Decoder.Decode reads exactly one JSON value and stops, unlike the
+// json.Unmarshal this replaces, so a second Decode requiring io.EOF closes
+// the trailing-content gap switching decoders would otherwise reopen.
 func loadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read code-call cassette %s: %w", cassettePath, err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
 	var parsed codeCallFamilyCassetteFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
+	if err := decoder.Decode(&parsed); err != nil {
 		return Odu{}, fmt.Errorf("ifa: parse code-call cassette %s: %w", cassettePath, err)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		return Odu{}, fmt.Errorf("ifa: code-call cassette %s has trailing content after its JSON object", cassettePath)
 	}
 	if len(parsed.Scopes) != 1 {
 		return Odu{}, fmt.Errorf("ifa: code-call cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
