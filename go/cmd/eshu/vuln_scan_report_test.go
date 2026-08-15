@@ -304,51 +304,6 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnUnknownFreshness(t *testing.T) {
 	}
 }
 
-func TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation(t *testing.T) {
-	result := vulnScanRepoResult{
-		ReadinessState: "unsupported",
-		ScopeMode:      vulnScanScopeModeScoped,
-		RepositoryID:   "repo-local",
-		Count:          1,
-		Readiness: map[string]any{
-			"freshness":        "fresh",
-			"missing_evidence": []any{"unsupported_targets"},
-			"unsupported_targets": []any{
-				map[string]any{"target_kind": "ecosystem", "reason": "matcher_not_available", "ecosystem": "swift", "count": float64(1)},
-			},
-			"counts": map[string]any{"evidence_facts_total": float64(82)},
-		},
-		Findings: []map[string]any{
-			{
-				"finding_id":        "finding-1",
-				"cve_id":            "CVE-2026-0001",
-				"package_name":      "ws",
-				"impact_status":     "affected_exact",
-				"fixed_version":     "8.17.1",
-				"evidence_fact_ids": []any{"fact-package-1"},
-			},
-		},
-	}
-	out := &bytes.Buffer{}
-
-	if err := renderVulnScanRepoSummary(out, result); err != nil {
-		t.Fatalf("renderVulnScanRepoSummary() error = %v, want nil", err)
-	}
-
-	rendered := out.String()
-	for _, want := range []string{
-		"Readiness: state=unsupported freshness=fresh",
-		"Missing evidence: unsupported_targets",
-		"Unsupported targets: ecosystem/matcher_not_available count=1",
-		"Evidence facts: 82",
-		"finding-1 CVE-2026-0001 ws affected_exact fixed=8.17.1 evidence=fact-package-1",
-	} {
-		if !bytes.Contains([]byte(rendered), []byte(want)) {
-			t.Fatalf("summary missing %q; output:\n%s", want, rendered)
-		}
-	}
-}
-
 func TestRunVulnScanRepoTextSummaryRendersBeforeFindingsExit(t *testing.T) {
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)

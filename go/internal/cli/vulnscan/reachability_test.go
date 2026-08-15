@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package vulnscan
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 func TestBuildVulnScanReportPreservesReachabilityEnvelope(t *testing.T) {
 	t.Parallel()
 
-	report := buildVulnScanReport(vulnScanRepoResult{
+	report := BuildReport(Result{
 		Command:        "vuln-scan repo",
 		ReadinessState: "ready_with_findings",
 		RepositoryID:   "repo://example/reachability",
@@ -74,7 +74,7 @@ func TestBuildVulnScanReportPreservesReachabilityEnvelope(t *testing.T) {
 func TestBuildVulnScanReportPreservesJSTSReachabilityConfidence(t *testing.T) {
 	t.Parallel()
 
-	result := vulnScanRepoResult{
+	result := Result{
 		Command:        "vuln-scan repo",
 		RepositoryID:   "repo-js",
 		ReadinessState: "ready_with_findings",
@@ -96,7 +96,7 @@ func TestBuildVulnScanReportPreservesJSTSReachabilityConfidence(t *testing.T) {
 		},
 	}
 
-	report := buildVulnScanReport(result, vulnScanNow())
+	report := BuildReport(result, Now())
 	if got, want := report.Findings[0].Affected.Confidence, "exact"; got != want {
 		t.Fatalf("Affected.Confidence = %q, want %q", got, want)
 	}

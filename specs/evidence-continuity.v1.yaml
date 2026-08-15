@@ -84,7 +84,7 @@ rows:
     capability: reachability.go.govulncheck
     api_routes: ["GET /api/v0/supply-chain/impact/explain"]
     mcp_tools: ["explain_supply_chain_impact"]
-    source_fact: {ref: "go test ./cmd/eshu ./internal/query -run '^(TestBuildVulnScanReportPreservesReachabilityEnvelope|TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope)$' -count=1"}
+    source_fact: {ref: "go test ./internal/cli/vulnscan ./internal/query -run '^(TestBuildVulnScanReportPreservesReachabilityEnvelope|TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope)$' -count=1"}
     continuity:
       projection: {ref: "go test ./internal/query -run '^(TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact|TestDecodeSupplyChainImpactFindingRowPreservesJSTSReachabilitySeparatelyFromImpact)$' -count=1"}
       api: {ref: "go test ./internal/query -run '^(TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForMissingEvidence|TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops)$' -count=1"}

@@ -95,7 +95,10 @@ artifact wrapper, and the share-safe scope rules live in
     readiness contract and reads repository-scoped supply-chain impact findings
     through the API envelope; `vuln-scan provider-parity` compares
     operator-local provider alert summaries to Eshu findings with
-    aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
+    aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go` for
+    the cobra wrappers, and `go/internal/cli/vulnscan` for the scope guards,
+    report, SARIF and VEX exports, one-shot local runtime, and parity mapping
+    the wrappers call into)
   - pre-change impact and developer plan: `change impact` derives local
     rename/copy-aware Git diffs or accepts repeated `--file` paths, preserves
     changed-file status, and posts the canonical envelope request to
