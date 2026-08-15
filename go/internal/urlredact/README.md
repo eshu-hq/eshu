@@ -174,14 +174,27 @@ walks to each other is silent when they are both right *and* when they are both
 wrong, so a regression that stopped removing anything would have passed on every
 row, not just those 18.
 
-The pinned totals count **fragments** as well as rows, because a row count
-cannot see an assertion leave. 114 of the rows carry two removable fragments
-(492 fragments over 378 rows, two at most per row), so demoting the second to
-`Outside` leaves `594` and `378` exactly where they were. Measured on that
-weakening: removable fragments `492` → `378`, outside `300` → `414`, and the
-both-walks-wrong mutation down from 36 red subtests to 18 — the half that
-disappears being the partial-leak case `TailSentinel` exists to catch. `492` and
-`300` are pinned beside the row counts.
+Six totals are pinned, and they answer three different questions. **How many
+rows:** `594`, of which `378` carry a removable fragment. **How many
+fragments:** `492` removable, `300` outside. **Which fragment:** `TailSentinel`
+declared removable on `114` rows and outside on `84`.
+
+Each level is there because a weakening walked past the one above it, and both
+were run rather than imagined:
+
+- 114 rows carry two removable fragments (492 over 378 rows, two at most per
+  row). Demote the second to `Outside` and both row totals sit exactly where
+  they were, while the removal assertions drop `492` → `378` and outside goes
+  `300` → `414`.
+- Declare `Sentinel` twice in the "inside the value" position instead of
+  `Sentinel` plus `TailSentinel`, and all four counts stay exact — every
+  fragment is still contained in its input, so nothing else notices. But
+  `TailSentinel` is then declared by nothing, and it is the only fragment
+  sitting *after* the escape, which is the only way a partial leak is visible at
+  all.
+
+Both weakenings leave the package green except for the pin written to catch
+them, and both drop the both-walks-wrong mutation from 36 red subtests to 18.
 
 Agreement is about the **decision**, not the bytes: the two walks emit different
 text on purpose, so comparing output would need an exemption on nearly every

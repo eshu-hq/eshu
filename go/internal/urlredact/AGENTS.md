@@ -106,15 +106,24 @@
   reclassify every row the moment the code it checks moves, and the table would
   go green asserting nothing.
 
-  **Four totals are pinned, and rows are only two of them.** `594` rows, `378`
-  rows carrying a removable fragment, `492` removable fragments, `300` outside
-  ones. The fragment counts are not redundant: 114 rows carry two removable
-  fragments, so demoting the second to `Outside` holds both row totals exactly
-  while the removal assertions drop 492 → 378 — measured, everything else in the
-  package still green, and the both-walks-wrong mutation falling from 36 red
-  subtests to 18, the half `TailSentinel` exists to catch. Change an axis and
-  all four move; the self-consistency test names the new numbers, and every
-  place citing them has to move too.
+  **Six totals are pinned, answering three questions.** How many rows: `594`,
+  and `378` carrying a removable fragment. How many fragments: `492` removable,
+  `300` outside. Which fragment: `TailSentinel` declared removable on `114` rows
+  and outside on `84`.
+
+  Each level exists because a weakening walked past the one above it, and both
+  were measured, not imagined. 114 rows carry two removable fragments, so
+  demoting the second to `Outside` holds both ROW totals exactly while the
+  removal assertions drop 492 → 378. Declaring `Sentinel` twice in the "inside
+  the value" position instead of `Sentinel` plus `TailSentinel` holds all four
+  COUNTS exactly, and `TailSentinel` is then declared by nothing. Both
+  weakenings leave the whole package green except for the pin that catches them,
+  and both drop the both-walks-wrong mutation from 36 red subtests to 18 — the
+  half `TailSentinel` exists to catch, since it is the only fragment sitting
+  after the escape.
+
+  Change an axis and all six move; the self-consistency test names the new
+  numbers, and every place citing them has to move too.
 
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
