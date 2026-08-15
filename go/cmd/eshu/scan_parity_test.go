@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+// Parity guard for the one helper the #6059 extraction still duplicates.
+//
+// The extraction originally copied TWO helpers into internal/cli/scan, because
+// go/cmd/eshu is package main and nothing can import it. #6129 then extracted
+// internal/cli/procexec, which gave mergeEnvironment a real importable home --
+// so internal/cli/scan now calls procexec.MergeEnvironment and that twin is
+// gone rather than merely tested. Deleting a duplicate beats pinning it.
+//
+// pathExists has no such home yet: go/cmd/eshu/scan.go:148 keeps its own for
+// the first-run runtime probe, and internal/cli/scan carries a copy. Until one
+// of them moves somewhere both can reach, this is what stops them drifting.
+//
+// Two shapes, because behaviour alone does not cover everything:
+//   - a behavioural table through both copies, reachable via TargetKind's
+//     root/.git probe
+//   - a token-identity check, for inputs the exported surface cannot vary
+//
+// The broken-symlink row is the one that matters most: it is exactly where
+// os.Stat and os.Lstat disagree, and swapping one for the other is the drift a
+// reviewer flagged as likely.
+
 package main
 
 // Parity tests tying internal/cli/scan's deliberate copies to their
@@ -30,86 +51,12 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
-// scanParityOverrides mirrors the override map Options.BootstrapEnv builds
-// for the options scanParityOptions returns, so the mergeEnvironment side of
-// the table receives the same second argument the scan copy does. If
-// BootstrapEnv's overrides change, update this together with it; the parity
-// table will fail until the two agree again.
-func scanParityOverrides() (scan.Options, map[string]string) {
-	opts := scan.Options{
-		Target:   scan.Target{Root: "/scan/parity/root"},
-		ReposDir: "/scan/parity/repos",
-	}
-	overrides := map[string]string{
-		"ESHU_REPO_SOURCE_MODE":  "filesystem",
-		"ESHU_FILESYSTEM_ROOT":   opts.Target.Root,
-		"ESHU_FILESYSTEM_DIRECT": "true",
-		"ESHU_REPOS_DIR":         opts.ReposDir,
-	}
-	return opts, overrides
-}
-
-// TestScanMergeEnvMatchesMergeEnvironment folds one table of KEY=VALUE bases
-// through both merge implementations -- mergeEnvironment directly, and the
-// scan copy through Options.BootstrapEnv -- and requires identical merged
-// sets. The bases cover the shapes most likely to drift: an entry with no
-// '=', an empty key, a duplicate key, a value containing '=', an empty
-// value, an entry an override shadows, and empty and nil bases. Both sides
-// emit map-iteration order, so the comparison sorts first.
-func TestScanMergeEnvMatchesMergeEnvironment(t *testing.T) {
-	opts, overrides := scanParityOverrides()
-	cases := []struct {
-		name string
-		base []string
-	}{
-		{"nil base", nil},
-		{"empty base", []string{}},
-		{"entry without equals is dropped", []string{"MALFORMED", "KEPT=yes"}},
-		{"empty key is kept", []string{"=headless-value"}},
-		{"duplicate key, later wins", []string{"DUP=first", "DUP=second"}},
-		{"value containing equals", []string{"CHAIN=a=b=c"}},
-		{"empty value", []string{"EMPTYVAL="}},
-		{"base entry shadowed by an override", []string{"ESHU_REPOS_DIR=stale-repos-dir"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			want := mergeEnvironment(tc.base, overrides)
-			got := opts.BootstrapEnv(tc.base)
-			slices.Sort(want)
-			slices.Sort(got)
-			if !slices.Equal(want, got) {
-				t.Fatalf(
-					"merge implementations diverged (or BootstrapEnv's overrides changed; update scanParityOverrides with them)\nmergeEnvironment: %q\nBootstrapEnv:     %q",
-					want, got,
-				)
-			}
-		})
-	}
-
-	merged := opts.BootstrapEnv([]string{"MALFORMED", "DUP=first", "DUP=second"})
-	if slices.Contains(merged, "DUP=first") || !slices.Contains(merged, "DUP=second") {
-		t.Fatalf("BootstrapEnv duplicate handling changed: %q, want the later DUP entry only", merged)
-	}
-	for _, entry := range merged {
-		if strings.HasPrefix(entry, "MALFORMED") {
-			t.Fatalf("BootstrapEnv kept an entry without '=': %q", merged)
-		}
-	}
-}
-
-// TestScanPathExistsMatchesScanCommandProbe probes both pathExists copies
-// with the same filesystem states. The original is called directly; the scan
-// copy is observed through TargetKind, which reports "repository" exactly
-// when the copy sees <root>/.git. The broken-symlink row is the one that
-// catches an os.Stat / os.Lstat swap: Stat follows the link and reports the
-// missing target, Lstat would report the link itself.
 func TestScanPathExistsMatchesScanCommandProbe(t *testing.T) {
 	cases := []struct {
 		name string
@@ -202,21 +149,24 @@ func scanParityFuncBody(t *testing.T, file, name string) string {
 	return ""
 }
 
-// TestScanEnvAndPathCopiesAreTokenIdentical pins both scan copies to their
-// originals at the source level: each copy's function body must be
-// token-identical to its original. The copies were created byte-identical on
-// purpose; a change to one alone is a bug, and a legitimate change made to
-// both keeps this green. This also covers what the behavioral tables cannot
-// reach through the exported surface, such as mergeEnv's handling of an
-// arbitrary override map.
-func TestScanEnvAndPathCopiesAreTokenIdentical(t *testing.T) {
+// TestScanPathExistsCopyIsTokenIdentical pins the surviving copy to its
+// original at the source level: the copy's function body must be
+// token-identical. The copy was created byte-identical on purpose; a change to
+// one alone is a bug, and a legitimate change made to both keeps this green.
+// It covers what the behavioural table cannot reach through the exported
+// surface, and ignores comment-only edits.
+//
+// The merge pair used to be pinned here too. It no longer exists: #6129's
+// procexec extraction gave mergeEnvironment an importable home, so
+// internal/cli/scan calls procexec.MergeEnvironment and there is nothing left
+// to compare.
+func TestScanPathExistsCopyIsTokenIdentical(t *testing.T) {
 	const scanCopyFile = "../../internal/cli/scan/scan.go"
 	pairs := []struct {
 		originalFile string
 		originalName string
 		copyName     string
 	}{
-		{"local_host_config.go", "mergeEnvironment", "mergeEnv"},
 		{"scan.go", "pathExists", "pathExists"},
 	}
 	for _, pair := range pairs {

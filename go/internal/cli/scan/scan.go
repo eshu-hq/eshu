@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
@@ -400,32 +401,7 @@ func (o Options) BootstrapEnv(base []string) []string {
 	if len(o.RuntimeEnv) > 0 {
 		base = append([]string(nil), o.RuntimeEnv...)
 	}
-	return mergeEnv(base, overrides)
-}
-
-// mergeEnv folds overrides onto a KEY=VALUE base, last value winning. It is a
-// copy of go/cmd/eshu's mergeEnvironment, which stays there for the seven
-// callers outside the scan family. The parity tests in
-// go/cmd/eshu/scan_parity_test.go fail when the two drift; change both or
-// neither.
-func mergeEnv(base []string, overrides map[string]string) []string {
-	merged := make(map[string]string, len(base)+len(overrides))
-	for _, entry := range base {
-		for i := 0; i < len(entry); i++ {
-			if entry[i] == '=' {
-				merged[entry[:i]] = entry[i+1:]
-				break
-			}
-		}
-	}
-	for key, value := range overrides {
-		merged[key] = value
-	}
-	env := make([]string, 0, len(merged))
-	for key, value := range merged {
-		env = append(env, key+"="+value)
-	}
-	return env
+	return procexec.MergeEnvironment(base, overrides)
 }
 
 // pathExists reports whether a path is present. It is a copy of go/cmd/eshu's

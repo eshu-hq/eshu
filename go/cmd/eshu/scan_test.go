@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
@@ -369,7 +370,7 @@ func newTestScanCommand(t *testing.T) *cobra.Command {
 
 // scanStub is the fake scan runtime stubScanRuntime installs. Tests override
 // individual seams on it after calling stubScanRuntime. A nil Environ resolves
-// through eshuEnviron at command-run time, exactly as production does, so a
+// through procexec.Environ at command-run time, exactly as production does, so a
 // t.Setenv after the stub still reaches the bootstrap child's environment.
 var scanStub scan.Runtime
 
@@ -419,7 +420,7 @@ func stubScanRuntime(t *testing.T) func() {
 		rt.Client = client
 		rt.ServiceURL = client.BaseURL
 		if rt.Environ == nil {
-			rt.Environ = eshuEnviron()
+			rt.Environ = procexec.Environ()
 		}
 		return rt
 	}
