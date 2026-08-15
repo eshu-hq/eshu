@@ -268,6 +268,13 @@ func TestRedactReporterNote(t *testing.T) {
 			want: "expected the platform team.\nGET /x?[redacted]\nsame on a retry.",
 		},
 
+		// This row pins the CALL SITE, not the mechanism. urlredact's
+		// TestFreeTextExtraPredicateOnlyWidensTheNameSet proves the OR; nothing
+		// proved this wrapper still passes isInlineContentKey. Dropping the
+		// argument here left all three packages green, and "excerpt" is the one
+		// name the shared set does not carry.
+		{name: "inline content key widens the shared set", note: "note excerpt=func Handler()", want: "note [redacted] Handler()"},
+
 		{name: "prose with no pair is kept", note: "expected the platform team as owner, got []", want: "expected the platform team as owner, got []"},
 		{name: "benign query in prose is kept", note: "tried GET /x?repo=demo&page=2 as well", want: "tried GET /x?repo=demo&page=2 as well"},
 		{name: "purl qualifiers are kept", note: "pkg:deb/debian/openssl@3.0.11-1?arch=amd64&distro=debian-12", want: "pkg:deb/debian/openssl@3.0.11-1?arch=amd64&distro=debian-12"},
