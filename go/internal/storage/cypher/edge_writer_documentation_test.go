@@ -71,7 +71,10 @@ func TestBuildDocumentationRowMapRoutesWorkloadTarget(t *testing.T) {
 // no-opped against a live backend. The template leads with that MATCH, and a
 // MATCH yielding no rows for an UNWIND row eliminates that row before any
 // later clause runs -- so neither the DocumentationSection MERGE nor the
-// DOCUMENTS MERGE executed for it. No node, no relationship, no error. This test
+// DOCUMENTS MERGE executed for it. No node from that row, no relationship, no
+// error -- a section with other resolving mentions still gets its node from
+// those, which is this fixture's shape: all three rows share one section uid,
+// so pre-fix the section existed via the Function and Class rows. This test
 // was RED before the fix (commit a3347e898) and is GREEN after it (SqlTable
 // added to the label alternation); it stays as a permanent regression guard,
 // not a scratch artifact.
