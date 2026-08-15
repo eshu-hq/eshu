@@ -138,11 +138,15 @@ func TestSQLRelationshipDeltaPureDerivationMatchesExpectedEdgesExactly(t *testin
 
 	// The teeth: gen-2 retargets INDEXES from public.users to public.orders.
 	// If this specific edge is missing, the fixture silently stopped proving
-	// the delta-retract path it exists for.
-	if _, ok := actualSet["INDEXES|content-entity:sql-idx-users-email|content-entity:sql-tbl-orders"]; !ok {
+	// the delta-retract path it exists for. Keys built via sqlRelationshipEdgeKey
+	// itself, not a hand-copied literal, so this stays correct if the key
+	// encoding ever changes again.
+	retargeted := sqlRelationshipEdgeKey("INDEXES", "content-entity:sql-idx-users-email", "content-entity:sql-tbl-orders")
+	stale := sqlRelationshipEdgeKey("INDEXES", "content-entity:sql-idx-users-email", "content-entity:sql-tbl-users")
+	if _, ok := actualSet[retargeted]; !ok {
 		t.Error("delta derivation did not retarget INDEXES to content-entity:sql-tbl-orders; the delta-retract teeth is not firing")
 	}
-	if _, ok := actualSet["INDEXES|content-entity:sql-idx-users-email|content-entity:sql-tbl-users"]; ok {
+	if _, ok := actualSet[stale]; ok {
 		t.Error("delta derivation still carries the stale gen-1 INDEXES->public.users edge; retarget did not take effect")
 	}
 }
@@ -168,5 +172,26 @@ func TestLoadSQLRelationshipExpectedEdgesRejectsTrailingJSON(t *testing.T) {
 
 	if _, err := loadSQLRelationshipExpectedEdges(path); err == nil {
 		t.Fatal("loadSQLRelationshipExpectedEdges accepted a fixture with a second, concatenated JSON object trailing the first")
+	}
+}
+
+// TestSQLRelationshipEdgeKeyIsInjective is the regression test for the same
+// injectivity defect TestExpectedEdgeKeyIsInjective proves for ExpectedEdge.Key():
+// sqlRelationshipEdgeKey joined its three components with a raw "|" and no
+// escaping, so a source ending in "|X" and a target of "Y" rendered
+// identically to a source of just "S" and a target of "X|Y" (once the
+// relationship type and leading component are held fixed). This function is
+// ExpectedEdge.Key()'s own delegate for the empty-Identity path AND
+// sql_relationships' direct comparison key, so the defect here silently
+// weakens the exact-set assertion for every family with no declared
+// identity -- twelve of fourteen, including sql_relationships and
+// documentation_edges, both already proven live.
+func TestSQLRelationshipEdgeKeyIsInjective(t *testing.T) {
+	t.Parallel()
+
+	keyA := sqlRelationshipEdgeKey("QUERIES_TABLE", "S|X", "Y")
+	keyB := sqlRelationshipEdgeKey("QUERIES_TABLE", "S", "X|Y")
+	if keyA == keyB {
+		t.Fatalf("distinct (source, target) pairs collided onto one key %q; the exact-set comparison would silently merge them", keyA)
 	}
 }

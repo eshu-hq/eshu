@@ -113,9 +113,23 @@ func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdg
 }
 
 // sqlRelationshipEdgeKey builds the canonical set-membership key for one
-// expected or derived edge.
+// expected or derived edge, using the same length-prefixed
+// ("<byte length>:<content>") encoding as ExpectedEdge.Key()'s
+// Identity-bearing path (writeLengthPrefixedField,
+// materialized_edges_assert.go) rather than a raw "|"-joined string. A raw
+// join is not injective: nothing stops relationshipType, sourceEntityID, or
+// targetEntityID from containing "|" itself, so two distinct edges could
+// render the identical key (see TestSQLRelationshipEdgeKeyIsInjective).
+// ExpectedEdge.Key()'s empty-Identity path delegates here, so fixing this one
+// function closes the gap for every family with no declared identity at
+// once, keeping exactly one encoding for all of Key()'s paths instead of
+// two.
 func sqlRelationshipEdgeKey(relationshipType, sourceEntityID, targetEntityID string) string {
-	return relationshipType + "|" + sourceEntityID + "|" + targetEntityID
+	var b strings.Builder
+	writeLengthPrefixedField(&b, relationshipType)
+	writeLengthPrefixedField(&b, sourceEntityID)
+	writeLengthPrefixedField(&b, targetEntityID)
+	return b.String()
 }
 
 // sqlRelationshipEdgeSet builds a set keyed by sqlRelationshipEdgeKey so exact

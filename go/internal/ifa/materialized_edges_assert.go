@@ -35,31 +35,35 @@ type ExpectedEdge struct {
 	Identity map[string]string `json:"identity,omitempty"`
 }
 
-// Key is the canonical set-membership key for exact-set comparison: the same
-// `type|source|target` shape sqlRelationshipEdgeKey builds, so a live-graph
-// edge and a fixture edge collide iff they are the same edge. When Identity
-// is empty the result is BYTE-IDENTICAL to the pre-Identity Key() — this is
-// what spares every already-proven family with no relationship-property
-// identity (sql_relationships, code_calls, ...) from re-proof.
+// Key is the canonical set-membership key for exact-set comparison: a
+// live-graph edge and a fixture edge collide iff they are the same edge.
+// Every path -- Identity empty or not -- uses the SAME fully injective,
+// length-prefixed (netstring-style) encoding of each component in order:
+// RelationshipType, SourceEntityID, TargetEntityID (delegated to
+// sqlRelationshipEdgeKey, materialized_edges_sql.go), then, when Identity is
+// non-empty, each Identity property in SORTED KEY ORDER. One encoding for
+// every path, not two: an earlier version kept the empty-Identity path on
+// sqlRelationshipEdgeKey's original raw "|"-joined shape for byte-identity
+// with Key() before the Identity field existed, but that raw join was not
+// injective either -- nothing stops RelationshipType, SourceEntityID, or
+// TargetEntityID from containing "|" themselves, and two structurally
+// distinct edges could render the identical string (see
+// TestSQLRelationshipEdgeKeyIsInjective and, for the historical
+// Identity-suffix version of the same bug,
+// TestExpectedEdgeKeyIsInjective). Key() is a pure, in-process comparison
+// key -- every consumer builds it fresh on both sides of a comparison inside
+// one map or one == check; nothing persists it, logs it as a stored
+// artifact, or compares it against a fixture-authored literal -- so
+// changing its encoding cannot invalidate any prior live-gate proof: what
+// those proofs established is that the SAME extraction logic reproduces the
+// SAME edge set, which holds regardless of how that set's membership test is
+// encoded.
 //
-// When Identity is non-empty, Key() switches to a fully injective,
-// length-prefixed (netstring-style) encoding of EVERY component --
-// RelationshipType, SourceEntityID, TargetEntityID, then each Identity
-// property in SORTED KEY ORDER -- rather than the raw "|"-joined shape the
-// empty-Identity path keeps. A raw join is not injective: nothing stops
-// SourceEntityID, TargetEntityID, or an Identity value from containing the
-// "|" or "=" delimiters themselves, so two structurally different edges can
-// render the identical string. Concretely, a target ending in "|path=P"
-// combined with an identity value of "Q" collided with a plain target
-// combined with an identity value of "P|path=Q" -- both rendered
-// "...T|path=P|path=Q" (see TestExpectedEdgeKeyIsInjective). Length-prefixing
-// each field as "<byte length>:<content>" removes the ambiguity regardless
-// of what bytes a component holds: a decoder never needs to search for a
-// delimiter inside a field's content, so no field's content can be
-// misread as a boundary. This only runs on the non-empty-Identity path (the
-// two currently gated families, codeowners_ownership_edges and
-// submodule_pin_edges), so it cannot affect the byte-identical guarantee for
-// families with no declared identity.
+// Length-prefixing each field as "<byte length>:<content>" is what makes the
+// whole sequence injective regardless of what bytes any field holds: a
+// decoder never needs to search a field's content for a delimiter, so no
+// field's content -- whatever it is -- can be misread as a boundary between
+// fields.
 func (e ExpectedEdge) Key() string {
 	if len(e.Identity) == 0 {
 		return sqlRelationshipEdgeKey(e.RelationshipType, e.SourceEntityID, e.TargetEntityID)

@@ -140,8 +140,9 @@ func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(missing MIGRATES) = nil, want a missing-edge failure")
 	}
-	if !strings.Contains(err.Error(), "MIGRATES|mig|t") {
-		t.Errorf("error %q does not name the missing MIGRATES edge", err)
+	wantKey := ifa.ExpectedEdge{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"}.Key()
+	if !strings.Contains(err.Error(), wantKey) {
+		t.Errorf("error %q does not name the missing MIGRATES edge (want key %q)", err, wantKey)
 	}
 }
 
@@ -186,8 +187,9 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(extra edge) = nil, want an extra-edge failure")
 	}
-	if !strings.Contains(err.Error(), "extra") || !strings.Contains(err.Error(), "HAS_COLUMN|t|c2") {
-		t.Errorf("error %q does not name the extra edge", err)
+	wantKey := ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c2"}.Key()
+	if !strings.Contains(err.Error(), "extra") || !strings.Contains(err.Error(), wantKey) {
+		t.Errorf("error %q does not name the extra edge (want key %q)", err, wantKey)
 	}
 }
 
@@ -244,7 +246,8 @@ func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate") {
 		t.Errorf("error %q does not report the duplicate edge", err)
 	}
-	if !strings.Contains(err.Error(), "HAS_COLUMN|t|c") {
-		t.Errorf("error %q does not name the duplicated edge", err)
+	wantKey := ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"}.Key()
+	if !strings.Contains(err.Error(), wantKey) {
+		t.Errorf("error %q does not name the duplicated edge (want key %q)", err, wantKey)
 	}
 }

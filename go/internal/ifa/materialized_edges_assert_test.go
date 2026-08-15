@@ -10,24 +10,34 @@ import (
 	"testing"
 )
 
-// TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity proves the precursor's
-// core compatibility requirement: an ExpectedEdge with a nil or empty
-// Identity produces EXACTLY the same Key() as before Identity existed. This
-// is what spares the already-proven sql_relationships and code_calls
-// families (whose fixtures carry no "identity" field) from re-proof.
-func TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity(t *testing.T) {
+// TestExpectedEdgeKeyEmptyIdentityMatchesSQLRelationshipEdgeKey proves
+// Key()'s empty-Identity path is nil-vs-empty-map deterministic and stays in
+// lockstep with its delegate, sqlRelationshipEdgeKey -- the two must never
+// drift, because ExpectedEdge.Key() IS how every family with no declared
+// identity (sql_relationships, code_calls, documentation_edges, ...) builds
+// its comparison key.
+//
+// This replaces an earlier version of this test that pinned Key()'s output
+// to the literal, raw "|"-joined string sqlRelationshipEdgeKey produced
+// before it became injective (TestSQLRelationshipEdgeKeyIsInjective). That
+// literal was never a persisted or cross-process compatibility requirement
+// -- Key() is a pure, in-process comparison key nothing serializes or
+// compares against a stored artifact (see Key()'s doc comment) -- so
+// changing the encoding needed no re-proof of the already-live families; it
+// only needed this test updated to what stays true.
+func TestExpectedEdgeKeyEmptyIdentityMatchesSQLRelationshipEdgeKey(t *testing.T) {
 	t.Parallel()
 
 	edge := ExpectedEdge{RelationshipType: "QUERIES_TABLE", SourceEntityID: "content-entity:a", TargetEntityID: "content-entity:b"}
-	want := "QUERIES_TABLE|content-entity:a|content-entity:b"
+	want := sqlRelationshipEdgeKey("QUERIES_TABLE", "content-entity:a", "content-entity:b")
 
 	if got := edge.Key(); got != want {
-		t.Fatalf("nil-Identity Key() = %q, want %q", got, want)
+		t.Fatalf("nil-Identity Key() = %q, want %q (sqlRelationshipEdgeKey's own output)", got, want)
 	}
 
 	edge.Identity = map[string]string{}
 	if got := edge.Key(); got != want {
-		t.Fatalf("empty-non-nil-Identity Key() = %q, want %q", got, want)
+		t.Fatalf("empty-non-nil-Identity Key() = %q, want %q (sqlRelationshipEdgeKey's own output)", got, want)
 	}
 }
 
