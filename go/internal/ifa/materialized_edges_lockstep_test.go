@@ -184,6 +184,23 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep a family covered without rerunning its live proof", gateID, trigger)
 			}
 		}
+		// deployable_unit_edges (#5993) triggers: pinned here ahead of its
+		// coverage rows landing, so the ci-gates.v1.yaml trigger lists cannot
+		// silently drift from the family's real source paths in the meantime.
+		for _, trigger := range []string{
+			"go/internal/reducer/deployable_unit*.go",
+			"go/internal/storage/cypher/canonical_deployable_unit_edges.go",
+			"go/internal/storage/cypher/edge_writer_rowmaps.go",
+			"go/internal/ifa/deployable_unit_family_catalog.go",
+			"go/internal/ifa/deployable_unit_family_odu.go",
+			"testdata/cassettes/deployableunit/**",
+			"go/internal/ifa/testdata/deployableunit/**",
+			"go/cmd/bootstrap-index/**",
+		} {
+			if !slices.Contains(found.Triggers, trigger) {
+				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep deployable_unit_edges covered without rerunning its live proof", gateID, trigger)
+			}
+		}
 	}
 }
 

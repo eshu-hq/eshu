@@ -18,14 +18,15 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Eleven cells, each hitting a genuinely different recovery or delivery seam.
-# All eleven run by default. Cell
+# Fourteen cells, each hitting a genuinely different recovery or delivery
+# seam. All fourteen run by default. Cell
 # functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 10, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 11, issue
-# #5991), and scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 8-9,
-# issue #5544). The delta cell's full-node collateral comparator is split into
-# scripts/lib/ifa_fault_injection_collateral_nodes.sh:
+# #5991), scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 8-9, issue
+# #5544), and scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
+# (cells 12-14, issue #5993). The delta cell's full-node collateral comparator
+# is split into scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
 #   1. baseline                              -- fault-free; establishes the
 #      digest every non-delta recovery cell is compared against. Cell 9
@@ -89,6 +90,19 @@
 #      4 and 10, but anchors the one-shot queue-retry fault to the code-call
 #      CALLS MERGE, proves the durable marker names that operation, and
 #      exact-asserts the five code-call edges after recovery.
+#  12. baseline-deployable-unit (#5993) -- a FAMILY-SCOPED fault-free
+#      baseline, not a recovery cell: deployable_unit_edges materializes
+#      nothing without a bootstrap-index maintenance pass this gate's other
+#      cells never run (see scripts/lib/ifa_deployable_unit_live.sh's header),
+#      so the shared cell 1 baseline's digest has zero deployable_unit_edges
+#      materialization by construction and cannot serve cells 13-14 below.
+#  13. kill-worker-after-claim-deployable-unit (#5993) -- mirrors cells 6-7,
+#      scoped to domain=deployable_unit_correlation, run AFTER a maintenance
+#      pass opens the readiness gate CrossRepoRelationshipHandler.Resolve
+#      checks.
+#  14. fail-graph-write-once-then-succeed-deployable-unit (#5993) -- mirrors
+#      cells 10-11, anchored to the CORRELATES_DEPLOYABLE_UNIT MERGE, also
+#      run after the same maintenance pass.
 #
 # Cells 2, 3, 6, and 7 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -172,6 +186,10 @@ source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_documentation_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
+# shellcheck source=scripts/lib/ifa_deployable_unit_live.sh
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -224,6 +242,13 @@ code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-co
 documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
 documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 
+# deployable_unit_edges family cassette (#5993), driven by
+# cell_baseline_deployable_unit/cell_killworker_deployable_unit/
+# cell_failgraphwrite_deployable_unit (scripts/lib/
+# ifa_fault_injection_deployable_unit_cells.sh) via drive_all_cassettes.
+deployable_unit_cassette="${repo_root}/testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
@@ -254,6 +279,13 @@ code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
 # cloud_resource_operation_match/sql_edge_operation_match above.
 documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
 
+# The CORRELATES_DEPLOYABLE_UNIT MERGE anchor cell_failgraphwrite_deployable_unit
+# (#5993) targets: go/internal/storage/cypher/canonical_deployable_unit_edges.go's
+# batchCanonicalDeployableUnitCorrelationUpsertCypher emits this exact MERGE
+# clause text -- a fixed, grep-stable substring, same rationale as
+# cloud_resource_operation_match above. Byte-exact copy of that file's line 9.
+deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"
+
 use_compose=1
 keep=0
 for arg in "$@"; do
@@ -280,6 +312,8 @@ done
 [[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-fault-injection: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
 [[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-fault-injection: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
 [[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-fault-injection: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
+[[ -f "${deployable_unit_cassette}" ]] || { echo "verify-ifa-fault-injection: deployable-unit cassette not found: ${deployable_unit_cassette}" >&2; exit 1; }
+[[ -f "${deployable_unit_expected_edges}" ]] || { echo "verify-ifa-fault-injection: deployable-unit expected-edge set not found: ${deployable_unit_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -344,6 +378,15 @@ ifa_det_build_bin "${bin_dir}" ifa || die "build ifa failed"
 ifa_det_build_bin "${bin_dir}" projector || die "build projector failed"
 ifa_det_build_bin "${bin_dir}" reducer || die "build reducer failed"
 ifa_det_build_bin "${bin_dir}" golden-corpus-gate || die "build golden-corpus-gate failed"
+# Sixth binary (#5993): cell_baseline_deployable_unit/cell_killworker_deployable_unit/
+# cell_failgraphwrite_deployable_unit each run ONE bootstrap-index maintenance
+# pass (backfills relationship evidence AND reopens
+# crossScopeCorrelationReopenDomains) -- required for deployable_unit_edges to
+# materialize anything in this gate's runtime; see
+# scripts/lib/ifa_deployable_unit_live.sh's header for the full traced
+# rationale. Untagged, matching the other five plain (non ifafaultinjection)
+# builds above -- only the reducer needs the tagged build.
+ifa_det_build_bin "${bin_dir}" bootstrap-index || die "build bootstrap-index failed"
 log "build tagged host reducer (-tags ifafaultinjection, graph-fault and restart cells)"
 ifa_det_build_bin "${tagged_bin_dir}" reducer "ifafaultinjection" || die "build tagged reducer failed"
 
@@ -391,6 +434,19 @@ cell_deltaretract
 cell_failgraphwrite_sql
 cell_failgraphwrite_code_calls
 cell_failgraphwrite_documentation
+
+# deployable_unit_edges cells (#5993). cell_baseline_deployable_unit MUST run
+# before the two fault cells below: it populates digests[baseline_deployable_unit]
+# and baseline_deployable_unit_retried, shell state the fault cells' own
+# assert_matches_baseline/ifa_fault_assert_retried_above calls read. This is a
+# family-scoped baseline, not the shared cell_baseline above: cell_baseline
+# never runs a bootstrap-index maintenance pass, so its digest has ZERO
+# deployable_unit_edges materialization by construction and would never match
+# a cell that does run the pass -- see scripts/lib/
+# ifa_fault_injection_deployable_unit_cells.sh's header for the full ruling.
+cell_baseline_deployable_unit
+cell_killworker_deployable_unit
+cell_failgraphwrite_deployable_unit
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

@@ -180,3 +180,64 @@ ifa_deployable_unit_live_assert() {
 		-domain deployable_unit_edges \
 		-expected "${expected_edges}"
 }
+
+# ifa_deployable_unit_live_run_standalone_cell runs this family's full
+# standalone determinism-gate cell: own compose lifecycle (up, wait for
+# backends, apply schema) -> drive -> pre-maintenance drain + empty-edges
+# assertion -> ONE bootstrap-index maintenance pass -> post-maintenance
+# drain -> exact-set assert -> teardown. Extracted into one function (rather
+# than left inline in verify-ifa-determinism.sh) so that script stays under
+# the repo's 500-line file cap. Uses the caller's own log()/die() directly --
+# this function is sourced into the same shell as verify-ifa-determinism.sh,
+# same as every other function in this file -- except this one returns
+# non-zero on failure instead of calling die() itself, so the caller's own
+# die() message names the failing script, matching the ifa_det_run_sql_delta_live
+# / ifa_code_call_drive convention of "library functions return status,
+# callers decide whether to die".
+#
+# Args: bin_dir cassette expected_edges log_dir compose_project use_compose
+#       postgres_dsn compose_file drain_timeout
+ifa_deployable_unit_live_run_standalone_cell() {
+	local bin_dir="$1" cassette="$2" expected_edges="$3" log_dir="$4"
+	local compose_project="$5" use_compose="$6" postgres_dsn="$7"
+	local compose_file="$8" drain_timeout="$9"
+	local cell_start
+
+	log "deployable_unit_edges: standalone live-proof cell (own fresh stack, not part of the N-loop)"
+	cell_start=$(date +%s)
+
+	if [[ "${use_compose}" -eq 1 ]]; then
+		docker compose -p "${compose_project}" -f "${compose_file}" up -d nornicdb postgres
+		log "deployable_unit_edges: wait for backends"
+		ifa_det_wait_for_backends "${compose_project}" "${compose_file}" || {
+			echo "deployable_unit_edges: Postgres + NornicDB did not become ready within budget" >&2
+			return 1
+		}
+	fi
+
+	log "deployable_unit_edges: apply Postgres + graph schema (eshu-bootstrap-data-plane)"
+	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-deployable-unit.log" 2>&1 || {
+		tail -40 "${log_dir}/bootstrap-data-plane-deployable-unit.log"
+		echo "deployable_unit_edges: bootstrap-data-plane failed" >&2
+		return 1
+	}
+
+	ifa_deployable_unit_live_drive "${bin_dir}" "${cassette}" "${log_dir}" || return 1
+
+	ifa_deployable_unit_live_drain pre "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
+	ifa_deployable_unit_live_assert_empty_before_maintenance \
+		"${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}" || return 1
+
+	ifa_deployable_unit_live_run_maintenance_pass primary "${bin_dir}" "${log_dir}" || return 1
+
+	ifa_deployable_unit_live_drain post "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
+
+	ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}" || return 1
+
+	if [[ "${use_compose}" -eq 1 ]]; then
+		log "deployable_unit_edges: tear down cell"
+		docker compose -p "${compose_project}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+	fi
+
+	printf 'deployable_unit_edges: standalone cell wall time: %ss\n' "$(( $(date +%s) - cell_start ))"
+}
