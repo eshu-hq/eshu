@@ -112,7 +112,11 @@ func TestDifferentialCasesAreSelfConsistent(t *testing.T) {
 	// ON WHICH ROWS, because an identity count is redistributable too. Counting
 	// occurrences, 57 rows declaring TailSentinel twice and 57 declaring it not
 	// at all sum to the same 114: measured, all six literals exact, package
-	// green, and the same 36 -> 18 collapse. The counters are per row and no row
+	// green, and the mutation down from 36 red subtests to 27. How far it falls
+	// depends on WHICH rows are demoted -- aim the demotion at the
+	// literal-equals separator rows and more of the 36 go quiet -- but every
+	// choice buys the silence with partial-leak assertions the numbers cannot
+	// see leaving. The counters are per row and no row
 	// may declare a fragment twice, which together make these numbers FORCING
 	// rather than merely consistent. Each row can declare at most the distinct
 	// sentinels its input holds -- one for an opening or closing value, two for

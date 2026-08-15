@@ -197,8 +197,11 @@ were run rather than imagined:
   and 57 declaring it not at all sum to the same `114`.
 
 Every one of those weakenings leaves the package green except for the pin
-written to catch it, and every one drops the both-walks-wrong mutation from 36
-red subtests to 18 — the same half, three times over.
+written to catch it, and every one takes the same half of the coverage with it.
+The both-walks-wrong mutation drops from 36 red subtests to 18 under either
+fragment weakening, and to 27 under the occurrence one — how far it falls
+depends on which rows are demoted, but what goes quiet is always the
+partial-leak case.
 
 The counters are per row, and no row may declare a fragment twice. Those two
 rules make the six numbers *forcing* rather than merely consistent: a row can
