@@ -152,6 +152,8 @@ ifa_live_gate_common_seams=(
 	'go/internal/projector/stage_facts.go|go/internal/projector/stage_facts.go'
 	'go/internal/projector/canonical.go|go/internal/projector/canonical.go'
 	'go/internal/projector/runtime.go|go/internal/projector/runtime.go'
+	'go/internal/projector/runtime_reducer_intent.go|go/internal/projector/runtime_reducer_intent.go'
+	'go/internal/projector/payload.go|go/internal/projector/payload.go'
 	'go/internal/projector/runtime_phase.go|go/internal/projector/runtime_phase.go'
 	'go/internal/projector/canonical_entity_identity.go|go/internal/projector/canonical_entity_identity.go'
 	'go/internal/projector/runtime_stages.go|go/internal/projector/runtime_stages.go'
@@ -167,6 +169,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
 	'go/internal/storage/postgres/facts_active_code_call_symbols.go|go/internal/storage/postgres/facts_active_code_call_symbols.go'
 	'go/internal/storage/postgres/facts_filtered.go|go/internal/storage/postgres/facts_filtered.go'
+	'go/internal/storage/postgres/facts_payload.go|go/internal/storage/postgres/facts_payload.go'
 	'go/internal/storage/postgres/shared_intent_acceptance_writer.go|go/internal/storage/postgres/shared_intent_acceptance_writer.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance_rowcount_test.go'
@@ -189,4 +192,7 @@ ifa_live_gate_common_seams=(
 ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_collateral_nodes.sh|scripts/lib/ifa_fault_injection_collateral_nodes.sh'
 	'go/internal/storage/cypher/fault_executor_marker.go|go/internal/storage/cypher/fault_executor_marker.go'
+	'go/internal/storage/cypher/canonical_node_writer_metadata.go|go/internal/storage/cypher/canonical_node_writer_metadata.go'
+	'go/internal/projector/scope_generation_intents.go|go/internal/projector/scope_generation_intents.go'
+	'go/internal/projector/reducer_intent_fact_index.go|go/internal/projector/reducer_intent_fact_index.go'
 )
