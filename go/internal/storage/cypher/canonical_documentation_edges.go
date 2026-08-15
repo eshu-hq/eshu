@@ -15,7 +15,7 @@ package cypher
 // not repo-scoped).
 
 const batchCanonicalDocumentationEntityEdgeCypher = `UNWIND $rows AS row
-MATCH (target:Function|Class|Struct|Interface|TypeAlias|Enum|File {uid: row.target_entity_id})
+MATCH (target:Function|Class|Struct|Interface|TypeAlias|Enum|File|SqlTable {uid: row.target_entity_id})
 MERGE (section:DocumentationSection {uid: row.section_uid})
 SET section.type = 'documentation_section',
     section.scope_id = row.scope_id,

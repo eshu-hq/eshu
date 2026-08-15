@@ -33,31 +33,48 @@ import (
 // LoadExpectedEdges/loadSQLRelationshipExpectedEdges decodes into, declares
 // only "odu" and "edges" — encoding/json currently accepts an extra field
 // silently, but that laxness is not a contract to build fixtures against).
-// It deliberately carries only entity-kind (Function/Class) targets, not a
-// SqlTable target: batchCanonicalDocumentationEntityEdgeCypher's MATCH label
-// alternation (Function|Class|Struct|Interface|TypeAlias|Enum|File) excludes
-// SqlTable, so a table-kind mention's DOCUMENTS edge cannot materialize
-// against a live backend today (go/internal/storage/cypher/
-// canonical_documentation_edges.go, pinned by
-// TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel). Each edge's
-// source_entity_id is the DocumentationSection node's uid,
+// It carries three edges, exercising two distinct target uid conventions:
+//
+//   - Two entity-kind targets (Function, Class). Each edge's target_entity_id
+//     is content.CanonicalEntityID(repo_id, relative_path, entity_type,
+//     entity_name, start_line) (go/internal/content/writer.go:196) because
+//     Function and Class ARE canonicalNamePathLineEntityLabels
+//     (go/internal/projector/canonical_entity_identity.go:12): the projector
+//     ignores the incoming content_entity entity_id for these labels and
+//     derives the uid hash, so the cassette precomputes the same value in
+//     content_entity.entity_id AND the mention's candidate_refs[].id (the
+//     code_calls-family precedent, go/internal/ifa/code_call_family_catalog.go).
+//   - One table-kind (SqlTable) target (#5994). SqlTable's uid is the
+//     content_entity fact's own entity_id, used verbatim: SqlTable is NOT in
+//     canonicalNamePathLineEntityLabels, so canonicalGraphEntityID's
+//     else-branch returns the incoming id unchanged — no hash, unlike
+//     Function/Class. Mirrors sql_relationship_odu.go:93's
+//     sqlFamilyContentEntity convention ("content-entity:sql-tbl-users"), not
+//     the invented "sqltable:..." shape an earlier fixture used.
+//     batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation
+//     now includes SqlTable (go/internal/storage/cypher/
+//     canonical_documentation_edges.go), closing the gap
+//     TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel pinned RED
+//     at commit a3347e898 and this fixture's third edge exercises live.
+//     TypeAlias and File documentation targets remain UNPROVEN — a different
+//     problem, not closed by this fix: TypeAlias routes through a separate
+//     reducer domain (DomainSemanticEntityMaterialization,
+//     semantic_entity_intents.go:17) with its own untraced uid scheme, and
+//     File nodes are keyed by path with a uid PROPERTY set to a plain
+//     "repo_id:relative_path" concatenation (canonical_node_writer_phases.go),
+//     a third convention entirely. Both would need their uid formats
+//     independently proven correct upstream, and no producer of
+//     documentation_entity_mention facts exists in-repo to verify against.
+//
+// Every edge's source_entity_id is the DocumentationSection node's uid,
 // documentationSectionNodeUID(document_id, section_id) = "docsection:" +
 // document_id + "|" + section_id (documentation_edge_materialization.go);
 // DocumentationSection is not in projector.canonicalNamePathLineEntityLabels
 // so its uid is exactly the row's own section_uid, not a recomputed hash.
-// Each edge's target_entity_id is content.CanonicalEntityID(repo_id,
-// relative_path, entity_type, entity_name, start_line)
-// (go/internal/content/writer.go:196) because Function and Class ARE
-// canonicalNamePathLineEntityLabels (go/internal/projector/
-// canonical_entity_identity.go:12): the projector ignores the incoming
-// content_entity entity_id for these labels and derives the uid hash, so the
-// cassette precomputes the same value in content_entity.entity_id AND the
-// mention's candidate_refs[].id (the code_calls-family precedent,
-// go/internal/ifa/code_call_family_catalog.go). The fixture's top-level "odu"
-// field is NOT validated against Catalog()/CatalogByName() or anything else
-// -- loadSQLRelationshipExpectedEdges decodes it and never reads it back —
-// so "cassette:ifa-documentation-family" here is a human label, not a
-// resolvable identity.
+// The fixture's top-level "odu" field is NOT validated against
+// Catalog()/CatalogByName() or anything else -- loadSQLRelationshipExpectedEdges
+// decodes it and never reads it back — so "cassette:ifa-documentation-family"
+// here is a human label, not a resolvable identity.
 const (
 	documentationLiveCassettePath      = "testdata/cassettes/documentation/ifa-documentation-family.json"
 	documentationLiveExpectedEdgesPath = "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"

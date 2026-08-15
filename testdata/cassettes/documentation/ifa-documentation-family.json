@@ -74,6 +74,34 @@
           }
         },
         {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-documentation-family:db/schema.sql",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "relative_path": "db/schema.sql",
+            "parsed_file_data": {
+              "path": "/repo-ifa-documentation-family/db/schema.sql"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-tbl-payments",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-documentation-family",
+            "entity_id": "content-entity:sql-tbl-payments",
+            "entity_type": "SqlTable",
+            "entity_name": "public.payments",
+            "relative_path": "db/schema.sql"
+          }
+        },
+        {
           "fact_kind": "documentation_document",
           "stable_fact_key": "documentation_document:doc-platform-guide",
           "schema_version": "1.0.0",
@@ -224,6 +252,26 @@
               {
                 "id": "content-entity:e_deadbeef0003",
                 "kind": "function"
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "documentation_entity_mention",
+          "stable_fact_key": "documentation_entity_mention:doc-platform-guide:sec-overview:8-payments-table",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "document_id": "doc-platform-guide",
+            "section_id": "sec-overview",
+            "resolution_status": "exact",
+            "mention_kind": "table",
+            "mention_text": "payments table",
+            "candidate_refs": [
+              {
+                "id": "content-entity:sql-tbl-payments",
+                "kind": "table"
               }
             ]
           }

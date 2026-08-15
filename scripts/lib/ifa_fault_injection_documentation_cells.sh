@@ -167,7 +167,7 @@ cell_killworker_documentation() {
 	run_drain_gate killworkerdocumentation
 	assert_no_dead_letters killworkerdocumentation
 	ifa_documentation_assert "killworkerdocumentation" "${bin_dir}" "${documentation_expected_edges}" \
-		|| die "kill-worker-after-claim-documentation: recovered graph does not match the two-edge exact set"
+		|| die "kill-worker-after-claim-documentation: recovered graph does not match the three-edge exact set"
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${baseline_documentation_retried}" 15 "documentation_materialization" \
 		|| die "kill-worker-after-claim-documentation: documentation_materialization did not re-execute above its fault-free retry baseline"

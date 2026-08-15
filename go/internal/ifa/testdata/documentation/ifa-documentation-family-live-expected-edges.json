@@ -10,6 +10,11 @@
       "relationship_type": "DOCUMENTS",
       "source_entity_id": "docsection:doc-platform-guide|sec-overview",
       "target_entity_id": "content-entity:e_6f013273c987"
+    },
+    {
+      "relationship_type": "DOCUMENTS",
+      "source_entity_id": "docsection:doc-platform-guide|sec-overview",
+      "target_entity_id": "content-entity:sql-tbl-payments"
     }
   ]
 }

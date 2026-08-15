@@ -19,24 +19,28 @@ ifa_documentation_drive() {
 }
 
 # ifa_documentation_assert rejects an empty, incomplete, duplicated, or
-# spurious live materialization. The committed expectation is a two-edge exact
-# set: one Function target and one Class target from the same
-# DocumentationSection (proving the section->target dedup identity the
-# extractor's `seen` map enforces), plus five mentions that must derive no
-# edge at all (duplicate pair, ambiguous resolution, multi-candidate,
+# spurious live materialization. The committed expectation is a three-edge
+# exact set: a Function target, a Class target, and a SqlTable target, all
+# from the same DocumentationSection (proving the section->target dedup
+# identity the extractor's `seen` map enforces), plus five mentions that must
+# derive no edge at all (duplicate pair, ambiguous resolution, multi-candidate,
 # service-kind target, blank section_id).
 #
-# A table-kind (SqlTable) target is deliberately absent from this set:
+# The SqlTable edge closes issue #5994's production-truth gap:
 # batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation
-# (Function|Class|Struct|Interface|TypeAlias|Enum|File) excludes SqlTable, so
-# that edge cannot materialize against a live backend today. Pinned RED by
+# (Function|Class|Struct|Interface|TypeAlias|Enum|File) used to exclude
+# SqlTable, so a table-kind mention's DOCUMENTS edge silently no-opped against
+# a live backend. Pinned RED by
 # TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel (commit
-# a3347e898); the fix (widen the writer's MATCH, or drop the offline fixture's
-# table-kind case) is a production-truth decision still under owner review
-# (#5994) and is independent of this live lane.
+# a3347e898), fixed by adding SqlTable to the label alternation
+# (go/internal/storage/cypher/canonical_documentation_edges.go). TypeAlias and
+# File documentation targets remain unproven for a different reason — their
+# uid formats would have to be independently correct upstream, and no
+# producer of documentation_entity_mention facts exists in-repo to verify
+# against; this fix does not close that class.
 ifa_documentation_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
-	printf '\n=== %s: assert documentation materialized edges (two-edge exact set) ===\n' "${label}"
+	printf '\n=== %s: assert documentation materialized edges (three-edge exact set) ===\n' "${label}"
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain documentation_edges \
 		-expected "${expected_edges}"
