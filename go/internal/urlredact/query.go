@@ -61,7 +61,6 @@ const PairSeparators = "?&;"
 // is a bare "token=", and answering "no value, so not a credential pair" made
 // the walk honour the escape and return "?token=%26<credential>" untouched.
 //
-
 // The cost is over-removal: "?token=x%26repo=demo" loses the "repo=demo" an
 // operator might have wanted, because it cannot be told apart from the tail of
 // a credential containing an "&". Losing a benign parameter is the side to err

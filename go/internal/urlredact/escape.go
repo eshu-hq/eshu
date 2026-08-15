@@ -121,9 +121,16 @@ func IndexBoundary(s, set string, depth BoundaryDepth) (int, int) {
 
 // IndexBoundaryBySpelling is IndexBoundary for a caller whose boundary set is
 // not the same in both spellings: literal names the bytes counted when written
-// as themselves, escaped names the bytes ALSO counted when written as one
+// as themselves, escaped names the bytes counted when written as one
 // percent-escape. Passing "" for escaped is LiteralOnly; passing the same set
 // for both is LiteralOrEscaped.
+//
+// The two sets are consulted per spelling, not added together. A byte in
+// escaped but not in literal is a boundary ONLY as "%XX" -- IndexBoundaryBySpelling
+// ("a?b", "&", "?") finds none, because "?" is not in the literal set. Both
+// callers here pass an escaped set contained in their literal one, so the
+// distinction does not arise today; a caller that needs a byte counted in both
+// spellings has to name it in both.
 //
 // The two sets exist because BoundaryDepth alone was too coarse for a walk over
 // PROSE. reportbundle's free-text scan ends a value at whitespace, a quote or a
