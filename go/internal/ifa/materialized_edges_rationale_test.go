@@ -235,6 +235,60 @@ func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
 	}
 }
 
+// TestLoadRationaleExpectedEdgesRejectsUnknownJSONField proves the decoder's
+// DisallowUnknownFields catches a typo in a fixture (e.g. "target_pth"
+// instead of "target_path") rather than silently decoding it away -- the
+// same class of gap #5992 review found and fixed for the SQL family's
+// loader (loadSQLRelationshipExpectedEdges) -- while a well-formed fixture
+// with the existing "note" field (the real committed fixture carries one)
+// still loads.
+func TestLoadRationaleExpectedEdgesRejectsUnknownJSONField(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	badPath := filepath.Join(dir, "typo.json")
+	badRaw := []byte(`{"odu":"odu:x","note":"n","edges":[{"rationale_uid":"r","target_entity_id":"t","target_pth":"p","repo_id":"repo","comment_kind":"why"}]}`)
+	if err := os.WriteFile(badPath, badRaw, 0o600); err != nil {
+		t.Fatalf("write temp fixture: %v", err)
+	}
+	if _, err := loadRationaleExpectedEdges(badPath); err == nil {
+		t.Fatal("loadRationaleExpectedEdges accepted a fixture with an unknown field (target_pth typo)")
+	}
+
+	goodPath := filepath.Join(dir, "good.json")
+	goodRaw := []byte(`{"odu":"odu:x","note":"n","edges":[{"rationale_uid":"r","target_entity_id":"t","target_path":"p","repo_id":"repo","comment_kind":"why"}]}`)
+	if err := os.WriteFile(goodPath, goodRaw, 0o600); err != nil {
+		t.Fatalf("write temp fixture: %v", err)
+	}
+	edges, err := loadRationaleExpectedEdges(goodPath)
+	if err != nil {
+		t.Fatalf("loadRationaleExpectedEdges rejected a well-formed fixture with the existing note field: %v", err)
+	}
+	if len(edges) != 1 {
+		t.Fatalf("loadRationaleExpectedEdges returned %d edges, want 1", len(edges))
+	}
+}
+
+// TestLoadRationaleExpectedEdgesRejectsTrailingJSON mirrors
+// TestLoadSQLRelationshipExpectedEdgesRejectsTrailingJSON: switching to
+// json.Decoder for DisallowUnknownFields must not silently reopen the
+// trailing-content gap json.Unmarshal (this loader's prior decoder) closed
+// for free -- json.Decoder.Decode reads exactly one JSON value and stops.
+func TestLoadRationaleExpectedEdgesRejectsTrailingJSON(t *testing.T) {
+	t.Parallel()
+
+	first := `{"odu":"odu:x","note":"n","edges":[{"rationale_uid":"r","target_entity_id":"t","target_path":"p","repo_id":"repo","comment_kind":"why"}]}`
+	second := `{"odu":"odu:y","note":"n","edges":[{"rationale_uid":"r2","target_entity_id":"t2","target_path":"p2","repo_id":"repo2","comment_kind":"caveat"}]}`
+	path := filepath.Join(t.TempDir(), "trailing.json")
+	if err := os.WriteFile(path, []byte(first+second), 0o600); err != nil {
+		t.Fatalf("write temp fixture: %v", err)
+	}
+	if _, err := loadRationaleExpectedEdges(path); err == nil {
+		t.Fatal("loadRationaleExpectedEdges accepted a fixture with a second, concatenated JSON object trailing the first")
+	}
+}
+
 func writeRationaleExpectedEdges(t *testing.T, file rationaleExpectedEdgesFile) string {
 	t.Helper()
 	raw, err := json.Marshal(file)
