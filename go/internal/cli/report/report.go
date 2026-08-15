@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reportbundle"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 // IncludePayloadsWarning is what `eshu report capture --include-payloads`
@@ -146,51 +147,17 @@ func checkTargetCredentials(flag, value string) error {
 // "does this carry userinfo", and reports whether value had to be rewritten to
 // get an authority at all.
 //
-// url.Parse only looks for userinfo inside an authority, and a value only has
-// an authority after "//". `svc:PASSWORD@h.internal:5432/tool` has none:
-// net/url returns scheme "svc", Opaque "PASSWORD@h.internal:5432/tool" and
-// User nil, so testing parsed.User read a password in plain sight as no
-// credential at all. Re-parsing the value as "//"+value asks net/url the same
-// question about the authority the reporter actually wrote, which keeps
-// net/url — not a character rule — the thing that decides what userinfo is.
-//
-// The rewrite is skipped unless opaqueHasAuthority says there is one, because
-// it turns a rootless path into a host: an opaque target with no "@" in front
-// of its first "/" (a tool name such as `mcp:tool/name`) carries no userinfo
-// under any reading, and rewriting it can fail on a value that was never a
-// credential.
+// The mechanics — the "//" re-parse for an opaque body shaped like an
+// authority, and the rule that `mcp:tool/name` is never rewritten — now live
+// in urlredact.Authority, the shared home the collector sanitizers read too,
+// so the refusal here and the envelope sanitizers cannot drift apart. This
+// wrapper only restores the "target" wording these errors have always used.
 func targetAuthority(value string) (parsed *url.URL, rewritten bool, err error) {
-	parsed, err = url.Parse(value)
+	parsed, rewritten, err = urlredact.Authority(value)
 	if err != nil {
-		return nil, false, fmt.Errorf("parse target: %w", err)
+		return nil, rewritten, fmt.Errorf("parse target: %w", err)
 	}
-	if !opaqueHasAuthority(parsed.Opaque) {
-		return parsed, false, nil
-	}
-	authority, err := url.Parse("//" + value)
-	if err != nil {
-		return nil, true, fmt.Errorf("parse target authority: %w", err)
-	}
-	return authority, true, nil
-}
-
-// opaqueHasAuthority reports whether an opaque URL body (everything after
-// "scheme:" when no "//" follows it) begins with something shaped like an
-// authority: an "@" ahead of the first "/".
-//
-// This only selects whether there is an authority worth handing back to
-// net/url. It decides nothing about what a credential is — that stays with
-// net/url, which is why the "@" after the first "/" is left alone rather than
-// treated as a boundary of its own.
-func opaqueHasAuthority(opaque string) bool {
-	if opaque == "" {
-		return false
-	}
-	authority := opaque
-	if slash := strings.IndexByte(opaque, '/'); slash >= 0 {
-		authority = opaque[:slash]
-	}
-	return strings.IndexByte(authority, '@') >= 0
+	return parsed, rewritten, nil
 }
 
 // CaptureBundle issues the reporter's query, composes the wrong_answer_report.v1

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
@@ -267,6 +268,12 @@ func sanitizeDeploymentURL(raw string) string {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
+		return ""
+	}
+	if parsed.Host == "" && urlredact.CarriesUserinfo(trimmed) {
+		// Not hierarchical, so User can be nil with a credential in plain
+		// sight (`svc:SECRET@host/x` keeps it in Opaque, which String()
+		// round-trips verbatim). Only an authority-shaped credential drops.
 		return ""
 	}
 	parsed.RawQuery = ""

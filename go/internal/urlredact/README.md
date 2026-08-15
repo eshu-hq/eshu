@@ -61,6 +61,47 @@ time.
 - `TailSentinel`, `DifferentialCase`, `DifferentialCases()` — the generated
   cross-product that compares the two walks to **each other** rather than to a
   written-down expectation. Also below.
+- `Authority(value)` / `CarriesUserinfo(value)` — the userinfo question for
+  values `url.Parse` reads as opaque, described next.
+
+## The authority question (authority.go)
+
+`url.Parse` only surfaces userinfo inside an authority, and a value only has an
+authority after `//`. `svc:PASSWORD@h.internal:5432/tool` — the same shape an
+operator produces by omitting `https://` — parses as scheme `svc` with the
+password in `Opaque` and `User == nil`, and `String()` round-trips it verbatim.
+Every sanitizer that tested `parsed.User` after a plain parse read that password
+as no credential at all.
+
+`Authority` re-parses `"//"+value` when the opaque body is authority-shaped (an
+`@` ahead of its first `/`) and lets net/url decide what userinfo is; the `@`
+test only selects which values are worth re-asking about, which is why
+`mcp:tool/name` and `pkg:npm/lodash@4.17.21` are never rewritten — read as an
+authority they would refuse values that were never credentials.
+`CarriesUserinfo` is the fail-closed boolean over it: userinfo under either
+reading, or a value that cannot be parsed at all, reports true, because nothing
+can prove a string credential-free when it cannot be taken apart. The accepted
+cost is `mailto:user@example.com`, which is structurally identical to
+`svc:PASSWORD@example.com`.
+
+Consumers: `cli/report`'s `targetAuthority` (the refusal), and the collector
+sanitizers in `securityalerts`, `ociregistry`, `vulnerabilityintelligence`,
+`kuberneteslive`, `packageregistry` (+ `packageruntime`), `sbomruntime`,
+`ospackagevulnerability`, and `cicdrun`, which drop a non-hierarchical value
+that carries userinfo instead of re-stringing it. `sdk/go/collector`'s
+`validateSourceURI` applies the same rule with its own copy of the
+opaque-authority test — the sdk module cannot import this one.
+
+No-Regression Evidence: in every consumer, `CarriesUserinfo` runs only on the
+branch where the plain parse found no host — the branch that previously
+returned the value unsanitized or re-strung it — so hierarchical URLs, which
+is every well-formed `https://` value these sanitizers see, take exactly the
+parse they took before. The added cost on the rare non-hierarchical branch is
+one extra `url.Parse` of an already-short string during fact-envelope
+construction, not on any query or graph path.
+
+No-Observability-Change: string sanitization only; no metric, span, log, or
+status surface moves.
 
 ## Why the walk is an index walk
 

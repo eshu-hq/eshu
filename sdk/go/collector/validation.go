@@ -5,6 +5,7 @@ package collector
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -253,10 +254,26 @@ func validateSourceURI(raw string) error {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
-		return fmt.Errorf("source_ref.uri is invalid: %w", err)
+		return fmt.Errorf("source_ref.uri is invalid: %w", uriErrorReason(err))
 	}
 	if parsed.User != nil {
 		return fmt.Errorf("source_ref.uri must not contain credentials")
+	}
+	if opaqueHasAuthority(parsed.Opaque) {
+		// url.Parse only surfaces userinfo inside an authority, and a value
+		// only has an authority after "//". `svc:SECRET@host/x` (the same
+		// shape an operator produces by omitting "https://") parses with
+		// User == nil and the credential in Opaque, so the check above read
+		// a password in plain sight as no credential at all. Re-parse the
+		// authority spelling and ask net/url again; net/url stays the
+		// decider of what a credential is.
+		authority, err := url.Parse("//" + trimmed)
+		if err != nil {
+			return fmt.Errorf("source_ref.uri is invalid: %w", uriErrorReason(err))
+		}
+		if authority.User != nil {
+			return fmt.Errorf("source_ref.uri must not contain credentials")
+		}
 	}
 	for key := range parsed.Query() {
 		if sensitiveQueryPattern.MatchString(key) {
@@ -264,6 +281,36 @@ func validateSourceURI(raw string) error {
 		}
 	}
 	return nil
+}
+
+// opaqueHasAuthority reports whether an opaque URL body (everything after
+// "scheme:" when no "//" follows it) begins with something shaped like an
+// authority: an "@" ahead of the first "/". It only selects whether there is
+// an authority worth handing back to net/url — an "@" after the first "/"
+// (a purl version, a path segment) is left alone. This mirrors
+// go/internal/urlredact; the sdk module cannot import it across the module
+// boundary.
+func opaqueHasAuthority(opaque string) bool {
+	if opaque == "" {
+		return false
+	}
+	authority := opaque
+	if slash := strings.IndexByte(opaque, '/'); slash >= 0 {
+		authority = opaque[:slash]
+	}
+	return strings.IndexByte(authority, '@') >= 0
+}
+
+// uriErrorReason strips the quoted URL net/url embeds in its *url.Error so a
+// validation failure keeps the reason ("invalid userinfo", "invalid character
+// in host name") without repeating a possibly-credentialed value into
+// collector logs.
+func uriErrorReason(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("%s: %w", urlErr.Op, urlErr.Err)
+	}
+	return err
 }
 
 func validatePayload(payload map[string]any) error {

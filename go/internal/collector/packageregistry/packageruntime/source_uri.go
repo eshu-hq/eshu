@@ -6,6 +6,8 @@ package packageruntime
 import (
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 func safeSourceURI(raw string) string {
@@ -15,6 +17,13 @@ func safeSourceURI(raw string) string {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Scheme == "" {
+		return ""
+	}
+	if parsed.Host == "" && urlredact.CarriesUserinfo(trimmed) {
+		// Not hierarchical, so User can be nil with a credential in plain
+		// sight (`svc:SECRET@host/x` keeps it in Opaque, which String()
+		// round-trips verbatim). A purl's "@" sits after the first "/", so
+		// purls keep flowing; only an authority-shaped credential drops.
 		return ""
 	}
 	parsed.User = nil
