@@ -5,6 +5,7 @@ package ifa
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -116,6 +117,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 				},
 			},
 		}),
+		deployableUnitCatalogFollowupFact("deployable_unit_correlation", "repo:", deployableUnitFamilyAppRepoID, appLocalPath),
+		deployableUnitCatalogFollowupFact("deployment_mapping", "deployment:", deployableUnitFamilyAppRepoID, appLocalPath),
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID:      deployableUnitFamilyDeployRepoID,
 			SourceRunID: &sourceRunID,
@@ -135,6 +138,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 				},
 			},
 		}),
+		deployableUnitCatalogFollowupFact("deployable_unit_correlation", "repo:", deployableUnitFamilyDeployRepoID, deployLocalPath),
+		deployableUnitCatalogFollowupFact("deployment_mapping", "deployment:", deployableUnitFamilyDeployRepoID, deployLocalPath),
 		// Negative case 1: Dockerfile-only, no other evidence. Reaches row
 		// construction but stays rejected (admission_state != "admitted").
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
@@ -153,6 +158,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 				},
 			},
 		}),
+		deployableUnitCatalogFollowupFact("deployable_unit_correlation", "repo:", deployableUnitFamilyRejectedRepoID, rejectedLocalPath),
+		deployableUnitCatalogFollowupFact("deployment_mapping", "deployment:", deployableUnitFamilyRejectedRepoID, rejectedLocalPath),
 		// Negative case 2: Dockerfile + Jenkinsfile, admitted via
 		// JenkinsRulePack on structural evidence alone, but with no
 		// RelDeploysFrom evidence naming a deployment repository --
@@ -180,6 +187,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 				"jenkins_pipeline_calls": []any{"deployShared"},
 			},
 		}),
+		deployableUnitCatalogFollowupFact("deployable_unit_correlation", "repo:", deployableUnitFamilyAdmittedNoDeployRepoID, jenkinsLocalPath),
+		deployableUnitCatalogFollowupFact("deployment_mapping", "deployment:", deployableUnitFamilyAdmittedNoDeployRepoID, jenkinsLocalPath),
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: deployableUnitFamilyOduName, Facts: factsForOdu},
@@ -203,6 +212,29 @@ func deployableUnitCatalogRepositoryFact(repository codegraphv1.Repository) fact
 		panic(fmt.Sprintf("ifa: encode deployable-unit catalog repository %q: %v", repository.RepoID, err))
 	}
 	return deployableUnitCatalogFact(factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload)
+}
+
+// deployableUnitCatalogFollowupFact reproduces one "shared_followup" fact the
+// git collector emits unconditionally for every repository it snapshots
+// (go/internal/collector/git_fact_builder.go:417-422 calls
+// workloadIdentityFactEnvelope, deployableUnitCorrelationFactEnvelope, and
+// deploymentMappingFactEnvelope for every repo with no evidence-content gate).
+// Without this fact for a repo's reducerDomain, the projector never enqueues
+// that domain's reducer intent for the repo at all -- a live cassette that
+// omits it proves nothing, regardless of what evidence the repo's other
+// facts carry. entityKeyPrefix matches the two production followups this
+// family depends on: "repo:" for deployable_unit_correlation
+// (deployableUnitCorrelationFactEnvelope) and "deployment:" for
+// deployment_mapping (deploymentMappingFactEnvelope), both keyed on
+// filepath.Base(repoPath) exactly as the collector does.
+func deployableUnitCatalogFollowupFact(reducerDomain, entityKeyPrefix, repoID, localPath string) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": reducerDomain,
+		"entity_key":     entityKeyPrefix + filepath.Base(localPath),
+		"reason":         "repository snapshot emitted " + reducerDomain + " follow-up",
+		"repo_id":        repoID,
+	}
+	return deployableUnitCatalogFact("shared_followup", "shared_followup:"+repoID+":"+reducerDomain, payload)
 }
 
 func deployableUnitCatalogFileFact(file codegraphv1.File) facts.Envelope {
