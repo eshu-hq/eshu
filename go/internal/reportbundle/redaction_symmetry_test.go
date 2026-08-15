@@ -287,7 +287,7 @@ func TestCaptureLeavesACleanErrorEnvelopeAlone(t *testing.T) {
 	t.Parallel()
 
 	message := composedAmbiguousMessage("checkout")
-	const correlationID = "9f2c41d0a7b34e58bd10c6e2f4a97b31"
+	const correlationID = "SYMMETRY-CORRELATION-9f2c"
 	bundle, err := Capture(CaptureInput{
 		Surface: "api",
 		Target:  "/api/v0/services/checkout/story",
