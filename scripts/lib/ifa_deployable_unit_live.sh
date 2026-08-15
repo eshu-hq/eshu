@@ -241,14 +241,32 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 # existed, so a subsequent "expected 1, got 0" implicates the writer; a zero
 # count here means correlation itself produced nothing.
 #
+# What this function actually guarantees: it REPORTS, it never GATES, and a
+# failed query degrades to an explicit "unavailable" reading rather than
+# failing the cell or silently reading as zero. The call site below has no
+# `|| return 1` on purpose, which means the caller's `set -e` (this file is
+# sourced into verify-ifa-fault-injection.sh's `set -euo pipefail` shell) is
+# NOT suppressed at that call site -- a function called without a `||` guard
+# still runs under `set -e`. Left unguarded internally, a transient psql or
+# `docker compose exec` hiccup on this bare command substitution would abort
+# the whole cell here, attributed to an assertion that never got to run --
+# exactly the false-red this probe exists to avoid, and a worse bug than the
+# ambiguity it fixes. The `if !` below is what actually suppresses `set -e`
+# for that one command (a `|| true` on the assignment would do the same); an
+# empty-string count on failure would also be its own false signal --
+# "intents == 0 implicates correlation" is the WRONG diagnosis if the query
+# never ran at all, so failure gets a distinct, unmistakable reading instead.
+#
 # Args: compose_project use_compose dsn compose_file
 ifa_deployable_unit_live_report_intents_after_maintenance() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
 	local admitted
-	admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+	if ! admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}" | tr -d '[:space:]')"
-	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced)\n' "${admitted}"
+		"${compose_file}" | tr -d '[:space:]')"; then
+		admitted="unavailable (query failed)"
+	fi
+	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"
 }
 
 # ifa_deployable_unit_live_run_maintenance_pass runs ONE bootstrap-index

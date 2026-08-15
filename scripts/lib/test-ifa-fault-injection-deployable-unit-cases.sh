@@ -57,15 +57,22 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# Post-maintenance intents diagnostic (#5993 follow-up): separates the two
 	# indistinguishable causes of the live gate's "expected 1, got 0" failure --
 	# a writer endpoint-MATCH miss (intents > 0, 0 edges) vs. correlation never
-	# admitting a row (intents == 0). Three needles: the function exists, it
-	# states BOTH interpretations (not just a count), and it is actually wired
-	# into the standalone cell before the final edge assertion -- pinning only
-	# the definition would still pass if someone added a dead, never-called
-	# diagnostic function.
+	# admitting a row (intents == 0). Five needles: the function exists, it
+	# states BOTH interpretations (not just a count), it is actually wired into
+	# the standalone cell before the final edge assertion (pinning only the
+	# definition would still pass if someone added a dead, never-called
+	# diagnostic function), and it degrades to an explicit "unavailable"
+	# reading instead of killing the cell -- the call site has no `|| return 1`
+	# on purpose (this is a diagnostic, not a gate), which means the caller's
+	# `set -e` is NOT suppressed at that call site; an unguarded query failure
+	# inside the function would abort the whole cell before the real edge
+	# assertion runs, the exact false-red this probe exists to avoid.
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic call site (wired before the final edge assertion)" 'ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}"'
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic set -e suppression guard" 'if ! admitted="$(ifa_det_pg'
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic failure-tolerant reading" 'admitted="unavailable (query failed)"'
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 	done
