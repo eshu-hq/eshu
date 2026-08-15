@@ -138,6 +138,7 @@ func TestAssertMaterializedEdgesIdentityErrorOnMissingProperty(t *testing.T) {
 		{"missing source_path entirely", map[string]any{"pattern": "*.go"}},
 		{"non-string source_path", map[string]any{"pattern": "*.go", "source_path": 42}},
 		{"blank source_path", map[string]any{"pattern": "*.go", "source_path": ""}},
+		{"whitespace-only source_path", map[string]any{"pattern": "*.go", "source_path": "   "}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -103,18 +103,32 @@ func LoadExpectedEdges(path, family string) ([]ExpectedEdge, error) {
 }
 
 // validateExpectedEdgeIdentity asserts identity's key set equals declared
-// exactly. declared is nil for a relationship type with no identity
-// properties, in which case any non-empty identity is an error — the
-// declared-empty case for a family that MERGEs on endpoints alone.
+// exactly, AND that every declared key's value is non-blank. declared is nil
+// for a relationship type with no identity properties, in which case any
+// non-empty identity is an error — the declared-empty case for a family that
+// MERGEs on endpoints alone.
+//
+// The blank-value check exists because key-set equality alone lets a fixture
+// carry a declared key with an empty or whitespace-only value
+// (`"pattern": ""`) and still load clean: the key is present, so it is
+// neither "missing" nor "undeclared". A fixture authored that way would
+// match a graph whose codeowners extractor had itself regressed to emitting
+// blank patterns, exactly the silent-collapse class this precursor exists to
+// catch — see the sibling check in assertMaterializedEdges
+// (go/cmd/ifa/assert_edges.go) for the live-graph half of this guard.
 func validateExpectedEdgeIdentity(identity map[string]string, declared []string) error {
 	declaredSet := make(map[string]struct{}, len(declared))
 	for _, k := range declared {
 		declaredSet[k] = struct{}{}
 	}
-	undeclared := make([]string, 0)
-	for k := range identity {
+	var undeclared, blank []string
+	for k, v := range identity {
 		if _, ok := declaredSet[k]; !ok {
 			undeclared = append(undeclared, k)
+			continue
+		}
+		if strings.TrimSpace(v) == "" {
+			blank = append(blank, k)
 		}
 	}
 	var missing []string
@@ -125,8 +139,9 @@ func validateExpectedEdgeIdentity(identity map[string]string, declared []string)
 	}
 	sort.Strings(undeclared)
 	sort.Strings(missing)
-	if len(undeclared) > 0 || len(missing) > 0 {
-		return fmt.Errorf("identity keys %v do not match the declared set %v (undeclared: %v, missing: %v)", identityKeys(identity), declared, undeclared, missing)
+	sort.Strings(blank)
+	if len(undeclared) > 0 || len(missing) > 0 || len(blank) > 0 {
+		return fmt.Errorf("identity keys %v do not match the declared set %v (undeclared: %v, missing: %v, blank: %v)", identityKeys(identity), declared, undeclared, missing, blank)
 	}
 	return nil
 }

@@ -50,9 +50,15 @@ func TestExpectedEdgeKeyAppendsIdentityInSortedOrder(t *testing.T) {
 	}
 }
 
-// TestValidateExpectedEdgeIdentity covers the three fixture-error shapes
+// TestValidateExpectedEdgeIdentity covers the fixture-error shapes
 // LoadExpectedEdges must reject: a missing declared key, an undeclared key,
-// and any identity map on a declared-empty relationship type.
+// any identity map on a declared-empty relationship type, and a blank value
+// on an otherwise correctly-keyed declared property. The last one matters
+// because a fixture whose identity key SET matches but carries a blank VALUE
+// (`"pattern": ""`) would otherwise load clean and could match a genuinely
+// broken graph exactly if the codeowners extractor ever regressed to
+// emitting blank patterns — see identityPropertiesFromCypher's sibling guard
+// on the live side (assertMaterializedEdges) for the other half of this.
 func TestValidateExpectedEdgeIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +74,9 @@ func TestValidateExpectedEdgeIdentity(t *testing.T) {
 		{"declared two, missing one key: error", map[string]string{"pattern": "x"}, []string{"pattern", "source_path"}, true},
 		{"declared two, extra undeclared key: error", map[string]string{"pattern": "x", "source_path": "y", "extra": "z"}, []string{"pattern", "source_path"}, true},
 		{"declared one, wrong key name: error", map[string]string{"wrong_name": "x"}, []string{"path"}, true},
+		{"declared two, one blank value: error", map[string]string{"pattern": "", "source_path": "y"}, []string{"pattern", "source_path"}, true},
+		{"declared two, both blank values: error", map[string]string{"pattern": "", "source_path": ""}, []string{"pattern", "source_path"}, true},
+		{"declared two, whitespace-only value: error", map[string]string{"pattern": "   ", "source_path": "y"}, []string{"pattern", "source_path"}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,6 +132,23 @@ func TestLoadExpectedEdgesRejectsIdentityMismatch(t *testing.T) {
 				t.Fatal("LoadExpectedEdges returned no error for an invalid fixture")
 			}
 		})
+	}
+}
+
+// TestLoadExpectedEdgesRejectsBlankIdentityValue proves LoadExpectedEdges
+// itself (not just the unit-level validateExpectedEdgeIdentity helper)
+// rejects a codeowners_ownership_edges fixture whose identity key set
+// matches the declaration exactly but carries a blank value for a declared
+// key. Uses the real family (not sql_relationships, which declares no
+// identity properties and so has nothing to leave blank).
+func TestLoadExpectedEdgesRejectsBlankIdentityValue(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempExpectedEdges(t, []sqlRelationshipExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a", Identity: map[string]string{"pattern": "", "source_path": "CODEOWNERS"}},
+	})
+	if _, err := LoadExpectedEdges(path, "codeowners_ownership_edges"); err == nil {
+		t.Fatal("LoadExpectedEdges accepted a fixture with a blank identity value")
 	}
 }
 

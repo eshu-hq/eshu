@@ -220,7 +220,7 @@ func assertMaterializedEdges(
 			var badProps []string
 			for _, key := range declared {
 				value, ok := edge.Props[key].(string)
-				if !ok || value == "" {
+				if !ok || strings.TrimSpace(value) == "" {
 					badProps = append(badProps, key)
 					continue
 				}
