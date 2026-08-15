@@ -158,12 +158,43 @@ ifa_deployable_unit_live_drain() {
 # direct Postgres count instead of the assert-edges verb for the BEFORE state.
 #
 # Args: compose_project use_compose dsn compose_file
+#
+# Query capture is NEVER piped, so this needs no pipefail reasoning at all
+# (unlike the after-probe below, which pipes a whitespace trim onto its
+# capture and guards that with `|| [[ -z ]]`): the raw ifa_det_pg exit status
+# is captured directly into admitted_rc via the if/else `$?` idiom, matching
+# ifa_deployable_unit_require_fresh_intents
+# (ifa_fault_injection_deployable_unit_cells.sh) exactly, which is the
+# correct pattern already proven elsewhere in this family. Unlike that
+# diagnostic, THIS function is a GATE (return 1 fails the cell), so a query
+# that never ran must never silently read as "0" -- that would blame the
+# readiness gate for a Postgres/compose hiccup that has nothing to do with
+# it. Checked in order: the query's own exit code, then whether the (now
+# whitespace-trimmed) output is empty, then whether it is non-numeric, and
+# only once all three pass does it compare to the literal string "0".
 ifa_deployable_unit_live_assert_empty_before_maintenance() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
-	local admitted
-	admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+	local admitted admitted_rc
+	if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}" | tr -d '[:space:]')"
+		"${compose_file}")"; then
+		admitted_rc=0
+	else
+		admitted_rc=$?
+	fi
+	if [[ "${admitted_rc}" -ne 0 ]]; then
+		echo "deployable_unit_edges: before-maintenance precondition query FAILED (exit ${admitted_rc}); treat this as unknown, not as a verdict" >&2
+		return "${admitted_rc}"
+	fi
+	admitted="$(printf '%s' "${admitted}" | tr -d '[:space:]')"
+	if [[ -z "${admitted}" ]]; then
+		echo "deployable_unit_edges: before-maintenance precondition query returned empty output; treat this as unknown, not as zero" >&2
+		return 1
+	fi
+	if [[ ! "${admitted}" =~ ^[0-9]+$ ]]; then
+		echo "deployable_unit_edges: before-maintenance precondition query returned non-numeric output '${admitted}'; treat this as unknown, not as zero" >&2
+		return 1
+	fi
 	if [[ "${admitted}" != "0" ]]; then
 		echo "deployable_unit_edges: expected 0 shared_projection_intents rows before the maintenance pass, got ${admitted} -- either the readiness gate is not actually closed in this runtime (re-verify this file's header claim before trusting the rest of this cell), or a prior cell's state leaked into this one" >&2
 		return 1
@@ -247,35 +278,42 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 # `|| return 1` on purpose, which means the caller's `set -e` (this file is
 # sourced into verify-ifa-fault-injection.sh's `set -euo pipefail` shell) is
 # NOT suppressed at that call site -- a function called without a `||` guard
-# still runs under `set -e`. Left unguarded internally, a transient psql or
-# `docker compose exec` hiccup on this bare command substitution would abort
-# the whole cell here, attributed to an assertion that never got to run --
-# exactly the false-red this probe exists to avoid, and a worse bug than the
-# ambiguity it fixes. The `if !` below is what suppresses `set -e` for that
-# one command (a `|| true` on the assignment would do the same).
+# still runs under `set -e`, so an internally-unguarded query failure here
+# would abort the whole cell before the real edge assertion ran, attributed
+# to an assertion that never got to run -- exactly the false-red this probe
+# exists to avoid, and a worse bug than the ambiguity it fixes.
 #
-# That guard alone is only a real guarantee under `pipefail`: ifa_det_pg is
-# the first stage of a pipeline ending in `tr`, so WITHOUT pipefail the
-# substitution's exit status is tr's (0 even when ifa_det_pg failed), the
-# `if !` never fires, and admitted silently reads as an empty string --
-# exactly the false reading this function exists to prevent, and this file's
-# own header says the CALLER owns strict mode, so a future driver sourcing it
-# with `set -eu` and no `pipefail` would reintroduce that blank silently. The
-# `|| [[ -z "${admitted}" ]]` below makes the guard caller-independent: a
-# `SELECT count(*)` always returns exactly one row containing a number, so
-# empty output can only mean the query never ran -- this check can never mask
-# a legitimate zero, because a legitimate zero prints as the string "0", not
-# empty. An empty-string count on failure would be its own false signal --
-# "intents == 0 implicates correlation" is the WRONG diagnosis if the query
-# never ran at all, so failure gets a distinct, unmistakable reading instead.
+# Harmonized with ifa_deployable_unit_live_assert_empty_before_maintenance's
+# rc-capture shape (same file, above) rather than piping the query capture
+# through `tr` and guarding with `if !` / `|| [[ -z ]]`: capturing
+# admitted_rc directly from a BARE (unpiped) ifa_det_pg call means success or
+# failure here never depends on the caller having set pipefail at all, one
+# pattern instead of two slightly different ones for the same underlying
+# hazard. The three failure modes this function must never let through as a
+# false "0" -- the query itself failing, empty output, and non-numeric
+# output -- collapse to the SAME "unavailable" reading (unlike the BEFORE
+# probe, which reports each distinctly and gates on all three, since this
+# function never gates on any of them). An empty-string or non-numeric count
+# read as a real value would be its own false signal -- "intents == 0
+# implicates correlation" is the WRONG diagnosis if the query never ran at
+# all, so any of the three failure modes gets the same distinct,
+# unmistakable reading instead.
 #
 # Args: compose_project use_compose dsn compose_file
 ifa_deployable_unit_live_report_intents_after_maintenance() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
-	local admitted
-	if ! admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+	local admitted admitted_rc
+	if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}" | tr -d '[:space:]')" || [[ -z "${admitted}" ]]; then
+		"${compose_file}")"; then
+		admitted_rc=0
+	else
+		admitted_rc=$?
+	fi
+	if [[ "${admitted_rc}" -eq 0 ]]; then
+		admitted="$(printf '%s' "${admitted}" | tr -d '[:space:]')"
+	fi
+	if [[ "${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then
 		admitted="unavailable (query failed)"
 	fi
 	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"

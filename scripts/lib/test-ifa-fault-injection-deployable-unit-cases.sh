@@ -57,27 +57,64 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# Post-maintenance intents diagnostic (#5993 follow-up): separates the two
 	# indistinguishable causes of the live gate's "expected 1, got 0" failure --
 	# a writer endpoint-MATCH miss (intents > 0, 0 edges) vs. correlation never
-	# admitting a row (intents == 0). Six needles against the live lib: the
-	# function exists, it states BOTH interpretations (not just a count), and
-	# it degrades to an explicit "unavailable" reading instead of killing the
-	# cell -- the call site has no `|| return 1` on purpose (this is a
-	# diagnostic, not a gate), which means the caller's `set -e` is NOT
-	# suppressed at that call site; an unguarded query failure inside the
-	# function would abort the whole cell before the real edge assertion runs,
-	# the exact false-red this probe exists to avoid -- and that tolerance is
-	# caller-independent, not merely pipefail-shaped: ifa_det_pg is the first
-	# stage of a pipeline ending in `tr`, so without pipefail its failure alone
-	# leaves admitted empty rather than tripping the `if !`, which is why the
-	# `[[ -z "${admitted}" ]]` needle is pinned separately from the `if !`
-	# needle. Wiring existence alone would still pass if the call were wired
-	# below the final edge assertion it is supposed to precede, so ordering is
-	# pinned as line-number checks below rather than as a text needle.
+	# admitting a row (intents == 0). Do not count the needles below in prose
+	# here; a stale count is exactly the kind of drift this comment keeps
+	# tripping on -- read the require_deployable_unit_live_lib calls directly.
+	# What they establish, by property rather than by number: the function
+	# exists and states BOTH interpretations (not just a count); the after-probe
+	# never gates (the call site has no `|| return 1` on purpose, so the
+	# caller's `set -e` is NOT suppressed there -- an unguarded internal query
+	# failure would abort the whole cell before the real edge assertion runs)
+	# and degrades any of query-failed/empty/non-numeric to one "unavailable"
+	# reading rather than a legitimate-looking "0"; the BEFORE probe
+	# (assert_empty_before_maintenance) has the same hazard except it GATES,
+	# so it is pinned separately to prove it fails closed with the real exit
+	# code and treats empty/non-numeric as unknown, never as a legitimate
+	# zero. Both probes share the same unpiped rc-capture opening line by
+	# harmonization (pinned as a COUNT of exactly 2, not a presence needle,
+	# since presence alone cannot tell "only one function has this" from
+	# "both do"). Wiring existence alone would still pass if a call were wired
+	# below the final edge assertion it is supposed to precede, or clustered
+	# into the wrong cell, so ordering and cell containment are pinned as
+	# line-number / enclosing-function checks below rather than as text
+	# needles.
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic set -e suppression guard" 'if ! admitted="$(ifa_det_pg'
 	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic failure-tolerant reading" 'admitted="unavailable (query failed)"'
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic pipefail-independent emptiness check" '[[ -z "${admitted}" ]]; then'
+	# The after-probe never pipes its query capture (ifa_det_pg is called bare,
+	# not through `| tr`), so its own success/failure never depends on the
+	# caller having set pipefail -- this pins the collapsed tri-condition
+	# (query failed, OR empty, OR non-numeric) that decides whether the
+	# reading becomes "unavailable", not just a bare `-z` check that a partial
+	# rewrite could satisfy while still leaving a non-numeric value unhandled.
+	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic collapses failed/empty/non-numeric to unavailable" '"${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then'
+	# The BEFORE probe (assert_empty_before_maintenance) has the same two
+	# hazards the after-probe was hardened against, except it GATES (return 1
+	# fails the cell) instead of merely reporting -- worse than the bug fixed
+	# above. Harmonized to the SAME rc-capture shape as the after-probe (also
+	# the shape already proven correct elsewhere in this family,
+	# ifa_deployable_unit_require_fresh_intents in
+	# ifa_fault_injection_deployable_unit_cells.sh:60-88): capture the exit
+	# code from a BARE (unpiped) ifa_det_pg call, so success/failure never
+	# depends on pipefail at all, then separately check empty and non-numeric
+	# before ever comparing to "0" -- a query that never ran must never read
+	# as a legitimate zero. Both functions now share byte-identical opening
+	# lines (harmonization means there is no longer a shape unique to only
+	# one of them), so the shape itself is pinned as a COUNT -- it must
+	# appear exactly twice, once per function -- rather than as a bare
+	# presence needle that a regression in only ONE function could not turn
+	# red (a presence-only needle for this exact text would already have
+	# passed before this fix, since the after-probe alone already had it).
+	# The messages below ARE unique to the before-probe and pin its actual
+	# gating behavior directly.
+	local du_unpiped_rc_capture_count
+	du_unpiped_rc_capture_count="$(rg --fixed-strings --count-matches -- 'if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_live_lib}" || true)"
+	[[ "${du_unpiped_rc_capture_count}" -eq 2 ]] \
+		|| fail "expected the unpiped rc-capture query shape exactly twice in ${deployable_unit_live_lib} (once in the before-probe, once in the after-probe); found ${du_unpiped_rc_capture_count:-0}"
+	require_deployable_unit_live_lib "live lib before-probe fails closed and returns the real rc on query failure" 'return "${admitted_rc}"'
+	require_deployable_unit_live_lib "live lib before-probe treats empty output as unknown, not zero" "before-maintenance precondition query returned empty output; treat this as unknown, not as zero"
+	require_deployable_unit_live_lib "live lib before-probe treats non-numeric output as unknown, not zero" "before-maintenance precondition query returned non-numeric output"
 	# Ordering: the standalone determinism cell's post-maintenance intents
 	# call must precede ITS OWN final edge assertion (ifa_deployable_unit_live_assert
 	# ... || return 1 -- a call moved below it never executes on the only path
@@ -95,25 +132,59 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# and the probe collapses the two hardest to tell apart. All three fault
 	# cells (baseline, killworker, failgraphwrite) already call
 	# ifa_deployable_unit_live_assert_empty_before_maintenance and run a
-	# maintenance pass -- the after-probe was the only missing piece. Checks
-	# the call appears exactly once PER CELL (not just once anywhere in the
-	# file, which a single cell wiring it would also satisfy) and that each
-	# cell's call precedes that SAME cell's own final edge assertion; the two
-	# line-number lists come from one top-to-bottom scan of the file, so
-	# pairing by index is safe only because the three cells' bodies do not
-	# interleave.
-	local du_report_lines du_assert_lines du_report_count du_assert_count fault_i
+	# maintenance pass -- the after-probe was the only missing piece.
+	#
+	# A bare count==3 plus index-paired ordering (report[i] < assert[i] by
+	# SORTED position) is satisfiable by moving all three report calls into
+	# ONE cell and leaving the other two with none: count stays 3, and
+	# index-pairing holds trivially because all three report calls still
+	# precede all three assert calls textually, even though two cells have no
+	# diagnostic at all -- probed and confirmed against this exact shape in a
+	# scratch copy before writing this check. Containment fixes it: map every
+	# line to its nearest preceding top-level function definition
+	# (`^[A-Za-z_][A-Za-z0-9_]*\(\) \{$`) and require, for EACH of the three
+	# required cells, that cell contain EXACTLY one report call and EXACTLY
+	# one assert call, with the report call preceding the assert call --
+	# this subsumes the count check entirely (replacing it, not adding
+	# alongside it) and cannot be satisfied by clustering calls in one cell.
+	local du_fn_at_line_raw du_fn_ln du_fn_name
+	local -A du_fn_at_line
+	du_fn_at_line_raw="$(awk '
+		/^[A-Za-z_][A-Za-z0-9_]*\(\) \{$/ { sub(/\(\) \{$/, ""); fn = $0 }
+		{ print NR, (fn == "" ? "NONE" : fn) }
+	' "${deployable_unit_cells_lib}")"
+	while read -r du_fn_ln du_fn_name; do
+		du_fn_at_line["${du_fn_ln}"]="${du_fn_name}"
+	done <<<"${du_fn_at_line_raw}"
+
+	local du_report_lines du_assert_lines
 	du_report_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true))
 	du_assert_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true))
-	du_report_count="${#du_report_lines[@]}"
-	du_assert_count="${#du_assert_lines[@]}"
-	[[ "${du_report_count}" -eq 3 ]] \
-		|| fail "post-maintenance intents diagnostic must be wired into all three deployable-unit fault cells (baseline, killworker, failgraphwrite); found ${du_report_count} call site(s) in ${deployable_unit_cells_lib}"
-	[[ "${du_assert_count}" -eq 3 ]] \
-		|| fail "expected exactly 3 final deployable_unit_edges assert-edges call sites in the fault cells (one per cell); found ${du_assert_count} in ${deployable_unit_cells_lib}"
-	for ((fault_i = 0; fault_i < du_report_count; fault_i++)); do
-		[[ "${du_report_lines[fault_i]}" -lt "${du_assert_lines[fault_i]}" ]] \
-			|| fail "deployable-unit fault cell: post-maintenance intents diagnostic (line ${du_report_lines[fault_i]}) must run before that cell's final edge assertion (line ${du_assert_lines[fault_i]}) in ${deployable_unit_cells_lib}"
+
+	local du_cell du_ln du_report_line du_assert_line
+	for du_cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
+		du_report_line=""
+		for du_ln in "${du_report_lines[@]}"; do
+			[[ "${du_fn_at_line[${du_ln}]:-}" == "${du_cell}" ]] || continue
+			[[ -z "${du_report_line}" ]] \
+				|| fail "deployable-unit fault cell ${du_cell}: post-maintenance intents diagnostic wired more than once (lines ${du_report_line} and ${du_ln}) in ${deployable_unit_cells_lib}"
+			du_report_line="${du_ln}"
+		done
+		[[ -n "${du_report_line}" ]] \
+			|| fail "post-maintenance intents diagnostic must be wired inside ${du_cell}, not merely present ${#du_report_lines[@]} time(s) somewhere in ${deployable_unit_cells_lib}"
+
+		du_assert_line=""
+		for du_ln in "${du_assert_lines[@]}"; do
+			[[ "${du_fn_at_line[${du_ln}]:-}" == "${du_cell}" ]] || continue
+			[[ -z "${du_assert_line}" ]] \
+				|| fail "deployable-unit fault cell ${du_cell}: final edge assertion wired more than once (lines ${du_assert_line} and ${du_ln}) in ${deployable_unit_cells_lib}"
+			du_assert_line="${du_ln}"
+		done
+		[[ -n "${du_assert_line}" ]] \
+			|| fail "expected a final deployable_unit_edges assert-edges call inside ${du_cell} in ${deployable_unit_cells_lib}"
+
+		[[ "${du_report_line}" -lt "${du_assert_line}" ]] \
+			|| fail "deployable-unit fault cell ${du_cell}: post-maintenance intents diagnostic (line ${du_report_line}) must run before that cell's own final edge assertion (line ${du_assert_line}) in ${deployable_unit_cells_lib}"
 	done
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
