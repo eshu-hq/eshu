@@ -1,0 +1,16 @@
+{
+  "odu": "cassette:ifa-documentation-family",
+  "note": "LIVE assert-edges fixture for the documentation_edges family (#5994), distinct from ifa-documentation-family-expected-edges.json (the offline pure-guard fixture for the hand-authored odu:ifa-documentation-family Odu). This file is driven by testdata/cassettes/documentation/ifa-documentation-family.json and asserted by `eshu-ifa assert-edges -domain documentation_edges`. It deliberately carries only entity-kind (Function/Class) targets, not a SqlTable target: batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation (Function|Class|Struct|Interface|TypeAlias|Enum|File) excludes SqlTable, so a table-kind mention's DOCUMENTS edge cannot materialize against a live backend today (go/internal/storage/cypher/canonical_documentation_edges.go, pinned by TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel). source_entity_id is the DocumentationSection node's uid, documentationSectionNodeUID(document_id, section_id) = \"docsection:\" + document_id + \"|\" + section_id (go/internal/reducer/documentation_edge_materialization.go); DocumentationSection is not in projector.canonicalNamePathLineEntityLabels so its uid is exactly the row's own section_uid, not a recomputed hash. target_entity_id for both edges is content.CanonicalEntityID(repo_id, relative_path, entity_type, entity_name, start_line) (go/internal/content/writer.go:196) because Function and Class are canonicalNamePathLineEntityLabels (go/internal/projector/canonical_entity_identity.go:12): the projector ignores the incoming content_entity entity_id for these labels and derives the uid hash, so the cassette precomputes the same value in content_entity.entity_id AND the mention's candidate_refs[].id (the code_calls-family precedent, go/internal/ifa/code_call_family_catalog.go).",
+  "edges": [
+    {
+      "relationship_type": "DOCUMENTS",
+      "source_entity_id": "docsection:doc-platform-guide|sec-overview",
+      "target_entity_id": "content-entity:e_17b9095db873"
+    },
+    {
+      "relationship_type": "DOCUMENTS",
+      "source_entity_id": "docsection:doc-platform-guide|sec-overview",
+      "target_entity_id": "content-entity:e_6f013273c987"
+    }
+  ]
+}
