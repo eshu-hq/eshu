@@ -167,10 +167,21 @@ Both lists were one list, and it hid a hole. 234 of the 594 rows landed where
 **both** walks keep the fragment — 36 of those under a credential-shaped name,
 every `token%3D`/`api_key%3D` row whose escape is a separator. That is not a
 leak: one layer down `token%3D%26X` really does carry an empty value and `X` is
-a separate bare parameter. But a check that only compares the two walks to each
-other is silent when they are both right *and* when they are both wrong, so
-those rows counted toward coverage while a regression that stopped removing
-anything on them would still have passed.
+a separate bare parameter. **18** of those 36 declared nothing else, so they
+carried no removal assertion at all; the other 18 also declared a fragment that
+really is in the value, and still signalled. A check that only compares the two
+walks to each other is silent when they are both right *and* when they are both
+wrong, so a regression that stopped removing anything would have passed on every
+row, not just those 18.
+
+The pinned totals count **fragments** as well as rows, because a row count
+cannot see an assertion leave. 114 of the rows carry two removable fragments
+(492 fragments over 378 rows, two at most per row), so demoting the second to
+`Outside` leaves `594` and `378` exactly where they were. Measured on that
+weakening: removable fragments `492` → `378`, outside `300` → `414`, and the
+both-walks-wrong mutation down from 36 red subtests to 18 — the half that
+disappears being the partial-leak case `TailSentinel` exists to catch. `492` and
+`300` are pinned beside the row counts.
 
 Agreement is about the **decision**, not the bytes: the two walks emit different
 text on purpose, so comparing output would need an exemption on nearly every

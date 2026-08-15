@@ -104,9 +104,17 @@
   `pairSeparator` are literals in the axis tables on purpose — an oracle that
   called `collector.IsSensitiveKeyName` or read `PairSeparators` would
   reclassify every row the moment the code it checks moves, and the table would
-  go green asserting nothing. Both totals are written down for the same reason;
-  if you add an axis, the self-consistency test tells you the new numbers and
-  every place citing them has to move too.
+  go green asserting nothing.
+
+  **Four totals are pinned, and rows are only two of them.** `594` rows, `378`
+  rows carrying a removable fragment, `492` removable fragments, `300` outside
+  ones. The fragment counts are not redundant: 114 rows carry two removable
+  fragments, so demoting the second to `Outside` holds both row totals exactly
+  while the removal assertions drop 492 → 378 — measured, everything else in the
+  package still green, and the both-walks-wrong mutation falling from 36 red
+  subtests to 18, the half `TailSentinel` exists to catch. Change an axis and
+  all four move; the self-consistency test names the new numbers, and every
+  place citing them has to move too.
 
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
