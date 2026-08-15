@@ -33,8 +33,11 @@ func TestExpectedEdgeKeyIsByteIdenticalWithNoIdentity(t *testing.T) {
 
 // TestExpectedEdgeKeyAppendsIdentityInSortedOrder proves Key() is
 // deterministic regardless of Go map iteration order: two ExpectedEdge
-// values built with the same Identity content produce the same Key(),
-// and the appended segment is sorted by property name.
+// values built with the same Identity content produce the same Key(), and
+// the length-prefixed fields appear in sorted property-name order. The
+// pinned literal is the length-prefixed ("<byte length>:<content>") shape
+// TestExpectedEdgeKeyIsInjective's fix introduced, not the raw "|"-joined
+// shape the byte-identical, no-Identity path still uses.
 func TestExpectedEdgeKeyAppendsIdentityInSortedOrder(t *testing.T) {
 	t.Parallel()
 
@@ -44,9 +47,40 @@ func TestExpectedEdgeKeyAppendsIdentityInSortedOrder(t *testing.T) {
 		TargetEntityID:   "codeowner:team-a",
 		Identity:         map[string]string{"source_path": "CODEOWNERS", "pattern": "*.go"},
 	}
-	want := "DECLARES_CODEOWNER|repo-1|codeowner:team-a|pattern=*.go|source_path=CODEOWNERS"
+	want := "18:DECLARES_CODEOWNER6:repo-116:codeowner:team-a7:pattern4:*.go11:source_path10:CODEOWNERS"
 	if got := edge.Key(); got != want {
 		t.Fatalf("Key() = %q, want %q (sorted by property name regardless of map insertion order)", got, want)
+	}
+}
+
+// TestExpectedEdgeKeyIsInjective is the regression test for a real
+// injectivity defect: Key() concatenated RelationshipType, SourceEntityID,
+// TargetEntityID, and each Identity property with "|" delimiters and no
+// escaping, so a value containing "|" could make two structurally distinct
+// edges produce the identical key. Concretely: a target ending in
+// "|path=P" combined with an identity value of "Q" rendered the exact same
+// string as a plain target combined with an identity value of "P|path=Q" --
+// both keyed as "...T|path=P|path=Q". Two different edges merging onto one
+// key means compareDocumentationExpectedEdges (and its siblings) can miss a
+// missing edge, an extra edge, or a duplicate, silently, in the very
+// mechanism this precursor exists to add.
+func TestExpectedEdgeKeyIsInjective(t *testing.T) {
+	t.Parallel()
+
+	edgeA := ExpectedEdge{
+		RelationshipType: "PINS_SUBMODULE",
+		SourceEntityID:   "repo-1",
+		TargetEntityID:   "T|path=P",
+		Identity:         map[string]string{"path": "Q"},
+	}
+	edgeB := ExpectedEdge{
+		RelationshipType: "PINS_SUBMODULE",
+		SourceEntityID:   "repo-1",
+		TargetEntityID:   "T",
+		Identity:         map[string]string{"path": "P|path=Q"},
+	}
+	if edgeA.Key() == edgeB.Key() {
+		t.Fatalf("distinct edges collided onto one key %q; the exact-set comparison would silently merge them", edgeA.Key())
 	}
 }
 

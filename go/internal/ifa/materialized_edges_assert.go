@@ -6,6 +6,7 @@ package ifa
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -39,29 +40,58 @@ type ExpectedEdge struct {
 // edge and a fixture edge collide iff they are the same edge. When Identity
 // is empty the result is BYTE-IDENTICAL to the pre-Identity Key() — this is
 // what spares every already-proven family with no relationship-property
-// identity (sql_relationships, code_calls, ...) from re-proof. When Identity
-// is non-empty, each entry is appended in SORTED KEY ORDER as `|k=v` so the
-// key is deterministic regardless of map iteration order or the fixture's
-// own JSON key order.
+// identity (sql_relationships, code_calls, ...) from re-proof.
+//
+// When Identity is non-empty, Key() switches to a fully injective,
+// length-prefixed (netstring-style) encoding of EVERY component --
+// RelationshipType, SourceEntityID, TargetEntityID, then each Identity
+// property in SORTED KEY ORDER -- rather than the raw "|"-joined shape the
+// empty-Identity path keeps. A raw join is not injective: nothing stops
+// SourceEntityID, TargetEntityID, or an Identity value from containing the
+// "|" or "=" delimiters themselves, so two structurally different edges can
+// render the identical string. Concretely, a target ending in "|path=P"
+// combined with an identity value of "Q" collided with a plain target
+// combined with an identity value of "P|path=Q" -- both rendered
+// "...T|path=P|path=Q" (see TestExpectedEdgeKeyIsInjective). Length-prefixing
+// each field as "<byte length>:<content>" removes the ambiguity regardless
+// of what bytes a component holds: a decoder never needs to search for a
+// delimiter inside a field's content, so no field's content can be
+// misread as a boundary. This only runs on the non-empty-Identity path (the
+// two currently gated families, codeowners_ownership_edges and
+// submodule_pin_edges), so it cannot affect the byte-identical guarantee for
+// families with no declared identity.
 func (e ExpectedEdge) Key() string {
-	base := sqlRelationshipEdgeKey(e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
 	if len(e.Identity) == 0 {
-		return base
+		return sqlRelationshipEdgeKey(e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
 	}
 	keys := make([]string, 0, len(e.Identity))
 	for k := range e.Identity {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
 	var b strings.Builder
-	b.WriteString(base)
+	writeLengthPrefixedField(&b, e.RelationshipType)
+	writeLengthPrefixedField(&b, e.SourceEntityID)
+	writeLengthPrefixedField(&b, e.TargetEntityID)
 	for _, k := range keys {
-		b.WriteByte('|')
-		b.WriteString(k)
-		b.WriteByte('=')
-		b.WriteString(e.Identity[k])
+		writeLengthPrefixedField(&b, k)
+		writeLengthPrefixedField(&b, e.Identity[k])
 	}
 	return b.String()
+}
+
+// writeLengthPrefixedField appends one netstring-style "<len>:<content>"
+// field to b, using s's byte length (not rune count) so the announced length
+// matches exactly how many bytes the decoder would need to consume -- the
+// injectivity property Key() relies on for its Identity-bearing keys.
+// strconv.Itoa plus direct Builder writes, not fmt.Fprintf: profiling showed
+// fmt's reflection-based formatting roughly quadrupling this path's cost
+// (BenchmarkExpectedEdgeKey, go/internal/ifa/materialized_edges_assert_test.go).
+func writeLengthPrefixedField(b *strings.Builder, s string) {
+	b.WriteString(strconv.Itoa(len(s)))
+	b.WriteByte(':')
+	b.WriteString(s)
 }
 
 // LoadExpectedEdges reads a hand-derived expected-edge-set fixture file (the

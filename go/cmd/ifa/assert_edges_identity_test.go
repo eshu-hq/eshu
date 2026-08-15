@@ -75,13 +75,14 @@ func TestAssertMaterializedEdgesIdentityDistinguishesSameEndpointEdges(t *testin
 // The two assertions on the exact key strings, not merely that an error
 // occurred, are load-bearing: the missing key is the fixture's own identity
 // and would report regardless of whether the live side projects identity at
-// all, but the extra key MUST carry the LIVE edge's full identity suffix
-// (pattern=*.go|source_path=CODEOWNERS). If the live identity projection
-// were silently disabled, the live edge would key bare
-// (DECLARES_CODEOWNER|repo-1|team-a, no identity suffix) instead — still a
-// mismatch, so a bare "an error happened" check would stay green, but the
-// extra-key assertion below would catch it, because a bare key does not
-// contain the identity suffix it asserts for.
+// all, but the extra key MUST carry the LIVE edge's full, length-prefixed
+// identity suffix (pattern=*.go, source_path=CODEOWNERS). If the live
+// identity projection were silently disabled, the live edge would key bare
+// (DECLARES_CODEOWNER|repo-1|team-a, the raw "|"-joined shape the
+// byte-identical no-Identity path still uses) instead — still a mismatch,
+// so a bare "an error happened" check would stay green, but the extra-key
+// assertion below would catch it, because the bare, raw-joined key cannot
+// contain the length-prefixed identity suffix it asserts for.
 func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testing.T) {
 	t.Parallel()
 
@@ -103,8 +104,8 @@ func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testin
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(identity value mismatch) = nil, want a missing/extra failure")
 	}
-	const wantMissing = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.py|source_path=CODEOWNERS"
-	const wantExtra = "DECLARES_CODEOWNER|repo-1|team-a|pattern=*.go|source_path=CODEOWNERS"
+	const wantMissing = "18:DECLARES_CODEOWNER6:repo-16:team-a7:pattern4:*.py11:source_path10:CODEOWNERS"
+	const wantExtra = "18:DECLARES_CODEOWNER6:repo-16:team-a7:pattern4:*.go11:source_path10:CODEOWNERS"
 	if !strings.Contains(err.Error(), wantMissing) {
 		t.Errorf("error %q does not name the missing fixture key %q", err, wantMissing)
 	}
