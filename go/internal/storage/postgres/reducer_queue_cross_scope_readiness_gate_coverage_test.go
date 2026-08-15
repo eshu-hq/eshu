@@ -12,7 +12,7 @@ import (
 )
 
 // TestReducerContentionPostgresProofsRunInTheReducerContentionGate is the
-// hermetic enrollment guard for the three live PostgreSQL proofs, and it exists
+// hermetic enrollment guard for the live PostgreSQL proofs, and it exists
 // because a DSN-gated test that quietly skips in CI proves nothing there.
 //
 // The live proofs need real PostgreSQL, so they skip on a developer machine
@@ -47,6 +47,8 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
 		"TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
+		"TestWriteDeferredBackfillBatchSharedScopeGenerationDedupesConflictKey",
+		"TestWriteDeferredBackfillBatchDistinctScopesPublishOneRowEach",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)
