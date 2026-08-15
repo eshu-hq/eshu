@@ -28,10 +28,19 @@
 - **`transportErrorCode` mirrors `traceErrorCodeFromTransport` in
   `go/cmd/eshu/trace.go`.** They are separate copies on purpose (that file is
   `package main`), so a behavior change to one is a bug unless it is made to
-  both.
+  both. `TestEntityMapTransportClassifierMatchesTrace` in
+  `go/cmd/eshu/entitymap_parity_test.go` enforces this by running one input
+  table through both classifiers, and
+  `TestEntityMapTransportClassifierPinnedDivergences` pins the only allowed
+  differences (409 and nil).
 - **The value readers in `values.go` are copies too**, of the `trace*`
   helpers in the same file. Do not "deduplicate" them by importing
   `go/cmd/eshu`; it cannot be imported.
+  `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` in
+  `go/cmd/eshu/entitymap_parity_test.go` enforces token-identical function
+  bodies for all six readers (change both or neither), and
+  `TestEntityMapFreshnessStateMatchesTraceReaders` adds a behavioral table
+  for the two reachable through the exported surface.
 
 ## Common changes and how to scope them
 

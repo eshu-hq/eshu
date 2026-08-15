@@ -212,6 +212,9 @@ func ErrorCodeFromTransport(err error) string {
 
 // transportErrorCode is a local copy of traceErrorCodeFromTransport in
 // go/cmd/eshu/trace.go, kept byte-for-byte in behavior.
+// TestEntityMapTransportClassifierMatchesTrace in
+// go/cmd/eshu/entitymap_parity_test.go runs one input table through both and
+// fails when they diverge.
 //
 // The message checks run BEFORE the status switch on purpose: an error that
 // carries both a status and "connection refused" reached the API layer through

@@ -91,7 +91,10 @@ metrics.
   `go/cmd/eshu/trace.go`, not a shared dependency: that file is `package
   main`, and every original still has callers in commands that have not been
   extracted. When a shared `internal/cli` helper package for them lands,
-  these are its first candidates for deletion.
+  these are its first candidates for deletion. Until then the parity tests
+  in `go/cmd/eshu/entitymap_parity_test.go` hold the copies to their
+  originals: token-identical bodies for the readers, and a shared input
+  table for the transport classifier.
 
 ## Related docs
 

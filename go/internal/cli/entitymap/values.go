@@ -10,7 +10,10 @@ import "strings"
 // is package main and unimportable, and because every original still has
 // callers in commands that have not been extracted. When a shared
 // internal/cli helper package for them lands, these become its first
-// candidates for deletion.
+// candidates for deletion. Until then,
+// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers in
+// go/cmd/eshu/entitymap_parity_test.go fails when any copy's function body
+// drifts from its original.
 
 // mapField returns parent[key] when it is a JSON object, and nil otherwise.
 // A missing, null, or wrong-typed member reads as an empty section rather
