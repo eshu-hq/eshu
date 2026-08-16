@@ -5,28 +5,27 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
-	"github.com/eshu-hq/eshu/go/internal/cli/evidpacket"
+	"github.com/eshu-hq/eshu/go/internal/cli/compparity"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
-	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/competitiveparity"
-	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
-	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 func init() {
 	rootCmd.AddCommand(newCompetitiveParityCommand())
 }
 
+// newCompetitiveParityCommand builds the competitive-parity command group.
+// The gate logic lives in internal/cli/compparity; this file keeps only what
+// must stay in package main: cobra registration, flag and stream resolution,
+// the cobra-tree walk for command paths, the first-run exercise (its evidence
+// helpers are still package main), and the exit-code mapping.
 func newCompetitiveParityCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "competitive-parity",
@@ -66,12 +65,12 @@ func runCompetitiveParityValidate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	inventory, err := competitiveParityInventory(repoRoot)
+	inventory, err := compparity.Inventory(repoRoot, commandPaths(rootCmd), exerciseFirstRunReportArtifact)
 	if err != nil {
 		return err
 	}
 	report := competitiveparity.Validate(inventory, competitiveparity.DefaultExpectations())
-	artifact, err := competitiveParityArtifact(report, jsonOut)
+	artifact, err := compparity.Artifact(report, jsonOut)
 	if err != nil {
 		return err
 	}
@@ -88,82 +87,11 @@ func runCompetitiveParityValidate(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func competitiveParityInventory(repoRoot string) (competitiveparity.Inventory, error) {
-	surfaces, err := capabilitycatalog.LoadSurfaceInventory()
-	if err != nil {
-		return competitiveparity.Inventory{}, err
-	}
-	inv := competitiveparity.Inventory{
-		Commands:  commandPaths(rootCmd),
-		Docs:      map[string]string{},
-		Exercises: competitiveParityExerciseResults(repoRoot),
-	}
-	for _, surface := range surfaces.Surfaces {
-		switch surface.Category {
-		case capabilitycatalog.SurfaceAPIRoute:
-			inv.APIRoutes = append(inv.APIRoutes, surface.Name)
-		case capabilitycatalog.SurfaceMCPTool:
-			inv.MCPTools = append(inv.MCPTools, surface.Name)
-		case capabilitycatalog.SurfaceConsolePage:
-			inv.ConsolePages = append(inv.ConsolePages, surface.Name)
-		}
-	}
-	sort.Strings(inv.APIRoutes)
-	sort.Strings(inv.MCPTools)
-	sort.Strings(inv.ConsolePages)
-	for _, path := range competitiveParityDocPaths() {
-		raw, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- path is a static string from competitiveParityDocPaths(); repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return competitiveparity.Inventory{}, fmt.Errorf("read parity doc %s: %w", path, err)
-		}
-		inv.Docs[path] = string(raw)
-	}
-	return inv, nil
-}
-
-func competitiveParityExerciseResults(repoRoot string) []competitiveparity.ExerciseResult {
-	checks := []struct {
-		id string
-		fn func() error
-	}{
-		{id: "first_run_report_artifact", fn: exerciseFirstRunReportArtifact},
-		{id: "operator_digest_artifact", fn: exerciseOperatorDigestArtifact},
-		{id: "investigation_evidence_packet_artifact", fn: exerciseInvestigationEvidencePacketArtifact},
-		{id: "evidence_packet_dogfood_fixture", fn: func() error { return exerciseEvidencePacketDogfoodFixture(repoRoot) }},
-		{id: "capability_catalog_artifacts", fn: exerciseCapabilityCatalogArtifacts},
-	}
-	results := make([]competitiveparity.ExerciseResult, 0, len(checks))
-	for _, check := range checks {
-		result := competitiveparity.ExerciseResult{ID: check.id, OK: true, Detail: "exercised"}
-		if err := check.fn(); err != nil {
-			result.OK = false
-			result.Detail = competitiveParityExerciseFailureDetail(check.id)
-		}
-		results = append(results, result)
-	}
-	return results
-}
-
-func competitiveParityExerciseFailureDetail(id string) string {
-	switch id {
-	case "first_run_report_artifact":
-		return "first-run evidence exercise failed"
-	case "operator_digest_artifact":
-		return "operator digest artifact exercise failed"
-	case "investigation_evidence_packet_artifact":
-		return "investigation evidence packet exercise failed"
-	case "evidence_packet_dogfood_fixture":
-		return "dogfood fixture unavailable"
-	case "capability_catalog_artifacts":
-		return "capability catalog artifact exercise failed"
-	default:
-		return "exercise failed"
-	}
-}
-
+// exerciseFirstRunReportArtifact stays in package main because it drives the
+// first-run evidence helpers (newFirstRunResult, buildFirstRunEvidence,
+// renderEvidenceArtifact) that have not been extracted yet. The wrapper
+// injects it into compparity.Inventory as the first_run_report_artifact
+// exercise.
 func exerciseFirstRunReportArtifact() error {
 	result := firstrun.NewResult("http://localhost:8080")
 	result.RuntimeShape = firstrun.ShapeExistingAPI
@@ -184,148 +112,9 @@ func exerciseFirstRunReportArtifact() error {
 	return nil
 }
 
-func exerciseOperatorDigestArtifact() error {
-	options, err := opdigest.OptionsFromFlags("repo:demo/service", opdigest.DefaultProfile, 2)
-	if err != nil {
-		return err
-	}
-	_, err = opdigest.BuildArtifact(opdigest.BuildDigest(options))
-	return err
-}
-
-func exerciseInvestigationEvidencePacketArtifact() error {
-	packet, err := buildCompetitiveParitySupportedSupplyChainPacket()
-	if err != nil {
-		return err
-	}
-	raw, err := query.RenderInvestigationPacket(packet, query.InvestigationPacketFormatJSON)
-	if err != nil {
-		return err
-	}
-	if !packet.Answer.Supported || packet.Answer.Partial {
-		return fmt.Errorf("investigation packet exercise did not produce a supported complete packet")
-	}
-	if !bytes.Contains(raw, []byte(`investigation_evidence_packet.v2`)) {
-		return fmt.Errorf("investigation packet artifact missing schema marker")
-	}
-	return nil
-}
-
-func buildCompetitiveParitySupportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
-	directDependency := true
-	result := query.SupplyChainImpactExplanationResult{
-		Outcome: "finding_explained",
-		Input: query.SupplyChainImpactExplanationFilter{
-			AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
-			PackageID:    "pkg:golang/example.com/vuln",
-			RepositoryID: "repo-1",
-		},
-		Finding: &query.SupplyChainImpactFindingResult{
-			FindingID:        "finding-1",
-			AdvisoryID:       "GHSA-aaaa-bbbb-cccc",
-			PackageID:        "pkg:golang/example.com/vuln",
-			PackageName:      "example.com/vuln",
-			ImpactStatus:     "affected",
-			WorkloadIDs:      []string{"workload:checkout"},
-			ServiceIDs:       []string{"service:checkout"},
-			EvidenceFactIDs:  []string{"fact-advisory", "fact-sbom"},
-			DirectDependency: &directDependency,
-		},
-		Anchors: query.SupplyChainImpactExplanationAnchors{
-			RepositoryID:  "repo-1",
-			ImageDigests:  []string{"sha256:abc"},
-			Workloads:     []string{"workload:checkout"},
-			Services:      []string{"service:checkout"},
-			SBOMDocuments: []string{"sbom:checkout"},
-		},
-		ImpactPath: []query.SupplyChainImpactPathHop{
-			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
-			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
-			{Hop: "image", Status: "present"},
-			{Hop: "workload", Status: "present"},
-			{Hop: "service", Status: "present"},
-		},
-		Evidence: []query.SupplyChainImpactEvidenceFactSummary{
-			{FactID: "fact-advisory", FactKind: "vulnerability_advisory", SourceSystem: "osv", ObservedAt: "2026-06-18T00:00:00Z"},
-			{FactID: "fact-sbom", FactKind: "sbom_component", SourceSystem: "sbom_document", ObservedAt: "2026-06-18T00:00:00Z"},
-		},
-		Readiness: query.SupplyChainImpactReadinessEnvelope{State: query.ReadinessStateReadyWithFindings},
-		Freshness: query.SupplyChainImpactExplanationFreshness{
-			State:             "fresh",
-			LatestObservedAt:  "2026-06-18T00:00:00Z",
-			EvidenceFactCount: 2,
-		},
-	}
-	truth := &query.TruthEnvelope{
-		Level:      query.TruthLevelExact,
-		Capability: "supply_chain.impact_explain",
-		Profile:    query.ProfileLocalAuthoritative,
-		Basis:      query.TruthBasisAuthoritativeGraph,
-		Backend:    query.GraphBackendNornicDB,
-		Freshness:  query.TruthFreshness{State: query.FreshnessFresh},
-	}
-	return query.BuildSupplyChainImpactPacket(result, truth, nil)
-}
-
-func exerciseEvidencePacketDogfoodFixture(repoRoot string) error {
-	raw, err := os.ReadFile(filepath.Join(repoRoot, "go/internal/packetdogfood/testdata/fixture_benchmark.json")) // #nosec G304 -- path suffix is a fixed literal; repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
-	if err != nil {
-		return fmt.Errorf("read dogfood fixture: %w", err)
-	}
-	benchmark, err := packetdogfood.ParseBenchmark(raw)
-	if err != nil {
-		return err
-	}
-	verdict := packetdogfood.Score(benchmark)
-	if !verdict.Pass {
-		return fmt.Errorf("dogfood fixture failed: %s", evidpacket.FailureSummary(verdict))
-	}
-	return nil
-}
-
-func exerciseCapabilityCatalogArtifacts() error {
-	catalog, err := capabilitycatalog.Load()
-	if err != nil {
-		return err
-	}
-	if len(catalog.Entries) == 0 {
-		return fmt.Errorf("capability catalog is empty")
-	}
-	inventory, err := capabilitycatalog.LoadSurfaceInventory()
-	if err != nil {
-		return err
-	}
-	if len(inventory.Surfaces) == 0 {
-		return fmt.Errorf("surface inventory is empty")
-	}
-	if _, err := json.Marshal(catalog); err != nil {
-		return fmt.Errorf("marshal capability catalog: %w", err)
-	}
-	return nil
-}
-
-func competitiveParityArtifact(report competitiveparity.Report, jsonOut bool) ([]byte, error) {
-	if jsonOut {
-		return competitiveparity.RenderJSON(report)
-	}
-	return []byte(competitiveparity.RenderMarkdown(report)), nil
-}
-
-func competitiveParityDocPaths() []string {
-	seen := map[string]struct{}{}
-	for _, expectation := range competitiveparity.DefaultExpectations() {
-		for _, doc := range expectation.Docs {
-			seen[doc.Path] = struct{}{}
-		}
-	}
-	paths := make([]string, 0, len(seen))
-	for path := range seen {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	return paths
-}
-
+// commandPaths walks the cobra tree and returns every runnable or grouping
+// command path as a sorted, space-joined list. It needs rootCmd, so it lives
+// here rather than in internal/cli/compparity.
 func commandPaths(root *cobra.Command) []string {
 	var paths []string
 	var walk func(cmd *cobra.Command, prefix []string)

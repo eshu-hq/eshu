@@ -666,6 +666,16 @@ linters:
       - path: 'internal/cli/localsupervisor/'
         linters:
           - wrapcheck
+      # internal/cli/compparity is the competitive-parity gate logic lifted
+      # out of cmd/eshu (#6059). Same reasoning as localsupervisor above: the
+      # wrapper's RunE returns its errors straight to the operator, so the
+      # message a user sees is produced here, and the CLI parity check pins
+      # that text -- wrapping now would rewrite it during what is otherwise a
+      # move. It keeps only the wrapcheck half of the cmd/ exemption; the one
+      # exhaustive finding was fixed in code with an explicit default case.
+      - path: 'internal/cli/compparity/'
+        linters:
+          - wrapcheck
       # AWS SDK adapter packages sit at the boundary between the
       # Eshu runtime and the AWS SDK. They translate typed AWS
       # errors into scanner-owned errors; the audit confirms the

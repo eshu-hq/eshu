@@ -11,7 +11,7 @@
 3. `go/cmd/eshu/evidence_packet_dogfood_cmd.go` — the cobra `RunE` wrapper that
    resolves flags and streams and calls in here. This is the file that shows how
    the two halves fit together.
-4. `go/cmd/eshu/competitive_parity_cmd.go` — the second consumer, and the one
+4. `go/internal/cli/compparity/exercises.go` — the second consumer, and the one
    that is easy to forget. `exerciseEvidencePacketDogfoodFixture`
    scores a committed fixture benchmark under `eshu competitive-parity validate`
    and puts `FailureSummary`'s line in its own error. It calls neither
@@ -87,7 +87,7 @@
   `evidence-packet dogfood FAILED: <summary>`
   (`go/cmd/eshu/evidence_packet_dogfood_cmd.go`), and
   `eshu competitive-parity validate` returns `dogfood fixture failed: <summary>`
-  (`go/cmd/eshu/competitive_parity_cmd.go`). Both prefixes are grep-able; the
+  (`go/internal/cli/compparity/exercises.go`). Both prefixes are grep-able; the
   call in each file is the `FailureSummary` one. The join separator and the
   `unknown failure` fallback are pinned by
   `TestFailureSummaryJoinsEveryFailedCriterion` and

@@ -63,15 +63,15 @@ See `doc.go` for the full godoc contract.
   `{{.TestImports}}` and `{{.XTestImports}}`. No third-party or intra-repo
   imports, so `go list -deps` on this package resolves to nothing outside the
   standard library and the package itself.
-- Imported by three files, all in `go/cmd/eshu`: the `report` command wrapper
-  (`operator_digest_cmd.go`); the `competitive-parity validate` exerciser
-  (`competitive_parity_cmd.go`'s `exerciseOperatorDigestArtifact`), which
-  reuses `OptionsFromFlags`, `DefaultProfile`, `BuildDigest`, and
-  `BuildArtifact` to prove the digest and artifact paths stay wired at
-  release-verification time; and the wrapper's own test
-  (`operator_digest_cmd_test.go`), which decodes the command's stdout into
-  `Digest` and `Artifact` and checks the result against `Schema`. That test
-  is the reason `Schema` stays exported.
+- Imported by three files: the `report` command wrapper
+  (`go/cmd/eshu/operator_digest_cmd.go`); the `competitive-parity validate`
+  exerciser (`go/internal/cli/compparity/exercises.go`'s
+  `exerciseOperatorDigestArtifact`), which reuses `OptionsFromFlags`,
+  `DefaultProfile`, `BuildDigest`, and `BuildArtifact` to prove the digest and
+  artifact paths stay wired at release-verification time; and the wrapper's
+  own test (`go/cmd/eshu/operator_digest_cmd_test.go`), which decodes the
+  command's stdout into `Digest` and `Artifact` and checks the result against
+  `Schema`. That test is the reason `Schema` stays exported.
 
 ## Telemetry
 

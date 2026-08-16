@@ -117,9 +117,9 @@ sources reach the same operator:
 - `internal/packetdogfood` — types and constants only. That package itself
   imports nothing beyond `encoding/json`, `fmt`, `sort`, and `strings`, so no
   environment read, subprocess, or network call hides behind it.
-- Consumed by `go/cmd/eshu`: `evidence_packet_dogfood_cmd.go` (all three
-  exported functions) and `competitive_parity_cmd.go` (`FailureSummary`, in
-  `exerciseEvidencePacketDogfoodFixture`).
+- Consumed by `go/cmd/eshu`'s `evidence_packet_dogfood_cmd.go` (all three
+  exported functions) and by `go/internal/cli/compparity/exercises.go`
+  (`FailureSummary`, in `exerciseEvidencePacketDogfoodFixture`).
 
 ## Telemetry
 
