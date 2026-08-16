@@ -51,9 +51,10 @@ outcome through its exit code.
 - Not-measured is honest: unset elapsed time or an undeclared manual-step
   count records `not_measured`, never a fabricated value, and never fails an
   otherwise-complete run.
-- `n` is a verbatim copy of the empty-value placeholder in
-  `go/cmd/eshu/first_run.go` (same pattern as `evidpacket` and
-  `answerqualityscorecard`). Do not export it or import it from anywhere.
+- `quoteIfEmpty` is a verbatim copy of the empty-value placeholder in
+  `go/cmd/eshu/first_run.go`, and carries the same name as the copies in
+  `evidpacket` and `answerqualityscorecard` so the four are greppable as one
+  family. Do not export it or import it from anywhere.
 
 ## Related docs
 

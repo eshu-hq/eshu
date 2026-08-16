@@ -40,9 +40,9 @@
 
 ## Anti-patterns
 
-- **Importing `n` from anywhere, or exporting it.** It is a verbatim copy of
-  the placeholder helper in `go/cmd/eshu/first_run.go`, kept local because
-  `package main` cannot be imported.
+- **Importing `quoteIfEmpty` from anywhere, or exporting it.** It is a verbatim
+  copy of the placeholder helper in `go/cmd/eshu/first_run.go`, kept local
+  because `package main` cannot be imported.
 - **Editing wire tags or field types on one side only.** Change the mirror
   and the package-main envelope together, or the wire-parity test goes red.
 - **Adding a criterion without deciding Required.** A new required criterion
