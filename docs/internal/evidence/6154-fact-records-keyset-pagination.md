@@ -35,16 +35,27 @@ Four reducer domains walk this path once per generation:
 ## Performance Evidence:
 
 Built binary, warm, three runs per configuration, loading the worst-case
-generation through `ListFactsByKind`. Handler row is
-`RationaleEdgeMaterializationHandler.Handle` over the same generation.
+generation through `ListFactsByKind`. The load is the comparable metric across
+all rows: `ListFactsByKind` is byte-identical at baseline on both branches
+involved, and the same scope, generation and page size are used throughout.
 
-| configuration | load | handler |
-| --- | --- | --- |
-| baseline: no index, folded statement | 84.68 / 83.78 / 84.12 s | 84.34 s |
-| new index only, statement still folded | 232.94 / 232.25 / 235.32 s | 233.29 s |
-| new index plus the statement split | 3.53 / 3.23 / 3.34 s | 3.46 s |
+| configuration | load |
+| --- | --- |
+| baseline: no index, folded statement | 84.68 / 83.78 / 84.12 s |
+| new index only, statement still folded | 232.94 / 232.25 / 235.32 s |
+| new index plus the statement split (shim) | 3.53 / 3.23 / 3.34 s |
+| new index plus the statement split (this commit) | 3.99 / 3.30 / 3.37 s |
 
-Baseline 84.34 s, after 3.46 s, a 24.4x reduction on the worst-case generation.
+Baseline 84.12 s, after 3.37 s: a 25x reduction on the worst-case generation,
+reproduced independently by the throwaway shim and by the committed code.
+
+Handler totals are reported separately rather than folded into that table,
+because they are not like-for-like across branches. On the branch carrying the
+rationale follow-up, `RationaleEdgeMaterializationHandler.Handle` over this
+generation took 84.34 s at baseline and was entirely load-bound. On this branch
+the follow-up does not exist, so the same handler returns "no repositories
+available for rationale materialization" in 3.49 s. Comparing 84.34 s to 3.49 s
+would be comparing two different amounts of work; comparing the loads is not.
 
 The middle row is the point of this document. The index alone is a 2.8x
 **regression**. Under a generic plan — where these statements land, because the
@@ -132,6 +143,38 @@ emitted.
   shared with `ListFacts` still holds and no caller sees a different sequence.
 - The existing `fact_records_scope_generation_idx` is kept, so descending and
   per-kind readers are unaffected.
-- The regression risk this change carries is write amplification from a fourth
-  index on an insert-heavy table. That is measured separately against the
-  batched `UpsertFacts` path; this document is not complete without it.
+- The regression risk this change carries is write amplification from another
+  index on an insert-heavy table. It is measured below, and the read saving
+  exceeds it by a wide margin.
+
+## No-Regression Evidence:
+
+Write amplification on the batched `UpsertFacts` path, measured against a
+scratch database on the same host as the corpus store, so the hardware matches
+the read numbers. 60,000 `content_entity` envelopes per arm, all sharing one
+`observed_at` as production does, three rounds, arms alternating each round so
+cache warmth does not settle on one side. Foreign-key parents are seeded
+outside the measured window.
+
+| round | without index | with index |
+| --- | --- | --- |
+| 1 | 4.840 s | 4.840 s |
+| 2 | 4.507 s | 4.867 s |
+| 3 | 4.535 s | 4.861 s |
+
+Average without 4.627 s (12,967 rows/s), with 4.856 s (12,355 rows/s):
+**+5.0%** on the insert path.
+
+Net effect over the reference corpus. Ingesting all 3,642,630 fact rows costs
+280.9 s at 12,967 rows/s and 294.8 s at 12,355 rows/s, so the index adds about
+13.9 s across a full corpus ingest. Against that, the measured load saving on
+the single worst-case generation is 84.12 s to 3.37 s, or 80.8 s — roughly six
+times the entire corpus-wide write cost, from one generation. Three further
+per-generation domains (`semantic_entity_materialization`, `sql_relationship`,
+`inheritance`) read through the same path on `main` and gain the same
+improvement without paying anything additional.
+
+The write cost is real and worth restating plainly rather than rounding away:
+every fact insert on this table now maintains one more index, forever, and that
+5% does not disappear as the corpus grows. It is accepted because the read side
+it buys is quadratic and this is linear.
