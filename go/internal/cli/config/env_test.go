@@ -192,6 +192,46 @@ func TestResetClearsEveryValue(t *testing.T) {
 	}
 }
 
+func TestLoadSplitsOnlyOnTheFirstEqualsSoValuesMayContainOne(t *testing.T) {
+	// doc.go and Load's own comment promise that only the first "=" splits a
+	// line, which is what lets a DSN or a base64 key with padding survive.
+	// Nothing pinned that promise, so a future "cleanup" to strings.Split
+	// would silently truncate every such value at its first "=".
+	home := t.TempDir()
+	t.Setenv(homeEnvVar, home)
+	writeTestEnvFile(t, filepath.Join(home, envFileName),
+		"ESHU_POSTGRES_DSN=postgres://u:p@h:5432/db?sslmode=disable\n"+
+			"ESHU_AUTH_SECRET_ENC_KEY=YWJjZGVmZ2hpamtsbW5vcA==\n")
+
+	got := Load()
+	if want := "postgres://u:p@h:5432/db?sslmode=disable"; got["ESHU_POSTGRES_DSN"] != want {
+		t.Fatalf("Load()[ESHU_POSTGRES_DSN] = %q, want %q", got["ESHU_POSTGRES_DSN"], want)
+	}
+	if want := "YWJjZGVmZ2hpamtsbW5vcA=="; got["ESHU_AUTH_SECRET_ENC_KEY"] != want {
+		t.Fatalf("Load()[ESHU_AUTH_SECRET_ENC_KEY] = %q, want %q", got["ESHU_AUTH_SECRET_ENC_KEY"], want)
+	}
+}
+
+func TestSetValueRoundTripsAValueContainingAnEquals(t *testing.T) {
+	// The write side has to survive the same round trip: SetValue re-reads the
+	// whole file and rewrites every line, so a truncating parser would corrupt
+	// keys the operator never touched.
+	home := t.TempDir()
+	t.Setenv(homeEnvVar, home)
+
+	const dsn = "postgres://u:p@h:5432/db?sslmode=disable"
+	if err := SetValue("ESHU_POSTGRES_DSN", dsn); err != nil {
+		t.Fatalf("SetValue() error = %v, want nil", err)
+	}
+	if err := SetValue("ESHU_API_KEY", "token"); err != nil {
+		t.Fatalf("SetValue() error = %v, want nil", err)
+	}
+
+	if got := ResolveValue("ESHU_POSTGRES_DSN", ""); got != dsn {
+		t.Fatalf("ResolveValue() after a second write = %q, want %q", got, dsn)
+	}
+}
+
 func writeTestEnvFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
