@@ -4,14 +4,13 @@
 # determinism matrix"). Drives the SAME unmodified demo-org GCP cassette
 # (testdata/cassettes/gcpcloud/supply-chain-demo.json) PLUS a generated
 # multi-scope synthetic GCP cassette (go/internal/synth/gcp.GenerateMultiScope
-# via `ifa synth-cassette`, slice 6b) through `eshu-ifa drive -workers N` for
-# N in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + NornicDB
-# Compose stack (`docker compose down -v` between every cell — no state, no
-# volume, no container survives from one N to the next), drains the
-# projector/reducer to the exact B-12 residual bound
-# scripts/verify-ifa-replay-drive.sh already proves via
-# `eshu-golden-corpus-gate -phase=drains`, then canonicalizes the resulting
-# graph with `ifa graph-dump` (go/internal/ifa/graphdump.Canonicalize, a
+# via `ifa synth-cassette`, slice 6b) through `eshu-ifa drive -workers N` for N
+# in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + NornicDB Compose
+# stack (`docker compose down -v` between every cell — no state, no volume, no
+# container survives from one N to the next), drains the projector/reducer to the
+# exact B-12 residual bound scripts/verify-ifa-replay-drive.sh already proves via
+# `eshu-golden-corpus-gate -phase=drains`, then canonicalizes the resulting graph
+# with `ifa graph-dump` (go/internal/ifa/graphdump.Canonicalize, a
 # content-addressed, order-independent byte form — see that package's doc.go).
 #
 # Why both cassettes: the demo-org cassette alone has exactly one scope and
@@ -132,6 +131,8 @@ source "${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"  # two sources, one line, deliberately: this file is at the 500-line cap (#5993 P6 review) and a genuinely new line here is not free
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -184,6 +185,15 @@ code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-co
 # pattern the SQL/code-call families use.
 documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
 documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+
+# deployable_unit_edges family cassette (#5993): driven in its OWN standalone
+# cell after the N-loop below, not into the shared N={1,2,4} cells -- see
+# scripts/lib/ifa_deployable_unit_live.sh's header for why (a bootstrap-index
+# maintenance pass is required for this family to materialize anything, and
+# folding that into the shared loop would move every other family's digest
+# terminal for a reason unrelated to what that loop tests).
+deployable_unit_cassette="${repo_root}/testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
@@ -245,12 +255,14 @@ fi
 [[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-determinism: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
 [[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-determinism: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
 [[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-determinism: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
+[[ -f "${deployable_unit_cassette}" ]] || { echo "verify-ifa-determinism: deployable-unit cassette not found: ${deployable_unit_cassette}" >&2; exit 1; }
+[[ -f "${deployable_unit_expected_edges}" ]] || { echo "verify-ifa-determinism: deployable-unit expected-edge set not found: ${deployable_unit_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
 log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${log_dir}"
-
+ifa_deployable_unit_live_init_maintenance_scratch "${work_dir}"
 bg_pids=()
 
 log() { printf '\n=== %s ===\n' "$*"; }
@@ -275,6 +287,11 @@ ifa_det_build_bin "${bin_dir}" ifa "${build_tags}" || die "build ifa failed"
 ifa_det_build_bin "${bin_dir}" projector "${build_tags}" || die "build projector failed"
 ifa_det_build_bin "${bin_dir}" reducer "${build_tags}" || die "build reducer failed"
 ifa_det_build_bin "${bin_dir}" golden-corpus-gate "${build_tags}" || die "build golden-corpus-gate failed"
+# Sixth binary (#5993): deployable_unit_edges' standalone cell needs a
+# bootstrap-index maintenance pass (backfills relationship evidence AND
+# reopens crossScopeCorrelationReopenDomains in one pass) -- neither the
+# shared N-loop cells nor any other family's live cell needs this binary.
+ifa_det_build_bin "${bin_dir}" bootstrap-index "${build_tags}" || die "build bootstrap-index failed"
 
 # Generate the synth-multiscope cassette ONCE, before the cell loop, so every
 # cell drives the exact same byte-identical fixture (issue #4396 slice 6b).
@@ -435,6 +452,18 @@ for n in "${worker_counts[@]}"; do
 	wall_times[${n}]=$((cell_end - cell_start))
 	printf 'N=%s cell wall time: %ss\n' "${n}" "${wall_times[${n}]}"
 done
+
+# deployable_unit_edges standalone live-proof cell (#5993). Its own compose
+# lifecycle, run ONCE after the N-loop above -- NOT one of the N={1,2,4}
+# cells, and not folded into any of them. The full cell body lives in
+# ifa_deployable_unit_live_run_standalone_cell (scripts/lib/
+# ifa_deployable_unit_live.sh, whose header carries the full traced
+# rationale for why a bootstrap-index maintenance pass is required here and
+# nowhere else in this gate) so this script stays under the 500-line cap.
+ifa_deployable_unit_live_run_standalone_cell \
+	"${bin_dir}" "${deployable_unit_cassette}" "${deployable_unit_expected_edges}" "${log_dir}" \
+	"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
+	|| die "deployable_unit_edges: standalone live-proof cell failed"
 
 log "compare digests across N=${worker_counts[*]}"
 first_n="${worker_counts[0]}"

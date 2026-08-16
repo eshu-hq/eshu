@@ -21,6 +21,9 @@ lifecycle_lib="${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
 delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
 documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
+deployable_unit_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
+deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
@@ -33,6 +36,9 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${delta_lib}" ]] || fail "missing ${delta_lib}"
 [[ -f "${code_call_lib}" ]] || fail "missing ${code_call_lib}"
 [[ -f "${documentation_lib}" ]] || fail "missing ${documentation_lib}"
+[[ -f "${deployable_unit_lib}" ]] || fail "missing ${deployable_unit_lib}"
+[[ -f "${deployable_unit_diagnostics_lib}" ]] || fail "missing ${deployable_unit_diagnostics_lib}"
+[[ -f "${deployable_unit_converge_lib}" ]] || fail "missing ${deployable_unit_converge_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
 
@@ -43,6 +49,9 @@ bash -n "${lifecycle_lib}" || fail "ifa_determinism_lifecycle.sh has a syntax er
 bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
 bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
 bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
+bash -n "${deployable_unit_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
+bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
+bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
@@ -70,6 +79,10 @@ require_documentation_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"
 }
+require_deployable_unit_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lib}" || fail "missing ${label} (deployable-unit lib): ${needle}"
+}
 
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
@@ -83,6 +96,9 @@ require "sources lifecycle lib" "scripts/lib/ifa_determinism_lifecycle.sh"
 require "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
 require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
 require "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
+require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
@@ -177,6 +193,41 @@ require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${c
 require_code_call_lib "code-call assert-edges domain" "-domain code_calls"
 require_code_call_lib "code-call expected-set argument" '-expected "${expected_edges}"'
 require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
+
+# deployable_unit_edges (#5993): a STANDALONE cell, run once after the N-loop,
+# not one of the N={1,2,4} cells and not folded into any of them -- unlike
+# sql_relationships/code_calls, this family needs a bootstrap-index
+# maintenance pass to materialize anything, so its live proof is not a
+# worker-count invariance test.
+require "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+require "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+require "deployable-unit cassette existence guard" "deployable-unit cassette not found"
+require "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
+require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
+require "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
+require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
+require_deployable_unit_lib "drive helper invocation inside the standalone cell" "ifa_deployable_unit_live_drive"
+require_deployable_unit_lib "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_drain pre"
+require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" "ifa_deployable_unit_live_assert_empty_before_maintenance"
+require_deployable_unit_lib "bootstrap-index maintenance pass invocation" "eshu-bootstrap-index"
+require_deployable_unit_lib "post-maintenance drain" "ifa_deployable_unit_live_drain post"
+require_deployable_unit_lib "exact-set assert-edges domain" "-domain deployable_unit_edges"
+require_deployable_unit_lib "exact-set assert-edges expected flag" '-expected "${expected_edges}"'
+# The standalone cell must run strictly AFTER the N-loop (the "done" closing
+# it) and BEFORE the digest comparison -- it must never land inside the loop,
+# which would fold its bootstrap-index maintenance pass into every N cell's
+# digest terminal for a reason unrelated to what that loop tests. The N-loop's
+# own "done" is the first bare `done` line AFTER the loop's `for n in
+# "${worker_counts[@]}"; do` header (the script also has bare `done` lines
+# closing the argument-parsing and --contention/--teeth loops).
+n_loop_for_line="$(rg -n --fixed-strings -- 'for n in "${worker_counts[@]}"; do' "${script}" | head -1 | cut -d: -f1 || true)"
+n_loop_done_line="$(awk -v start="${n_loop_for_line:-0}" 'NR > start && $0 == "done" { print NR; exit }' "${script}")"
+standalone_cell_line="$(rg -n --fixed-strings -- '"${bin_dir}" "${deployable_unit_cassette}" "${deployable_unit_expected_edges}"' "${script}" | cut -d: -f1 || true)"
+compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=${worker_counts[*]}"' "${script}" | cut -d: -f1 || true)"
+[[ "${n_loop_done_line}" =~ ^[0-9]+$ && "${standalone_cell_line}" =~ ^[0-9]+$ && "${compare_digests_line}" =~ ^[0-9]+$ \
+	&& "${n_loop_done_line}" -lt "${standalone_cell_line}" && "${standalone_cell_line}" -lt "${compare_digests_line}" ]] \
+	|| fail "the deployable_unit_edges standalone cell must run after the N-loop closes and before the digest comparison"
+
 delta_call_line="$(rg -n -- '^[[:space:]]*ifa_det_run_sql_delta_live' "${script}" | cut -d: -f1 || true)"
 post_delta_code_call_line="$(rg -n --fixed-strings -- 'ifa_code_call_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"' "${script}" | cut -d: -f1 || true)"

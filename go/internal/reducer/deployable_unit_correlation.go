@@ -45,8 +45,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, fmt.Errorf("deployable unit correlation fact loader is required")
 	}
 
-	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
-	if err != nil {
+	// Fail fast before the FactLoader is called. ExtractDeployableUnitCorrelationRows
+	// re-derives entityKeys itself; the repeat is cheap and keeps that seam
+	// self-contained for its other caller (#5993).
+	if _, err := deployableUnitCorrelationEntityKeys(intent); err != nil {
 		return Result{}, err
 	}
 
@@ -61,17 +63,32 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)
 	}
 
+	// Extracted once and reused for both the resolved-relationship lookup and
+	// the row extraction below -- ExtractWorkloadCandidates re-derives the
+	// same candidates from the same envelopes each time it runs, so calling
+	// it twice per intent was pure wasted CPU on this reducer path (#5993
+	// review).
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
+
+	var resolved []relationships.ResolvedRelationship
 	if h.ResolvedLoader != nil {
-		resolved, err := loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
+		resolved, err = loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 		}
-		candidates = applyResolvedDeploymentSources(candidates, resolved)
 	}
 
-	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
-	if len(candidates) == 0 {
+	// Same pure seam Ifá's deployable_unit_edges vacuity guard calls (#5993),
+	// so production and the conformance proof cannot silently diverge. `nil`
+	// preserves the pre-refactor behavior exactly: CreatedAt was always real
+	// time.Now().UTC(), never h.AdmissionDecisionNow (a distinct clock for a
+	// distinct field, admission_decision_mapping_test.go's fixed-clock cases
+	// must stay unaffected by this row's CreatedAt).
+	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(evaluation.Results) == 0 {
 		if err := h.retractDeployableUnitEdges(ctx, deployableUnitRetractRowsFromFacts(intent, envelopes)); err != nil {
 			return Result{}, err
 		}
@@ -93,13 +110,8 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		}, nil
 	}
 
-	evaluation, err := evaluateDeployableUnitCandidates(intent, candidates)
-	if err != nil {
-		return Result{}, err
-	}
 	summary := correlation.BuildSummary(evaluation)
 	evaluatedCandidateCount := len(evaluation.Results)
-	edgeRows := deployableUnitCorrelationRows(intent, evaluation)
 	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
 		return Result{}, err

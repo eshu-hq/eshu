@@ -38,12 +38,18 @@ code_call_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_code_call_cell
 documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 documentation_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
 documentation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-cases.sh"
+deployable_unit_live_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
+deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
+deployable_unit_lock_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
+deployable_unit_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
+deployable_unit_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${assertions_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -60,8 +66,16 @@ bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh
 bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
 bash -n "${documentation_cells_lib}" || fail "ifa_fault_injection_documentation_cells.sh has a syntax error"
 bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documentation-cases.sh has a syntax error"
+bash -n "${deployable_unit_live_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
+bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
+bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
+bash -n "${deployable_unit_lock_lib}" || fail "ifa_fault_injection_deployable_unit_lock.sh has a syntax error"
+bash -n "${deployable_unit_cells_lib}" || fail "ifa_fault_injection_deployable_unit_cells.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
+bash -n "${deployable_unit_cases_lib}" || fail "test-ifa-fault-injection-deployable-unit-cases.sh has a syntax error"
 bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
+[[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
 
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
 source "${assertions_lib}"
@@ -374,6 +388,12 @@ require_documentation_cells "documentation precondition distinguishes empty outp
 require_documentation_cells "documentation precondition rejects non-numeric output" "returned non-numeric output"
 require_documentation_cells "documentation precondition reports stale intents" "survived fresh_stack"
 require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+# deployable_unit_edges (#5993) cases live in a sourced case module so this
+# structural verifier stays below 500 lines (mirroring the review-cases
+# split just below).
+# shellcheck source=scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh
+source "${deployable_unit_cases_lib}"
+run_ifa_fault_injection_deployable_unit_cases
 
 # Behavioral regressions for the two review-discovered false-green seams live
 # in a sourced case module so this structural verifier stays below 500 lines.
@@ -433,67 +453,19 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
 done
 
-# The wait budget is interpolated into the server-side function call. Reject a
-# malformed environment override before it can reach psql.
-# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
-source "${fault_lib}"
-ifa_det_pg() { printf '1\n'; }
-if ifa_fault_wait_for_claimed test-project 1 test-dsn test-compose.yml '1; SELECT 1'; then
-	fail "claimed-wait accepted a non-integer SQL budget"
-fi
-
-# Domain-scoping (#5555) actually changes the SQL: stub ifa_det_pg to capture
-# the query text it was asked to run, and assert the domain clause is
-# present only when a domain argument is passed. ifa_fault_wait_for_claimed
-# invokes ifa_det_pg inside a `$( ... )` command substitution, which runs in
-# a SUBSHELL -- a plain variable assignment inside the stub would not survive
-# back to this shell, so the stub writes to a file instead.
-capture_file="$(mktemp)"
-ifa_det_pg() { printf '%s' "$4" >"${capture_file}"; printf '1\n'; }
-ifa_fault_wait_for_claimed test-project 1 test-dsn test-compose.yml 5 "sql_relationship_materialization" >/dev/null
-rg --fixed-strings --quiet -- "AND domain = 'sql_relationship_materialization'" "${capture_file}" \
-	|| fail "claimed-wait did not apply the domain filter when a domain argument was passed"
-: >"${capture_file}"
-ifa_fault_wait_for_claimed test-project 1 test-dsn test-compose.yml 5 >/dev/null
-if rg --fixed-strings --quiet -- "AND domain =" "${capture_file}"; then
-	fail "claimed-wait applied a domain filter when no domain argument was passed"
-fi
-rm -f "${capture_file}"
-
-# ifa_fault_assert_once_fault_marker (#5974) is a real functional check, not a
-# string grep. It must tell three cases apart: the fault never fired, it fired
-# on the targeted write, and it fired on a DIFFERENT write. The third is the
-# one that matters -- a marker alone only proves some fault fired.
-marker_dir="$(mktemp -d)"
-trap 'rm -rf "${marker_dir}"' EXIT
-marker_script="${marker_dir}/fault.json"
-sql_anchor="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
-
-# Negative: no marker at all -- the inert-script case this assertion exists for.
-if ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}" 2>/dev/null; then
-	fail "once-fired marker check passed with no marker present -- an inert script would report as a pass"
-fi
-
-# Positive: marker names the targeted operation.
-printf 'lane=queue-retry ordinal=3\noperation=%s SET rel.confidence = 0.95\n' "${sql_anchor}" \
-	>"${marker_script}.restart-sentinel.once-fired"
-if ! ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}"; then
-	fail "once-fired marker check did not accept a marker naming the targeted SQL edge MERGE"
-fi
-
-# Negative: the fault fired, but on a different write. This is the analogue of
-# the split-evidence regression #5555 closed -- "a fault fired" is not the same
-# claim as "the fault hit the SQL family".
-printf 'lane=queue-retry ordinal=7\noperation=MERGE (r:CloudResource {uid: row.uid})\n' \
-	>"${marker_script}.restart-sentinel.once-fired"
-if ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}" 2>/dev/null; then
-	fail "once-fired marker check passed on a fault that fired against CloudResource -- exactly the wrong-target defect #5555 exists to prevent"
-fi
+# Claimed-wait SQL-budget validation, domain-scoping (#5555), and the
+# once-fired-marker three-way discrimination (#5974/#5555) are functional
+# stub tests, not text greps -- they live in a sourced case module so this
+# structural verifier stays under 500 lines (mirroring the deployable-unit
+# and review-cases splits above).
+# shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
+run_ifa_fault_injection_marker_cases
 
 printf 'test-verify-ifa-fault-injection: pass\n'

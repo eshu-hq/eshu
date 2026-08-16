@@ -1,0 +1,275 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-deployable-unit-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-deployable-unit-family",
+      "metadata": {
+        "fixture": "ifa-deployable-unit-family"
+      },
+      "generation_id": "gen-ifa-deployable-unit-family-1",
+      "observed_at": "2026-08-15T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-app",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-app",
+            "local_path": "/repo-ifa-deployable-unit-app",
+            "name": "deployable-unit-family",
+            "repo_id": "repo-ifa-deployable-unit-app",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-app:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ]
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-deployable-unit-app"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-app:deployable_unit_correlation",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "repo:repo-ifa-deployable-unit-app",
+            "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
+            "reducer_domain": "deployable_unit_correlation",
+            "repo_id": "repo-ifa-deployable-unit-app"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-app:deployment_mapping",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "deployment:repo-ifa-deployable-unit-app",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-deployable-unit-app"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-deploy",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-deploy",
+            "local_path": "/repo-ifa-deployable-unit-deploy",
+            "name": "deployable-unit-family-deploy",
+            "repo_id": "repo-ifa-deployable-unit-deploy",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-deploy:apps/deployable-unit-app.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "parsed_file_data": {
+              "argocd_applications": [
+                {
+                  "dest_namespace": "prod",
+                  "name": "ifa-deployable-unit-app",
+                  "source_repo": "https://github.com/ifa-org/deployable-unit-family.git"
+                }
+              ]
+            },
+            "relative_path": "apps/deployable-unit-app.yaml",
+            "repo_id": "repo-ifa-deployable-unit-deploy"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-deploy:deployable_unit_correlation",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "repo:repo-ifa-deployable-unit-deploy",
+            "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
+            "reducer_domain": "deployable_unit_correlation",
+            "repo_id": "repo-ifa-deployable-unit-deploy"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-deploy:deployment_mapping",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "deployment:repo-ifa-deployable-unit-deploy",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-deployable-unit-deploy"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-rejected",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-rejected",
+            "local_path": "/repo-ifa-deployable-unit-rejected",
+            "name": "deployable-unit-family-rejected",
+            "repo_id": "repo-ifa-deployable-unit-rejected",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-rejected:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ]
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-deployable-unit-rejected"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-rejected:deployable_unit_correlation",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "repo:repo-ifa-deployable-unit-rejected",
+            "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
+            "reducer_domain": "deployable_unit_correlation",
+            "repo_id": "repo-ifa-deployable-unit-rejected"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-rejected:deployment_mapping",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "deployment:repo-ifa-deployable-unit-rejected",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-deployable-unit-rejected"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-deployable-unit-jenkins",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-deployable-unit-jenkins",
+            "local_path": "/repo-ifa-deployable-unit-jenkins",
+            "name": "deployable-unit-family-jenkins",
+            "repo_id": "repo-ifa-deployable-unit-jenkins",
+            "source_run_id": "run-ifa-deployable-unit-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-jenkins:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ]
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-deployable-unit-jenkins:Jenkinsfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "groovy",
+            "parsed_file_data": {
+              "jenkins_pipeline_calls": [
+                "deployShared"
+              ]
+            },
+            "relative_path": "Jenkinsfile",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-jenkins:deployable_unit_correlation",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "repo:repo-ifa-deployable-unit-jenkins",
+            "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
+            "reducer_domain": "deployable_unit_correlation",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-deployable-unit-jenkins:deployment_mapping",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "deployment:repo-ifa-deployable-unit-jenkins",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-deployable-unit-jenkins"
+          }
+        }
+      ]
+    }
+  ]
+}

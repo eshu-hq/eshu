@@ -13,12 +13,74 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 const (
 	deployableUnitCorrelationEvidenceSource   = "reducer/deployable-unit-correlation"
 	deployableUnitCorrelationRelationshipType = string(edgetype.CorrelatesDeployableUnit)
 )
+
+// ExtractDeployableUnitCorrelationRows runs the pure deployable-unit
+// correlation pipeline over one intent's already-extracted workload
+// candidates and its already-resolved cross-repo relationships, returning
+// every candidate row (admitted and rejected) exactly as
+// DeployableUnitCorrelationHandler.Handle computes them, plus the
+// engine.Evaluation the rows were derived from.
+//
+// The caller extracts candidates from fact envelopes via
+// ExtractWorkloadCandidates exactly once and passes the result in here.
+// DeployableUnitCorrelationHandler.Handle needs that same candidate slice for
+// its ResolvedRelationshipLoader call (loadWorkloadResolvedRelationships), so
+// this seam accepting candidates instead of re-deriving them from envelopes
+// avoids running ExtractWorkloadCandidates twice per intent (#5993 review).
+// Ifá's deployable_unit_edges materialized-edge vacuity guard
+// (go/internal/ifa/materialized_edges_deployable_unit.go, #5993) extracts
+// candidates from a cataloged Odù's facts the same way before calling this
+// seam directly with a hand-authored resolved-relationship fixture, mirroring
+// the role ExtractSQLRelationshipRows and ExtractAllCodeRelationshipRows play
+// for their families.
+//
+// Unlike those two families, deployable-unit correlation cannot derive its
+// edges from facts alone: a candidate's deployment_repo_id only exists once a
+// RelDeploysFrom resolved relationship (produced by a separate cross-repo
+// resolution phase, never by this intent's own facts) is applied by
+// applyResolvedDeploymentSources. Callers that want only the edges eligible
+// for a canonical write must additionally filter the returned rows through
+// AdmittedDeployableUnitRows, exactly as materializeDeployableUnitEdges does.
+//
+// now supplies the wall-clock reading each row's CreatedAt is stamped with
+// (mirroring the AdmissionDecisionNow injection point on
+// DeployableUnitCorrelationHandler); pass nil for real time.Now(), as Handle
+// does. This function otherwise performs no I/O and reads no other
+// process-global state, so it is safe for Ifá's deployable_unit_edges
+// materialized-edge vacuity guard to call directly against a cataloged Odù --
+// go/internal/ifa/AGENTS.md forbids wall-clock time inside Ifá derivation, and
+// a caller that left this defaulting to real time.Now would have silently
+// violated that invariant without any comparison failing to catch it, since
+// CreatedAt is a SharedProjectionIntentRow struct field, not a Payload key,
+// and is never asserted by an edge-identity comparison.
+func ExtractDeployableUnitCorrelationRows(
+	intent Intent,
+	candidates []WorkloadCandidate,
+	resolved []relationships.ResolvedRelationship,
+	now func() time.Time,
+) ([]SharedProjectionIntentRow, engine.Evaluation, error) {
+	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+	if err != nil {
+		return nil, engine.Evaluation{}, err
+	}
+	candidates = applyResolvedDeploymentSources(candidates, resolved)
+	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
+	if len(candidates) == 0 {
+		return nil, engine.Evaluation{}, nil
+	}
+	evaluation, err := evaluateDeployableUnitCandidates(intent, candidates)
+	if err != nil {
+		return nil, engine.Evaluation{}, err
+	}
+	return deployableUnitCorrelationRows(intent, evaluation, now), evaluation, nil
+}
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	ctx context.Context,
@@ -30,7 +92,7 @@ func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	if err := h.retractDeployableUnitEdges(ctx, rows); err != nil {
 		return 0, err
 	}
-	writeRows := admittedDeployableUnitRows(rows)
+	writeRows := AdmittedDeployableUnitRows(rows)
 	if len(writeRows) == 0 {
 		return 0, nil
 	}
@@ -60,7 +122,13 @@ func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
 	return nil
 }
 
-func admittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
+// AdmittedDeployableUnitRows filters rows down to the ones eligible for a
+// canonical CORRELATES_DEPLOYABLE_UNIT write: an admitted candidate carrying a
+// non-empty deployment_repo_id. Exported so Ifá's deployable_unit_edges
+// materialized-edge vacuity guard (#5993) can apply the SAME admission filter
+// materializeDeployableUnitEdges uses, rather than a parallel
+// re-implementation that could silently drift from it.
+func AdmittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
 	admitted := make([]SharedProjectionIntentRow, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(anyToString(row.Payload["admission_state"])) != string(correlationmodel.CandidateStateAdmitted) {
@@ -77,6 +145,7 @@ func admittedDeployableUnitRows(rows []SharedProjectionIntentRow) []SharedProjec
 func deployableUnitCorrelationRows(
 	intent Intent,
 	evaluation engine.Evaluation,
+	now func() time.Time,
 ) []SharedProjectionIntentRow {
 	rows := make([]SharedProjectionIntentRow, 0, len(evaluation.Results))
 	for _, result := range evaluation.Results {
@@ -90,7 +159,7 @@ func deployableUnitCorrelationRows(
 			deploymentRepoIDs = []string{""}
 		}
 		for _, deploymentRepoID := range deploymentRepoIDs {
-			rows = append(rows, deployableUnitCorrelationRow(intent, candidate, repoID, deploymentRepoID))
+			rows = append(rows, deployableUnitCorrelationRow(intent, candidate, repoID, deploymentRepoID, now))
 		}
 	}
 	return rows
@@ -134,6 +203,7 @@ func deployableUnitCorrelationRow(
 	candidate correlationmodel.Candidate,
 	repoID string,
 	deploymentRepoID string,
+	now func() time.Time,
 ) SharedProjectionIntentRow {
 	unitKey := deployableUnitEvidenceValue(candidate, "deployable_unit_key")
 	acceptanceUnitID := deployableUnitAcceptanceUnitID(intent)
@@ -146,7 +216,7 @@ func deployableUnitCorrelationRow(
 		RepositoryID:     repoID,
 		SourceRunID:      intent.GenerationID,
 		GenerationID:     intent.GenerationID,
-		CreatedAt:        time.Now().UTC(),
+		CreatedAt:        admissionNow(now),
 		Payload: map[string]any{
 			"repo_id":             repoID,
 			"deployment_repo_id":  deploymentRepoID,

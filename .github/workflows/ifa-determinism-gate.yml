@@ -219,6 +219,7 @@ on:
       - 'scripts/test-verify-ifa-fault-injection.sh'
       - 'scripts/lib/test-ifa-fault-injection-assertions.sh'
       - 'scripts/lib/test-ifa-fault-injection-review-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-marker-cases.sh'
       - 'scripts/lib/ifa_fault_injection_collateral_nodes.sh'
       - 'scripts/lib/ifa_fault_injection_common.sh'
       - 'scripts/lib/ifa_fault_injection_cells.sh'
@@ -286,6 +287,28 @@ on:
       - 'scripts/lib/ifa_codeowners_live.sh'
       - 'scripts/lib/ifa_fault_injection_codeowners_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
+      # deployable_unit_edges (#5993) is driven and exact-set asserted in its own
+      # standalone determinism cell (after the shared N-loop, since materializing
+      # anything requires a bootstrap-index maintenance pass none of the other
+      # cells run) and in the family-scoped baseline plus two domain-scoped
+      # recovery cells on the fault-injection gate. The live lib was split to
+      # keep it under the 500-line cap: the diagnostics probes that moved into
+      # ifa_deployable_unit_live_diagnostics.sh are sourced by both gates but
+      # triggered no re-run without their own row here.
+      - 'go/internal/reducer/deployable_unit*.go'
+      - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
+      - 'go/internal/storage/cypher/edge_writer_rowmaps.go'
+      - 'go/internal/ifa/deployable_unit_family_catalog.go'
+      - 'go/internal/ifa/deployable_unit_family_odu.go'
+      - 'testdata/cassettes/deployableunit/**'
+      - 'go/internal/ifa/testdata/deployableunit/**'
+      - 'go/cmd/bootstrap-index/**'
+      - 'scripts/lib/ifa_deployable_unit_live.sh'
+      - 'scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
+      - 'scripts/lib/ifa_deployable_unit_live_converge.sh'
+      - 'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
+      - 'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
+      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
       # Pre-existing gap surfaced by the registry-derived check below: the fault
       # gate triggers on this in the registry and the selector table, but the
       # workflow never listed it.

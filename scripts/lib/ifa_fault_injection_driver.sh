@@ -63,6 +63,22 @@ fresh_stack() {
 # cassette (#5351) makes cells 2/3 (and the SQL-targeted cells #5555 adds)
 # exercise the SQL relationship materialization handler's replay through the
 # real durable fault path, not only the GCP resource path.
+#
+# The deployable-unit family cassette (#5993) is deliberately NOT driven here.
+# An earlier version of this comment claimed driving it unconditionally into
+# every cell was safe because deployable_unit_correlation's intent finds
+# nothing admitted and succeeds immediately without a maintenance pass. That
+# claim covered only the drain (residual=0) and the digest -- it never
+# reached duplicate-delivery's redelivery UPDATE (`WHERE stage = 'reducer' AND
+# status = 'succeeded'`, ifa_fault_redeliver_succeeded), which touches every
+# succeeded reducer row regardless of what it admitted, so the extra
+# deployable_unit_correlation row this family enqueues into cells that never
+# maintenance-pass it was a real, unproven surface, not a covered one (#5993
+# review; see cell_duplicatedelivery's live failure on ifa_det_pg's
+# now-surfaced stderr for the trigger). drive_deployable_unit_cassette below
+# is called only by the three deployable_unit-targeted cells
+# (ifa_fault_injection_deployable_unit_cells.sh) that actually need this
+# family's rows to exist.
 drive_all_cassettes() {
 	local cell="$1"
 	log "${cell}: drive demo-org cassette (-workers ${drive_workers})"
@@ -87,6 +103,23 @@ drive_all_cassettes() {
 	[[ -n "${enqueued}" && "${enqueued}" -gt 0 ]] \
 		|| die "${cell}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
 	printf '%s: fact_work_items enqueued: %s\n' "${cell}" "${enqueued}"
+}
+
+# drive_deployable_unit_cassette drives the deployable-unit family cassette
+# (#5993) into the fresh stack. Called only by the three deployable_unit-
+# targeted cells (cell_baseline_deployable_unit, cell_killworker_deployable_unit,
+# cell_failgraphwrite_deployable_unit in
+# ifa_fault_injection_deployable_unit_cells.sh), immediately after
+# drive_all_cassettes -- never unconditionally by every cell, so this family's
+# extra succeeded reducer row cannot enlarge duplicate-delivery's redelivery
+# UPDATE or any other sibling cell's row set. See drive_all_cassettes' header
+# comment for why unconditional driving stopped being safe.
+drive_deployable_unit_cassette() {
+	local cell="$1"
+	log "${cell}: drive deployable-unit family cassette (-workers ${drive_workers})"
+	"${bin_dir}/eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}" \
+		>"${log_dir}/ifa-drive-deployable-unit-${cell}.log" 2>&1 \
+		|| { tail -40 "${log_dir}/ifa-drive-deployable-unit-${cell}.log" >&2; die "${cell}: eshu-ifa drive (deployable-unit family) failed"; }
 }
 
 # run_drain_gate polls the gate binary to the B-12 residual bound (0), which
@@ -134,16 +167,24 @@ capture_digest() {
 	printf '%s: digest: %s\n' "${cell}" "${d}"
 }
 
-# assert_matches_baseline compares digests[cell] to digests[baseline], printing
-# the full canonical-dump diff (never hiding it) on a mismatch.
+# assert_matches_baseline compares digests[cell] to digests[baseline_key]
+# (default "baseline", every existing caller's unchanged behavior), printing
+# the full canonical-dump diff (never hiding it) on a mismatch. A non-default
+# baseline_key lets a family whose fault cells run an extra step the shared
+# baseline cell does not (e.g. #5993's bootstrap-index maintenance pass, which
+# adds a real edge no digests[baseline] run ever produces) compare against its
+# own family-scoped baseline instead of one that would mismatch by
+# construction on every run, fault or not.
+#
+# Args: cell [baseline_key=baseline]
 assert_matches_baseline() {
-	local cell="$1"
-	[[ "${digests[${cell}]}" == "${digests[baseline]}" ]] && return 0
-	printf 'MISMATCH: %s digest (%s) != baseline digest (%s)\n' \
-		"${cell}" "${digests[${cell}]}" "${digests[baseline]}" >&2
-	printf '\n=== full canonical graph diff: baseline vs %s (failure artifact) ===\n' "${cell}" >&2
-	diff -u "${work_dir}/graph-baseline.dump" "${work_dir}/graph-${cell}.dump" >&2 || true
-	die "${cell}: graph diverged from the fault-free baseline -- a real recovery/concurrency defect; do NOT retry, lower workers, or otherwise normalize this away"
+	local cell="$1" baseline_key="${2:-baseline}"
+	[[ "${digests[${cell}]}" == "${digests[${baseline_key}]}" ]] && return 0
+	printf 'MISMATCH: %s digest (%s) != %s digest (%s)\n' \
+		"${cell}" "${digests[${cell}]}" "${baseline_key}" "${digests[${baseline_key}]}" >&2
+	printf '\n=== full canonical graph diff: %s vs %s (failure artifact) ===\n' "${baseline_key}" "${cell}" >&2
+	diff -u "${work_dir}/graph-${baseline_key}.dump" "${work_dir}/graph-${cell}.dump" >&2 || true
+	die "${cell}: graph diverged from the fault-free baseline (${baseline_key}) -- a real recovery/concurrency defect; do NOT retry, lower workers, or otherwise normalize this away"
 }
 
 # teardown_cell reaps every backgrounded process this cell started and, when
