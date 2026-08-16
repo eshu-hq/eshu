@@ -92,8 +92,19 @@ func (s *deferredBackfillPartitionMemoStore) EnsureSchema(ctx context.Context) e
 }
 
 // deferredBackfillPartitionMemoRow is one durable partition-memo record: the
-// catalog shape (fingerprint) that was in effect when (ScopeID, GenerationID)'s
-// backward evidence last committed.
+// catalog shape (fingerprint) in effect when the partition's
+// BackwardEvidenceCommitted phase last published for (ScopeID, GenerationID).
+//
+// The phase is the subject deliberately, not a count of evidence rows. It names
+// reducer.GraphProjectionPhaseBackwardEvidenceCommitted, whose key is exactly
+// this row's (ScopeID, GenerationID). A pass publishes that phase and stamps this
+// memo for a partition even when it wrote no new evidence rows for it, which is
+// the intended steady state once the partition's evidence is already complete
+// (writeDeferredBackfillBatch records a partition contribution whether or not the
+// repository had evidence to persist). Reading this field as "the fingerprint at
+// the partition's last evidence INSERT" would therefore be wrong. The memo row
+// and the phase row commit together in the fan-in transaction, so the fingerprint
+// recorded here is always the one in effect at that publication.
 type deferredBackfillPartitionMemoRow struct {
 	ScopeID            string
 	GenerationID       string

@@ -43,10 +43,21 @@ import (
 // it never matches the empty struct keys. The jsonb_typeof guards keep the array
 // checks safe when the field is null or a scalar rather than an array.
 //
-// This is a lightweight probe (one row per matching partition, no payload
-// projected) run only over the caller's candidate partitions — one partition per
-// fan-in publication transaction (publishDeferredBackfillPartition) — never the
-// whole corpus.
+// The probe projects one row per matching partition and no payload, and its
+// fact_records access is restricted to the caller's candidate partitions — one
+// partition per fan-in publication transaction
+// (publishDeferredBackfillPartition), never the whole corpus.
+//
+// It is not free, though, and the fan-in made it less so. The shared
+// latestGenerationCTE this query is built on carries no scope filter, so it is
+// evaluated corpus-wide on EVERY call: the candidate join restricts fact_records,
+// not the CTE. Measured at 910 scopes / 10,920 generations that is 2.34 ms per
+// call, and the fan-in calls it once per partition instead of once per batch
+// (~910 calls carrying one candidate, rather than ~29 carrying 32), so the CTE
+// now runs roughly 31x more often — about 2 s of aggregate CPU per pass. That
+// cost is accepted to keep the check inside the transaction whose memo write it
+// gates; the measurement and the rejected hoisting alternative are in
+// docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md.
 const listArgoCDBearingPartitionsQuery = latestGenerationCTE + `
 SELECT DISTINCT fact.scope_id, fact.generation_id
 FROM fact_records AS fact
