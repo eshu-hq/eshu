@@ -59,9 +59,14 @@ changed in this branch:
 - `go/internal/ifa/materialized_edges_deployable_unit.go` — new file, ~290
   lines. Not a production file: it defines
   `resolveDeployableUnitMaterializedEdges`, the family's Ifá
-  materialized-edge vacuity guard, invoked only from `go test` / the
-  `eshu-ifa`/`eshu-golden-corpus-gate` gate binaries against a fixed,
-  cataloged Odù fixture. It calls the SAME production seams
+  materialized-edge vacuity guard. Today it is invoked only from `go test`;
+  `MaterializedEdgeOduResolver.Resolve` (`materialized_edges.go`) dispatches
+  `sql_relationships`, `documentation_edges`, `code_calls`,
+  `rationale_edges`, and `codeowners_ownership_family` but has no
+  `deployable_unit_edges` case, so the guard is not yet reachable from the
+  `eshu-ifa`/`eshu-golden-corpus-gate` gate binaries -- that dispatch wiring
+  lands with the coverage row in the follow-up, deliberately out of this
+  PR's scope. It calls the SAME production seams
   (`DiscoveredEvidence` → `relationships.Resolve` →
   `ExtractDeployableUnitCorrelationRows` → `AdmittedDeployableUnitRows`) the
   reducer handler calls, with a fixed injected clock
@@ -122,9 +127,10 @@ rather than "argued pure":
   `errgroup|Mutex|chan|...`, `go func(`) matches exactly two lines, both
   comments describing the PRODUCTION Cypher's MERGE key in prose ("The MERGE
   key is bare ..."). The file contains no Cypher, no concurrency primitive,
-  and no worker/lease/batch code; it runs only inside `go test` and the Ifá
-  gate binaries against one fixed ~17-fact Odù (`TestDeployableUnitFamilyOduPreservesEnvelopeFields`
-  confirms 17 facts), never in a request or write path.
+  and no worker/lease/batch code; today it runs only inside `go test`
+  against one fixed ~17-fact Odù (`TestDeployableUnitFamilyOduPreservesEnvelopeFields`
+  confirms 17 facts) -- not yet the Ifá gate binaries, per the dispatch-wiring
+  note above -- never in a request or write path.
 - **Fresh test evidence, this run:** `go test ./internal/reducer -run DeployableUnit -count=1`
   → `ok ... 0.957s`; `go test ./internal/ifa -run DeployableUnit -count=1` →
   `ok ... 0.590s`; `go test ./internal/ifa -run DeployableUnit -v -count=1`
@@ -156,13 +162,18 @@ tooling, never shipped in a production binary):
 
 - **Three new diagnostic probes**, all diagnostic-only (none of them can flip
   a cell's pass/fail outcome; `ifa_deployable_unit_live_assert` remains the
-  sole authority): a post-maintenance `shared_projection_intents` count
-  (separates "the writer dropped admitted rows" from "correlation produced
-  nothing"), a count of resolved `DEPLOYS_FROM` relationships (separates
-  "correlation had nothing to correlate" from "the reopen found admitted rows
-  the writer then dropped"), and a tail of
-  `ReopenSucceededReducerWorkItems`'s per-domain reopen line (separates "the
-  reopen never fired" from "it fired and found nothing").
+  sole authority): a post-maintenance `shared_projection_intents` count, a
+  count of resolved `DEPLOYS_FROM` relationships (separates "correlation had
+  nothing to correlate" from "the reopen found admitted rows the writer then
+  dropped"), and a tail of `ReopenSucceededReducerWorkItems`'s per-domain
+  reopen line (separates "the reopen never fired" from "it fired and found
+  nothing"). The `shared_projection_intents` probe originally claimed to
+  separate "the writer dropped admitted rows" from "correlation produced
+  nothing" too, but a later commit on this same branch (#6149 review)
+  established that count is always 0 for this family regardless of outcome
+  -- this handler never writes that table at all -- so it cannot actually
+  discriminate those two causes. The probe's own message now says so
+  plainly; it still reports whether the query itself could run.
 - **A readiness observable now runs in all three fault cells** (previously
   only the baseline cell had it): `ifa_deployable_unit_live_assert_readiness_opened`
   reads the post-maintenance reducer log to confirm
