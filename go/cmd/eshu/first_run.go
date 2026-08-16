@@ -60,16 +60,7 @@ func runFirstRun(cmd *cobra.Command, args []string) error {
 	client := apiClientFromCmd(cmd)
 
 	root, rootErr := scan.ResolveTarget(opts.Path, "")
-	deps := firstrun.Deps{
-		Probe:              defaultFirstRunRuntimeProbe(),
-		FetchStatus:        scan.FetchPipelineStatus,
-		ListRepos:          firstRunListRepositories,
-		RunScan:            scan.Execute,
-		ReposDir:           scan.ReposDir,
-		ScanRuntime:        scanRuntimeFor(client),
-		MatchesSelector:    firstRunSelectorMatches,
-		ResolveMCPEndpoint: resolveFirstRunMCPEndpoint,
-	}
+	deps := firstRunDeps(client)
 	if rootErr != nil {
 		deps.WorkspaceError = rootErr
 	} else {
@@ -116,6 +107,25 @@ func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstrun.Opt
 		ReportFormat: reportFormat,
 		ReportOut:    reportOut,
 	}, nil
+}
+
+// firstRunDeps builds the production seam set runFirstRun hands to
+// firstrun.Execute. It is the single construction site for those seams so a
+// test can prove the wiring — in particular that Deps.ResolveMCPEndpoint
+// carries the config-backed resolver the mcp_endpoint_is_api diagnostic
+// depends on. Workspace resolution stays in runFirstRun because it needs the
+// command's path argument.
+func firstRunDeps(client *APIClient) firstrun.Deps {
+	return firstrun.Deps{
+		Probe:              defaultFirstRunRuntimeProbe(),
+		FetchStatus:        scan.FetchPipelineStatus,
+		ListRepos:          firstRunListRepositories,
+		RunScan:            scan.Execute,
+		ReposDir:           scan.ReposDir,
+		ScanRuntime:        scanRuntimeFor(client),
+		MatchesSelector:    firstRunSelectorMatches,
+		ResolveMCPEndpoint: resolveFirstRunMCPEndpoint,
+	}
 }
 
 // defaultFirstRunRuntimeProbe returns the production probe backed by a bounded

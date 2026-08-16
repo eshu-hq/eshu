@@ -71,7 +71,10 @@ their own telemetry.
 - `ParseEnvelope` is the only decode of a saved envelope; the emit side in the
   wrapper builds a `map[string]any` on purpose (`json.Marshal` orders map keys
   alphabetically, and switching to the struct would reorder the emitted
-  bytes). Keep the struct's fields and tags in lockstep with that emitter.
+  bytes). Keep the struct's fields and tags in lockstep with that emitter —
+  `TestFirstRunJSONEnvelopeRoundTripsThroughParseEnvelope` in `go/cmd/eshu`
+  decodes the emitter's actual output through `ParseEnvelope`, so a renamed
+  key or retagged field on either side goes red there.
 
 ## Related docs
 

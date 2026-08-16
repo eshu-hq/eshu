@@ -61,6 +61,80 @@ func TestFinishFirstRunJSONEnvelope(t *testing.T) {
 	}
 }
 
+// TestFirstRunDepsWireProductionSeams proves runFirstRun's seam set is fully
+// wired: every Deps field carries a production function, and ResolveMCPEndpoint
+// specifically resolves through the wrapper's config seam. Before this test,
+// the config read was pinned only in isolation and the composed-redaction
+// fixture stubbed the seam, so dropping the ResolveMCPEndpoint assignment
+// would have silently disabled the mcp_endpoint_is_api diagnostic with no red
+// test (#6153 review).
+func TestFirstRunDepsWireProductionSeams(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(appHomeEnvVar, home)
+	t.Setenv("ESHU_MCP_URL", "")
+	t.Setenv("ESHU_MCP_ENDPOINT", "")
+
+	deps := firstRunDeps(NewAPIClient("http://localhost:8080", "", ""))
+
+	if deps.Probe.APIHealthy == nil || deps.Probe.LookPath == nil || deps.Probe.FileExists == nil {
+		t.Fatalf("probe seams not fully wired: %+v", deps.Probe)
+	}
+	if deps.FetchStatus == nil || deps.ListRepos == nil || deps.RunScan == nil || deps.ReposDir == nil {
+		t.Fatal("pipeline seams not fully wired")
+	}
+	if deps.ScanRuntime.Client == nil || deps.ScanRuntime.LookPath == nil {
+		t.Fatalf("scan runtime seams not wired: %+v", deps.ScanRuntime)
+	}
+	if deps.MatchesSelector == nil {
+		t.Fatal("selector seam not wired")
+	}
+	if deps.ResolveMCPEndpoint == nil {
+		t.Fatal("ResolveMCPEndpoint seam not wired")
+	}
+	if err := os.WriteFile(filepath.Join(home, envFileName), []byte("ESHU_MCP_URL=http://primary:8081/mcp/message\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if got := deps.ResolveMCPEndpoint(); got != "http://primary:8081/mcp/message" {
+		t.Fatalf("deps.ResolveMCPEndpoint() = %q, want the config-backed endpoint; the seam is not the production resolver", got)
+	}
+}
+
+// TestFirstRunJSONEnvelopeRoundTripsThroughParseEnvelope decodes the JSON the
+// production emitter actually writes with the one canonical decode
+// (firstrun.ParseEnvelope) that the benchmark, evidence report, and demo
+// consumers share. The emitter builds its envelope from hand-written string
+// keys, so a renamed key or a retagged Envelope field would otherwise break
+// those decodes silently (#6153 review).
+func TestFirstRunJSONEnvelopeRoundTripsThroughParseEnvelope(t *testing.T) {
+	cmd := newTestFirstRunCommand(t)
+	out := &bytes.Buffer{}
+	cmd.SetOut(out)
+	opts := baseFirstRunOptions()
+	opts.JSON = true
+	result := firstrun.NewResult("http://localhost:8080")
+	result.RepoIndexed = "api-svc"
+	result.Truth = map[string]any{"freshness": "fresh"}
+	runErr := errors.New("verify runtime: no runtime")
+
+	if err := finishFirstRun(cmd, opts, result, runErr); !errors.Is(err, runErr) {
+		t.Fatalf("finishFirstRun() error = %v, want the propagated runErr", err)
+	}
+
+	env, parseErr := firstrun.ParseEnvelope(out.Bytes())
+	if parseErr != nil {
+		t.Fatalf("ParseEnvelope(emitter output) error = %v; out=%s", parseErr, out.String())
+	}
+	if env.Data.ServiceURL != "http://localhost:8080" || env.Data.RepoIndexed != "api-svc" {
+		t.Fatalf("decoded data = %+v, want the emitted result fields", env.Data)
+	}
+	if got, _ := env.Truth["freshness"].(string); got != "fresh" {
+		t.Fatalf("decoded truth = %#v, want the emitted truth labels", env.Truth)
+	}
+	if env.Error == nil || env.Error.Message != "verify runtime: no runtime" {
+		t.Fatalf("decoded error = %#v, want the emitted failure message", env.Error)
+	}
+}
+
 // TestFirstRunCommandIsRegistered proves the command and its flags exist.
 func TestFirstRunCommandIsRegistered(t *testing.T) {
 	cmd, _, err := rootCmd.Find([]string{"first-run"})
