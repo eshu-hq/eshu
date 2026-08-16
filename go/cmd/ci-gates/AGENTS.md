@@ -21,6 +21,14 @@ Scoped rules for editing the CI gate CLI. Load `golang-engineering`.
   once. A primary-command failure does not suppress the self-test.
 - **Advisory failures do not fail the exit code.** Only `Gate.Blocking==true`
   failures contribute to a non-zero exit.
+- **Gate subprocesses never inherit GOROOT.** `gateSubprocessEnv` strips it
+  because the `go run` that launches this binary switches toolchains for
+  go/go.mod and exports the switched GOROOT; handing it to a gate whose module
+  the host toolchain satisfies mixes go driver and tools ("compile: version …
+  does not match go tool version …"). Removing the strip turns
+  `TestGateSubprocessEnvStripsLeakedGOROOT` and the sdk-go-collector /
+  scorecard-example-conformance gates red on such hosts (see #6113 for the
+  precommit-go.sh sibling).
 - **`--paths-from` enables hermetic tests.** Any test that needs deterministic
   path input must use `--paths-from`; never rely on git state in tests.
 - **Files stay under 500 lines.** Split into a new file before the cap.
