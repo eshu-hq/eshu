@@ -41,6 +41,7 @@ documentation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-docum
 deployable_unit_live_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
+deployable_unit_lock_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 deployable_unit_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
 deployable_unit_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
@@ -48,7 +49,7 @@ assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -68,6 +69,7 @@ bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documenta
 bash -n "${deployable_unit_live_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
 bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
 bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
+bash -n "${deployable_unit_lock_lib}" || fail "ifa_fault_injection_deployable_unit_lock.sh has a syntax error"
 bash -n "${deployable_unit_cells_lib}" || fail "ifa_fault_injection_deployable_unit_cells.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
 bash -n "${deployable_unit_cases_lib}" || fail "test-ifa-fault-injection-deployable-unit-cases.sh has a syntax error"
@@ -451,7 +453,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi

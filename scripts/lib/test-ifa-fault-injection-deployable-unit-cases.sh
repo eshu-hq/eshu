@@ -6,13 +6,18 @@
 # repository's 500-line cap. The parent verifier owns strict mode, fail(),
 # and every path variable referenced below (script, driver_lib,
 # deployable_unit_live_lib, deployable_unit_diagnostics_lib,
-# deployable_unit_cells_lib). deployable_unit_diagnostics_lib
-# (ifa_deployable_unit_live_diagnostics.sh) holds the post-maintenance
-# DIAGNOSTIC probes split out of ifa_deployable_unit_live.sh to keep THAT
-# file under the same cap -- their definitions are checked there, while
-# their WIRING (call sites in the standalone cell and the fault cells) is
-# still checked against deployable_unit_live_lib / deployable_unit_cells_lib,
-# since only the function bodies moved.
+# deployable_unit_lock_lib, deployable_unit_cells_lib).
+# deployable_unit_diagnostics_lib (ifa_deployable_unit_live_diagnostics.sh)
+# holds the post-maintenance DIAGNOSTIC probes split out of
+# ifa_deployable_unit_live.sh to keep THAT file under the same cap --
+# their definitions are checked there, while their WIRING (call sites in the
+# standalone cell and the fault cells) is still checked against
+# deployable_unit_live_lib / deployable_unit_cells_lib, since only the
+# function bodies moved. deployable_unit_lock_lib
+# (ifa_fault_injection_deployable_unit_lock.sh, #6149) holds the fault
+# cells' precondition assertion and lock/release pair, split out of
+# deployable_unit_cells_lib for the same 500-line reason -- their
+# definitions are checked there, their WIRING against deployable_unit_cells_lib.
 
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
@@ -21,6 +26,10 @@ require_deployable_unit_live_lib() {
 require_deployable_unit_diagnostics_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_diagnostics_lib}" || fail "missing ${label} (deployable-unit diagnostics lib): ${needle}"
+}
+require_deployable_unit_lock_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lock_lib}" || fail "missing ${label} (deployable-unit lock lib): ${needle}"
 }
 require_deployable_unit_cells() {
 	local label="$1" needle="$2"
@@ -41,6 +50,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
 	require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 	require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+	require "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 	require "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
@@ -383,24 +393,63 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_deployable_unit_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_deployable_unit_cells "graph-write cell reads the durable marker, not a log" "ifa_fault_assert_once_fault_marker"
 	require_deployable_unit_cells "fault cells compare against the family-scoped baseline, not the shared one" "assert_matches_baseline killworkerdeployableunit baseline_deployable_unit"
-	# #6149 P1-2: the kill-worker cell used to lock shared_projection_intents,
-	# a table this handler never writes, so the lock could never block it and
-	# the cell passed on a race (this is what failed in CI). It must now lock
-	# graph_projection_phase_state -- the handler's actual last write -- and
-	# the lock/release helper names must match that table, not the old
-	# "intent lock" naming that no longer describes what they hold.
-	require_deployable_unit_cells "kill cell lock helper targets graph_projection_phase_state, not shared_projection_intents" "LOCK TABLE graph_projection_phase_state IN ACCESS EXCLUSIVE MODE"
-	require_deployable_unit_cells "lock-acquired poll checks the graph_projection_phase_state relation" "l.relation = 'graph_projection_phase_state'::regclass"
-	require_deployable_unit_cells "lock helper renamed off the old shared_projection_intents-era name" "ifa_deployable_unit_start_phase_state_lock() {"
-	require_deployable_unit_cells "release helper renamed to match" "ifa_deployable_unit_release_phase_state_lock() {"
-	require_deployable_unit_cells "kill cell calls the renamed start helper" 'ifa_deployable_unit_start_phase_state_lock "killworkerdeployableunit" lock_holder_pid'
-	require_deployable_unit_cells "kill cell calls the renamed release helper" 'ifa_deployable_unit_release_phase_state_lock "killworkerdeployableunit" "${lock_holder_pid}"'
-	rg --quiet -- 'ifa_deployable_unit_start_intent_lock|ifa_deployable_unit_release_intent_lock' "${deployable_unit_cells_lib}" \
-		&& fail "the old shared_projection_intents-era lock helper names must not survive in ${deployable_unit_cells_lib}"
-	rg --quiet -- 'LOCK TABLE shared_projection_intents' "${deployable_unit_cells_lib}" \
-		&& fail "the kill-worker cell must not lock shared_projection_intents any more (that table this handler never writes -- see #6149) in ${deployable_unit_cells_lib}"
+	# #6149 P1-2: the kill-worker cell's lock target took THREE tries.
+	#   1. shared_projection_intents: this handler never writes it, so the
+	#      lock never blocked anything -- failed in CI on a race.
+	#   2. graph_projection_phase_state (Handle's last write): the lock DID
+	#      engage, but that table has 14 writing handlers against this gate's
+	#      4 reducer workers, so the shared pool starved and this family's row
+	#      was never claimed at all -- failed a live run a different way.
+	#   3. admission_decisions (Handle's second write, still after the graph
+	#      write): only 3 writing handlers exist and this gate drives only
+	#      this one, so starvation is impossible by construction. That is the
+	#      live target, in the split-out lock lib
+	#      (ifa_fault_injection_deployable_unit_lock.sh, #6149), not the
+	#      cells lib.
+	require_deployable_unit_lock_lib "kill cell lock helper targets admission_decisions, not graph_projection_phase_state or shared_projection_intents" "LOCK TABLE admission_decisions IN ACCESS EXCLUSIVE MODE"
+	require_deployable_unit_lock_lib "lock-acquired poll checks the admission_decisions relation" "l.relation = 'admission_decisions'::regclass"
+	require_deployable_unit_lock_lib "lock helper named for the table it actually holds" "ifa_deployable_unit_start_admission_decisions_lock() {"
+	require_deployable_unit_lock_lib "release helper renamed to match" "ifa_deployable_unit_release_admission_decisions_lock() {"
+	require_deployable_unit_cells "kill cell calls the renamed start helper" 'ifa_deployable_unit_start_admission_decisions_lock "killworkerdeployableunit" lock_holder_pid'
+	require_deployable_unit_cells "kill cell calls the renamed release helper" 'ifa_deployable_unit_release_admission_decisions_lock "killworkerdeployableunit" "${lock_holder_pid}"'
+	rg --quiet -- 'ifa_deployable_unit_start_intent_lock|ifa_deployable_unit_release_intent_lock|ifa_deployable_unit_start_phase_state_lock|ifa_deployable_unit_release_phase_state_lock' \
+		"${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" \
+		&& fail "an earlier-era lock helper name (shared_projection_intents or graph_projection_phase_state) must not survive"
+	rg --quiet -- 'LOCK TABLE shared_projection_intents|LOCK TABLE graph_projection_phase_state' "${deployable_unit_lock_lib}" \
+		&& fail "the kill-worker cell must not lock shared_projection_intents or graph_projection_phase_state any more (see #6149) in ${deployable_unit_lock_lib}"
 	# The header must state honestly which recovery case this proves: a
 	# kill AFTER the graph write (the lock lands after step 1 of Handle), not
 	# before it -- do not let this cell claim the stronger pre-write case.
-	require_deployable_unit_cells "lock helper states the post-write-death consequence honestly" "recovery from a POST-write death, not a PRE-write death"
+	require_deployable_unit_lock_lib "lock helper states the post-write-death consequence honestly" "a POST-write death, not a PRE-write death"
+	# The permanent precondition gate (#6149): replaces a one-off manual
+	# pre-check with an assertion that runs every time, in the baseline cell,
+	# proving admission_decisions genuinely receives a row for this domain
+	# before the fault cells rely on it as a lock target.
+	require_deployable_unit_lock_lib "precondition gate definition" "ifa_deployable_unit_require_admission_decisions_written() {"
+	require_deployable_unit_lock_lib "precondition gate query" "SELECT count(*) FROM admission_decisions WHERE domain = 'deployable_unit_correlation';"
+	require_deployable_unit_lock_lib "precondition gate fails closed on query failure" 'return "${admission_count_rc}"'
+	require_deployable_unit_lock_lib "precondition gate treats empty output as unknown, not zero" "admission_decisions precondition query returned empty output; treat that as unknown, not as zero"
+	require_deployable_unit_lock_lib "precondition gate treats non-numeric output as unknown, not zero" "admission_decisions precondition query returned non-numeric output"
+	require_deployable_unit_lock_lib "precondition gate fails on a genuine zero, not just unknowns" 'if [[ "${admission_count}" == "0" ]]; then'
+	require_deployable_unit_cells "baseline cell wires the precondition gate" 'ifa_deployable_unit_require_admission_decisions_written \'
+	# Ordering: the precondition gate must run inside the baseline cell,
+	# after the post-maintenance drain (so Handle has actually run to
+	# completion), same containment style as the other per-cell wiring
+	# checks above.
+	local du_baseline_fn_at_line_raw du_baseline_fn_ln du_baseline_fn_name
+	local -A du_baseline_fn_at_line
+	du_baseline_fn_at_line_raw="$(awk '
+		/^[A-Za-z_][A-Za-z0-9_]*\(\) \{$/ { sub(/\(\) \{$/, ""); fn = $0 }
+		{ print NR, (fn == "" ? "NONE" : fn) }
+	' "${deployable_unit_cells_lib}")"
+	while read -r du_baseline_fn_ln du_baseline_fn_name; do
+		du_baseline_fn_at_line["${du_baseline_fn_ln}"]="${du_baseline_fn_name}"
+	done <<<"${du_baseline_fn_at_line_raw}"
+	local du_precondition_line du_maintenance_drain_line
+	du_precondition_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_require_admission_decisions_written \' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
+	du_maintenance_drain_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_live_run_maintenance_pass "baseline_deployable_unit"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
+	[[ "${du_precondition_line}" =~ ^[0-9]+$ && "${du_maintenance_drain_line}" =~ ^[0-9]+$ \
+		&& "${du_baseline_fn_at_line[${du_precondition_line}]:-}" == "cell_baseline_deployable_unit" \
+		&& "${du_precondition_line}" -gt "${du_maintenance_drain_line}" ]] \
+		|| fail "ifa_deployable_unit_require_admission_decisions_written must be called inside cell_baseline_deployable_unit, after the maintenance pass, in ${deployable_unit_cells_lib}"
 }
