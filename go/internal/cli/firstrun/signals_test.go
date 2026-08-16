@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"bytes"
@@ -19,20 +19,20 @@ import (
 // produces a classified diagnostic on the result while preserving the
 // underlying runtime error text.
 func TestExecuteFirstRunAttachesComposeDiagnostic(t *testing.T) {
-	deps := firstRunDeps{
+	deps := Deps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{"/ws/docker-compose.yaml": true}),
 		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
-		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
+		ListRepos:     func(scan.Client) (RepositoryList, error) { return RepositoryList{}, nil },
 		WorkspaceRoot: "/ws",
 	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
+	result, err := Execute(context.Background(), io.Discard, io.Discard, nilClient, testServiceURL, deps, baseFirstRunOptions())
 	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want compose-down failure")
+		t.Fatal("Execute() error = nil, want compose-down failure")
 	}
 	if result.Diagnostic == nil {
 		t.Fatal("result.Diagnostic = nil, want a compose_unhealthy diagnostic")
 	}
-	if result.Diagnostic.Class != onboardingClassComposeUnhealthy {
+	if result.Diagnostic.Class != ClassComposeUnhealthy {
 		t.Fatalf("Diagnostic.Class = %q, want compose_unhealthy", result.Diagnostic.Class)
 	}
 	// Root cause from the verify step must be preserved on the diagnostic.
@@ -44,17 +44,17 @@ func TestExecuteFirstRunAttachesComposeDiagnostic(t *testing.T) {
 // TestExecuteFirstRunAttachsBinariesDiagnostic proves a missing-binaries +
 // no-runtime failure is classified as binaries_missing.
 func TestExecuteFirstRunAttachsBinariesDiagnostic(t *testing.T) {
-	deps := firstRunDeps{
+	deps := Deps{
 		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{}),
 		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
-		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
+		ListRepos:     func(scan.Client) (RepositoryList, error) { return RepositoryList{}, nil },
 		WorkspaceRoot: "/ws",
 	}
-	result, _ := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
+	result, _ := Execute(context.Background(), io.Discard, io.Discard, nilClient, testServiceURL, deps, baseFirstRunOptions())
 	if result.Diagnostic == nil {
 		t.Fatal("result.Diagnostic = nil, want a binaries_missing diagnostic")
 	}
-	if result.Diagnostic.Class != onboardingClassBinariesMissing {
+	if result.Diagnostic.Class != ClassBinariesMissing {
 		t.Fatalf("Diagnostic.Class = %q, want binaries_missing", result.Diagnostic.Class)
 	}
 }
@@ -63,8 +63,7 @@ func TestExecuteFirstRunAttachsBinariesDiagnostic(t *testing.T) {
 // by dead-letter queue work is classified as queue_failed_work and preserves
 // the underlying readiness error.
 func TestExecuteFirstRunAttachesQueueDiagnostic(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
-	deps := firstRunDeps{
+	deps := Deps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{}, map[string]bool{}),
 		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
 			return scan.PipelineStatus{
@@ -72,8 +71,8 @@ func TestExecuteFirstRunAttachesQueueDiagnostic(t *testing.T) {
 				Queue:  scan.Queue{DeadLetter: 4},
 			}, nil
 		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			return repositoryListResponse{}, nil
+		ListRepos: func(scan.Client) (RepositoryList, error) {
+			return RepositoryList{}, nil
 		},
 		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
 			return scan.Result{
@@ -84,14 +83,14 @@ func TestExecuteFirstRunAttachesQueueDiagnostic(t *testing.T) {
 		ReposDir:      fakeReposDir,
 		WorkspaceRoot: "/ws",
 	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
+	result, err := Execute(context.Background(), io.Discard, io.Discard, nilClient, testServiceURL, deps, baseFirstRunOptions())
 	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want readiness failure")
+		t.Fatal("Execute() error = nil, want readiness failure")
 	}
 	if result.Diagnostic == nil {
 		t.Fatal("result.Diagnostic = nil, want a queue_failed_work diagnostic")
 	}
-	if result.Diagnostic.Class != onboardingClassQueueFailedWork {
+	if result.Diagnostic.Class != ClassQueueFailedWork {
 		t.Fatalf("Diagnostic.Class = %q, want queue_failed_work", result.Diagnostic.Class)
 	}
 	if !strings.Contains(result.Diagnostic.rootCause(), "dead-letter") {
@@ -103,15 +102,14 @@ func TestExecuteFirstRunAttachesQueueDiagnostic(t *testing.T) {
 // returns zero repositories on a successful run still records the empty-index
 // diagnostic for guidance, without marking the run failed.
 func TestExecuteFirstRunAttachesNoRepositoriesDiagnostic(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
 	var scanCalled bool
-	deps := firstRunDeps{
+	deps := Deps{
 		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
 		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
 			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
 		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			return repositoryListResponse{}, nil
+		ListRepos: func(scan.Client) (RepositoryList, error) {
+			return RepositoryList{}, nil
 		},
 		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
 			scanCalled = true
@@ -120,14 +118,14 @@ func TestExecuteFirstRunAttachesNoRepositoriesDiagnostic(t *testing.T) {
 		ReposDir:      fakeReposDir,
 		WorkspaceRoot: "/ws",
 	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
+	result, err := Execute(context.Background(), io.Discard, io.Discard, nilClient, testServiceURL, deps, baseFirstRunOptions())
 	if err != nil {
-		t.Fatalf("executeFirstRun() error = %v, want nil", err)
+		t.Fatalf("Execute() error = %v, want nil", err)
 	}
 	if !scanCalled {
 		t.Fatal("scan was not called")
 	}
-	if result.Diagnostic == nil || result.Diagnostic.Class != onboardingClassNoRepositories {
+	if result.Diagnostic == nil || result.Diagnostic.Class != ClassNoRepositories {
 		t.Fatalf("Diagnostic = %+v, want no_repositories", result.Diagnostic)
 	}
 }
@@ -136,9 +134,9 @@ func TestExecuteFirstRunAttachesNoRepositoriesDiagnostic(t *testing.T) {
 // the classified diagnosis and the preserved root-cause string, so machine
 // consumers also see the underlying error rather than only the recovery text.
 func TestFirstRunResultJSONPreservesDiagnosisCause(t *testing.T) {
-	result := newFirstRunResult("http://localhost:8080")
-	result.Diagnostic = &onboardingDiagnostic{
-		Class:         onboardingClassAuthMismatch,
+	result := NewResult("http://localhost:8080")
+	result.Diagnostic = &Diagnostic{
+		Class:         ClassAuthMismatch,
 		Summary:       "API auth/token mismatch",
 		RecoverySteps: []string{"export ESHU_API_KEY=..."},
 		DocsLink:      "docs/public/reference/http-api.md",
@@ -157,7 +155,7 @@ func TestFirstRunResultJSONPreservesDiagnosisCause(t *testing.T) {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.Diagnosis.Class != string(onboardingClassAuthMismatch) {
+	if decoded.Diagnosis.Class != string(ClassAuthMismatch) {
 		t.Fatalf("diagnosis.class = %q, want auth_mismatch", decoded.Diagnosis.Class)
 	}
 	if !strings.Contains(decoded.Diagnosis.Cause, "unauthorized-token-xyz") {
@@ -169,16 +167,16 @@ func TestFirstRunResultJSONPreservesDiagnosisCause(t *testing.T) {
 // classified diagnostic block, the recovery steps, the docs link, and the
 // preserved root-cause error together.
 func TestRenderFirstRunHumanIncludesDiagnostic(t *testing.T) {
-	result := newFirstRunResult("http://localhost:8080")
-	result.Diagnostic = &onboardingDiagnostic{
-		Class:         onboardingClassComposeUnhealthy,
+	result := NewResult("http://localhost:8080")
+	result.Diagnostic = &Diagnostic{
+		Class:         ClassComposeUnhealthy,
 		Summary:       "Compose services are not running or are unhealthy",
 		RecoverySteps: []string{"docker compose up -d"},
 		DocsLink:      "docs/public/run-locally/docker-compose.md",
 		Underlying:    errors.New("verify runtime: API not reachable"),
 	}
 	var buf bytes.Buffer
-	renderFirstRunHuman(&buf, result, errors.New("verify runtime: API not reachable"))
+	RenderHuman(&buf, result, errors.New("verify runtime: API not reachable"))
 	out := buf.String()
 	for _, want := range []string{
 		"Diagnosis",

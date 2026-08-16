@@ -35,14 +35,15 @@ artifact wrapper, and the share-safe scope rules live in
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
   - guided onboarding: `first-run [path]` walks the smallest truthful path
     from a checkout to one indexed repository, one readiness proof, and one
-    bounded API answer (`first_run.go`, `first_run_runtime.go`,
-    `first_run_index.go`, `first_run_report.go`). `--report`/`--report-out`
-    (and the `first-run report` subcommand) emit a redacted first-run evidence
-    artifact and support packet — a presentation layer over the run result
-    that derives indexing state from the readiness verdict and redacts
-    endpoints, paths, and tokens before they enter the report
-    (`first_run_evidence.go`, `first_run_evidence_render.go`,
-    `first_run_evidence_cmd.go`). `hosted-setup` runs the
+    bounded API answer. `--report`/`--report-out` (and the `first-run report`
+    subcommand) emit a redacted first-run evidence artifact and support
+    packet — a presentation layer over the run result that derives indexing
+    state from the readiness verdict and redacts endpoints, paths, and tokens
+    before they enter the report. The orchestration, diagnostics classifier,
+    and evidence model live in `internal/cli/firstrun`; this package keeps the
+    cobra wrappers that resolve flags, the API client, and the config-backed
+    MCP endpoint (`first_run.go`, `first_run_evidence_cmd.go`).
+    `hosted-setup` runs the
     first-five-minutes flow against a deployed service, resolving the endpoint
     and bearer token and running ordered, individually-reported checks
     (`/healthz`, `/readyz`, status/index readiness, MCP tool visibility, and one

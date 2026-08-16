@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/cli/evidpacket"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/competitiveparity"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
@@ -164,16 +165,16 @@ func competitiveParityExerciseFailureDetail(id string) string {
 }
 
 func exerciseFirstRunReportArtifact() error {
-	result := newFirstRunResult("http://localhost:8080")
-	result.RuntimeShape = firstRunShapeExistingAPI
+	result := firstrun.NewResult("http://localhost:8080")
+	result.RuntimeShape = firstrun.ShapeExistingAPI
 	result.RepoIndexed = "demo/repo"
 	result.RepoTarget = "demo/repo"
 	result.Readiness = "complete"
 	result.QueryAnswered = true
 	result.QuerySummary = "bounded query returned one repository"
 	result.Truth = map[string]any{"freshness": "current", "completeness": "complete"}
-	report := buildFirstRunEvidence(result, nil)
-	raw, err := renderEvidenceArtifact(report, evidenceFormatJSON)
+	report := firstrun.BuildEvidence(result, nil)
+	raw, err := firstrun.RenderEvidenceArtifact(report, firstrun.EvidenceFormatJSON)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
 func init() {
@@ -110,7 +112,8 @@ func parseDemoImageState(v string) (demoImageState, error) {
 		return demoImagesAbsent, nil
 	default:
 		return demoImagesUnknown, fmt.Errorf(
-			"--images %q is not %q, %q, or empty", v, demoImagesPresent, demoImagesAbsent)
+			"--images %q is not %q, %q, or empty", v, demoImagesPresent, demoImagesAbsent,
+		)
 	}
 }
 
@@ -122,7 +125,7 @@ func renderDemoBenchmarkVerdict(w io.Writer, verdict demoBenchmarkVerdict) {
 		header = "Demo TTFA benchmark FAILED"
 	}
 	_, _ = fmt.Fprintln(w, header)
-	_, _ = fmt.Fprintf(w, "  mode : %s\n", quoteIfEmpty(verdict.Mode))
+	_, _ = fmt.Fprintf(w, "  mode : %s\n", firstrun.QuoteIfEmpty(verdict.Mode))
 	_, _ = fmt.Fprintf(w, "  TTFA : %s\n", demoMillisText(verdict.TTFAMillis))
 	if verdict.TargetMillis > 0 {
 		_, _ = fmt.Fprintf(w, "  target: %s\n", demoMillisText(verdict.TargetMillis))

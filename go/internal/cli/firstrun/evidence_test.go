@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -16,21 +15,21 @@ import (
 
 // successEvidenceResult builds a fully-successful first-run result whose query
 // returned a non-empty answer, used as the happy-path fixture for the report.
-func successEvidenceResult() firstRunResult {
-	r := newFirstRunResult("http://localhost:8080")
-	r.RuntimeShape = firstRunShapeExistingAPI
+func successEvidenceResult() Result {
+	r := NewResult("http://localhost:8080")
+	r.RuntimeShape = ShapeExistingAPI
 	r.RepoTarget = "/work/eshu"
 	r.RepoIndexed = "complete"
 	r.Readiness = "ready"
-	r = r.addStep("detect runtime", firstRunStepOK, "reachable API")
-	r = r.addStep("verify runtime", firstRunStepOK, "")
-	r = r.addStep("index repository", firstRunStepOK, "reused existing indexed repository")
-	r = r.addStep("wait for readiness", firstRunStepOK, "ready")
+	r = r.addStep("detect runtime", StepOK, "reachable API")
+	r = r.addStep("verify runtime", StepOK, "")
+	r = r.addStep("index repository", StepOK, "reused existing indexed repository")
+	r = r.addStep("wait for readiness", StepOK, "ready")
 	r.QueryAnswered = true
 	r.QuerySummary = "repositories query returned 3 (e.g. eshu)"
-	r = r.addStep("first query", firstRunStepOK, r.QuerySummary)
-	r.NextSteps = firstRunNextSteps(r, firstRunRuntimeDetection{Shape: firstRunShapeExistingAPI})
-	r.Truth = firstRunTruth(r, "")
+	r = r.addStep("first query", StepOK, r.QuerySummary)
+	r.NextSteps = firstRunNextSteps(r, firstRunRuntimeDetection{Shape: ShapeExistingAPI})
+	r.Truth = Truth(r, "")
 	return r
 }
 
@@ -38,14 +37,14 @@ func successEvidenceResult() firstRunResult {
 // derives the indexing state as "complete" from RepoIndexed (not from health)
 // and records the query and readiness evidence.
 func TestBuildFirstRunEvidenceSuccessIndexingComplete(t *testing.T) {
-	report := buildFirstRunEvidence(successEvidenceResult(), nil)
-	if report.IndexingState != evidenceIndexingComplete {
+	report := BuildEvidence(successEvidenceResult(), nil)
+	if report.IndexingState != EvidenceIndexingComplete {
 		t.Fatalf("IndexingState = %q, want complete", report.IndexingState)
 	}
 	if !report.QueryAnswered {
 		t.Fatal("QueryAnswered = false, want true")
 	}
-	if report.Outcome != evidenceOutcomeSucceeded {
+	if report.Outcome != EvidenceOutcomeSucceeded {
 		t.Fatalf("Outcome = %q, want succeeded", report.Outcome)
 	}
 	if len(report.MissingEvidence) != 0 {
@@ -56,16 +55,16 @@ func TestBuildFirstRunEvidenceSuccessIndexingComplete(t *testing.T) {
 // TestBuildFirstRunEvidencePartialReadiness proves a partial index never reports
 // as complete and is flagged as missing evidence.
 func TestBuildFirstRunEvidencePartialReadiness(t *testing.T) {
-	r := newFirstRunResult("http://localhost:8080")
-	r.RuntimeShape = firstRunShapeLocalBinaries
+	r := NewResult("http://localhost:8080")
+	r.RuntimeShape = ShapeLocalBinaries
 	r.RepoTarget = "/work/eshu"
 	r.RepoIndexed = "partial"
 	r.Readiness = "degraded"
-	r = r.addStep("wait for readiness", firstRunStepFailed, "scan readiness timed out: still building")
+	r = r.addStep("wait for readiness", StepFailed, "scan readiness timed out: still building")
 	r.NextSteps = []string{"Re-run: eshu first-run"}
 
-	report := buildFirstRunEvidence(r, nil)
-	if report.IndexingState != evidenceIndexingPartial {
+	report := BuildEvidence(r, nil)
+	if report.IndexingState != EvidenceIndexingPartial {
 		t.Fatalf("IndexingState = %q, want partial", report.IndexingState)
 	}
 	if report.QueryAnswered {
@@ -79,14 +78,14 @@ func TestBuildFirstRunEvidencePartialReadiness(t *testing.T) {
 // authMismatchDiagnostic returns the auth-mismatch entry of the production
 // classification table, so a test asserting on its recovery steps is asserting
 // on the strings Eshu actually ships.
-func authMismatchDiagnostic(t *testing.T) *onboardingDiagnostic {
+func authMismatchDiagnostic(t *testing.T) *Diagnostic {
 	t.Helper()
 	for _, rule := range onboardingRules() {
-		if d := rule.build(onboardingSignal{}); d.Class == onboardingClassAuthMismatch {
+		if d := rule.build(onboardingSignal{}); d.Class == ClassAuthMismatch {
 			return &d
 		}
 	}
-	t.Fatalf("no %q rule in the classification table", onboardingClassAuthMismatch)
+	t.Fatalf("no %q rule in the classification table", ClassAuthMismatch)
 	return nil
 }
 
@@ -94,11 +93,11 @@ func authMismatchDiagnostic(t *testing.T) *onboardingDiagnostic {
 // the query step yields a failed indexing state when no index was proven and
 // surfaces the classified recovery steps and docs link.
 func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
-	r := newFirstRunResult("http://localhost:8080")
-	r.RuntimeShape = firstRunShapeExistingAPI
+	r := NewResult("http://localhost:8080")
+	r.RuntimeShape = ShapeExistingAPI
 	r.RepoIndexed = "unknown"
 	r.Readiness = "unknown"
-	r = r.addStep("first query", firstRunStepFailed, "GET /api/v0/repositories: 401 unauthorized")
+	r = r.addStep("first query", StepFailed, "GET /api/v0/repositories: 401 unauthorized")
 	// The diagnostic comes from the production classification table, not from a
 	// literal written here. The assertions below are about what the free-text
 	// credential scan does to the REAL recovery steps, so a hand-written fixture
@@ -108,8 +107,8 @@ func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
 	r.Diagnostic.DocsLink = "docs/public/reference/http-api.md"
 	r.NextSteps = []string{"Re-run: eshu first-run"}
 
-	report := buildFirstRunEvidence(r, nil)
-	if report.IndexingState != evidenceIndexingFailed {
+	report := BuildEvidence(r, nil)
+	if report.IndexingState != EvidenceIndexingFailed {
 		t.Fatalf("IndexingState = %q, want failed", report.IndexingState)
 	}
 	if report.Diagnosis == nil {
@@ -154,21 +153,21 @@ func TestBuildFirstRunEvidenceAuthFailureFailedState(t *testing.T) {
 // returned zero repositories reports as a query that answered but flags the
 // missing repository as evidence to collect.
 func TestBuildFirstRunEvidenceMissingRepoEmptyIndex(t *testing.T) {
-	r := newFirstRunResult("http://localhost:8080")
-	r.RuntimeShape = firstRunShapeExistingAPI
+	r := NewResult("http://localhost:8080")
+	r.RuntimeShape = ShapeExistingAPI
 	r.RepoIndexed = "complete"
 	r.Readiness = "ready"
 	r.QueryAnswered = true
 	r.QuerySummary = "repositories query returned 0 repositories"
-	r = r.addStep("first query", firstRunStepOK, r.QuerySummary)
-	r.Diagnostic = &onboardingDiagnostic{
-		Class:         onboardingClassNoRepositories,
+	r = r.addStep("first query", StepOK, r.QuerySummary)
+	r.Diagnostic = &Diagnostic{
+		Class:         ClassNoRepositories,
 		Summary:       "no repositories match the configured selector",
 		RecoverySteps: []string{"eshu scan <path>"},
 		DocsLink:      "docs/public/reference/local-testing.md",
 	}
 
-	report := buildFirstRunEvidence(r, nil)
+	report := BuildEvidence(r, nil)
 	if !report.QueryAnswered {
 		t.Fatal("QueryAnswered = false, want true for an empty but valid answer")
 	}
@@ -184,14 +183,14 @@ func TestBuildFirstRunEvidenceMissingRepoEmptyIndex(t *testing.T) {
 // service URL never appears verbatim in the report model or its renderings.
 func TestEvidenceRedactsTokenInServiceURL(t *testing.T) {
 	const secret = "supersecrettoken1234567890"
-	r := newFirstRunResult("https://user:" + secret + "@hosted.example.com/api")
-	r.RuntimeShape = firstRunShapeExistingAPI
+	r := NewResult("https://user:" + secret + "@hosted.example.com/api")
+	r.RuntimeShape = ShapeExistingAPI
 	r.RepoIndexed = "complete"
 	r.Readiness = "ready"
 	r.QueryAnswered = true
 	r.QuerySummary = "repositories query returned 1 (e.g. eshu)"
 
-	report := buildFirstRunEvidence(r, nil)
+	report := BuildEvidence(r, nil)
 	if strings.Contains(report.ServiceEndpoint, secret) {
 		t.Fatalf("ServiceEndpoint = %q leaks the secret", report.ServiceEndpoint)
 	}
@@ -213,7 +212,7 @@ func TestEvidenceRedactsTokenInServiceURL(t *testing.T) {
 	}
 
 	var term strings.Builder
-	renderEvidenceTerminal(&term, report)
+	RenderEvidenceTerminal(&term, report)
 	if strings.Contains(term.String(), secret) {
 		t.Fatal("terminal summary leaks the embedded credential")
 	}
@@ -224,7 +223,7 @@ func TestEvidenceRedactsTokenInServiceURL(t *testing.T) {
 func TestEvidenceRedactsTokenInMCPEndpoint(t *testing.T) {
 	const secret = "mcptokenABCDEFGHIJKLMNOP"
 	r := successEvidenceResult()
-	report := buildFirstRunEvidence(r, &firstRunEvidenceInputs{
+	report := BuildEvidence(r, &EvidenceInputs{
 		MCPEndpoint: "https://x:" + secret + "@mcp.example.com/mcp",
 	})
 	md, err := renderEvidenceMarkdown(report)
@@ -245,7 +244,7 @@ func TestEvidenceRedactsTokenInMCPEndpoint(t *testing.T) {
 // TestEvidenceJSONRoundTrips proves the JSON artifact is well-formed and carries
 // the load-bearing indexing-state and outcome fields.
 func TestEvidenceJSONRoundTrips(t *testing.T) {
-	report := buildFirstRunEvidence(successEvidenceResult(), nil)
+	report := BuildEvidence(successEvidenceResult(), nil)
 	jsonBytes, err := renderEvidenceJSON(report)
 	if err != nil {
 		t.Fatalf("renderEvidenceJSON: %v", err)
@@ -254,10 +253,10 @@ func TestEvidenceJSONRoundTrips(t *testing.T) {
 	if err := json.Unmarshal(jsonBytes, &decoded); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if decoded["indexing_state"] != string(evidenceIndexingComplete) {
+	if decoded["indexing_state"] != string(EvidenceIndexingComplete) {
 		t.Fatalf("indexing_state = %v, want complete", decoded["indexing_state"])
 	}
-	if decoded["outcome"] != string(evidenceOutcomeSucceeded) {
+	if decoded["outcome"] != string(EvidenceOutcomeSucceeded) {
 		t.Fatalf("outcome = %v, want succeeded", decoded["outcome"])
 	}
 }
@@ -266,64 +265,12 @@ func TestEvidenceJSONRoundTrips(t *testing.T) {
 // unknown format is rejected.
 func TestNormalizeEvidenceFormat(t *testing.T) {
 	for _, in := range []string{"", "md", "markdown", "MD", "json", "JSON"} {
-		if _, err := normalizeEvidenceFormat(in); err != nil {
-			t.Fatalf("normalizeEvidenceFormat(%q) error = %v, want nil", in, err)
+		if _, err := NormalizeEvidenceFormat(in); err != nil {
+			t.Fatalf("NormalizeEvidenceFormat(%q) error = %v, want nil", in, err)
 		}
 	}
-	if _, err := normalizeEvidenceFormat("yaml"); err == nil {
-		t.Fatal("normalizeEvidenceFormat(yaml) error = nil, want unsupported error")
-	}
-}
-
-// TestFirstRunReportSubcommandRendersEnvelope proves `first-run report` rebuilds
-// the evidence report from a saved --json envelope and redacts secrets, without
-// re-running any step.
-func TestFirstRunReportSubcommandRendersEnvelope(t *testing.T) {
-	const secret = "envelopesecrettoken1234567890"
-	result := successEvidenceResult()
-	result.ServiceURL = "https://user:" + secret + "@hosted.example.com/api"
-	envelope := map[string]any{
-		"data":  result,
-		"truth": result.Truth,
-		"error": nil,
-	}
-	raw, err := json.Marshal(envelope)
-	if err != nil {
-		t.Fatalf("marshal envelope: %v", err)
-	}
-
-	cmd := newFirstRunReportCmd()
-	out := &bytes.Buffer{}
-	cmd.SetOut(out)
-	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetIn(bytes.NewReader(raw))
-	if err := cmd.Flags().Set("format", "json"); err != nil {
-		t.Fatalf("Set(format): %v", err)
-	}
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute(): %v", err)
-	}
-	if strings.Contains(out.String(), secret) {
-		t.Fatal("report subcommand output leaks the embedded credential")
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
-		t.Fatalf("unmarshal rendered json: %v; out=%s", err, out.String())
-	}
-	if decoded["indexing_state"] != string(evidenceIndexingComplete) {
-		t.Fatalf("indexing_state = %v, want complete", decoded["indexing_state"])
-	}
-}
-
-// TestFirstRunReportSubcommandRejectsEmptyEnvelope proves a non-envelope input
-// is rejected rather than silently producing an empty report.
-func TestFirstRunReportSubcommandRejectsEmptyEnvelope(t *testing.T) {
-	cmd := newFirstRunReportCmd()
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetIn(strings.NewReader(`{"truth":{}}`))
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("Execute() error = nil, want missing data block error")
+	if _, err := NormalizeEvidenceFormat("yaml"); err == nil {
+		t.Fatal("NormalizeEvidenceFormat(yaml) error = nil, want unsupported error")
 	}
 }
 
@@ -333,12 +280,12 @@ func TestWriteEvidenceArtifactRedactsOnDisk(t *testing.T) {
 	const secret = "disksecrettoken1234567890"
 	r := successEvidenceResult()
 	r.ServiceURL = "https://user:" + secret + "@hosted.example.com/api"
-	report := buildFirstRunEvidence(r, nil)
+	report := BuildEvidence(r, nil)
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "evidence.md")
-	if err := writeEvidenceArtifact(report, "md", path); err != nil {
-		t.Fatalf("writeEvidenceArtifact: %v", err)
+	if err := WriteEvidenceArtifact(report, "md", path); err != nil {
+		t.Fatalf("WriteEvidenceArtifact: %v", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -353,36 +300,6 @@ func TestWriteEvidenceArtifactRedactsOnDisk(t *testing.T) {
 	}
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Fatalf("artifact perm = %o, want 600", perm)
-	}
-}
-
-// TestFirstRunReportSubcommandRegistered proves the report subcommand is wired
-// under first-run with its flags.
-func TestFirstRunReportSubcommandRegistered(t *testing.T) {
-	cmd, _, err := rootCmd.Find([]string{"first-run", "report"})
-	if err != nil {
-		t.Fatalf("rootCmd.Find(first-run report) error = %v", err)
-	}
-	if cmd == nil || cmd.Name() != "report" {
-		t.Fatalf("command = %#v, want report", cmd)
-	}
-	for _, name := range []string{"from", "format", "out"} {
-		if cmd.Flags().Lookup(name) == nil {
-			t.Fatalf("report flag %q missing", name)
-		}
-	}
-}
-
-// TestFirstRunReportFlagsRegistered proves the evidence flags exist on first-run.
-func TestFirstRunReportFlagsRegistered(t *testing.T) {
-	cmd, _, err := rootCmd.Find([]string{"first-run"})
-	if err != nil {
-		t.Fatalf("rootCmd.Find(first-run) error = %v", err)
-	}
-	for _, name := range []string{"report", "report-format", "report-out"} {
-		if cmd.Flags().Lookup(name) == nil {
-			t.Fatalf("first-run flag %q missing", name)
-		}
 	}
 }
 

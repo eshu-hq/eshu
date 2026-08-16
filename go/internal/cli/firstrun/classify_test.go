@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ const rootCauseSentinel = "ROOT-CAUSE-EVIDENCE-7f3a"
 // assertDiagnostic checks the shared invariants every classified diagnostic
 // must satisfy: the expected class, a stable summary fragment, a non-empty
 // recovery step, a docs link, and the preserved root-cause evidence.
-func assertDiagnostic(t *testing.T, got onboardingDiagnostic, ok bool, wantClass onboardingFailureClass, summaryFragment string) {
+func assertDiagnostic(t *testing.T, got Diagnostic, ok bool, wantClass FailureClass, summaryFragment string) {
 	t.Helper()
 	if !ok {
 		t.Fatalf("classifyOnboardingFailure() ok = false, want a %s diagnostic", wantClass)
@@ -45,43 +46,58 @@ func rootCauseErr() error {
 	return errors.New(rootCauseSentinel + ": transport dial tcp 127.0.0.1:8080: connection refused")
 }
 
+// fakeHTTPStatusError stands in for go/cmd/eshu's transport error, which is
+// package main and unimportable here. It satisfies apierr.HTTPStatusError, the
+// same contract isAuthError reads the production error through.
+type fakeHTTPStatusError struct {
+	status int
+	body   string
+}
+
+func (e *fakeHTTPStatusError) Error() string {
+	return fmt.Sprintf("API error %d: %s", e.status, e.body)
+}
+
+// HTTPStatusCode reports the carried HTTP status, matching apierr.HTTPStatusError.
+func (e *fakeHTTPStatusError) HTTPStatusCode() int { return e.status }
+
 // TestClassifyDockerCannotSeeRepoPaths covers the Docker-path-visibility class.
 func TestClassifyDockerCannotSeeRepoPaths(t *testing.T) {
 	signal := onboardingSignal{
 		Step:           onboardingStepIndex,
-		Shape:          firstRunShapeDockerCompose,
+		Shape:          ShapeDockerCompose,
 		Underlying:     errors.New(rootCauseSentinel + ": bootstrap mount /repos not visible inside container"),
 		RepoPathDenied: true,
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassDockerRepoPaths, "Docker cannot see")
+	assertDiagnostic(t, got, ok, ClassDockerRepoPaths, "Docker cannot see")
 }
 
 // TestClassifyComposeServicesUnhealthy covers compose-not-running / unhealthy.
 func TestClassifyComposeServicesUnhealthy(t *testing.T) {
 	signal := onboardingSignal{
 		Step:            onboardingStepVerify,
-		Shape:           firstRunShapeDockerCompose,
+		Shape:           ShapeDockerCompose,
 		Underlying:      rootCauseErr(),
 		RuntimeDetail:   "API not reachable",
 		RuntimeFailed:   true,
 		ComposeDetected: true,
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassComposeUnhealthy, "Compose services")
+	assertDiagnostic(t, got, ok, ClassComposeUnhealthy, "Compose services")
 }
 
 // TestClassifyBinariesMissing covers the missing-helper-binary class.
 func TestClassifyBinariesMissing(t *testing.T) {
 	signal := onboardingSignal{
 		Step:            onboardingStepVerify,
-		Shape:           firstRunShapeUnknown,
+		Shape:           ShapeUnknown,
 		Underlying:      errors.New(rootCauseSentinel + ": eshu-api not found in PATH"),
 		RuntimeFailed:   true,
 		MissingBinaries: []string{"eshu-api", "eshu-bootstrap-index"},
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassBinariesMissing, "helper binaries")
+	assertDiagnostic(t, got, ok, ClassBinariesMissing, "helper binaries")
 	if !strings.Contains(got.Summary, "eshu-api") {
 		t.Fatalf("Summary = %q, want missing binary name", got.Summary)
 	}
@@ -92,11 +108,11 @@ func TestClassifyAuthMismatch(t *testing.T) {
 	for _, code := range []int{401, 403} {
 		signal := onboardingSignal{
 			Step:       onboardingStepQuery,
-			Shape:      firstRunShapeExistingAPI,
-			Underlying: &apiHTTPError{StatusCode: code, Body: rootCauseSentinel + ": unauthorized"},
+			Shape:      ShapeExistingAPI,
+			Underlying: &fakeHTTPStatusError{status: code, body: rootCauseSentinel + ": unauthorized"},
 		}
 		got, ok := classifyOnboardingFailure(signal)
-		assertDiagnostic(t, got, ok, onboardingClassAuthMismatch, "auth")
+		assertDiagnostic(t, got, ok, ClassAuthMismatch, "auth")
 	}
 }
 
@@ -104,38 +120,38 @@ func TestClassifyAuthMismatch(t *testing.T) {
 func TestClassifyMCPEndpointPointsAtAPI(t *testing.T) {
 	signal := onboardingSignal{
 		Step:        onboardingStepVerify,
-		Shape:       firstRunShapeExistingAPI,
+		Shape:       ShapeExistingAPI,
 		Underlying:  errors.New(rootCauseSentinel + ": mcp client got 404 on /api/v0/repositories"),
 		MCPEndpoint: "http://localhost:8080/api/v0/repositories",
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassMCPEndpointIsAPI, "MCP endpoint")
+	assertDiagnostic(t, got, ok, ClassMCPEndpointIsAPI, "MCP endpoint")
 }
 
 // TestClassifyIndexingNotReady covers health-green-but-indexing-not-done.
 func TestClassifyIndexingNotReady(t *testing.T) {
 	signal := onboardingSignal{
 		Step:       onboardingStepReadiness,
-		Shape:      firstRunShapeExistingAPI,
+		Shape:      ShapeExistingAPI,
 		Underlying: errors.New(rootCauseSentinel + ": scan readiness timed out: queue still has outstanding work"),
 		Readiness:  scan.ReadinessVerdict{Reason: "queue still has outstanding work"},
 		Queue:      scan.Queue{Outstanding: 12, Pending: 12},
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassIndexingNotReady, "indexing is still")
+	assertDiagnostic(t, got, ok, ClassIndexingNotReady, "indexing is still")
 }
 
 // TestClassifyQueueFailedWork covers failed/retrying/dead-letter queue work.
 func TestClassifyQueueFailedWork(t *testing.T) {
 	signal := onboardingSignal{
 		Step:       onboardingStepReadiness,
-		Shape:      firstRunShapeExistingAPI,
+		Shape:      ShapeExistingAPI,
 		Underlying: errors.New(rootCauseSentinel + ": queue has dead-letter work"),
 		Readiness:  scan.ReadinessVerdict{Terminal: true, Reason: "queue has dead-letter work"},
 		Queue:      scan.Queue{DeadLetter: 3, Failed: 1},
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassQueueFailedWork, "Queue has")
+	assertDiagnostic(t, got, ok, ClassQueueFailedWork, "Queue has")
 	if !strings.Contains(got.Summary, "dead-letter") {
 		t.Fatalf("Summary = %q, want dead-letter detail", got.Summary)
 	}
@@ -185,26 +201,26 @@ func TestRecoveryStepsReferenceRealCommands(t *testing.T) {
 func TestClassifyNoRepositoriesMatch(t *testing.T) {
 	signal := onboardingSignal{
 		Step:          onboardingStepQuery,
-		Shape:         firstRunShapeExistingAPI,
+		Shape:         ShapeExistingAPI,
 		Underlying:    errors.New(rootCauseSentinel + ": no matching repository"),
 		EmptyRepoList: true,
 		Selector:      "my-service",
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassNoRepositories, "No repositories match")
+	assertDiagnostic(t, got, ok, ClassNoRepositories, "No repositories match")
 }
 
 // TestClassifyAssistantToolsNotVisible covers config-exists-but-tools-hidden.
 func TestClassifyAssistantToolsNotVisible(t *testing.T) {
 	signal := onboardingSignal{
 		Step:                  onboardingStepVerify,
-		Shape:                 firstRunShapeExistingAPI,
+		Shape:                 ShapeExistingAPI,
 		Underlying:            errors.New(rootCauseSentinel + ": assistant lists 0 eshu tools"),
 		AssistantConfigured:   true,
 		AssistantToolsVisible: false,
 	}
 	got, ok := classifyOnboardingFailure(signal)
-	assertDiagnostic(t, got, ok, onboardingClassAssistantToolsHidden, "tools are not visible")
+	assertDiagnostic(t, got, ok, ClassAssistantToolsHidden, "tools are not visible")
 }
 
 // TestClassifyUnknownReturnsFalse proves the classifier does not invent a
@@ -212,7 +228,7 @@ func TestClassifyAssistantToolsNotVisible(t *testing.T) {
 func TestClassifyUnknownReturnsFalse(t *testing.T) {
 	signal := onboardingSignal{
 		Step:       onboardingStepQuery,
-		Shape:      firstRunShapeExistingAPI,
+		Shape:      ShapeExistingAPI,
 		Underlying: errors.New("some entirely novel failure"),
 	}
 	if _, ok := classifyOnboardingFailure(signal); ok {
@@ -248,8 +264,8 @@ func TestMCPEndpointLooksLikeAPI(t *testing.T) {
 // TestDiagnosticStringPreservesRootCause proves the rendered form always carries
 // the recovery guidance, the docs link, and the underlying error together.
 func TestDiagnosticStringPreservesRootCause(t *testing.T) {
-	d := onboardingDiagnostic{
-		Class:         onboardingClassAuthMismatch,
+	d := Diagnostic{
+		Class:         ClassAuthMismatch,
 		Summary:       "API auth/token mismatch",
 		RecoverySteps: []string{"export ESHU_API_KEY=..."},
 		DocsLink:      "docs/public/reference/http-api.md",

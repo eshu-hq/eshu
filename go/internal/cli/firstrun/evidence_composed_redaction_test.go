@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,31 +37,30 @@ const (
 //
 // It deliberately routes through the production composition functions
 // (firstRunStartHint, firstRunVerifySignal, classifyOnboardingFailure,
-// firstRunNextSteps) rather than hand-building an onboardingDiagnostic, so the
+// firstRunNextSteps) rather than hand-building an Diagnostic, so the
 // test proves the real path and not a fixture that mimics it.
-func composedLeakFixture(t *testing.T) (firstRunResult, string, string) {
+func composedLeakFixture(t *testing.T) (Result, string, string) {
 	t.Helper()
 
 	apiBase := "http://svcuser:" + leakSentinelAPI + "@127.0.0.1:59413"
 	mcpEndpoint := "http://mcpuser:" + leakSentinelMCP + "@127.0.0.1:59413/api/v0?token=" + leakSentinelQuery
 	repoTarget := "/home/" + leakSentinelTarget + "/work/repo"
 
-	// The classifier resolves the MCP endpoint through the real config seam
-	// (the .env file under the app home), so point the app home at a temp dir
-	// and write the endpoint there rather than stubbing the resolver.
-	home := t.TempDir()
-	t.Setenv("ESHU_HOME", home)
-	if err := os.WriteFile(cliconfig.EnvFilePath(), []byte("ESHU_MCP_URL="+mcpEndpoint+"\n"), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
+	// The classifier resolves the MCP endpoint through the Deps seam. The
+	// production wrapper wires it to the .env file under the app home, which
+	// stays in go/cmd/eshu; its own test pins that config read, so this
+	// fixture wires the seam to the raw endpoint and everything downstream --
+	// the start hint, the classifier, the composed summary -- is the real
+	// production path.
+	deps := Deps{ResolveMCPEndpoint: func() string { return mcpEndpoint }}
 
 	detection := firstRunRuntimeDetection{
-		Shape:       firstRunShapeDockerCompose,
+		Shape:       ShapeDockerCompose,
 		ComposeFile: "docker-compose.yaml",
 		Detail:      "compose stack detected",
 	}
 
-	result := newFirstRunResult(apiBase)
+	result := NewResult(apiBase)
 	result.RuntimeShape = detection.Shape
 	result.RepoTarget = repoTarget
 	result.RepoIndexed = "failed"
@@ -73,18 +70,18 @@ func composedLeakFixture(t *testing.T) (firstRunResult, string, string) {
 	// detail, the step detail becomes the verify error, and the verify error is
 	// preserved as the diagnosis root cause.
 	hint := firstRunStartHint(detection, apiBase, false, "docker compose up -d")
-	result = result.addStep("verify runtime", firstRunStepFailed, hint)
+	result = result.addStep("verify runtime", StepFailed, hint)
 	verifyErr := fmt.Errorf("verify runtime: %s", hint)
-	result = attachFirstRunDiagnostic(result, firstRunVerifySignal(firstRunDeps{}, detection, apiBase, verifyErr))
+	result = attachFirstRunDiagnostic(result, firstRunVerifySignal(deps, detection, apiBase, verifyErr))
 	result.NextSteps = firstRunNextSteps(result, detection)
-	result.Truth = firstRunTruth(result, "")
+	result.Truth = Truth(result, "")
 
 	if result.Diagnostic == nil {
 		t.Fatal("fixture did not attach a diagnostic; the classifier path changed")
 	}
-	if result.Diagnostic.Class != onboardingClassMCPEndpointIsAPI {
+	if result.Diagnostic.Class != ClassMCPEndpointIsAPI {
 		t.Fatalf("diagnostic class = %q, want %q; the fixture no longer exercises the composed summary",
-			result.Diagnostic.Class, onboardingClassMCPEndpointIsAPI)
+			result.Diagnostic.Class, ClassMCPEndpointIsAPI)
 	}
 	return result, mcpEndpoint, repoTarget
 }
@@ -212,7 +209,7 @@ func TestScrubEvidenceTextStillSubstitutesRealTargets(t *testing.T) {
 // artifact leaks.
 func TestEvidenceRedactsComposedStrings(t *testing.T) {
 	result, mcpEndpoint, _ := composedLeakFixture(t)
-	report := buildFirstRunEvidence(result, &firstRunEvidenceInputs{MCPEndpoint: mcpEndpoint})
+	report := BuildEvidence(result, &EvidenceInputs{MCPEndpoint: mcpEndpoint})
 
 	md, err := renderEvidenceMarkdown(report)
 	if err != nil {
@@ -227,7 +224,7 @@ func TestEvidenceRedactsComposedStrings(t *testing.T) {
 	assertNoSentinels(t, "json artifact", string(jsonBytes))
 
 	var term strings.Builder
-	renderEvidenceTerminal(&term, report)
+	RenderEvidenceTerminal(&term, report)
 	assertNoSentinels(t, "terminal summary", term.String())
 }
 
@@ -241,9 +238,9 @@ func TestEvidenceRedactsComposedNextCommandTarget(t *testing.T) {
 
 	result := successEvidenceResult()
 	result.RepoTarget = repoTarget
-	result.NextSteps = firstRunNextSteps(result, firstRunRuntimeDetection{Shape: firstRunShapeExistingAPI})
+	result.NextSteps = firstRunNextSteps(result, firstRunRuntimeDetection{Shape: ShapeExistingAPI})
 
-	report := buildFirstRunEvidence(result, nil)
+	report := BuildEvidence(result, nil)
 	if report.SelectedTarget == repoTarget {
 		t.Fatal("SelectedTarget was not redacted; the fixture no longer isolates the composed path")
 	}
@@ -261,7 +258,7 @@ func TestEvidenceRedactsComposedNextCommandTarget(t *testing.T) {
 	assertNoSentinels(t, "json next commands", string(jsonBytes))
 
 	var term strings.Builder
-	renderEvidenceTerminal(&term, report)
+	RenderEvidenceTerminal(&term, report)
 	assertNoSentinels(t, "terminal next commands", term.String())
 }
 
@@ -278,9 +275,9 @@ func TestEvidenceRedactsShortAbsoluteRepoTarget(t *testing.T) {
 
 	result := successEvidenceResult()
 	result.RepoTarget = shortTarget
-	result.NextSteps = firstRunNextSteps(result, firstRunRuntimeDetection{Shape: firstRunShapeExistingAPI})
+	result.NextSteps = firstRunNextSteps(result, firstRunRuntimeDetection{Shape: ShapeExistingAPI})
 
-	report := buildFirstRunEvidence(result, nil)
+	report := BuildEvidence(result, nil)
 	if report.SelectedTarget != ".../bob" {
 		t.Fatalf("SelectedTarget = %q, want %q; the fixture no longer isolates the composed path",
 			report.SelectedTarget, ".../bob")
@@ -304,12 +301,9 @@ func TestEvidenceRedactsShortAbsoluteRepoTarget(t *testing.T) {
 
 // TestEvidenceScrubsNestedTruthValues proves the truth metadata is scrubbed at
 // every depth. The scrub read only top-level strings, so a credential one level
-// down, or inside an array, went into the artifact verbatim.
-//
-// It is reachable, not hypothetical: `eshu first-run report` decodes an
-// operator-supplied envelope into map[string]any, so whatever nesting that JSON
-// carries is what the scrub walks. The test drives that command rather than
-// calling the helper, so it proves the path an operator actually takes.
+// down, or inside an array, went into the artifact verbatim. The companion in
+// go/cmd/eshu's first_run_evidence_cmd_test.go drives the same nesting through
+// the real `first-run report` command, since that cobra path lives there.
 func TestEvidenceScrubsNestedTruthValues(t *testing.T) {
 	const (
 		nestedSentinel = "LEAKSENTINEL-5"
@@ -328,27 +322,16 @@ func TestEvidenceScrubsNestedTruthValues(t *testing.T) {
 		"probes": []any{map[string]any{"target": endpoint(deepSentinel)}},
 	}
 
-	raw, err := json.Marshal(map[string]any{"data": result, "truth": result.Truth, "error": nil})
-	if err != nil {
-		t.Fatalf("marshal envelope: %v", err)
-	}
-
+	report := BuildEvidence(result, nil)
 	sentinels := []string{nestedSentinel, arraySentinel, deepSentinel}
-	for _, format := range []string{evidenceFormatMarkdown, evidenceFormatJSON} {
-		cmd := newFirstRunReportCmd()
-		out := &bytes.Buffer{}
-		cmd.SetOut(out)
-		cmd.SetErr(&bytes.Buffer{})
-		cmd.SetIn(bytes.NewReader(raw))
-		if err := cmd.Flags().Set("format", format); err != nil {
-			t.Fatalf("Set(format=%s): %v", format, err)
-		}
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("Execute(format=%s): %v", format, err)
+	for _, format := range []string{EvidenceFormatMarkdown, EvidenceFormatJSON} {
+		data, err := RenderEvidenceArtifact(report, format)
+		if err != nil {
+			t.Fatalf("RenderEvidenceArtifact(%s): %v", format, err)
 		}
 		for _, sentinel := range sentinels {
-			if strings.Contains(out.String(), sentinel) {
-				t.Errorf("first-run report re-emit (%s) leaks %s from nested truth metadata", format, sentinel)
+			if strings.Contains(string(data), sentinel) {
+				t.Errorf("evidence artifact (%s) leaks %s from nested truth metadata", format, sentinel)
 			}
 		}
 	}
@@ -358,50 +341,18 @@ func TestEvidenceScrubsNestedTruthValues(t *testing.T) {
 // operator hands to support carries no credential in its composed strings.
 func TestEvidenceArtifactOnDiskRedactsComposedStrings(t *testing.T) {
 	result, mcpEndpoint, _ := composedLeakFixture(t)
-	report := buildFirstRunEvidence(result, &firstRunEvidenceInputs{MCPEndpoint: mcpEndpoint})
+	report := BuildEvidence(result, &EvidenceInputs{MCPEndpoint: mcpEndpoint})
 
-	for _, format := range []string{evidenceFormatMarkdown, evidenceFormatJSON} {
+	for _, format := range []string{EvidenceFormatMarkdown, EvidenceFormatJSON} {
 		path := filepath.Join(t.TempDir(), "evidence."+format)
-		if err := writeEvidenceArtifact(report, format, path); err != nil {
-			t.Fatalf("writeEvidenceArtifact(%s): %v", format, err)
+		if err := WriteEvidenceArtifact(report, format, path); err != nil {
+			t.Fatalf("WriteEvidenceArtifact(%s): %v", format, err)
 		}
 		data, err := os.ReadFile(path) // #nosec G304 -- test-controlled temp path
 		if err != nil {
 			t.Fatalf("read artifact(%s): %v", format, err)
 		}
 		assertNoSentinels(t, "on-disk "+format+" artifact", string(data))
-	}
-}
-
-// TestFirstRunReportReEmitRedactsComposedStrings proves the latent case: a saved
-// `eshu first-run --json` envelope re-rendered later by `eshu first-run report`
-// must not reconstitute a credential from the composed strings it stored. This
-// is the worst-reachability surface because the credential sits in an artifact
-// on disk and is re-emitted on demand, long after the failing run.
-func TestFirstRunReportReEmitRedactsComposedStrings(t *testing.T) {
-	result, _, _ := composedLeakFixture(t)
-	raw, err := json.Marshal(map[string]any{
-		"data":  result,
-		"truth": result.Truth,
-		"error": nil,
-	})
-	if err != nil {
-		t.Fatalf("marshal envelope: %v", err)
-	}
-
-	for _, format := range []string{evidenceFormatMarkdown, evidenceFormatJSON} {
-		cmd := newFirstRunReportCmd()
-		out := &bytes.Buffer{}
-		cmd.SetOut(out)
-		cmd.SetErr(&bytes.Buffer{})
-		cmd.SetIn(bytes.NewReader(raw))
-		if err := cmd.Flags().Set("format", format); err != nil {
-			t.Fatalf("Set(format=%s): %v", format, err)
-		}
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("Execute(format=%s): %v", format, err)
-		}
-		assertNoSentinels(t, "first-run report re-emit ("+format+")", out.String())
 	}
 }
 

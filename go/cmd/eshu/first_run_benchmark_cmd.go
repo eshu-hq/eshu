@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
@@ -89,14 +90,14 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 }
 
 // firstRunEnvelope is the canonical `{data, truth, error}` envelope emitted by
-// `eshu first-run --json`, typed against the package-main firstRunResult so
-// the first-run-evidence family can lift envelope.Data into a full result
+// `eshu first-run --json`, typed against firstrun.Result so the
+// first-run-evidence family can lift envelope.Data into a full result
 // (including truth restoration and the diagnosis block). The benchmark itself
 // scores the mirror in internal/cli/firstrunbench; the wire-parity test in
 // first_run_benchmark_cmd_test.go pins the two shapes together.
 type firstRunEnvelope struct {
 	// Data is the machine-readable first-run result.
-	Data firstRunResult `json:"data"`
+	Data firstrun.Result `json:"data"`
 	// Truth carries the freshness/completeness/backend labels for the answer.
 	Truth map[string]any `json:"truth"`
 	// Error is non-nil when the run failed.

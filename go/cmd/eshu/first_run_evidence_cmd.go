@@ -10,59 +10,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
 // evidenceEnvelopeMaxBytes bounds how much of a saved envelope the report
 // subcommand reads, so a malformed or hostile stream cannot exhaust memory.
 const evidenceEnvelopeMaxBytes = 8 << 20 // 8 MiB
-
-// evidenceFormatMarkdown and evidenceFormatJSON are the accepted artifact
-// formats for the evidence report.
-const (
-	evidenceFormatMarkdown = "md"
-	evidenceFormatJSON     = "json"
-)
-
-// normalizeEvidenceFormat validates and canonicalizes an artifact format flag.
-// It accepts "md"/"markdown" and "json" case-insensitively and returns an error
-// listing the supported values otherwise.
-func normalizeEvidenceFormat(raw string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", evidenceFormatMarkdown, "markdown":
-		return evidenceFormatMarkdown, nil
-	case evidenceFormatJSON:
-		return evidenceFormatJSON, nil
-	default:
-		return "", fmt.Errorf("unsupported report format %q: supported formats are md, json", raw)
-	}
-}
-
-// renderEvidenceArtifact renders the report in the requested format and returns
-// the bytes. The report is already redacted, so the bytes are safe to persist.
-func renderEvidenceArtifact(report firstRunEvidenceReport, format string) ([]byte, error) {
-	normalized, err := normalizeEvidenceFormat(format)
-	if err != nil {
-		return nil, err
-	}
-	if normalized == evidenceFormatJSON {
-		return renderEvidenceJSON(report)
-	}
-	markdown, err := renderEvidenceMarkdown(report)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(markdown), nil
-}
-
-// writeEvidenceArtifact writes the rendered artifact to path with owner-only
-// permissions, since a support packet may still contain endpoint hostnames.
-func writeEvidenceArtifact(report firstRunEvidenceReport, format, path string) error {
-	data, err := renderEvidenceArtifact(report, format)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o600)
-}
 
 // newFirstRunReportCmd builds the `eshu first-run report` subcommand. It renders
 // a redacted evidence artifact from a saved `eshu first-run --json` envelope so
@@ -105,15 +59,15 @@ func runFirstRunReport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	report := buildFirstRunEvidence(result, nil)
+	report := firstrun.BuildEvidence(result, nil)
 	if out != "" {
-		if err := writeEvidenceArtifact(report, format, out); err != nil {
+		if err := firstrun.WriteEvidenceArtifact(report, format, out); err != nil {
 			return err
 		}
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote first-run evidence to %s\n", out)
 		return nil
 	}
-	data, err := renderEvidenceArtifact(report, format)
+	data, err := firstrun.RenderEvidenceArtifact(report, format)
 	if err != nil {
 		return err
 	}
@@ -143,13 +97,13 @@ func readEvidenceEnvelope(cmd *cobra.Command, path string) ([]byte, error) {
 // it. It reuses the canonical firstRunEnvelope shape so the evidence report and
 // the onboarding benchmark consume the same persisted contract. The envelope
 // must be the object emitted by 'eshu first-run --json'.
-func firstRunResultFromEnvelope(raw []byte) (firstRunResult, error) {
+func firstRunResultFromEnvelope(raw []byte) (firstrun.Result, error) {
 	envelope, err := parseFirstRunEnvelope(raw)
 	if err != nil {
-		return firstRunResult{}, err
+		return firstrun.Result{}, err
 	}
 	if strings.TrimSpace(envelope.Data.Command) == "" {
-		return firstRunResult{}, fmt.Errorf("first-run envelope is missing its data block")
+		return firstrun.Result{}, fmt.Errorf("first-run envelope is missing its data block")
 	}
 	result := envelope.Data
 	if result.Truth == nil {

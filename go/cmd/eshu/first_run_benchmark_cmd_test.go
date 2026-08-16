@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
@@ -124,21 +125,21 @@ func TestFirstRunEnvelopeMatchesBenchmarkMirror(t *testing.T) {
 	t.Parallel()
 
 	canonical := firstRunEnvelope{
-		Data: firstRunResult{
+		Data: firstrun.Result{
 			Command:       "first-run",
-			RuntimeShape:  firstRunShapeDockerCompose,
+			RuntimeShape:  firstrun.ShapeDockerCompose,
 			ServiceURL:    "http://localhost:8080",
 			RepoIndexed:   "complete",
 			RepoTarget:    "/ws/demo",
 			Readiness:     "indexing complete",
 			QueryAnswered: true,
 			QuerySummary:  "repositories query returned 1 (e.g. demo)",
-			Steps: []firstRunStep{
-				{Name: "first query", Status: firstRunStepFailed, Detail: "query timed out"},
+			Steps: []firstrun.Step{
+				{Name: "first query", Status: firstrun.StepFailed, Detail: "query timed out"},
 			},
 			NextSteps: []string{"Re-run: eshu first-run"},
-			Diagnostic: &onboardingDiagnostic{
-				Class:         onboardingFailureClass("api_unreachable"),
+			Diagnostic: &firstrun.Diagnostic{
+				Class:         firstrun.FailureClass("api_unreachable"),
 				Summary:       "no reachable API",
 				RecoverySteps: []string{"start the API"},
 				DocsLink:      "docs/public/run-locally/docker-compose.md",
@@ -161,7 +162,7 @@ func TestFirstRunEnvelopeMatchesBenchmarkMirror(t *testing.T) {
 	want := firstrunbench.Envelope{
 		Data: firstrunbench.Result{
 			Command:       "first-run",
-			RuntimeShape:  string(firstRunShapeDockerCompose),
+			RuntimeShape:  string(firstrun.ShapeDockerCompose),
 			ServiceURL:    "http://localhost:8080",
 			RepoIndexed:   "complete",
 			RepoTarget:    "/ws/demo",
@@ -212,8 +213,8 @@ func TestFirstRunEnvelopeFieldSetsMatchBenchmarkMirror(t *testing.T) {
 		mirror    any
 	}{
 		{"envelope", firstRunEnvelope{}, firstrunbench.Envelope{}},
-		{"result", firstRunResult{}, firstrunbench.Result{}},
-		{"step", firstRunStep{}, firstrunbench.Step{}},
+		{"result", firstrun.Result{}, firstrunbench.Result{}},
+		{"step", firstrun.Step{}, firstrunbench.Step{}},
 	}
 	for _, pair := range pairs {
 		got := jsonFieldKinds(t, pair.mirror)
@@ -241,9 +242,9 @@ func TestFirstRunEnvelopeEmittedKeysMatchBenchmarkMirror(t *testing.T) {
 		mirror    any
 	}{
 		{"envelope", firstRunEnvelope{}, firstrunbench.Envelope{}},
-		{"result", firstRunResult{}, firstrunbench.Result{}},
-		{"step", firstRunStep{}, firstrunbench.Step{}},
-		{"diagnostic", onboardingDiagnostic{}, firstrunbench.Diagnostic{}},
+		{"result", firstrun.Result{}, firstrunbench.Result{}},
+		{"step", firstrun.Step{}, firstrunbench.Step{}},
+		{"diagnostic", firstrun.Diagnostic{}, firstrunbench.Diagnostic{}},
 	}
 	for _, pair := range pairs {
 		got := marshaledKeys(t, pair.mirror)
@@ -277,7 +278,7 @@ func marshaledKeys(t *testing.T, v any) []string {
 
 // jsonFieldKinds maps each wire-visible JSON tag of v's struct type to the
 // field's reflect.Kind. Fields tagged `json:"-"` are not on the wire and are
-// excluded on purpose (firstRunResult.Truth, onboardingDiagnostic.Underlying).
+// excluded on purpose (firstrun.Result.Truth, firstrun.Diagnostic.Underlying).
 func jsonFieldKinds(t *testing.T, v any) map[string]reflect.Kind {
 	t.Helper()
 	fields := map[string]reflect.Kind{}

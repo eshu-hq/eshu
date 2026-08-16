@@ -5,331 +5,24 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
-	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/scan"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
-// fakeFirstRunProbe builds a runtime probe with explicit, deterministic seams.
-func fakeFirstRunProbe(apiHealthy bool, binaries map[string]bool, files map[string]bool) firstRunRuntimeProbe {
-	return firstRunRuntimeProbe{
-		APIHealthy: func(string) bool { return apiHealthy },
-		LookPath: func(file string) (string, error) {
-			if binaries[file] {
-				return "/bin/" + file, nil
-			}
-			return "", errors.New("not found")
-		},
-		FileExists: func(path string) bool { return files[path] },
-	}
-}
-
-func baseFirstRunOptions() firstRunOptions {
-	return firstRunOptions{
+func baseFirstRunOptions() firstrun.Options {
+	return firstrun.Options{
 		Path:         ".",
 		Timeout:      time.Minute,
 		PollInterval: time.Millisecond,
-	}
-}
-
-func newFirstRunClient() *APIClient {
-	return &APIClient{BaseURL: "http://localhost:8080"}
-}
-
-// TestDetectFirstRunRuntimePrefersReachableAPI proves an already-reachable API
-// is the chosen shape even when binaries and compose files are also present.
-func TestDetectFirstRunRuntimePrefersReachableAPI(t *testing.T) {
-	probe := fakeFirstRunProbe(
-		true,
-		map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true},
-		map[string]bool{"/ws/docker-compose.yaml": true},
-	)
-	detection := detectFirstRunRuntime(probe, "http://localhost:8080", "/ws")
-	if detection.Shape != firstRunShapeExistingAPI {
-		t.Fatalf("shape = %q, want existing_api", detection.Shape)
-	}
-	if !detection.APIReachable {
-		t.Fatal("APIReachable = false, want true")
-	}
-}
-
-// TestDetectFirstRunRuntimeFallsBackToLocalBinaries proves local binaries are
-// chosen when the API is down but binaries are on PATH.
-func TestDetectFirstRunRuntimeFallsBackToLocalBinaries(t *testing.T) {
-	probe := fakeFirstRunProbe(
-		false,
-		map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true},
-		map[string]bool{},
-	)
-	detection := detectFirstRunRuntime(probe, "http://localhost:8080", "/ws")
-	if detection.Shape != firstRunShapeLocalBinaries {
-		t.Fatalf("shape = %q, want local_binaries", detection.Shape)
-	}
-}
-
-// TestDetectFirstRunRuntimeFallsBackToCompose proves a compose file is chosen
-// when the API is down and binaries are missing.
-func TestDetectFirstRunRuntimeFallsBackToCompose(t *testing.T) {
-	probe := fakeFirstRunProbe(
-		false,
-		map[string]bool{},
-		map[string]bool{"/ws/docker-compose.yaml": true},
-	)
-	detection := detectFirstRunRuntime(probe, "http://localhost:8080", "/ws")
-	if detection.Shape != firstRunShapeDockerCompose {
-		t.Fatalf("shape = %q, want docker_compose", detection.Shape)
-	}
-	if detection.ComposeFile != "/ws/docker-compose.yaml" {
-		t.Fatalf("ComposeFile = %q, want /ws/docker-compose.yaml", detection.ComposeFile)
-	}
-}
-
-// TestDetectFirstRunRuntimeUnknownWhenNothingAvailable proves the unknown shape
-// when API is down, binaries are missing, and no compose file exists. This is
-// the Compose/API unavailable + missing binaries acceptance case.
-func TestDetectFirstRunRuntimeUnknownWhenNothingAvailable(t *testing.T) {
-	probe := fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{})
-	detection := detectFirstRunRuntime(probe, "http://localhost:8080", "/ws")
-	if detection.Shape != firstRunShapeUnknown {
-		t.Fatalf("shape = %q, want unknown", detection.Shape)
-	}
-}
-
-// TestExecuteFirstRunFailsWhenRuntimeUnavailable proves first-run does not claim
-// success and emits next steps when no runtime is available.
-func TestExecuteFirstRunFailsWhenRuntimeUnavailable(t *testing.T) {
-	deps := firstRunDeps{
-		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{}),
-		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
-		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want runtime failure")
-	}
-	if result.succeeded() {
-		t.Fatal("result.succeeded() = true, want false")
-	}
-	if len(result.NextSteps) == 0 {
-		t.Fatal("NextSteps empty, want actionable steps")
-	}
-}
-
-// TestExecuteFirstRunMissingBinariesWithComposeDownFails proves the missing
-// binaries + compose unreachable path stays truthful.
-func TestExecuteFirstRunMissingBinariesWithComposeDownFails(t *testing.T) {
-	deps := firstRunDeps{
-		Probe:         fakeFirstRunProbe(false, map[string]bool{}, map[string]bool{"/ws/docker-compose.yaml": true}),
-		FetchStatus:   func(scan.Client) (scan.PipelineStatus, error) { return scan.PipelineStatus{}, nil },
-		ListRepos:     func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want compose-down failure")
-	}
-	if result.RuntimeShape != firstRunShapeDockerCompose {
-		t.Fatalf("RuntimeShape = %q, want docker_compose", result.RuntimeShape)
-	}
-	if !strings.Contains(err.Error(), "docker compose up") {
-		t.Fatalf("error = %q, want compose start hint", err.Error())
-	}
-}
-
-// TestExecuteFirstRunReusesExistingIndexedRepo proves the existing-API path can
-// reuse an already-indexed, drained repository and answer the first query.
-func TestExecuteFirstRunReusesExistingIndexedRepo(t *testing.T) {
-	deps := firstRunDeps{
-		Probe: fakeFirstRunProbe(true, map[string]bool{}, map[string]bool{}),
-		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
-			return scan.PipelineStatus{
-				Health:            scan.Health{State: "healthy"},
-				GenerationHistory: scan.GenerationHistory{Completed: 1},
-			}, nil
-		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			return repositoryListResponse{Repositories: []repositorySelectorEntry{{ID: "r1", Name: "demo", LocalPath: "/ws"}}}, nil
-		},
-		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
-			t.Fatal("RunScan should not be called when a complete index already exists")
-			return scan.Result{}, nil
-		},
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err != nil {
-		t.Fatalf("executeFirstRun() error = %v, want nil", err)
-	}
-	if !result.succeeded() {
-		t.Fatal("result.succeeded() = false, want true")
-	}
-	if result.RepoIndexed != "complete" {
-		t.Fatalf("RepoIndexed = %q, want complete", result.RepoIndexed)
-	}
-}
-
-// TestExecuteFirstRunRunsScanThenQuery proves the local path runs a scan and
-// then a bounded query, reporting success only after the query returns.
-func TestExecuteFirstRunRunsScanThenQuery(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
-	var scanCalled bool
-	deps := firstRunDeps{
-		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
-			// No repositories yet, so detection returns no existing index.
-			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
-		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			if !scanCalled {
-				return repositoryListResponse{}, nil
-			}
-			return repositoryListResponse{Repositories: []repositorySelectorEntry{{ID: "r1", Name: "demo"}}}, nil
-		},
-		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
-			scanCalled = true
-			return scan.Result{Status: "ready"}, nil
-		},
-		ReposDir:      fakeReposDir,
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err != nil {
-		t.Fatalf("executeFirstRun() error = %v, want nil", err)
-	}
-	if !scanCalled {
-		t.Fatal("RunScan was not called")
-	}
-	if !result.succeeded() {
-		t.Fatal("result.succeeded() = false, want true")
-	}
-	if !strings.Contains(result.QuerySummary, "returned 1") {
-		t.Fatalf("QuerySummary = %q, want 1 repository", result.QuerySummary)
-	}
-}
-
-// TestExecuteFirstRunSurfacesDeadLetterFailure proves dead-letter work during
-// indexing fails the run with the root-cause detail preserved.
-func TestExecuteFirstRunSurfacesDeadLetterFailure(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
-	deps := firstRunDeps{
-		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
-			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
-		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			return repositoryListResponse{}, nil
-		},
-		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
-			return scan.Result{
-					Status:       "failed",
-					StatusReport: scan.PipelineStatus{Queue: scan.Queue{DeadLetter: 2}, Health: scan.Health{State: "degraded"}},
-				},
-				errors.New("scan readiness timed out: queue has dead-letter work")
-		},
-		ReposDir:      fakeReposDir,
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want dead-letter failure")
-	}
-	if !strings.Contains(err.Error(), "dead-letter") {
-		t.Fatalf("error = %q, want dead-letter detail", err.Error())
-	}
-	if result.succeeded() {
-		t.Fatal("result.succeeded() = true, want false on dead-letter")
-	}
-	if result.RepoIndexed != "failed" {
-		t.Fatalf("RepoIndexed = %q, want failed", result.RepoIndexed)
-	}
-}
-
-// TestExecuteFirstRunPartialReadinessIsNotSuccess proves a partial scan result
-// without a returning query does not report success.
-func TestExecuteFirstRunPartialReadinessIsNotSuccess(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
-	deps := firstRunDeps{
-		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
-			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
-		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
-		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
-			return scan.Result{Status: "partial", StatusReport: scan.PipelineStatus{Health: scan.Health{State: "degraded"}}},
-				errors.New("scan readiness timed out: queue still has outstanding work")
-		},
-		ReposDir:      fakeReposDir,
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want partial-readiness failure")
-	}
-	if result.succeeded() {
-		t.Fatal("result.succeeded() = true, want false on partial readiness")
-	}
-	if result.RepoIndexed != "partial" {
-		t.Fatalf("RepoIndexed = %q, want partial", result.RepoIndexed)
-	}
-}
-
-// TestExecuteFirstRunQueryFailureIsNotSuccess proves a failing bounded query is
-// not reported as success even after a clean index.
-func TestExecuteFirstRunQueryFailureIsNotSuccess(t *testing.T) {
-	t.Setenv("ESHU_HOME", t.TempDir())
-	var calls int
-	deps := firstRunDeps{
-		Probe: fakeFirstRunProbe(true, map[string]bool{"eshu-bootstrap-index": true, "eshu-api": true}, map[string]bool{}),
-		FetchStatus: func(scan.Client) (scan.PipelineStatus, error) {
-			return scan.PipelineStatus{Health: scan.Health{State: "progressing"}}, nil
-		},
-		ListRepos: func(*APIClient) (repositoryListResponse, error) {
-			calls++
-			// First call is the existing-index probe (empty), final query errors.
-			if calls == 1 {
-				return repositoryListResponse{}, nil
-			}
-			return repositoryListResponse{}, errors.New("connection refused")
-		},
-		RunScan: func(context.Context, io.Writer, io.Writer, scan.Runtime, scan.Options, bool) (scan.Result, error) {
-			return scan.Result{Status: "ready"}, nil
-		},
-		ReposDir:      fakeReposDir,
-		WorkspaceRoot: "/ws",
-	}
-	result, err := executeFirstRun(context.Background(), io.Discard, io.Discard, newFirstRunClient(), deps, baseFirstRunOptions())
-	if err == nil {
-		t.Fatal("executeFirstRun() error = nil, want query failure")
-	}
-	if !strings.Contains(err.Error(), "first query") {
-		t.Fatalf("error = %q, want first query detail", err.Error())
-	}
-	if result.succeeded() {
-		t.Fatal("result.succeeded() = true, want false when query fails")
-	}
-}
-
-// TestRunFirstRunQueryEmptyListIsTruthfulAnswer proves an empty repository list
-// is a valid, returning answer (no repositories found case).
-func TestRunFirstRunQueryEmptyListIsTruthfulAnswer(t *testing.T) {
-	deps := firstRunDeps{
-		ListRepos: func(*APIClient) (repositoryListResponse, error) { return repositoryListResponse{}, nil },
-	}
-	answer, err := runFirstRunQuery(deps, newFirstRunClient())
-	if err != nil {
-		t.Fatalf("runFirstRunQuery() error = %v, want nil", err)
-	}
-	if !strings.Contains(answer, "0 repositories") {
-		t.Fatalf("answer = %q, want 0 repositories", answer)
 	}
 }
 
@@ -344,8 +37,8 @@ func TestFinishFirstRunJSONEnvelope(t *testing.T) {
 	}
 	opts := baseFirstRunOptions()
 	opts.JSON = true
-	result := newFirstRunResult("http://localhost:8080")
-	result.RuntimeShape = firstRunShapeUnknown
+	result := firstrun.NewResult("http://localhost:8080")
+	result.RuntimeShape = firstrun.ShapeUnknown
 	runErr := errors.New("verify runtime: no runtime")
 
 	err := finishFirstRun(cmd, opts, result, runErr)
@@ -384,10 +77,65 @@ func TestFirstRunCommandIsRegistered(t *testing.T) {
 	}
 }
 
-// fakeReposDir is a ReposDir seam that avoids touching the real filesystem
-// layout so orchestration tests stay hermetic.
-func fakeReposDir(root string) (string, error) {
-	return root + "/.cache/repos", nil
+// TestResolveFirstRunMCPEndpointReadsConfigSeam pins the wrapper-owned config
+// read the extracted package receives through Deps.ResolveMCPEndpoint: the
+// endpoint comes from ESHU_MCP_URL in the .env file under the app home, with
+// ESHU_MCP_ENDPOINT as the fallback. The composed-redaction fixture in
+// internal/cli/firstrun stubs this resolver, so this test is what keeps the
+// real config path proven.
+func TestResolveFirstRunMCPEndpointReadsConfigSeam(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(appHomeEnvVar, home)
+	t.Setenv("ESHU_MCP_URL", "")
+	t.Setenv("ESHU_MCP_ENDPOINT", "")
+
+	if got := resolveFirstRunMCPEndpoint(); got != "" {
+		t.Fatalf("resolveFirstRunMCPEndpoint() = %q with no config, want empty", got)
+	}
+
+	if err := os.WriteFile(filepath.Join(home, envFileName), []byte("ESHU_MCP_ENDPOINT=http://fallback:9000/mcp\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if got := resolveFirstRunMCPEndpoint(); got != "http://fallback:9000/mcp" {
+		t.Fatalf("resolveFirstRunMCPEndpoint() = %q, want the ESHU_MCP_ENDPOINT fallback", got)
+	}
+
+	config := "ESHU_MCP_URL=http://primary:8081/mcp/message\nESHU_MCP_ENDPOINT=http://fallback:9000/mcp\n"
+	if err := os.WriteFile(filepath.Join(home, envFileName), []byte(config), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if got := resolveFirstRunMCPEndpoint(); got != "http://primary:8081/mcp/message" {
+		t.Fatalf("resolveFirstRunMCPEndpoint() = %q, want ESHU_MCP_URL to win", got)
+	}
+}
+
+// TestFirstRunSelectorMatchesAdaptsEveryField proves the adapter copies every
+// field the shared selector matcher reads, so a match that keys off any of the
+// five entry fields behaves exactly as it did before the extraction.
+func TestFirstRunSelectorMatchesAdaptsEveryField(t *testing.T) {
+	repo := firstrun.Repository{
+		ID:        "id-1",
+		Name:      "demo",
+		Path:      "/srv/checkouts/demo",
+		LocalPath: "/ws/demo",
+		RepoSlug:  "team/demo",
+	}
+	for _, tc := range []struct {
+		name     string
+		selector string
+		want     bool
+	}{
+		{"matches by name", "demo", true},
+		{"matches by local path", "/ws/demo", true},
+		{"matches by slug", "team/demo", true},
+		{"no match", "unrelated", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := firstRunSelectorMatches(repo, tc.selector); got != tc.want {
+				t.Fatalf("firstRunSelectorMatches(%q) = %v, want %v", tc.selector, got, tc.want)
+			}
+		})
+	}
 }
 
 func newTestFirstRunCommand(t *testing.T) *cobra.Command {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"errors"
@@ -10,44 +10,44 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/evidredact"
 )
 
-// evidenceIndexingState names whether the first-run proved indexing reached a
+// EvidenceIndexingState names whether the first-run proved indexing reached a
 // trustworthy state. It is derived from the readiness verdict and the
 // first-run completeness label, never invented from process health.
-type evidenceIndexingState string
+type EvidenceIndexingState string
 
 const (
-	// evidenceIndexingComplete means indexing drained to a queryable, complete
+	// EvidenceIndexingComplete means indexing drained to a queryable, complete
 	// state proven by the readiness verdict.
-	evidenceIndexingComplete evidenceIndexingState = "complete"
-	// evidenceIndexingPartial means indexing is still building or only partially
+	EvidenceIndexingComplete EvidenceIndexingState = "complete"
+	// EvidenceIndexingPartial means indexing is still building or only partially
 	// drained; a query cannot yet be trusted.
-	evidenceIndexingPartial evidenceIndexingState = "partial"
-	// evidenceIndexingStale means an index exists but its freshness is not
+	EvidenceIndexingPartial EvidenceIndexingState = "partial"
+	// EvidenceIndexingStale means an index exists but its freshness is not
 	// proven current.
-	evidenceIndexingStale evidenceIndexingState = "stale"
-	// evidenceIndexingFailed means indexing did not reach a queryable state, or no
+	EvidenceIndexingStale EvidenceIndexingState = "stale"
+	// EvidenceIndexingFailed means indexing did not reach a queryable state, or no
 	// index was proven at all (verify/runtime failure before indexing).
-	evidenceIndexingFailed evidenceIndexingState = "failed"
+	EvidenceIndexingFailed EvidenceIndexingState = "failed"
 )
 
-// evidenceOutcome is the truthful top-level outcome of the first-run the report
-// describes. It mirrors firstRunResult.succeeded(): only a returned bounded
+// EvidenceOutcome is the truthful top-level outcome of the first-run the report
+// describes. It mirrors Result.succeeded(): only a returned bounded
 // query counts as succeeded.
-type evidenceOutcome string
+type EvidenceOutcome string
 
 const (
-	// evidenceOutcomeSucceeded means the bounded query returned an answer.
-	evidenceOutcomeSucceeded evidenceOutcome = "succeeded"
-	// evidenceOutcomeIncomplete means the first-run did not reach a returned
+	// EvidenceOutcomeSucceeded means the bounded query returned an answer.
+	EvidenceOutcomeSucceeded EvidenceOutcome = "succeeded"
+	// EvidenceOutcomeIncomplete means the first-run did not reach a returned
 	// bounded query.
-	evidenceOutcomeIncomplete evidenceOutcome = "incomplete"
+	EvidenceOutcomeIncomplete EvidenceOutcome = "incomplete"
 )
 
-// firstRunEvidenceInputs carries optional, redaction-sensitive context that the
+// EvidenceInputs carries optional, redaction-sensitive context that the
 // first-run result does not itself record. The MCP endpoint is resolved by the
 // caller (from env/config) so the report can show the configured tool transport
 // without the evidence builder reaching into process state.
-type firstRunEvidenceInputs struct {
+type EvidenceInputs struct {
 	// MCPEndpoint is the configured MCP transport URL, if any. It is redacted
 	// before it ever enters the report model.
 	MCPEndpoint string
@@ -55,24 +55,24 @@ type firstRunEvidenceInputs struct {
 	Profile string
 }
 
-// firstRunEvidenceReport is the compact, human-readable first-run evidence
-// packet. It is a presentation/serialization layer over firstRunResult: it
+// EvidenceReport is the compact, human-readable first-run evidence
+// packet. It is a presentation/serialization layer over Result: it
 // never recomputes readiness or re-runs queries. Every endpoint and free-form
 // field is redacted before it lands here, so the model itself is safe to
 // serialize to disk or paste into a support thread.
-type firstRunEvidenceReport struct {
+type EvidenceReport struct {
 	// Command identifies the artifact producer.
 	Command string `json:"command"`
 	// Outcome is the truthful top-level result.
-	Outcome evidenceOutcome `json:"outcome"`
+	Outcome EvidenceOutcome `json:"outcome"`
 	// RuntimeShape names the runtime topology the run walked.
-	RuntimeShape firstRunRuntimeShape `json:"runtime_shape"`
+	RuntimeShape RuntimeShape `json:"runtime_shape"`
 	// ServiceEndpoint is the redacted API endpoint the run targeted.
 	ServiceEndpoint string `json:"service_endpoint"`
 	// MCPEndpoint is the redacted MCP transport endpoint, when configured.
 	MCPEndpoint string `json:"mcp_endpoint,omitempty"`
 	// IndexingState is the derived complete/partial/stale/failed label.
-	IndexingState evidenceIndexingState `json:"indexing_state"`
+	IndexingState EvidenceIndexingState `json:"indexing_state"`
 	// IndexedRepositories lists the repositories the run observed as indexed.
 	IndexedRepositories []string `json:"indexed_repositories,omitempty"`
 	// SelectedTarget is the redacted first repository target the run chose.
@@ -86,7 +86,7 @@ type firstRunEvidenceReport struct {
 	// Truth is the freshness/completeness truth metadata for the run.
 	Truth map[string]any `json:"truth,omitempty"`
 	// Diagnosis is the classified onboarding failure (or advisory), when present.
-	Diagnosis *onboardingDiagnostic `json:"diagnosis,omitempty"`
+	Diagnosis *Diagnostic `json:"diagnosis,omitempty"`
 	// MissingEvidence lists the proofs the run did not collect.
 	MissingEvidence []string `json:"missing_evidence,omitempty"`
 	// NextCommands lists the recommended follow-up commands.
@@ -100,17 +100,17 @@ type firstRunEvidenceReport struct {
 // self-describing.
 const evidenceDocsLink = "docs/public/reference/first-run-evidence.md"
 
-// buildFirstRunEvidence projects a firstRunResult into the evidence report. It
+// BuildEvidence projects a Result into the evidence report. It
 // is pure presentation: it reads only fields the first-run already computed and
 // redacts every endpoint and target before returning. Inputs may be nil.
-func buildFirstRunEvidence(result firstRunResult, inputs *firstRunEvidenceInputs) firstRunEvidenceReport {
+func BuildEvidence(result Result, inputs *EvidenceInputs) EvidenceReport {
 	if inputs == nil {
-		inputs = &firstRunEvidenceInputs{}
+		inputs = &EvidenceInputs{}
 	}
 	// Every raw value the run knows about, so a composed string that interpolated
 	// one is rewritten to the same redacted form the matching field carries.
 	rawValues := []string{result.ServiceURL, inputs.MCPEndpoint, result.RepoTarget}
-	report := firstRunEvidenceReport{
+	report := EvidenceReport{
 		Command:         "first-run-evidence",
 		Outcome:         evidenceOutcomeFor(result),
 		RuntimeShape:    result.RuntimeShape,
@@ -135,27 +135,27 @@ func buildFirstRunEvidence(result firstRunResult, inputs *firstRunEvidenceInputs
 
 // evidenceOutcomeFor mirrors the run's truthful success: only a returned bounded
 // query is a success.
-func evidenceOutcomeFor(result firstRunResult) evidenceOutcome {
+func evidenceOutcomeFor(result Result) EvidenceOutcome {
 	if result.succeeded() {
-		return evidenceOutcomeSucceeded
+		return EvidenceOutcomeSucceeded
 	}
-	return evidenceOutcomeIncomplete
+	return EvidenceOutcomeIncomplete
 }
 
 // evidenceIndexingStateFor derives the indexing state from the first-run
 // completeness label. It never reports complete unless the run itself proved a
 // complete index, and it collapses unknown/empty into failed so a support packet
 // never overstates indexing truth.
-func evidenceIndexingStateFor(result firstRunResult) evidenceIndexingState {
+func evidenceIndexingStateFor(result Result) EvidenceIndexingState {
 	switch strings.ToLower(strings.TrimSpace(result.RepoIndexed)) {
 	case "complete":
-		return evidenceIndexingComplete
+		return EvidenceIndexingComplete
 	case "partial":
-		return evidenceIndexingPartial
+		return EvidenceIndexingPartial
 	case "stale":
-		return evidenceIndexingStale
+		return EvidenceIndexingStale
 	default:
-		return evidenceIndexingFailed
+		return EvidenceIndexingFailed
 	}
 }
 
@@ -163,8 +163,8 @@ func evidenceIndexingStateFor(result firstRunResult) evidenceIndexingState {
 // The run records only the selected target, so a complete index lists that
 // target; a non-complete index lists nothing because no repository was proven
 // queryable.
-func evidenceIndexedRepositories(result firstRunResult, target string) []string {
-	if evidenceIndexingStateFor(result) != evidenceIndexingComplete {
+func evidenceIndexedRepositories(result Result, target string) []string {
+	if evidenceIndexingStateFor(result) != EvidenceIndexingComplete {
 		return nil
 	}
 	return []string{target}
@@ -172,9 +172,9 @@ func evidenceIndexedRepositories(result firstRunResult, target string) []string 
 
 // evidenceMissing lists the proofs the run did not collect, so an operator and a
 // support reader can see exactly what is absent rather than inferring it.
-func evidenceMissing(result firstRunResult) []string {
+func evidenceMissing(result Result) []string {
 	var missing []string
-	if state := evidenceIndexingStateFor(result); state != evidenceIndexingComplete {
+	if state := evidenceIndexingStateFor(result); state != EvidenceIndexingComplete {
 		missing = append(missing, "indexing is "+string(state)+", not a complete queryable index")
 	}
 	if !result.QueryAnswered {
@@ -188,7 +188,7 @@ func evidenceMissing(result firstRunResult) []string {
 // evidenceNextCommands reuses the run's next steps and any classified recovery
 // steps so the report's actionable guidance matches what first-run already
 // computed. Recovery steps lead because they target the specific failure.
-func evidenceNextCommands(result firstRunResult) []string {
+func evidenceNextCommands(result Result) []string {
 	var commands []string
 	if result.Diagnostic != nil {
 		commands = append(commands, result.Diagnostic.RecoverySteps...)
@@ -199,7 +199,7 @@ func evidenceNextCommands(result firstRunResult) []string {
 
 // evidenceDocsLinks collects the standing evidence docs page plus any docs link
 // the classified diagnostic attached, deduplicated and order-stable.
-func evidenceDocsLinks(result firstRunResult) []string {
+func evidenceDocsLinks(result Result) []string {
 	links := []string{evidenceDocsLink}
 	if result.Diagnostic != nil {
 		if link := strings.TrimSpace(result.Diagnostic.DocsLink); link != "" {
@@ -244,10 +244,12 @@ const evidenceRedactedMarker = evidredact.Marker
 // `first-run report`, and a credential carried in URL-free text was never one
 // of the inputs anybody wrote a case for.
 //
-// The wrappers stay because both the endpoint helpers have callers outside the
-// evidence report (hosted_onboard.go redacts a hosted endpoint the same way),
-// and because the boundary corpus in internal/urlredact is driven through
-// redactEndpoint by this package's own differential test.
+// The wrappers stay because the boundary corpus in internal/urlredact is
+// driven through redactEndpoint by this package's own differential test, so a
+// drift between what this package calls and what evidredact does goes red
+// here. go/cmd/eshu/hosted_onboard.go redacts a hosted endpoint through its
+// own equivalent one-line wrapper over evidredact.Endpoint, kept there because
+// package main cannot be imported and the hosted family has not extracted yet.
 
 // redactEndpoint returns a display-safe form of an endpoint URL: userinfo, any
 // credential-named query value, and the whole fragment are removed. See
@@ -275,13 +277,13 @@ func scrubEvidenceTexts(values []string, rawValues []string) []string {
 
 // scrubEvidenceDiagnostic returns a redacted copy of the diagnostic for the
 // report. It copies rather than mutating because the diagnostic is shared with
-// the caller's firstRunResult, which stays raw so the run's own error reporting
+// the caller's Result, which stays raw so the run's own error reporting
 // keeps its full detail.
 //
 // The preserved underlying error is replaced by a scrubbed error value: the
 // report renders it as the "cause" line, so leaving the original chain in place
 // would put the raw endpoint straight into the artifact.
-func scrubEvidenceDiagnostic(d *onboardingDiagnostic, rawValues []string) *onboardingDiagnostic {
+func scrubEvidenceDiagnostic(d *Diagnostic, rawValues []string) *Diagnostic {
 	if d == nil {
 		return nil
 	}

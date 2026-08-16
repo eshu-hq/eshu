@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"strings"
@@ -14,7 +14,7 @@ import (
 // matches, attaches the diagnostic to the result. The underlying error remains
 // on the failing step and on runErr, so attaching a diagnosis never hides the
 // root cause; an unmatched signal leaves the raw error to speak for itself.
-func attachFirstRunDiagnostic(result firstRunResult, signal onboardingSignal) firstRunResult {
+func attachFirstRunDiagnostic(result Result, signal onboardingSignal) Result {
 	if diagnostic, ok := classifyOnboardingFailure(signal); ok {
 		result.Diagnostic = &diagnostic
 	}
@@ -25,8 +25,8 @@ func attachFirstRunDiagnostic(result firstRunResult, signal onboardingSignal) fi
 // step. It carries the detected shape, any missing required binaries, the
 // resolved MCP endpoint for the API-vs-MCP heuristic, and the preserved verify
 // error so a matched diagnostic still surfaces the root cause.
-func firstRunVerifySignal(deps firstRunDeps, detection firstRunRuntimeDetection, baseURL string, verifyErr error) onboardingSignal {
-	composeDetected := detection.ComposeFile != "" || detection.Shape == firstRunShapeDockerCompose
+func firstRunVerifySignal(deps Deps, detection firstRunRuntimeDetection, baseURL string, verifyErr error) onboardingSignal {
+	composeDetected := detection.ComposeFile != "" || detection.Shape == ShapeDockerCompose
 	signal := onboardingSignal{
 		Step:            onboardingStepVerify,
 		Shape:           detection.Shape,
@@ -34,7 +34,7 @@ func firstRunVerifySignal(deps firstRunDeps, detection firstRunRuntimeDetection,
 		RuntimeFailed:   true,
 		RuntimeDetail:   detection.Detail,
 		ComposeDetected: composeDetected,
-		MCPEndpoint:     resolveFirstRunMCPEndpoint(),
+		MCPEndpoint:     deps.resolveMCPEndpoint(),
 		APIBaseURL:      baseURL,
 	}
 	// Missing binaries only diagnose the local-binaries path. When Compose is the
@@ -50,8 +50,8 @@ func firstRunVerifySignal(deps firstRunDeps, detection firstRunRuntimeDetection,
 // index step. The queue snapshot distinguishes failed/dead-letter work from an
 // index that is merely still building, and the readiness verdict supplies the
 // stable reason. The underlying error is preserved verbatim.
-func firstRunReadinessSignal(deps firstRunDeps, client *APIClient, detection firstRunRuntimeDetection, indexed firstRunIndexOutcome, runErr error) onboardingSignal {
-	composeShape := detection.Shape == firstRunShapeDockerCompose || detection.ComposeFile != ""
+func firstRunReadinessSignal(deps Deps, client scan.Client, detection firstRunRuntimeDetection, indexed firstRunIndexOutcome, runErr error) onboardingSignal {
+	composeShape := detection.Shape == ShapeDockerCompose || detection.ComposeFile != ""
 	signal := onboardingSignal{
 		Step:           onboardingStepReadiness,
 		Shape:          detection.Shape,
@@ -74,7 +74,7 @@ func firstRunReadinessSignal(deps firstRunDeps, client *APIClient, detection fir
 // firstRunReadinessStatus fetches the live pipeline status and readiness verdict
 // for diagnosis. It returns ok=false when the status seam is unavailable or the
 // fetch fails, so the classifier falls back to the preserved error.
-func firstRunReadinessStatus(deps firstRunDeps, client *APIClient) (scan.PipelineStatus, scan.ReadinessVerdict, bool) {
+func firstRunReadinessStatus(deps Deps, client scan.Client) (scan.PipelineStatus, scan.ReadinessVerdict, bool) {
 	if deps.FetchStatus == nil {
 		return scan.PipelineStatus{}, scan.ReadinessVerdict{}, false
 	}
@@ -134,14 +134,4 @@ func indexErrorLooksLikePathVisibility(err error) bool {
 // an empty index. It matches the stable phrasing emitted by runFirstRunQuery.
 func isEmptyRepositoriesAnswer(answer string) bool {
 	return strings.Contains(answer, "returned 0 repositories")
-}
-
-// resolveFirstRunMCPEndpoint reads a configured MCP endpoint from the
-// environment or config so the API-vs-MCP heuristic can flag a misrouted URL.
-// An empty result means no endpoint is configured and the heuristic is skipped.
-func resolveFirstRunMCPEndpoint() string {
-	if value := strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_URL", "")); value != "" {
-		return value
-	}
-	return strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_ENDPOINT", ""))
 }
