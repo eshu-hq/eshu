@@ -83,13 +83,62 @@ func opaqueHasAuthority(opaque string) bool {
 	return strings.IndexByte(authority, '@') >= 0
 }
 
-// errWithoutValue strips the quoted URL net/url embeds in its *url.Error so
-// the wrapped error keeps the reason ("invalid userinfo", "invalid character
-// in host name") without repeating the possibly-credentialed value.
+// errWithoutValue rebuilds a url.Parse failure so it keeps the operation and
+// a reason but none of the parsed value. Dropping the *url.Error envelope is
+// only half of that: the envelope quotes the whole URL, and the NESTED error
+// can quote input again (`invalid port ":secret" after host`), so the reason
+// goes through ParseErrorReason instead of being wrapped verbatim.
 func errWithoutValue(err error) error {
 	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return fmt.Errorf("%s: %w", urlErr.Op, urlErr.Err)
+	if !errors.As(err, &urlErr) {
+		return err
 	}
-	return err
+	return fmt.Errorf("%s: %s", urlErr.Op, ParseErrorReason(urlErr.Err))
+}
+
+// ParseErrorReason returns the reason half of a net/url parse failure as text
+// that carries none of the parsed input. net/url copies offending input into
+// several of its messages: `invalid port %q after host` repeats an unbounded
+// slice of the value, EscapeError and InvalidHostError quote input
+// characters, and "invalid host:" wraps a netip error that spells out the
+// whole host. So only messages known to be static constants pass through
+// verbatim; the input-quoting shapes map onto fixed text, and anything
+// unrecognized — including a message a future Go version adds — fails closed
+// to a generic reason rather than gamble that it carries no input.
+//
+// It accepts either the inner error or the whole *url.Error, so a caller that
+// must keep its own envelope (cli/report keeps the request path) can classify
+// just the reason.
+func ParseErrorReason(err error) string {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	var escapeErr url.EscapeError
+	if errors.As(err, &escapeErr) {
+		return "invalid URL escape"
+	}
+	var hostErr url.InvalidHostError
+	if errors.As(err, &hostErr) {
+		return "invalid character in host name"
+	}
+	msg := err.Error()
+	switch msg {
+	case "missing protocol scheme",
+		"empty url",
+		"invalid URI for request",
+		"first path segment in URL cannot contain colon",
+		"net/url: invalid control character in URL",
+		"net/url: invalid userinfo",
+		"invalid IP-literal",
+		"missing ']' in host":
+		return msg
+	}
+	switch {
+	case strings.HasPrefix(msg, "invalid port "):
+		return "invalid port after host"
+	case strings.HasPrefix(msg, "invalid host:"):
+		return "invalid host"
+	}
+	return "malformed URL"
 }

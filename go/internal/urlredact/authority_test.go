@@ -4,6 +4,8 @@
 package urlredact
 
 import (
+	"errors"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -91,15 +93,83 @@ func TestAuthorityRewritesOnlyAuthorityShapedOpaques(t *testing.T) {
 // TestAuthorityRefusesWhatItCannotParse pins the fail-closed edge: a value
 // that only becomes unparseable once its authority is read as an authority
 // still errors instead of passing, and the error never repeats the value.
+//
+// The invalid-port rows are the shape that slipped past the first version of
+// this promise: stripping the *url.Error envelope removed the URL net/url
+// quotes there, but `invalid port ":secret" after host` quotes the input again
+// inside the NESTED error, which was wrapped verbatim.
 func TestAuthorityRefusesWhatItCannotParse(t *testing.T) {
 	t.Parallel()
 
 	const sentinel = "CANARY-SECRET-6119"
-	_, _, err := Authority("svc:" + sentinel + "]@h.internal/tool")
-	if err == nil {
-		t.Fatal("Authority() error = nil, want non-nil for a value unparseable under the authority reading")
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "unparseable userinfo under the authority reading", value: "svc:" + sentinel + "]@h.internal/tool"},
+		{name: "credential in an invalid port under the authority reading", value: "svc:user@h.internal:" + sentinel + "/tool"},
+		{name: "credential after a digit in an invalid port", value: "svc:user@h.internal:9" + sentinel + "/tool"},
+		{name: "credential in an invalid port of the direct parse", value: "https://h.internal:" + sentinel + "/tool"},
 	}
-	if strings.Contains(err.Error(), sentinel) {
-		t.Errorf("Authority() error %q repeats the value; these errors reach logs", err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := Authority(tt.value)
+			if err == nil {
+				t.Fatalf("Authority(%q) error = nil, want non-nil for an unparseable value", tt.value)
+			}
+			if strings.Contains(err.Error(), sentinel) {
+				t.Errorf("Authority() error %q repeats the value; these errors reach logs", err)
+			}
+		})
+	}
+}
+
+// TestParseErrorReasonNeverEchoesInput drives the classifier with the real
+// errors net/url produces, sentinel planted where each message copies input,
+// and pins the classified text. The static rows are positive controls: a
+// message that carries no input must survive verbatim, so the classifier
+// cannot pass by flattening everything to "malformed URL". The final row is
+// the fail-closed default for a message shape the classifier does not know.
+func TestParseErrorReasonNeverEchoesInput(t *testing.T) {
+	t.Parallel()
+
+	const sentinel = "CANARY-SECRET-6119"
+	parseErr := func(t *testing.T, value string) error {
+		t.Helper()
+		_, err := url.Parse(value)
+		if err == nil {
+			t.Fatalf("url.Parse(%q) error = nil, the row needs a parse failure", value)
+		}
+		return err
+	}
+
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "invalid port copies the input", err: parseErr(t, "https://h.internal:"+sentinel+"/x"), want: "invalid port after host"},
+		{name: "escape error quotes input characters", err: parseErr(t, "https://h.internal/%zz"), want: "invalid URL escape"},
+		{name: "host error quotes an input character", err: parseErr(t, "https://h ost.internal/x"), want: "invalid character in host name"},
+		{name: "static scheme message survives (positive control)", err: parseErr(t, "://x"), want: "missing protocol scheme"},
+		{name: "static userinfo message survives (positive control)", err: parseErr(t, "//svc:pw\""+sentinel+"@h.internal/x"), want: "net/url: invalid userinfo"},
+		{name: "unknown message shape fails closed", err: errors.New("some future reason " + sentinel), want: "malformed URL"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := ParseErrorReason(tt.err)
+			if got != tt.want {
+				t.Errorf("ParseErrorReason(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+			if strings.Contains(got, sentinel) {
+				t.Errorf("ParseErrorReason(%v) = %q repeats the input", tt.err, got)
+			}
+		})
 	}
 }

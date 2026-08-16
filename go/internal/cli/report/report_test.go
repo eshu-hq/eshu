@@ -6,7 +6,10 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -351,5 +354,53 @@ func TestCaptureBundle_IncludePayloadsFlipsProfile(t *testing.T) {
 	}
 	if !strings.Contains(IncludePayloadsWarning, "PRIVATE TRIAGE ONLY") {
 		t.Errorf("IncludePayloadsWarning lost its headline:\n%s", IncludePayloadsWarning)
+	}
+}
+
+// TestRequestErrorWithoutURLNeverEchoesParseInput plants a credential sentinel
+// where net/url quotes input into the NESTED error of a parse-shaped
+// *url.Error — the invalid port. Stripping the outer envelope is not enough:
+// `invalid port ":secret" after host` repeats the input inside urlErr.Err, and
+// this message reaches stderr and CI logs. The transport case below is the
+// positive control for the other branch: a genuine transport failure must keep
+// its inner error wrapped, so errors.As still classifies it.
+func TestRequestErrorWithoutURLNeverEchoesParseInput(t *testing.T) {
+	t.Parallel()
+
+	const sentinel = "PORT-CRED-SENTINEL-6140"
+
+	// The real parse error net/http produces for an unparseable request URL,
+	// wrapped the way APIClient.do wraps it.
+	_, err := http.NewRequest(http.MethodGet, "https://h.internal:"+sentinel+"/api/v0/x", nil) //nolint:noctx // never sent
+	if err == nil {
+		t.Fatal("http.NewRequest() error = nil, want a parse failure for an invalid port")
+	}
+	got := requestErrorWithoutURL(fmt.Errorf("create request: %w", err), "/api/v0/x")
+	if got == nil {
+		t.Fatal("requestErrorWithoutURL() = nil, want an error")
+	}
+	if strings.Contains(got.Error(), sentinel) {
+		t.Errorf("requestErrorWithoutURL() = %q repeats the request URL's port; these messages reach stderr and CI logs", got)
+	}
+	if !strings.Contains(got.Error(), "invalid port") {
+		t.Errorf("requestErrorWithoutURL() = %q lost the parse reason; a reader needs to know why the request never went out", got)
+	}
+
+	// Positive control: a real transport error keeps its cause wrapped.
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := server.URL
+	server.Close()
+	resp, err := http.Get(deadURL + "/api/v0/x") //nolint:noctx,bodyclose // the request must fail
+	if err == nil {
+		resp.Body.Close()
+		t.Fatal("http.Get() error = nil, want a transport failure against a closed server")
+	}
+	got = requestErrorWithoutURL(err, "/api/v0/x")
+	var opErr *net.OpError
+	if !errors.As(got, &opErr) {
+		t.Errorf("requestErrorWithoutURL() = %q no longer wraps the transport cause; errors.As lost the *net.OpError", got)
+	}
+	if strings.Contains(got.Error(), deadURL) {
+		t.Errorf("requestErrorWithoutURL() = %q repeats the request URL", got)
 	}
 }

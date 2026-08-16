@@ -59,6 +59,88 @@ func TestSanitizeDeploymentURLDropsOpaqueCredentials(t *testing.T) {
 	}
 }
 
+// TestStripSensitiveURLDropsOpaqueCredentials sweeps the sentinel through the
+// userinfo spellings url.Parse does NOT surface as User. stripSensitiveURL —
+// the sanitizer every envelope's source_ref.source_uri passes through — tested
+// parsed.User after a plain parse, and an opaque `svc:SECRET@host/x` parses
+// with User == nil and the credential in Opaque, so it re-emitted the value
+// verbatim while its sibling sanitizeDeploymentURL was fixed.
+//
+// The wantKept rows are positive controls: a path-segment "@" and a purl are
+// kept on purpose, so the sweep cannot pass by returning "" for everything.
+func TestStripSensitiveURLDropsOpaqueCredentials(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		value    string
+		wantKept bool
+	}{
+		{name: "opaque password position", value: "svc:" + credentialSentinel + "@h.internal:5432/run"},
+		{name: "opaque mid-password", value: "svc:pw" + credentialSentinel + "@h.internal/run"},
+		{name: "opaque under an uppercase scheme", value: "SVC:" + credentialSentinel + "@h.internal/run"},
+		{name: "scheme-relative userinfo", value: "//svc:" + credentialSentinel + "@h.internal/run"},
+		{name: "unparseable value", value: "https://svc:pw\"" + credentialSentinel + "@h.internal/run"},
+		{name: "unparseable only as an authority", value: "svc:pw]" + credentialSentinel + "@h.internal/run"},
+		{name: "hierarchical userinfo stays dropped", value: "https://svc:" + credentialSentinel + "@h.internal/run"},
+		{name: "path-segment at sign survives (positive control)", value: "https://h.internal/runs/" + credentialSentinel + "@example.com/x", wantKept: true},
+		{name: "purl survives (positive control)", value: "pkg:npm/" + credentialSentinel + "@4.17.21", wantKept: true},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := stripSensitiveURL(tt.value)
+			if tt.wantKept {
+				if !strings.Contains(got, credentialSentinel) {
+					t.Fatalf("stripSensitiveURL(%q) = %q dropped a value that carries no credential; the sweep is over-redacting", tt.value, got)
+				}
+				return
+			}
+			if strings.Contains(got, credentialSentinel) {
+				t.Errorf("stripSensitiveURL(%q) = %q kept the credential sentinel", tt.value, got)
+			}
+		})
+	}
+}
+
+// TestNewEnvelopeNeverPersistsOpaqueCredentialSourceURI drives the real
+// envelope constructor with a credentialed opaque SourceURI and asserts the
+// sentinel is absent from the marshaled envelope — the bytes that persist.
+// The second run is the positive control: a path-segment sentinel must reach
+// the same bytes, so the absence assertion is reading a real envelope.
+func TestNewEnvelopeNeverPersistsOpaqueCredentialSourceURI(t *testing.T) {
+	t.Parallel()
+
+	build := func(t *testing.T, sourceURI string) string {
+		t.Helper()
+		envelope := newEnvelope(FixtureContext{
+			ScopeID:             "ci-cd:github-actions:example/repo",
+			GenerationID:        "generation-1",
+			CollectorInstanceID: "fixture-gh",
+			FencingToken:        1,
+			ObservedAt:          time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC),
+			SourceURI:           sourceURI,
+		}, "ci.pipeline_run", "run:example", "record-1", map[string]any{"provider": "github_actions"})
+		out, err := json.Marshal(envelope)
+		if err != nil {
+			t.Fatalf("marshal envelope: %v", err)
+		}
+		return string(out)
+	}
+
+	persisted := build(t, "svc:"+credentialSentinel+"@h.internal:5432/run")
+	if strings.Contains(persisted, credentialSentinel) {
+		t.Errorf("credential sentinel reached the persisted envelope:\n%s", persisted)
+	}
+
+	control := build(t, "https://h.internal/runs/"+credentialSentinel+"@example.com/x")
+	if !strings.Contains(control, credentialSentinel) {
+		t.Fatalf("positive control: path-segment sentinel missing from the marshaled envelope, so the absence assertion above is blind:\n%s", control)
+	}
+}
+
 // TestDeploymentEnvelopesNeverPersistOpaqueCredential drives the real
 // deployment-envelope builder with a credentialed opaque environment_url and
 // log_url and asserts the sentinel is absent from the marshaled envelopes —

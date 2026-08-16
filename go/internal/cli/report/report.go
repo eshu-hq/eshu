@@ -328,6 +328,17 @@ func requestErrorWithoutURL(err error, safePath string) error {
 	if !errors.As(err, &urlErr) {
 		return err //nolint:wrapcheck // the transport error is the answer; a prefix here would displace it
 	}
+	if urlErr.Op == "parse" {
+		// The URL never parsed, so no request went out and there is no
+		// transport cause to preserve. The nested error is the one thing a
+		// parse-shaped *url.Error carries, and net/url copies input into some
+		// of those messages (`invalid port ":secret" after host`), so it gets
+		// a classified reason instead of being wrapped verbatim. The endpoint
+		// screening should refuse such a target before a request is ever
+		// built; this branch is for the ordering this function already
+		// refuses to depend on.
+		return fmt.Errorf("%s %s: %s", urlErr.Op, safeErrorPath(safePath), urlredact.ParseErrorReason(urlErr.Err))
+	}
 	return fmt.Errorf("%s %s: %w", urlErr.Op, safeErrorPath(safePath), urlErr.Err)
 }
 

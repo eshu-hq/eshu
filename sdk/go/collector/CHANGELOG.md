@@ -64,7 +64,12 @@ entry — until a maintainer actually cuts the tag, per the convention below.
   `@` ahead of its first `/` and lets net/url decide; purls and other
   slash-first opaque bodies stay accepted. Validation errors for unparseable
   URIs no longer repeat the URI value, which can carry the credential into
-  collector logs. No wire-protocol or Go API change.
+  collector logs — and that promise now covers the error net/url NESTS inside
+  its envelope too, where `invalid port ":secret" after host` quoted the exact
+  bytes an operator leaves in port position (`svc:user@host:SECRET/x`). The
+  nested reason is classified into fixed text instead of wrapped verbatim,
+  failing closed to a generic reason for message shapes the classifier does
+  not know. No wire-protocol or Go API change.
 
 ## Convention for future entries
 

@@ -37,6 +37,9 @@ func TestValidateResultRefusesOpaqueCredentialedSourceURI(t *testing.T) {
 		{name: "hierarchical userinfo", uri: "https://svc:" + credentialSentinel + "@h.internal/tool"},
 		{name: "unparseable value", uri: "https://svc:pw\"" + credentialSentinel + "@h.internal/tool"},
 		{name: "unparseable only as an authority", uri: "svc:pw]" + credentialSentinel + "@h.internal/tool"},
+		{name: "credential in an invalid port", uri: "svc:user@h.internal:" + credentialSentinel + "/tool"},
+		{name: "credential after a digit in an invalid port", uri: "svc:user@h.internal:9" + credentialSentinel + "/tool"},
+		{name: "hierarchical credential in an invalid port", uri: "https://h.internal:" + credentialSentinel + "/tool"},
 		{name: "path-segment at sign accepted (positive control)", uri: "https://h.internal/owners/" + credentialSentinel + "@example.com/x", wantAccepted: true},
 		{name: "purl accepted (positive control)", uri: "pkg:npm/" + credentialSentinel + "@4.17.21", wantAccepted: true},
 	}

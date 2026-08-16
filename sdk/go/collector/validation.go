@@ -301,16 +301,59 @@ func opaqueHasAuthority(opaque string) bool {
 	return strings.IndexByte(authority, '@') >= 0
 }
 
-// uriErrorReason strips the quoted URL net/url embeds in its *url.Error so a
-// validation failure keeps the reason ("invalid userinfo", "invalid character
-// in host name") without repeating a possibly-credentialed value into
-// collector logs.
+// uriErrorReason rebuilds a url.Parse failure so it keeps the operation and a
+// reason but none of the parsed value. Dropping the *url.Error envelope is
+// only half of that: the envelope quotes the whole URL, and the NESTED error
+// can quote input again (`invalid port ":secret" after host`), so the reason
+// goes through uriParseReason instead of being wrapped verbatim into a
+// message that reaches collector logs.
 func uriErrorReason(err error) error {
 	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return fmt.Errorf("%s: %w", urlErr.Op, urlErr.Err)
+	if !errors.As(err, &urlErr) {
+		return err
 	}
-	return err
+	return fmt.Errorf("%s: %s", urlErr.Op, uriParseReason(urlErr.Err))
+}
+
+// uriParseReason returns the reason half of a net/url parse failure as text
+// that carries none of the parsed input. net/url copies offending input into
+// several of its messages: `invalid port %q after host` repeats an unbounded
+// slice of the value, EscapeError and InvalidHostError quote input
+// characters, and "invalid host:" wraps a netip error that spells out the
+// whole host. So only messages known to be static constants pass through
+// verbatim; the input-quoting shapes map onto fixed text, and anything
+// unrecognized — including a message a future Go version adds — fails closed
+// to a generic reason rather than gamble that it carries no input. This
+// mirrors go/internal/urlredact.ParseErrorReason; the sdk module cannot
+// import it across the module boundary.
+func uriParseReason(err error) string {
+	var escapeErr url.EscapeError
+	if errors.As(err, &escapeErr) {
+		return "invalid URL escape"
+	}
+	var hostErr url.InvalidHostError
+	if errors.As(err, &hostErr) {
+		return "invalid character in host name"
+	}
+	msg := err.Error()
+	switch msg {
+	case "missing protocol scheme",
+		"empty url",
+		"invalid URI for request",
+		"first path segment in URL cannot contain colon",
+		"net/url: invalid control character in URL",
+		"net/url: invalid userinfo",
+		"invalid IP-literal",
+		"missing ']' in host":
+		return msg
+	}
+	switch {
+	case strings.HasPrefix(msg, "invalid port "):
+		return "invalid port after host"
+	case strings.HasPrefix(msg, "invalid host:"):
+		return "invalid host"
+	}
+	return "malformed URL"
 }
 
 func validatePayload(payload map[string]any) error {

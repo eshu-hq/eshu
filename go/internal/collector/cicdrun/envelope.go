@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string, payload map[string]any) facts.Envelope {
@@ -118,6 +119,8 @@ func trim(value string) string {
 	return strings.TrimSpace(value)
 }
 
+// stripSensitiveURL drops URLs that carry credentials or query strings before
+// they reach a persisted source_ref or redacted free text.
 func stripSensitiveURL(value string) string {
 	value = strings.TrimSpace(value)
 	parsed, err := url.Parse(value)
@@ -125,6 +128,13 @@ func stripSensitiveURL(value string) string {
 		return ""
 	}
 	if parsed.User != nil || parsed.RawQuery != "" {
+		return ""
+	}
+	if parsed.Host == "" && urlredact.CarriesUserinfo(value) {
+		// Not hierarchical, so User can be nil with the credential in plain
+		// sight: an opaque `svc:SECRET@host/x` keeps it in Opaque, which this
+		// function re-emitted verbatim. Ask net/url about the authority
+		// spelling and drop the value when it carries userinfo.
 		return ""
 	}
 	return value
