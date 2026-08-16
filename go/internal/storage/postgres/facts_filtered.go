@@ -16,6 +16,16 @@ import (
 // thousands of tiny Postgres round trips while still bounding each cursor page.
 const listFactsByKindPageSize = factBatchSize
 
+// The first page and the cursor pages are separate statements on purpose.
+//
+// Every fact in a generation carries the same observed_at, so a page can only
+// be bounded by fact_id, and that bound is only usable as an index qual when
+// the row comparison is a plain predicate. Folding both cases into one
+// statement with `$4::timestamptz IS NULL OR (observed_at, fact_id) > (...)`
+// demotes the comparison to a filter under a generic plan -- which is where
+// these statements end up, because the services prepare them through
+// database/sql. Postgres then rescans the whole generation for every page and
+// pagination becomes quadratic. Issue #6154 carries the plans and timings.
 const listFactsByKindQuery = `
 SELECT
     fact_id,
@@ -38,14 +48,38 @@ FROM fact_records
 WHERE scope_id = $1
   AND generation_id = $2
   AND fact_kind = ANY($3::text[])
-  AND (
-    $4::timestamptz IS NULL
-    OR (observed_at, fact_id) > ($4::timestamptz, $5::text)
-  )
+ORDER BY observed_at ASC, fact_id ASC
+LIMIT $4
+`
+
+const listFactsByKindCursorQuery = `
+SELECT
+    fact_id,
+    scope_id,
+    generation_id,
+    fact_kind,
+    stable_fact_key,
+    schema_version,
+    collector_kind,
+    fencing_token,
+    source_confidence,
+    source_system,
+    source_fact_key,
+    COALESCE(source_uri, ''),
+    COALESCE(source_record_id, ''),
+    observed_at,
+    is_tombstone,
+    payload
+FROM fact_records
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND fact_kind = ANY($3::text[])
+  AND (observed_at, fact_id) > ($4::timestamptz, $5::text)
 ORDER BY observed_at ASC, fact_id ASC
 LIMIT $6
 `
 
+// Split for the same reason as listFactsByKindQuery above.
 const listFactsByKindAndPayloadValueQuery = `
 SELECT
     fact_id,
@@ -69,10 +103,34 @@ WHERE scope_id = $1
   AND generation_id = $2
   AND fact_kind = $3
   AND payload ->> $4 = ANY($5::text[])
-  AND (
-    $6::timestamptz IS NULL
-    OR (observed_at, fact_id) > ($6::timestamptz, $7::text)
-  )
+ORDER BY observed_at ASC, fact_id ASC
+LIMIT $6
+`
+
+const listFactsByKindAndPayloadValueCursorQuery = `
+SELECT
+    fact_id,
+    scope_id,
+    generation_id,
+    fact_kind,
+    stable_fact_key,
+    schema_version,
+    collector_kind,
+    fencing_token,
+    source_confidence,
+    source_system,
+    source_fact_key,
+    COALESCE(source_uri, ''),
+    COALESCE(source_record_id, ''),
+    observed_at,
+    is_tombstone,
+    payload
+FROM fact_records
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND fact_kind = $3
+  AND payload ->> $4 = ANY($5::text[])
+  AND (observed_at, fact_id) > ($6::timestamptz, $7::text)
 ORDER BY observed_at ASC, fact_id ASC
 LIMIT $8
 `
@@ -176,21 +234,21 @@ func (s FactStore) listFactsByKindPage(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	var cursor any
+	query := listFactsByKindQuery
+	args := []any{scopeID, generationID, factKinds, listFactsByKindPageSize}
 	if cursorObservedAt != nil {
-		cursor = cursorObservedAt.UTC()
+		query = listFactsByKindCursorQuery
+		args = []any{
+			scopeID,
+			generationID,
+			factKinds,
+			cursorObservedAt.UTC(),
+			cursorFactID,
+			listFactsByKindPageSize,
+		}
 	}
 
-	rows, err := s.db.QueryContext(
-		ctx,
-		listFactsByKindQuery,
-		scopeID,
-		generationID,
-		factKinds,
-		cursor,
-		cursorFactID,
-		listFactsByKindPageSize,
-	)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list facts by kind: %w", err)
 	}
@@ -221,23 +279,30 @@ func (s FactStore) listFactsByKindAndPayloadValuePage(
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	var cursor any
-	if cursorObservedAt != nil {
-		cursor = cursorObservedAt.UTC()
-	}
-
-	rows, err := s.db.QueryContext(
-		ctx,
-		listFactsByKindAndPayloadValueQuery,
+	query := listFactsByKindAndPayloadValueQuery
+	args := []any{
 		scopeID,
 		generationID,
 		factKind,
 		payloadKey,
 		payloadValues,
-		cursor,
-		cursorFactID,
 		listFactsByKindPageSize,
-	)
+	}
+	if cursorObservedAt != nil {
+		query = listFactsByKindAndPayloadValueCursorQuery
+		args = []any{
+			scopeID,
+			generationID,
+			factKind,
+			payloadKey,
+			payloadValues,
+			cursorObservedAt.UTC(),
+			cursorFactID,
+			listFactsByKindPageSize,
+		}
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list facts by kind and payload value: %w", err)
 	}

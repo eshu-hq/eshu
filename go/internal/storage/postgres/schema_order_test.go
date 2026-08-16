@@ -191,4 +191,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"container_image_identity_strength_precedence",
 	// migration 098 (#5984 durable record of intents no edge write could route).
 	"shared_projection_unroutable_intents",
+	// migration 099 (#6154 keyset index so paging a generation seeks, not rescans).
+	"fact_records_keyset_index",
 }
