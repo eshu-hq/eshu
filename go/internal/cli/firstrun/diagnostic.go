@@ -5,6 +5,7 @@ package firstrun
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -117,4 +118,45 @@ func (d Diagnostic) MarshalJSON() ([]byte, error) {
 		"docs_link":      d.DocsLink,
 		"cause":          d.rootCause(),
 	})
+}
+
+// UnmarshalJSON restores a diagnostic from the envelope, including the root
+// cause. It exists because MarshalJSON emits "cause" from Underlying, which is
+// unexported and tagged `json:"-"`: the default decode reads every other field
+// and silently drops that one, leaving this type in breach of its own contract
+// that the underlying error is never discarded.
+//
+// The consumer is `eshu first-run report --from <saved envelope>`, which
+// decodes through ParseEnvelope and prints the cause line only when rootCause()
+// is non-empty. Without this the operator gets a report with the root cause
+// blank and no indication anything was lost.
+//
+// Decoding into a local wire struct rather than an alias of Diagnostic keeps
+// this from recursing back into itself, and keeps the decode exactly as strict
+// as before: a mistyped field still fails the parse.
+func (d *Diagnostic) UnmarshalJSON(raw []byte) error {
+	var wire struct {
+		Class         FailureClass `json:"class"`
+		Summary       string       `json:"summary"`
+		RecoverySteps []string     `json:"recovery_steps"`
+		DocsLink      string       `json:"docs_link"`
+		Cause         string       `json:"cause"`
+	}
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return fmt.Errorf("decode first-run diagnostic: %w", err)
+	}
+
+	*d = Diagnostic{
+		Class:         wire.Class,
+		Summary:       wire.Summary,
+		RecoverySteps: wire.RecoverySteps,
+		DocsLink:      wire.DocsLink,
+	}
+	// An absent or empty cause leaves Underlying nil, which is what an envelope
+	// written before this key existed decodes to, and what a diagnostic with no
+	// underlying error emits.
+	if wire.Cause != "" {
+		d.Underlying = errors.New(wire.Cause)
+	}
+	return nil
 }
