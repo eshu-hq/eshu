@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 )
 
 func TestComponentSubcommandsRenderTextOutput(t *testing.T) {
@@ -201,7 +203,7 @@ func newComponentCommandWithTrustFlags(out *bytes.Buffer, home string, jsonOutpu
 
 func newComponentCommandWithActivationFlags(out *bytes.Buffer, home string, jsonOutput bool, dryRun bool) *cobra.Command {
 	cmd := newComponentCommandWithHomeFlag(out, home, jsonOutput)
-	cmd.Flags().String(componentInstanceFlag, "prod-aws", "")
+	cmd.Flags().String(clicomponent.InstanceFlag, "prod-aws", "")
 	cmd.Flags().String(componentModeFlag, "scheduled", "")
 	cmd.Flags().Bool(componentClaimsFlag, true, "")
 	cmd.Flags().String(componentConfigFlag, filepath.Join(home, "configs", "aws.yaml"), "")
@@ -211,13 +213,13 @@ func newComponentCommandWithActivationFlags(out *bytes.Buffer, home string, json
 
 func newComponentCommandWithDisableFlags(out *bytes.Buffer, home string, jsonOutput bool) *cobra.Command {
 	cmd := newComponentCommandWithHomeFlag(out, home, jsonOutput)
-	cmd.Flags().String(componentInstanceFlag, "prod-aws", "")
+	cmd.Flags().String(clicomponent.InstanceFlag, "prod-aws", "")
 	return cmd
 }
 
 func newComponentCommandWithUninstallFlags(out *bytes.Buffer, home string, jsonOutput bool) *cobra.Command {
 	cmd := newComponentCommandWithHomeFlag(out, home, jsonOutput)
-	cmd.Flags().String(componentVersionFlag, "0.1.0", "")
+	cmd.Flags().String(clicomponent.VersionFlag, "0.1.0", "")
 	return cmd
 }
 

@@ -76,13 +76,13 @@ func newCollectorSpec(id, publisher, factKind, output string) (componentInitColl
 	publisher = strings.TrimSpace(publisher)
 	factKind = strings.TrimSpace(factKind)
 	output = strings.TrimSpace(output)
-	if err := validateComponentInitIdentifier("component id", "id", id); err != nil {
+	if err := validateComponentInitIdentifier("component id", InitIDFlag, id); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
-	if err := validateComponentInitIdentifier("publisher", "publisher", publisher); err != nil {
+	if err := validateComponentInitIdentifier("publisher", InitPublisherFlag, publisher); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
-	if err := validateComponentInitIdentifier("fact kind", "fact-kind", factKind); err != nil {
+	if err := validateComponentInitIdentifier("fact kind", InitFactKindFlag, factKind); err != nil {
 		return componentInitCollectorSpec{}, err
 	}
 	if !strings.Contains(factKind, ".") {

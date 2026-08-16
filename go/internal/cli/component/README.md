@@ -24,13 +24,22 @@ transport-failure classifier, and the envelope-code-to-exit-code table. A
 Run function receives plain values and a writer, and returns the error the
 command exits with.
 
+The one thing that crosses back the other way is flag *names*. Five Run
+functions reject empty input with `--<flag> is required`, which puts a flag
+name in operator-facing output, so this package declares those five names
+(`flags.go`) and `go/cmd/eshu` registers the constants rather than repeating
+the strings. Reading flag values is still entirely the wrapper's job.
+
 ## Exported surface
 
 The `Run*` functions are one-per-subcommand command bodies; `FetchInventory`,
 `FetchDiagnostics`, and `FinishAPI` serve the two API-backed subcommands over
 the `EnvelopeFetcher` interface; `Envelope` / `EnvelopeError` are the
 canonical response shape; `CLIOutput` and its members are the
-`eshu.component.cli.v1` JSON payload. See `doc.go` for the godoc contract.
+`eshu.component.cli.v1` JSON payload. `InstanceFlag`, `VersionFlag`,
+`InitIDFlag`, `InitPublisherFlag`, and `InitFactKindFlag` are the flag names
+this package renders in its required-input errors, consumed by `go/cmd/eshu`
+at registration. See `doc.go` for the godoc contract.
 
 ## Dependencies
 
@@ -75,6 +84,13 @@ between binaries built from the base commit and from this branch.
   list. So an edit belongs in every set that has the reader you touched.
   `TestEnvelopeReaderParity` in `go/cmd/eshu` compares each reader across only
   the copies that reader has.
+- A flag name that appears in an error message belongs in `flags.go`, not in
+  a literal. The extraction first copied `"instance"`, `"version"`, `"id"`,
+  `"publisher"`, and `"fact-kind"` here as literals while `go/cmd/eshu` kept
+  its own constants, which meant renaming a flag in the wrapper would have
+  left these messages naming a flag the CLI no longer had. Adding a sixth
+  such message means adding a sixth constant and a row in
+  `TestComponentRequiredFlagNamesAreRegistered`.
 - `newCollectorSpec` resolves the scaffold output directory against the
   process working directory (`filepath.Abs`), the one piece of process state
   this package touches.

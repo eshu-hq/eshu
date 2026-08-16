@@ -159,7 +159,7 @@ func RunEnable(
 	request componentcore.Activation,
 ) error {
 	if strings.TrimSpace(request.InstanceID) == "" {
-		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", "instance")
+		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", InstanceFlag)
 		return renderError(w, jsonOutput, "enable", err)
 	}
 	registry := componentcore.NewRegistry(home)
@@ -196,7 +196,7 @@ func RunEnable(
 // instanceID is required.
 func RunDisable(w io.Writer, jsonOutput bool, home string, componentID string, instanceID string) error {
 	if strings.TrimSpace(instanceID) == "" {
-		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", "instance")
+		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", InstanceFlag)
 		return renderError(w, jsonOutput, "disable", err)
 	}
 	if err := componentcore.NewRegistry(home).Disable(componentID, instanceID); err != nil {
@@ -217,7 +217,7 @@ func RunDisable(w io.Writer, jsonOutput bool, home string, componentID string, i
 // version is required.
 func RunUninstall(w io.Writer, jsonOutput bool, home string, componentID string, version string) error {
 	if strings.TrimSpace(version) == "" {
-		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", "version")
+		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "--%s is required", VersionFlag)
 		return renderError(w, jsonOutput, "uninstall", err)
 	}
 	if err := componentcore.NewRegistry(home).Uninstall(componentID, version); err != nil {

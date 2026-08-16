@@ -11,6 +11,15 @@ side: `go/cmd/eshu/component.go` and `go/cmd/eshu/component_api.go`.
   function takes plain values and a writer and returns the error the command
   exits with. Logic added to the wrapper instead of here is logic nothing
   outside the binary can test.
+- Flag *names* that reach operator output are declared here, in `flags.go`,
+  and `go/cmd/eshu` registers those constants. `--instance`, `--version`,
+  `--id`, `--publisher`, and `--fact-kind` are named in `--<flag> is
+  required` errors, so a literal on both sides would be one string with two
+  owners and a rename in the wrapper would strand the message. Never write a
+  flag name as a literal in an error here; add a constant and a row in
+  `TestComponentRequiredFlagNamesAreRegistered` in `go/cmd/eshu`, which
+  checks the flag is still registered on the subcommand that raises the
+  error. Reading flag *values* stays entirely on the wrapper side.
 - Rendered bytes and error text are the CLI's stable contract. Never add a
   wrapping prefix to a returned error, and never swap a JSON writer: the
   component payload and API envelope write with HTML escaping off, while the

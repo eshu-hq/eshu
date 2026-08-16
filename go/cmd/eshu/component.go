@@ -19,6 +19,15 @@ import (
 // environment, and streams, then passes plain values across. Keep it that
 // way: logic added here is logic nothing outside this binary can test.
 
+// The component family's flag names live here, with five exceptions.
+// --instance, --version, --id, --publisher, and --fact-kind are declared by
+// internal/cli/component, because that package prints them in its
+// "--<flag> is required" errors. Whoever prints a name owns it: a second copy
+// here would let a rename on one side leave that message pointing at a flag
+// this binary no longer registers. The registrations below use
+// clicomponent.InstanceFlag and friends instead, so such a rename is a
+// compile error, and TestComponentRequiredFlagNamesAreRegistered covers what
+// the compiler cannot see.
 const (
 	componentHomeFlag                    = "component-home"
 	componentTrustModeFlag               = "trust-mode"
@@ -30,17 +39,12 @@ const (
 	componentProvenanceIdentityFlag      = "provenance-certificate-identity"
 	componentProvenanceIssuerFlag        = "provenance-oidc-issuer"
 	componentProvenancePredicateTypeFlag = "provenance-predicate-type"
-	componentInstanceFlag                = "instance"
 	componentModeFlag                    = "mode"
 	componentClaimsFlag                  = "claims"
 	componentConfigFlag                  = "config"
-	componentVersionFlag                 = "version"
 	componentJSONFlag                    = "json"
 	componentDryRunFlag                  = "dry-run"
 	componentFixtureFlag                 = "fixture"
-	componentInitIDFlag                  = "id"
-	componentInitPublisherFlag           = "publisher"
-	componentInitFactKindFlag            = "fact-kind"
 	componentInitOutputFlag              = "output"
 	componentSchemaCheckFlag             = "check"
 
@@ -128,18 +132,18 @@ func init() {
 	}
 	addComponentJSONFlag(initCollectorCmd)
 	installCmd.Flags().Bool(componentDryRunFlag, false, "Verify install and render the planned result without writing component state")
-	enableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to enable")
+	enableCmd.Flags().String(clicomponent.InstanceFlag, "", "Collector instance ID to enable")
 	enableCmd.Flags().String(componentModeFlag, "manual", "Collector activation mode")
 	enableCmd.Flags().Bool(componentClaimsFlag, false, "Enable workflow claims for this component instance")
 	enableCmd.Flags().String(componentConfigFlag, "", "Path to component instance configuration")
 	enableCmd.Flags().Bool(componentDryRunFlag, false, "Validate activation and render the planned result without writing component state")
-	disableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to disable")
-	uninstallCmd.Flags().String(componentVersionFlag, "", "Component version to uninstall")
+	disableCmd.Flags().String(clicomponent.InstanceFlag, "", "Collector instance ID to disable")
+	uninstallCmd.Flags().String(clicomponent.VersionFlag, "", "Component version to uninstall")
 	conformCmd.Flags().StringSlice(componentFixtureFlag, nil, "Collector SDK result fixture JSON file; repeat for multiple fixtures")
 	conformCmd.Flags().String(componentModeFlag, "fixture", "Conformance mode: fixture or compose")
-	initCollectorCmd.Flags().String(componentInitIDFlag, "", "Component ID, for example dev.example.collector.demo")
-	initCollectorCmd.Flags().String(componentInitPublisherFlag, "", "Component publisher allowlist identity")
-	initCollectorCmd.Flags().String(componentInitFactKindFlag, "", "Namespaced fact kind emitted by the scaffold")
+	initCollectorCmd.Flags().String(clicomponent.InitIDFlag, "", "Component ID, for example dev.example.collector.demo")
+	initCollectorCmd.Flags().String(clicomponent.InitPublisherFlag, "", "Component publisher allowlist identity")
+	initCollectorCmd.Flags().String(clicomponent.InitFactKindFlag, "", "Namespaced fact kind emitted by the scaffold")
 	initCollectorCmd.Flags().String(componentInitOutputFlag, "", "Output directory; defaults to ./<component-id>")
 
 	initCmd.AddCommand(initCollectorCmd)
@@ -224,7 +228,7 @@ func runComponentList(cmd *cobra.Command, _ []string) error {
 }
 
 func runComponentEnable(cmd *cobra.Command, args []string) error {
-	instanceID, err := cmd.Flags().GetString(componentInstanceFlag)
+	instanceID, err := cmd.Flags().GetString(clicomponent.InstanceFlag)
 	if err != nil {
 		return err
 	}
@@ -257,7 +261,7 @@ func runComponentEnable(cmd *cobra.Command, args []string) error {
 }
 
 func runComponentDisable(cmd *cobra.Command, args []string) error {
-	instanceID, err := cmd.Flags().GetString(componentInstanceFlag)
+	instanceID, err := cmd.Flags().GetString(clicomponent.InstanceFlag)
 	if err != nil {
 		return err
 	}
@@ -271,7 +275,7 @@ func runComponentDisable(cmd *cobra.Command, args []string) error {
 }
 
 func runComponentUninstall(cmd *cobra.Command, args []string) error {
-	version, err := cmd.Flags().GetString(componentVersionFlag)
+	version, err := cmd.Flags().GetString(clicomponent.VersionFlag)
 	if err != nil {
 		return err
 	}
@@ -305,9 +309,9 @@ func runComponentConform(cmd *cobra.Command, args []string) error {
 }
 
 func runComponentInitCollector(cmd *cobra.Command, _ []string) error {
-	id, _ := cmd.Flags().GetString(componentInitIDFlag)
-	publisher, _ := cmd.Flags().GetString(componentInitPublisherFlag)
-	factKind, _ := cmd.Flags().GetString(componentInitFactKindFlag)
+	id, _ := cmd.Flags().GetString(clicomponent.InitIDFlag)
+	publisher, _ := cmd.Flags().GetString(clicomponent.InitPublisherFlag)
+	factKind, _ := cmd.Flags().GetString(clicomponent.InitFactKindFlag)
 	output, _ := cmd.Flags().GetString(componentInitOutputFlag)
 	return clicomponent.RunInitCollector(cmd.OutOrStdout(), componentJSONEnabled(cmd), id, publisher, factKind, output)
 }

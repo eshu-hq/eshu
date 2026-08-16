@@ -213,10 +213,10 @@ func resetComponentInitCollectorFlags(t *testing.T) {
 		t.Fatalf("find component init collector command: %v", err)
 	}
 	for name, value := range map[string]string{
-		componentInitIDFlag:        "",
-		componentInitPublisherFlag: "",
-		componentInitFactKindFlag:  "",
-		componentInitOutputFlag:    "",
+		clicomponent.InitIDFlag:        "",
+		clicomponent.InitPublisherFlag: "",
+		clicomponent.InitFactKindFlag:  "",
+		componentInitOutputFlag:        "",
 	} {
 		if err := cmd.Flags().Set(name, value); err != nil {
 			t.Fatalf("reset --%s: %v", name, err)

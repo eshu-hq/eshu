@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
@@ -70,7 +71,7 @@ func TestComponentEnableRejectsMissingInstall(t *testing.T) {
 	out := &bytes.Buffer{}
 	cmd := newComponentTestCommand(out)
 	cmd.Flags().String(componentHomeFlag, t.TempDir(), "")
-	cmd.Flags().String(componentInstanceFlag, "prod-aws", "")
+	cmd.Flags().String(clicomponent.InstanceFlag, "prod-aws", "")
 	cmd.Flags().String(componentModeFlag, "scheduled", "")
 	cmd.Flags().Bool(componentClaimsFlag, false, "")
 	cmd.Flags().String(componentConfigFlag, "", "")

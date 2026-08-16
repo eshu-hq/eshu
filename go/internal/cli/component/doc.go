@@ -11,7 +11,12 @@
 //
 // The package reads no cobra flags, no environment variables, and no exit
 // codes: go/cmd/eshu resolves all of that and passes plain values in, which
-// is what makes these bodies testable outside the binary. Every function renders
+// is what makes these bodies testable outside the binary. It does name five
+// flags, because it prints them: InstanceFlag, VersionFlag, InitIDFlag,
+// InitPublisherFlag, and InitFactKindFlag are the flags the Run functions
+// reject empty input with ("--<flag> is required"), so they are declared here
+// and go/cmd/eshu registers what this package declares rather than repeating
+// the strings. Every function renders
 // its own success and failure output onto the writer it is given -- text by
 // default, the eshu.component.cli.v1 payload (CLIOutput) under --json -- and
 // returns the error the command should exit with. Mapping that error onto a
