@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"fmt"
 	"net/http"
-	"os/exec"
 	"path/filepath"
 	"time"
 )
 
-// firstRunRuntimeProbe is the set of injectable seams the runtime-detection
+// RuntimeProbe is the set of injectable seams the runtime-detection
 // step uses so it can be unit-tested without a live host, network, or PATH.
-type firstRunRuntimeProbe struct {
+type RuntimeProbe struct {
 	// APIHealthy reports whether an Eshu API answers a bounded /health check at
 	// the given base URL. It must not treat a transport error as healthy.
 	APIHealthy func(baseURL string) bool
@@ -23,20 +22,10 @@ type firstRunRuntimeProbe struct {
 	FileExists func(path string) bool
 }
 
-// defaultFirstRunRuntimeProbe returns the production probe backed by a bounded
-// HTTP client, exec.LookPath, and os.Stat.
-func defaultFirstRunRuntimeProbe() firstRunRuntimeProbe {
-	return firstRunRuntimeProbe{
-		APIHealthy: firstRunAPIHealthy,
-		LookPath:   exec.LookPath,
-		FileExists: pathExists,
-	}
-}
-
 // firstRunRuntimeDetection is the resolved runtime shape plus the evidence used
 // to choose it, so the summary can explain the decision truthfully.
 type firstRunRuntimeDetection struct {
-	Shape        firstRunRuntimeShape
+	Shape        RuntimeShape
 	APIReachable bool
 	Detail       string
 	ComposeFile  string
@@ -50,10 +39,10 @@ var firstRunRequiredBinaries = []string{"eshu-bootstrap-index", "eshu-api"}
 // an already-reachable API (no start needed), then local binaries on PATH, then
 // a Docker Compose stack discovered under workspaceRoot. It never claims a shape
 // it cannot back with evidence.
-func detectFirstRunRuntime(probe firstRunRuntimeProbe, baseURL, workspaceRoot string) firstRunRuntimeDetection {
+func detectFirstRunRuntime(probe RuntimeProbe, baseURL, workspaceRoot string) firstRunRuntimeDetection {
 	if probe.APIHealthy != nil && probe.APIHealthy(baseURL) {
 		return firstRunRuntimeDetection{
-			Shape:        firstRunShapeExistingAPI,
+			Shape:        ShapeExistingAPI,
 			APIReachable: true,
 			Detail:       fmt.Sprintf("API reachable at %s", baseURL),
 		}
@@ -61,27 +50,27 @@ func detectFirstRunRuntime(probe firstRunRuntimeProbe, baseURL, workspaceRoot st
 
 	if missing := firstRunMissingBinaries(probe); len(missing) == 0 {
 		return firstRunRuntimeDetection{
-			Shape:  firstRunShapeLocalBinaries,
+			Shape:  ShapeLocalBinaries,
 			Detail: "local eshu binaries found on PATH",
 		}
 	}
 
 	if composeFile := firstRunComposeFile(probe, workspaceRoot); composeFile != "" {
 		return firstRunRuntimeDetection{
-			Shape:       firstRunShapeDockerCompose,
+			Shape:       ShapeDockerCompose,
 			Detail:      fmt.Sprintf("docker compose file found: %s", composeFile),
 			ComposeFile: composeFile,
 		}
 	}
 
 	return firstRunRuntimeDetection{
-		Shape:  firstRunShapeUnknown,
+		Shape:  ShapeUnknown,
 		Detail: "no reachable API, no local eshu binaries on PATH, and no docker compose file",
 	}
 }
 
 // firstRunMissingBinaries returns the required binaries that are not on PATH.
-func firstRunMissingBinaries(probe firstRunRuntimeProbe) []string {
+func firstRunMissingBinaries(probe RuntimeProbe) []string {
 	if probe.LookPath == nil {
 		return append([]string(nil), firstRunRequiredBinaries...)
 	}
@@ -96,7 +85,7 @@ func firstRunMissingBinaries(probe firstRunRuntimeProbe) []string {
 
 // firstRunComposeFile returns the first docker-compose file present at the
 // workspace root, or "" when none is found.
-func firstRunComposeFile(probe firstRunRuntimeProbe, workspaceRoot string) string {
+func firstRunComposeFile(probe RuntimeProbe, workspaceRoot string) string {
 	if probe.FileExists == nil || workspaceRoot == "" {
 		return ""
 	}
@@ -109,10 +98,10 @@ func firstRunComposeFile(probe firstRunRuntimeProbe, workspaceRoot string) strin
 	return ""
 }
 
-// firstRunAPIHealthy performs a bounded /health check. A non-2xx status or any
+// APIHealthy performs a bounded /health check. A non-2xx status or any
 // transport error is reported as not healthy; readiness is never inferred from
 // the absence of a check.
-func firstRunAPIHealthy(baseURL string) bool {
+func APIHealthy(baseURL string) bool {
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(baseURL + "/health")
 	if err != nil {
@@ -127,32 +116,32 @@ func firstRunAPIHealthy(baseURL string) bool {
 // command is intentionally out of scope so first-run cannot mutate the host
 // destructively. When the API is not reachable for a shape that needs it, the
 // returned step is failed and carries actionable detail.
-func verifyFirstRunRuntime(probe firstRunRuntimeProbe, detection firstRunRuntimeDetection, baseURL string, noStart bool) firstRunStep {
+func verifyFirstRunRuntime(probe RuntimeProbe, detection firstRunRuntimeDetection, baseURL string, noStart bool) Step {
 	switch detection.Shape {
-	case firstRunShapeExistingAPI:
-		return firstRunStep{Name: "verify runtime", Status: firstRunStepOK, Detail: detection.Detail}
-	case firstRunShapeLocalBinaries:
+	case ShapeExistingAPI:
+		return Step{Name: "verify runtime", Status: StepOK, Detail: detection.Detail}
+	case ShapeLocalBinaries:
 		if probe.APIHealthy != nil && probe.APIHealthy(baseURL) {
-			return firstRunStep{Name: "verify runtime", Status: firstRunStepOK, Detail: "local API reachable"}
+			return Step{Name: "verify runtime", Status: StepOK, Detail: "local API reachable"}
 		}
-		return firstRunStep{
+		return Step{
 			Name:   "verify runtime",
-			Status: firstRunStepFailed,
+			Status: StepFailed,
 			Detail: firstRunStartHint(detection, baseURL, noStart, "eshu api start"),
 		}
-	case firstRunShapeDockerCompose:
+	case ShapeDockerCompose:
 		if probe.APIHealthy != nil && probe.APIHealthy(baseURL) {
-			return firstRunStep{Name: "verify runtime", Status: firstRunStepOK, Detail: "compose API reachable"}
+			return Step{Name: "verify runtime", Status: StepOK, Detail: "compose API reachable"}
 		}
-		return firstRunStep{
+		return Step{
 			Name:   "verify runtime",
-			Status: firstRunStepFailed,
+			Status: StepFailed,
 			Detail: firstRunStartHint(detection, baseURL, noStart, "docker compose up -d"),
 		}
 	default:
-		return firstRunStep{
+		return Step{
 			Name:   "verify runtime",
-			Status: firstRunStepFailed,
+			Status: StepFailed,
 			Detail: detection.Detail,
 		}
 	}

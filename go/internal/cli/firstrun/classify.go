@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ type onboardingSignal struct {
 	// Step is the first-run step that produced the failure.
 	Step onboardingStep
 	// Shape is the detected runtime topology.
-	Shape firstRunRuntimeShape
+	Shape RuntimeShape
 	// Underlying is the root-cause error, preserved verbatim in the diagnostic.
 	Underlying error
 
@@ -67,19 +67,19 @@ type onboardingSignal struct {
 // Ordering is significant: the most specific, evidence-backed signals are
 // checked before broader runtime-shape fallbacks so a precise class is never
 // masked by a generic one.
-func classifyOnboardingFailure(signal onboardingSignal) (onboardingDiagnostic, bool) {
+func classifyOnboardingFailure(signal onboardingSignal) (Diagnostic, bool) {
 	for _, rule := range onboardingRules() {
 		if rule.match(signal) {
 			return rule.build(signal), true
 		}
 	}
-	return onboardingDiagnostic{}, false
+	return Diagnostic{}, false
 }
 
 // onboardingRule pairs a predicate over the signal with a diagnostic builder.
 type onboardingRule struct {
 	match func(onboardingSignal) bool
-	build func(onboardingSignal) onboardingDiagnostic
+	build func(onboardingSignal) Diagnostic
 }
 
 // onboardingRules is the ordered classification table. Most specific first.
@@ -87,9 +87,9 @@ func onboardingRules() []onboardingRule {
 	return []onboardingRule{
 		{
 			match: func(s onboardingSignal) bool { return s.RepoPathDenied },
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassDockerRepoPaths,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassDockerRepoPaths,
 					Summary: "Docker cannot see the repository paths it was asked to index",
 					RecoverySteps: []string{
 						"Mount the repo into the container: add the host path under volumes in docker-compose.yaml",
@@ -103,9 +103,9 @@ func onboardingRules() []onboardingRule {
 		},
 		{
 			match: func(s onboardingSignal) bool { return len(s.MissingBinaries) > 0 },
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassBinariesMissing,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassBinariesMissing,
 					Summary: fmt.Sprintf("CLI helper binaries are missing from PATH: %s", strings.Join(s.MissingBinaries, ", ")),
 					RecoverySteps: []string{
 						"Build the binaries: cd go && make build",
@@ -119,9 +119,9 @@ func onboardingRules() []onboardingRule {
 		},
 		{
 			match: mcpEndpointSignalMatches,
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassMCPEndpointIsAPI,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassMCPEndpointIsAPI,
 					Summary: fmt.Sprintf("MCP endpoint points at the API instead of the MCP service: %s", s.MCPEndpoint),
 					RecoverySteps: []string{
 						"Point the MCP client at the MCP service path, e.g. http://<mcp-host>:<mcp-port>/mcp/message",
@@ -133,42 +133,14 @@ func onboardingRules() []onboardingRule {
 				}
 			},
 		},
-		{
-			match: func(s onboardingSignal) bool { return isAuthError(s.Underlying) },
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassAuthMismatch,
-					Summary: "API auth/token mismatch: the API rejected the request as unauthorized",
-					// Phrased without a "key=value" pair and without a
-					// credential-named word in front of a ":" on purpose. This
-					// string is copied into the shareable first-run evidence
-					// artifact, where a structural scan removes any
-					// credential-shaped pair it finds in free text — name and
-					// all, and a "token:" header takes the rest of the line with
-					// it. Written as "export ESHU_API_KEY=<server token>" this
-					// step reached the artifact as "Set a matching [redacted]",
-					// which does not tell a maintainer which variable to set.
-					// The scan is deliberately blind to whether a value is real,
-					// so a placeholder is removed exactly like a live key; the
-					// fix is to phrase the instruction without the pair, never
-					// to exempt the field.
-					RecoverySteps: []string{
-						"Put the token the API server printed into the ESHU_API_KEY environment variable",
-						"Confirm the API's configured key matches the client key",
-						"Re-run: eshu first-run",
-					},
-					DocsLink:   "docs/public/reference/http-api.md",
-					Underlying: s.Underlying,
-				}
-			},
-		},
+		authMismatchRule(),
 		{
 			match: func(s onboardingSignal) bool {
 				return s.AssistantConfigured && !s.AssistantToolsVisible
 			},
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassAssistantToolsHidden,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassAssistantToolsHidden,
 					Summary: "Assistant config exists but the eshu tools are not visible in the client",
 					RecoverySteps: []string{
 						"Fully restart the assistant so it reloads the MCP server list",
@@ -182,9 +154,9 @@ func onboardingRules() []onboardingRule {
 		},
 		{
 			match: func(s onboardingSignal) bool { return queueHasFailedWork(s.Queue) },
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassQueueFailedWork,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassQueueFailedWork,
 					Summary: fmt.Sprintf("Queue has blocked work (%s)", queueFailureDetail(s.Queue)),
 					RecoverySteps: []string{
 						"Inspect the failing work: eshu admin facts dead-letter",
@@ -198,9 +170,9 @@ func onboardingRules() []onboardingRule {
 		},
 		{
 			match: func(s onboardingSignal) bool { return s.EmptyRepoList },
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassNoRepositories,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassNoRepositories,
 					Summary: noRepositoriesSummary(s.Selector),
 					RecoverySteps: []string{
 						"Index a repository first: eshu scan <path>",
@@ -216,9 +188,9 @@ func onboardingRules() []onboardingRule {
 			match: func(s onboardingSignal) bool {
 				return s.Step == onboardingStepReadiness && readinessStillBuilding(s.Readiness, s.Queue)
 			},
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassIndexingNotReady,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassIndexingNotReady,
 					Summary: "Health is green but indexing is still building or stale",
 					RecoverySteps: []string{
 						"Wait for the queue to drain, then re-check: eshu index-status",
@@ -232,11 +204,11 @@ func onboardingRules() []onboardingRule {
 		},
 		{
 			match: func(s onboardingSignal) bool {
-				return s.RuntimeFailed && (s.Shape == firstRunShapeDockerCompose || s.ComposeDetected)
+				return s.RuntimeFailed && (s.Shape == ShapeDockerCompose || s.ComposeDetected)
 			},
-			build: func(s onboardingSignal) onboardingDiagnostic {
-				return onboardingDiagnostic{
-					Class:   onboardingClassComposeUnhealthy,
+			build: func(s onboardingSignal) Diagnostic {
+				return Diagnostic{
+					Class:   ClassComposeUnhealthy,
 					Summary: "Compose services are not running or are unhealthy",
 					RecoverySteps: []string{
 						"Start the stack: docker compose up -d",
@@ -247,6 +219,41 @@ func onboardingRules() []onboardingRule {
 					Underlying: s.Underlying,
 				}
 			},
+		},
+	}
+}
+
+// authMismatchRule is the 401/403 classification entry. It is a named builder
+// only to keep onboardingRules under the function-length cap; the ordering
+// authority stays with the table in onboardingRules.
+func authMismatchRule() onboardingRule {
+	return onboardingRule{
+		match: func(s onboardingSignal) bool { return isAuthError(s.Underlying) },
+		build: func(s onboardingSignal) Diagnostic {
+			return Diagnostic{
+				Class:   ClassAuthMismatch,
+				Summary: "API auth/token mismatch: the API rejected the request as unauthorized",
+				// Phrased without a "key=value" pair and without a
+				// credential-named word in front of a ":" on purpose. This
+				// string is copied into the shareable first-run evidence
+				// artifact, where a structural scan removes any
+				// credential-shaped pair it finds in free text — name and
+				// all, and a "token:" header takes the rest of the line with
+				// it. Written as "export ESHU_API_KEY=<server token>" this
+				// step reached the artifact as "Set a matching [redacted]",
+				// which does not tell a maintainer which variable to set.
+				// The scan is deliberately blind to whether a value is real,
+				// so a placeholder is removed exactly like a live key; the
+				// fix is to phrase the instruction without the pair, never
+				// to exempt the field.
+				RecoverySteps: []string{
+					"Put the token the API server printed into the ESHU_API_KEY environment variable",
+					"Confirm the API's configured key matches the client key",
+					"Re-run: eshu first-run",
+				},
+				DocsLink:   "docs/public/reference/http-api.md",
+				Underlying: s.Underlying,
+			}
 		},
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"context"
@@ -22,13 +22,13 @@ func ensureFirstRunIndexed(
 	ctx context.Context,
 	stdout io.Writer,
 	stderr io.Writer,
-	client *APIClient,
-	deps firstRunDeps,
-	opts firstRunOptions,
+	client scan.Client,
+	deps Deps,
+	opts Options,
 ) (firstRunIndexOutcome, error) {
 	if deps.WorkspaceError != nil {
 		return firstRunIndexOutcome{
-			Status:       firstRunStepFailed,
+			Status:       StepFailed,
 			Detail:       deps.WorkspaceError.Error(),
 			Completeness: "unknown",
 			Readiness:    "unresolved-target",
@@ -41,7 +41,7 @@ func ensureFirstRunIndexed(
 
 	if deps.RunScan == nil {
 		return firstRunIndexOutcome{
-			Status:       firstRunStepFailed,
+			Status:       StepFailed,
 			Detail:       "scan seam is not configured",
 			Completeness: "unknown",
 			Readiness:    "unconfigured",
@@ -62,7 +62,7 @@ func ensureFirstRunIndexed(
 	reposDir, err := resolveReposDir(deps.WorkspaceRoot)
 	if err != nil {
 		return firstRunIndexOutcome{
-			Status:       firstRunStepFailed,
+			Status:       StepFailed,
 			Detail:       err.Error(),
 			Completeness: "unknown",
 			Readiness:    "cache-unresolved",
@@ -70,17 +70,17 @@ func ensureFirstRunIndexed(
 	}
 	scanOpts.ReposDir = reposDir
 
-	result, err := deps.RunScan(ctx, stdout, stderr, scanRuntimeFor(client), scanOpts, false)
+	result, err := deps.RunScan(ctx, stdout, stderr, deps.ScanRuntime, scanOpts, false)
 	if err != nil {
 		return firstRunIndexOutcome{
-			Status:       firstRunStepFailed,
+			Status:       StepFailed,
 			Detail:       err.Error(),
 			Completeness: firstRunCompletenessFromScan(result),
 			Readiness:    firstRunReadinessFromScan(result),
 		}, fmt.Errorf("index repository: %w", err)
 	}
 	return firstRunIndexOutcome{
-		Status:       firstRunStepOK,
+		Status:       StepOK,
 		Detail:       fmt.Sprintf("indexed %s", deps.WorkspaceRoot),
 		Completeness: "complete",
 		Readiness:    "ready",
@@ -91,7 +91,7 @@ func ensureFirstRunIndexed(
 // the target as an indexed repository whose pipeline is drained. It only treats
 // the repository as reusable when the readiness verdict confirms completeness,
 // never on process health alone.
-func firstRunDetectExistingIndex(deps firstRunDeps, client *APIClient) (firstRunIndexOutcome, bool) {
+func firstRunDetectExistingIndex(deps Deps, client scan.Client) (firstRunIndexOutcome, bool) {
 	if deps.ListRepos == nil || deps.FetchStatus == nil {
 		return firstRunIndexOutcome{}, false
 	}
@@ -99,7 +99,7 @@ func firstRunDetectExistingIndex(deps firstRunDeps, client *APIClient) (firstRun
 	if err != nil || len(repos.Repositories) == 0 {
 		return firstRunIndexOutcome{}, false
 	}
-	if !firstRunRepoMatchesTarget(repos, deps.WorkspaceRoot) {
+	if !firstRunRepoMatchesTarget(deps, repos, deps.WorkspaceRoot) {
 		return firstRunIndexOutcome{}, false
 	}
 	status, err := deps.FetchStatus(client)
@@ -111,7 +111,7 @@ func firstRunDetectExistingIndex(deps firstRunDeps, client *APIClient) (firstRun
 		return firstRunIndexOutcome{}, false
 	}
 	return firstRunIndexOutcome{
-		Status:       firstRunStepOK,
+		Status:       StepOK,
 		Detail:       "reused existing indexed repository",
 		Completeness: "complete",
 		Readiness:    "ready",
@@ -120,14 +120,20 @@ func firstRunDetectExistingIndex(deps firstRunDeps, client *APIClient) (firstRun
 
 // firstRunRepoMatchesTarget reports whether the resolved target matches an
 // already-indexed repository. With no resolvable target the presence of any
-// indexed repository is treated as a usable existing index.
-func firstRunRepoMatchesTarget(repos repositoryListResponse, workspaceRoot string) bool {
+// indexed repository is treated as a usable existing index. The match itself
+// goes through the caller-supplied selector seam, since the selector matcher
+// lives in go/cmd/eshu; a nil seam matches nothing, so a misconfigured caller
+// falls back to a fresh scan rather than reusing an unproven index.
+func firstRunRepoMatchesTarget(deps Deps, repos RepositoryList, workspaceRoot string) bool {
 	target := strings.TrimSpace(workspaceRoot)
 	if target == "" {
 		return len(repos.Repositories) > 0
 	}
+	if deps.MatchesSelector == nil {
+		return false
+	}
 	for _, repo := range repos.Repositories {
-		if repositorySelectorMatches(repo, target) {
+		if deps.MatchesSelector(repo, target) {
 			return true
 		}
 	}

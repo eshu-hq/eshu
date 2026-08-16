@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
 // CriterionName identifies a single measured success criterion from issue
@@ -118,7 +120,7 @@ func (v Verdict) FailureReasons() []string {
 // the answer lacks a source handle, indexing did not complete, or the run
 // envelope carried an error. Optional criteria (time, manual steps) only ever
 // add not-measured rows and never flip an otherwise-complete run to fail.
-func Evaluate(env Envelope, m Measurements) Verdict {
+func Evaluate(env firstrun.Envelope, m Measurements) Verdict {
 	verdict := Verdict{Path: m.Path}
 
 	verdict.Criteria = append(verdict.Criteria, evaluateFirstAnswerCriterion(env))
@@ -142,7 +144,7 @@ func Evaluate(env Envelope, m Measurements) Verdict {
 // evaluateFirstAnswerCriterion is the health-only-rejection guard: success
 // requires a bounded query that actually returned and a non-error envelope.
 // Readiness or process health alone never satisfies it.
-func evaluateFirstAnswerCriterion(env Envelope) Criterion {
+func evaluateFirstAnswerCriterion(env firstrun.Envelope) Criterion {
 	c := Criterion{Name: CriterionFirstAnswer, Required: true}
 	if env.Error != nil {
 		c.Status = CriterionFail
@@ -166,7 +168,7 @@ func evaluateFirstAnswerCriterion(env Envelope) Criterion {
 
 // evaluateTruthMetadataCriterion requires the answer to carry provenance: a
 // non-empty truth map with the freshness and completeness labels populated.
-func evaluateTruthMetadataCriterion(env Envelope) Criterion {
+func evaluateTruthMetadataCriterion(env firstrun.Envelope) Criterion {
 	c := Criterion{Name: CriterionTruthMetadata, Required: true}
 	if len(env.Truth) == 0 {
 		c.Status = CriterionFail
@@ -199,7 +201,7 @@ func truthMissingKeys(truth map[string]any) []string {
 // evaluateSourceHandlesCriterion requires the answer to reference at least one
 // concrete source. A query that returned zero repositories, or a blank repo
 // target with no summarized handle, has no source handle to cite.
-func evaluateSourceHandlesCriterion(env Envelope) Criterion {
+func evaluateSourceHandlesCriterion(env firstrun.Envelope) Criterion {
 	c := Criterion{Name: CriterionSourceHandles, Required: true}
 	if !env.Data.QueryAnswered {
 		c.Status = CriterionFail
@@ -241,7 +243,7 @@ func sourceHandleDetail(summary, repoTarget string) string {
 
 // evaluateRepoIndexedCriterion requires indexing to have completed. A partial
 // or unknown index is not a completed-indexing proof.
-func evaluateRepoIndexedCriterion(env Envelope) Criterion {
+func evaluateRepoIndexedCriterion(env firstrun.Envelope) Criterion {
 	c := Criterion{Name: CriterionRepoIndexed, Required: true}
 	indexed := strings.TrimSpace(env.Data.RepoIndexed)
 	if indexed == "complete" {
@@ -250,13 +252,13 @@ func evaluateRepoIndexedCriterion(env Envelope) Criterion {
 		return c
 	}
 	c.Status = CriterionFail
-	c.Detail = "repo_indexed=" + quoteIfEmpty(indexed) + " (indexing not proven complete)"
+	c.Detail = "repo_indexed=" + firstrun.QuoteIfEmpty(indexed) + " (indexing not proven complete)"
 	return c
 }
 
 // evaluateTimeToAnswerCriterion records the measured time to first answer. It
 // is informational: a missing measurement is not-measured, never a failure.
-func evaluateTimeToAnswerCriterion(env Envelope, m Measurements) Criterion {
+func evaluateTimeToAnswerCriterion(env firstrun.Envelope, m Measurements) Criterion {
 	c := Criterion{Name: CriterionTimeToAnswer}
 	if m.Elapsed <= 0 {
 		c.Status = CriterionNotMeasured
@@ -290,7 +292,7 @@ func evaluateManualStepsCriterion(m Measurements) Criterion {
 
 // evaluateFailureExplanationCriterion checks that a failed run explained why.
 // On a successful run it is not-measured (there is nothing to explain).
-func evaluateFailureExplanationCriterion(env Envelope) Criterion {
+func evaluateFailureExplanationCriterion(env firstrun.Envelope) Criterion {
 	c := Criterion{Name: CriterionFailureExplanation}
 	failed := env.Error != nil || !env.Data.QueryAnswered
 	if !failed {
@@ -310,12 +312,12 @@ func evaluateFailureExplanationCriterion(env Envelope) Criterion {
 
 // failureExplanationPresent reports whether a failed run gave the operator an
 // actionable cause: a failing step with detail or a populated next-steps list.
-func failureExplanationPresent(env Envelope) bool {
+func failureExplanationPresent(env firstrun.Envelope) bool {
 	if env.Error != nil && strings.TrimSpace(env.Error.Message) != "" {
 		return len(env.Data.NextSteps) > 0
 	}
 	for _, step := range env.Data.Steps {
-		if step.Status == StepFailed && strings.TrimSpace(step.Detail) != "" {
+		if step.Status == firstrun.StepFailed && strings.TrimSpace(step.Detail) != "" {
 			return len(env.Data.NextSteps) > 0
 		}
 	}

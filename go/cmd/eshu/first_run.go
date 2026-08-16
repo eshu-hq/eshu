@@ -4,52 +4,17 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"io"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
-
-// firstRunQueryEndpoint is the bounded, API-backed query the command runs to
-// prove a useful answer is reachable. Listing repositories with a small limit
-// is the smallest truthful end-to-end probe.
-const firstRunQueryEndpoint = "/api/v0/repositories?limit=5"
-
-// firstRunDeps groups the injectable seams used by the orchestration so each
-// step is unit-testable with fakes. Production wiring lives in runFirstRun.
-type firstRunDeps struct {
-	Probe          firstRunRuntimeProbe
-	FetchStatus    func(client scan.Client) (scan.PipelineStatus, error)
-	ListRepos      func(client *APIClient) (repositoryListResponse, error)
-	RunScan        func(ctx context.Context, stdout, stderr io.Writer, rt scan.Runtime, opts scan.Options, announce bool) (scan.Result, error)
-	ReposDir       func(root string) (string, error)
-	WorkspaceRoot  string
-	WorkspaceError error
-}
-
-// firstRunOptions captures the resolved command flags.
-type firstRunOptions struct {
-	Path         string
-	JSON         bool
-	NoStart      bool
-	Timeout      time.Duration
-	PollInterval time.Duration
-	Profile      string
-	// Report enables the terminal evidence summary in addition to the normal
-	// human or JSON output.
-	Report bool
-	// ReportFormat selects the artifact format ("md" or "json") for ReportOut.
-	ReportFormat string
-	// ReportOut is the optional path the redacted evidence artifact is written
-	// to. An empty value writes no artifact.
-	ReportOut string
-}
 
 func init() {
 	firstRunCmd := &cobra.Command{
@@ -83,8 +48,11 @@ func addFirstRunFlags(cmd *cobra.Command) {
 	cmd.Flags().String("report-out", "", "Write a redacted first-run evidence artifact to this path")
 }
 
-// runFirstRun is the cobra entry point. It wires production seams and delegates
-// to executeFirstRun so the orchestration stays unit-testable.
+// runFirstRun is the cobra entry point. It resolves every piece of process
+// state the orchestration needs -- flags, the API client, the scan runtime,
+// the selector matcher, and the config-backed MCP endpoint -- and delegates to
+// firstrun.Execute so the orchestration stays unit-testable outside package
+// main.
 func runFirstRun(cmd *cobra.Command, args []string) error {
 	opts, err := firstRunOptionsFromCommand(cmd, args)
 	if err != nil {
@@ -93,25 +61,19 @@ func runFirstRun(cmd *cobra.Command, args []string) error {
 	client := apiClientFromCmd(cmd)
 
 	root, rootErr := scan.ResolveTarget(opts.Path, "")
-	deps := firstRunDeps{
-		Probe:       defaultFirstRunRuntimeProbe(),
-		FetchStatus: scan.FetchPipelineStatus,
-		ListRepos:   firstRunListRepositories,
-		RunScan:     scan.Execute,
-		ReposDir:    scan.ReposDir,
-	}
+	deps := firstRunDeps(client)
 	if rootErr != nil {
 		deps.WorkspaceError = rootErr
 	} else {
 		deps.WorkspaceRoot = root.Root
 	}
 
-	result, runErr := executeFirstRun(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), client, deps, opts)
+	result, runErr := firstrun.Execute(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), client, client.BaseURL, deps, opts)
 	return finishFirstRun(cmd, opts, result, runErr)
 }
 
 // firstRunOptionsFromCommand parses and validates flags.
-func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstRunOptions, error) {
+func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstrun.Options, error) {
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
@@ -125,17 +87,17 @@ func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstRunOpti
 	reportFormat, _ := cmd.Flags().GetString("report-format")
 	reportOut, _ := cmd.Flags().GetString("report-out")
 	if timeout <= 0 {
-		return firstRunOptions{}, fmt.Errorf("timeout must be greater than zero")
+		return firstrun.Options{}, fmt.Errorf("timeout must be greater than zero")
 	}
 	if pollInterval <= 0 {
-		return firstRunOptions{}, fmt.Errorf("poll-interval must be greater than zero")
+		return firstrun.Options{}, fmt.Errorf("poll-interval must be greater than zero")
 	}
 	if reportOut != "" {
-		if _, err := normalizeEvidenceFormat(reportFormat); err != nil {
-			return firstRunOptions{}, err
+		if _, err := firstrun.NormalizeEvidenceFormat(reportFormat); err != nil {
+			return firstrun.Options{}, err
 		}
 	}
-	return firstRunOptions{
+	return firstrun.Options{
 		Path:         path,
 		JSON:         jsonOutput,
 		NoStart:      noStart,
@@ -148,157 +110,76 @@ func firstRunOptionsFromCommand(cmd *cobra.Command, args []string) (firstRunOpti
 	}, nil
 }
 
-// executeFirstRun runs the ordered, individually-testable steps and returns the
-// canonical result. It never reports success unless the final bounded query
-// actually returned an answer.
-func executeFirstRun(
-	parentCtx context.Context,
-	stdout io.Writer,
-	stderr io.Writer,
-	client *APIClient,
-	deps firstRunDeps,
-	opts firstRunOptions,
-) (firstRunResult, error) {
-	if parentCtx == nil {
-		parentCtx = context.Background()
+// firstRunDeps builds the production seam set runFirstRun hands to
+// firstrun.Execute. It is the single construction site for those seams so a
+// test can prove the wiring — in particular that Deps.ResolveMCPEndpoint
+// carries the config-backed resolver the mcp_endpoint_is_api diagnostic
+// depends on. Workspace resolution stays in runFirstRun because it needs the
+// command's path argument.
+func firstRunDeps(client *APIClient) firstrun.Deps {
+	return firstrun.Deps{
+		Probe:              defaultFirstRunRuntimeProbe(),
+		FetchStatus:        scan.FetchPipelineStatus,
+		ListRepos:          firstRunListRepositories,
+		RunScan:            scan.Execute,
+		ReposDir:           scan.ReposDir,
+		ScanRuntime:        scanRuntimeFor(client),
+		MatchesSelector:    firstRunSelectorMatches,
+		ResolveMCPEndpoint: resolveFirstRunMCPEndpoint,
 	}
-	result := newFirstRunResult(client.BaseURL)
-	result.RepoTarget = strings.TrimSpace(deps.WorkspaceRoot)
-
-	// Step 1: detect runtime shape.
-	detection := detectFirstRunRuntime(deps.Probe, client.BaseURL, deps.WorkspaceRoot)
-	result.RuntimeShape = detection.Shape
-	result = result.addStep("detect runtime", firstRunStepOK, detection.Detail)
-
-	// Step 2: verify the runtime is usable (no destructive auto-start).
-	verifyStep := verifyFirstRunRuntime(deps.Probe, detection, client.BaseURL, opts.NoStart)
-	result = result.addStep(verifyStep.Name, verifyStep.Status, verifyStep.Detail)
-	if verifyStep.Status == firstRunStepFailed {
-		verifyErr := fmt.Errorf("verify runtime: %s", verifyStep.Detail)
-		result = attachFirstRunDiagnostic(result, firstRunVerifySignal(deps, detection, client.BaseURL, verifyErr))
-		result.NextSteps = firstRunNextSteps(result, detection)
-		return result, verifyErr
-	}
-
-	// Step 3: index the target repository (or reuse an existing index).
-	indexed, runErr := ensureFirstRunIndexed(parentCtx, stdout, stderr, client, deps, opts)
-	result.RepoIndexed = indexed.Completeness
-	result.Readiness = indexed.Readiness
-	result = result.addStep("index repository", indexed.Status, indexed.Detail)
-	if runErr != nil {
-		result = result.addStep("wait for readiness", firstRunStepFailed, runErr.Error())
-		result = attachFirstRunDiagnostic(result, firstRunReadinessSignal(deps, client, detection, indexed, runErr))
-		result.NextSteps = firstRunNextSteps(result, detection)
-		return result, runErr
-	}
-	result = result.addStep("wait for readiness", firstRunStepOK, indexed.Readiness)
-
-	// Step 4: run one bounded API-backed query as the truthful end proof.
-	answer, queryErr := runFirstRunQuery(deps, client)
-	if queryErr != nil {
-		result = result.addStep("first query", firstRunStepFailed, queryErr.Error())
-		result = attachFirstRunDiagnostic(result, firstRunQuerySignal(queryErr))
-		result.NextSteps = firstRunNextSteps(result, detection)
-		return result, fmt.Errorf("first query: %w", queryErr)
-	}
-	result.QueryAnswered = true
-	result.QuerySummary = answer
-	result = result.addStep("first query", firstRunStepOK, answer)
-	// A successful query that found zero repositories is truthful success, but the
-	// operator has nothing to query yet. Attach the empty-index advisory so the
-	// next action is clear without marking the run failed.
-	if isEmptyRepositoriesAnswer(answer) {
-		result = attachFirstRunDiagnostic(result, firstRunEmptyRepoSignal())
-	}
-	result.NextSteps = firstRunNextSteps(result, detection)
-	return result, nil
 }
 
-// firstRunIndexOutcome captures the readiness and completeness of the index
-// step in a form the summary can render truthfully.
-type firstRunIndexOutcome struct {
-	Status       firstRunStepStatus
-	Detail       string
-	Completeness string
-	Readiness    string
+// defaultFirstRunRuntimeProbe returns the production probe backed by a bounded
+// HTTP client, exec.LookPath, and os.Stat.
+func defaultFirstRunRuntimeProbe() firstrun.RuntimeProbe {
+	return firstrun.RuntimeProbe{
+		APIHealthy: firstrun.APIHealthy,
+		LookPath:   exec.LookPath,
+		FileExists: pathExists,
+	}
 }
 
-// firstRunListRepositories is the default repositories query seam.
-func firstRunListRepositories(client *APIClient) (repositoryListResponse, error) {
+// firstRunListRepositories is the default repositories query seam. It owns the
+// wire decode because the repository-list response type is shared by thirteen
+// command families in this package, and it copies the entries into the
+// firstrun package's plain-value model at the boundary.
+func firstRunListRepositories(client scan.Client) (firstrun.RepositoryList, error) {
 	var response repositoryListResponse
-	if err := client.Get(firstRunQueryEndpoint, &response); err != nil {
-		return repositoryListResponse{}, err
+	if err := client.Get(firstrun.QueryEndpoint, &response); err != nil {
+		return firstrun.RepositoryList{}, err
 	}
-	return response, nil
+	list := firstrun.RepositoryList{}
+	for _, repo := range response.Repositories {
+		list.Repositories = append(list.Repositories, firstrun.Repository{
+			ID:        repo.ID,
+			Name:      repo.Name,
+			Path:      repo.Path,
+			LocalPath: repo.LocalPath,
+			RepoSlug:  repo.RepoSlug,
+		})
+	}
+	return list, nil
 }
 
-// runFirstRunQuery runs the bounded repositories query and returns a concise
-// human summary of the answer. An error is returned only when the query did not
-// return; an empty repository list is a valid, truthful answer.
-func runFirstRunQuery(deps firstRunDeps, client *APIClient) (string, error) {
-	if deps.ListRepos == nil {
-		return "", errors.New("repositories query seam is not configured")
-	}
-	response, err := deps.ListRepos(client)
-	if err != nil {
-		return "", err
-	}
-	count := len(response.Repositories)
-	if count == 0 {
-		return "repositories query returned 0 repositories", nil
-	}
-	first := strings.TrimSpace(response.Repositories[0].Name)
-	if first == "" {
-		first = strings.TrimSpace(response.Repositories[0].ID)
-	}
-	return fmt.Sprintf("repositories query returned %d (e.g. %s)", count, first), nil
-}
-
-// firstRunNextSteps builds actionable follow-ups tailored to the outcome.
-func firstRunNextSteps(result firstRunResult, detection firstRunRuntimeDetection) []string {
-	if result.succeeded() {
-		return []string{
-			fmt.Sprintf("Ask a deeper question: eshu story %s", quoteIfEmpty(result.RepoTarget)),
-			"List everything indexed: eshu list",
-		}
-	}
-	switch detection.Shape {
-	case firstRunShapeLocalBinaries:
-		return []string{
-			"Start the local API: eshu api start",
-			"Re-run: eshu first-run",
-		}
-	case firstRunShapeDockerCompose:
-		return []string{
-			"Start the stack: docker compose up -d",
-			"Re-run: eshu first-run",
-		}
-	case firstRunShapeUnknown:
-		return []string{
-			"Build the binaries: cd go && make build && export PATH=$PATH:$(pwd)/bin",
-			"Or start Docker Compose, then re-run: eshu first-run",
-		}
-	default:
-		return []string{"Re-run: eshu first-run"}
-	}
-}
-
-// quoteIfEmpty renders a placeholder for an empty repo target so the next-step
-// hint stays copy-pasteable.
-func quoteIfEmpty(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return "<repo>"
-	}
-	return value
+// firstRunSelectorMatches adapts the shared repository selector matcher to the
+// firstrun package's plain-value repository model.
+func firstRunSelectorMatches(repo firstrun.Repository, selector string) bool {
+	return repositorySelectorMatches(repositorySelectorEntry{
+		ID:        repo.ID,
+		Name:      repo.Name,
+		Path:      repo.Path,
+		LocalPath: repo.LocalPath,
+		RepoSlug:  repo.RepoSlug,
+	}, selector)
 }
 
 // finishFirstRun renders the result as JSON or human text and returns runErr so
 // the exit code reflects the truthful outcome. When an evidence report was
 // requested it also emits a redacted summary and/or writes a redacted artifact;
 // a report failure is reported but never masks the run's own outcome.
-func finishFirstRun(cmd *cobra.Command, opts firstRunOptions, result firstRunResult, runErr error) error {
+func finishFirstRun(cmd *cobra.Command, opts firstrun.Options, result firstrun.Result, runErr error) error {
 	if result.Truth == nil {
-		result.Truth = firstRunTruth(result, opts.Profile)
+		result.Truth = firstrun.Truth(result, opts.Profile)
 	}
 	if opts.JSON {
 		envelope := map[string]any{
@@ -315,7 +196,7 @@ func finishFirstRun(cmd *cobra.Command, opts firstRunOptions, result firstRunRes
 		emitFirstRunEvidence(cmd, opts, result)
 		return runErr
 	}
-	renderFirstRunHuman(cmd.OutOrStdout(), result, runErr)
+	firstrun.RenderHuman(cmd.OutOrStdout(), result, runErr)
 	emitFirstRunEvidence(cmd, opts, result)
 	return runErr
 }
@@ -324,11 +205,11 @@ func finishFirstRun(cmd *cobra.Command, opts firstRunOptions, result firstRunRes
 // redacted artifact when requested. With JSON output the summary goes to stderr
 // so the canonical envelope on stdout stays parseable. Any error is reported on
 // stderr without overriding the run's truthful exit code.
-func emitFirstRunEvidence(cmd *cobra.Command, opts firstRunOptions, result firstRunResult) {
+func emitFirstRunEvidence(cmd *cobra.Command, opts firstrun.Options, result firstrun.Result) {
 	if !opts.Report && opts.ReportOut == "" {
 		return
 	}
-	report := buildFirstRunEvidence(result, &firstRunEvidenceInputs{
+	report := firstrun.BuildEvidence(result, &firstrun.EvidenceInputs{
 		MCPEndpoint: resolveFirstRunMCPEndpoint(),
 		Profile:     opts.Profile,
 	})
@@ -337,10 +218,10 @@ func emitFirstRunEvidence(cmd *cobra.Command, opts firstRunOptions, result first
 		if opts.JSON {
 			summaryOut = cmd.ErrOrStderr()
 		}
-		renderEvidenceTerminal(summaryOut, report)
+		firstrun.RenderEvidenceTerminal(summaryOut, report)
 	}
 	if opts.ReportOut != "" {
-		if err := writeEvidenceArtifact(report, opts.ReportFormat, opts.ReportOut); err != nil {
+		if err := firstrun.WriteEvidenceArtifact(report, opts.ReportFormat, opts.ReportOut); err != nil {
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "evidence artifact: %v\n", err)
 			return
 		}
@@ -348,14 +229,12 @@ func emitFirstRunEvidence(cmd *cobra.Command, opts firstRunOptions, result first
 	}
 }
 
-// firstRunTruth labels the freshness and completeness of the first-run outcome
-// using the same truth vocabulary as scan.
-func firstRunTruth(result firstRunResult, profile string) map[string]any {
-	freshness := "stale"
-	completeness := "partial"
-	if result.succeeded() && result.RepoIndexed == "complete" {
-		freshness = "current"
-		completeness = "complete"
+// resolveFirstRunMCPEndpoint reads a configured MCP endpoint from the
+// environment or config so the API-vs-MCP heuristic can flag a misrouted URL.
+// An empty result means no endpoint is configured and the heuristic is skipped.
+func resolveFirstRunMCPEndpoint() string {
+	if value := strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_URL", "")); value != "" {
+		return value
 	}
-	return scan.Truth(freshness, completeness, profile, scan.CurrentGraphBackend())
+	return strings.TrimSpace(cliconfig.ResolveValue("ESHU_MCP_ENDPOINT", ""))
 }

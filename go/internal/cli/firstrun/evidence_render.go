@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package firstrun
 
 import (
 	"encoding/json"
@@ -12,14 +12,16 @@ import (
 
 // renderEvidenceJSON serializes the evidence report as indented JSON. The model
 // is already redacted, so the bytes are safe to write to a shared artifact.
-func renderEvidenceJSON(report firstRunEvidenceReport) ([]byte, error) {
+//
+//nolint:wrapcheck // the marshal error reaches the operator as cobra's "Error: ..." line; wrapping it would change that text and break CLI output parity.
+func renderEvidenceJSON(report EvidenceReport) ([]byte, error) {
 	return json.MarshalIndent(report, "", "  ")
 }
 
 // renderEvidenceMarkdown renders the report as a compact Markdown artifact. It
 // reads only the already-redacted report fields, so no endpoint, target, or
 // secret can leak through this surface.
-func renderEvidenceMarkdown(report firstRunEvidenceReport) (string, error) {
+func renderEvidenceMarkdown(report EvidenceReport) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# First-run evidence\n\n")
 	fmt.Fprintf(&b, "Outcome: **%s**\n\n", report.Outcome)
@@ -65,9 +67,9 @@ func renderEvidenceMarkdown(report firstRunEvidenceReport) (string, error) {
 	return b.String(), nil
 }
 
-// renderEvidenceTerminal writes a concise, operator-facing terminal summary of
+// RenderEvidenceTerminal writes a concise, operator-facing terminal summary of
 // the report. Like the artifact renderers it reads only redacted fields.
-func renderEvidenceTerminal(w io.Writer, report firstRunEvidenceReport) {
+func RenderEvidenceTerminal(w io.Writer, report EvidenceReport) {
 	_, _ = fmt.Fprintln(w, "First-run evidence")
 	_, _ = fmt.Fprintln(w, strings.Repeat("-", 40))
 	_, _ = fmt.Fprintf(w, "  outcome        : %s\n", report.Outcome)
