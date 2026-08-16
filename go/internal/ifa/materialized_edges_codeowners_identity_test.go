@@ -118,17 +118,25 @@ func TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate(t *tes
 // (codeownersOwnershipRowsToExpectedEdges).
 //
 // State the residual at its real width, because the case for retiring this
-// family's own key rests on it. The comparison is a multiset of Key()s, so ANY
-// permutation of identity properties AMONG EDGES SHARING ONE (source, target)
-// pair is invisible -- swapping pattern/source_path between two @org/docs
-// rules leaves the multiset unchanged just as an order_index swap does.
-// order_index is only the least interesting instance. What #6137 actually
-// bought is the endpoint-pair boundary: a corruption that moves an identity
-// property ACROSS (source, target) pairs, or drops one rule while duplicating
-// another, changes the multiset and is caught -- see this file's sibling test,
-// and TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption for the same
-// proof at the guard level. Widening past that boundary would mean widening
-// the MERGE key, not the fixture.
+// family's own key rests on it. The comparison is a multiset of Key()s, so the
+// boundary is multiset-preserving versus multiset-changing, and nothing else:
+//
+//   - A PERMUTATION preserves the multiset and is invisible. Swapping
+//     pattern/source_path between two @org/docs rules is as invisible as
+//     swapping their order_index; order_index is only the least interesting
+//     instance, not the boundary.
+//   - Anything that CHANGES the multiset is caught, including within a single
+//     (source, target) pair. Dropping one rule while duplicating another is
+//     the case that matters, because the two defects net to the same edge
+//     count and a triple-only key sees nothing -- proven at the Key() level by
+//     this file's sibling test and at the guard level by
+//     TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption, both
+//     entirely inside repo-x -> org/docs.
+//
+// That is what #6137 bought: the declared identity turns a count comparison
+// into an identity comparison, so multiset-changing corruption becomes
+// visible wherever it occurs. Reaching the permutation class would mean
+// widening the MERGE key, not the fixture.
 //
 // The registry half of the assertion is what makes this a lockstep guard
 // rather than a comment: adding order_index to

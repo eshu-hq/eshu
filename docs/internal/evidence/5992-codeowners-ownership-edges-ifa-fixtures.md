@@ -5,7 +5,7 @@
 Issue #5992 (child of the #5543 umbrella) builds the family-specific Ifá
 conformance-platform artifacts for `materialized_edges:
 codeowners_ownership_edges` and wires them into the two live proof gates.
-21 files change. They fall into five groups.
+22 files change. They fall into six groups.
 
 **Family fixtures and guard.** A compiled Odù
 (`go/internal/ifa/codeowners_family_catalog.go`), its cassette projector
@@ -31,6 +31,17 @@ See No-Observability-Change below.
 `.github/workflows/ifa-determinism-gate.yml`,
 `scripts/lib/ifa_live_gate_selector_cases.sh`, and the regenerated
 `docs/public/reference/ci-gates.md`.
+
+**A new cross-family invariant.**
+`TestEveryCoveredFamilyTriggersBothLiveGates`
+(`go/internal/ifa/materialized_edges_lockstep_test.go`, +136 lines) requires
+every family holding a coverage row to declare a trigger in both gate blocks.
+It applies to all 14 families, not just this one, and it adds an obligation
+`go/internal/ifa/AGENTS.md` did not previously record — that file gains the
+matching bullet in this change. The check is keyed to coverage rows rather than
+to families on purpose: requiring triggers of all 14 would land 9 red rows for
+families that are honestly waived and not yet wired, and a check that ships red
+gets switched off. It lands clean and stays prospective.
 
 **Live-gate shell helpers.** `scripts/lib/ifa_codeowners_live.sh` and
 `scripts/lib/ifa_fault_injection_codeowners_cells.sh` remain drafts: neither

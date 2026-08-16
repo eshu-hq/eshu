@@ -89,6 +89,21 @@
   `specs/ifa-materialized-edge-coverage.v1.yaml` — it would be ignored (the
   loaded value is always overwritten before `Reconcile` runs) and would mislead
   a reviewer into thinking the file controls the requirement.
+- A family claiming a `materialized_edges:<family>` coverage row MUST also
+  declare at least one trigger in BOTH the `ifa-determinism` and
+  `ifa-fault-injection` blocks of `specs/ci-gates.v1.yaml`, and a non-blank
+  entry in `materializedEdgeFamilyTriggerStems`
+  (`materialized_edges_lockstep_test.go`) holding a substring that at least one
+  of those triggers contains.
+  `TestEveryCoveredFamilyTriggersBothLiveGates` enforces both. The stem
+  map is total over `reducer.MaterializedEdgeFamilies()` in both directions, so
+  a new family needs an entry the day it is enumerated, not the day it is
+  covered — declare the stem the family's triggers WILL use; nothing checks it
+  until the coverage row lands. Without a trigger, the gate never re-runs when
+  that family's Odù, cassette, extractor, or writer changes, and the coverage
+  row keeps asserting a proof that has gone stale. Note what this does NOT
+  check: whether the declared triggers are the RIGHT ones for the family. No
+  gate can, so that stays a review obligation.
 - An uncovered `(surface, proof_gate)` row MUST be either bound to a real
   coverage row or listed in the manifest's `waivers:` section with a tracked
   issue; a row in neither fails the blocking gate. Waivers are keyed per

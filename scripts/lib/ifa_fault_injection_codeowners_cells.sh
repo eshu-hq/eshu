@@ -10,6 +10,15 @@
 # / capture_digest / assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
 #
+# PARTIALLY EXERCISED: no cell function here runs against a live stack yet
+# (see NOT YET WIRED below), but this file is no longer unread.
+# scripts/lib/test-ifa-fault-injection-codeowners-cases.sh sources it and
+# drives ifa_codeowners_start_intent_lock and
+# ifa_codeowners_release_intent_lock under stubs, and
+# scripts/test-verify-ifa-fault-injection.sh runs that module -- so editing
+# either function's fail-closed behavior or its bg_pids bookkeeping will fail
+# `make pre-pr`.
+#
 # NOT YET WIRED (documented for the #5543 coordinator, out of #5992's scope
 # this phase): a working baseline_codeowners_retried global and a
 # codeowners_edge_operation_match anchor both need to be declared where
