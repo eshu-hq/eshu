@@ -4,12 +4,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 func init() {
@@ -45,7 +47,7 @@ Typical use:
 	}
 	cmd.Flags().String("envelope", "", "Path to a first-run --json envelope (default: read stdin)")
 	cmd.Flags().String("path", "local_binary", "Onboarding path label: local_binary, local_compose, or hosted")
-	cmd.Flags().Int("manual-steps", notMeasuredManualSteps, "Declared manual copy/paste step count for this path (negative = not declared)")
+	cmd.Flags().Int("manual-steps", firstrunbench.NotMeasuredManualSteps, "Declared manual copy/paste step count for this path (negative = not declared)")
 	cmd.Flags().Bool("json", false, "Emit the scorecard as JSON")
 	return cmd
 }
@@ -59,16 +61,16 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 	manualSteps, _ := cmd.Flags().GetInt("manual-steps")
 	jsonOut, _ := cmd.Flags().GetBool("json")
 
-	raw, err := readBenchmarkEnvelope(cmd.InOrStdin(), envelopePath)
+	raw, err := firstrunbench.ReadEnvelope(cmd.InOrStdin(), envelopePath)
 	if err != nil {
 		return err
 	}
-	env, err := parseFirstRunEnvelope(raw)
+	env, err := firstrunbench.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
 
-	verdict := evaluateFirstAnswerBenchmark(env, benchmarkMeasurements{
+	verdict := firstrunbench.Evaluate(env, firstrunbench.Measurements{
 		Path:        pathLabel,
 		ManualSteps: manualSteps,
 	})
@@ -78,59 +80,74 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 			return writeErr
 		}
 	} else {
-		renderBenchmarkVerdict(cmd.OutOrStdout(), verdict)
+		firstrunbench.RenderVerdict(cmd.OutOrStdout(), verdict)
 	}
 	if !verdict.Pass {
-		return fmt.Errorf("first-answer benchmark FAILED: %s", strings.Join(verdict.failureReasons(), "; "))
+		return fmt.Errorf("first-answer benchmark FAILED: %s", strings.Join(verdict.FailureReasons(), "; "))
 	}
 	return nil
 }
 
+// firstRunEnvelope is the canonical `{data, truth, error}` envelope emitted by
+// `eshu first-run --json`, typed against the package-main firstRunResult so
+// the first-run-evidence family can lift envelope.Data into a full result
+// (including truth restoration and the diagnosis block). The benchmark itself
+// scores the mirror in internal/cli/firstrunbench; the wire-parity test in
+// first_run_benchmark_cmd_test.go pins the two shapes together.
+type firstRunEnvelope struct {
+	// Data is the machine-readable first-run result.
+	Data firstRunResult `json:"data"`
+	// Truth carries the freshness/completeness/backend labels for the answer.
+	Truth map[string]any `json:"truth"`
+	// Error is non-nil when the run failed.
+	Error *firstRunEnvelopeError `json:"error"`
+}
+
+// firstRunEnvelopeError is the error object inside the JSON envelope. The
+// alias keeps the demo family's envelope and this one decoding the same shape.
+type firstRunEnvelopeError = firstrunbench.EnvelopeError
+
+// parseFirstRunEnvelope decodes the canonical `eshu first-run --json` output
+// into the package-main envelope. It returns a descriptive error when the
+// payload is not the expected envelope so callers fail loudly rather than
+// silently consuming malformed input.
+func parseFirstRunEnvelope(raw []byte) (firstRunEnvelope, error) {
+	var env firstRunEnvelope
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	if err := dec.Decode(&env); err != nil {
+		return firstRunEnvelope{}, fmt.Errorf("decode first-run envelope: %w", err)
+	}
+	return env, nil
+}
+
+// The demo-benchmark family scores its own envelope with the shared criterion
+// vocabulary that moved to internal/cli/firstrunbench. These aliases are the
+// demo family's seam onto that package so its files stay unchanged until its
+// own extraction imports firstrunbench directly.
+type (
+	benchmarkCriterionName = firstrunbench.CriterionName
+	benchmarkCriterion     = firstrunbench.Criterion
+)
+
+const (
+	benchmarkCriterionPass        = firstrunbench.CriterionPass
+	benchmarkCriterionFail        = firstrunbench.CriterionFail
+	benchmarkCriterionNotMeasured = firstrunbench.CriterionNotMeasured
+	criterionFirstAnswer          = firstrunbench.CriterionFirstAnswer
+	criterionTruthMetadata        = firstrunbench.CriterionTruthMetadata
+	criterionRepoIndexed          = firstrunbench.CriterionRepoIndexed
+	criterionTimeToAnswer         = firstrunbench.CriterionTimeToAnswer
+)
+
 // readBenchmarkEnvelope reads the envelope bytes from a file path or, when the
-// path is empty, from the provided reader (stdin).
+// path is empty, from the provided reader (stdin). Kept for the demo-benchmark
+// family; the first-run benchmark calls firstrunbench.ReadEnvelope directly.
 func readBenchmarkEnvelope(stdin io.Reader, path string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" {
-		raw, err := io.ReadAll(stdin)
-		if err != nil {
-			return nil, fmt.Errorf("read envelope from stdin: %w", err)
-		}
-		return raw, nil
-	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- operator-supplied local benchmark artifact path, not an HTTP request param //nolint:gosec
-	if err != nil {
-		return nil, fmt.Errorf("read envelope file %q: %w", path, err)
-	}
-	return raw, nil
+	return firstrunbench.ReadEnvelope(stdin, path)
 }
 
-// renderBenchmarkVerdict writes a concise human scorecard with a stable marker
-// per criterion so the operator can see exactly which guard failed.
-func renderBenchmarkVerdict(w io.Writer, verdict benchmarkVerdict) {
-	header := "First-answer benchmark PASSED"
-	if !verdict.Pass {
-		header = "First-answer benchmark FAILED"
-	}
-	_, _ = fmt.Fprintln(w, header)
-	_, _ = fmt.Fprintf(w, "  path : %s\n", quoteIfEmpty(verdict.Path))
-	_, _ = fmt.Fprintln(w, strings.Repeat("-", 40))
-	for _, c := range verdict.Criteria {
-		req := " "
-		if c.Required {
-			req = "*"
-		}
-		_, _ = fmt.Fprintf(w, "  %s %s %s: %s\n", benchmarkMarker(c.Status), req, c.Name, c.Detail)
-	}
-	_, _ = fmt.Fprintln(w, "  (* = required; failure rejects the run)")
-}
-
-// benchmarkMarker maps a criterion status to a stable ASCII marker.
-func benchmarkMarker(status benchmarkCriterionStatus) string {
-	switch status {
-	case benchmarkCriterionPass:
-		return "[ok]"
-	case benchmarkCriterionFail:
-		return "[!!]"
-	default:
-		return "[--]"
-	}
+// benchmarkMarker maps a criterion status to a stable ASCII marker. Kept for
+// the demo-benchmark scorecard renderer.
+func benchmarkMarker(status firstrunbench.CriterionStatus) string {
+	return firstrunbench.Marker(status)
 }
