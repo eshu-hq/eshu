@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
 // newEnvelope constructs one observed-confidence service-catalog fact envelope.
@@ -88,6 +89,13 @@ func stripSensitiveURL(value string) string {
 		return ""
 	}
 	if parsed.User != nil || parsed.RawQuery != "" {
+		return ""
+	}
+	if parsed.Host == "" && urlredact.CarriesUserinfo(value) {
+		// Not hierarchical, so User can be nil with the credential in plain
+		// sight: an opaque `svc:SECRET@host/x` keeps it in Opaque, which this
+		// function re-emitted verbatim. Ask net/url about the authority
+		// spelling and drop the value when it carries userinfo.
 		return ""
 	}
 	return value

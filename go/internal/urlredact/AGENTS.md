@@ -188,6 +188,19 @@
   to be redone rather than assumed to carry over. Anyone widening the generator
   should check saturation before trusting the numbers below it.
 
+- **One definition of the opaque-authority rule.** `authority.go` owns "does
+  this value carry userinfo when the parse is not hierarchical". The refusal in
+  `cli/report` and the sanitizers in nine collector packages all read
+  `Authority`/`CarriesUserinfo`; a local `parsed.User != nil` test after a
+  plain `url.Parse` is the exact defect that shipped `svc:SECRET@host/x` into
+  persisted envelopes. The `@`-before-first-`/` test only selects which values
+  are re-asked about — net/url decides what userinfo is. Do not trigger on
+  `Opaque != ""` alone: that refuses `mcp:tool/name` and every purl.
+  `sdk/go/collector/validation.go` carries a deliberate copy
+  (`opaqueHasAuthority` + the `//` re-parse) because the sdk module cannot
+  import this package; a change here needs the same change there, and each side
+  says so in a comment.
+
 - **No value heuristics.** This package looks at the left half of a pair and
   nothing else. Adding an entropy check or a secret-pattern list here would make
   the README's narrow, checkable claim into "we scan for secrets", which nobody

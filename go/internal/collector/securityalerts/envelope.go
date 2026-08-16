@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/urlredact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 )
@@ -349,7 +350,18 @@ func sanitizeURL(raw string) string {
 		return ""
 	}
 	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+	if err != nil {
+		// Fail closed: nothing can prove a string credential-free when it
+		// cannot be taken apart.
+		return ""
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		// Not hierarchical, so User can be nil with a credential in plain
+		// sight (`svc:SECRET@host/x` keeps it in Opaque). Ask net/url about
+		// the authority spelling and drop the value when it carries userinfo.
+		if urlredact.CarriesUserinfo(trimmed) {
+			return ""
+		}
 		return trimmed
 	}
 	parsed.User = nil

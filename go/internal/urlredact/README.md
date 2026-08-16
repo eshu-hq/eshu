@@ -61,6 +61,66 @@ time.
 - `TailSentinel`, `DifferentialCase`, `DifferentialCases()` — the generated
   cross-product that compares the two walks to **each other** rather than to a
   written-down expectation. Also below.
+- `Authority(value)` / `CarriesUserinfo(value)` — the userinfo question for
+  values `url.Parse` reads as opaque, described next.
+- `ParseErrorReason(err)` — the reason half of a net/url parse failure, spelled
+  without any of the parsed input. Also below.
+
+## The authority question (authority.go)
+
+`url.Parse` only surfaces userinfo inside an authority, and a value only has an
+authority after `//`. `svc:PASSWORD@h.internal:5432/tool` — the same shape an
+operator produces by omitting `https://` — parses as scheme `svc` with the
+password in `Opaque` and `User == nil`, and `String()` round-trips it verbatim.
+Every sanitizer that tested `parsed.User` after a plain parse read that password
+as no credential at all.
+
+`Authority` re-parses `"//"+value` when the opaque body is authority-shaped (an
+`@` ahead of its first `/`) and lets net/url decide what userinfo is; the `@`
+test only selects which values are worth re-asking about, which is why
+`mcp:tool/name` and `pkg:npm/lodash@4.17.21` are never rewritten — read as an
+authority they would refuse values that were never credentials.
+`CarriesUserinfo` is the fail-closed boolean over it: userinfo under either
+reading, or a value that cannot be parsed at all, reports true, because nothing
+can prove a string credential-free when it cannot be taken apart. The accepted
+cost is `mailto:user@example.com`, which is structurally identical to
+`svc:PASSWORD@example.com`.
+
+Authority's errors reach terminals and logs — the places the artifact beside
+them is redacted for — so they carry a reason but never the value. Stripping
+the `*url.Error` envelope is only half of that promise: the envelope quotes
+the whole URL, and the NESTED error can quote input again — `invalid port
+":secret" after host` repeats an unbounded slice of the value, and that is
+exactly where a secret sits when an operator writes `svc:user@host:SECRET/x`.
+`ParseErrorReason` is the classifier both halves go through: messages known to
+be static net/url constants pass verbatim, the input-quoting shapes map onto
+fixed text, and an unrecognized message fails closed to a generic reason.
+`cli/report`'s `requestErrorWithoutURL` reads it too, for the parse-shaped
+`*url.Error` `http.NewRequest` returns.
+
+Consumers: `cli/report`'s `targetAuthority` (the refusal), and the collector
+sanitizers in `securityalerts`, `servicecatalog`, `ociregistry`,
+`vulnerabilityintelligence`, `kuberneteslive`, `packageregistry`
+(+ `packageruntime`), `sbomruntime`, `ospackagevulnerability`, and `cicdrun`
+(both its deployment-URL sanitizer and the envelope `stripSensitiveURL` every
+source_ref passes through), which drop a non-hierarchical value that carries
+userinfo instead of re-stringing it. `sdk/go/collector`'s `validateSourceURI`
+applies the same rule with its own copy of the opaque-authority test and of
+the parse-reason classifier — the sdk module cannot import this one. An
+earlier version of this list read as complete while `servicecatalog` and
+`cicdrun`'s envelope sanitizer still carried the defect; count call sites
+before trusting it again (`rg -n "CarriesUserinfo\(" go sdk`).
+
+No-Regression Evidence: in every consumer, `CarriesUserinfo` runs only on the
+branch where the plain parse found no host — the branch that previously
+returned the value unsanitized or re-strung it — so hierarchical URLs, which
+is every well-formed `https://` value these sanitizers see, take exactly the
+parse they took before. The added cost on the rare non-hierarchical branch is
+one extra `url.Parse` of an already-short string during fact-envelope
+construction, not on any query or graph path.
+
+No-Observability-Change: string sanitization only; no metric, span, log, or
+status surface moves.
 
 ## Why the walk is an index walk
 

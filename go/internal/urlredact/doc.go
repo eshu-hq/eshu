@@ -74,4 +74,20 @@
 // entropy check and no secret-pattern list. It asks the shared name predicate
 // about the left half of a pair, exactly as every other redaction walk here
 // does.
+//
+// authority.go owns a second boundary question with the same drift history:
+// where USERINFO hides when a URL is not hierarchical. url.Parse only surfaces
+// userinfo inside an authority, and a value only has an authority after "//",
+// so `svc:PASSWORD@h.internal:5432/tool` parses with User nil and the password
+// in Opaque — which String() round-trips verbatim. cli/report solved it once
+// (re-parse "//"+value when the opaque body is authority-shaped, let net/url
+// decide), while eleven collector sanitizers each tested parsed.User after a
+// plain parse and passed the same spelling into persisted envelopes. Authority
+// and CarriesUserinfo live here so the refusal and the sanitizers read one
+// rule, and ParseErrorReason keeps their failure messages input-free: net/url
+// quotes offending input not only in the *url.Error envelope but inside
+// nested messages too (`invalid port ":secret" after host`), so the reason is
+// classified rather than wrapped verbatim. sdk/go/collector keeps its own copy
+// of the opaque-authority test and the classifier — it cannot import across
+// the module boundary — and says so at the copy.
 package urlredact
