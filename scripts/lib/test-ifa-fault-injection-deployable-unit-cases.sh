@@ -153,7 +153,16 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# count checks), each still handled distinctly rather than collapsing to
 	# a single "unavailable" reading -- it GATES (return 1 fails the cell),
 	# so a check that never ran must never silently read as "0".
-	require_deployable_unit_live_lib "live lib before-probe dumps the graph, not a Postgres query" '"${bin_dir}/eshu-ifa" graph-dump -out "${dump_path}"'
+	require_deployable_unit_live_lib "live lib before-probe dumps the graph, not a Postgres query" '"${bin_dir}/eshu-ifa" graph-dump -out "${ifa_deployable_unit_before_probe_dump_path}"'
+	# #6149 live-run finding: a RETURN trap referencing a `local` dump_path
+	# aborted the fault-injection matrix with "dump_path: unbound variable"
+	# before the kill-worker cell ever ran. The scratch-file variable must
+	# stay a global (not `local`), matching marker_dir's known-working
+	# EXIT-trap fix in test-ifa-fault-injection-marker-cases.sh.
+	rg --quiet --fixed-strings -- 'local count' "${deployable_unit_live_lib}" \
+		|| fail "live lib before-probe: expected the before-probe's local declaration to name only 'count', not a dump-path variable, in ${deployable_unit_live_lib} (the scratch dump path must be a global, not local, to survive its RETURN trap)"
+	rg --quiet --fixed-strings -- 'local dump_path' "${deployable_unit_live_lib}" \
+		&& fail "live lib before-probe: the graph-dump scratch path must not be declared local in ${deployable_unit_live_lib} -- its RETURN trap references it after the local binding would already be torn down (#6149 live-run abort)"
 	require_deployable_unit_live_lib "live lib before-probe counts CORRELATES_DEPLOYABLE_UNIT edges via jq" 'select(.type == "CORRELATES_DEPLOYABLE_UNIT")'
 	require_deployable_unit_live_lib "live lib before-probe requires jq and fails closed without it" "requires jq, which is not on PATH; treat this as unknown, not as a verdict"
 	require_deployable_unit_live_lib "live lib before-probe fails closed on a graph-dump failure" "before-maintenance precondition graph-dump FAILED; treat this as unknown, not as a verdict"

@@ -219,24 +219,36 @@ ifa_deployable_unit_live_drain() {
 # or count that never ran must never silently read as "0" -- that would blame
 # the readiness gate for a graph-dump/jq hiccup that has nothing to do with
 # it.
+#
+# ifa_deployable_unit_before_probe_dump_path is deliberately NOT `local`.
+# Confirmed live (#6149): a `RETURN` trap referencing a `local` variable of
+# this function aborted the fault-injection matrix mid-run with "dump_path:
+# unbound variable", before the kill-worker cell -- the very cell this file
+# exists to make deterministic -- ever ran. This is the same class of bug as
+# marker_dir's EXIT-trap fix (test-ifa-fault-injection-marker-cases.sh): a
+# trap referencing a function-local variable can fire after that binding is
+# already torn down, and under the caller's `set -u` that reads as an abort,
+# not a silent no-op. It must stay a global, scoped by this distinctive name
+# rather than a short one like "dump_path", to keep collision risk low across
+# every other file this shell sources.
 ifa_deployable_unit_live_assert_empty_before_maintenance() {
 	local bin_dir="$1"
-	local dump_path count
+	local count
 	printf '\n=== deployable_unit_edges: assert zero CORRELATES_DEPLOYABLE_UNIT edges before the maintenance pass ===\n'
 	if ! command -v jq >/dev/null 2>&1; then
 		echo "deployable_unit_edges: before-maintenance precondition requires jq, which is not on PATH; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
-	dump_path="$(mktemp)" || {
+	ifa_deployable_unit_before_probe_dump_path="$(mktemp)" || {
 		echo "deployable_unit_edges: before-maintenance precondition could not create a scratch file for the graph dump; treat this as unknown, not as a verdict" >&2
 		return 1
 	}
-	trap 'rm -f "${dump_path}"' RETURN
-	if ! "${bin_dir}/eshu-ifa" graph-dump -out "${dump_path}"; then
+	trap 'rm -f "${ifa_deployable_unit_before_probe_dump_path}"' RETURN
+	if ! "${bin_dir}/eshu-ifa" graph-dump -out "${ifa_deployable_unit_before_probe_dump_path}"; then
 		echo "deployable_unit_edges: before-maintenance precondition graph-dump FAILED; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
-	if ! count="$(jq '[.edges[] | select(.type == "CORRELATES_DEPLOYABLE_UNIT")] | length' "${dump_path}")"; then
+	if ! count="$(jq '[.edges[] | select(.type == "CORRELATES_DEPLOYABLE_UNIT")] | length' "${ifa_deployable_unit_before_probe_dump_path}")"; then
 		echo "deployable_unit_edges: before-maintenance precondition could not count CORRELATES_DEPLOYABLE_UNIT edges in the graph dump; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
