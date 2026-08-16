@@ -1,0 +1,75 @@
+-- Make keyset pagination over one generation's facts a seek instead of a
+-- rescan (#6154).
+--
+-- ListFactsByKind and ListFactsByKindAndPayloadValue page with
+-- `(observed_at, fact_id) > (cursor)` under `ORDER BY observed_at, fact_id`.
+-- Every fact in a generation is stamped with the same observed_at -- the
+-- largest repository in the reference corpus has 241,726 facts sharing one
+-- value -- so the cursor can only advance on fact_id. The existing
+-- fact_records_scope_generation_idx ends at observed_at and does not carry
+-- fact_id, so no page could skip the rows earlier pages had already returned:
+-- each of the 484 pages bitmap-scanned all 241,750 matching rows and top-N
+-- sorted them, making pagination quadratic in generation size.
+--
+-- This index matches the ORDER BY exactly with scope_id and generation_id as
+-- an equality prefix, so a page becomes one seek plus a short forward scan
+-- with fact_kind applied as a filter. fact_kind is deliberately absent: with
+-- `fact_kind = ANY(...)` a leading kind column returns rows in kind-major
+-- order and the sort survives.
+--
+-- fact_records_scope_generation_idx is kept. It still serves the descending
+-- and per-kind readers, and its keys deduplicate to a fraction of this one's
+-- size because they repeat within a generation while fact_id does not.
+--
+-- This index is only half the fix, and on its own it is a regression. The
+-- loader previously folded first page and cursor page into one statement whose
+-- predicate read `$4::timestamptz IS NULL OR (observed_at, fact_id) > (...)`.
+-- Under a generic plan -- where these statements land, because the services
+-- prepare them through database/sql -- that OR cannot be pushed down as an
+-- index qual, so the planner takes this index and then discards nearly every
+-- row it reads. facts_filtered.go splits the two statements in the same change
+-- so the row comparison stays a plain predicate.
+--
+-- Measured on the remote validation host (16 vCPU, 123 GiB, Postgres 18.4)
+-- against the 896-repository corpus: 3,642,630 fact_records rows, and a
+-- worst-case generation of 241,726 facts that all share ONE observed_at.
+-- Loading that generation through ListFactsByKind, warm, on the built binary:
+--
+--   today (no index, folded statement)   84.68 / 83.78 / 84.12 s
+--   this index alone, statement folded   232.94 / 232.25 / 235.32 s
+--   this index plus the statement split    3.99 / 3.30 / 3.37 s
+--
+-- Per page under a generic plan, mid-scan cursor: folded 580.611 ms with
+-- `Rows Removed by Filter: 385703`; split 1.749 ms with the comparison in
+-- `Index Cond` and `Rows Removed by Filter: 1123`. An EXPLAIN with literal
+-- parameters reports 4.7 ms for the folded shape and hides all of this, so a
+-- literal EXPLAIN is not sufficient evidence for a change to this query.
+--
+-- Index size 844 MB against a 45 MB fact_records_scope_generation_idx and a
+-- 4240 MB heap. fact_id is unique and wide, so btree deduplication cannot
+-- compress it and dropping observed_at from the key saves only 3-4%.
+--
+-- Deliberately no ANALYZE. This is a plain-column btree, so the planner does
+-- not need fresh statistics to use it -- unlike the expression indexes in this
+-- directory, which do. Verified rather than assumed: dropped and rebuilt this
+-- index on the corpus store and planned the cursor query immediately, with no
+-- ANALYZE, under both a custom plan (15.964 ms) and a forced generic plan
+-- (1.078 ms); both used fact_records_scope_generation_keyset_idx with the row
+-- comparison in Index Cond.
+--
+-- CONCURRENTLY, so building it does not block writes to a table under
+-- continuous ingest. This follows the same pattern as
+-- 069_fact_records_identity_epoch_idx.sql and
+-- 075_fact_records_active_container_image_slsa_idx.sql on this same table.
+-- The usual objection to CONCURRENTLY -- that a failed build leaves an INVALID
+-- index which `IF NOT EXISTS` then skips forever -- does not apply here: the
+-- schema apply path drops invalid concurrent indexes by name before executing
+-- each definition (SQLDB.dropInvalidConcurrentIndexes, db.go), and it runs each
+-- statement outside any transaction on a dedicated bootstrap connection, which
+-- CONCURRENTLY requires. That also means this index cannot move into
+-- 003_fact_records.sql: that definition is multi-statement, and a
+-- multi-statement Exec is sent as an implicit transaction.
+--
+-- See #6154 for the full plans and the corpus distribution.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_scope_generation_keyset_idx
+    ON fact_records (scope_id, generation_id, observed_at, fact_id);

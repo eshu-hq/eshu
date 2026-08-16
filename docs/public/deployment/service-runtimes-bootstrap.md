@@ -20,6 +20,16 @@ It owns this sequence:
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
 statement timeouts fail before DDL runs.
 
+Index-building migrations use `CREATE INDEX CONCURRENTLY`, so they do not block
+writes to the table they build on. They do take longer than a blocking build
+and they extend schema bootstrap: migration `099` builds an index on
+`fact_records`, and that build scales with table size. A build that fails part
+way leaves an invalid index behind, which the next schema apply drops by name
+before retrying, so a failed upgrade does not need manual cleanup. Until that
+retry, though, the invalid index still costs write overhead on every insert
+while serving no reads, so a failed build is worth restarting promptly rather
+than leaving in place.
+
 ## Deployment Contract
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after

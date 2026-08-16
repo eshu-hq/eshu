@@ -49,12 +49,16 @@ before sending to avoid `SQLSTATE 21000` on `ON CONFLICT DO UPDATE` when a
 generation contains self-overwrites.
 
 `FactStore.ListFactsByKind` uses the same 500-row page size for kind-filtered
-reads (`facts_filtered.go:77`). Reducer domains such as semantic entities and
-code calls use this path to avoid full-generation loads and thousands of tiny
-Postgres round trips on large repositories. `ListFactsByKindAndPayloadValue`
-adds a top-level JSON payload allowlist (`facts_filtered.go:115`) for reducer
-domains whose correctness contract is tied to `content_entity.entity_type`,
-such as inheritance and SQL relationships. Both paths select the full
+reads (`listFactsByKindQuery` in `facts_filtered.go`). Reducer domains such as
+semantic entities and code calls use this path to avoid full-generation loads
+and thousands of tiny Postgres round trips on large repositories.
+`ListFactsByKindAndPayloadValue` adds a top-level JSON payload allowlist
+(`listFactsByKindAndPayloadValueQuery`) for reducer domains whose correctness
+contract is tied to `content_entity.entity_type`, such as inheritance and SQL
+relationships. Each loader ships a first-page statement and a separate cursor
+statement; see the keyset invariant in `gotchas-and-invariants.md` before
+changing either, because merging them reintroduces quadratic pagination.
+Both paths select the full
 `facts.Envelope` column shape before calling the shared scanner, so filtered
 reads keep schema version, collector, fencing, and source-confidence metadata.
 `ListActiveRepositoryFacts` pages active, non-tombstoned Git repository facts

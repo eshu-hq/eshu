@@ -101,19 +101,30 @@ func TestFactStoreListFactsByKindUsesFactBatchSizedPages(t *testing.T) {
 	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	for _, call := range db.queries {
+	// The first page binds no cursor, so it runs the cursor-free statement and
+	// its limit is $4. Only the pages after it carry a cursor. Keeping the two
+	// statements apart is what lets Postgres use the row comparison as an index
+	// qual under a generic plan (#6154).
+	if !strings.Contains(db.queries[0].query, "LIMIT $4") {
+		t.Fatalf("first page missing page limit:\n%s", db.queries[0].query)
+	}
+	if got, want := len(db.queries[0].args), 4; got != want {
+		t.Fatalf("first page arg count = %d, want %d", got, want)
+	}
+	if got, want := db.queries[0].args[3], factBatchSize; got != want {
+		t.Fatalf("first page size arg = %v, want %d", got, want)
+	}
+
+	for _, call := range db.queries[1:] {
 		if !strings.Contains(call.query, "LIMIT $6") {
-			t.Fatalf("query missing page limit:\n%s", call.query)
+			t.Fatalf("cursor page missing page limit:\n%s", call.query)
 		}
 		if !strings.Contains(call.query, "(observed_at, fact_id) > ($4::timestamptz, $5::text)") {
-			t.Fatalf("query missing stable cursor:\n%s", call.query)
+			t.Fatalf("cursor page missing stable cursor:\n%s", call.query)
 		}
 		if got, want := call.args[5], factBatchSize; got != want {
 			t.Fatalf("page size arg = %v, want %d", got, want)
 		}
-	}
-	if got, want := db.queries[0].args[3], any(nil); got != want {
-		t.Fatalf("first page cursor timestamp = %v, want nil", got)
 	}
 	if got, want := db.queries[1].args[3], loaded[factBatchSize-1].ObservedAt; got != want {
 		t.Fatalf("second page cursor timestamp = %v, want %v", got, want)

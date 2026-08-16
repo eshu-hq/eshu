@@ -12,9 +12,23 @@ operational lessons that future storage changes still need to respect.
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.
 - `ListFactsByKind` keeps a stable `(observed_at, fact_id)` keyset cursor
-  (`facts_filtered.go:71`). Lowering the page size below the write batch size
+  (`listFactsByKindQuery` and `listFactsByKindCursorQuery` in
+  `facts_filtered.go`). Lowering the page size below the write batch size
   can make reducer-only reads spend most of their time in Postgres round trips
   rather than extraction or graph writes.
+- Never fold the first-page and cursor statements back into one. Both keyset
+  loaders deliberately ship two statements each, because the combined form
+  needs a guard like `$4::timestamptz IS NULL OR (observed_at, fact_id) > (...)`
+  and that disjunction cannot be pushed down as an index qual under a generic
+  plan — which is where these statements land, since the services prepare them
+  through `database/sql`. Every fact in a generation shares one `observed_at`,
+  so the cursor can only advance on `fact_id`; without the index qual each page
+  rescans and re-sorts the whole generation and pagination goes quadratic. This
+  is invisible to an `EXPLAIN` with literal parameters, which plans the folded
+  form at 4.7ms while production pays 580ms per page. Probe with `PREPARE` plus
+  `SET plan_cache_mode = force_generic_plan` instead. `#6154` carries the
+  measurements, and `facts_filtered_keyset_test.go` fails on any disjunction in
+  either cursor predicate.
 - `ListFactsByKindAndPayloadValue` is only for top-level JSON payload fields
   that are part of a reducer domain's truth contract. Do not use it to paper
   over missing parser metadata or to guess at nested payload shape.
