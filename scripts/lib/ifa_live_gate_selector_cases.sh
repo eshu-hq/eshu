@@ -220,6 +220,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
+	'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh|scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
 	'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-marker-cases.sh|scripts/lib/test-ifa-fault-injection-marker-cases.sh'
 	'go/internal/storage/cypher/fault_executor_marker.go|go/internal/storage/cypher/fault_executor_marker.go'
