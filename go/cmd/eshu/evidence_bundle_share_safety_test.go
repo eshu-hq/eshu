@@ -44,6 +44,11 @@ func shareSafetySensitiveValues() map[string]string {
 		"private_address": "instance 10.42.7.9 unreachable " + shareSafetyMarker,
 		"local_path":      "config at /Users/ops/" + shareSafetyMarker + "/eshu.yaml",
 		"github_token":    "ghp_" + shareSafetyMarker + "ABCDEFGH rejected",
+		// A colon immediately before the host, which is what a labelled
+		// diagnostic writes and what both private-host rules used to let
+		// through.
+		"colon_prefixed_host": "upstream:db.internal:5432 refused " + shareSafetyMarker,
+		"colon_prefixed_addr": "peer:10.42.7.9 unreachable " + shareSafetyMarker,
 	}
 }
 

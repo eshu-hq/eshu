@@ -96,12 +96,6 @@ Rejected (the whole export fails, nothing is written):
 
 Not screened -- state these to anyone about to share a bundle:
 
-- **A private host written immediately after a colon.** Both host patterns
-  require the preceding character to be outside `[0-9A-Za-z.:-]`, and a colon
-  is inside it, so `repo:db.internal:5432` and a health reason reading
-  `upstream:db.internal:5432 refused` both export clean today. Reproduced
-  against the `origin/main` binary at `fc462effc` through `--scope` and
-  through `--live`; the fix lands in the commit after this one.
 - **A public hostname or public IP.** Only loopback, RFC1918, link-local,
   `*internal*`, and `*.cluster.local` shapes are listed. `https://acme.example.com`
   in a health reason exports as written.

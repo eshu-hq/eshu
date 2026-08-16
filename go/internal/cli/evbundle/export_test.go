@@ -56,6 +56,10 @@ func TestExportDemoRefusesAScopeCarryingPrivateData(t *testing.T) {
 	for name, scope := range map[string]string{
 		"local_path":     "repo:/Users/example/private/repo",
 		"credential_url": "repo:https://svc:hunter2@example.com/x",
+		// The "repo:" prefix puts a colon immediately before the host, which
+		// is the delimiter that used to slip past both private-host rules.
+		"private_host":    "repo:db.internal:5432",
+		"private_address": "repo:10.0.5.3",
 	} {
 		t.Run(name, func(t *testing.T) {
 			raw, err := ExportDemo(scope)
