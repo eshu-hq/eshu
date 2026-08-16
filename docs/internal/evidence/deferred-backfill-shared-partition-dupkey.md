@@ -234,12 +234,49 @@ operator-facing log line changes and two are added:
   active_generation_id=… reason="generation_advanced_since_batch"` names the
   partition and the generation that superseded it.
 
-No metric, span, route, worker, lease, queue domain, or runtime knob changed.
-The existing `DeferredBackfillDuration`, `DeferredBackfillEvidence`,
+The fan-in is a new concurrent stage, so it carries its own metrics rather than
+being subsumed into the pass:
+
+- `eshu_dp_deferred_backfill_fanin_duration_seconds` — histogram over the
+  publication phase. `DeferredBackfillDuration` covers the whole pass and cannot
+  separate publication from the evidence phase, which is the split that now
+  matters because the two scale differently: batches are fixed-size, the fan-in
+  is one transaction per partition. This is also the metric that makes the
+  accepted ArgoCD-probe cost visible instead of grep-only.
+- `eshu_dp_deferred_backfill_fanin_published_total` and
+  `eshu_dp_deferred_backfill_fanin_skipped_total` — counters, incremented per
+  partition, with `skipped` labeled by a closed two-value `reason` set. Together
+  they account for every partition the pass committed evidence for, so a
+  shortfall reads as "the fan-in was cut short" rather than as missing readiness.
+
+They are deliberately NOT the existing
+`eshu_dp_deferred_backfill_partitions_skipped_total` /
+`..._loaded_total` pair, which belongs to the memo gate on the fact-load side and
+answers a different question ("did this partition's facts need reloading", not
+"did its readiness publish"). Reusing that counter would have blended a
+publication decision into a fact-load decision and corrupted the steady-state
+skip-rate signal it exists to provide.
+
+No new span: the fan-in records its shape as attributes on the existing
+`relationship.backfill_deferred` span (`fanin_partition_count`,
+`fanin_published_count`, `fanin_skipped_count`, `fanin_worker_count`), matching
+how the fact-load fan-out reports its shape. Nothing comparable in this path is
+separately spanned, and an orphan child span would be worse than none.
+
+No route, worker, lease, queue domain, or runtime knob changed. The existing
+`DeferredBackfillDuration`, `DeferredBackfillEvidence`,
 `eshu_dp_deferred_backfill_batch_duration_seconds`, and
-`eshu_dp_deferred_backfill_batches_completed_total` instruments and the
-`relationship.backfill_deferred` span record the same quantities as before.
-`deferred_backfill_completed evidence_facts=… readiness_rows=… duration_s=…`
-keeps its shape, and its `readiness_rows` now counts the partitions the fan-in
-published. `go/internal/storage/postgres/README.md` was updated in the same
-change for the batch line's new format and for the fan-in step itself.
+`eshu_dp_deferred_backfill_batches_completed_total` instruments record the same
+quantities as before. `deferred_backfill_completed evidence_facts=…
+readiness_rows=… duration_s=…` keeps its shape, and its `readiness_rows` now
+counts the partitions the fan-in published.
+`go/internal/storage/postgres/README.md` was updated in the same change for the
+batch line's new format and for the fan-in step itself, and
+`docs/public/observability/telemetry-coverage.md` carries the new stage row.
+
+The metrics are proven to record, not merely to exist: the success path asserts
+`published` reaches 3 and the duration histogram takes exactly one observation,
+and the superseded-generation path asserts `skipped` reaches 1 carrying
+`reason="generation_advanced_since_batch"`. Both were mutation-checked — making
+the published counter's call disappear, and making the skipped counter record 0,
+each fails its test.

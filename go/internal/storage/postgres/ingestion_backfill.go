@@ -230,7 +230,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		return 0, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
 	}
 
-	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers)
+	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers, instruments)
 }
 
 // writeDeferredBackfillBatch processes one bounded batch of source repositories

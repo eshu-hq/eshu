@@ -18,6 +18,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // runDeferredBackfillBatches executes the partitioned per-repository batches with
@@ -219,6 +222,7 @@ func (s IngestionStore) publishDeferredBackfillPartitions(
 	snapshotGenerations map[string]string,
 	catalogFingerprint string,
 	workers int,
+	instruments *telemetry.Instruments,
 ) (int, error) {
 	if len(contributions) == 0 {
 		return 0, nil
@@ -269,7 +273,7 @@ func (s IngestionStore) publishDeferredBackfillPartitions(
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			didPublish, err := s.publishDeferredBackfillPartition(
+			outcome, err := s.publishDeferredBackfillPartition(
 				groupCtx, partition, contributions[partition], snapshotGenerations, catalogFingerprint,
 			)
 
@@ -282,15 +286,44 @@ func (s IngestionStore) publishDeferredBackfillPartitions(
 				}
 				return
 			}
-			if didPublish {
+			// Counters increment per partition, in the same critical section that
+			// advances the counts the completion log reports, so the metric and the
+			// log cannot disagree. Incrementing here rather than once at the end
+			// also keeps them accurate when a later partition fails the pass: work
+			// that committed stays counted.
+			if outcome.Published {
 				published++
+				if instruments != nil {
+					instruments.DeferredBackfillFanInPublished.Add(ctx, 1)
+				}
 				return
 			}
 			skipped++
+			if instruments != nil {
+				instruments.DeferredBackfillFanInSkipped.Add(ctx, 1,
+					metric.WithAttributes(attribute.String("reason", outcome.SkipReason)))
+			}
 		}(partition)
 	}
 
 	wg.Wait()
+
+	fanInDuration := time.Since(start).Seconds()
+	if instruments != nil {
+		instruments.DeferredBackfillFanInDuration.Record(ctx, fanInDuration)
+	}
+	// Record the publication shape on the active relationship.backfill_deferred
+	// span, matching how the fact-load fan-out reports its shape
+	// (loadDeferredScopedFactsAcrossPartitions). SpanFromContext returns a no-op
+	// span when no tracer started the pass, so this is safe either way, and it
+	// keeps the fan-in off a child span of its own -- nothing comparable in this
+	// path is separately spanned.
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("fanin_partition_count", len(partitions)),
+		attribute.Int("fanin_published_count", published),
+		attribute.Int("fanin_skipped_count", skipped),
+		attribute.Int("fanin_worker_count", workers),
+	)
 
 	if firstErr != nil {
 		return published, firstErr
@@ -303,10 +336,33 @@ func (s IngestionStore) publishDeferredBackfillPartitions(
 	// rather than as silently missing readiness.
 	log.Printf(
 		"deferred_backfill_fanin_completed partitions=%d published=%d skipped=%d duration_s=%.2f workers=%d",
-		len(partitions), published, skipped, time.Since(start).Seconds(), workers,
+		len(partitions), published, skipped, fanInDuration, workers,
 	)
 
 	return published, nil
+}
+
+// Closed set of reasons the fan-in declines to publish a partition. They label
+// DeferredBackfillFanInSkipped and appear verbatim in the
+// deferred_backfill_fanin_partition_skipped log line, so the metric's label
+// values and the log's reason field cannot drift apart. Keep the set small and
+// bounded: it is a metric label.
+const (
+	// deferredFanInSkipGenerationAdvanced: the under-lock re-read found the
+	// scope on a different active generation than the batch committed against.
+	deferredFanInSkipGenerationAdvanced = "generation_advanced_since_batch"
+	// deferredFanInSkipSnapshotAdvanced: the partition no longer matches the
+	// fact-load snapshot this pass derived its evidence from.
+	deferredFanInSkipSnapshotAdvanced = "generation_advanced_since_snapshot"
+)
+
+// deferredFanInOutcome reports what one partition's publication attempt did.
+// SkipReason is empty when Published is true and otherwise carries one of the
+// closed-set reasons above, so the caller can label the skip counter without
+// re-deriving why the partition was declined.
+type deferredFanInOutcome struct {
+	Published  bool
+	SkipReason string
 }
 
 // publishDeferredBackfillPartition publishes one partition's readiness row and
@@ -327,10 +383,10 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 	repoIDs []string,
 	snapshotGenerations map[string]string,
 	catalogFingerprint string,
-) (bool, error) {
+) (deferredFanInOutcome, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return false, fmt.Errorf("begin deferred backfill readiness transaction: %w", err)
+		return deferredFanInOutcome{}, fmt.Errorf("begin deferred backfill readiness transaction: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -344,19 +400,19 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 		lockKeys = append(lockKeys, deferredMaintenanceRepoLockKeyFromID(repoID))
 	}
 	if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
-		return false, fmt.Errorf("acquire deferred backfill readiness locks: %w", err)
+		return deferredFanInOutcome{}, fmt.Errorf("acquire deferred backfill readiness locks: %w", err)
 	}
 
 	activeGeneration, err := loadActiveGenerationForScope(ctx, tx, partition.ScopeID)
 	if err != nil {
-		return false, fmt.Errorf("reload active generation for scope %q under readiness lock: %w", partition.ScopeID, err)
+		return deferredFanInOutcome{}, fmt.Errorf("reload active generation for scope %q under readiness lock: %w", partition.ScopeID, err)
 	}
 	if activeGeneration != partition.GenerationID {
 		log.Printf(
 			"deferred_backfill_fanin_partition_skipped=true scope_id=%q generation_id=%q active_generation_id=%q reason=%q",
-			partition.ScopeID, partition.GenerationID, activeGeneration, "generation_advanced_since_batch",
+			partition.ScopeID, partition.GenerationID, activeGeneration, deferredFanInSkipGenerationAdvanced,
 		)
-		return false, nil
+		return deferredFanInOutcome{SkipReason: deferredFanInSkipGenerationAdvanced}, nil
 	}
 	// Same guard the batch applied (issue #3725), re-applied against the same
 	// snapshot so a scope that dropped out of the fact-load snapshot cannot be
@@ -366,9 +422,9 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 		if !inSnapshot || snapshotGeneration != partition.GenerationID {
 			log.Printf(
 				"deferred_backfill_fanin_partition_skipped=true scope_id=%q generation_id=%q reason=%q",
-				partition.ScopeID, partition.GenerationID, "generation_advanced_since_snapshot",
+				partition.ScopeID, partition.GenerationID, deferredFanInSkipSnapshotAdvanced,
 			)
-			return false, nil
+			return deferredFanInOutcome{SkipReason: deferredFanInSkipSnapshotAdvanced}, nil
 		}
 	}
 
@@ -388,7 +444,7 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 	if err := NewGraphProjectionPhaseStateStore(tx).PublishGraphProjectionPhases(
 		ctx, []reducer.GraphProjectionPhaseState{phaseRow},
 	); err != nil {
-		return false, fmt.Errorf("publish backward evidence readiness: %w", err)
+		return deferredFanInOutcome{}, fmt.Errorf("publish backward evidence readiness: %w", err)
 	}
 
 	// Partition memo write (issue #3624 Track 1 / B'), committed in the SAME
@@ -414,13 +470,13 @@ func (s IngestionStore) publishDeferredBackfillPartition(
 		if err := writeDeferredBackfillPartitionMemos(
 			ctx, tx, []scopeGenerationPartition{partition}, catalogFingerprint, now,
 		); err != nil {
-			return false, err
+			return deferredFanInOutcome{}, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("commit deferred backfill readiness transaction: %w", err)
+		return deferredFanInOutcome{}, fmt.Errorf("commit deferred backfill readiness transaction: %w", err)
 	}
 	committed = true
-	return true, nil
+	return deferredFanInOutcome{Published: true}, nil
 }
