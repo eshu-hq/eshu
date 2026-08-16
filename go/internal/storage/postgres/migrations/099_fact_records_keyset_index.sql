@@ -45,12 +45,33 @@
 -- parameters reports 4.7 ms for the folded shape and hides all of this, so a
 -- literal EXPLAIN is not sufficient evidence for a change to this query.
 --
--- Build cost on that table: CREATE INDEX 13.181 s, index size 844 MB against
--- a 45 MB fact_records_scope_generation_idx and a 4240 MB heap. fact_id is
--- unique and wide, so btree deduplication cannot compress it and dropping
--- observed_at from the key saves only 3-4%. Schema definitions apply one
--- statement at a time under a lock_timeout, so this blocks writes to
--- fact_records for the duration of the build once it acquires the lock.
+-- Build cost on that table: 10.3 s to 13.2 s across three builds, index size
+-- 844 MB against a 45 MB fact_records_scope_generation_idx and a 4240 MB
+-- heap. fact_id is unique and wide, so btree deduplication cannot compress it
+-- and dropping observed_at from the key saves only 3-4%. Schema definitions
+-- apply one statement at a time under a lock_timeout, so this blocks writes to
+-- fact_records for the duration of the build once it acquires the lock, and
+-- the build grows with table size. docs/public/deployment/service-runtimes-bootstrap.md
+-- carries that note for operators.
+--
+-- Deliberately no ANALYZE. This is a plain-column btree, so the planner does
+-- not need fresh statistics to use it -- unlike the expression indexes in this
+-- directory, which do. Verified rather than assumed: dropped and rebuilt this
+-- index on the corpus store and planned the cursor query immediately, with no
+-- ANALYZE, under both a custom plan (15.964 ms) and a forced generic plan
+-- (1.078 ms); both used fact_records_scope_generation_keyset_idx with the row
+-- comparison in Index Cond.
+--
+-- CREATE INDEX rather than CREATE INDEX CONCURRENTLY, deliberately. A failed
+-- CONCURRENTLY build leaves an INVALID index behind that `IF NOT EXISTS` then
+-- skips on every later run: a permanent silent regression wearing this fix's
+-- name. A plain build that loses its lock_timeout race leaves nothing behind
+-- and retries cleanly at the next startup -- measured on the corpus store with
+-- a conflicting ROW EXCLUSIVE lock held: the build failed with "canceling
+-- statement due to lock timeout", pg_indexes showed zero matching indexes
+-- afterwards, and the next apply built it. Reapplying an existing index is a
+-- 0.06 s no-op.
+--
 -- See #6154 for the full plans and the corpus distribution.
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_keyset_idx
     ON fact_records (scope_id, generation_id, observed_at, fact_id);

@@ -20,6 +20,15 @@ It owns this sequence:
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
 statement timeouts fail before DDL runs.
 
+Applying the Postgres storage schema can block fact writes while an index
+builds. Migration `099` builds an index on `fact_records` and holds a lock that
+blocks writes to that table for the duration of the build: roughly 10-13
+seconds on a store of 3.6 million fact rows, growing with table size. Upgrading
+a deployment substantially larger than that should expect a proportionally
+longer pause. If the build cannot take its lock within the schema lock timeout
+it fails cleanly, leaves no partial index behind, and the next start retries
+it.
+
 ## Deployment Contract
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
