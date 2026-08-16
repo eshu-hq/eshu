@@ -4,16 +4,30 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
+// This file is the cobra wiring for the `eshu component` family. The command
+// bodies live in go/internal/cli/component; everything here resolves flags,
+// environment, and streams, then passes plain values across. Keep it that
+// way: logic added here is logic nothing outside this binary can test.
+
+// The component family's flag names live here, with five exceptions.
+// --instance, --version, --id, --publisher, and --fact-kind are declared by
+// internal/cli/component, because that package prints them in its
+// "--<flag> is required" errors. Whoever prints a name owns it: a second copy
+// here would let a rename on one side leave that message pointing at a flag
+// this binary no longer registers. The registrations below use
+// clicomponent.InstanceFlag and friends instead, so such a rename is a
+// compile error, and TestComponentRequiredFlagNamesAreRegistered covers what
+// the compiler cannot see.
 const (
 	componentHomeFlag                    = "component-home"
 	componentTrustModeFlag               = "trust-mode"
@@ -25,18 +39,16 @@ const (
 	componentProvenanceIdentityFlag      = "provenance-certificate-identity"
 	componentProvenanceIssuerFlag        = "provenance-oidc-issuer"
 	componentProvenancePredicateTypeFlag = "provenance-predicate-type"
-	componentInstanceFlag                = "instance"
 	componentModeFlag                    = "mode"
 	componentClaimsFlag                  = "claims"
 	componentConfigFlag                  = "config"
-	componentVersionFlag                 = "version"
 	componentJSONFlag                    = "json"
 	componentDryRunFlag                  = "dry-run"
 	componentFixtureFlag                 = "fixture"
-	componentInitIDFlag                  = "id"
-	componentInitPublisherFlag           = "publisher"
-	componentInitFactKindFlag            = "fact-kind"
 	componentInitOutputFlag              = "output"
+	componentSchemaCheckFlag             = "check"
+
+	componentExtractionReadinessVerboseFlag = "verbose"
 )
 
 var componentCmd = &cobra.Command{
@@ -120,149 +132,105 @@ func init() {
 	}
 	addComponentJSONFlag(initCollectorCmd)
 	installCmd.Flags().Bool(componentDryRunFlag, false, "Verify install and render the planned result without writing component state")
-	enableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to enable")
+	enableCmd.Flags().String(clicomponent.InstanceFlag, "", "Collector instance ID to enable")
 	enableCmd.Flags().String(componentModeFlag, "manual", "Collector activation mode")
 	enableCmd.Flags().Bool(componentClaimsFlag, false, "Enable workflow claims for this component instance")
 	enableCmd.Flags().String(componentConfigFlag, "", "Path to component instance configuration")
 	enableCmd.Flags().Bool(componentDryRunFlag, false, "Validate activation and render the planned result without writing component state")
-	disableCmd.Flags().String(componentInstanceFlag, "", "Collector instance ID to disable")
-	uninstallCmd.Flags().String(componentVersionFlag, "", "Component version to uninstall")
+	disableCmd.Flags().String(clicomponent.InstanceFlag, "", "Collector instance ID to disable")
+	uninstallCmd.Flags().String(clicomponent.VersionFlag, "", "Component version to uninstall")
 	conformCmd.Flags().StringSlice(componentFixtureFlag, nil, "Collector SDK result fixture JSON file; repeat for multiple fixtures")
 	conformCmd.Flags().String(componentModeFlag, "fixture", "Conformance mode: fixture or compose")
-	initCollectorCmd.Flags().String(componentInitIDFlag, "", "Component ID, for example dev.example.collector.demo")
-	initCollectorCmd.Flags().String(componentInitPublisherFlag, "", "Component publisher allowlist identity")
-	initCollectorCmd.Flags().String(componentInitFactKindFlag, "", "Namespaced fact kind emitted by the scaffold")
+	initCollectorCmd.Flags().String(clicomponent.InitIDFlag, "", "Component ID, for example dev.example.collector.demo")
+	initCollectorCmd.Flags().String(clicomponent.InitPublisherFlag, "", "Component publisher allowlist identity")
+	initCollectorCmd.Flags().String(clicomponent.InitFactKindFlag, "", "Namespaced fact kind emitted by the scaffold")
 	initCollectorCmd.Flags().String(componentInitOutputFlag, "", "Output directory; defaults to ./<component-id>")
 
 	initCmd.AddCommand(initCollectorCmd)
 	componentCmd.AddCommand(initCmd, inspectCmd, verifyCmd, installCmd, listCmd, enableCmd, disableCmd, uninstallCmd, conformCmd)
 }
 
+func init() {
+	indexCmd := &cobra.Command{
+		Use:   "index",
+		Short: "Manage component extension index metadata",
+	}
+	indexVerifyCmd := &cobra.Command{
+		Use:   "verify <index>",
+		Short: "Verify a component extension index for local or CI publication gates",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runComponentIndexVerify,
+	}
+	addComponentJSONFlag(indexVerifyCmd)
+	indexCmd.AddCommand(indexVerifyCmd)
+	componentCmd.AddCommand(indexCmd)
+}
+
+func init() {
+	cmd := &cobra.Command{
+		Use:   "extraction-readiness [collector-family]",
+		Short: "Explain whether a collector is keep-in-tree, an extraction candidate, blocked, or external-ready",
+		Long: "Report the advisory collector extraction readiness checklist. The output is " +
+			"informational: it never moves code or changes runtime behavior. With no argument it " +
+			"lists every collector family the extraction policy tracks; with a family argument it " +
+			"explains that single family's per-criterion checklist.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: runComponentExtractionReadiness,
+	}
+	cmd.Flags().Bool(componentJSONFlag, false, "Emit machine-readable JSON")
+	cmd.Flags().Bool(componentExtractionReadinessVerboseFlag, false, "Show every criterion, not just blockers")
+	componentCmd.AddCommand(cmd)
+}
+
+func init() {
+	cmd := &cobra.Command{
+		Use:   "schema-versions",
+		Short: "List core fact-kind schema versions or classify a collector fact version",
+		Long: "Report the schema version each core reducer or query consumer currently " +
+			"supports for every core fact kind. With --check fact_kind=version it classifies " +
+			"a collector's fact schema version as supported, unsupported_major, " +
+			"unsupported_minor, or unknown_kind, and exits non-zero when the version is not " +
+			"supported. The command is read-only and never changes runtime behavior.",
+		Args: cobra.NoArgs,
+		RunE: runComponentSchemaVersions,
+	}
+	cmd.Flags().Bool(componentJSONFlag, false, "Emit machine-readable JSON")
+	cmd.Flags().String(componentSchemaCheckFlag, "", "Classify one fact version as fact_kind=schema_version")
+	componentCmd.AddCommand(cmd)
+}
+
 func runComponentInspect(cmd *cobra.Command, args []string) error {
-	manifest, err := component.LoadManifest(args[0])
-	if err != nil {
-		return renderComponentError(cmd, "inspect", err)
-	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("inspect", "inspected")
-		componentPayload := manifestCLIComponent(manifest)
-		payload.Component = &componentPayload
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	_, err = fmt.Fprintf(
-		cmd.OutOrStdout(),
-		"%s\t%s\t%s\t%s\n",
-		manifest.Metadata.ID,
-		manifest.Metadata.Name,
-		manifest.Metadata.Publisher,
-		manifest.Metadata.Version,
-	)
-	return err
+	return clicomponent.RunInspect(cmd.OutOrStdout(), componentJSONEnabled(cmd), args[0])
 }
 
 func runComponentVerify(cmd *cobra.Command, args []string) error {
-	manifest, err := component.LoadManifest(args[0])
-	if err != nil {
-		return renderComponentError(cmd, "verify", err)
-	}
-	result := componentPolicyFromFlags(cmd).Verify(manifest)
-	if !result.Allowed {
-		return renderComponentVerificationError(cmd, "verify", result, componentVerificationFailure(result))
-	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("verify", "verified")
-		componentPayload := manifestCLIComponent(manifest)
-		payload.Component = &componentPayload
-		payload.Verification = &result
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	_, err = fmt.Fprintf(
-		cmd.OutOrStdout(), "verified %s@%s with %s policy\n",
-		manifest.Metadata.ID,
-		manifest.Metadata.Version,
-		result.Mode,
-	)
-	return err
+	return clicomponent.RunVerify(cmd.OutOrStdout(), componentJSONEnabled(cmd), componentPolicyFromFlags(cmd), args[0])
 }
 
 func runComponentInstall(cmd *cobra.Command, args []string) error {
-	manifest, err := component.LoadManifest(args[0])
-	if err != nil {
-		return renderComponentError(cmd, "install", err)
-	}
-	result := componentPolicyFromFlags(cmd).Verify(manifest)
-	if !result.Allowed {
-		return renderComponentVerificationError(cmd, "install", result, componentVerificationFailure(result))
-	}
-	if componentDryRunEnabled(cmd) {
-		if componentJSONEnabled(cmd) {
-			payload := newComponentCLIOutput("install", "would_install")
-			componentPayload := manifestCLIComponent(manifest)
-			payload.DryRun = true
-			payload.Component = &componentPayload
-			payload.Verification = &result
-			return writeComponentJSON(cmd.OutOrStdout(), payload)
-		}
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "would install %s@%s\n", manifest.Metadata.ID, manifest.Metadata.Version)
-		return err
-	}
-	registry := component.NewRegistry(componentHomeFromFlags(cmd))
-	installed, err := registry.Install(args[0], result)
-	if err != nil {
-		return renderComponentError(cmd, "install", err)
-	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("install", "installed")
-		componentPayload := installedCLIComponent(installed, []string{component.RegistryStateInstalled})
-		payload.Component = &componentPayload
-		payload.Verification = &result
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "installed %s@%s\n", installed.ID, installed.Version)
-	return err
+	return clicomponent.RunInstall(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentDryRunEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		componentPolicyFromFlags(cmd),
+		args[0],
+	)
 }
 
 func runComponentList(cmd *cobra.Command, _ []string) error {
-	readback, err := component.NewRegistry(componentHomeFromFlags(cmd)).Readback(componentPolicyFromFlags(cmd))
-	if err != nil {
-		return renderComponentError(cmd, "list", err)
-	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("list", "listed")
-		payload.Components = make([]componentCLIComponent, 0, len(readback))
-		for _, entry := range readback {
-			payload.Components = append(payload.Components, readbackCLIComponent(entry))
-		}
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	if len(readback) == 0 {
-		_, err = fmt.Fprintln(cmd.OutOrStdout(), "no components installed")
-		return err
-	}
-	for _, installed := range readback {
-		if _, err := fmt.Fprintf(
-			cmd.OutOrStdout(),
-			"%s\t%s\t%s\tstates=%s\tactivations=%d\n",
-			installed.ID,
-			installed.Version,
-			installed.TrustMode,
-			strings.Join(installed.States, ","),
-			len(installed.Activations),
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+	return clicomponent.RunList(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		componentPolicyFromFlags(cmd),
+	)
 }
 
 func runComponentEnable(cmd *cobra.Command, args []string) error {
-	instanceID, err := cmd.Flags().GetString(componentInstanceFlag)
+	instanceID, err := cmd.Flags().GetString(clicomponent.InstanceFlag)
 	if err != nil {
 		return err
-	}
-	if strings.TrimSpace(instanceID) == "" {
-		err := component.Errorf(component.ErrorCodeInvalidInput, "--%s is required", componentInstanceFlag)
-		return renderComponentError(cmd, "enable", err)
 	}
 	mode, err := cmd.Flags().GetString(componentModeFlag)
 	if err != nil {
@@ -276,87 +244,104 @@ func runComponentEnable(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	registry := component.NewRegistry(componentHomeFromFlags(cmd))
 	request := component.Activation{
 		InstanceID:    instanceID,
 		Mode:          mode,
 		ClaimsEnabled: claimsEnabled,
 		ConfigPath:    configPath,
 	}
-	var activation component.Activation
-	if componentDryRunEnabled(cmd) {
-		activation, err = registry.PlanEnable(args[0], request)
-	} else {
-		activation, err = registry.Enable(args[0], request)
-	}
-	if err != nil {
-		return renderComponentError(cmd, "enable", err)
-	}
-	if componentJSONEnabled(cmd) {
-		status := "enabled"
-		if componentDryRunEnabled(cmd) {
-			status = "would_enable"
-		}
-		payload := newComponentCLIOutput("enable", status)
-		payload.DryRun = componentDryRunEnabled(cmd)
-		activationPayload := activationCLIOutput(activation)
-		payload.Activation = &activationPayload
-		componentPayload := componentCLIComponent{ID: args[0]}
-		payload.Component = &componentPayload
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	if componentDryRunEnabled(cmd) {
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "would enable %s instance %s\n", args[0], activation.InstanceID)
-		return err
-	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "enabled %s instance %s\n", args[0], activation.InstanceID)
-	return err
+	return clicomponent.RunEnable(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentDryRunEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		args[0],
+		request,
+	)
 }
 
 func runComponentDisable(cmd *cobra.Command, args []string) error {
-	instanceID, err := cmd.Flags().GetString(componentInstanceFlag)
+	instanceID, err := cmd.Flags().GetString(clicomponent.InstanceFlag)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(instanceID) == "" {
-		err := component.Errorf(component.ErrorCodeInvalidInput, "--%s is required", componentInstanceFlag)
-		return renderComponentError(cmd, "disable", err)
-	}
-	if err := component.NewRegistry(componentHomeFromFlags(cmd)).Disable(args[0], instanceID); err != nil {
-		return renderComponentError(cmd, "disable", err)
-	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("disable", "disabled")
-		componentPayload := componentCLIComponent{ID: args[0]}
-		activationPayload := componentCLIActivation{InstanceID: instanceID}
-		payload.Component = &componentPayload
-		payload.Activation = &activationPayload
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
-	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "disabled %s instance %s\n", args[0], instanceID)
-	return err
+	return clicomponent.RunDisable(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		args[0],
+		instanceID,
+	)
 }
 
 func runComponentUninstall(cmd *cobra.Command, args []string) error {
-	version, err := cmd.Flags().GetString(componentVersionFlag)
+	version, err := cmd.Flags().GetString(clicomponent.VersionFlag)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(version) == "" {
-		err := component.Errorf(component.ErrorCodeInvalidInput, "--%s is required", componentVersionFlag)
-		return renderComponentError(cmd, "uninstall", err)
+	return clicomponent.RunUninstall(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		args[0],
+		version,
+	)
+}
+
+func runComponentConform(cmd *cobra.Command, args []string) error {
+	fixtures, err := cmd.Flags().GetStringSlice(componentFixtureFlag)
+	if err != nil {
+		return err
 	}
-	if err := component.NewRegistry(componentHomeFromFlags(cmd)).Uninstall(args[0], version); err != nil {
-		return renderComponentError(cmd, "uninstall", err)
+	mode, err := cmd.Flags().GetString(componentModeFlag)
+	if err != nil {
+		return err
 	}
-	if componentJSONEnabled(cmd) {
-		payload := newComponentCLIOutput("uninstall", "uninstalled")
-		componentPayload := componentCLIComponent{ID: args[0], Version: version}
-		payload.Component = &componentPayload
-		return writeComponentJSON(cmd.OutOrStdout(), payload)
+	return clicomponent.RunConform(
+		cmd.Context(),
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		args[0],
+		fixtures,
+		mode,
+	)
+}
+
+func runComponentInitCollector(cmd *cobra.Command, _ []string) error {
+	id, _ := cmd.Flags().GetString(clicomponent.InitIDFlag)
+	publisher, _ := cmd.Flags().GetString(clicomponent.InitPublisherFlag)
+	factKind, _ := cmd.Flags().GetString(clicomponent.InitFactKindFlag)
+	output, _ := cmd.Flags().GetString(componentInitOutputFlag)
+	return clicomponent.RunInitCollector(cmd.OutOrStdout(), componentJSONEnabled(cmd), id, publisher, factKind, output)
+}
+
+func runComponentIndexVerify(cmd *cobra.Command, args []string) error {
+	return clicomponent.RunIndexVerify(cmd.OutOrStdout(), componentJSONEnabled(cmd), args[0])
+}
+
+func runComponentExtractionReadiness(cmd *cobra.Command, args []string) error {
+	asJSON, err := cmd.Flags().GetBool(componentJSONFlag)
+	if err != nil {
+		return err
 	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "uninstalled %s@%s\n", args[0], version)
-	return err
+	verbose, err := cmd.Flags().GetBool(componentExtractionReadinessVerboseFlag)
+	if err != nil {
+		return err
+	}
+	return clicomponent.RunExtractionReadiness(cmd.OutOrStdout(), asJSON, verbose, args)
+}
+
+func runComponentSchemaVersions(cmd *cobra.Command, _ []string) error {
+	asJSON, err := cmd.Flags().GetBool(componentJSONFlag)
+	if err != nil {
+		return err
+	}
+	check, err := cmd.Flags().GetString(componentSchemaCheckFlag)
+	if err != nil {
+		return err
+	}
+	return clicomponent.RunSchemaVersions(cmd.OutOrStdout(), asJSON, check)
 }
 
 func addComponentHomeFlag(cmd *cobra.Command) {
@@ -389,6 +374,26 @@ func addTrustFlagsWithDefault(cmd *cobra.Command, defaultMode string) {
 		component.DefaultProvenancePredicateType,
 		"Cosign attestation predicate type for strict component trust",
 	)
+}
+
+// componentJSONEnabled reads the shared --json flag, treating a command that
+// never registered it as text-mode.
+func componentJSONEnabled(cmd *cobra.Command) bool {
+	if cmd.Flags().Lookup(componentJSONFlag) == nil {
+		return false
+	}
+	enabled, _ := cmd.Flags().GetBool(componentJSONFlag)
+	return enabled
+}
+
+// componentDryRunEnabled reads the shared --dry-run flag, treating a command
+// that never registered it as a real run.
+func componentDryRunEnabled(cmd *cobra.Command) bool {
+	if cmd.Flags().Lookup(componentDryRunFlag) == nil {
+		return false
+	}
+	enabled, _ := cmd.Flags().GetBool(componentDryRunFlag)
+	return enabled
 }
 
 func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {

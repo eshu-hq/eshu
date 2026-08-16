@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package component
 
 import (
 	"encoding/json"
@@ -10,45 +10,20 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const componentSchemaCheckFlag = "check"
-
-func init() {
-	cmd := &cobra.Command{
-		Use:   "schema-versions",
-		Short: "List core fact-kind schema versions or classify a collector fact version",
-		Long: "Report the schema version each core reducer or query consumer currently " +
-			"supports for every core fact kind. With --check fact_kind=version it classifies " +
-			"a collector's fact schema version as supported, unsupported_major, " +
-			"unsupported_minor, or unknown_kind, and exits non-zero when the version is not " +
-			"supported. The command is read-only and never changes runtime behavior.",
-		Args: cobra.NoArgs,
-		RunE: runComponentSchemaVersions,
-	}
-	cmd.Flags().Bool(componentJSONFlag, false, "Emit machine-readable JSON")
-	cmd.Flags().String(componentSchemaCheckFlag, "", "Classify one fact version as fact_kind=schema_version")
-	componentCmd.AddCommand(cmd)
-}
-
-func runComponentSchemaVersions(cmd *cobra.Command, _ []string) error {
-	asJSON, err := cmd.Flags().GetBool(componentJSONFlag)
-	if err != nil {
-		return err
-	}
-	check, err := cmd.Flags().GetString(componentSchemaCheckFlag)
-	if err != nil {
-		return err
-	}
-
-	out := cmd.OutOrStdout()
+// RunSchemaVersions reports the schema version each core reducer or query
+// consumer currently supports for every core fact kind. A non-empty check of
+// the form fact_kind=version classifies that single collector fact version
+// instead, and returns an error -- so the command exits non-zero -- when the
+// version is not supported. The command is read-only and never changes
+// runtime behavior.
+func RunSchemaVersions(w io.Writer, jsonOutput bool, check string) error {
 	if strings.TrimSpace(check) != "" {
-		return runComponentSchemaVersionCheck(out, check, asJSON)
+		return runComponentSchemaVersionCheck(w, check, jsonOutput)
 	}
-	return runComponentSchemaVersionList(out, asJSON)
+	return runComponentSchemaVersionList(w, jsonOutput)
 }
 
 // schemaVersionEntry is one core fact kind and the schema version core supports.
@@ -56,6 +31,10 @@ type schemaVersionEntry struct {
 	FactKind      string `json:"fact_kind"`
 	SchemaVersion string `json:"schema_version"`
 }
+
+// The schema-versions JSON writers keep their own encoders rather than using
+// this package's writeJSON: the surface has always HTML-escaped its output
+// (the encoder default), and switching writers would change those bytes.
 
 func runComponentSchemaVersionList(out io.Writer, asJSON bool) error {
 	registry := facts.SupportedSchemaVersions()
@@ -68,13 +47,13 @@ func runComponentSchemaVersionList(out io.Writer, asJSON bool) error {
 	if asJSON {
 		encoder := json.NewEncoder(out)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(map[string]any{"fact_schema_versions": entries})
+		return encoder.Encode(map[string]any{"fact_schema_versions": entries}) //nolint:wrapcheck // the encode error is the operator-facing text of a failed write; a wrap would change it
 	}
-	if _, err := fmt.Fprintln(out, "Core fact-kind schema versions (read-only)"); err != nil {
+	if err := writef(out, "Core fact-kind schema versions (read-only)\n"); err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		if _, err := fmt.Fprintf(out, "  %s\t%s\n", entry.FactKind, entry.SchemaVersion); err != nil {
+		if err := writef(out, "  %s\t%s\n", entry.FactKind, entry.SchemaVersion); err != nil {
 			return err
 		}
 	}
@@ -110,9 +89,9 @@ func runComponentSchemaVersionCheck(out io.Writer, check string, asJSON bool) er
 		encoder := json.NewEncoder(out)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(result); err != nil {
-			return err
+			return err //nolint:wrapcheck // the encode error is the operator-facing text of a failed write; a wrap would change it
 		}
-	} else if _, err := fmt.Fprintf(
+	} else if err := writef(
 		out,
 		"%s %s -> %s (core supports %q)\n",
 		result.FactKind,

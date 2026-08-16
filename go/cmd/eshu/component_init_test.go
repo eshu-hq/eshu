@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	clicomponent "github.com/eshu-hq/eshu/go/internal/cli/component"
 	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
@@ -89,7 +90,7 @@ func TestComponentInitCollectorJSONOutput(t *testing.T) {
 		"--json",
 	)
 
-	var payload componentCLIOutput
+	var payload clicomponent.CLIOutput
 	if err := json.Unmarshal([]byte(output), &payload); err != nil {
 		t.Fatalf("component init --json output is not JSON: %v\n%s", err, output)
 	}
@@ -212,10 +213,10 @@ func resetComponentInitCollectorFlags(t *testing.T) {
 		t.Fatalf("find component init collector command: %v", err)
 	}
 	for name, value := range map[string]string{
-		componentInitIDFlag:        "",
-		componentInitPublisherFlag: "",
-		componentInitFactKindFlag:  "",
-		componentInitOutputFlag:    "",
+		clicomponent.InitIDFlag:        "",
+		clicomponent.InitPublisherFlag: "",
+		clicomponent.InitFactKindFlag:  "",
+		componentInitOutputFlag:        "",
 	} {
 		if err := cmd.Flags().Set(name, value); err != nil {
 			t.Fatalf("reset --%s: %v", name, err)

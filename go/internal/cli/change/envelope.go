@@ -70,14 +70,17 @@ type EnvelopeError struct {
 // mapValue returns parent[key] when it is a JSON object, and nil otherwise.
 //
 // This and the four readers below are copies of go/cmd/eshu's trace* helpers,
-// not shared with them. The originals still have callers that are not moving
-// (component_api.go, contract.go, trace.go, and trace_render.go), so the
-// copies coexist deliberately until a shared home exists. The freshness
-// family keeps a third set in go/internal/cli/freshness/values.go, and the
-// entitymap family a fourth (without the bool reader) in
-// go/internal/cli/entitymap/values.go, so an edit here belongs in four
-// places, not two. TestEnvelopeReaderParity in go/cmd/eshu compares the three
-// five-reader sets and goes red when one drifts;
+// not shared with them. Most originals still have callers that are not moving
+// (trace.go and trace_render.go); the bool reader's original left cmd/eshu
+// with its last caller in #6059. The copies coexist deliberately until a
+// shared home exists. The freshness and component families keep their own
+// sets in go/internal/cli/freshness/values.go and
+// go/internal/cli/component/values.go, and the entitymap family a
+// differently named set (without the bool reader) in
+// go/internal/cli/entitymap/values.go, so an edit here belongs in every set
+// that has the reader you touched. TestEnvelopeReaderParity in go/cmd/eshu
+// compares the change, freshness, and component sets per role and goes red
+// when one drifts;
 // TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap
 // set.
 // ErrorCodeFromTransport in failure.go is a copy of the same kind, and the one

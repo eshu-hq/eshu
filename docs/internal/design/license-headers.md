@@ -107,9 +107,10 @@ This places the metadata where Helm 3.3.2+ (which disallows extra top-level
 
 - `package.json` and `apps/console/package.json` are `"private": true`
   packages. npm convention omits the `license` field on private packages.
-- `go/cmd/eshu/component_init.go` is a CLI scaffolder that writes new
-  collector packages to user-specified output directories (not checked in).
-  Its templates will receive SPDX headers in a separate UX pass.
+- `go/internal/cli/component/scaffold.go` (the CLI scaffolder behind
+  `eshu component init collector`, formerly `go/cmd/eshu/component_init.go`)
+  writes new collector packages to user-specified output directories (not
+  checked in). Its templates will receive SPDX headers in a separate UX pass.
 
 ## 4. Verification Evidence
 

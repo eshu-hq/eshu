@@ -58,6 +58,15 @@
   `graph start` (`graph.go`), and `watch` (`basic.go`); a bare `syscall.Exec`
   for `api start` and `serve` (`service.go`); the local `indexExec` var for
   `index` (`basic.go`).
+- **Flag names printed by an `internal/cli` package are declared there** — the
+  `eshu component` family's `--instance`, `--version`, `--id`, `--publisher`,
+  and `--fact-kind` appear in `--<flag> is required` errors raised inside
+  `go/internal/cli/component`, so that package declares them
+  (`clicomponent.InstanceFlag` and friends) and `component.go` registers those
+  constants instead of its own. The remaining component flag names, which no
+  package outside this binary prints, stay in the `const` block in
+  `component.go`. Re-adding a local constant for one of the five puts the same
+  string under two owners again, which is what the extraction review caught.
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
   `removedCommandError` in `contract.go` instead of silently succeeding or

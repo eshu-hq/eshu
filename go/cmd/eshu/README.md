@@ -124,9 +124,9 @@ artifact wrapper, and the share-safe scope rules live in
     activation state with stable `--json` output, classified errors, and dry-run
     planning for install and enable. The `inventory` and `diagnostics`
     subcommands are API-backed readbacks for hosted component-extension
-    inventory and policy diagnostics (`component.go`, `component_api.go`,
-    `component_conform.go`, `component_index.go`, `component_init.go`,
-    `component_output.go`)
+    inventory and policy diagnostics (cobra wiring in `component.go` and
+    `component_api.go`; the command bodies live in
+    `internal/cli/component`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
     `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`; the status,
     stop, logs, and upgrade logic lives in

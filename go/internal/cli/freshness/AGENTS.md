@@ -37,22 +37,30 @@
   `strings.Contains` calls run first and their `err != nil` guards are load
   bearing. `TestErrorCodeFromTransportMessagePrecedesStatus` fails if the
   order changes — it uses a status 400 whose text says "connection refused".
-- **`ErrorCodeFromTransport` is one of three identical copies.** The others are
+- **`ErrorCodeFromTransport` is one of four identical copies.** The others are
   `traceErrorCodeFromTransport` in `go/cmd/eshu/trace.go` (the original, still
-  serving `eshu trace`, `eshu map`, and component_api) and
-  `change.ErrorCodeFromTransport`. `go/cmd/eshu` is package main, so nothing
-  can import the original and each family carries its own. Edit one and you
-  must edit all three — `TestTransportErrorCodeParity` in `go/cmd/eshu` feeds
-  one error table to every copy and names the one that answered differently.
+  serving `eshu trace` and component_api), `change.ErrorCodeFromTransport`, and
+  `transportErrorCode` in `go/internal/cli/entitymap`, which now serves
+  `eshu map`. `go/cmd/eshu` is package main, so nothing can import the original
+  and each family carries its own. Edit one and you must edit all four —
+  `TestTransportErrorCodeParity` in `go/cmd/eshu` feeds one error table to the
+  first three and names the one that answered differently, and
+  `TestEntityMapTransportClassifierMatchesTrace` pins the entitymap copy.
 - **Renderers write through `writef`.** Not `fmt.Fprintf`. See `write.go` for
   why, and do not add a second `//nolint:wrapcheck` without reading it.
 - **The value readers are private copies.** `mapValue`, `sliceValue`,
-  `stringValue`, `intValue`, and `boolValue` duplicate `go/cmd/eshu`'s
-  `traceMap` / `traceSlice` / `traceString` / `traceInt` / `traceBool`, and
-  `go/internal/cli/change/envelope.go` holds a third set under these same
-  names. The originals stay in `go/cmd/eshu` for their other callers, so an
-  edit to any reader lands in three places; `TestEnvelopeReaderParity` in
-  `go/cmd/eshu` compares the declarations and fails when one drifts. Do not
+  `stringValue`, and `intValue` duplicate `go/cmd/eshu`'s `traceMap` /
+  `traceSlice` / `traceString` / `traceInt`; `boolValue` outlived its
+  original, which left `go/cmd/eshu` with its last caller in #6059.
+  `go/internal/cli/change/envelope.go` and
+  `go/internal/cli/component/values.go` hold sets under these same names, and
+  `go/internal/cli/entitymap/values.go` a differently named one. The surviving
+  originals stay in `go/cmd/eshu` for their other callers, so an edit here
+  belongs in every set that has the reader you touched;
+  `TestEnvelopeReaderParity` in `go/cmd/eshu` compares each reader across only
+  the copies that reader has and fails when one drifts, and
+  `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` pins the entitymap
+  set. Do not
   try to share them through a new package without an owner's decision —
   several command families borrow the originals and a shared home is a
   cross-family change.

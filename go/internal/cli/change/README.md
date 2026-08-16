@@ -101,22 +101,27 @@ owned by `go/cmd/eshu/change_impact.go`.
 - **Freshness is checked before truncation.** A stale answer reports staleness,
   not the truncation staleness often causes.
 - **The trace helpers here are copies, not shared code.** `mapValue`,
-  `stringValue`, `intValue`, `boolValue`, `sliceValue`, and
-  `ErrorCodeFromTransport` mirror `go/cmd/eshu`'s `traceMap` and friends and
-  `traceErrorCodeFromTransport`, which still have callers that have not moved
-  (`component_api.go`, `contract.go`, `map.go`, `trace.go`, and
-  `trace_render.go`). The copies coexist until a shared home exists; do not
-  delete either side assuming the other covers it. The freshness family keeps
-  a third set for the same reason, so a change to any reader lands in three
-  places. `TestEnvelopeReaderParity` in `go/cmd/eshu` compares the five reader
-  declarations across all three sets and fails when one drifts.
-  `ErrorCodeFromTransport` is the one to watch: it is the only copy with real
-  logic in it, and #6117 already edited the original mid-epic. It now exists
-  three times — here, in `go/cmd/eshu/trace.go`, and in
-  `go/internal/cli/freshness/envelope.go` — and an edit that misses one leaves
-  that command family classifying on the old table.
-  `TestTransportErrorCodeParity` in `go/cmd/eshu` feeds one error table to all
-  three and fails when their answers differ.
+  `sliceValue`, `stringValue`, and `intValue` mirror `go/cmd/eshu`'s
+  `traceMap` / `traceSlice` / `traceString` / `traceInt`, which still have
+  callers that have not moved (`trace.go` and `trace_render.go`), and
+  `ErrorCodeFromTransport` mirrors `traceErrorCodeFromTransport`, still called
+  from `trace.go` and `component_api.go`. `boolValue` outlived its original,
+  which left `go/cmd/eshu` with its last caller in #6059. The copies coexist
+  until a shared home exists; do not delete either side assuming the other
+  covers it. The freshness and component families keep their own sets and
+  entitymap a differently named one, so a change belongs in every set that has
+  the reader you touched. `TestEnvelopeReaderParity` in `go/cmd/eshu` compares
+  each reader across only the copies that reader has and fails when one drifts,
+  and `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` pins the
+  entitymap set. `ErrorCodeFromTransport` is the one to watch: it is the only
+  copy with real logic in it, and #6117 already edited the original mid-epic.
+  It now exists four times — here, in `go/cmd/eshu/trace.go`, in
+  `go/internal/cli/freshness/envelope.go`, and as `transportErrorCode` in
+  `go/internal/cli/entitymap` — and an edit that misses one leaves that command
+  family classifying on the old table. `TestTransportErrorCodeParity` in
+  `go/cmd/eshu` feeds one error table to the first three and fails when their
+  answers differ; `TestEntityMapTransportClassifierMatchesTrace` pins the
+  entitymap copy.
 - **The envelope error message is printed verbatim.** For a transport failure
   it is the Go error, which embeds the service URL an operator set. That is the
   point of the message, and this package does not screen it.
