@@ -27,11 +27,18 @@ result to an exit code. Those stay in `go/cmd/eshu/config_cmd.go` and
 `go/cmd/eshu/config_validate.go`, the cobra `RunE` wrappers, because
 `go/cmd/eshu` is `package main` and nothing can import it.
 
-`Home` reads `ESHU_HOME`. That is the only environment variable read here,
-and the only one read anywhere in this package's dependency closure --
-`internal/envregistry`, the sole non-standard-library import, holds a static
-registry and reads no environment of its own. Every other `ESHU_*` value this
-package deals with comes out of the `.env` file or arrives as a parameter.
+`Home` is the only function here that reads the process environment, and it
+reads two things: `ESHU_HOME`, and the platform's home variable by way of
+`os.UserHomeDir` (`HOME` on Unix, `USERPROFILE` on Windows, `home` on Plan 9).
+The second one is easy to miss because the call site does not name a variable --
+it happens both when expanding a leading `~` in `ESHU_HOME` and in the `~/.eshu`
+fallback.
+
+Those two are the whole surface. No `ESHU_*` setting or credential is resolved
+from the environment: every other value this package deals with comes out of the
+`.env` file or arrives as a parameter. `internal/envregistry`, the sole
+non-standard-library import, holds a static registry and reads no environment of
+its own.
 
 This package prints nothing to the process's stdout or stderr. `ValidateEnv`
 writes only to the `io.Writer` its caller supplies; the wrapper passes

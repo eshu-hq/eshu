@@ -12,8 +12,13 @@
 // directory. Home resolves that directory and is the only place in this
 // package that reads the process environment: it consults ESHU_HOME, expanding
 // a leading "~" against the user's home directory, and falls back to ~/.eshu.
-// No other environment variable is read here or anywhere in this package's
-// dependency closure -- internal/envregistry, the only non-standard-library
+// Home also reads the platform's home variable, because os.UserHomeDir does:
+// HOME on Unix, USERPROFILE on Windows, home on Plan 9. That happens on both
+// paths -- expanding a leading "~" in ESHU_HOME, and the ~/.eshu fallback.
+//
+// Those two are the whole environment surface. No ESHU_* setting or credential
+// is resolved from the process environment: those come out of the .env file or
+// arrive as parameters. internal/envregistry, the only non-standard-library
 // package imported, holds a static registry and reads no environment of its
 // own; the environment it validates is passed in as a map.
 //

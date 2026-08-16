@@ -22,12 +22,21 @@
   import it — any symbol that reads a flag, reads real stdin, or maps to
   an exit code has to live in the two wrapper files instead. `ValidateEnv`
   prints only through the `io.Writer` its caller supplies.
-- **`ESHU_HOME` is the only environment variable read, and `Home` is the
-  only function that reads it.** That claim is transitive: the sole
-  non-standard-library import is `internal/envregistry`, which reads no
-  environment of its own. Before adding an import, check its closure with
-  `go list -deps ./internal/cli/config` — a dependency that calls
-  `os.Getenv` silently falsifies the claim in `doc.go` and `README.md`.
+- **`Home` is the only function that reads the process environment, and it
+  reads exactly two things:** `ESHU_HOME`, and the platform home variable via
+  `os.UserHomeDir` — `HOME` on Unix, `USERPROFILE` on Windows, `home` on Plan 9.
+  The second is easy to miss because no variable is named at the call site;
+  `os.UserHomeDir` is `os.Getenv` underneath (`$GOROOT/src/os/file.go`), and it
+  runs on both paths: expanding a leading `~` in `ESHU_HOME`, and the `~/.eshu`
+  fallback. **What counts as an env read is decided by the callee's source, not
+  by the name at the call site** — an earlier version of these docs claimed no
+  other variable was read anywhere in the dependency closure, which
+  `os.UserHomeDir` had always falsified.
+
+  No `ESHU_*` setting or credential is resolved from the environment. Before
+  adding an import, check its closure with
+  `go list -deps ./internal/cli/config` — a dependency that reaches `os.Getenv`
+  by any spelling widens this surface and falsifies `doc.go` and `README.md`.
 - **File access is confined to the `.env` file under `Home`.** Reading a
   path a caller passes in as a parameter would be acceptable (the
   `internal/cli/servicereport` precedent), but nothing here does that
