@@ -128,6 +128,20 @@ on:
       # A change to the composer can alter what that shape checks, so it must
       # trigger the gate too, replacing the prior exclusion-list entry.
       - 'go/internal/evidencebundle/**'
+      # #6119: internal/urlredact answers "does this URL carry credentials?" for
+      # the collector sanitizers. It reaches this gate through the STATIC-PARSE
+      # path, not live collection: go/internal/collector/
+      # git_service_catalog_facts.go parses catalog-info.yaml straight out of the
+      # repo corpus and calls servicecatalog.BackstageManifestEnvelopes, whose
+      # stripSensitiveURL/isSafeURL/redactSensitiveText (go/internal/collector/
+      # servicecatalog/envelope.go) call urlredact.CarriesUserinfo -- and
+      # tests/fixtures/ecosystems/deployable-config/catalog-info.yaml is in this
+      # gate's own fixture list (scripts/lib/golden-corpus-fixtures.sh). Change
+      # what CarriesUserinfo answers and the service-catalog facts this gate
+      # projects change with it. That static-parse reach is also why this package
+      # is covered while go/internal/redact stays excluded: redact only runs on
+      # the live-collection path cassette replay bypasses.
+      - 'go/internal/urlredact/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'

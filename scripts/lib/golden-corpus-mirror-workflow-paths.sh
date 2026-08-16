@@ -324,3 +324,22 @@ require_workflow_path "SBOM attachment dedupe/sort/cap (#5877 correction)" "go/i
 # change (or a bug in the classification itself once warnings exist) must not
 # ship invisibly. Cover it rather than lean on today's empty-corpus accident.
 require_workflow_path "terraform-state warning classification (#5877 correction)" "go/internal/tfstatewarning/**"
+
+# --- #6119: URL credential redaction ----------------------------------------
+# internal/urlredact is the first redaction package this filter covers, and the
+# reason it is covered while internal/redact stays excluded is worth stating
+# plainly, because the two look interchangeable from the package name alone.
+# internal/redact sanitizes LIVE collector output, and cassette replay bypasses
+# live collection entirely (see scripts/lib/golden-corpus-filter-exclusions.txt).
+# internal/urlredact is reached on the STATIC-PARSE path instead, which this gate
+# really does run: internal/collector/git_service_catalog_facts.go parses
+# catalog-info.yaml out of the repo corpus and calls
+# servicecatalog.BackstageManifestEnvelopes, and that package's
+# stripSensitiveURL/isSafeURL/redactSensitiveText each call
+# urlredact.CarriesUserinfo (internal/collector/servicecatalog/envelope.go).
+# The corpus carries a matching fixture --
+# tests/fixtures/ecosystems/deployable-config/catalog-info.yaml, listed in
+# scripts/lib/golden-corpus-fixtures.sh -- so the call site is live here, not
+# hypothetical. Widen or narrow what CarriesUserinfo treats as credential-bearing
+# and the service-catalog facts this gate projects move with it.
+require_workflow_path "URL credential redaction (#6119)" "go/internal/urlredact/**"

@@ -1881,6 +1881,20 @@ gates:
       - "go/internal/askwiring/**"
       - "go/internal/answerguardrail/**"
       - "go/internal/answernarration/**"
+      # #4045: query/evidence_bundle_live.go composes GET /api/v0/evidence/bundle
+      # from internal/evidencebundle, and the snapshot asserts that response. The
+      # workflow gained this entry then; the registry did not, so local gate
+      # selection has been missing it since. Restored here alongside the #6119
+      # entry below, in the same block, because the two lists are meant to agree.
+      - "go/internal/evidencebundle/**"
+      # #6119: internal/urlredact reaches this gate on the static-parse path --
+      # internal/collector/git_service_catalog_facts.go parses catalog-info.yaml
+      # from the repo corpus into servicecatalog.BackstageManifestEnvelopes, whose
+      # URL sanitizers call urlredact.CarriesUserinfo, against the
+      # deployable-config/catalog-info.yaml fixture this gate already loads. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the full evidence,
+      # including why internal/redact stays excluded and this does not.
+      - "go/internal/urlredact/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"
