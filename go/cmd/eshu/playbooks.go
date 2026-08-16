@@ -4,46 +4,13 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"strings"
-
+	"github.com/eshu-hq/eshu/go/internal/cli/playbooks"
 	"github.com/spf13/cobra"
 )
 
-type queryPlaybookResolveOptions struct {
-	PlaybookID string
-	Inputs     map[string]string
-}
-
-type queryPlaybookListEnvelope struct {
-	Data  map[string]any      `json:"data"`
-	Truth map[string]any      `json:"truth"`
-	Error *queryPlaybookError `json:"error"`
-}
-
-type queryPlaybookResolveEnvelope struct {
-	Data struct {
-		Resolved struct {
-			PlaybookID   string           `json:"playbook_id"`
-			Version      string           `json:"version"`
-			PromptFamily string           `json:"prompt_family"`
-			Calls        []map[string]any `json:"calls"`
-			FailureModes []map[string]any `json:"failure_modes"`
-		} `json:"resolved"`
-	} `json:"data"`
-	Truth map[string]any      `json:"truth"`
-	Error *queryPlaybookError `json:"error"`
-}
-
-type queryPlaybookError struct {
-	Code       string         `json:"code,omitempty"`
-	Message    string         `json:"message,omitempty"`
-	Capability string         `json:"capability,omitempty"`
-	Details    map[string]any `json:"details,omitempty"`
-}
-
+// queryPlaybookInputs holds the repeatable --input flag values for
+// "playbooks resolve". Parsing them into a map is internal/cli/playbooks's
+// job; only the cobra flag binding lives here.
 var queryPlaybookInputs []string
 
 func init() {
@@ -70,56 +37,24 @@ func init() {
 	rootCmd.AddCommand(playbooksCmd)
 }
 
+// runQueryPlaybookList resolves the command's output stream and API client —
+// the two things only package main can reach — and hands the rest to
+// internal/cli/playbooks.
 func runQueryPlaybookList(cmd *cobra.Command, _ []string) error {
-	var envelope queryPlaybookListEnvelope
-	if err := apiClientFromCmd(cmd).GetEnvelope("/api/v0/query-playbooks", &envelope); err != nil {
-		return err
-	}
-	return writeQueryPlaybookJSON(cmd.OutOrStdout(), envelope)
+	return playbooks.RunList(cmd.OutOrStdout(), apiClientFromCmd(cmd))
 }
 
+// runQueryPlaybookResolve parses the --input flag values, then resolves the
+// stream and client and delegates to internal/cli/playbooks. Parsing happens
+// before the client is built, exactly as the command always behaved: a bad
+// --input fails without touching the network.
 func runQueryPlaybookResolve(cmd *cobra.Command, args []string) error {
-	inputs, err := parseQueryPlaybookInputs(queryPlaybookInputs)
+	inputs, err := playbooks.ParseInputs(queryPlaybookInputs)
 	if err != nil {
 		return err
 	}
-	envelope, err := fetchQueryPlaybookResolve(apiClientFromCmd(cmd), queryPlaybookResolveOptions{
+	return playbooks.RunResolve(cmd.OutOrStdout(), apiClientFromCmd(cmd), playbooks.ResolveOptions{
 		PlaybookID: args[0],
 		Inputs:     inputs,
 	})
-	if err != nil {
-		return err
-	}
-	return writeQueryPlaybookJSON(cmd.OutOrStdout(), envelope)
-}
-
-func fetchQueryPlaybookResolve(client *APIClient, opts queryPlaybookResolveOptions) (queryPlaybookResolveEnvelope, error) {
-	var envelope queryPlaybookResolveEnvelope
-	if err := client.PostEnvelope("/api/v0/query-playbooks/resolve", map[string]any{
-		"playbook_id": strings.TrimSpace(opts.PlaybookID),
-		"inputs":      opts.Inputs,
-	}, &envelope); err != nil {
-		return queryPlaybookResolveEnvelope{}, err
-	}
-	return envelope, nil
-}
-
-func parseQueryPlaybookInputs(raw []string) (map[string]string, error) {
-	inputs := make(map[string]string, len(raw))
-	for _, item := range raw {
-		key, value, ok := strings.Cut(item, "=")
-		key = strings.TrimSpace(key)
-		if !ok || key == "" {
-			return nil, fmt.Errorf("input must use key=value form")
-		}
-		inputs[key] = strings.TrimSpace(value)
-	}
-	return inputs, nil
-}
-
-func writeQueryPlaybookJSON(w io.Writer, v any) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	enc.SetEscapeHTML(false)
-	return enc.Encode(v)
 }
