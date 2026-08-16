@@ -250,7 +250,7 @@ func evaluateRepoIndexedCriterion(env Envelope) Criterion {
 		return c
 	}
 	c.Status = CriterionFail
-	c.Detail = "repo_indexed=" + n(indexed) + " (indexing not proven complete)"
+	c.Detail = "repo_indexed=" + quoteIfEmpty(indexed) + " (indexing not proven complete)"
 	return c
 }
 

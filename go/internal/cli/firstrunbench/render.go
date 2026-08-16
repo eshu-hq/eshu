@@ -17,7 +17,7 @@ func RenderVerdict(w io.Writer, verdict Verdict) {
 		header = "First-answer benchmark FAILED"
 	}
 	_, _ = fmt.Fprintln(w, header)
-	_, _ = fmt.Fprintf(w, "  path : %s\n", n(verdict.Path))
+	_, _ = fmt.Fprintf(w, "  path : %s\n", quoteIfEmpty(verdict.Path))
 	_, _ = fmt.Fprintln(w, strings.Repeat("-", 40))
 	for _, c := range verdict.Criteria {
 		req := " "
@@ -44,11 +44,13 @@ func Marker(status CriterionStatus) string {
 	}
 }
 
-// n renders a placeholder for an empty value so the scorecard line stays
-// copy-pasteable. It is a verbatim copy of the helper in
+// quoteIfEmpty renders a placeholder for an empty value so the scorecard line
+// stays copy-pasteable. It is a verbatim copy of the helper in
 // go/cmd/eshu/first_run.go, kept local because package main cannot be
-// imported; do not export or import it from anywhere.
-func n(value string) string {
+// imported; do not export or import it from anywhere. The name matches the
+// copies in internal/cli/evidpacket and internal/cli/answerqualityscorecard,
+// so the four verbatim copies are greppable as one family.
+func quoteIfEmpty(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "<repo>"
 	}
