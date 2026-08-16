@@ -5,11 +5,22 @@
 # test-ifa-fault-injection-review-cases.sh) to keep that file under the
 # repository's 500-line cap. The parent verifier owns strict mode, fail(),
 # and every path variable referenced below (script, driver_lib,
-# deployable_unit_live_lib, deployable_unit_cells_lib).
+# deployable_unit_live_lib, deployable_unit_diagnostics_lib,
+# deployable_unit_cells_lib). deployable_unit_diagnostics_lib
+# (ifa_deployable_unit_live_diagnostics.sh) holds the post-maintenance
+# DIAGNOSTIC probes split out of ifa_deployable_unit_live.sh to keep THAT
+# file under the same cap -- their definitions are checked there, while
+# their WIRING (call sites in the standalone cell and the fault cells) is
+# still checked against deployable_unit_live_lib / deployable_unit_cells_lib,
+# since only the function bodies moved.
 
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_live_lib}" || fail "missing ${label} (deployable-unit live lib): ${needle}"
+}
+require_deployable_unit_diagnostics_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_diagnostics_lib}" || fail "missing ${label} (deployable-unit diagnostics lib): ${needle}"
 }
 require_deployable_unit_cells() {
 	local label="$1" needle="$2"
@@ -54,41 +65,59 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# deleting either comparison (not just the phrase) turns this red.
 	require_deployable_unit_live_lib "live lib readiness-opened resolution-started check" '"${contents}" != *"cross-repo relationship resolution started"* ]]'
 	require_deployable_unit_live_lib "live lib readiness-opened not-gated check" '"${contents}" == *"cross-repo resolution gated"* ]]'
-	# Post-maintenance intents diagnostic (#5993 follow-up): separates the two
+	# Readiness-review follow-up item 3 (#5993): the deferred-backfill fan-in
+	# can decline to publish a partition and still exit zero (logging
+	# deferred_backfill_fanin_partition_skipped=true ... reason="generation_
+	# advanced_since_batch"). When that fires, readiness never opens, the
+	# reducer log shows "started" paired with "gated" (the SAME text as the
+	# designed pre-maintenance-gate case), and nothing in the output says why.
+	# Pinned to the CODE SHAPE (the bash substring comparison against the
+	# bootstrap-index maintenance-pass log), not the bare marker phrase alone,
+	# and specifically NOT `rg` -- #5974 (cited in this same function's own
+	# doc comment) proved rg is absent on the fault-injection CI runner, so a
+	# check built on it would exit "command not found" and read as a false
+	# negative in the exact function whose docstring already warns against
+	# reintroducing that failure mode.
+	require_deployable_unit_live_lib "live lib readiness-opened fan-in-skip marker (bash substring, not rg)" '"${bootstrap_contents}" == *"deferred_backfill_fanin_partition_skipped=true"*'
+	require_deployable_unit_live_lib "live lib readiness-opened reads the bootstrap-index maintenance-pass log, not the reducer log, for the fan-in marker" 'bootstrap_index_log="${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log"'
+	# Post-maintenance intents diagnostic (#5993 follow-up), definition now in
+	# the diagnostics lib (ifa_deployable_unit_live_diagnostics.sh, split out
+	# to keep the live lib under the 500-line cap): separates the two
 	# indistinguishable causes of the live gate's "expected 1, got 0" failure --
 	# a writer endpoint-MATCH miss (intents > 0, 0 edges) vs. correlation never
 	# admitting a row (intents == 0). Do not count the needles below in prose
 	# here; a stale count is exactly the kind of drift this comment keeps
-	# tripping on -- read the require_deployable_unit_live_lib calls directly.
-	# What they establish, by property rather than by number: the function
-	# exists and states BOTH interpretations (not just a count); the after-probe
-	# never gates (the call site has no `|| return 1` on purpose, so the
-	# caller's `set -e` is NOT suppressed there -- an unguarded internal query
-	# failure would abort the whole cell before the real edge assertion runs)
-	# and degrades any of query-failed/empty/non-numeric to one "unavailable"
-	# reading rather than a legitimate-looking "0"; the BEFORE probe
-	# (assert_empty_before_maintenance) has the same hazard except it GATES,
-	# so it is pinned separately to prove it fails closed with the real exit
-	# code and treats empty/non-numeric as unknown, never as a legitimate
-	# zero. Both probes share the same unpiped rc-capture opening line by
-	# harmonization (pinned as a COUNT of exactly 2, not a presence needle,
-	# since presence alone cannot tell "only one function has this" from
-	# "both do"). Wiring existence alone would still pass if a call were wired
-	# below the final edge assertion it is supposed to precede, or clustered
-	# into the wrong cell, so ordering and cell containment are pinned as
-	# line-number / enclosing-function checks below rather than as text
-	# needles.
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic failure-tolerant reading" 'admitted="unavailable (query failed)"'
+	# tripping on -- read the require_deployable_unit_diagnostics_lib calls
+	# directly. What they establish, by property rather than by number: the
+	# function exists and states BOTH interpretations (not just a count); the
+	# after-probe never gates (the call site, in the live lib and cells lib,
+	# has no `|| return 1` on purpose, so the caller's `set -e` is NOT
+	# suppressed there -- an unguarded internal query failure would abort the
+	# whole cell before the real edge assertion runs) and degrades any of
+	# query-failed/empty/non-numeric to one "unavailable" reading rather than
+	# a legitimate-looking "0"; the BEFORE probe (assert_empty_before_maintenance,
+	# still in the live lib) has the same hazard except it GATES, so it is
+	# pinned separately to prove it fails closed with the real exit code and
+	# treats empty/non-numeric as unknown, never as a legitimate zero. All
+	# three post-maintenance probes in the diagnostics lib share the same
+	# unpiped rc-capture opening line by harmonization with the live lib's
+	# before-probe (pinned as PER-FILE COUNTS, not a presence needle, since
+	# presence alone cannot tell "only one function has this" from "all do").
+	# Wiring existence alone would still pass if a call were wired below the
+	# final edge assertion it is supposed to precede, or clustered into the
+	# wrong cell, so ordering and cell containment are pinned as line-number /
+	# enclosing-function checks below rather than as text needles.
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic failure-tolerant reading" 'admitted="unavailable (query failed)"'
 	# The after-probe never pipes its query capture (ifa_det_pg is called bare,
 	# not through `| tr`), so its own success/failure never depends on the
 	# caller having set pipefail -- this pins the collapsed tri-condition
 	# (query failed, OR empty, OR non-numeric) that decides whether the
 	# reading becomes "unavailable", not just a bare `-z` check that a partial
 	# rewrite could satisfy while still leaving a non-numeric value unhandled.
-	require_deployable_unit_live_lib "live lib post-maintenance intents diagnostic collapses failed/empty/non-numeric to unavailable" '"${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then'
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic collapses failed/empty/non-numeric to unavailable" '"${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then'
 	# The BEFORE probe (assert_empty_before_maintenance) has the same two
 	# hazards the after-probe was hardened against, except it GATES (return 1
 	# fails the cell) instead of merely reporting -- worse than the bug fixed
@@ -99,22 +128,53 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# code from a BARE (unpiped) ifa_det_pg call, so success/failure never
 	# depends on pipefail at all, then separately check empty and non-numeric
 	# before ever comparing to "0" -- a query that never ran must never read
-	# as a legitimate zero. Both functions now share byte-identical opening
-	# lines (harmonization means there is no longer a shape unique to only
-	# one of them), so the shape itself is pinned as a COUNT -- it must
-	# appear exactly twice, once per function -- rather than as a bare
-	# presence needle that a regression in only ONE function could not turn
-	# red (a presence-only needle for this exact text would already have
-	# passed before this fix, since the after-probe alone already had it).
-	# The messages below ARE unique to the before-probe and pin its actual
-	# gating behavior directly.
-	local du_unpiped_rc_capture_count
-	du_unpiped_rc_capture_count="$(rg --fixed-strings --count-matches -- 'if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_live_lib}" || true)"
-	[[ "${du_unpiped_rc_capture_count}" -eq 2 ]] \
-		|| fail "expected the unpiped rc-capture query shape exactly twice in ${deployable_unit_live_lib} (once in the before-probe, once in the after-probe); found ${du_unpiped_rc_capture_count:-0}"
+	# as a legitimate zero. Every post-maintenance probe shares this
+	# byte-identical opening line by harmonization (there is no shape unique
+	# to only one of them), so it is pinned as PER-FILE COUNTS rather than a
+	# bare presence needle that a regression in only one function could not
+	# turn red: the live lib has it once (the before-probe alone, since the
+	# other two now live in the diagnostics lib after the split), and the
+	# diagnostics lib has it twice (report_intents_after_maintenance and
+	# report_resolved_deploys_from_count -- the needle omits the assigned
+	# variable name, "admitted" vs "resolved", since the two functions do not
+	# share it). The messages below ARE unique to the before-probe and pin
+	# its actual gating behavior directly.
+	local du_unpiped_rc_capture_count du_unpiped_rc_capture_diag_count
+	du_unpiped_rc_capture_count="$(rg --fixed-strings --count-matches -- '="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_live_lib}" || true)"
+	[[ "${du_unpiped_rc_capture_count}" -eq 1 ]] \
+		|| fail "expected the unpiped rc-capture query shape exactly once in ${deployable_unit_live_lib} (the before-probe, after the diagnostics-lib split); found ${du_unpiped_rc_capture_count:-0}"
+	du_unpiped_rc_capture_diag_count="$(rg --fixed-strings --count-matches -- '="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_diagnostics_lib}" || true)"
+	[[ "${du_unpiped_rc_capture_diag_count}" -eq 2 ]] \
+		|| fail "expected the unpiped rc-capture query shape exactly twice in ${deployable_unit_diagnostics_lib} (report_intents_after_maintenance and report_resolved_deploys_from_count); found ${du_unpiped_rc_capture_diag_count:-0}"
 	require_deployable_unit_live_lib "live lib before-probe fails closed and returns the real rc on query failure" 'return "${admitted_rc}"'
 	require_deployable_unit_live_lib "live lib before-probe treats empty output as unknown, not zero" "before-maintenance precondition query returned empty output; treat this as unknown, not as zero"
 	require_deployable_unit_live_lib "live lib before-probe treats non-numeric output as unknown, not zero" "before-maintenance precondition query returned non-numeric output"
+	# Readiness-review follow-up item 4 (#5993): the unproven persisted-resolution
+	# -> reopened-correlation link presents as readiness=pass, intents=0,
+	# edges="got 0" -- IDENTICAL to the designed "correlation produced
+	# nothing" case. Two cheap, no-new-mechanism separators turn that single
+	# ambiguous outcome into three distinguishable causes:
+	#   - did resolution persist anything? a count of resolved_relationships
+	#     WHERE relationship_type = 'DEPLOYS_FROM' (relationships.RelDeploysFrom
+	#     / edgetype.DeploysFrom), taken where the intents count is taken.
+	#   - did the reopen fire? tailing the bootstrap-index maintenance-pass log
+	#     for ReopenSucceededReducerWorkItems's per-domain line
+	#     (reducer_work_items_reopened domain=deployable_unit_correlation
+	#     count=N, logged UNCONDITIONALLY for every domain, even count=0) --
+	#     absent means the reopen phase itself never ran; present with
+	#     count=0 means it ran and found nothing.
+	# Both diagnostic only, never a gate, and both defined in the diagnostics
+	# lib (ifa_deployable_unit_live_diagnostics.sh). Bash substring for the
+	# reopen marker, NOT rg, for the same #5974 reason
+	# ifa_deployable_unit_live_assert_readiness_opened's own doc comment (in
+	# the live lib) cites.
+	require_deployable_unit_diagnostics_lib "diagnostics lib resolved-DEPLOYS_FROM-count definition" "ifa_deployable_unit_live_report_resolved_deploys_from_count() {"
+	require_deployable_unit_diagnostics_lib "diagnostics lib resolved-DEPLOYS_FROM-count query" "SELECT count(*) FROM resolved_relationships WHERE relationship_type = 'DEPLOYS_FROM';"
+	require_deployable_unit_diagnostics_lib "diagnostics lib correlation-reopen definition" "ifa_deployable_unit_live_report_correlation_reopen() {"
+	require_deployable_unit_diagnostics_lib "diagnostics lib correlation-reopen domain marker text" "reducer_work_items_reopened domain=deployable_unit_correlation count="
+	require_deployable_unit_diagnostics_lib "diagnostics lib correlation-reopen uses bash substring, not rg" '"${bootstrap_contents}" == *"${reopen_marker}"*'
+	require_deployable_unit_live_lib "live lib standalone cell resolved-DEPLOYS_FROM-count wiring" 'ifa_deployable_unit_live_report_resolved_deploys_from_count "${compose_project}"'
+	require_deployable_unit_live_lib "live lib standalone cell correlation-reopen wiring" 'ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "primary"'
 	# Ordering: the standalone determinism cell's post-maintenance intents
 	# call must precede ITS OWN final edge assertion (ifa_deployable_unit_live_assert
 	# ... || return 1 -- a call moved below it never executes on the only path
@@ -185,6 +245,62 @@ run_ifa_fault_injection_deployable_unit_cases() {
 
 		[[ "${du_report_line}" -lt "${du_assert_line}" ]] \
 			|| fail "deployable-unit fault cell ${du_cell}: post-maintenance intents diagnostic (line ${du_report_line}) must run before that cell's own final edge assertion (line ${du_assert_line}) in ${deployable_unit_cells_lib}"
+	done
+	# Readiness-opened observable (readiness-review follow-up, #5993 item 1):
+	# baseline already called ifa_deployable_unit_live_assert_readiness_opened;
+	# killworker and failgraphwrite did not, even though they are exactly the
+	# cells where an injected fault could plausibly stop readiness opening --
+	# without it, a C=0/D="got 0" result there cannot distinguish "the fault
+	# prevented readiness" from "correlation produced nothing", the ambiguity
+	# this observable exists to remove. Pinned the same way as the
+	# intents-diagnostic wiring above, reusing the SAME du_fn_at_line map: the
+	# exact call text embeds the cell-specific reducer-log label, so a
+	# copy-pasted call using the WRONG cell's label already fails a plain text
+	# match, and the containment check on top of that catches a call landing
+	# in the wrong cell entirely.
+	local -A du_readiness_label=(
+		[cell_baseline_deployable_unit]="reducer-baseline_deployable_unit"
+		[cell_killworker_deployable_unit]="reducer-killworkerdeployableunit-after"
+		[cell_failgraphwrite_deployable_unit]="reducer-failgraphwritedeployableunit"
+	)
+	local du_readiness_line
+	for du_cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
+		du_readiness_line="$(rg -n --fixed-strings -- "ifa_deployable_unit_live_assert_readiness_opened \"\${log_dir}\" \"${du_readiness_label[${du_cell}]}\"" "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
+		[[ "${du_readiness_line}" =~ ^[0-9]+$ ]] \
+			|| fail "${du_cell} must call ifa_deployable_unit_live_assert_readiness_opened with label \"${du_readiness_label[${du_cell}]}\" in ${deployable_unit_cells_lib}"
+		[[ "${du_fn_at_line[${du_readiness_line}]:-}" == "${du_cell}" ]] \
+			|| fail "${du_cell}'s readiness-opened call (line ${du_readiness_line}) is not inside ${du_cell} in ${deployable_unit_cells_lib}"
+	done
+	# Item 4's two residual-junction separators, wired into all three fault
+	# cells and containment-checked the same way as the post-maintenance
+	# intents diagnostic and the readiness-opened observable above. The
+	# resolved-DEPLOYS_FROM-count call is textually identical across all three
+	# cells (same args as the intents diagnostic), so it needs the
+	# du_fn_at_line containment check, not a label-text match; the
+	# correlation-reopen call embeds each cell's own pass_label, so it is
+	# checked the same way as the readiness-opened label above.
+	local -A du_pass_label=(
+		[cell_baseline_deployable_unit]="baseline_deployable_unit"
+		[cell_killworker_deployable_unit]="killworkerdeployableunit"
+		[cell_failgraphwrite_deployable_unit]="failgraphwritedeployableunit"
+	)
+	local du_resolved_lines du_resolved_line du_reopen_line
+	du_resolved_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true))
+	for du_cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
+		du_resolved_line=""
+		for du_ln in "${du_resolved_lines[@]}"; do
+			[[ "${du_fn_at_line[${du_ln}]:-}" == "${du_cell}" ]] || continue
+			du_resolved_line="${du_ln}"
+			break
+		done
+		[[ -n "${du_resolved_line}" ]] \
+			|| fail "resolved-DEPLOYS_FROM-count diagnostic must be wired inside ${du_cell} in ${deployable_unit_cells_lib}"
+
+		du_reopen_line="$(rg -n --fixed-strings -- "ifa_deployable_unit_live_report_correlation_reopen \"\${log_dir}\" \"${du_pass_label[${du_cell}]}\"" "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
+		[[ "${du_reopen_line}" =~ ^[0-9]+$ ]] \
+			|| fail "${du_cell} must call ifa_deployable_unit_live_report_correlation_reopen with pass_label \"${du_pass_label[${du_cell}]}\" in ${deployable_unit_cells_lib}"
+		[[ "${du_fn_at_line[${du_reopen_line}]:-}" == "${du_cell}" ]] \
+			|| fail "${du_cell}'s correlation-reopen call (line ${du_reopen_line}) is not inside ${du_cell} in ${deployable_unit_cells_lib}"
 	done
 	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
 		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"

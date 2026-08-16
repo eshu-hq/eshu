@@ -223,11 +223,34 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 # which reads exactly like a negative match, and a mechanism that fired
 # correctly gets reported as broken. This function is called from both
 # gates, so it follows ifa_fault_assert_once_fault_marker's fix rather than
-# reintroducing the same failure mode in a new place.
+# reintroducing the same failure mode in a new place. The fan-in-skip check
+# added below (readiness-review follow-up, #5993 item 3) follows the SAME
+# constraint: it is a bash substring comparison, not another `rg` call.
 #
-# Args: log_dir label (the reducer log is ${log_dir}/reducer-<label>.log)
+# The "gated" branch below also names one otherwise-silent cause: the
+# deferred-backfill fan-in (publishDeferredBackfillPartition /
+# writeDeferredBackfillBatch, go/internal/storage/postgres/
+# ingestion_backfill_pool.go) can decline to publish a partition and still
+# exit zero, logging deferred_backfill_fanin_partition_skipped=true with a
+# reason (e.g. "generation_advanced_since_batch") instead of an error. When
+# that fires, the readiness row this family depends on never gets published,
+# CrossRepoRelationshipHandler.Resolve still logs "started" (it always does
+# on entry) then finds the readiness check false and logs "gated" -- from
+# this reducer log ALONE that is indistinguishable from the designed
+# pre-maintenance-gate case. Low probability in this cell (the maintenance
+# pass collects zero repos), but non-zero if a projector or reducer from a
+# drain phase commits during the pass. Checking the bootstrap-index
+# maintenance-pass log (not the reducer log) for that marker turns a mystery
+# into a named cause instead of leaving the "did not open the readiness
+# gate" message to mean two different things.
+#
+# Args: log_dir label pass_label (the reducer log is
+# ${log_dir}/${label}.log; the bootstrap-index maintenance-pass log this
+# checks for the fan-in-skip marker is
+# ${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log, matching
+# ifa_deployable_unit_live_run_maintenance_pass's own naming below)
 ifa_deployable_unit_live_assert_readiness_opened() {
-	local log_dir="$1" label="$2"
+	local log_dir="$1" label="$2" pass_label="$3"
 	local reducer_log="${log_dir}/${label}.log"
 	local contents
 	[[ -f "${reducer_log}" ]] || {
@@ -243,80 +266,18 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 		return 1
 	fi
 	if [[ "${contents}" == *"cross-repo resolution gated"* ]]; then
-		echo "deployable_unit_edges: readiness-opened check: post-maintenance reducer log still shows cross-repo resolution gated -- the maintenance pass did not open the readiness gate" >&2
+		local bootstrap_index_log="${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log"
+		local bootstrap_contents="" fanin_note=""
+		if [[ -f "${bootstrap_index_log}" ]]; then
+			bootstrap_contents="$(cat "${bootstrap_index_log}")" || bootstrap_contents=""
+		fi
+		if [[ "${bootstrap_contents}" == *"deferred_backfill_fanin_partition_skipped=true"* ]]; then
+			fanin_note=" -- the bootstrap-index maintenance-pass log (${bootstrap_index_log}) shows the deferred-backfill fan-in declined to publish this partition (deferred_backfill_fanin_partition_skipped=true), which is why readiness never opened, not because resolution ran and genuinely found nothing"
+		fi
+		echo "deployable_unit_edges: readiness-opened check: post-maintenance reducer log still shows cross-repo resolution gated -- the maintenance pass did not open the readiness gate${fanin_note}" >&2
 		return 1
 	fi
 	printf 'deployable_unit_edges: confirmed cross-repo relationship resolution started with no gated line after the maintenance pass (the readiness gate is open)\n'
-}
-
-# ifa_deployable_unit_live_report_intents_after_maintenance is a DIAGNOSTIC
-# companion to ifa_deployable_unit_live_assert_empty_before_maintenance, not a
-# second pass/fail gate: ifa_deployable_unit_live_assert below remains the
-# sole authority on whether this cell passes or fails. This is a real problem
-# to fix, not scaffolding: the live gate's edge assertion fails as a single
-# symptom, "expected 1, got 0", with two indistinguishable causes --
-#
-#   (a) correlation admitted rows, but the WRITER dropped them. The two MATCH
-#       clauses in canonical_deployable_unit_edges.go
-#       (MATCH (source_repo:Repository {id: row.repo_id}) and
-#       MATCH (deployment_repo:Repository {id: row.deployment_repo_id})) are
-#       filters, not outer joins: if either endpoint Repository node is
-#       absent, the row is eliminated, the statement still succeeds, zero
-#       rows are affected, and nothing counts it -- no error, no dead letter.
-#   (b) correlation produced nothing at all (the reopen either did not fire
-#       or found nothing to correlate).
-#
-# Re-running the SAME shared_projection_intents count query used by the
-# BEFORE probe, but AFTER the maintenance pass and BEFORE the final edge
-# assertion, separates them: a nonzero count here proves admitted rows
-# existed, so a subsequent "expected 1, got 0" implicates the writer; a zero
-# count here means correlation itself produced nothing.
-#
-# What this function actually guarantees: it REPORTS, it never GATES, and a
-# failed query degrades to an explicit "unavailable" reading rather than
-# failing the cell or silently reading as zero. The call site below has no
-# `|| return 1` on purpose, which means the caller's `set -e` (this file is
-# sourced into verify-ifa-fault-injection.sh's `set -euo pipefail` shell) is
-# NOT suppressed at that call site -- a function called without a `||` guard
-# still runs under `set -e`, so an internally-unguarded query failure here
-# would abort the whole cell before the real edge assertion ran, attributed
-# to an assertion that never got to run -- exactly the false-red this probe
-# exists to avoid, and a worse bug than the ambiguity it fixes.
-#
-# Harmonized with ifa_deployable_unit_live_assert_empty_before_maintenance's
-# rc-capture shape (same file, above) rather than piping the query capture
-# through `tr` and guarding with `if !` / `|| [[ -z ]]`: capturing
-# admitted_rc directly from a BARE (unpiped) ifa_det_pg call means success or
-# failure here never depends on the caller having set pipefail at all, one
-# pattern instead of two slightly different ones for the same underlying
-# hazard. The three failure modes this function must never let through as a
-# false "0" -- the query itself failing, empty output, and non-numeric
-# output -- collapse to the SAME "unavailable" reading (unlike the BEFORE
-# probe, which reports each distinctly and gates on all three, since this
-# function never gates on any of them). An empty-string or non-numeric count
-# read as a real value would be its own false signal -- "intents == 0
-# implicates correlation" is the WRONG diagnosis if the query never ran at
-# all, so any of the three failure modes gets the same distinct,
-# unmistakable reading instead.
-#
-# Args: compose_project use_compose dsn compose_file
-ifa_deployable_unit_live_report_intents_after_maintenance() {
-	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
-	local admitted admitted_rc
-	if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
-		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}")"; then
-		admitted_rc=0
-	else
-		admitted_rc=$?
-	fi
-	if [[ "${admitted_rc}" -eq 0 ]]; then
-		admitted="$(printf '%s' "${admitted}" | tr -d '[:space:]')"
-	fi
-	if [[ "${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then
-		admitted="unavailable (query failed)"
-	fi
-	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"
 }
 
 # ifa_deployable_unit_live_run_maintenance_pass runs ONE bootstrap-index
@@ -421,8 +382,10 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	ifa_deployable_unit_live_run_maintenance_pass primary "${bin_dir}" "${log_dir}" || return 1
 
 	ifa_deployable_unit_live_drain post "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
-	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-deployable-unit-post" || return 1
+	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-deployable-unit-post" "primary" || return 1
 	ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}"
+	ifa_deployable_unit_live_report_resolved_deploys_from_count "${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}"
+	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "primary"
 
 	ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}" || return 1
 

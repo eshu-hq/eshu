@@ -39,6 +39,7 @@ documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 documentation_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
 documentation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-cases.sh"
 deployable_unit_live_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
+deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 deployable_unit_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
 deployable_unit_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
@@ -46,7 +47,7 @@ assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_cases_lib}" "${review_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_cells_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -64,6 +65,7 @@ bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax e
 bash -n "${documentation_cells_lib}" || fail "ifa_fault_injection_documentation_cells.sh has a syntax error"
 bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documentation-cases.sh has a syntax error"
 bash -n "${deployable_unit_live_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
+bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
 bash -n "${deployable_unit_cells_lib}" || fail "ifa_fault_injection_deployable_unit_cells.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
 bash -n "${deployable_unit_cases_lib}" || fail "test-ifa-fault-injection-deployable-unit-cases.sh has a syntax error"
@@ -85,6 +87,7 @@ require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
 require "sources code-call cells lib" "scripts/lib/ifa_fault_injection_code_call_cells.sh"
 require "sources collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 require "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 require "failure log dump" "host binary logs (failure)"
 require "--no-compose flag" "--no-compose"
