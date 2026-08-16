@@ -81,26 +81,26 @@ func Run(out io.Writer, deps Deps) error {
 		client = &http.Client{Timeout: healthTimeout}
 	}
 
-	fmt.Fprintln(out, "Eshu Diagnostics")
-	fmt.Fprintln(out, strings.Repeat("-", 40))
+	_, _ = fmt.Fprintln(out, "Eshu Diagnostics")
+	_, _ = fmt.Fprintln(out, strings.Repeat("-", 40))
 
 	if info, err := stat(deps.ConfigDir); err == nil && info.IsDir() {
-		fmt.Fprintf(out, "  [ok] Config directory exists: %s\n", deps.ConfigDir)
+		_, _ = fmt.Fprintf(out, "  [ok] Config directory exists: %s\n", deps.ConfigDir)
 	} else {
-		fmt.Fprintf(out, "  [!!] Config directory missing: %s\n", deps.ConfigDir)
+		_, _ = fmt.Fprintf(out, "  [!!] Config directory missing: %s\n", deps.ConfigDir)
 	}
 
 	if _, err := stat(deps.EnvFilePath); err == nil {
-		fmt.Fprintf(out, "  [ok] Config file exists: %s\n", deps.EnvFilePath)
+		_, _ = fmt.Fprintf(out, "  [ok] Config file exists: %s\n", deps.EnvFilePath)
 	} else {
-		fmt.Fprintf(out, "  [!!] Config file missing: %s\n", deps.EnvFilePath)
+		_, _ = fmt.Fprintf(out, "  [!!] Config file missing: %s\n", deps.EnvFilePath)
 	}
 
 	for _, bin := range serviceBinaries {
 		if path, err := lookPath(bin); err == nil {
-			fmt.Fprintf(out, "  [ok] %s found: %s\n", bin, path)
+			_, _ = fmt.Fprintf(out, "  [ok] %s found: %s\n", bin, path)
 		} else {
-			fmt.Fprintf(out, "  [!!] %s not found in PATH\n", bin)
+			_, _ = fmt.Fprintf(out, "  [!!] %s not found in PATH\n", bin)
 		}
 	}
 
@@ -109,17 +109,17 @@ func Run(out io.Writer, deps Deps) error {
 	// The Bolt URI carries its password in userinfo, so the raw value never
 	// reaches the report -- see doctor_redaction_test.go for the screen.
 	if deps.Neo4jURI != "" {
-		fmt.Fprintf(out, "  [ok] Neo4j URI configured: %s\n", evidredact.Endpoint(deps.Neo4jURI))
+		_, _ = fmt.Fprintf(out, "  [ok] Neo4j URI configured: %s\n", evidredact.Endpoint(deps.Neo4jURI))
 	} else {
-		fmt.Fprintf(out, "  [!!] Neo4j URI not configured (set NEO4J_URI)\n")
+		_, _ = fmt.Fprintf(out, "  [!!] Neo4j URI not configured (set NEO4J_URI)\n")
 	}
 
 	// Presence only. A DSN is credentials end to end, and unlike the Bolt URI
 	// there is no host-shaped remainder worth showing an operator.
 	if deps.PostgresDSN != "" {
-		fmt.Fprintf(out, "  [ok] Postgres DSN configured\n")
+		_, _ = fmt.Fprintf(out, "  [ok] Postgres DSN configured\n")
 	} else {
-		fmt.Fprintf(out, "  [!!] Postgres DSN not configured (set ESHU_POSTGRES_DSN)\n")
+		_, _ = fmt.Fprintf(out, "  [!!] Postgres DSN not configured (set ESHU_POSTGRES_DSN)\n")
 	}
 
 	return nil
@@ -133,14 +133,14 @@ func reportAPIHealth(out io.Writer, client *http.Client, baseURL string) {
 
 	resp, err := client.Get(baseURL + "/health") //nolint:noctx // #nosec G704 -- baseURL is the locally-configured Eshu API endpoint, not user-supplied input.
 	if err != nil {
-		fmt.Fprintf(out, "  [!!] API not reachable at %s\n", safe)
+		_, _ = fmt.Fprintf(out, "  [!!] API not reachable at %s\n", safe)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Fprintf(out, "  [ok] API healthy at %s\n", safe)
+		_, _ = fmt.Fprintf(out, "  [ok] API healthy at %s\n", safe)
 		return
 	}
-	fmt.Fprintf(out, "  [!!] API returned status %d at %s\n", resp.StatusCode, safe)
+	_, _ = fmt.Fprintf(out, "  [!!] API returned status %d at %s\n", resp.StatusCode, safe)
 }
