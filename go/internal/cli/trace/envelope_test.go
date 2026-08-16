@@ -35,7 +35,7 @@ func TestFetchServiceStoryBuildsCanonicalPath(t *testing.T) {
 	t.Parallel()
 
 	client := &stubFetcher{response: ServiceEnvelope{Data: map[string]any{"service_name": "api"}}}
-	envelope, err := FetchServiceStory(client, "team/api service", ServiceOptions{
+	envelope, err := FetchServiceStory(client, "team/api service", ServiceQuery{
 		Repo:        "github.com/eshu-hq/eshu",
 		Environment: "prod",
 		ServiceID:   "svc-1",
@@ -59,7 +59,7 @@ func TestFetchServiceStoryOmitsEmptySelectors(t *testing.T) {
 	t.Parallel()
 
 	client := &stubFetcher{}
-	if _, err := FetchServiceStory(client, "api", ServiceOptions{}); err != nil {
+	if _, err := FetchServiceStory(client, "api", ServiceQuery{}); err != nil {
 		t.Fatalf("FetchServiceStory returned %v, want nil", err)
 	}
 	if want := "/api/v0/services/api/story"; client.path != want {
@@ -76,7 +76,7 @@ func TestFetchServiceStoryReturnsTransportErrorUnwrapped(t *testing.T) {
 
 	sentinel := errors.New("request failed: connection refused")
 	client := &stubFetcher{err: sentinel}
-	envelope, err := FetchServiceStory(client, "api", ServiceOptions{})
+	envelope, err := FetchServiceStory(client, "api", ServiceQuery{})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("FetchServiceStory error = %v, want the transport error itself", err)
 	}

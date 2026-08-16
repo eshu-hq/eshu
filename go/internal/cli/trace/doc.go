@@ -17,7 +17,7 @@
 //
 // Two contracts constrain edits. Renderer output is operator-facing and pinned
 // byte for byte by tests in this package and in go/cmd/eshu, so a formatting
-// change is a behavior change. The envelope readers in value.go are one of four
-// copies of a set that cannot be shared across a package main boundary;
+// change is a behavior change. The envelope readers in value.go are one copy
+// of a reader set the command families keep in parallel;
 // TestEnvelopeReaderParity in go/cmd/eshu fails when the copies drift apart.
 package trace

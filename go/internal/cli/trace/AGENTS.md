@@ -49,9 +49,11 @@ the package [`README.md`](README.md) still apply.
 - **A new field in the summary:** add the read and the line in `render.go`,
   extend the exact-output test in `render_test.go`, and check whether
   `go/cmd/eshu/trace_test.go` asserts the surrounding lines.
-- **A new query selector:** add the field to `ServiceOptions`, set it in
+- **A new query selector:** add the field to `ServiceQuery`, set it in
   `FetchServiceStory` only when non-empty, and fill it from a flag in
   `go/cmd/eshu/trace.go`. An empty selector must contribute no query parameter.
+  `ServiceQuery` carries request selectors only — an output-mode or rendering
+  flag stays in the `go/cmd/eshu` wrapper.
 - **A new envelope shape from the API:** add the arm and a case to the shape
   tests. Prefer widening a reader over adding a fifth one.
 

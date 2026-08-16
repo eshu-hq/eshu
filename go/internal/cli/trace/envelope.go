@@ -36,15 +36,12 @@ type ServiceError struct {
 	Details    map[string]any `json:"details,omitempty"`
 }
 
-// ServiceOptions carries the selectors `eshu trace service` sends with the
-// request. go/cmd/eshu fills it from the command's flags; every field is
-// already trimmed by the time it arrives, and an empty field is omitted from
-// the query string rather than sent blank.
-//
-// JSON selects the caller's output mode. It reaches this package only so the
-// command wrapper can pass one options value around; nothing here reads it.
-type ServiceOptions struct {
-	JSON        bool
+// ServiceQuery carries the selectors `eshu trace service` sends with the
+// request, and nothing else -- the output mode (--json) is the command
+// wrapper's concern and never reaches this package. go/cmd/eshu fills it from
+// the command's flags; every field is already trimmed by the time it arrives,
+// and an empty field is omitted from the query string rather than sent blank.
+type ServiceQuery struct {
 	Repo        string
 	Environment string
 	ServiceID   string
@@ -53,7 +50,7 @@ type ServiceOptions struct {
 // FetchServiceStory requests the canonical service story envelope for selector.
 //
 // The selector is path-escaped, so a service name containing a slash or a space
-// reaches the API intact. Only the non-empty option fields become query
+// reaches the API intact. Only the non-empty query fields become query
 // parameters, which keeps the request URL -- and the error text that embeds it
 // on a transport failure -- to what the operator actually asked for.
 //
@@ -61,7 +58,7 @@ type ServiceOptions struct {
 // synthesize their own envelope from it rather than rendering a half-filled one.
 //
 //nolint:wrapcheck // The transport error text is operator-facing: go/cmd/eshu renders it verbatim and matches its substrings to classify the failure. Wrapping would change both.
-func FetchServiceStory(client EnvelopeFetcher, selector string, opts ServiceOptions) (ServiceEnvelope, error) {
+func FetchServiceStory(client EnvelopeFetcher, selector string, opts ServiceQuery) (ServiceEnvelope, error) {
 	path := "/api/v0/services/" + url.PathEscape(strings.TrimSpace(selector)) + "/story"
 	query := url.Values{}
 	if opts.Repo != "" {

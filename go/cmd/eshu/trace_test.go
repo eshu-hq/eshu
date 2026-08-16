@@ -51,7 +51,7 @@ func TestTraceServiceFetchSeamRequestsCanonicalEnvelope(t *testing.T) {
 	defer server.Close()
 
 	client := &APIClient{BaseURL: server.URL, HTTPClient: server.Client()}
-	got, err := traceFetchServiceStory(client, "checkout api", trace.ServiceOptions{
+	got, err := traceFetchServiceStory(client, "checkout api", trace.ServiceQuery{
 		Repo:        "checkout-service",
 		Environment: "prod",
 		ServiceID:   "workload:checkout",
@@ -241,7 +241,7 @@ func TestRunTraceServiceJSONReturnsPartialExitAfterWritingEnvelope(t *testing.T)
 
 func TestRunTraceServiceJSONIncludesNullTruthForTransportFailure(t *testing.T) {
 	original := traceFetchServiceStory
-	traceFetchServiceStory = func(_ *APIClient, _ string, _ trace.ServiceOptions) (trace.ServiceEnvelope, error) {
+	traceFetchServiceStory = func(_ *APIClient, _ string, _ trace.ServiceQuery) (trace.ServiceEnvelope, error) {
 		return trace.ServiceEnvelope{}, errors.New("connection refused")
 	}
 	defer func() {
@@ -349,7 +349,7 @@ func newTestTraceServiceCommand() *cobra.Command {
 func stubTraceServiceFetch(t *testing.T, envelope trace.ServiceEnvelope) func() {
 	t.Helper()
 	original := traceFetchServiceStory
-	traceFetchServiceStory = func(_ *APIClient, selector string, opts trace.ServiceOptions) (trace.ServiceEnvelope, error) {
+	traceFetchServiceStory = func(_ *APIClient, selector string, opts trace.ServiceQuery) (trace.ServiceEnvelope, error) {
 		if selector != "checkout" {
 			t.Fatalf("selector = %q, want checkout", selector)
 		}

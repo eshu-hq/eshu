@@ -17,8 +17,8 @@ import (
 
 // traceFetchServiceStory is the seam the command tests replace with a stub. It
 // exists so a test can drive runTraceService's decision tree without a live API.
-var traceFetchServiceStory = func(client *APIClient, selector string, opts trace.ServiceOptions) (trace.ServiceEnvelope, error) {
-	return trace.FetchServiceStory(client, selector, opts)
+var traceFetchServiceStory = func(client *APIClient, selector string, query trace.ServiceQuery) (trace.ServiceEnvelope, error) {
+	return trace.FetchServiceStory(client, selector, query)
 }
 
 func init() {
@@ -46,7 +46,7 @@ func addTraceServiceFlags(cmd *cobra.Command) {
 }
 
 func runTraceService(cmd *cobra.Command, args []string) error {
-	opts, err := traceServiceOptionsFromCommand(cmd)
+	query, jsonOutput, err := traceServiceRequestFromCommand(cmd)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func runTraceService(cmd *cobra.Command, args []string) error {
 		return commandExitError{message: "service name is required", code: 2}
 	}
 
-	envelope, err := traceFetchServiceStory(apiClientFromCmd(cmd), selector, opts)
+	envelope, err := traceFetchServiceStory(apiClientFromCmd(cmd), selector, query)
 	if err != nil {
 		envelope = trace.ServiceEnvelope{
 			Data: nil,
@@ -64,57 +64,61 @@ func runTraceService(cmd *cobra.Command, args []string) error {
 				Message: err.Error(),
 			},
 		}
-		return finishTraceService(cmd, opts, envelope, traceEnvelopeError(envelope.Error))
+		return finishTraceService(cmd, jsonOutput, envelope, traceEnvelopeError(envelope.Error))
 	}
 	if envelope.Error != nil {
-		return finishTraceService(cmd, opts, envelope, traceEnvelopeError(envelope.Error))
+		return finishTraceService(cmd, jsonOutput, envelope, traceEnvelopeError(envelope.Error))
 	}
 	if envelope.Data == nil {
 		envelope.Error = &trace.ServiceError{Code: "not_found", Message: "service story response did not include data"}
-		return finishTraceService(cmd, opts, envelope, traceEnvelopeError(envelope.Error))
+		return finishTraceService(cmd, jsonOutput, envelope, traceEnvelopeError(envelope.Error))
 	}
 	if freshness := trace.ServiceFreshnessState(envelope); freshness == "stale" || freshness == "building" {
-		return finishTraceService(cmd, opts, envelope, commandExitError{
+		return finishTraceService(cmd, jsonOutput, envelope, commandExitError{
 			message: fmt.Sprintf("service trace freshness is %s", freshness),
 			code:    4,
 		})
 	}
 	if status := trace.ServiceStatus(envelope); status == "partial" {
-		return finishTraceService(cmd, opts, envelope, commandExitError{
+		return finishTraceService(cmd, jsonOutput, envelope, commandExitError{
 			message: "service trace is partial",
 			code:    5,
 		})
 	}
-	return finishTraceService(cmd, opts, envelope, nil)
+	return finishTraceService(cmd, jsonOutput, envelope, nil)
 }
 
-func traceServiceOptionsFromCommand(cmd *cobra.Command) (trace.ServiceOptions, error) {
+// traceServiceRequestFromCommand reads the command's flags into the query
+// selectors the API call sends and the output mode the wrapper keeps for
+// itself. The two travel separately on purpose: internal/cli/trace's
+// ServiceQuery carries only what shapes the request, so a caller cannot
+// mistake the output mode for something the fetch or the renderers read.
+func traceServiceRequestFromCommand(cmd *cobra.Command) (trace.ServiceQuery, bool, error) {
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
-		return trace.ServiceOptions{}, err
+		return trace.ServiceQuery{}, false, err
 	}
 	serviceID, err := cmd.Flags().GetString("service-id")
 	if err != nil {
-		return trace.ServiceOptions{}, err
+		return trace.ServiceQuery{}, false, err
 	}
 	repo, err := cmd.Flags().GetString("repo")
 	if err != nil {
-		return trace.ServiceOptions{}, err
+		return trace.ServiceQuery{}, false, err
 	}
 	environment, err := cmd.Flags().GetString("env")
 	if err != nil {
-		return trace.ServiceOptions{}, err
+		return trace.ServiceQuery{}, false, err
 	}
-	return trace.ServiceOptions{
-		JSON:        jsonOutput,
+	return trace.ServiceQuery{
 		Repo:        strings.TrimSpace(repo),
 		Environment: strings.TrimSpace(environment),
 		ServiceID:   strings.TrimSpace(serviceID),
-	}, nil
+	}, jsonOutput, nil
 }
 
-func finishTraceService(cmd *cobra.Command, opts trace.ServiceOptions, envelope trace.ServiceEnvelope, err error) error {
-	if opts.JSON {
+func finishTraceService(cmd *cobra.Command, jsonOutput bool, envelope trace.ServiceEnvelope, err error) error {
+	if jsonOutput {
 		if writeErr := writeTraceJSON(cmd.OutOrStdout(), envelope); writeErr != nil {
 			return writeErr
 		}

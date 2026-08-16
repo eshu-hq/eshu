@@ -40,7 +40,7 @@ runs in this direction: the command imports this package, never the reverse.
 
 ## Exported surface
 
-`EnvelopeFetcher`, `ServiceEnvelope`, `ServiceError`, `ServiceOptions`,
+`EnvelopeFetcher`, `ServiceEnvelope`, `ServiceError`, `ServiceQuery`,
 `FetchServiceStory`, `RenderServiceSummary`, `RenderServiceError`,
 `ServiceFreshnessState`, `ServiceStatus`. See [`doc.go`](doc.go) for the
 godoc-rendered contract.
