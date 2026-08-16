@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
@@ -338,7 +339,7 @@ func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
 		return true
 	}
 	profile, _ := cmd.Flags().GetString("profile")
-	if strings.TrimSpace(resolveConfigValue("ESHU_SERVICE_URL", profile)) != "" {
+	if strings.TrimSpace(cliconfig.ResolveValue("ESHU_SERVICE_URL", profile)) != "" {
 		return true
 	}
 	return strings.TrimSpace(os.Getenv("ESHU_SERVICE_URL")) != ""

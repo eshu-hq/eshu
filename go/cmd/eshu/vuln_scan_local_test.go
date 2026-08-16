@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 )
 
@@ -232,8 +233,8 @@ func TestVulnScanHasConfiguredServiceURLChecksEnvAndConfig(t *testing.T) {
 	}
 
 	t.Setenv("ESHU_SERVICE_URL", "")
-	if err := setConfigValue("ESHU_SERVICE_URL", "http://config.example.test"); err != nil {
-		t.Fatalf("setConfigValue() error = %v, want nil", err)
+	if err := cliconfig.SetValue("ESHU_SERVICE_URL", "http://config.example.test"); err != nil {
+		t.Fatalf("cliconfig.SetValue() error = %v, want nil", err)
 	}
 	if !vulnScanHasConfiguredServiceURL(newTestVulnScanRepoCommand(t)) {
 		t.Fatal("vulnScanHasConfiguredServiceURL() = false with persisted service URL")

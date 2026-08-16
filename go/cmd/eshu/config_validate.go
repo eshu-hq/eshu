@@ -5,11 +5,9 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"sort"
-	"strings"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/envregistry"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +32,9 @@ func init() {
 	configCmd.AddCommand(validateCmd)
 }
 
+// runConfigValidate is the process-wiring half of `eshu config validate`: it
+// reads the two cobra flags, resolves the command's output stream, and snapshots
+// the real process environment. The check itself lives in internal/cli/config.
 func runConfigValidate(cmd *cobra.Command, _ []string) error {
 	registry := envregistry.Default()
 
@@ -43,58 +44,5 @@ func runConfigValidate(cmd *cobra.Command, _ []string) error {
 	}
 
 	strict, _ := cmd.Flags().GetBool("strict")
-	return validateEnv(cmd.OutOrStdout(), registry, environMap(os.Environ()), strict)
-}
-
-// validateEnv runs the registry validation against an explicit environment
-// snapshot and reports findings. It is the testable seam beneath
-// runConfigValidate.
-func validateEnv(out io.Writer, registry *envregistry.Registry, env map[string]string, strict bool) error {
-	return reportFindings(out, registry.Validate(env, strict))
-}
-
-// environMap parses os.Environ()-style "KEY=VALUE" pairs into a map.
-func environMap(pairs []string) map[string]string {
-	env := make(map[string]string, len(pairs))
-	for _, pair := range pairs {
-		if key, value, ok := strings.Cut(pair, "="); ok {
-			env[key] = value
-		}
-	}
-	return env
-}
-
-// reportFindings prints findings grouped into errors and warnings and returns a
-// non-nil error when any error-level finding is present, so the command exits
-// non-zero.
-func reportFindings(out io.Writer, findings []envregistry.Finding) error {
-	if len(findings) == 0 {
-		_, _ = fmt.Fprintln(out, "config validate: OK — no ESHU_* configuration problems found")
-		return nil
-	}
-
-	sort.SliceStable(findings, func(i, j int) bool {
-		if findings[i].Error != findings[j].Error {
-			return findings[i].Error // errors first
-		}
-		return findings[i].Name < findings[j].Name
-	})
-
-	var errorCount, warnCount int
-	for _, f := range findings {
-		label := "WARN "
-		if f.Error {
-			label = "ERROR"
-			errorCount++
-		} else {
-			warnCount++
-		}
-		_, _ = fmt.Fprintf(out, "%s %s\n", label, f.Message)
-	}
-	_, _ = fmt.Fprintf(out, "\nconfig validate: %d error(s), %d warning(s)\n", errorCount, warnCount)
-
-	if errorCount > 0 {
-		return fmt.Errorf("configuration invalid: %d error(s)", errorCount)
-	}
-	return nil
+	return cliconfig.ValidateEnv(cmd.OutOrStdout(), registry, cliconfig.EnvironMap(os.Environ()), strict)
 }

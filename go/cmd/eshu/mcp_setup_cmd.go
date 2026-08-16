@@ -199,8 +199,8 @@ func mcpSetupVerify(cmd *cobra.Command, platform *mcpsetup.Platform, req mcpsetu
 
 // apiHealthProber probes the hosted API /health endpoint via the shared
 // client, implementing mcpsetup.HealthProber. It stays in cmd/eshu because it
-// wraps *APIClient, which reads process-level flags and environment
-// (resolveConfigValue) that mcpsetup cannot depend on.
+// wraps *APIClient, which reads process-level flags and settings
+// (cliconfig.ResolveValue) that mcpsetup cannot depend on.
 type apiHealthProber struct {
 	client *APIClient
 }

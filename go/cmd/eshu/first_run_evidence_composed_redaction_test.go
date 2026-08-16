@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
@@ -51,8 +52,8 @@ func composedLeakFixture(t *testing.T) (firstRunResult, string, string) {
 	// (the .env file under the app home), so point the app home at a temp dir
 	// and write the endpoint there rather than stubbing the resolver.
 	home := t.TempDir()
-	t.Setenv(appHomeEnvVar, home)
-	if err := os.WriteFile(filepath.Join(home, envFileName), []byte("ESHU_MCP_URL="+mcpEndpoint+"\n"), 0o600); err != nil {
+	t.Setenv("ESHU_HOME", home)
+	if err := os.WriteFile(cliconfig.EnvFilePath(), []byte("ESHU_MCP_URL="+mcpEndpoint+"\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
