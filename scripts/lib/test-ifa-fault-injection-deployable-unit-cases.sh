@@ -127,37 +127,46 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# reading becomes "unavailable", not just a bare `-z` check that a partial
 	# rewrite could satisfy while still leaving a non-numeric value unhandled.
 	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic collapses failed/empty/non-numeric to unavailable" '"${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then'
-	# The BEFORE probe (assert_empty_before_maintenance) has the same two
-	# hazards the after-probe was hardened against, except it GATES (return 1
-	# fails the cell) instead of merely reporting -- worse than the bug fixed
-	# above. Harmonized to the SAME rc-capture shape as the after-probe (also
-	# the shape already proven correct elsewhere in this family,
-	# ifa_deployable_unit_require_fresh_intents in
-	# ifa_fault_injection_deployable_unit_cells.sh:60-88): capture the exit
-	# code from a BARE (unpiped) ifa_det_pg call, so success/failure never
-	# depends on pipefail at all, then separately check empty and non-numeric
-	# before ever comparing to "0" -- a query that never ran must never read
-	# as a legitimate zero. Every post-maintenance probe shares this
-	# byte-identical opening line by harmonization (there is no shape unique
-	# to only one of them), so it is pinned as PER-FILE COUNTS rather than a
-	# bare presence needle that a regression in only one function could not
-	# turn red: the live lib has it once (the before-probe alone, since the
-	# other two now live in the diagnostics lib after the split), and the
-	# diagnostics lib has it twice (report_intents_after_maintenance and
-	# report_resolved_deploys_from_count -- the needle omits the assigned
-	# variable name, "admitted" vs "resolved", since the two functions do not
-	# share it). The messages below ARE unique to the before-probe and pin
-	# its actual gating behavior directly.
+	# The BEFORE probe (assert_empty_before_maintenance) used to share the
+	# after-probe's rc-capture shape (a shared_projection_intents count via
+	# ifa_det_pg), but that query was provably vacuous for this domain: the
+	# handler never writes shared_projection_intents at all (#6149), so the
+	# count was always 0 whether the readiness gate was open or shut. The
+	# BEFORE probe now asserts against the live GRAPH instead (`eshu-ifa
+	# graph-dump -out` piped through `jq`, counting CORRELATES_DEPLOYABLE_UNIT
+	# edges), so it no longer shares the after-probe's ifa_det_pg shape at
+	# all -- the unpiped rc-capture count in the live lib drops to 0.
+	#
+	# The diagnostics lib's two remaining Postgres-diagnostic functions
+	# (report_intents_after_maintenance, report_resolved_deploys_from_count)
+	# are UNCHANGED by #6149 and still share that shape, so their count stays
+	# pinned at 2.
 	local du_unpiped_rc_capture_count du_unpiped_rc_capture_diag_count
 	du_unpiped_rc_capture_count="$(rg --fixed-strings --count-matches -- '="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_live_lib}" || true)"
-	[[ "${du_unpiped_rc_capture_count}" -eq 1 ]] \
-		|| fail "expected the unpiped rc-capture query shape exactly once in ${deployable_unit_live_lib} (the before-probe, after the diagnostics-lib split); found ${du_unpiped_rc_capture_count:-0}"
+	[[ "${du_unpiped_rc_capture_count}" -eq 0 ]] \
+		|| fail "expected zero unpiped ifa_det_pg rc-capture query shapes in ${deployable_unit_live_lib} (the before-probe moved to a graph-dump-based check in #6149); found ${du_unpiped_rc_capture_count:-0}"
 	du_unpiped_rc_capture_diag_count="$(rg --fixed-strings --count-matches -- '="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \' "${deployable_unit_diagnostics_lib}" || true)"
 	[[ "${du_unpiped_rc_capture_diag_count}" -eq 2 ]] \
 		|| fail "expected the unpiped rc-capture query shape exactly twice in ${deployable_unit_diagnostics_lib} (report_intents_after_maintenance and report_resolved_deploys_from_count); found ${du_unpiped_rc_capture_diag_count:-0}"
-	require_deployable_unit_live_lib "live lib before-probe fails closed and returns the real rc on query failure" 'return "${admitted_rc}"'
-	require_deployable_unit_live_lib "live lib before-probe treats empty output as unknown, not zero" "before-maintenance precondition query returned empty output; treat this as unknown, not as zero"
-	require_deployable_unit_live_lib "live lib before-probe treats non-numeric output as unknown, not zero" "before-maintenance precondition query returned non-numeric output"
+	# The BEFORE probe's own four fail-closed branches (jq missing, dump
+	# failed, count computation failed, and the empty/non-numeric/non-zero
+	# count checks), each still handled distinctly rather than collapsing to
+	# a single "unavailable" reading -- it GATES (return 1 fails the cell),
+	# so a check that never ran must never silently read as "0".
+	require_deployable_unit_live_lib "live lib before-probe dumps the graph, not a Postgres query" '"${bin_dir}/eshu-ifa" graph-dump -out "${dump_path}"'
+	require_deployable_unit_live_lib "live lib before-probe counts CORRELATES_DEPLOYABLE_UNIT edges via jq" 'select(.type == "CORRELATES_DEPLOYABLE_UNIT")'
+	require_deployable_unit_live_lib "live lib before-probe requires jq and fails closed without it" "requires jq, which is not on PATH; treat this as unknown, not as a verdict"
+	require_deployable_unit_live_lib "live lib before-probe fails closed on a graph-dump failure" "before-maintenance precondition graph-dump FAILED; treat this as unknown, not as a verdict"
+	require_deployable_unit_live_lib "live lib before-probe treats empty output as unknown, not zero" "before-maintenance precondition edge count came back empty; treat this as unknown, not as zero"
+	require_deployable_unit_live_lib "live lib before-probe treats non-numeric output as unknown, not zero" "before-maintenance precondition edge count '\${count}' is non-numeric; treat this as unknown, not as zero"
+	require_deployable_unit_live_lib "live lib before-probe non-zero verdict names the graph edge type" "expected 0 CORRELATES_DEPLOYABLE_UNIT edges before the maintenance pass, got"
+	# All four call sites now pass only bin_dir -- the Postgres-connection args
+	# (compose_project/use_compose/dsn/compose_file) the old shared_projection_intents
+	# query needed are gone from every call site, not just the definition.
+	local du_before_probe_call_count
+	du_before_probe_call_count="$(rg --fixed-strings --count-matches -- 'ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}"' "${deployable_unit_live_lib}" "${deployable_unit_cells_lib}" | awk -F: '{sum+=$2} END{print sum+0}')"
+	[[ "${du_before_probe_call_count}" -eq 4 ]] \
+		|| fail "expected ifa_deployable_unit_live_assert_empty_before_maintenance to be called with only \"\${bin_dir}\" at all 4 call sites (1 standalone cell + 3 fault cells); found ${du_before_probe_call_count:-0}"
 	# Readiness-review follow-up item 4 (#5993): the unproven persisted-resolution
 	# -> reopened-correlation link presents as readiness=pass, intents=0,
 	# edges="got 0" -- IDENTICAL to the designed "correlation produced
@@ -365,4 +374,24 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_deployable_unit_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_deployable_unit_cells "graph-write cell reads the durable marker, not a log" "ifa_fault_assert_once_fault_marker"
 	require_deployable_unit_cells "fault cells compare against the family-scoped baseline, not the shared one" "assert_matches_baseline killworkerdeployableunit baseline_deployable_unit"
+	# #6149 P1-2: the kill-worker cell used to lock shared_projection_intents,
+	# a table this handler never writes, so the lock could never block it and
+	# the cell passed on a race (this is what failed in CI). It must now lock
+	# graph_projection_phase_state -- the handler's actual last write -- and
+	# the lock/release helper names must match that table, not the old
+	# "intent lock" naming that no longer describes what they hold.
+	require_deployable_unit_cells "kill cell lock helper targets graph_projection_phase_state, not shared_projection_intents" "LOCK TABLE graph_projection_phase_state IN ACCESS EXCLUSIVE MODE"
+	require_deployable_unit_cells "lock-acquired poll checks the graph_projection_phase_state relation" "l.relation = 'graph_projection_phase_state'::regclass"
+	require_deployable_unit_cells "lock helper renamed off the old shared_projection_intents-era name" "ifa_deployable_unit_start_phase_state_lock() {"
+	require_deployable_unit_cells "release helper renamed to match" "ifa_deployable_unit_release_phase_state_lock() {"
+	require_deployable_unit_cells "kill cell calls the renamed start helper" 'ifa_deployable_unit_start_phase_state_lock "killworkerdeployableunit" lock_holder_pid'
+	require_deployable_unit_cells "kill cell calls the renamed release helper" 'ifa_deployable_unit_release_phase_state_lock "killworkerdeployableunit" "${lock_holder_pid}"'
+	rg --quiet -- 'ifa_deployable_unit_start_intent_lock|ifa_deployable_unit_release_intent_lock' "${deployable_unit_cells_lib}" \
+		&& fail "the old shared_projection_intents-era lock helper names must not survive in ${deployable_unit_cells_lib}"
+	rg --quiet -- 'LOCK TABLE shared_projection_intents' "${deployable_unit_cells_lib}" \
+		&& fail "the kill-worker cell must not lock shared_projection_intents any more (that table this handler never writes -- see #6149) in ${deployable_unit_cells_lib}"
+	# The header must state honestly which recovery case this proves: a
+	# kill AFTER the graph write (the lock lands after step 1 of Handle), not
+	# before it -- do not let this cell claim the stronger pre-write case.
+	require_deployable_unit_cells "lock helper states the post-write-death consequence honestly" "recovery from a POST-write death, not a PRE-write death"
 }

@@ -170,67 +170,90 @@ ifa_deployable_unit_live_drain() {
 
 # ifa_deployable_unit_live_assert_empty_before_maintenance proves the
 # documented first-pass state explicitly: BEFORE any maintenance pass runs,
-# deployable_unit_edges must materialize ZERO edges, because
+# the live graph must carry ZERO CORRELATES_DEPLOYABLE_UNIT edges, because
 # CrossRepoRelationshipHandler.Resolve is gated shut (see this file's header)
 # and deployable_unit_correlation's first pass has no resolved relationship to
 # read. Asserting this is not optional scaffolding -- it is the non-vacuity
 # proof that the maintenance pass which follows is what actually opens the
 # gate, not some unrelated ordering accident.
 #
-# materializeDeployableUnitEdges (go/internal/reducer/
-# deployable_unit_correlation_edges.go) only ever calls EdgeWriter.WriteEdges
-# with AdmittedDeployableUnitRows(rows) -- the rejected and blank-
-# deployment_repo_id rows this family's Odu also carries never reach
-# WriteEdges, and therefore never reach the shared_projection_intents queue
-# table at all. So a plain per-domain row count is already the right
-# non-vacuity check: any row present for this domain is, by construction, an
-# admitted row carrying a deployment_repo_id. `ifa assert-edges` itself
-# rejects an empty expected-edge fixture as vacuous, which is why this uses a
-# direct Postgres count instead of the assert-edges verb for the BEFORE state.
+# THIS FUNCTION USED TO COUNT shared_projection_intents ROWS FOR THIS DOMAIN.
+# That check was vacuous, not merely redundant, and it is why this comment
+# now spells out the trace instead of asserting a one-line claim about it.
+# DeployableUnitCorrelationHandler.Handle (go/internal/reducer/
+# deployable_unit_correlation.go) writes, in order: (1) the graph edge
+# (materializeDeployableUnitEdges -> EdgeWriter.WriteEdges, a Cypher MERGE),
+# (2) admission_decisions + admission_decision_evidence in Postgres
+# (writeDeployableUnitAdmissionDecisions), then (3) graph_projection_phase_state
+# (publishIntentGraphPhase). It has NO IntentWriter field and never calls
+# UpsertIntents. DomainDeployableUnitEdges is also absent from
+# sharedProjectionDomains (go/internal/reducer/shared_projection_runner.go);
+# the only `INSERT INTO shared_projection_intents` in the repository is
+# go/internal/storage/postgres/shared_intents_upsert.go, reachable only
+# through UpsertIntents. This family therefore NEVER writes a row to
+# shared_projection_intents -- a count for projection_domain =
+# 'deployable_unit_edges' is always 0, before the maintenance pass, after it,
+# admitted or rejected. The old version of this function called that count
+# "the right non-vacuity check" on the premise that "any row present for this
+# domain is, by construction, an admitted row" -- inverted: no row is EVER
+# present, by construction, so the old assertion could never fail and proved
+# nothing about whether the readiness gate was shut.
 #
-# Args: compose_project use_compose dsn compose_file
+# This now asserts against the GRAPH instead, the only place these edges
+# actually exist. `ifa assert-edges` itself rejects an empty expected-edge
+# fixture as vacuous for the identical reason (a check that can only pass
+# proves nothing) -- it has no "expect empty" mode, and adding one would
+# weaken that vacuity rejection for every other family's live cell, so this
+# uses a direct graph-dump edge count instead. It dumps the live graph with
+# `eshu-ifa graph-dump -out` (the same read path capture_digest,
+# ifa_fault_injection_driver.sh, uses) to a scratch file and counts
+# CORRELATES_DEPLOYABLE_UNIT edges with jq.
 #
-# Query capture is NEVER piped, so this needs no pipefail reasoning at all
-# (unlike the after-probe below, which pipes a whitespace trim onto its
-# capture and guards that with `|| [[ -z ]]`): the raw ifa_det_pg exit status
-# is captured directly into admitted_rc via the if/else `$?` idiom, matching
-# ifa_deployable_unit_require_fresh_intents
-# (ifa_fault_injection_deployable_unit_cells.sh) exactly, which is the
-# correct pattern already proven elsewhere in this family. Unlike that
-# diagnostic, THIS function is a GATE (return 1 fails the cell), so a query
-# that never ran must never silently read as "0" -- that would blame the
-# readiness gate for a Postgres/compose hiccup that has nothing to do with
-# it. Checked in order: the query's own exit code, then whether the (now
-# whitespace-trimmed) output is empty, then whether it is non-numeric, and
-# only once all three pass does it compare to the literal string "0".
+# Args: bin_dir
+#
+# Same fail-closed shape as the query-based version it replaces, extended by
+# one more distinct failure mode (jq missing) the old version did not need:
+# jq's presence, then the dump command's own exit status, then whether jq's
+# count computation itself succeeded, then whether the result is numeric, and
+# only once all four pass does it compare to the literal string "0". A dump
+# or count that never ran must never silently read as "0" -- that would blame
+# the readiness gate for a graph-dump/jq hiccup that has nothing to do with
+# it.
 ifa_deployable_unit_live_assert_empty_before_maintenance() {
-	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
-	local admitted admitted_rc
-	if admitted="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
-		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file}")"; then
-		admitted_rc=0
-	else
-		admitted_rc=$?
-	fi
-	if [[ "${admitted_rc}" -ne 0 ]]; then
-		echo "deployable_unit_edges: before-maintenance precondition query FAILED (exit ${admitted_rc}); treat this as unknown, not as a verdict" >&2
-		return "${admitted_rc}"
-	fi
-	admitted="$(printf '%s' "${admitted}" | tr -d '[:space:]')"
-	if [[ -z "${admitted}" ]]; then
-		echo "deployable_unit_edges: before-maintenance precondition query returned empty output; treat this as unknown, not as zero" >&2
+	local bin_dir="$1"
+	local dump_path count
+	printf '\n=== deployable_unit_edges: assert zero CORRELATES_DEPLOYABLE_UNIT edges before the maintenance pass ===\n'
+	if ! command -v jq >/dev/null 2>&1; then
+		echo "deployable_unit_edges: before-maintenance precondition requires jq, which is not on PATH; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
-	if [[ ! "${admitted}" =~ ^[0-9]+$ ]]; then
-		echo "deployable_unit_edges: before-maintenance precondition query returned non-numeric output '${admitted}'; treat this as unknown, not as zero" >&2
+	dump_path="$(mktemp)" || {
+		echo "deployable_unit_edges: before-maintenance precondition could not create a scratch file for the graph dump; treat this as unknown, not as a verdict" >&2
+		return 1
+	}
+	trap 'rm -f "${dump_path}"' RETURN
+	if ! "${bin_dir}/eshu-ifa" graph-dump -out "${dump_path}"; then
+		echo "deployable_unit_edges: before-maintenance precondition graph-dump FAILED; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
-	if [[ "${admitted}" != "0" ]]; then
-		echo "deployable_unit_edges: expected 0 shared_projection_intents rows before the maintenance pass, got ${admitted} -- either the readiness gate is not actually closed in this runtime (re-verify this file's header claim before trusting the rest of this cell), or a prior cell's state leaked into this one" >&2
+	if ! count="$(jq '[.edges[] | select(.type == "CORRELATES_DEPLOYABLE_UNIT")] | length' "${dump_path}")"; then
+		echo "deployable_unit_edges: before-maintenance precondition could not count CORRELATES_DEPLOYABLE_UNIT edges in the graph dump; treat this as unknown, not as a verdict" >&2
 		return 1
 	fi
-	printf 'deployable_unit_edges: confirmed 0 admitted edges before the maintenance pass (the readiness gate is closed, as documented)\n'
+	count="$(printf '%s' "${count}" | tr -d '[:space:]')"
+	if [[ -z "${count}" ]]; then
+		echo "deployable_unit_edges: before-maintenance precondition edge count came back empty; treat this as unknown, not as zero" >&2
+		return 1
+	fi
+	if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+		echo "deployable_unit_edges: before-maintenance precondition edge count '${count}' is non-numeric; treat this as unknown, not as zero" >&2
+		return 1
+	fi
+	if [[ "${count}" != "0" ]]; then
+		echo "deployable_unit_edges: expected 0 CORRELATES_DEPLOYABLE_UNIT edges before the maintenance pass, got ${count} -- either the readiness gate is not actually closed in this runtime (re-verify this file's header claim before trusting the rest of this cell), or a prior cell's state leaked into this one" >&2
+		return 1
+	fi
+	printf 'deployable_unit_edges: confirmed 0 CORRELATES_DEPLOYABLE_UNIT edges before the maintenance pass (the readiness gate is closed, as documented)\n'
 }
 
 # ifa_deployable_unit_live_assert_readiness_opened is the exact inverse of
@@ -418,8 +441,7 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	ifa_deployable_unit_live_drive "${bin_dir}" "${cassette}" "${log_dir}" || return 1
 
 	ifa_deployable_unit_live_drain pre "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
-	ifa_deployable_unit_live_assert_empty_before_maintenance \
-		"${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}" || return 1
+	ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}" || return 1
 
 	ifa_deployable_unit_live_run_maintenance_pass primary "${bin_dir}" "${log_dir}" || return 1
 

@@ -103,26 +103,50 @@ ifa_deployable_unit_require_fresh_intents() {
 	fi
 }
 
-# ifa_deployable_unit_start_intent_lock holds shared_projection_intents in
-# ACCESS EXCLUSIVE MODE, exactly like ifa_code_call_start_intent_lock (same
-# table, different app_name so a same-process sequential run never collides
-# with a concurrent code_calls cell's lock holder). This blocks
-# DeployableUnitCorrelationHandler.materializeDeployableUnitEdges's
-# EdgeWriter.WriteEdges call -- called synchronously inside Handle(), per
-# go/internal/reducer/deployable_unit_correlation.go -- so the claimed
-# fact_work_items row cannot reach 'succeeded' until the lock releases,
-# making the claimed-row observation below deterministic.
-ifa_deployable_unit_start_intent_lock() {
+# ifa_deployable_unit_start_phase_state_lock holds graph_projection_phase_state
+# in ACCESS EXCLUSIVE MODE. This USED to lock shared_projection_intents,
+# mirroring ifa_code_call_start_intent_lock -- that was wrong for this family
+# specifically. DeployableUnitCorrelationHandler.Handle (go/internal/reducer/
+# deployable_unit_correlation.go) has no IntentWriter and never touches
+# shared_projection_intents at all (DomainDeployableUnitEdges is absent from
+# sharedProjectionDomains, go/internal/reducer/shared_projection_runner.go),
+# so locking that table could never block it: Handle would run to completion
+# and mark the claimed fact_work_items row 'succeeded' before a kill -9
+# landed, making the "blocked claimed row" observation below a race instead
+# of a deterministic proof. This is what actually happened in CI on
+# kill-worker-after-claim-deployable-unit ("drain did not reach the
+# snapshot's residual bound").
+#
+# Handle writes, in order: (1) the graph edge (materializeDeployableUnitEdges
+# -> EdgeWriter.WriteEdges, a Cypher MERGE), (2) admission_decisions +
+# admission_decision_evidence in Postgres, then (3) graph_projection_phase_state
+# (publishIntentGraphPhase -> an INSERT ... ON CONFLICT DO UPDATE upsert,
+# go/internal/storage/postgres/graph_projection_phase_state.go). Locking (3)
+# -- the handler's LAST write -- is what actually blocks Handle from
+# returning, making the claimed-row observation below deterministic.
+#
+# Consequence worth stating plainly, unlike code_calls' equivalent lock
+# (which sits BEFORE that family's one durable write): because this lock
+# lands AFTER the graph write, a kill -9 taken while blocked here kills a
+# handler that has ALREADY written its CORRELATES_DEPLOYABLE_UNIT edge and
+# its admission decision. The retry that follows re-executes Handle from
+# scratch, so the graph write repeats as an idempotent MERGE and the
+# admission-decision write repeats as an idempotent upsert -- this proves
+# recovery from a POST-write death, not a PRE-write death. It is still a
+# real reclaim-and-re-execute proof (ifa_fault_assert_retried_above below
+# still requires attempt_count to rise above the fault-free baseline), just a
+# different one than code_calls' pre-write proof.
+ifa_deployable_unit_start_phase_state_lock() {
 	local cell="$1" pid_var="$2"
 	local app_name="ifa_deployable_unit_lock_${cell}"
-	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
+	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE graph_projection_phase_state IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
 			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
-			>"${log_dir}/deployable-unit-lock-${cell}.log" 2>&1 &
+			>"${log_dir}/deployable-unit-phase-lock-${cell}.log" 2>&1 &
 	else
 		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -c "${lock_sql}" \
-			>"${log_dir}/deployable-unit-lock-${cell}.log" 2>&1 &
+			>"${log_dir}/deployable-unit-phase-lock-${cell}.log" 2>&1 &
 	fi
 	local holder_pid=$!
 	bg_pids+=("${holder_pid}")
@@ -131,7 +155,7 @@ ifa_deployable_unit_start_intent_lock() {
 	local i lock_count
 	for i in $(seq 1 60); do
 		lock_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			"SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.application_name = '${app_name}' AND l.relation = 'shared_projection_intents'::regclass AND l.mode = 'AccessExclusiveLock' AND l.granted;" \
+			"SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.application_name = '${app_name}' AND l.relation = 'graph_projection_phase_state'::regclass AND l.mode = 'AccessExclusiveLock' AND l.granted;" \
 			"${compose_file}" | tr -d '[:space:]')"
 		if [[ "${lock_count}" == "1" ]]; then
 			return 0
@@ -141,10 +165,10 @@ ifa_deployable_unit_start_intent_lock() {
 	return 1
 }
 
-# ifa_deployable_unit_release_intent_lock terminates the named lock-holder
-# backend and joins its local psql/docker process, mirroring
+# ifa_deployable_unit_release_phase_state_lock terminates the named
+# lock-holder backend and joins its local psql/docker process, mirroring
 # ifa_code_call_release_intent_lock.
-ifa_deployable_unit_release_intent_lock() {
+ifa_deployable_unit_release_phase_state_lock() {
 	local cell="$1" holder_pid="$2"
 	local app_name="ifa_deployable_unit_lock_${cell}"
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
@@ -181,8 +205,7 @@ cell_baseline_deployable_unit() {
 	ifa_det_start_bg "${log_dir}" "reducer-baseline_deployable_unitpre" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate baseline_deployable_unitpre
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
-	ifa_deployable_unit_live_assert_empty_before_maintenance \
-		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+	ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}" \
 		|| die "baseline-deployable-unit: expected zero deployable_unit_edges rows before the maintenance pass"
 	# The other families this cell drives (sql_relationships, code_calls) are
 	# NOT gated: they already converged in the drain above. Asserting them
@@ -244,11 +267,14 @@ cell_baseline_deployable_unit() {
 # cell_killworker_deployable_unit proves a genuinely in-flight
 # deployable_unit_correlation handler is reclaimed after process death,
 # AFTER the maintenance pass has opened the readiness gate. The
-# shared_projection_intents table lock prevents the handler from
-# acknowledging before kill; attempt_count > 0 (this domain has no natural
-# retries in a clean maintenance-pass run, so any positive count is the
-# fault's fingerprint) proves the replacement reducer re-executed
-# deployable_unit_correlation, not merely another queued row.
+# graph_projection_phase_state table lock -- Handle's LAST write, not its
+# first; see ifa_deployable_unit_start_phase_state_lock's own header for why
+# shared_projection_intents cannot block this handler at all, and for the
+# post-write-death consequence that follows from locking a write this late --
+# prevents the handler from acknowledging before kill; attempt_count > 0
+# (this domain has no natural retries in a clean maintenance-pass run, so any
+# positive count is the fault's fingerprint) proves the replacement reducer
+# re-executed deployable_unit_correlation, not merely another queued row.
 cell_killworker_deployable_unit() {
 	local cell_start
 	cell_start=$(date +%s)
@@ -269,22 +295,21 @@ cell_killworker_deployable_unit() {
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunitpre" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunitpre
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
-	ifa_deployable_unit_live_assert_empty_before_maintenance \
-		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+	ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}" \
 		|| die "kill-worker-after-claim-deployable-unit: expected zero deployable_unit_edges rows before the maintenance pass"
 
 	ifa_deployable_unit_live_run_maintenance_pass "killworkerdeployableunit" "${bin_dir}" "${log_dir}" \
 		|| die "kill-worker-after-claim-deployable-unit: bootstrap-index maintenance pass failed"
 
 	local lock_holder_pid claimed_before reducer_pid_before reducer_pid_after
-	ifa_deployable_unit_start_intent_lock "killworkerdeployableunit" lock_holder_pid \
-		|| die "kill-worker-after-claim-deployable-unit: could not acquire the deterministic shared_projection_intents blocker"
+	ifa_deployable_unit_start_phase_state_lock "killworkerdeployableunit" lock_holder_pid \
+		|| die "kill-worker-after-claim-deployable-unit: could not acquire the deterministic graph_projection_phase_state blocker"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-before" reducer_pid_before "${bin_dir}/eshu-reducer"
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "deployable_unit_correlation")" \
 		|| die "kill-worker-after-claim-deployable-unit: no deployable_unit_correlation row was claimed while its durable write was blocked"
 	printf 'kill-worker-after-claim-deployable-unit: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
 	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
-	ifa_deployable_unit_release_intent_lock "killworkerdeployableunit" "${lock_holder_pid}"
+	ifa_deployable_unit_release_phase_state_lock "killworkerdeployableunit" "${lock_holder_pid}"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunit
 	assert_no_dead_letters killworkerdeployableunit
@@ -346,8 +371,7 @@ cell_failgraphwrite_deployable_unit() {
 	ifa_det_start_bg "${log_dir}" "reducer-failgraphwritedeployableunitpre" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate failgraphwritedeployableunitpre
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
-	ifa_deployable_unit_live_assert_empty_before_maintenance \
-		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+	ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}" \
 		|| die "fail-graph-write-once-then-succeed-deployable-unit: expected zero deployable_unit_edges rows before the maintenance pass"
 
 	ifa_deployable_unit_live_run_maintenance_pass "failgraphwritedeployableunit" "${bin_dir}" "${log_dir}" \

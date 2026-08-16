@@ -31,11 +31,22 @@
 #   (b) correlation produced nothing at all (the reopen either did not fire
 #       or found nothing to correlate).
 #
-# Re-running the SAME shared_projection_intents count query used by the
-# BEFORE probe, but AFTER the maintenance pass and BEFORE the final edge
-# assertion, separates them: a nonzero count here proves admitted rows
+# Runs a shared_projection_intents count query AFTER the maintenance pass and
+# BEFORE the final edge assertion: a nonzero count here proves admitted rows
 # existed, so a subsequent "expected 1, got 0" implicates the writer; a zero
-# count here means correlation itself produced nothing.
+# count here means correlation itself produced nothing. (#6149: the BEFORE
+# probe, ifa_deployable_unit_live_assert_empty_before_maintenance, no longer
+# runs this same query -- it now dumps the graph and counts
+# CORRELATES_DEPLOYABLE_UNIT edges directly, because this family never writes
+# shared_projection_intents at all, so a count for this domain is always 0
+# whether or not any admission happened. See that function's own header for
+# the full trace. This AFTER probe still queries shared_projection_intents
+# for the same reason: it is always 0 too, so it can no longer distinguish
+# "the writer dropped admitted rows" from "correlation produced nothing" --
+# both read identically as a zero count here. That gap is real and tracked
+# separately from this fix; this function remains diagnostic-only, never a
+# gate, so a signal that can no longer discriminate its two named causes
+# degrades this probe's usefulness without making it unsafe.)
 #
 # What this function actually guarantees: it REPORTS, it never GATES, and a
 # failed query degrades to an explicit "unavailable" reading rather than
@@ -49,17 +60,20 @@
 # to an assertion that never got to run -- exactly the false-red this probe
 # exists to avoid, and a worse bug than the ambiguity it fixes.
 #
-# Harmonized with ifa_deployable_unit_live_assert_empty_before_maintenance's
-# rc-capture shape (ifa_deployable_unit_live.sh) rather than piping the query capture
-# through `tr` and guarding with `if !` / `|| [[ -z ]]`: capturing
-# admitted_rc directly from a BARE (unpiped) ifa_det_pg call means success or
-# failure here never depends on the caller having set pipefail at all, one
-# pattern instead of two slightly different ones for the same underlying
-# hazard. The three failure modes this function must never let through as a
-# false "0" -- the query itself failing, empty output, and non-numeric
-# output -- collapse to the SAME "unavailable" reading (unlike the BEFORE
-# probe, which reports each distinctly and gates on all three, since this
-# function never gates on any of them). An empty-string or non-numeric count
+# Harmonized with ifa_deployable_unit_live_report_resolved_deploys_from_count's
+# rc-capture shape (below in this same file, the only other Postgres query in
+# this family's live cells still shaped this way after #6149 moved the BEFORE
+# probe off ifa_det_pg entirely) rather than piping the query capture through
+# `tr` and guarding with `if !` / `|| [[ -z ]]`: capturing admitted_rc
+# directly from a BARE (unpiped) ifa_det_pg call means success or failure
+# here never depends on the caller having set pipefail at all, one pattern
+# instead of two slightly different ones for the same underlying hazard. The
+# three failure modes this function must never let through as a false "0" --
+# the query itself failing, empty output, and non-numeric output -- collapse
+# to the SAME "unavailable" reading (unlike the BEFORE probe, which reports
+# each distinctly and gates on all three via its own graph-dump-based fail
+# modes, since this function never gates on any of them). An empty-string or
+# non-numeric count
 # read as a real value would be its own false signal -- "intents == 0
 # implicates correlation" is the WRONG diagnosis if the query never ran at
 # all, so any of the three failure modes gets the same distinct,
