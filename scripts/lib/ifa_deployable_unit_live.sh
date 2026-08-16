@@ -121,10 +121,35 @@ ifa_deployable_unit_live_drive() {
 	cat "${log_dir}/ifa-drive-deployable-unit.log"
 }
 
+# ifa_deployable_unit_live_drain_retry adapts ifa_deployable_unit_live_drain
+# to the drain_cmd calling convention ifa_deployable_unit_live_converge_edges
+# invokes ("$@" plus one appended pass-label argument, see that function's doc
+# comment): it turns the appended per-retry pass label into a UNIQUE drain
+# label ("post-${pass_label}") instead of the constant "post"
+# ifa_deployable_unit_live_run_standalone_cell used before this existed. Only
+# the standalone determinism-gate cell needs this -- the fault-injection
+# cells pass run_drain_gate, which polls an already-running projector/reducer
+# rather than starting fresh ones per retry, so it never truncates a log
+# (see this function's own header two functions below for the truncation this
+# fixes).
+ifa_deployable_unit_live_drain_retry() {
+	local bin_dir="$1" log_dir="$2" drain_timeout="$3" pass_label="$4"
+	ifa_deployable_unit_live_drain "post-${pass_label}" "${bin_dir}" "${log_dir}" "${drain_timeout}"
+}
+
 # ifa_deployable_unit_live_drain runs projector + reducer in the background
 # and polls the gate to the B-12 residual bound, exactly like every other
 # Ifá live cell's drain step. label distinguishes the primary drain (before
 # the maintenance pass) from the post-maintenance drain in the logs.
+#
+# label MUST be unique per invocation within a cell: ifa_det_start_bg opens
+# its log file with `>` (truncate), so calling this twice with the same label
+# -- e.g. the constant "post" on every convergence retry, the bug this
+# comment now documents -- overwrites reducer-deployable-unit-${label}.log /
+# projector-deployable-unit-${label}.log each time. On failure only the LAST
+# call's log survives; the pass where the family should have converged is
+# gone. ifa_deployable_unit_live_drain_retry above is how convergence retries
+# get a unique label instead of reusing this one.
 ifa_deployable_unit_live_drain() {
 	local label="$1" bin_dir="$2" log_dir="$3" drain_timeout="$4"
 	local projector_pid reducer_pid
@@ -329,74 +354,14 @@ ifa_deployable_unit_live_run_maintenance_pass() {
 	rm -rf "${scratch_root}" "${scratch_repos_dir}"
 }
 
-# ifa_deployable_unit_live_converge_bound is the number of bootstrap-index
-# maintenance + drain cycles ifa_deployable_unit_live_converge_edges will run
-# looking for deployable_unit_edges' one-edge exact set before giving up.
-# Overridable by the environment. Default mirrors
-# golden-corpus-maintenance-drains.sh's own three-cycle choice for a DEEPER
-# (three-link) chain: this family's chain is two links deep
-# (ifa_deployable_unit_live_run_maintenance_pass's header above), so 3 buys
-# the same one-cycle margin over the 2 that header says should suffice.
-: "${ifa_deployable_unit_live_converge_bound:=3}"
-
-# ifa_deployable_unit_live_converge_edges runs additional bootstrap-index
-# maintenance + drain cycles, re-checking deployable_unit_edges' exact edge
-# set after each one, until it converges or ifa_deployable_unit_live_converge_bound
-# is exhausted. Callers already ran and drained ONE maintenance pass, and
-# their own ifa_deployable_unit_live_assert already failed once -- this
-# function picks up from there. Do not call it before that first attempt, and
-# do not call it after a first attempt that already succeeded.
-#
-# WHY A BOUND, NOT A FIXED "RUN TWICE" (#5993 review). Origin's
-# ingestion_reopen_correlation.go documents deployable_unit_correlation as
-# having "no readiness retry of its own": it correlates nothing on the pass
-# before deployment_mapping's own cross-repo resolution commits the resolved
-# DEPLOYS_FROM relationship it reads, and catches up on "a later pass". That
-# is an eventual-consistency contract -- the edge appears within N passes --
-# not a fixed one-pass-behind guarantee. A hard-coded second pass happens to
-# work today and would flake later if the ordering is ever genuinely
-# concurrent rather than reliably one-pass-behind. A bound asserts what the
-# contract actually promises and still fails non-vacuously if the edge never
-# appears at all.
-#
-# TEMPORAL OBSERVABLE GAP (deferred, not solved here -- carried to a
-# follow-up, not expanded into this loop). Every probe available here,
-# including this one, can only read POST-DRAIN state: it cannot tell you
-# whether deployable_unit_correlation's own attempt ran before or after
-# deployment_mapping's resolved-relationship commit, only that, after N full
-# passes, the edge either exists or does not. Catching a genuinely concurrent
-# (not reliably one-pass-behind) race needs an ORDERING signal --
-# correlation's attempt/completion time compared against the resolved row's
-# commit time -- not a count, a scoped count, or a bounded retry: none of
-# those can observe an event's position in time after the fact. A `resolved
-# DEPLOYS_FROM count` diagnostic (however scoped) answers "does the row
-# exist", never "did correlation see it in time" -- do not read either as
-# proof correlation had material to work with.
-#
-# Args: pass_label_prefix bin_dir log_dir expected_edges drain_cmd...
-# drain_cmd is invoked once per extra pass as "$@" after the fixed args --
-# e.g. `run_drain_gate baseline_deployable_unit` for the fault-injection
-# cells, or `ifa_deployable_unit_live_drain post "$bin_dir" "$log_dir"
-# "$drain_timeout"` for the standalone determinism-gate cell. Each caller's
-# own drain convention stays intact; this loop only adds the retry-and-recheck
-# around it.
-ifa_deployable_unit_live_converge_edges() {
-	local pass_label_prefix="$1" bin_dir="$2" log_dir="$3" expected_edges="$4"
-	shift 4
-	local extra_pass
-	for extra_pass in $(seq 2 "${ifa_deployable_unit_live_converge_bound}"); do
-		printf 'deployable_unit_edges: convergence retry %s/%s (eventual consistency: deployable_unit_correlation has no readiness retry of its own; see ingestion_reopen_correlation.go)\n' \
-			"${extra_pass}" "${ifa_deployable_unit_live_converge_bound}"
-		ifa_deployable_unit_live_run_maintenance_pass "${pass_label_prefix}-pass${extra_pass}" "${bin_dir}" "${log_dir}" || return 1
-		"$@" || return 1
-		if ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}"; then
-			printf 'deployable_unit_edges: converged on maintenance pass %s/%s\n' "${extra_pass}" "${ifa_deployable_unit_live_converge_bound}"
-			return 0
-		fi
-	done
-	echo "deployable_unit_edges: edge set did not converge to the expected set within ${ifa_deployable_unit_live_converge_bound} maintenance passes -- eventual consistency did not converge, not a one-shot admission failure" >&2
-	return 1
-}
+# ifa_deployable_unit_live_converge_bound and
+# ifa_deployable_unit_live_converge_edges (the convergence-retry loop this
+# file's standalone cell below uses) now live in
+# ifa_deployable_unit_live_converge.sh, split out to keep this file under the
+# repository's 500-line cap. Sourced alongside this file wherever it is
+# sourced (verify-ifa-determinism.sh, verify-ifa-fault-injection.sh), after
+# this file since it calls ifa_deployable_unit_live_run_maintenance_pass and
+# ifa_deployable_unit_live_assert defined below.
 
 # ifa_deployable_unit_live_assert asserts the family's expected-edge-set
 # fixture as an exact set against the live graph, exactly like every other
@@ -465,8 +430,24 @@ ifa_deployable_unit_live_run_standalone_cell() {
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "primary"
 
 	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}"; then
+		local converge_rc=0
 		ifa_deployable_unit_live_converge_edges "primary" "${bin_dir}" "${log_dir}" "${expected_edges}" \
-			ifa_deployable_unit_live_drain post "${bin_dir}" "${log_dir}" "${drain_timeout}" || return 1
+			ifa_deployable_unit_live_drain_retry "${bin_dir}" "${log_dir}" "${drain_timeout}" || converge_rc=$?
+		case "${converge_rc}" in
+		0) ;;
+		2)
+			echo "deployable_unit_edges: standalone cell: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" >&2
+			return 1
+			;;
+		3)
+			echo "deployable_unit_edges: standalone cell: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" >&2
+			return 1
+			;;
+		*)
+			echo "deployable_unit_edges: standalone cell: deployable_unit_edges did not converge within the maintenance-pass convergence bound" >&2
+			return 1
+			;;
+		esac
 	fi
 
 	if [[ "${use_compose}" -eq 1 ]]; then

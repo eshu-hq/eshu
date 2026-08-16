@@ -190,6 +190,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 # shellcheck source=scripts/lib/ifa_deployable_unit_live_diagnostics.sh
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+# shellcheck source=scripts/lib/ifa_deployable_unit_live_converge.sh
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 

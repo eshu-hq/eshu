@@ -214,9 +214,15 @@ cell_baseline_deployable_unit() {
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "baseline_deployable_unit"
 	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		local converge_rc=0
 		ifa_deployable_unit_live_converge_edges "baseline_deployable_unit" "${bin_dir}" "${log_dir}" \
-			"${deployable_unit_expected_edges}" run_drain_gate baseline_deployable_unit \
-			|| die "baseline-deployable-unit: deployable_unit_edges did not converge to its one-edge exact set within the maintenance-pass convergence bound (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
+			"${deployable_unit_expected_edges}" run_drain_gate baseline_deployable_unit || converge_rc=$?
+		case "${converge_rc}" in
+		0) ;;
+		2) die "baseline-deployable-unit: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" ;;
+		3) die "baseline-deployable-unit: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" ;;
+		*) die "baseline-deployable-unit: deployable_unit_edges did not converge to its one-edge exact set within the maintenance-pass convergence bound (fault-free baseline must materialize this family's edge before the recovery cells compare against it)" ;;
+		esac
 	fi
 	capture_digest baseline_deployable_unit
 
@@ -288,9 +294,22 @@ cell_killworker_deployable_unit() {
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "killworkerdeployableunit"
 	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		local converge_rc=0
 		ifa_deployable_unit_live_converge_edges "killworkerdeployableunit" "${bin_dir}" "${log_dir}" \
-			"${deployable_unit_expected_edges}" run_drain_gate killworkerdeployableunit \
-			|| die "kill-worker-after-claim-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound"
+			"${deployable_unit_expected_edges}" run_drain_gate killworkerdeployableunit || converge_rc=$?
+		case "${converge_rc}" in
+		0)
+			# A fault cell that needed extra convergence passes recovered
+			# under materially different conditions than one that converged
+			# on the first post-fault drain -- worth its own line so a
+			# reader diffing this cell's log against a clean run can see it,
+			# rather than both cases printing the identical final assertion.
+			printf 'kill-worker-after-claim-deployable-unit: convergence loop engaged -- the post-fault drain alone did not reach the one-edge exact set; it converged only after extra bootstrap-index maintenance passes\n'
+			;;
+		2) die "kill-worker-after-claim-deployable-unit: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" ;;
+		3) die "kill-worker-after-claim-deployable-unit: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" ;;
+		*) die "kill-worker-after-claim-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound" ;;
+		esac
 	fi
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${baseline_deployable_unit_retried}" 15 "deployable_unit_correlation" \
@@ -348,9 +367,21 @@ cell_failgraphwrite_deployable_unit() {
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "failgraphwritedeployableunit"
 	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		local converge_rc=0
 		ifa_deployable_unit_live_converge_edges "failgraphwritedeployableunit" "${bin_dir}" "${log_dir}" \
-			"${deployable_unit_expected_edges}" run_drain_gate failgraphwritedeployableunit \
-			|| die "fail-graph-write-once-then-succeed-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound"
+			"${deployable_unit_expected_edges}" run_drain_gate failgraphwritedeployableunit || converge_rc=$?
+		case "${converge_rc}" in
+		0)
+			# See cell_killworker_deployable_unit's identical marker above:
+			# a fault cell that needed extra convergence passes is a
+			# materially different result from one that converged on the
+			# first post-fault drain, and today both printed the same line.
+			printf 'fail-graph-write-once-then-succeed-deployable-unit: convergence loop engaged -- the post-fault drain alone did not reach the one-edge exact set; it converged only after extra bootstrap-index maintenance passes\n'
+			;;
+		2) die "fail-graph-write-once-then-succeed-deployable-unit: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" ;;
+		3) die "fail-graph-write-once-then-succeed-deployable-unit: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" ;;
+		*) die "fail-graph-write-once-then-succeed-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound" ;;
+		esac
 	fi
 	marker_rc=0
 	ifa_fault_assert_once_fault_marker "${fault_once_script}" "${deployable_unit_edge_operation_match}" || marker_rc=$?

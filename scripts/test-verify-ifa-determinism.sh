@@ -23,6 +23,7 @@ code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
 documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 deployable_unit_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
@@ -37,6 +38,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${documentation_lib}" ]] || fail "missing ${documentation_lib}"
 [[ -f "${deployable_unit_lib}" ]] || fail "missing ${deployable_unit_lib}"
 [[ -f "${deployable_unit_diagnostics_lib}" ]] || fail "missing ${deployable_unit_diagnostics_lib}"
+[[ -f "${deployable_unit_converge_lib}" ]] || fail "missing ${deployable_unit_converge_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
 
@@ -49,6 +51,7 @@ bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
 bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
 bash -n "${deployable_unit_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
 bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
+bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
@@ -95,6 +98,7 @@ require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
 require "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
 require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
 require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"

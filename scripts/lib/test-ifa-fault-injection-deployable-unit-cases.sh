@@ -34,6 +34,15 @@ require_deployable_unit_cells() {
 # the parent's scope, not at source time -- a bare top-level block here would
 # silently assert against empty variables.
 run_ifa_fault_injection_deployable_unit_cases() {
+	# The live gate script actually sources each deployable-unit lib. Moved
+	# here from the top-level preamble (mirroring the require_* relocation
+	# this whole split exists to demonstrate) to keep the parent structural
+	# verifier under the repository's 500-line cap.
+	require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+	require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+	require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+	require "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
 	# fault cells, run after a bootstrap-index maintenance pass
 	# (ifa_deployable_unit_live.sh's header explains why); fault cells compare

@@ -89,9 +89,10 @@ func TestDeployableUnitFamilyCoversAllRegistryTypes(t *testing.T) {
 // constants, so this test passed throughout -- cassette and catalog agreed
 // perfectly, both wrong the same way. Catching that class needs an assertion
 // against an INDEPENDENT source of truth (here, the live gate's
-// entity_key-vs-repo_id cross-check the correlation regression test below
-// performs), not a tighter equality check between the two things that share
-// the defect.
+// entity_key-vs-repo_id cross-check that
+// go/internal/reducer/deployable_unit_correlation_cassette_entity_key_regression_test.go
+// performs, in the reducer package, not this one), not a tighter equality
+// check between the two things that share the defect.
 func TestDeployableUnitFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
