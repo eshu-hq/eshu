@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
@@ -70,7 +70,7 @@ func TestFinishFirstRunJSONEnvelope(t *testing.T) {
 // test (#6153 review).
 func TestFirstRunDepsWireProductionSeams(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv(appHomeEnvVar, home)
+	t.Setenv("ESHU_HOME", home)
 	t.Setenv("ESHU_MCP_URL", "")
 	t.Setenv("ESHU_MCP_ENDPOINT", "")
 
@@ -91,7 +91,7 @@ func TestFirstRunDepsWireProductionSeams(t *testing.T) {
 	if deps.ResolveMCPEndpoint == nil {
 		t.Fatal("ResolveMCPEndpoint seam not wired")
 	}
-	if err := os.WriteFile(filepath.Join(home, envFileName), []byte("ESHU_MCP_URL=http://primary:8081/mcp/message\n"), 0o600); err != nil {
+	if err := os.WriteFile(cliconfig.EnvFilePath(), []byte("ESHU_MCP_URL=http://primary:8081/mcp/message\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	if got := deps.ResolveMCPEndpoint(); got != "http://primary:8081/mcp/message" {
@@ -159,7 +159,7 @@ func TestFirstRunCommandIsRegistered(t *testing.T) {
 // real config path proven.
 func TestResolveFirstRunMCPEndpointReadsConfigSeam(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv(appHomeEnvVar, home)
+	t.Setenv("ESHU_HOME", home)
 	t.Setenv("ESHU_MCP_URL", "")
 	t.Setenv("ESHU_MCP_ENDPOINT", "")
 
@@ -167,7 +167,7 @@ func TestResolveFirstRunMCPEndpointReadsConfigSeam(t *testing.T) {
 		t.Fatalf("resolveFirstRunMCPEndpoint() = %q with no config, want empty", got)
 	}
 
-	if err := os.WriteFile(filepath.Join(home, envFileName), []byte("ESHU_MCP_ENDPOINT=http://fallback:9000/mcp\n"), 0o600); err != nil {
+	if err := os.WriteFile(cliconfig.EnvFilePath(), []byte("ESHU_MCP_ENDPOINT=http://fallback:9000/mcp\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	if got := resolveFirstRunMCPEndpoint(); got != "http://fallback:9000/mcp" {
@@ -175,7 +175,7 @@ func TestResolveFirstRunMCPEndpointReadsConfigSeam(t *testing.T) {
 	}
 
 	config := "ESHU_MCP_URL=http://primary:8081/mcp/message\nESHU_MCP_ENDPOINT=http://fallback:9000/mcp\n"
-	if err := os.WriteFile(filepath.Join(home, envFileName), []byte(config), 0o600); err != nil {
+	if err := os.WriteFile(cliconfig.EnvFilePath(), []byte(config), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	if got := resolveFirstRunMCPEndpoint(); got != "http://primary:8081/mcp/message" {

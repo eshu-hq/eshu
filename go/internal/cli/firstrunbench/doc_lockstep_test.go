@@ -35,6 +35,15 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 		t.Fatalf("read package dir: %v", err)
 	}
 
+	// allowedModuleImports is the non-standard-library surface README.md's
+	// Dependencies section permits: internal/cli/firstrun, for the envelope
+	// contract and QuoteIfEmpty. Everything else outside the standard library
+	// is a dependency the docs do not describe. Widen this only by widening
+	// that section in the same change.
+	allowedModuleImports := map[string]bool{
+		"github.com/eshu-hq/eshu/go/internal/cli/firstrun": true,
+	}
+
 	// The claim names exactly one filesystem call. Widen this only by
 	// widening the sentence in AGENTS.md at the same time.
 	wantOSSelectors := []string{"ReadFile"}
@@ -57,10 +66,13 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 
 		for _, imp := range file.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
+			if allowedModuleImports[path] {
+				continue
+			}
 			// A standard-library path's first segment carries no dot; every
 			// module path's does (github.com/..., gopkg.in/...).
 			if strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
-				t.Errorf("%s imports %q; this package is standard-library only — cobra flags and process wiring belong in go/cmd/eshu's first_run_benchmark_cmd.go",
+				t.Errorf("%s imports %q; README.md's Dependencies section allows the standard library plus internal/cli/firstrun and nothing else — cobra flags and process wiring belong in go/cmd/eshu's first_run_benchmark_cmd.go",
 					name, path)
 			}
 		}

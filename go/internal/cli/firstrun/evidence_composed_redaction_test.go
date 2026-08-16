@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/urlredact"
 )
 
