@@ -71,9 +71,11 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 			if oneGlobMatchesAll(side.globs, packageTestProbes(dir)) {
 				continue
 			}
+			// RowID stays empty: these findings describe the gate's trigger
+			// wiring, not a matrix row, and every other Finding uses RowID as
+			// a contract row id (the message names the gate).
 			findings = append(findings, Finding{
-				Kind:  FindingGateTriggerGap,
-				RowID: evidenceContinuityGateID,
+				Kind: FindingGateTriggerGap,
 				Message: fmt.Sprintf(
 					"proof refs run tests in %s but no %s spans that package's _test.go files; "+
 						"a referenced-test rename there would not select the evidence-continuity gate — add %q",
@@ -83,8 +85,7 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 		}
 		if !oneGlobMatchesAll(side.globs, []string{contractSpecPath}) {
 			findings = append(findings, Finding{
-				Kind:  FindingGateTriggerGap,
-				RowID: evidenceContinuityGateID,
+				Kind: FindingGateTriggerGap,
 				Message: fmt.Sprintf(
 					"no %s selects %s itself; the spec edit that could create a trigger blind spot must always run this gate",
 					label, contractSpecPath,
@@ -175,16 +176,25 @@ func evidenceGateTriggers(repoRoot string) ([]string, error) {
 
 // evidenceWorkflowFilter returns the "evidence" dorny path-filter globs from
 // the static-contract-gates workflow, failing loudly when the workflow, the
-// dorny step, or the filter key is missing.
+// dorny step, or the filter key is missing — or when the step sets
+// `predicate-quantifier: every`. oneGlobMatchesAll proves coverage under
+// dorny's default "some" quantifier (ANY pattern selects the file); under
+// `every` a file is selected only when ALL patterns match, so the same proof
+// would report coverage it did not establish. Three sibling workflows already
+// set `every`, so refusing here keeps a copy-paste of that step from turning
+// this self-check false-green.
 func evidenceWorkflowFilter(repoRoot string) ([]string, error) {
 	workflowPath := filepath.Join(repoRoot, ".github", "workflows", "static-contract-gates.yml")
 	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- static verifier reads a repo-local workflow path, not request input.
 	if err != nil {
 		return nil, fmt.Errorf("read workflow for trigger coverage: %w", err)
 	}
-	filters := cigates.DornyFilters(raw)
+	filters, every := cigates.DornyFilters(raw)
 	if filters == nil {
 		return nil, fmt.Errorf("workflow %s has no parsable dorny/paths-filter step; trigger coverage cannot be checked", workflowPath)
+	}
+	if every {
+		return nil, fmt.Errorf("workflow %s dorny step sets predicate-quantifier: every; this coverage check only proves coverage under the default ANY-pattern semantics — route the evidence filter through a step without `every`, or extend the check to model it", workflowPath)
 	}
 	paths, ok := filters[evidenceFilterKey]
 	if !ok || len(paths) == 0 {

@@ -132,6 +132,12 @@ func FormatFindings(findings []Finding) string {
 	sortFindings(findings)
 	lines := make([]string, 0, len(findings))
 	for _, finding := range findings {
+		// Gate-scope findings (e.g. gate_trigger_gap) carry no row id;
+		// render them without the empty segment.
+		if finding.RowID == "" {
+			lines = append(lines, fmt.Sprintf("%s: %s", finding.Kind, finding.Message))
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("%s %s: %s", finding.Kind, finding.RowID, finding.Message))
 	}
 	return strings.Join(lines, "\n")

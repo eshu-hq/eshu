@@ -218,6 +218,28 @@ func TestDriftCheck_PathFilterCoverage_DuplicateDisplayNameAmbiguous(t *testing.
 	}
 }
 
+// TestDornyFilters_ReportsEveryQuantifier pins the exported DornyFilters
+// contract: the `predicate-quantifier: every` flag must surface to callers,
+// because a coverage proof built on the default ANY-pattern semantics is
+// unsound under `every` and the caller must be able to refuse it. Dropping
+// the flag was the #6145 P1: the evidence-continuity self-check would have
+// stayed green while an `every` filter stopped selecting its gate.
+func TestDornyFilters_ReportsEveryQuantifier(t *testing.T) {
+	t.Parallel()
+
+	some := []byte("jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            evidence:\n              - 'go/**'\n")
+	filters, every := cigates.DornyFilters(some)
+	if filters == nil || every {
+		t.Fatalf("default quantifier: filters=%v every=%v, want non-nil filters and every=false", filters, every)
+	}
+
+	everyRaw := []byte("jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: 'every'\n          filters: |\n            evidence:\n              - 'go/**'\n")
+	filters, every = cigates.DornyFilters(everyRaw)
+	if filters == nil || !every {
+		t.Fatalf("every quantifier: filters=%v every=%v, want non-nil filters and every=true", filters, every)
+	}
+}
+
 // containsAll reports whether s contains every one of substrs.
 func containsAll(s string, substrs ...string) bool {
 	for _, sub := range substrs {

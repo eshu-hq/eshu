@@ -183,6 +183,51 @@ func TestValidatorGateTriggerCoverage_MissingEvidenceFilterFailsLoudly(t *testin
 	}
 }
 
+// A workflow that sets `predicate-quantifier: 'every'` on the dorny step
+// changes the filter semantics from "ANY pattern selects the file" to "ALL
+// patterns must match". oneGlobMatchesAll proves coverage under the ANY
+// reading only, so the check must refuse to evaluate under `every` rather
+// than report coverage it did not prove. Three sibling workflows already set
+// `every`, so this is one copy-paste away from static-contract-gates.yml.
+func TestValidatorGateTriggerCoverage_EveryQuantifierFailsLoudly(t *testing.T) {
+	root := writeGateTriggerFixture(
+		t,
+		[]string{"go/internal/query/**", "specs/evidence-continuity.v1.yaml"},
+		[]string{"go/internal/query/**", "specs/evidence-continuity.v1.yaml"},
+	)
+	workflow := "jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: 'every'\n          filters: |\n            evidence:\n              - 'go/internal/query/**'\n              - 'specs/evidence-continuity.v1.yaml'\n"
+	mustWriteFile(t, filepath.Join(root, ".github", "workflows", "static-contract-gates.yml"), workflow)
+
+	if _, err := validateGateTriggerCoverage(root, gateTriggerContract()); err == nil {
+		t.Fatal("expected an error for a workflow whose dorny step sets predicate-quantifier: every")
+	}
+}
+
+// Gate-scope findings describe the gate's trigger wiring, not a matrix row,
+// so RowID must stay empty: every other finding uses RowID as a contract row
+// id, and a consumer mapping RowID back to a row would otherwise get the gate
+// id in a slot that promises a row id.
+func TestValidatorGateTriggerCoverage_GateScopeFindingsLeaveRowIDEmpty(t *testing.T) {
+	root := writeGateTriggerFixture(
+		t,
+		[]string{"go/internal/collector/**"},
+		[]string{"go/internal/collector/**"},
+	)
+
+	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	if len(findings) == 0 {
+		t.Fatal("expected gate_trigger_gap findings for an uncovered package")
+	}
+	for _, finding := range findings {
+		if finding.RowID != "" {
+			t.Fatalf("gate-scope finding carries RowID %q; want empty (the message names the gap, RowID is reserved for matrix row ids)", finding.RowID)
+		}
+	}
+}
+
 func TestValidatorGateTriggerCoverage_NoGoTestRefsNoReads(t *testing.T) {
 	contract := Contract{
 		Version: "v1",
