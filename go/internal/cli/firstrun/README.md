@@ -17,8 +17,9 @@ and the scan runtime are resolved by the cobra wrapper in
 `go/cmd/eshu/first_run.go` and passed in through `Deps`. Credential redaction
 is NOT owned here either — the rules live in `internal/cli/evidredact` (over
 `internal/urlredact`), and this package only calls them. The onboarding
-benchmark (`first-run-benchmark`) is a separate family that stays in
-`go/cmd/eshu` and imports this package's `Result` vocabulary.
+benchmark (`first-run-benchmark`) is a separate family whose scoring engine
+lives in `internal/cli/firstrunbench` and consumes this package's `Envelope`
+and `Result`.
 
 ## Exported surface
 
@@ -32,7 +33,10 @@ operator summary. `BuildEvidence` projects a `Result` into an
 wrapper fills. `Diagnostic`, `FailureClass`, and the `Class*` constants are
 the classified-failure vocabulary carried in `Result` and `EvidenceReport`.
 `APIHealthy`, `QuoteIfEmpty`, `Truth`, and `QueryEndpoint` back the wrapper's
-production wiring. See `doc.go` for the godoc contract.
+production wiring. `Envelope`, `EnvelopeError`, and `ParseEnvelope` are the
+canonical decode of a saved `first-run --json` artifact, consumed by the
+wrapper's evidence report, the `firstrunbench` scoring engine, and (through a
+wrapper alias) the demo family. See `doc.go` for the godoc contract.
 
 ## Dependencies
 
@@ -64,8 +68,10 @@ their own telemetry.
 - A nil `Deps.MatchesSelector` matches nothing, so a miswired caller falls
   back to a fresh scan instead of reusing an unproven index; a nil
   `Deps.ResolveMCPEndpoint` reads as "no MCP endpoint configured".
-- The wrapper keeps the envelope decode (`parseFirstRunEnvelope`) because the
-  benchmark family shares it; this package only consumes the decoded `Result`.
+- `ParseEnvelope` is the only decode of a saved envelope; the emit side in the
+  wrapper builds a `map[string]any` on purpose (`json.Marshal` orders map keys
+  alphabetically, and switching to the struct would reorder the emitted
+  bytes). Keep the struct's fields and tags in lockstep with that emitter.
 
 ## Related docs
 

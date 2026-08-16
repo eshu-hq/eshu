@@ -7,14 +7,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
 // completeEnvelope builds an envelope that represents a fully successful
 // first-run: a bounded query returned an answer with a concrete source handle,
 // truth metadata is present, and indexing completed.
-func completeEnvelope() Envelope {
-	return Envelope{
-		Data: Result{
+func completeEnvelope() firstrun.Envelope {
+	return firstrun.Envelope{
+		Data: firstrun.Result{
 			Command:       "first-run",
 			RuntimeShape:  "local_binaries",
 			ServiceURL:    "http://localhost:8080",
@@ -23,12 +25,12 @@ func completeEnvelope() Envelope {
 			Readiness:     "indexing complete",
 			QueryAnswered: true,
 			QuerySummary:  "repositories query returned 1 (e.g. demo)",
-			Steps: []Step{
-				{Name: "detect runtime", Status: StepOK},
-				{Name: "verify runtime", Status: StepOK},
-				{Name: "index repository", Status: StepOK},
-				{Name: "wait for readiness", Status: StepOK},
-				{Name: "first query", Status: StepOK, Detail: "repositories query returned 1 (e.g. demo)"},
+			Steps: []firstrun.Step{
+				{Name: "detect runtime", Status: firstrun.StepOK},
+				{Name: "verify runtime", Status: firstrun.StepOK},
+				{Name: "index repository", Status: firstrun.StepOK},
+				{Name: "wait for readiness", Status: firstrun.StepOK},
+				{Name: "first query", Status: firstrun.StepOK, Detail: "repositories query returned 1 (e.g. demo)"},
 			},
 		},
 		Truth: map[string]any{
@@ -122,7 +124,7 @@ func TestEvaluateFailsOnMissingSourceHandle(t *testing.T) {
 // failure regardless of other fields.
 func TestEvaluateFailsOnEnvelopeError(t *testing.T) {
 	env := completeEnvelope()
-	env.Error = &EnvelopeError{Message: "verify runtime: no reachable API"}
+	env.Error = &firstrun.EnvelopeError{Message: "verify runtime: no reachable API"}
 
 	verdict := Evaluate(env, Measurements{Path: "local_binary"})
 
@@ -155,8 +157,8 @@ func TestEvaluateExplainsFailure(t *testing.T) {
 	explained := completeEnvelope()
 	explained.Data.QueryAnswered = false
 	explained.Data.QuerySummary = ""
-	explained.Data.Steps = append(explained.Data.Steps, Step{
-		Name: "first query", Status: StepFailed, Detail: "query timed out",
+	explained.Data.Steps = append(explained.Data.Steps, firstrun.Step{
+		Name: "first query", Status: firstrun.StepFailed, Detail: "query timed out",
 	})
 	explained.Data.NextSteps = []string{"Re-run: eshu first-run"}
 

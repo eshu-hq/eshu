@@ -4,7 +4,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -66,7 +65,7 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	env, err := firstrunbench.ParseEnvelope(raw)
+	env, err := firstrun.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
@@ -89,37 +88,11 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// firstRunEnvelope is the canonical `{data, truth, error}` envelope emitted by
-// `eshu first-run --json`, typed against firstrun.Result so the
-// first-run-evidence family can lift envelope.Data into a full result
-// (including truth restoration and the diagnosis block). The benchmark itself
-// scores the mirror in internal/cli/firstrunbench; the wire-parity test in
-// first_run_benchmark_cmd_test.go pins the two shapes together.
-type firstRunEnvelope struct {
-	// Data is the machine-readable first-run result.
-	Data firstrun.Result `json:"data"`
-	// Truth carries the freshness/completeness/backend labels for the answer.
-	Truth map[string]any `json:"truth"`
-	// Error is non-nil when the run failed.
-	Error *firstRunEnvelopeError `json:"error"`
-}
-
-// firstRunEnvelopeError is the error object inside the JSON envelope. The
-// alias keeps the demo family's envelope and this one decoding the same shape.
-type firstRunEnvelopeError = firstrunbench.EnvelopeError
-
-// parseFirstRunEnvelope decodes the canonical `eshu first-run --json` output
-// into the package-main envelope. It returns a descriptive error when the
-// payload is not the expected envelope so callers fail loudly rather than
-// silently consuming malformed input.
-func parseFirstRunEnvelope(raw []byte) (firstRunEnvelope, error) {
-	var env firstRunEnvelope
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
-	if err := dec.Decode(&env); err != nil {
-		return firstRunEnvelope{}, fmt.Errorf("decode first-run envelope: %w", err)
-	}
-	return env, nil
-}
+// firstRunEnvelopeError is the error object inside the JSON envelope, now
+// canonically firstrun.EnvelopeError. The alias keeps the demo family's
+// envelope (demo.go, demo_benchmark_test.go) decoding the same shape until its
+// own extraction imports firstrun directly.
+type firstRunEnvelopeError = firstrun.EnvelopeError
 
 // The demo-benchmark family scores its own envelope with the shared criterion
 // vocabulary that moved to internal/cli/firstrunbench. These aliases are the

@@ -64,8 +64,9 @@ artifact wrapper, and the share-safe scope rules live in
     (`hosted_onboard.go`, `hosted_onboard_rules.go`, `hosted_onboard_render.go`,
     `hosted_onboard_cmd.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
-    onboarding criteria and rejects a health-only "answer"
-    (`first_run_benchmark.go`, `first_run_benchmark_cmd.go`);
+    onboarding criteria and rejects a health-only "answer" — the scoring engine
+    lives in `internal/cli/firstrunbench`, the envelope decode in
+    `internal/cli/firstrun` (`first_run_benchmark_cmd.go`);
     `answer-quality-scorecard` scores a captured, redacted answer-quality
     evidence artifact across API, MCP, CLI, and hosted surfaces
     (`answer_quality_scorecard_cmd.go`); `evidence bundle export|validate`

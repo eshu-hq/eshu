@@ -10,7 +10,10 @@
 // Execute walks the ordered steps and never reports success unless the
 // bounded query actually returned; Result is the canonical envelope payload
 // `eshu first-run --json` emits, and a failed step carries a classified
-// Diagnostic whose preserved underlying error is never discarded.
+// Diagnostic whose preserved underlying error is never discarded. Envelope,
+// EnvelopeError, and ParseEnvelope are the one decode of that persisted
+// artifact, shared by the evidence report, the onboarding benchmark
+// (internal/cli/firstrunbench), and the demo family.
 // BuildEvidence projects a Result into an EvidenceReport, redacting every
 // endpoint, path, and free-form field through internal/cli/evidredact before
 // it lands in the model, so RenderEvidenceArtifact, RenderEvidenceTerminal,

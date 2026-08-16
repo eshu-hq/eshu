@@ -94,11 +94,12 @@ func readEvidenceEnvelope(cmd *cobra.Command, path string) ([]byte, error) {
 
 // firstRunResultFromEnvelope decodes a saved first-run envelope into a result,
 // restoring the truth metadata onto the result so the rendered report carries
-// it. It reuses the canonical firstRunEnvelope shape so the evidence report and
-// the onboarding benchmark consume the same persisted contract. The envelope
-// must be the object emitted by 'eshu first-run --json'.
+// it. It decodes through firstrun.ParseEnvelope, the one canonical envelope
+// contract, so the evidence report and the onboarding benchmark consume the
+// same persisted shape. The envelope must be the object emitted by
+// 'eshu first-run --json'.
 func firstRunResultFromEnvelope(raw []byte) (firstrun.Result, error) {
-	envelope, err := parseFirstRunEnvelope(raw)
+	envelope, err := firstrun.ParseEnvelope(raw)
 	if err != nil {
 		return firstrun.Result{}, err
 	}
