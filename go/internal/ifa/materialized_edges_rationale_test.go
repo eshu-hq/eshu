@@ -289,6 +289,35 @@ func TestLoadRationaleExpectedEdgesRejectsTrailingJSON(t *testing.T) {
 	}
 }
 
+// TestRationaleEdgeKeyIsInjective is the regression test for
+// rationaleEdgeKey's join delimiter. It joins five fields with a raw "\x00",
+// so a value that itself contains "\x00" shifts the field boundary: two
+// structurally distinct edges can render the identical key.
+//
+// Unlike codeCallEdgeKey's "|" (a legal, plausible POSIX path byte), a raw
+// NUL cannot appear in TargetPath -- POSIX path syscalls reject it outright
+// -- and is not a realistic byte for the other four fields as this extractor
+// currently produces them. This test constructs the collision directly
+// rather than pointing to a live input that produces one, because none does
+// today. The fix (writeLengthPrefixedField, shared with Key(),
+// sqlRelationshipEdgeKey, and codeCallEdgeKey) closes the gap regardless: it
+// is provably injective for any byte content, not merely for content that
+// avoids one reserved delimiter, so this key no longer depends on an
+// assumption about what the extractor happens to emit today.
+func TestRationaleEdgeKeyIsInjective(t *testing.T) {
+	t.Parallel()
+
+	keyA := rationaleEdgeKey(rationaleExpectedEdge{
+		RationaleUID: "A\x00B", TargetEntityID: "C", TargetPath: "D", RepoID: "E", CommentKind: "F",
+	})
+	keyB := rationaleEdgeKey(rationaleExpectedEdge{
+		RationaleUID: "A", TargetEntityID: "B\x00C", TargetPath: "D", RepoID: "E", CommentKind: "F",
+	})
+	if keyA == keyB {
+		t.Fatalf("distinct rationale edges collided onto one key %q; a boundary-shifting value would silently merge them in compareRationaleExpectedSets", keyA)
+	}
+}
+
 func writeRationaleExpectedEdges(t *testing.T, file rationaleExpectedEdgesFile) string {
 	t.Helper()
 	raw, err := json.Marshal(file)
