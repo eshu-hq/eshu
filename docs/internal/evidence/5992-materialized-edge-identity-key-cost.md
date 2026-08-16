@@ -63,6 +63,14 @@ BenchmarkExpectedEdgeKey/nil_identity_(before)-18            67.9–70.9 ns/op  
 BenchmarkExpectedEdgeKey/two-property_identity_(after)-18   140.2–141.5 ns/op 176 B/op  4 allocs/op
 ```
 
+The ns/op figures are machine-dependent — an independent rerun on different
+hardware landed a few ns/op above both ranges above, which is normal
+run-to-run and machine-to-machine variance for a benchmark this small. B/op
+and allocs/op matched exactly on that rerun, which is what actually confirms
+the numbers came from this implementation rather than a drifted one; treat
+ns/op as an order-of-magnitude sanity check, not a regression trigger on its
+own.
+
 At 10^4-10^5 edges per `assert-edges` invocation, that is roughly 0.7 ms to
 7.1 ms of CPU time for every family (up from effectively zero before), and
 roughly 1.4 ms to 14.1 ms for a family entirely composed of identity-bearing
