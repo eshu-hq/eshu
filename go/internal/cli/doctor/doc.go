@@ -13,10 +13,17 @@
 // doctor already knows something is wrong and wants the whole picture rather
 // than the first failure.
 //
-// # Nothing here can leak a credential
+// # No credential reaches the report
 //
 // Doctor output is the first thing pasted into a bug report, so the report is
 // a redaction surface even though it reads like a status list.
+//
+// The claim is about credentials specifically, and it is deliberately not
+// "nothing sensitive is printed". The config directory and settings-file paths
+// ARE printed verbatim, and an absolute home path names its user. That is a
+// considered trade: doctor exists to tell an operator which path it looked at,
+// and "[!!] Config directory missing: .../.eshu" is not actionable. Callers
+// who need the path elided have evidredact.Path; this report does not use it.
 //
 // The Bolt URI carries its password in userinfo -- bolt://neo4j:PASS@host:7687
 // is the canonical form -- and it is written through evidredact.Endpoint, which

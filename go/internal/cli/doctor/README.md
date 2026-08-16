@@ -46,6 +46,14 @@ anything it prints is effectively published.
 value rather than at a token boundary, so a check that only matches whole
 fields cannot pass by accident.
 
+**What is deliberately not redacted:** the config directory and settings-file
+paths. An absolute home path names its user, so this is a real disclosure, but
+eliding it would defeat the check — `[!!] Config directory missing: .../.eshu`
+tells an operator nothing they can act on. `evidredact.Path` exists for callers
+that need the opposite trade; this report does not use it. Stated here because
+"the report is a redaction surface" should not be read as "nothing sensitive is
+printed".
+
 This package exists because that leak was real: before the extraction the
 report printed `NEO4J_URI` verbatim from `package main`, where nothing could
 test it.
