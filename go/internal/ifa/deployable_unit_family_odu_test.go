@@ -79,6 +79,19 @@ func TestDeployableUnitFamilyCoversAllRegistryTypes(t *testing.T) {
 // agent owns; TestResolveDeployableUnitMaterializedEdgesReproducesExpectedSet
 // and this test together prove the guard resolves both the compiled and the
 // cassette-loaded Odù correctly ahead of that one-line wiring.
+//
+// WHAT THIS DOES NOT PROVE (#5993 postmortem). reflect.DeepEqual only
+// detects DRIFT between the two sides -- it can never catch an error baked
+// into shared source both sides derive the same way from. The #5993 live
+// failure was exactly that shape: all four *LocalPath constants in
+// deployable_unit_family_catalog.go were missing an "ifa-" segment, and the
+// cassette was regenerated (by hand, to match) from those same wrong
+// constants, so this test passed throughout -- cassette and catalog agreed
+// perfectly, both wrong the same way. Catching that class needs an assertion
+// against an INDEPENDENT source of truth (here, the live gate's
+// entity_key-vs-repo_id cross-check the correlation regression test below
+// performs), not a tighter equality check between the two things that share
+// the defect.
 func TestDeployableUnitFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
