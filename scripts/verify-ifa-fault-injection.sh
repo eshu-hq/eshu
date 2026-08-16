@@ -326,6 +326,7 @@ bin_dir="${work_dir}/bin"
 tagged_bin_dir="${work_dir}/bin-fault"
 log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${tagged_bin_dir}" "${log_dir}"
+ifa_deployable_unit_live_init_maintenance_scratch "${work_dir}"
 
 bg_pids=()
 

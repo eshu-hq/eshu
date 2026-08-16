@@ -102,6 +102,12 @@
 # post-maintenance drain's exact-set assertion and the fault-injection
 # baseline's whole-graph digest would both fail loudly if the pass retracted
 # anything.
+#
+# STABILIZED (#6149): this used to `mktemp -d` a fresh ESHU_FILESYSTEM_ROOT/
+# ESHU_REPOS_DIR every call; every Repository property bootstrap-index writes
+# derives from that root, so a harness path difference broke the
+# fault-injection digest (full narrative in the fixing commit; fix and args
+# on the function itself, below).
 
 # ifa_deployable_unit_live_drive replays the family cassette (all four
 # repositories: the admitted app+deploy pair and the two negative-case
@@ -358,35 +364,35 @@ ifa_deployable_unit_live_assert_readiness_opened() {
 # ... cycle 2's drain re-runs deployable_unit_correlation now that the
 # resolved relationships it consumes exist").
 #
-# The invocation is credential-free filesystem-mode collection over a fresh,
-# empty scratch root (see this file's header) rather than a truly bare call:
-# without ESHU_REPO_SOURCE_MODE=filesystem the collector defaults to the
-# GitHub App auth path and fails closed with no credentials configured. The
-# env vars are scoped to this one command via `env`, not `export`, so they
-# cannot leak into `eshu-ifa drive` or the reducer/projector processes
-# sharing this shell across the other cells in the same gate run.
+# The invocation is credential-free filesystem-mode collection (without
+# ESHU_REPO_SOURCE_MODE=filesystem the collector defaults to the GitHub App
+# auth path and fails closed) over an empty scratch root -- see STABILIZED
+# above. ESHU_FILESYSTEM_ROOT/ESHU_REPOS_DIR are scoped via `env`, not
+# `export`, so they cannot leak into `eshu-ifa drive` or the shared reducer/
+# projector; their VALUES come from the driver-exported scratch vars. Args:
+# pass_label bin_dir log_dir; requires DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_
+# ROOT/_SCRATCH_REPOS_DIR pre-exported, fails closed if unset.
 ifa_deployable_unit_live_run_maintenance_pass() {
 	local pass_label="$1" bin_dir="$2" log_dir="$3"
-	local scratch_root scratch_repos_dir
 	printf '\n=== deployable_unit_edges: bootstrap-index maintenance pass (%s) ===\n' "${pass_label}"
-	scratch_root="$(mktemp -d)"
-	scratch_repos_dir="$(mktemp -d)"
+	if [[ -z "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT:-}" || -z "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR:-}" ]]; then
+		echo "deployable_unit_edges: DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT / DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR are not set -- the driver script must create and export both once, before the first cell runs (see this file's STABILIZED header note), not leave this function to mint its own via mktemp" >&2
+		return 1
+	fi
 	if ! env \
 		ESHU_REPO_SOURCE_MODE="filesystem" \
 		ESHU_FILESYSTEM_DIRECT="false" \
-		ESHU_FILESYSTEM_ROOT="${scratch_root}" \
-		ESHU_REPOS_DIR="${scratch_repos_dir}" \
+		ESHU_FILESYSTEM_ROOT="${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT}" \
+		ESHU_REPOS_DIR="${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR}" \
 		ESHU_GIT_AUTH_METHOD="none" \
 		ESHU_GITHUB_ORG="acme" \
 		ESHU_REPOSITORY_RULES_JSON="[]" \
 		"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log" 2>&1; then
 		tail -40 "${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log" >&2 || true
 		echo "deployable_unit_edges: bootstrap-index maintenance pass (${pass_label}) failed" >&2
-		rm -rf "${scratch_root}" "${scratch_repos_dir}"
 		return 1
 	fi
 	cat "${log_dir}/bootstrap-index-deployable-unit-${pass_label}.log"
-	rm -rf "${scratch_root}" "${scratch_repos_dir}"
 }
 
 # ifa_deployable_unit_live_converge_bound and

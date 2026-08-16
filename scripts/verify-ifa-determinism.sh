@@ -262,7 +262,7 @@ work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
 log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${log_dir}"
-
+ifa_deployable_unit_live_init_maintenance_scratch "${work_dir}"
 bg_pids=()
 
 log() { printf '\n=== %s ===\n' "$*"; }

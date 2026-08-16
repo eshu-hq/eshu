@@ -16,6 +16,24 @@
 # either function itself. Both files are always fully sourced by the time any
 # cell actually runs, regardless of which is sourced first.
 
+# ifa_deployable_unit_live_init_maintenance_scratch creates and exports the
+# two scratch directories ifa_deployable_unit_live_run_maintenance_pass
+# reuses for every maintenance pass in the caller's run (#6149 -- see that
+# function's STABILIZED header note in ifa_deployable_unit_live.sh for why a
+# fresh `mktemp -d` per call broke the fault-injection digest comparison).
+# Called once per driver script, right after work_dir is created, nested
+# under it so the driver's existing EXIT-trap cleanup covers these too.
+# Idempotent (skips if already set) so a stray second call is harmless.
+#
+# Args: work_dir
+ifa_deployable_unit_live_init_maintenance_scratch() {
+	local work_dir="$1"
+	[[ -n "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT:-}" ]] && return 0
+	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT="${work_dir}/deployable-unit-maintenance-scratch-root"
+	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR="${work_dir}/deployable-unit-maintenance-scratch-repos"
+	mkdir -p "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT}" "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR}"
+}
+
 # ifa_deployable_unit_live_converge_bound is the number of bootstrap-index
 # maintenance + drain cycles ifa_deployable_unit_live_converge_edges will run
 # looking for deployable_unit_edges' one-edge exact set before giving up.
