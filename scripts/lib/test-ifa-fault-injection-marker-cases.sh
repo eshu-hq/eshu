@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1090,SC2034,SC2154,SC2329
+# Dynamic sources and indirect stub calls are the subject of these cases,
+# same as test-ifa-fault-injection-codeowners-cases.sh.
 # Functional stub tests for the fault-injection lib's claimed-wait and
 # once-fired-marker helpers, split out of test-verify-ifa-fault-injection.sh
 # (mirroring the deployable-unit and review-cases splits) so that structural
@@ -19,7 +22,6 @@
 run_ifa_fault_injection_marker_cases() {
 	# The wait budget is interpolated into the server-side function call.
 	# Reject a malformed environment override before it can reach psql.
-	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
 	source "${fault_lib}"
 	ifa_det_pg() { printf '1\n'; }
 	if ifa_fault_wait_for_claimed test-project 1 test-dsn test-compose.yml '1; SELECT 1'; then

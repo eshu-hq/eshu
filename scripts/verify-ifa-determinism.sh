@@ -132,7 +132,7 @@ source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"  # two sources, one line, deliberately: this file is at the 500-line cap (#5993 P6 review) and a genuinely new line here is not free
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port

@@ -5,10 +5,16 @@
 # cap) to keep both files under it. Sourced by verify-ifa-determinism.sh and
 # verify-ifa-fault-injection.sh alongside ifa_deployable_unit_live.sh, which
 # the caller owns strict mode, logging, and ifa_det_pg for -- same convention
-# as that file's own header. Must be sourced AFTER ifa_deployable_unit_live.sh:
+# as that file's own header.
+#
+# No sourcing order is required relative to ifa_deployable_unit_live.sh.
 # ifa_deployable_unit_live_converge_edges below calls
 # ifa_deployable_unit_live_run_maintenance_pass and
-# ifa_deployable_unit_live_assert, both defined there.
+# ifa_deployable_unit_live_assert, both defined there, but bash resolves a
+# function call at INVOCATION time, not at source time, and this file's only
+# top-level statement is the `:=` default just below -- it does not call
+# either function itself. Both files are always fully sourced by the time any
+# cell actually runs, regardless of which is sourced first.
 
 # ifa_deployable_unit_live_converge_bound is the number of bootstrap-index
 # maintenance + drain cycles ifa_deployable_unit_live_converge_edges will run
