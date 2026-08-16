@@ -414,3 +414,36 @@ func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 		t.Fatal("the two writers stamp the same evidence_source; provenance can no longer partition RUNS_ON")
 	}
 }
+
+// TestEndpointDefectMessageNamesTheRefFallback pins the diagnostic, not the
+// behavior. endpointID has three fallbacks, but the failure message it feeds
+// only named the first two, so an operator debugging a DECLARES_CODEOWNER
+// regression was told to go look for a uid or an id on a node keyed by
+// neither. codeowners_ownership_edges is the first family that can reach this
+// branch on a real target, so its operator is the one who reads it.
+func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "DECLARES_CODEOWNER",
+		FromProps: map[string]any{"id": "repo-1"},
+		ToLabels:  []string{"CodeownerTeam"},
+		ToProps:   map[string]any{}, // genuinely unmaterialized: no uid, no id, no ref.
+	}}}
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a"},
+	}
+
+	err = assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(endpoint with no identity property at all) = nil, want an endpoint-defect failure")
+	}
+	const want = "carries neither uid, id, nor (for a CodeownerTeam endpoint) ref"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %q, want it to contain %q so the message names every identity endpointID actually tries", err, want)
+	}
+}
