@@ -22,8 +22,8 @@
 # either function's fail-closed behavior or its bg_pids bookkeeping will fail
 # `make pre-pr`.
 #
-# NOT YET WIRED (documented for the #5543 coordinator, out of #5992's scope
-# this phase): a working baseline_codeowners_retried global and a
+# NOT YET WIRED (out of scope for this phase, tracked under #5992): a
+# working baseline_codeowners_retried global and a
 # codeowners_edge_operation_match anchor both need to be declared where
 # code_call_materialization's siblings are declared today
 # (cell_baseline in ifa_fault_injection_cells.sh; codeowners_expected_edges

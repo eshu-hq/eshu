@@ -8,7 +8,7 @@
 # here: neither scripts/verify-ifa-determinism.sh nor
 # scripts/verify-ifa-fault-injection.sh references this file or the codeowners
 # cassette, so nothing below has ever executed. Wiring it is the live-proof
-# phase, tracked under #5543.
+# phase, tracked under #5992.
 
 # ifa_codeowners_drive replays the committed family cassette into one matrix
 # cell. The caller performs the aggregate fact_work_items non-vacuity check.
@@ -40,10 +40,18 @@ ifa_codeowners_drive() {
 # KNOWN LIMIT: a permutation of identity properties among edges sharing one
 # (source, target) pair preserves the multiset and is invisible. Reaching that
 # class means widening the relationship MERGE key, which is a different
-# change. The full statement of the boundary lives in
-# materialized_edges_codeowners.go's guard doc comment and
-# TestCodeownersOwnershipIdentityExcludesOrderIndex; it is deliberately not
-# restated here, because the copy that drifts is the one nobody runs.
+# change.
+#
+# Two different questions, two different files, so do not follow the wrong
+# one: which properties are IN the identity is answered by
+# materialized_edges_codeowners.go (codeownersOwnershipRowsToExpectedEdges --
+# and note it explains the order_index exclusion only, which is one instance
+# of the limit above, NOT its full extent); what the BOUNDARY is, stated as
+# multiset-preserving versus multiset-changing, is answered only by
+# TestCodeownersOwnershipIdentityExcludesOrderIndex's doc comment
+# (materialized_edges_codeowners_identity_test.go). The boundary is
+# deliberately not restated here, because the copy that drifts is the one
+# nobody runs.
 ifa_codeowners_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert codeowners-ownership materialized edges (five-edge exact set) ===\n' "${label}"
