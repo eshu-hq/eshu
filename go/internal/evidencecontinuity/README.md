@@ -47,10 +47,19 @@ and prose are not accepted.
 The verifier also guards its own gate's reach (`gate_trigger_gap`): every
 package a `go test` proof ref names must be spanned by the evidence-continuity
 triggers in `specs/ci-gates.v1.yaml` AND by the `evidence` path filter in
-`.github/workflows/static-contract-gates.yml`, and the spec file itself must
-stay in both trigger sets. That anchor is what makes the check self-enforcing:
-a blind spot can only be created by editing the spec or the trigger lists, and
-all of those edits select this gate.
+`.github/workflows/static-contract-gates.yml`. On top of those packages, every
+input `ValidateRepository` reads must stay in both trigger sets — the contract
+spec, `specs/capability-matrix.v1.yaml`, and the `specs/capability-matrix/`
+fragments — because an edit to any of them can change what this gate reports.
+Those anchors are what make the check self-enforcing: an edit that could create
+a blind spot also selects the gate that would catch it.
+
+The anchor list is the whole of the claim, and it is deliberately explicit
+rather than "the spec". An earlier version anchored only the contract spec
+while the validator also read the capability matrix, so a capability-id rename
+passed this gate green and surfaced later as `unknown_capability` on an
+unrelated pull request. If `ValidateRepository` grows a new input, add it to
+`validatorInputAnchors` in the same change.
 
 ## Related docs
 

@@ -58,11 +58,43 @@ func mustWriteFile(t *testing.T, path, content string) {
 	}
 }
 
+// validatorInputTriggerGlobs are trigger globs that span every entry in
+// validatorInputAnchors. They live beside the anchors so adding a validator
+// input updates both, and the "fully covered" fixtures below build from them
+// rather than each repeating a literal list -- otherwise a new anchor turns
+// every clean fixture red and the tempting fix is to trim the anchor list.
+var validatorInputTriggerGlobs = []string{
+	contractSpecPath,
+	"specs/capability-matrix.v1.yaml",
+	"specs/capability-matrix/**",
+}
+
+// fullyCoveredTriggers returns pkgGlobs plus a glob for every validator input,
+// i.e. the trigger set of a repository with no blind spot at all.
+func fullyCoveredTriggers(pkgGlobs ...string) []string {
+	return append(append([]string{}, pkgGlobs...), validatorInputTriggerGlobs...)
+}
+
+// TestValidatorInputGlobsCoverEveryAnchor closes the loop between the two
+// lists. Without it, adding an anchor and forgetting its glob would make every
+// clean fixture fail, and adding a glob for an anchor that does not exist would
+// go unnoticed -- either way the fixtures would stop describing a covered repo.
+func TestValidatorInputGlobsCoverEveryAnchor(t *testing.T) {
+	if len(validatorInputAnchors) == 0 {
+		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	}
+	for _, anchor := range validatorInputAnchors {
+		if !oneGlobMatchesAll(validatorInputTriggerGlobs, []string{anchor}) {
+			t.Errorf("no glob in validatorInputTriggerGlobs selects anchor %q; a clean fixture would report it as a gap", anchor)
+		}
+	}
+}
+
 func TestValidatorGateTriggerCoverage_CoveredPackageClean(t *testing.T) {
 	root := writeGateTriggerFixture(
 		t,
-		[]string{"go/internal/query/**", "specs/evidence-continuity.v1.yaml"},
-		[]string{"go/internal/query/**", "specs/evidence-continuity.v1.yaml"},
+		fullyCoveredTriggers("go/internal/query/**"),
+		fullyCoveredTriggers("go/internal/query/**"),
 	)
 
 	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
@@ -103,7 +135,59 @@ func TestValidatorGateTriggerCoverage_MissingSpecAnchorReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
-	mustContainFinding(t, findings, FindingGateTriggerGap, "specs/evidence-continuity.v1.yaml itself")
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects specs/evidence-continuity.v1.yaml")
+}
+
+// TestValidatorGateTriggerCoverage_MissingCapabilityMatrixAnchorReported pins
+// the anchors that were missing. ValidateRepository reads the capability matrix
+// and its fragments as well as the contract spec, but only the contract was
+// anchored, so a trigger set that dropped `specs/capability-matrix/**` passed
+// this check green. A capability-id rename would then surface as
+// `unknown_capability` on an unrelated pull request instead of here -- the
+// blind-spot class this gate exists to close, re-opened one input over.
+//
+// The fixture covers the contract spec deliberately, so the only thing that can
+// produce a finding is the capability-matrix anchor: a test that left both
+// uncovered would pass on the contract's finding alone and prove nothing about
+// the new ones.
+func TestValidatorGateTriggerCoverage_MissingCapabilityMatrixAnchorReported(t *testing.T) {
+	covered := []string{
+		"go/internal/query/**",
+		"specs/evidence-continuity.v1.yaml",
+	}
+	root := writeGateTriggerFixture(t, covered, covered)
+
+	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects specs/capability-matrix.v1.yaml")
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects specs/capability-matrix/")
+
+	for _, f := range findings {
+		if strings.Contains(f.Message, "selects specs/evidence-continuity.v1.yaml") {
+			t.Fatalf("contract spec is covered by the fixture yet still reported: %s", f.Message)
+		}
+	}
+}
+
+// TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored is the totality
+// half: every path in validatorInputAnchors must actually be checked. Asserting
+// two named findings would still pass if a third anchor were added to the list
+// and never consulted, which is how an anchor list quietly becomes decorative.
+func TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored(t *testing.T) {
+	root := writeGateTriggerFixture(t, []string{"go/internal/query/**"}, []string{"go/internal/query/**"})
+
+	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	if len(validatorInputAnchors) == 0 {
+		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	}
+	for _, anchor := range validatorInputAnchors {
+		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+anchor)
+	}
 }
 
 func TestValidatorGateTriggerCoverage_UncoveredWorkflowFilterReported(t *testing.T) {
@@ -142,8 +226,8 @@ func TestValidatorGateTriggerCoverage_FilenameNarrowedGlobRejected(t *testing.T)
 func TestValidatorGateTriggerCoverage_TestFileGlobAccepted(t *testing.T) {
 	root := writeGateTriggerFixture(
 		t,
-		[]string{"go/internal/query/*_test.go", "specs/evidence-continuity.v1.yaml"},
-		[]string{"go/internal/query/**", "specs/evidence-continuity.v1.yaml"},
+		fullyCoveredTriggers("go/internal/query/*_test.go"),
+		fullyCoveredTriggers("go/internal/query/**"),
 	)
 
 	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())

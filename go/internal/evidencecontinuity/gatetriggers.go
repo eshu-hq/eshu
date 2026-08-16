@@ -25,11 +25,28 @@ const evidenceContinuityGateID = "evidence-continuity"
 const evidenceFilterKey = "evidence"
 
 // contractSpecPath is the repo-relative path of the evidence-continuity
-// matrix. It must stay a trigger on both sides: every blind spot this check
-// guards against is created by editing this file, so the spec being in the
-// trigger set is the anchor that guarantees the check runs on the edit that
-// would create the blindness.
+// matrix. It must stay a trigger on both sides, because an edit to it can
+// create a trigger blind spot, so having it in the trigger set guarantees the
+// check runs on the edit that would create the blindness.
 const contractSpecPath = "specs/evidence-continuity.v1.yaml"
+
+// validatorInputAnchors are every file family ValidateRepository reads whose
+// edit could invalidate a result this gate reports. The contract spec is the
+// obvious one; the capability matrix and its fragments are the ones that were
+// missed, and they are read through LoadSurfaceIndex -> loadCapabilities on
+// the same code path. Anchoring only the contract left a capability-id rename
+// able to pass this gate green and surface later as `unknown_capability` on an
+// unrelated pull request -- the exact blind-spot class the gate exists to
+// close, re-opened one input over.
+//
+// The fragment entry is a representative path rather than a glob: the check
+// asks whether the trigger globs would select a file in that directory, so any
+// name under it answers the question.
+var validatorInputAnchors = []string{
+	contractSpecPath,
+	"specs/capability-matrix.v1.yaml",
+	"specs/capability-matrix/a.yaml",
+}
 
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can
 // see every file whose edit could invalidate the contract's `go test` proof
@@ -83,12 +100,15 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 				),
 			})
 		}
-		if !oneGlobMatchesAll(side.globs, []string{contractSpecPath}) {
+		for _, anchor := range validatorInputAnchors {
+			if oneGlobMatchesAll(side.globs, []string{anchor}) {
+				continue
+			}
 			findings = append(findings, Finding{
 				Kind: FindingGateTriggerGap,
 				Message: fmt.Sprintf(
-					"no %s selects %s itself; the spec edit that could create a trigger blind spot must always run this gate",
-					label, contractSpecPath,
+					"no %s selects %s, which ValidateRepository reads; an edit there could create a trigger blind spot and must always run this gate",
+					label, anchor,
 				),
 			})
 		}
