@@ -57,7 +57,7 @@ func deployableUnitFamilyExpectedEdgesPath(repoRoot string) string {
 // endpoint identity; running the real resolver closes that gap for the
 // resolved-relationship input too.
 func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
-	expected, err := LoadExpectedEdges(expectedEdgesPath)
+	expected, err := LoadExpectedEdges(expectedEdgesPath, "deployable_unit_edges")
 	if err != nil {
 		return false, err.Error()
 	}

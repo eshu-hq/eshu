@@ -32,9 +32,15 @@
 #   - CrossRepoRelationshipHandler.Resolve (go/internal/reducer/
 #     cross_repo_resolution.go), which deployment_mapping's handler calls,
 #     gates itself on a GraphProjectionPhaseBackwardEvidenceCommitted
-#     readiness row. The ONLY writer of that row is
-#     writeDeferredBackfillBatch (go/internal/storage/postgres/
-#     ingestion_backfill.go), reachable only through
+#     readiness row. As of #6136, the ONLY writer of that row is
+#     publishDeferredBackfillPartition (go/internal/storage/postgres/
+#     ingestion_backfill_pool.go) -- writeDeferredBackfillBatch (same
+#     package, ingestion_backfill.go) deliberately publishes NOTHING
+#     partition-wide any more; it only persists evidence and returns the
+#     partitions it contributed to, and the caller's separate fan-in step
+#     (publishDeferredBackfillPartition, re-reading the active generation
+#     under a fresh lock) publishes readiness once every batch of the pass
+#     has committed. Still reachable only through
 #     BackfillAllRelationshipEvidence, called only from cmd/ingester and
 #     cmd/bootstrap-index. eshu-reducer's own per-commit backfill path
 #     (runPostCommitRelationshipBackfill, ingestion.go) persists evidence but
@@ -228,10 +234,12 @@ ifa_deployable_unit_live_assert_empty_before_maintenance() {
 # constraint: it is a bash substring comparison, not another `rg` call.
 #
 # The "gated" branch below also names one otherwise-silent cause: the
-# deferred-backfill fan-in (publishDeferredBackfillPartition /
-# writeDeferredBackfillBatch, go/internal/storage/postgres/
-# ingestion_backfill_pool.go) can decline to publish a partition and still
-# exit zero, logging deferred_backfill_fanin_partition_skipped=true with a
+# deferred-backfill fan-in (publishDeferredBackfillPartition,
+# go/internal/storage/postgres/ingestion_backfill_pool.go -- NOT
+# writeDeferredBackfillBatch, ingestion_backfill.go, which as of #6136
+# deliberately publishes nothing partition-wide) can decline to publish a
+# partition and still exit zero, logging
+# deferred_backfill_fanin_partition_skipped=true with a
 # reason (e.g. "generation_advanced_since_batch") instead of an error. When
 # that fires, the readiness row this family depends on never gets published,
 # CrossRepoRelationshipHandler.Resolve still logs "started" (it always does

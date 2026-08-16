@@ -45,7 +45,7 @@ func TestDeployableUnitFamilyCoversAllRegistryTypes(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	expectedEdges, err := LoadExpectedEdges(deployableUnitFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(deployableUnitFamilyExpectedEdgesPath(repoRoot), "deployable_unit_edges")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}

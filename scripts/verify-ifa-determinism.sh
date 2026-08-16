@@ -4,14 +4,13 @@
 # determinism matrix"). Drives the SAME unmodified demo-org GCP cassette
 # (testdata/cassettes/gcpcloud/supply-chain-demo.json) PLUS a generated
 # multi-scope synthetic GCP cassette (go/internal/synth/gcp.GenerateMultiScope
-# via `ifa synth-cassette`, slice 6b) through `eshu-ifa drive -workers N` for
-# N in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + NornicDB
-# Compose stack (`docker compose down -v` between every cell — no state, no
-# volume, no container survives from one N to the next), drains the
-# projector/reducer to the exact B-12 residual bound
-# scripts/verify-ifa-replay-drive.sh already proves via
-# `eshu-golden-corpus-gate -phase=drains`, then canonicalizes the resulting
-# graph with `ifa graph-dump` (go/internal/ifa/graphdump.Canonicalize, a
+# via `ifa synth-cassette`, slice 6b) through `eshu-ifa drive -workers N` for N
+# in {1, 2, 4}, each against an INDEPENDENT, FRESH Postgres + NornicDB Compose
+# stack (`docker compose down -v` between every cell — no state, no volume, no
+# container survives from one N to the next), drains the projector/reducer to the
+# exact B-12 residual bound scripts/verify-ifa-replay-drive.sh already proves via
+# `eshu-golden-corpus-gate -phase=drains`, then canonicalizes the resulting graph
+# with `ifa graph-dump` (go/internal/ifa/graphdump.Canonicalize, a
 # content-addressed, order-independent byte form — see that package's doc.go).
 #
 # Why both cassettes: the demo-org cassette alone has exactly one scope and
