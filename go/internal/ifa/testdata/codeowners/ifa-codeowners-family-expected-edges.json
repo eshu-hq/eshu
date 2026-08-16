@@ -1,0 +1,50 @@
+{
+  "odu": "odu:ifa-codeowners-family",
+  "edges": [
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs",
+      "identity": {
+        "pattern": "*.md",
+        "source_path": ".github/CODEOWNERS"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/backend",
+      "identity": {
+        "pattern": "*.go",
+        "source_path": ".github/CODEOWNERS"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs",
+      "identity": {
+        "pattern": "*.go",
+        "source_path": ".github/CODEOWNERS"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/docs",
+      "identity": {
+        "pattern": "docs/**",
+        "source_path": ".github/CODEOWNERS"
+      }
+    },
+    {
+      "relationship_type": "DECLARES_CODEOWNER",
+      "source_entity_id": "repo-ifa-codeowners-family",
+      "target_entity_id": "@org/infra",
+      "identity": {
+        "pattern": "*.py",
+        "source_path": "docs/CODEOWNERS"
+      }
+    }
+  ]
+}

@@ -246,8 +246,12 @@ func assertMaterializedEdges(
 			case toUID == "" && fromUID != "":
 				missing = "target"
 			}
+			// Name every identity endpointID actually tries, including the
+			// CodeownerTeam-scoped ref. Naming only uid and id sends the
+			// operator of a DECLARES_CODEOWNER regression looking for two
+			// properties the node is never keyed by.
 			endpointErrs = append(endpointErrs, fmt.Sprintf(
-				"%s edge whose %s endpoint carries neither uid nor id (from=%q to=%q) — an unmaterialized endpoint node",
+				"%s edge whose %s endpoint carries neither uid, id, nor (for a CodeownerTeam endpoint) ref (from=%q to=%q) — an unmaterialized endpoint node",
 				edge.Type, missing, fromUID, toUID,
 			))
 			return nil
