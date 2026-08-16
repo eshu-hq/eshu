@@ -182,6 +182,78 @@ func TestFactStoreListFactsByKindSplitsFirstAndCursorPages(t *testing.T) {
 	}
 }
 
+// The payload-value loader carries its own cursor parameters at different
+// positions ($6/$7 cursor, $8 limit) than ListFactsByKind ($4/$5, $6). Its
+// query text is asserted above, but text alone would not catch the arg slice
+// being built in the wrong order at the call site: the statement would be
+// valid, the types would line up, and the cursor would silently be wrong.
+func TestFactStoreListFactsByKindAndPayloadValueSplitsFirstAndCursorPages(t *testing.T) {
+	t.Parallel()
+
+	firstPage := makeConstantObservedAtFactRows(factBatchSize, 0)
+	secondPage := makeConstantObservedAtFactRows(3, factBatchSize)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: firstPage},
+			{rows: secondPage},
+		},
+	}
+	store := NewFactStore(db)
+
+	loaded, err := store.ListFactsByKindAndPayloadValue(
+		context.Background(),
+		"scope-123",
+		"generation-456",
+		"content_entity",
+		"repo_id",
+		[]string{"repo-1"},
+	)
+	if err != nil {
+		t.Fatalf("ListFactsByKindAndPayloadValue() error = %v, want nil", err)
+	}
+	if got, want := len(loaded), factBatchSize+3; got != want {
+		t.Fatalf("ListFactsByKindAndPayloadValue() len = %d, want %d", got, want)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+
+	first := db.queries[0]
+	if strings.Contains(first.query, "observed_at, fact_id) >") {
+		t.Fatalf("first page used the cursor query:\n%s", first.query)
+	}
+	if got, want := len(first.args), 6; got != want {
+		t.Fatalf("first page arg count = %d, want %d", got, want)
+	}
+	if got, want := first.args[5], factBatchSize; got != want {
+		t.Fatalf("first page limit arg = %v, want %d", got, want)
+	}
+
+	second := db.queries[1]
+	if !strings.Contains(second.query, "(observed_at, fact_id) > ($6::timestamptz, $7::text)") {
+		t.Fatalf("cursor page missing row comparison:\n%s", second.query)
+	}
+	if got, want := len(second.args), 8; got != want {
+		t.Fatalf("cursor page arg count = %d, want %d", got, want)
+	}
+	// Positions matter as much as presence.
+	if got, want := second.args[2], "content_entity"; got != want {
+		t.Fatalf("cursor page fact kind arg = %v, want %v", got, want)
+	}
+	if got, want := second.args[3], "repo_id"; got != want {
+		t.Fatalf("cursor page payload key arg = %v, want %v", got, want)
+	}
+	if got, want := second.args[5], loaded[factBatchSize-1].ObservedAt; got != want {
+		t.Fatalf("cursor page timestamp arg = %v, want %v", got, want)
+	}
+	if got, want := second.args[6], loaded[factBatchSize-1].FactID; got != want {
+		t.Fatalf("cursor page fact ID arg = %v, want %v", got, want)
+	}
+	if got, want := second.args[7], factBatchSize; got != want {
+		t.Fatalf("cursor page limit arg = %v, want %d", got, want)
+	}
+}
+
 // A generation whose facts all share one observed_at is the shape that made
 // pagination quadratic; the split must still walk it to completion without
 // dropping or repeating a row.
