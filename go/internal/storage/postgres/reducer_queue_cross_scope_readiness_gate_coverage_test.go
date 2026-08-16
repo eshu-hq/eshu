@@ -12,7 +12,7 @@ import (
 )
 
 // TestReducerContentionPostgresProofsRunInTheReducerContentionGate is the
-// hermetic enrollment guard for the three live PostgreSQL proofs, and it exists
+// hermetic enrollment guard for the live PostgreSQL proofs, and it exists
 // because a DSN-gated test that quietly skips in CI proves nothing there.
 //
 // The live proofs need real PostgreSQL, so they skip on a developer machine
@@ -35,7 +35,7 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
-		t.Fatalf("%s no longer names this three-proof enrollment guard; update the guard reference in lockstep", workflowPath)
+		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
 
 	runFilter := reducerContentionGateRunFilter(t, string(workflow))
@@ -47,6 +47,15 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
 		"TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound",
+		"TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition",
+		"TestDeferredBackfillDistinctScopesPublishOneRowEach",
+		"TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails",
+		"TestDeferredBackfillWithholdsPublicationWhenSiblingBatchCanceled",
+		"TestDeferredBackfillPublishesOncePerPartitionAcrossBatches",
+		"TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced",
+		"TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable",
+		"TestDeferredBackfillCrashBetweenBatchesAndFanInConverges",
+		"TestFanInActiveGenerationMatchesCorpusLoader",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

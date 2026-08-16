@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,9 +26,76 @@ type latencyBackfillDB struct {
 	stmtLatency   time.Duration
 }
 
-func (db *latencyBackfillDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	time.Sleep(db.stmtLatency)
-	return &queueFakeRows{rows: db.activeGenRows}, nil
+	rows, err := db.rowsFor(query, args)
+	if err != nil {
+		return nil, err
+	}
+	return &queueFakeRows{rows: rows}, nil
+}
+
+// rowsFor answers with the column shape the requested query actually scans, and
+// refuses anything it does not recognize.
+//
+// Column arity differs per query and the compiler cannot see it: the corpus-wide
+// active-generation load scans three columns (repo_id, scope_id, generation_id),
+// the fan-in's per-scope re-read (loadActiveGenerationForScope) scans one, and
+// the fan-in's ArgoCD probe (listArgoCDBearingPartitionsQuery) scans two. A stub
+// that answers everything with activeGenRows compiles and fails only when a
+// benchmark executes, as "scan destination count = N, want 3".
+//
+// The default arm therefore ERRORS rather than guessing. The probe in particular
+// is unreached today only because every benchmark here passes an empty
+// catalogFingerprint, which skips the memo write that would issue it -- so the
+// first person to benchmark the fan-in's real cost, which requires a non-empty
+// fingerprint precisely to measure that probe, gets a named error telling them
+// what to add instead of a confusing arity mismatch.
+func (db *latencyBackfillDB) rowsFor(query string, args []any) ([][]any, error) {
+	switch {
+	case strings.HasPrefix(query, activeRepositoryGenerationsQuery):
+		return db.activeGenRows, nil
+	case strings.HasPrefix(query, activeScopeGenerationQuery):
+		return db.activeGenerationRowFor(args), nil
+	default:
+		return nil, fmt.Errorf(
+			"latencyBackfillDB: unrecognized query, add its column shape to rowsFor before benchmarking this path: %s",
+			firstLine(query),
+		)
+	}
+}
+
+// activeGenerationRowFor projects the seeded (repo_id, scope_id, generation_id)
+// rows down to the single generation column loadActiveGenerationForScope scans,
+// for the scope bound as $1.
+func (db *latencyBackfillDB) activeGenerationRowFor(args []any) [][]any {
+	if len(args) == 0 {
+		return nil
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil
+	}
+	for _, row := range db.activeGenRows {
+		if len(row) < 3 {
+			continue
+		}
+		if rowScope, ok := row[1].(string); ok && rowScope == scopeID {
+			return [][]any{{row[2]}}
+		}
+	}
+	return nil
+}
+
+// firstLine trims a SQL constant to its first non-blank line so the error names
+// the query without pasting the whole statement.
+func firstLine(query string) string {
+	for _, line := range strings.Split(query, "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return trimmed
+		}
+	}
+	return "(empty query)"
 }
 
 func (db *latencyBackfillDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -40,9 +109,13 @@ func (db *latencyBackfillDB) Begin(context.Context) (Transaction, error) {
 
 type latencyBackfillTx struct{ db *latencyBackfillDB }
 
-func (tx *latencyBackfillTx) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	time.Sleep(tx.db.stmtLatency)
-	return &queueFakeRows{rows: tx.db.activeGenRows}, nil
+	rows, err := tx.db.rowsFor(query, args)
+	if err != nil {
+		return nil, err
+	}
+	return &queueFakeRows{rows: rows}, nil
 }
 
 func (tx *latencyBackfillTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {

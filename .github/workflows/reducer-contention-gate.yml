@@ -86,7 +86,28 @@ jobs:
         # while waiting, and convergence on producer activation or the elapsed
         # bound. A fake queue cannot establish any of it, which is why these live
         # here rather than beside the handler tests.
+        # TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition
+        # and TestDeferredBackfillDistinctScopesPublishOneRowEach run
+        # the deferred-backfill shared-partition dup-key proofs: two repositories
+        # sharing one (scope, generation) partition must publish exactly one
+        # graph_projection_phase_state row and one deferred_backfill_partition_memo
+        # row (not one per repo), while two repositories in distinct partitions
+        # must still publish one row each. The regression is a real Postgres
+        # ON CONFLICT DO UPDATE rejection (SQLSTATE 21000) when the batch upsert
+        # carries duplicate conflict keys -- no fake DB enforces that constraint,
+        # so this needs real Postgres too.
+        # TestDeferredBackfillWithholdsPublication*, TestDeferredBackfillFanIn*,
+        # TestDeferredBackfillCrashBetweenBatchesAndFanInConverges, and
+        # TestFanInActiveGenerationMatchesCorpusLoader run the fan-in publication
+        # proofs: a partition spans several evidence batches, so readiness and
+        # the durable partition memo must be published only after every batch
+        # commits, must be withheld entirely when a batch fails or is canceled,
+        # and must be withheld for a generation that advanced mid-pass. A memo
+        # row written for a half-committed partition suppresses that partition's
+        # fact load on every later pass, so the failure is durable rather than
+        # transient -- and only real Postgres transactions, real rollbacks, and
+        # real advisory locks reproduce it.
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
-        # the hermetic guard that keeps all three live PostgreSQL proofs inside
-        # the -run filter below.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate)' -race -count=1 -timeout 180s -v
+        # the hermetic guard that keeps all five live PostgreSQL proof families
+        # inside the -run filter below.
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader)' -race -count=1 -timeout 180s -v

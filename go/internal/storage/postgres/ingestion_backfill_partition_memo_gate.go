@@ -43,9 +43,21 @@ import (
 // it never matches the empty struct keys. The jsonb_typeof guards keep the array
 // checks safe when the field is null or a scalar rather than an array.
 //
-// This is a lightweight probe (one row per matching partition, no payload
-// projected) run only over the partitions being committed in a pass (the
-// write-side memo candidates), not the whole corpus.
+// The probe projects one row per matching partition and no payload, and its
+// fact_records access is restricted to the caller's candidate partitions — one
+// partition per fan-in publication transaction
+// (publishDeferredBackfillPartition), never the whole corpus.
+//
+// It is not free, though, and the fan-in made it less so. The shared
+// latestGenerationCTE this query is built on carries no scope filter, so it is
+// evaluated corpus-wide on EVERY call: the candidate join restricts fact_records,
+// not the CTE. Measured at 910 scopes / 10,920 generations that is 2.34 ms per
+// call, and the fan-in calls it once per partition instead of once per batch
+// (~910 calls carrying one candidate, rather than ~29 carrying 32), so the CTE
+// now runs roughly 31x more often — about 2 s of aggregate CPU per pass. That
+// cost is accepted to keep the check inside the transaction whose memo write it
+// gates; the measurement and the rejected hoisting alternative are in
+// docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md.
 const listArgoCDBearingPartitionsQuery = latestGenerationCTE + `
 SELECT DISTINCT fact.scope_id, fact.generation_id
 FROM fact_records AS fact
@@ -142,9 +154,15 @@ type deferredPartitionMemoGateResult struct {
 // re-detection scan over every skip candidate would re-serialize the payloads
 // the memo exists to avoid touching).
 //
-// A partition with no memo row (bootstrap, never-before-committed, or
-// ArgoCD-bearing) is a miss and always loads, matching the legacy full-load
-// contract exactly when the memo table is empty.
+// A partition with no memo row is a miss and always loads, matching the legacy
+// full-load contract exactly when the memo table is empty. The causes are
+// bootstrap, never-before-committed, ArgoCD-bearing, and — since publication
+// moved into the fan-in — a pass that committed the partition's evidence but
+// withheld publication, because a sibling batch failed or was canceled, the
+// fan-in itself failed, the generation advanced under it, or the process died
+// before the fan-in ran. That last group is the recoverable direction the fan-in
+// depends on: the evidence is durable, the reload re-derives it, and the
+// re-upsert is a content-addressed no-op.
 func applyDeferredPartitionMemoGate(
 	ctx context.Context,
 	memoStore *deferredBackfillPartitionMemoStore,
@@ -189,13 +207,27 @@ func applyDeferredPartitionMemoGate(
 }
 
 // writeDeferredBackfillPartitionMemos upserts the memo rows for the partitions
-// whose backward evidence just committed in the SAME transaction (tx), EXCLUDING
-// any ArgoCD-bearing partition so the memo table never claims completion for a
-// partition the pass must always reload (see listArgoCDBearingPartitionsQuery).
-// The ArgoCD-bearing check is one batched query over the transaction's own
-// committed candidate set — never the whole corpus — and runs inside the same
-// transaction as the phase-row publish so it observes a consistent snapshot with
-// the evidence write it is gating.
+// the caller is publishing, EXCLUDING any ArgoCD-bearing partition so the memo
+// table never claims completion for a partition the pass must always reload
+// (see listArgoCDBearingPartitionsQuery).
+//
+// It runs inside the fan-in publication transaction
+// (publishDeferredBackfillPartition), NOT inside an evidence batch. The memo row
+// therefore commits atomically with that partition's phase row, and both commit
+// strictly AFTER every evidence batch contributing to the partition has already
+// committed in its own earlier transaction. A memo row consequently never exists
+// without complete evidence and readiness behind it. The reverse — committed
+// evidence with no memo row — is the tolerated, self-healing direction: such a
+// partition is a gate MISS in applyDeferredPartitionMemoGate and reloads on the
+// next pass.
+//
+// The ArgoCD-bearing check is one batched query over the caller's candidate set
+// — never the whole corpus — and runs in this transaction so it observes a
+// snapshot consistent with the MEMO WRITE it gates. That is deliberately not the
+// evidence write's snapshot, which is earlier: a partition that became
+// ArgoCD-bearing between its evidence commit and this transaction is seen as
+// bearing here and denied a memo row, which is the safe direction, because a
+// missing memo only costs a reload.
 func writeDeferredBackfillPartitionMemos(
 	ctx context.Context,
 	tx Transaction,

@@ -108,6 +108,17 @@ func (tx *advisoryLockTx) Rollback() error {
 // acquisition and release are observable. It tracks the peak number of repo
 // exclusive locks held simultaneously so a test can prove the whole-corpus pass
 // never holds a fleet-wide lock set.
+//
+// Note for anyone adding or reordering a query on this path: QueryContext here
+// is FIFO over snapshotRows and ignores the query string, so its correctness
+// depends on the ORDER of reads on the outer handle, not on their shape -- and
+// once the staged list is exhausted it returns an empty result set rather than
+// an error. A change that inserts a snapshot read, or reorders two, makes this
+// fake mis-answer silently instead of failing. That is a different failure mode
+// from the column-arity mismatch a shape change causes in the per-query stubs
+// (see latencyBackfillDB in ingestion_backfill_bench_test.go), and it is not
+// caught by running the benchmarks. Stage a matching row set and assert the
+// call order when you touch the sequence.
 type lockAwareMaintenanceDB struct {
 	mgr              *advisoryLockManager
 	snapshotRows     []*queueFakeRows
@@ -191,8 +202,17 @@ func (tx *lockAwareMaintenanceTx) ExecContext(_ context.Context, query string, a
 	return fakeResult{}, nil
 }
 
-func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	switch {
+	case strings.HasPrefix(query, activeScopeGenerationQuery):
+		// The fan-in publication transaction's under-lock re-read of ONE scope's
+		// active generation. Answering it from the same batchActiveGens the batch
+		// reload uses keeps the partition live, so the fan-in publishes and its
+		// advisory locks are exercised on the publish path rather than on an
+		// early skip. It deliberately does NOT trip the cohort barrier: the
+		// barrier exists to force the concurrent BATCH peak, and the fan-in runs
+		// after every batch has committed.
+		return &queueFakeRows{rows: tx.db.activeGenerationRowFor(args)}, nil
 	case strings.Contains(query, "fact_kind = 'repository'") && !tx.gensServed:
 		tx.gensServed = true
 		// This per-batch active-generations reload runs AFTER the batch has
@@ -210,6 +230,29 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 		return &queueFakeRows{rows: tx.db.succeededWorkIDs}, nil
 	}
 	return &queueFakeRows{}, nil
+}
+
+// activeGenerationRowFor projects batchActiveGens down to the single generation
+// column loadActiveGenerationForScope scans, for the scope bound as $1. An
+// unknown scope yields no rows, matching Postgres for a scope with no
+// generation.
+func (db *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {
+	if len(args) == 0 {
+		return nil
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil
+	}
+	for _, row := range db.batchActiveGens {
+		if len(row) < 3 {
+			continue
+		}
+		if rowScope, ok := row[1].(string); ok && rowScope == scopeID {
+			return [][]any{{row[2]}}
+		}
+	}
+	return nil
 }
 
 func (tx *lockAwareMaintenanceTx) Commit() error {

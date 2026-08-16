@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,9 +55,50 @@ type concurrencyProbeTx struct {
 	gens [][]any
 }
 
-func (tx *concurrencyProbeTx) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (tx *concurrencyProbeTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+	if strings.HasPrefix(query, listArgoCDBearingPartitionsQuery) {
+		// The memo-write path's ArgoCD-bearing-partition probe (only reached
+		// when a caller supplies a non-blank catalogFingerprint) expects a
+		// 2-column (scope_id, generation_id) row shape, not the 3-column
+		// active-generation shape below. No caller of this fake seeds an
+		// ArgoCD-bearing fixture, so every candidate partition is treated as
+		// non-bearing (empty result set) here.
+		return &queueFakeRows{}, nil
+	}
+	if strings.HasPrefix(query, activeScopeGenerationQuery) {
+		// The fan-in's under-lock generation re-read
+		// (loadActiveGenerationForScope) is a single-column lookup for ONE
+		// scope. Answer it from the same seeded rows the batch re-read uses so
+		// the fake never reports a generation the batch did not observe, which
+		// would make every partition look advanced and silently publish
+		// nothing.
+		return &queueFakeRows{rows: tx.activeGenerationRowsForScope(args)}, nil
+	}
 	// Each batch re-reads active generations under its lock.
 	return &queueFakeRows{rows: tx.gens}, nil
+}
+
+// activeGenerationRowsForScope projects the seeded (repo, scope, generation)
+// rows down to the single generation column loadActiveGenerationForScope scans,
+// filtered to the scope bound as $1. An unknown scope yields no rows, matching
+// Postgres for a scope with no generation.
+func (tx *concurrencyProbeTx) activeGenerationRowsForScope(args []any) [][]any {
+	if len(args) == 0 {
+		return nil
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil
+	}
+	for _, row := range tx.gens {
+		if len(row) < 3 {
+			continue
+		}
+		if rowScope, ok := row[1].(string); ok && rowScope == scopeID {
+			return [][]any{{row[2]}}
+		}
+	}
+	return nil
 }
 
 func (tx *concurrencyProbeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -118,12 +160,16 @@ func TestWriteDeferredBackfillInBatchesRunsConcurrently(t *testing.T) {
 		t.Fatalf("published %d readiness rows, want %d", readiness, repoCount)
 	}
 
+	// Every repository owns its own scope, so the pass opens one transaction per
+	// evidence batch plus one fan-in publication transaction per partition.
 	wantBatches := repoCount / 4
-	if probe.beginCount != wantBatches {
-		t.Fatalf("opened %d batch transactions, want %d", probe.beginCount, wantBatches)
+	wantTransactions := wantBatches + repoCount
+	if probe.beginCount != wantTransactions {
+		t.Fatalf("opened %d transactions, want %d (%d evidence batches + %d fan-in publications)",
+			probe.beginCount, wantTransactions, wantBatches, repoCount)
 	}
-	if probe.committed != wantBatches {
-		t.Fatalf("committed %d batch transactions, want %d", probe.committed, wantBatches)
+	if probe.committed != wantTransactions {
+		t.Fatalf("committed %d transactions, want %d", probe.committed, wantTransactions)
 	}
 	if probe.peakOpen <= 1 {
 		t.Fatalf("peak concurrent batch transactions = %d, want > 1 (batches must run concurrently)", probe.peakOpen)

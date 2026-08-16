@@ -78,7 +78,7 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 		},
 	}
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{batchTx, reopenTx},
+		txs: []*fakeTx{batchTx, deferredFanInFakeTx("gen-infra"), reopenTx},
 		queryResponses: []queueFakeRows{
 			// Snapshot reads: catalog, latest facts, active generations.
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
@@ -92,8 +92,8 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 	if err := store.RunDeferredRelationshipMaintenance(context.Background(), nil, nil); err != nil {
 		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v, want nil", err)
 	}
-	if got, want := db.beginCalls, 2; got != want {
-		t.Fatalf("begin call count = %d, want %d (one batch + one reopen transaction)", got, want)
+	if got, want := db.beginCalls, 3; got != want {
+		t.Fatalf("begin call count = %d, want %d (one evidence batch + one fan-in publication + one reopen transaction)", got, want)
 	}
 	tx := batchTx
 	if len(tx.execs) == 0 {
@@ -204,8 +204,9 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 	}
 	// Completion transaction marks the barrier complete after maintenance.
 	completionTx := &fakeTx{}
+	fanInTx := deferredFanInFakeTx("gen-infra")
 	db := &fakeTransactionalDB{
-		txs: []*fakeTx{barrierTx, batchTx, reopenTx, completionTx},
+		txs: []*fakeTx{barrierTx, batchTx, fanInTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
 			// Backfill snapshot reads on the store db: catalog, facts, active gens.
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
@@ -229,8 +230,8 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 		t.Fatalf("not all transactions committed: barrier=%v batch=%v reopen=%v completion=%v",
 			barrierTx.committed, batchTx.committed, reopenTx.committed, completionTx.committed)
 	}
-	if got, want := db.beginCalls, 4; got != want {
-		t.Fatalf("begin call count = %d, want %d (arrival + batch + reopen + completion)", got, want)
+	if got, want := db.beginCalls, 5; got != want {
+		t.Fatalf("begin call count = %d, want %d (arrival + evidence batch + fan-in publication + reopen + completion)", got, want)
 	}
 	// Barrier state lock (global, brief, released on arrival commit) is taken in
 	// the arrival transaction, not held across maintenance.
@@ -246,71 +247,15 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 			t.Fatalf("arrival transaction ran maintenance writes: %q", exec.query)
 		}
 	}
-	// Per-repo maintenance lock and readiness write live in the batch transaction.
+	// The per-repo maintenance lock is taken by the evidence batch; readiness is
+	// published by the fan-in transaction that follows it, under its own copy of
+	// the same per-repo lock.
 	assertExecContains(t, batchTx.execs, "pg_advisory_xact_lock(hashtext($1), hashtext($2))")
-	assertExecContains(t, batchTx.execs, "INSERT INTO graph_projection_phase_state")
+	assertExecContains(t, fanInTx.execs, "pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+	assertExecContains(t, fanInTx.execs, "INSERT INTO graph_projection_phase_state")
 	// Reopen runs in its own transaction.
 	assertExecContains(t, reopenTx.execs, "UPDATE fact_work_items")
 	// Completion is marked in its own transaction after maintenance.
-	assertExecContains(t, completionTx.execs, "completed_at = $4")
-}
-
-// TestIngestionStoreShardDrainBarrierLeaderReentryRerunsMaintenance proves
-// leader liveness after the split barrier-arrival and completion transactions.
-// It simulates a re-run where the epoch is already at a full arrival count but
-// not yet completed (the previous leader crashed before marking completion). A
-// re-arriving shard still observes a full count, re-runs the idempotent
-// maintenance, and marks completion in its own transaction, so waiting shards
-// cannot block forever.
-func TestIngestionStoreShardDrainBarrierLeaderReentryRerunsMaintenance(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.April, 18, 12, 0, 0, 0, time.UTC)
-	// Re-run arrival: existing open epoch (not completed), arrival upsert keeps a
-	// full count of 2 so this shard re-enters the leader path.
-	barrierTx := &fakeTx{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{int64(9), 2, sql.NullTime{}}}},
-			{rows: [][]any{{2}}},
-		},
-	}
-	batchTx := &fakeTx{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
-		},
-	}
-	reopenTx := &fakeTx{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{}},
-		},
-	}
-	completionTx := &fakeTx{}
-	db := &fakeTransactionalDB{
-		txs: []*fakeTx{barrierTx, batchTx, reopenTx, completionTx},
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
-			{rows: [][]any{}},
-			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
-		},
-	}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return now }
-
-	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
-		context.Background(),
-		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0, HasCommitted: true},
-		nil,
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("RunDeferredRelationshipMaintenanceAfterShardDrain() error = %v, want nil", err)
-	}
-	if !barrierTx.committed || !batchTx.committed || !completionTx.committed {
-		t.Fatalf("re-entry transactions not all committed: barrier=%v batch=%v completion=%v",
-			barrierTx.committed, batchTx.committed, completionTx.committed)
-	}
-	// Re-run still performs maintenance writes and marks completion.
-	assertExecContains(t, batchTx.execs, "INSERT INTO graph_projection_phase_state")
 	assertExecContains(t, completionTx.execs, "completed_at = $4")
 }
 

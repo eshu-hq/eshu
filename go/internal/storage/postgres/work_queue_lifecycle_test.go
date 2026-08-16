@@ -148,6 +148,12 @@ type fakeExecQueryer struct {
 	// partition concurrently, so the FIFO order is no longer fixed. A scope absent
 	// from the map yields zero rows.
 	deferredFactsByScope map[string][][]any
+
+	// stagedActiveGenerations accumulates the (repo_id, scope_id,
+	// generation_id) rows this fake served for activeRepositoryGenerationsQuery,
+	// so the deferred backfill's per-partition fan-in can re-read a scope's
+	// active generation and get the same answer the batches did.
+	stagedActiveGenerations [][]any
 }
 
 type fakeExecCall struct {
@@ -218,6 +224,19 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{}, nil
 	}
 
+	// The fan-in's under-lock generation re-read (loadActiveGenerationForScope)
+	// is answered from the SAME rows the fixture already staged for the
+	// corpus-wide activeRepositoryGenerationsQuery below, rather than from the
+	// FIFO queue. That is the honest answer for a fake: the fan-in's question is
+	// "is this scope still on the generation the batch committed against", and
+	// the fixture's staged active-generation rows are that corpus's answer. It
+	// also keeps every existing deferred-backfill fixture working without
+	// staging an extra per-partition response, which fixtures could not do
+	// deterministically anyway now that publication fans out concurrently.
+	if strings.HasPrefix(query, activeScopeGenerationQuery) {
+		return &queueFakeRows{rows: f.stagedActiveGenerationRow(args)}, nil
+	}
+
 	if len(f.queryResponses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
@@ -241,8 +260,37 @@ func (f *fakeExecQueryer) QueryContext(
 	if rows.err != nil {
 		return nil, rows.err
 	}
+	if query == activeRepositoryGenerationsQuery {
+		// Remember the corpus's active generations so the fan-in's per-scope
+		// re-read above can answer consistently with what the batches saw.
+		f.stagedActiveGenerations = append(f.stagedActiveGenerations, rows.rows...)
+	}
 
 	return &rows, nil
+}
+
+// stagedActiveGenerationRow projects the (repo_id, scope_id, generation_id)
+// rows a fixture staged for activeRepositoryGenerationsQuery down to the single
+// generation column loadActiveGenerationForScope scans, for the scope bound as
+// $1. An unknown scope yields no rows, matching Postgres for a scope with no
+// generation. The caller holds f.mu.
+func (f *fakeExecQueryer) stagedActiveGenerationRow(args []any) [][]any {
+	if len(args) == 0 {
+		return nil
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil
+	}
+	for _, row := range f.stagedActiveGenerations {
+		if len(row) < 3 {
+			continue
+		}
+		if rowScope, ok := row[1].(string); ok && rowScope == scopeID {
+			return [][]any{{row[2]}}
+		}
+	}
+	return nil
 }
 
 // scopeIDFromDeferredFactArgs extracts the $3 scope_id argument from a

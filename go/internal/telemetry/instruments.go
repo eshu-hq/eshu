@@ -1359,6 +1359,29 @@ type Instruments struct {
 	DeferredBackfillPartitionsSkipped metric.Int64Counter
 	DeferredBackfillPartitionsLoaded  metric.Int64Counter
 
+	// Deferred backfill fan-in publication metrics. The fan-in is a separate
+	// concurrent stage from the evidence batches: it runs after every batch has
+	// committed and opens one transaction per (scope, generation) partition, so
+	// DeferredBackfillDuration -- which covers the whole pass -- cannot separate
+	// its cost from the evidence phase, and the two scale differently.
+	//
+	// These are deliberately NOT the DeferredBackfillPartitionsSkipped /
+	// DeferredBackfillPartitionsLoaded pair above. That pair belongs to the memo
+	// gate on the FACT-LOAD side and answers "did this partition's facts need
+	// reloading". These answer "did this partition's readiness and memo get
+	// published". Folding a fan-in skip into the memo gate's skip counter would
+	// silently blend a publication decision into a fact-load decision and corrupt
+	// the steady-state skip-rate signal the gate counter exists to provide.
+	//
+	// DeferredBackfillFanInPublished and DeferredBackfillFanInSkipped stay
+	// separate counters rather than one counter split by outcome, because
+	// published + skipped accounting for every partition the pass committed
+	// evidence for is the property an operator checks; a shortfall means the
+	// fan-in was cut short rather than that partitions were skipped.
+	DeferredBackfillFanInDuration  metric.Float64Histogram
+	DeferredBackfillFanInPublished metric.Int64Counter
+	DeferredBackfillFanInSkipped   metric.Int64Counter
+
 	// ReopenSkippedByPartitionMemo counts succeeded deployment_mapping and
 	// code_import_repo_edge reducer work items whose replay was skipped because
 	// their (scope_id, generation_id) partition already committed backward
@@ -4464,6 +4487,32 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillPartitionsLoaded counter: %w", err)
+	}
+
+	inst.DeferredBackfillFanInDuration, err = meter.Float64Histogram(
+		"eshu_dp_deferred_backfill_fanin_duration_seconds",
+		metric.WithDescription("Wall time of the deferred backfill's fan-in publication phase, which publishes readiness and the partition memo once per (scope, generation) partition after every evidence batch has committed. Separates publication cost from the evidence phase, which DeferredBackfillDuration subsumes into the whole pass; the two scale differently because the fan-in runs one transaction per partition."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(backfillBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillFanInDuration histogram: %w", err)
+	}
+
+	inst.DeferredBackfillFanInPublished, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_fanin_published_total",
+		metric.WithDescription("Total (scope, generation) partitions whose backward-evidence readiness row and partition memo the fan-in committed. With eshu_dp_deferred_backfill_fanin_skipped_total this accounts for every partition a pass committed evidence for, so published + skipped short of the pass's partition count means the fan-in was cut short."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillFanInPublished counter: %w", err)
+	}
+
+	inst.DeferredBackfillFanInSkipped, err = meter.Int64Counter(
+		"eshu_dp_deferred_backfill_fanin_skipped_total",
+		metric.WithDescription("Total partitions the fan-in declined to publish because the scope's active generation moved between the evidence batch and the publication transaction, labeled by reason (generation_advanced_since_batch when the under-lock re-read disagrees, generation_advanced_since_snapshot when the fact-load snapshot does). Sustained non-zero means ingestion is outrunning the maintenance pass, not that anything failed."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillFanInSkipped counter: %w", err)
 	}
 
 	inst.DeploymentMappingReopened, err = meter.Int64Counter(

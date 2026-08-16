@@ -1479,14 +1479,62 @@ the pass single-flight for `ESHU_POSTGRES_MAX_OPEN_CONNS=1`). All run under `-ra
 
 Benchmark Evidence (concurrency, the long-pole fix): `BenchmarkDeferredBackfill{Serial,Concurrent4,Concurrent8}`
 in `ingestion_backfill_bench_test.go`, 256 repositories at batch size 8 (32
-batches) with a 50 µs per-statement round-trip stand-in, darwin/arm64. Serial
-(1 worker) `40,976,430 ns/op`; 4 workers `10,295,819 ns/op` (3.98x faster); 8
-workers `5,238,341 ns/op` (7.82x faster) — near-linear in worker count, as
-expected for round-trip-bound batch writes. End-to-end wall-time on the de-nested
+batches) with a 50 µs per-statement round-trip stand-in, darwin/arm64. One
+representative run: serial (1 worker) `95,065,912 ns/op`; 4 workers
+`23,205,104 ns/op` (4.10x faster); 8 workers `11,598,673 ns/op` (8.20x faster)
+— near-linear in worker count, as expected for round-trip-bound batch writes. End-to-end wall-time on the de-nested
 896-repo / ~3.5M-fact corpus is measured by the operator's remote validation
 stack (no local corpus of that size); the structural argument is serial → W-way
 concurrent across the independent per-repository batches plus N → ⌈N/500⌉
 evidence-write round-trips.
+
+The absolutes are illustrative, not a target to re-measure against. Across nine
+runs on one loaded developer machine, serial ranged 92.8–118.6 ms — a 1.28x
+spread with no code change between runs — so any band drawn around these numbers
+describes that machine's load at that hour, not this code. Two earlier attempts
+to state one were falsified by the next run; do not add a third.
+
+What IS falsifiable here is the speedup, and that is the claim to test: the
+suite must stay **near-linear in worker count**, meaning roughly 4x at 4 workers
+and 8x at 8, within about ±10% of the worker count. All nine runs sit inside
+that (3.67x–4.34x and 7.72x–8.64x), and the band comes from what "near-linear"
+means rather than from fitting the samples.
+
+What that floor buys, as a number rather than a feeling. Amdahl at 7.2x on 8
+workers admits no more than ~1.59% of total work becoming serial. The fan-in is
+~57% of serial work after this change — pre-fan-in serial 41.0 ms over 32 batch
+transactions, post-fan-in ~95 ms, the ~54 ms difference spread across 256
+partition transactions; counting the 50 µs statements the fake actually sleeps on
+gives 58.5% independently — so serializing ~2.8% of the fan-in trips the gate.
+Modelled with the fan-in's parallelism degraded to W while the batch phase still
+runs at 8: a fully serialized fan-in reads 1.60x, 4-of-8 workers 5.10x, 6-of-8
+6.72x, all caught; 7-of-8 reads 7.40x and is not.
+
+The limit is worth stating alongside the reach. Observed 8-worker ratios span
+7.72x–8.64x against that 7.2x floor, about 7% of margin at the worst run seen, so
+a regression costing a few percent of parallel efficiency can hide inside an
+unlucky one. What this catches reliably is structural — serialized publication, a
+halved connection pool, a lock held across the phase. What it will not catch is a
+small efficiency shave. That is the honest trade for a benchmark on a loaded
+laptop, and it is the whole of what this block promises.
+
+These absolutes replace the pre-fan-in numbers (`40,976,430` / `10,295,819` /
+`5,238,341 ns/op`, 3.98x / 7.82x), and serial is roughly 2.3x–2.9x higher for a structural reason,
+not a regression in the concurrency this section measures: the fixture is 256
+repositories at one repository per scope, so moving publication into the fan-in
+adds 256 per-partition transactions — Begin, advisory locks, generation re-read,
+phase publish, each paying the 50 µs per-statement stand-in — on top of the 32
+batch transactions. The speedups survived that: 3.98x and 7.82x before,
+3.67x–4.34x and 7.72x–8.64x after, still near-linear at both worker counts.
+
+Treat the absolutes as a LOWER BOUND on the fan-in's production cost. The
+benchmark calls `writeDeferredBackfillInBatches` with an empty
+`catalogFingerprint`, which skips the memo write and therefore skips the
+per-partition ArgoCD probe entirely — the probe measured at 2.34 ms per call in
+`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md`. Benchmarking
+the fan-in's real cost requires a non-empty fingerprint, and the benchmark's
+`latencyBackfillDB` deliberately errors on the probe query rather than guessing
+its column shape, so that run fails with a named error until someone adds it.
 
 Performance Evidence (CTE plan shape, supporting cleanup): PostgreSQL 18, fixture
 of 2000 scopes × 3 generations (6000 generation rows, half with an active
@@ -1504,13 +1552,62 @@ whole pass returned, hiding intra-pass progress. `runDeferredBackfillBatches`
 records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
 `eshu_dp_deferred_backfill_batches_completed_total` (counter) per committed
 per-repository batch, and emits a `deferred_backfill_batch_committed batch=N
-total_batches=M repos=R readiness_rows=P duration_s=D workers=W` log line per
+total_batches=M repos=R partitions=Q duration_s=D workers=W` log line per
 batch. A rising `…batches_completed_total` during a pass is the operator-visible
 progress signal for the backfill long pole, and the `workers=W` attribute shows
 the active concurrency; the existing `relationship.backfill_deferred` span and
 `DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still record the
 whole-pass totals. New instruments are registered in
 `internal/telemetry/instruments.go`.
+
+The batch line reports `partitions=Q` rather than a readiness count because
+batches no longer publish readiness; see
+[Deferred backfill fan-in publication](#deferred-backfill-fan-in-publication)
+for the step that does and the `deferred_backfill_fanin_completed` line it emits.
+
+### Deferred backfill fan-in publication
+
+Evidence batches are fixed-size contiguous slices of the repo-ID-sorted corpus,
+so a `(scope_id, generation_id)` partition's repositories routinely land in
+several different batches. Readiness (`graph_projection_phase_state`) and the
+partition memo (`deferred_backfill_partition_memo`) are partition-wide claims,
+not per-repository facts, so they are published by a fan-in step
+(`publishDeferredBackfillPartitions`, `ingestion_backfill_pool.go`) that runs
+only after every batch of the pass has committed — one transaction per
+partition, publishing both rows atomically.
+
+Publishing from inside a batch was wrong in a way that outlived the pass: the
+memo is durable, and a memo row written by a batch that carried only some of a
+partition's repositories claimed the partition's evidence was complete. If a
+sibling batch then failed, `applyDeferredPartitionMemoGate` skipped that
+partition's fact load on every later pass until the catalog fingerprint changed.
+
+The contract the fan-in provides:
+
+- If ANY batch fails or is canceled, the fan-in does not run at all, so nothing
+  is published for any partition.
+- Each fan-in transaction takes the partition's repository advisory locks in the
+  same global sorted order the batches use, re-reads the scope's active
+  generation under those locks (`activeScopeGenerationQuery`), and skips the
+  partition when the generation advanced since the batch committed.
+- A memo row never exists without complete evidence and readiness. The reverse —
+  committed evidence with no memo — is tolerated and self-healing: a partition
+  with no memo row is a gate miss, so the next pass reloads it, re-upserts the
+  same content-addressed evidence as a no-op, and publishes. A process that dies
+  between the last batch commit and the fan-in lands in exactly that state.
+
+Operators see `deferred_backfill_fanin_completed partitions=N published=P
+skipped=S duration_s=D workers=W` once per pass. `skipped=S` counts partitions
+whose generation advanced under the fan-in; the absence of the line after a
+batch phase means the fan-in never ran, which is distinguishable from a fan-in
+that ran and published nothing (`published=0`).
+
+Proofs live in `ingestion_backfill_fanin_publication_test.go` (withholding on a
+failed or canceled sibling batch, publish-once across batches) and
+`ingestion_backfill_fanin_recovery_test.go` (generation advanced mid-pass,
+fan-in failure recovery, the crash window between the last batch and
+publication, and the differential pinning `activeScopeGenerationQuery` against
+the corpus-wide `loadActiveRepositoryGenerations`).
 
 ### Deferred fact-load payload hoist + regex fast arm (#3624)
 
