@@ -12,9 +12,16 @@ cursor `(observed_at, fact_id) > ($4, $5)` under
 Every fact in a generation is stamped with one collection timestamp. On the
 largest repository in the reference corpus that is 241,726 facts sharing a
 single `observed_at` (`count(DISTINCT observed_at) = 1`). The cursor's leading
-column therefore never advances, and `fact_id` was in no index, so no page
-could skip the rows earlier pages had already returned. Each of the 484 pages
-bitmap-scanned all 241,750 matching rows and top-N sorted them.
+column therefore never advances, and no index this query could use carried
+`fact_id` in a position that would bound a page. The table had exactly two
+indexes without a `WHERE` clause: the primary key, which indexes `fact_id`
+alone and so cannot serve a scope- and generation-scoped seek, and
+`fact_records_scope_generation_idx`, which ends at `observed_at` and never
+reaches `fact_id`. Every other index on the table is partial, and this query
+constrains nothing that implies their predicates, so the planner cannot use any
+of them. No page could skip the rows earlier pages had already returned, and
+each of the 484 pages bitmap-scanned all 241,750 matching rows and top-N sorted
+them.
 
 Four reducer domains walk this path once per generation:
 `semantic_entity_materialization`, `sql_relationship`, `inheritance`, and
@@ -204,8 +211,10 @@ Net effect over the reference corpus. Ingesting all 3,642,630 fact rows costs
 the single worst-case generation is 84.12 s to 3.37 s, or 80.8 s — more than
 thirteen times the entire corpus-wide write cost, from one generation. Three further
 per-generation domains (`semantic_entity_materialization`, `sql_relationship`,
-`inheritance`) read through the same path on `main` and gain the same
-improvement without paying anything additional.
+`inheritance`) read through the same path on `main` and get the same fix without
+paying anything additional. How much each gains scales with its own generation
+sizes: at the p50 of 285 facts a load is a single page with no cursor at all, so
+the improvement is a tail effect, not a uniform one.
 
 The write cost is real and worth restating plainly rather than rounding away:
 every fact insert on this table now maintains one more index, forever, and that
