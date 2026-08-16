@@ -102,12 +102,18 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 		})
 	}
 
-	// A scan that read nothing, or walked no selectors, is not evidence.
-	if scanned < 2 {
-		t.Fatalf("scanned only %d production .go files; expected the package's sources", scanned)
+	// A scan that read nothing, or walked no selectors, is not evidence. Both
+	// floors are MEASURED, not estimated: at the time of writing the package
+	// has 2 production files and 46 qualified selectors. They sit below that
+	// with margin so a legitimate refactor does not trip them, and exist only
+	// to fail loudly if the walk stops reaching code -- for instance if someone
+	// switches to parser.ImportsOnly, which stops at the import block and makes
+	// ast.Inspect find nothing while every assertion above passes vacuously.
+	if scanned < 1 {
+		t.Fatalf("scanned %d production .go files; the walk found no sources at all", scanned)
 	}
 	if selectors < 30 {
-		t.Fatalf("walked only %d qualified selectors; the AST walk is not reaching the code", selectors)
+		t.Fatalf("walked only %d qualified selectors (expected ~46); the AST walk is not reaching the code", selectors)
 	}
 	// The equality has two directions. The loop above fails on anything used
 	// but not allowed; this fails on anything allowed but no longer used, so
