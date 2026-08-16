@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Shared codeowners_ownership_edges live-gate helpers (#5992), mirroring
-# scripts/lib/ifa_code_call_live.sh's shape exactly. This file is sourced by
-# the determinism and fault-injection drivers; callers own strict mode and
-# cleanup.
+# scripts/lib/ifa_code_call_live.sh's shape exactly. Callers own strict mode
+# and cleanup.
+#
+# NOT SOURCED YET. The sibling this mirrors carries "this file is sourced by
+# the determinism and fault-injection drivers", which is true there and not
+# here: neither scripts/verify-ifa-determinism.sh nor
+# scripts/verify-ifa-fault-injection.sh references this file or the codeowners
+# cassette, so nothing below has ever executed. Wiring it is the live-proof
+# phase, tracked under #5543.
 
 # ifa_codeowners_drive replays the committed family cassette into one matrix
 # cell. The caller performs the aggregate fact_work_items non-vacuity check.
@@ -23,13 +29,21 @@ ifa_codeowners_drive() {
 # codeowners_family_catalog.go's doc comment names which rule contributes
 # which edge.
 #
-# KNOWN LIMIT (see materialized_edges_codeowners.go and
-# materialized_edges_codeowners_property_gap_test.go, reported to the #5543
-# coordinator): this assertion, like every other family's, is keyed on
-# (relationship_type, source_uid, target_uid) only. It proves the live graph
-# carries the right COUNT of DECLARES_CODEOWNER edges between each (repo,
-# team) pair; it cannot by itself prove which rule's pattern/source_path
-# produced which edge.
+# This assertion is property-aware. assert-edges reads
+# cypher.MaterializedEdgeIdentityProperties for the domain, so a live
+# DECLARES_CODEOWNER edge is keyed on (relationship_type, source, target,
+# pattern, source_path) -- not the bare triple this comment claimed before
+# #6137 widened the mechanism. It proves WHICH rule produced which edge, so a
+# dropped rule masked by an unrelated duplicate is caught rather than netting
+# out in the count.
+#
+# KNOWN LIMIT: a permutation of identity properties among edges sharing one
+# (source, target) pair preserves the multiset and is invisible. Reaching that
+# class means widening the relationship MERGE key, which is a different
+# change. The full statement of the boundary lives in
+# materialized_edges_codeowners.go's guard doc comment and
+# TestCodeownersOwnershipIdentityExcludesOrderIndex; it is deliberately not
+# restated here, because the copy that drifts is the one nobody runs.
 ifa_codeowners_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert codeowners-ownership materialized edges (five-edge exact set) ===\n' "${label}"

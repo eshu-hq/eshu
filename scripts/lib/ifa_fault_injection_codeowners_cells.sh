@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2154
 # codeowners_ownership_edges-targeted live fault cells (#5992), mirroring
-# scripts/lib/ifa_fault_injection_code_call_cells.sh's shape exactly. This
-# function library is sourced by verify-ifa-fault-injection.sh; the driver
-# owns strict mode and globals (bin_dir, tagged_bin_dir, log_dir, work_dir,
-# use_compose, compose_file, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN,
-# CLAIMED_ROW_WAIT_TIMEOUT, wall_times, bg_pids, log, die, plus the
+# scripts/lib/ifa_fault_injection_code_call_cells.sh's shape exactly. The
+# sibling this mirrors says "sourced by verify-ifa-fault-injection.sh", which
+# is true there and NOT here -- that driver does not source this file (see
+# NOT YET WIRED below). The cells are written against the contract that driver
+# WILL own once wired: strict mode and the globals (bin_dir, tagged_bin_dir,
+# log_dir, work_dir, use_compose, compose_file, FAULT_COMPOSE_PROJECT,
+# ESHU_POSTGRES_DSN, CLAIMED_ROW_WAIT_TIMEOUT, wall_times, bg_pids, log, die,
+# plus the
 # fresh_stack / drive_all_cassettes / run_drain_gate / assert_no_dead_letters
 # / capture_digest / assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
