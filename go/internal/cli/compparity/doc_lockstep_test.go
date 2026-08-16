@@ -45,6 +45,32 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	wantOS := []string{"IsNotExist", "ReadFile"}
 	wantFmt := []string{"Errorf"}
 
+	// README.md also claims "no subprocess or network call is made". The os and
+	// fmt sets cannot see that: os/exec, net, net/http and syscall would all
+	// leave both sets untouched. Pinning the import set closes it, and closes it
+	// for the call nobody predicted rather than for a list of packages someone
+	// remembered to ban -- the same reason the selector checks are equalities.
+	//
+	// The cost is that a genuinely new import needs this list edited. That is
+	// the intended trade: this package's README makes totality claims about what
+	// it touches, so an import that changes what it touches should not be able
+	// to land without someone revisiting the sentence that says it does not.
+	wantImports := []string{
+		"bytes",
+		"encoding/json",
+		"fmt",
+		"github.com/eshu-hq/eshu/go/internal/capabilitycatalog",
+		"github.com/eshu-hq/eshu/go/internal/cli/evidpacket",
+		"github.com/eshu-hq/eshu/go/internal/cli/opdigest",
+		"github.com/eshu-hq/eshu/go/internal/competitiveparity",
+		"github.com/eshu-hq/eshu/go/internal/packetdogfood",
+		"github.com/eshu-hq/eshu/go/internal/query",
+		"os",
+		"path/filepath",
+		"sort",
+	}
+	gotImports := map[string]bool{}
+
 	fset := token.NewFileSet()
 	scanned, selectors := 0, 0
 	gotOS, gotFmt := map[string]bool{}, map[string]bool{}
@@ -64,9 +90,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 		scanned++
 
 		for _, imp := range file.Imports {
-			if strings.Contains(imp.Path.Value, "spf13/cobra") {
-				t.Errorf("%s imports cobra; flag handling belongs in go/cmd/eshu's competitive_parity_cmd.go", name)
-			}
+			gotImports[strings.Trim(imp.Path.Value, `"`)] = true
 		}
 
 		// Matched against parsed selector expressions, not raw file text, so a
@@ -96,6 +120,10 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 		"process wiring belongs in go/cmd/eshu's competitive_parity_cmd.go")
 	assertSelectorSet(t, "fmt", gotFmt, wantFmt,
 		"this package returns errors and writes through its caller, never to the process stdout")
+	assertSelectorSet(t, "import", gotImports, wantImports,
+		"README.md states this package makes no subprocess or network call and reads no environment; "+
+			"a new import here means that sentence needs revisiting, and cobra in particular belongs in "+
+			"go/cmd/eshu's competitive_parity_cmd.go")
 
 	// A scan that read no files, or walked no selectors, is not evidence.
 	if scanned < 2 {
