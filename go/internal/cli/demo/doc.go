@@ -54,13 +54,15 @@
 // main`, so nothing can import it, and any symbol reading a flag or mapping to
 // an exit code has to stay there.
 //
-// The scorecard vocabulary in criteria.go (Criterion, CriterionName,
-// CriterionStatus and their constants), criterionMarker, and quoteIfEmpty are
-// copies of go/cmd/eshu's first-run benchmark definitions, not a shared
-// dependency, for the same package-main reason. The string values and JSON
-// tags match on both sides so a harness reading either scorecard sees one
-// shape.
+// The scorecard vocabulary (Criterion, CriterionName, CriterionStatus and
+// their constants), the envelope error object, and the status marker are
+// imported from go/internal/cli/firstrunbench, so a harness reading either
+// scorecard sees one shape by construction rather than by parallel copies.
+// criteria.go declares only the two criterion names scored solely by the demo
+// lane; quoteIfEmpty stays a local copy of go/cmd/eshu's first_run.go helper
+// because package main cannot be imported.
 //
 // Outside the standard library the package depends only on gopkg.in/yaml.v3,
-// for the manifest. It imports no other Eshu package and emits no telemetry.
+// for the manifest. Its only Eshu import is
+// go/internal/cli/firstrunbench, and it emits no telemetry.
 package demo

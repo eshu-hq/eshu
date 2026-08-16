@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/demo"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 func init() {
@@ -69,7 +70,7 @@ func runDemoBenchmark(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	raw, err := readBenchmarkEnvelope(cmd.InOrStdin(), envelopePath)
+	raw, err := firstrunbench.ReadEnvelope(cmd.InOrStdin(), envelopePath)
 	if err != nil {
 		return err
 	}

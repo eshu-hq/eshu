@@ -45,10 +45,12 @@
   `runtime_test.go` records it, and add it to the enumeration in `doc.go`.
   That list is meant to be exhaustive; a call added without updating it makes
   the doc wrong rather than incomplete.
-- **Add a scored criterion** → add the name to criteria.go, the evaluator to
-  benchmark.go, and a row to `EvaluateBenchmark`'s append. A criterion that is
-  `Required` and can be `CriterionNotMeasured` will fail every unprobed run;
-  follow `evaluateModeCriterion`, which clears `Required` when it downgrades.
+- **Add a scored criterion** → add the name to criteria.go (typed
+  `firstrunbench.CriterionName`; only demo-only names belong there), the
+  evaluator to benchmark.go, and a row to `EvaluateBenchmark`'s append. A
+  criterion that is `Required` and can be `firstrunbench.CriterionNotMeasured`
+  will fail every unprobed run; follow `evaluateModeCriterion`, which clears
+  `Required` when it downgrades.
 
 ## Failure modes and how to debug
 
@@ -71,10 +73,11 @@
 
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`). If
   new logic needs something only the wrapper has, add a parameter.
-- **Importing the first-run benchmark's criterion types.** They live in
-  `package main` too. criteria.go holds deliberate copies; keep the string
-  values and JSON tags identical on both sides so one harness reads both
-  scorecards.
+- **Re-copying the criterion vocabulary.** `Criterion`, `CriterionName`,
+  `CriterionStatus`, their constants, and `EnvelopeError` are imported from
+  `go/internal/cli/firstrunbench` so one harness reads both scorecards. A
+  local mirror of any of them reintroduces the silent-drift risk the import
+  removed.
 - **Making the explicit build unconditional.** It was measured at 221,590 ms
   on a warm run. Instrumentation that slows what it measures is worse than the
   attribution it was added for.

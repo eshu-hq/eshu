@@ -27,8 +27,8 @@ the envelope's emit side, or the evidence report.
 and `Marker` print the human scorecard. The criterion vocabulary
 (`CriterionName`, `CriterionStatus`, and their constants) and
 `NotMeasuredManualSteps` are exported because the demo-benchmark family in
-`go/cmd/eshu` scores its own envelope with the same vocabulary. See `doc.go`
-for the godoc-rendered contract.
+`go/internal/cli/demo` scores its own envelope with the same vocabulary. See
+`doc.go` for the godoc-rendered contract.
 
 ## Dependencies
 

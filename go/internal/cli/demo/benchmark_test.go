@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 // goodDemoEnvelope is a complete, passing run. Tests degrade one field at a
@@ -47,7 +49,7 @@ func TestEvaluateDemoBenchmark_PassesACompleteWarmRun(t *testing.T) {
 	if v.Mode != ModeWarm {
 		t.Errorf("Mode = %q, want %q", v.Mode, ModeWarm)
 	}
-	if got := v.Criterion(CriterionTimeToAnswer); got.Status != CriterionPass {
+	if got := v.Criterion(firstrunbench.CriterionTimeToAnswer); got.Status != firstrunbench.CriterionPass {
 		t.Errorf("time_to_first_answer = %q (%s), want pass", got.Status, got.Detail)
 	}
 }
@@ -67,7 +69,7 @@ func TestEvaluateDemoBenchmark_FailsOnMissingPhaseTiming(t *testing.T) {
 				t.Fatalf("Pass = true with %q missing, want false", phase)
 			}
 			c := v.Criterion(CriterionPhaseTimings)
-			if c.Status != CriterionFail {
+			if c.Status != firstrunbench.CriterionFail {
 				t.Errorf("phase_timings_complete = %q, want fail", c.Status)
 			}
 			if !strings.Contains(c.Detail, phase) {
@@ -89,7 +91,7 @@ func TestEvaluateDemoBenchmark_FailsWhenOverTarget(t *testing.T) {
 	if v.Pass {
 		t.Fatal("Pass = true for a run over target, want false")
 	}
-	if c := v.Criterion(CriterionTimeToAnswer); c.Status != CriterionFail {
+	if c := v.Criterion(firstrunbench.CriterionTimeToAnswer); c.Status != firstrunbench.CriterionFail {
 		t.Errorf("time_to_first_answer = %q (%s), want fail", c.Status, c.Detail)
 	}
 }
@@ -129,14 +131,14 @@ func TestEvaluateDemoBenchmark_RejectsAMislabelledMode(t *testing.T) {
 			if tc.observed == ImagesUnknown {
 				// Not probed must read as not-measured and drop its required
 				// flag, so the row never implies a check that did not run.
-				if c.Status != CriterionNotMeasured || c.Required {
+				if c.Status != firstrunbench.CriterionNotMeasured || c.Required {
 					t.Errorf("unprobed cache scored %q required=%v, want not_measured and not required",
 						c.Status, c.Required)
 				}
 				if !strings.Contains(c.Detail, "not probed") {
 					t.Errorf("detail = %q, want it to say the cache was not probed", c.Detail)
 				}
-			} else if c.Status == CriterionNotMeasured {
+			} else if c.Status == firstrunbench.CriterionNotMeasured {
 				t.Errorf("probed cache scored not_measured; the cross-check was skipped")
 			}
 		})
@@ -151,17 +153,17 @@ func TestEvaluateDemoBenchmark_RejectsAHealthOnlyRun(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		mutate  func(*Envelope)
-		wantRow CriterionName
+		wantRow firstrunbench.CriterionName
 	}{
-		{"no answer text", func(e *Envelope) { e.Data.FirstAnswer.Answer = "" }, CriterionFirstAnswer},
-		{"not ready", func(e *Envelope) { e.Data.Ready = false }, CriterionRepoIndexed},
+		{"no answer text", func(e *Envelope) { e.Data.FirstAnswer.Answer = "" }, firstrunbench.CriterionFirstAnswer},
+		{"not ready", func(e *Envelope) { e.Data.Ready = false }, firstrunbench.CriterionRepoIndexed},
 		{"no truth labels", func(e *Envelope) {
 			e.Truth = map[string]any{}
 			e.Data.FirstAnswer.Truth = map[string]any{}
-		}, CriterionTruthMetadata},
+		}, firstrunbench.CriterionTruthMetadata},
 		{"envelope error", func(e *Envelope) {
-			e.Error = &EnvelopeError{Message: "compose failed"}
-		}, CriterionFirstAnswer},
+			e.Error = &firstrunbench.EnvelopeError{Message: "compose failed"}
+		}, firstrunbench.CriterionFirstAnswer},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -171,7 +173,7 @@ func TestEvaluateDemoBenchmark_RejectsAHealthOnlyRun(t *testing.T) {
 			if v.Pass {
 				t.Fatalf("Pass = true for %q, want false", tc.name)
 			}
-			if c := v.Criterion(tc.wantRow); c.Status != CriterionFail {
+			if c := v.Criterion(tc.wantRow); c.Status != firstrunbench.CriterionFail {
 				t.Errorf("%s = %q, want fail", tc.wantRow, c.Status)
 			}
 		})

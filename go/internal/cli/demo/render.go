@@ -10,22 +10,18 @@ import (
 	"io"
 	"strings"
 	"time"
-)
 
-// EnvelopeError is the failure cause carried by the demo envelope. It mirrors
-// the first-run envelope's error object field for field, so the TTFA harness
-// reads one shape across both onboarding commands.
-type EnvelopeError struct {
-	// Message is the human-readable failure cause.
-	Message string `json:"message"`
-}
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
+)
 
 // Envelope is the canonical `{data, truth, error}` envelope, matching the
 // first-run contract so the TTFA harness reads one shape across both commands.
+// The error object is firstrunbench.EnvelopeError itself, not a mirror, so the
+// two envelopes cannot drift apart.
 type Envelope struct {
-	Data  Result         `json:"data"`
-	Truth map[string]any `json:"truth"`
-	Error *EnvelopeError `json:"error"`
+	Data  Result                       `json:"data"`
+	Truth map[string]any               `json:"truth"`
+	Error *firstrunbench.EnvelopeError `json:"error"`
 }
 
 // EnvelopeFor renders a result (or a failure) into the shared envelope.
@@ -37,7 +33,7 @@ func EnvelopeFor(res Result, err error) Envelope {
 		env.Truth = map[string]any{}
 	}
 	if err != nil {
-		env.Error = &EnvelopeError{Message: err.Error()}
+		env.Error = &firstrunbench.EnvelopeError{Message: err.Error()}
 	}
 	return env
 }

@@ -55,7 +55,8 @@ Manifest:
 
 Output and scoring:
 
-- `Envelope`, `EnvelopeError`, `EnvelopeFor`, `WriteJSON`, `PrintSuccess`
+- `Envelope`, `EnvelopeFor`, `WriteJSON`, `PrintSuccess` (the envelope's
+  error field is `firstrunbench.EnvelopeError`, imported, not mirrored)
 - `EvaluateBenchmark`, `BenchmarkMeasurements`, `BenchmarkVerdict` (with
   `Criterion` and `FailureReasons`), `RenderBenchmarkVerdict`
 - `ParseImageState`, `ImageState` (`ImagesUnknown` / `ImagesPresent` /
@@ -110,9 +111,12 @@ measurement lane consumes.
   `serviceName` must match the service key in
   `docker-compose.demo.runtime.yaml`; `TestDemoServiceNameMatchesComposeOverlay`
   reads the committed fragment and fails if they drift.
-- **The scorecard vocabulary in `criteria.go` is a copy**, not a shared type.
-  `go/cmd/eshu`'s first-run benchmark still owns the originals and still has
-  callers there. Change one side and the JSON shapes drift apart silently.
+- **The scorecard vocabulary is imported from
+  `go/internal/cli/firstrunbench`**, not copied. `Criterion`, `CriterionName`,
+  `CriterionStatus`, their constants, and `EnvelopeError` are that package's
+  exported types, so the two scorecards cannot drift apart. Only the two
+  demo-only criterion names (`CriterionPhaseTimings`, `CriterionModeObserved`)
+  live in `criteria.go`.
 
 ## Related docs
 

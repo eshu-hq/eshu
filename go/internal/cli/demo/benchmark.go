@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 // Time-to-first-answer (TTFA) is measured from command invocation to the first
@@ -73,26 +75,26 @@ type BenchmarkVerdict struct {
 	// PhaseMillis echoes the per-phase breakdown behind TTFAMillis.
 	PhaseMillis map[string]int64 `json:"phase_millis,omitempty"`
 	// Criteria holds every scored row in stable order.
-	Criteria []Criterion `json:"criteria"`
+	Criteria []firstrunbench.Criterion `json:"criteria"`
 }
 
 // Criterion returns the scored row for a name, or a zero-value criterion with
 // that name when it was not scored, so a missing row is visibly distinct from
 // a real outcome.
-func (v BenchmarkVerdict) Criterion(name CriterionName) Criterion {
+func (v BenchmarkVerdict) Criterion(name firstrunbench.CriterionName) firstrunbench.Criterion {
 	for _, c := range v.Criteria {
 		if c.Name == name {
 			return c
 		}
 	}
-	return Criterion{Name: name}
+	return firstrunbench.Criterion{Name: name}
 }
 
 // FailureReasons lists the details of every required criterion that failed.
 func (v BenchmarkVerdict) FailureReasons() []string {
 	var reasons []string
 	for _, c := range v.Criteria {
-		if c.Required && c.Status == CriterionFail {
+		if c.Required && c.Status == firstrunbench.CriterionFail {
 			reasons = append(reasons, fmt.Sprintf("%s: %s", c.Name, c.Detail))
 		}
 	}
@@ -114,7 +116,8 @@ func EvaluateBenchmark(env Envelope, m BenchmarkMeasurements) BenchmarkVerdict {
 		PhaseMillis:  env.Data.PhaseMillis,
 	}
 
-	v.Criteria = append(v.Criteria,
+	v.Criteria = append(
+		v.Criteria,
 		evaluateFirstAnswerCriterion(env),
 		evaluateTruthCriterion(env),
 		evaluateReadyCriterion(env),
@@ -125,7 +128,7 @@ func EvaluateBenchmark(env Envelope, m BenchmarkMeasurements) BenchmarkVerdict {
 
 	v.Pass = true
 	for _, c := range v.Criteria {
-		if c.Required && c.Status != CriterionPass {
+		if c.Required && c.Status != firstrunbench.CriterionPass {
 			v.Pass = false
 			break
 		}
@@ -136,17 +139,17 @@ func EvaluateBenchmark(env Envelope, m BenchmarkMeasurements) BenchmarkVerdict {
 // evaluateFirstAnswerCriterion carries the first-run benchmark's
 // health-only-rejection rule into the demo lane: a stack that came up is not
 // an answer.
-func evaluateFirstAnswerCriterion(env Envelope) Criterion {
-	c := Criterion{Name: CriterionFirstAnswer, Required: true}
+func evaluateFirstAnswerCriterion(env Envelope) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: firstrunbench.CriterionFirstAnswer, Required: true}
 	switch {
 	case env.Error != nil:
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "run failed: " + env.Error.Message
 	case strings.TrimSpace(env.Data.FirstAnswer.Answer) == "":
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "no answer text; readiness alone is not a first answer"
 	default:
-		c.Status = CriterionPass
+		c.Status = firstrunbench.CriterionPass
 		c.Detail = "answered: " + firstLine(env.Data.FirstAnswer.Answer)
 	}
 	return c
@@ -154,31 +157,31 @@ func evaluateFirstAnswerCriterion(env Envelope) Criterion {
 
 // evaluateTruthCriterion rejects an answer with no provenance. An answer
 // nobody can trace is not evidence, so it cannot count toward a TTFA claim.
-func evaluateTruthCriterion(env Envelope) Criterion {
-	c := Criterion{Name: CriterionTruthMetadata, Required: true}
+func evaluateTruthCriterion(env Envelope) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: firstrunbench.CriterionTruthMetadata, Required: true}
 	truth := env.Truth
 	if len(truth) == 0 {
 		truth = env.Data.FirstAnswer.Truth
 	}
 	if len(truth) == 0 {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "answer carries no truth labels"
 		return c
 	}
-	c.Status = CriterionPass
+	c.Status = firstrunbench.CriterionPass
 	c.Detail = "truth labels: " + strings.Join(sortedKeys(truth), ", ")
 	return c
 }
 
 // evaluateReadyCriterion asserts indexing completeness, not health.
-func evaluateReadyCriterion(env Envelope) Criterion {
-	c := Criterion{Name: CriterionRepoIndexed, Required: true}
+func evaluateReadyCriterion(env Envelope) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: firstrunbench.CriterionRepoIndexed, Required: true}
 	if !env.Data.Ready {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "stack did not reach indexing completeness"
 		return c
 	}
-	c.Status = CriterionPass
+	c.Status = firstrunbench.CriterionPass
 	c.Detail = "indexing complete"
 	return c
 }
@@ -186,8 +189,8 @@ func evaluateReadyCriterion(env Envelope) Criterion {
 // evaluatePhaseTimingsCriterion requires the full breakdown behind the
 // total. This is required rather than informational: a total whose composition
 // is unknown cannot be attributed, so it cannot be published as a measurement.
-func evaluatePhaseTimingsCriterion(env Envelope) Criterion {
-	c := Criterion{Name: CriterionPhaseTimings, Required: true}
+func evaluatePhaseTimingsCriterion(env Envelope) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: CriterionPhaseTimings, Required: true}
 	var missing []string
 	for _, phase := range RequiredPhases {
 		if _, ok := env.Data.PhaseMillis[phase]; !ok {
@@ -195,16 +198,16 @@ func evaluatePhaseTimingsCriterion(env Envelope) Criterion {
 		}
 	}
 	if len(missing) > 0 {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "missing phase timing(s): " + strings.Join(missing, ", ")
 		return c
 	}
 	if env.Data.TotalMillis <= 0 {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "total_millis is not positive; there is no measured total to score"
 		return c
 	}
-	c.Status = CriterionPass
+	c.Status = firstrunbench.CriterionPass
 	c.Detail = "all phases recorded: " + strings.Join(RequiredPhases, ", ")
 	return c
 }
@@ -213,26 +216,26 @@ func evaluatePhaseTimingsCriterion(env Envelope) Criterion {
 // target. With no target set the row records the value without judging it,
 // which is how a first measurement run establishes the target in the first
 // place rather than being failed by one that does not exist yet.
-func evaluateTTFACriterion(env Envelope, m BenchmarkMeasurements) Criterion {
-	c := Criterion{Name: CriterionTimeToAnswer, Required: true}
+func evaluateTTFACriterion(env Envelope, m BenchmarkMeasurements) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: firstrunbench.CriterionTimeToAnswer, Required: true}
 	measured := time.Duration(env.Data.TotalMillis) * time.Millisecond
 	if env.Data.TotalMillis <= 0 {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = "no measured time to first answer"
 		return c
 	}
 	if m.Target <= 0 {
-		c.Status = CriterionNotMeasured
+		c.Status = firstrunbench.CriterionNotMeasured
 		c.Required = false
 		c.Detail = fmt.Sprintf("%s measured, no %s target set", measured.Round(time.Millisecond), m.Mode)
 		return c
 	}
 	if measured > m.Target {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = fmt.Sprintf("%s TTFA %s exceeds target %s", m.Mode, measured.Round(time.Millisecond), m.Target)
 		return c
 	}
-	c.Status = CriterionPass
+	c.Status = firstrunbench.CriterionPass
 	c.Detail = fmt.Sprintf("%s TTFA %s within target %s", m.Mode, measured.Round(time.Millisecond), m.Target)
 	return c
 }
@@ -245,17 +248,17 @@ func evaluateTTFACriterion(env Envelope, m BenchmarkMeasurements) Criterion {
 // and nothing downstream can detect it from the number alone. When the harness
 // probed, a contradiction fails the run. When it did not probe, the row says so
 // instead of implying a check that never happened.
-func evaluateModeCriterion(m BenchmarkMeasurements) Criterion {
-	c := Criterion{Name: CriterionModeObserved, Required: true}
+func evaluateModeCriterion(m BenchmarkMeasurements) firstrunbench.Criterion {
+	c := firstrunbench.Criterion{Name: CriterionModeObserved, Required: true}
 	switch m.Mode {
 	case ModeCold, ModeWarm:
 	default:
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = fmt.Sprintf("mode %q is neither %q nor %q", m.Mode, ModeCold, ModeWarm)
 		return c
 	}
 	if m.ImagesObserved == ImagesUnknown {
-		c.Status = CriterionNotMeasured
+		c.Status = firstrunbench.CriterionNotMeasured
 		c.Required = false
 		c.Detail = "image cache not probed; declared mode " + m.Mode + " taken on trust"
 		return c
@@ -265,12 +268,12 @@ func evaluateModeCriterion(m BenchmarkMeasurements) Criterion {
 		want = ImagesAbsent
 	}
 	if m.ImagesObserved != want {
-		c.Status = CriterionFail
+		c.Status = firstrunbench.CriterionFail
 		c.Detail = fmt.Sprintf("declared %s but images were %s; a mislabelled run publishes the wrong number",
 			m.Mode, m.ImagesObserved)
 		return c
 	}
-	c.Status = CriterionPass
+	c.Status = firstrunbench.CriterionPass
 	c.Detail = fmt.Sprintf("declared %s and images were %s", m.Mode, m.ImagesObserved)
 	return c
 }

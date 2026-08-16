@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 // ParseImageState validates the observed image-cache flag. An unrecognised
@@ -23,7 +25,8 @@ func ParseImageState(v string) (ImageState, error) {
 		return ImagesAbsent, nil
 	default:
 		return ImagesUnknown, fmt.Errorf(
-			"--images %q is not %q, %q, or empty", v, ImagesPresent, ImagesAbsent)
+			"--images %q is not %q, %q, or empty", v, ImagesPresent, ImagesAbsent,
+		)
 	}
 }
 
@@ -51,7 +54,7 @@ func RenderBenchmarkVerdict(w io.Writer, verdict BenchmarkVerdict) {
 		if c.Required {
 			req = "*"
 		}
-		_, _ = fmt.Fprintf(w, "  %s %s %s: %s\n", criterionMarker(c.Status), req, c.Name, c.Detail)
+		_, _ = fmt.Fprintf(w, "  %s %s %s: %s\n", firstrunbench.Marker(c.Status), req, c.Name, c.Detail)
 	}
 	_, _ = fmt.Fprintln(w, "  (* = required; failure rejects the run)")
 }
