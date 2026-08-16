@@ -43,7 +43,7 @@ func RenderBenchmarkVerdict(w io.Writer, verdict BenchmarkVerdict) {
 	if verdict.TargetMillis > 0 {
 		_, _ = fmt.Fprintf(w, "  target: %s\n", millisText(verdict.TargetMillis))
 	}
-	for _, phase := range RequiredPhases {
+	for _, phase := range requiredPhases {
 		if ms, ok := verdict.PhaseMillis[phase]; ok {
 			_, _ = fmt.Fprintf(w, "    %-13s %s\n", phase, millisText(ms))
 		}

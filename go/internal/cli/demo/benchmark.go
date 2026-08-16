@@ -40,14 +40,14 @@ const (
 	ImagesAbsent ImageState = "absent"
 )
 
-// RequiredPhases are the phases `eshu demo up` must account for.
+// requiredPhases are the phases `eshu demo up` must account for.
 //
 // build is separate from up on purpose. A single bucket spanning
 // `docker compose up -d --wait` covers image build, container start, corpus
 // bootstrap, and the reducer drain all at once, so a regression in any of them
 // looks identical. That bucket cannot answer "what got slower", which is the
 // entire reason the per-phase numbers exist.
-var RequiredPhases = []string{"preflight", "build", "up", "ready", "first_answer"}
+var requiredPhases = []string{"preflight", "build", "up", "ready", "first_answer"}
 
 // BenchmarkMeasurements carries the inputs the envelope cannot supply:
 // which mode the operator ran, the target that mode is held to, and what the
@@ -192,7 +192,7 @@ func evaluateReadyCriterion(env Envelope) firstrunbench.Criterion {
 func evaluatePhaseTimingsCriterion(env Envelope) firstrunbench.Criterion {
 	c := firstrunbench.Criterion{Name: CriterionPhaseTimings, Required: true}
 	var missing []string
-	for _, phase := range RequiredPhases {
+	for _, phase := range requiredPhases {
 		if _, ok := env.Data.PhaseMillis[phase]; !ok {
 			missing = append(missing, phase)
 		}
@@ -208,7 +208,7 @@ func evaluatePhaseTimingsCriterion(env Envelope) firstrunbench.Criterion {
 		return c
 	}
 	c.Status = firstrunbench.CriterionPass
-	c.Detail = "all phases recorded: " + strings.Join(RequiredPhases, ", ")
+	c.Detail = "all phases recorded: " + strings.Join(requiredPhases, ", ")
 	return c
 }
 

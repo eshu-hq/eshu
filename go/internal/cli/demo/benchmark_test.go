@@ -77,7 +77,7 @@ func TestEvaluateDemoBenchmark_PassesACompleteWarmRun(t *testing.T) {
 // total whose composition cannot be checked.
 func TestEvaluateDemoBenchmark_FailsOnMissingPhaseTiming(t *testing.T) {
 	t.Parallel()
-	for _, phase := range RequiredPhases {
+	for _, phase := range requiredPhases {
 		t.Run(phase, func(t *testing.T) {
 			t.Parallel()
 			env := goodDemoEnvelope()
