@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -125,13 +126,33 @@ func Run(out io.Writer, deps Deps) error {
 	return nil
 }
 
+// healthURL appends the /health path segment to baseURL structurally.
+//
+// Plain concatenation is wrong for a base URL that carries a query, which is a
+// shape this package explicitly supports: "http://host/x?api_key=t" + "/health"
+// yields "http://host/x?api_key=t/health", appending the segment to the query
+// VALUE rather than the path. The probe then targets an endpoint that does not
+// exist and doctor misreports the API as unreachable.
+//
+// A base URL that will not parse falls back to concatenation, trimming any
+// trailing slash: an unparseable URL is going to fail the probe either way, and
+// reporting that failure is more useful than reporting nothing.
+func healthURL(baseURL string) string {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Host == "" {
+		return strings.TrimRight(baseURL, "/") + "/health"
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/health"
+	return parsed.String()
+}
+
 // reportAPIHealth probes baseURL's /health and writes one line describing what
 // happened. The base URL is written through evidredact.Endpoint because an
 // operator may point the CLI at a URL carrying a token in its query string.
 func reportAPIHealth(out io.Writer, client *http.Client, baseURL string) {
 	safe := evidredact.Endpoint(baseURL)
 
-	resp, err := client.Get(baseURL + "/health") //nolint:noctx // #nosec G704 -- baseURL is the locally-configured Eshu API endpoint, not user-supplied input.
+	resp, err := client.Get(healthURL(baseURL)) //nolint:noctx // #nosec G704 -- baseURL is the locally-configured Eshu API endpoint, not user-supplied input.
 	if err != nil {
 		_, _ = fmt.Fprintf(out, "  [!!] API not reachable at %s\n", safe)
 		return
