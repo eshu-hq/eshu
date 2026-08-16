@@ -15,9 +15,11 @@ const (
 	// homeDirname is the per-user Eshu config directory created under the
 	// operating-system home directory when ESHU_HOME is unset.
 	homeDirname = ".eshu"
-	// homeEnvVar overrides the config directory. It is the only environment
-	// variable this package reads; every other ESHU_* value comes out of the
-	// .env file, not the process environment.
+	// homeEnvVar overrides the config directory. Home reads it plus the
+	// platform home variable via os.UserHomeDir (HOME on Unix, USERPROFILE
+	// on Windows, home on Plan 9) -- the package's whole environment
+	// surface, per doc.go. Every other ESHU_* value comes out of the .env
+	// file, not the process environment.
 	homeEnvVar = "ESHU_HOME"
 	// envFileName is the key=value file inside the config directory that
 	// holds the CLI's persisted settings.
