@@ -383,7 +383,12 @@ source "${review_cases_lib}"
 # same 500-line-cap reason as review_cases_lib above.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-cases.sh
 source "${documentation_cases_lib}"
+# codeowners_ownership_edges (#5992) hermetic cases, same split, and they own
+# their own existence/syntax checks for the cells library they exercise.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
 run_ifa_fault_injection_review_cases
+run_ifa_fault_injection_codeowners_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
