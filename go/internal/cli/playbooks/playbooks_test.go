@@ -147,6 +147,88 @@ func TestRunResolvePostsTrimmedPlaybookID(t *testing.T) {
 	}
 }
 
+// The headline envelope invariant: a capability or query failure arrives as a
+// non-nil envelope error member, prints in-band as part of the JSON document,
+// and the command still exits 0 (nil error). The package docs warn against
+// "fixing" this into an exit code; this test pins it so the warning has teeth.
+func TestRunListPrintsInBandEnvelopeError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeClient{fill: func(result any) {
+		envelope, ok := result.(*ListEnvelope)
+		if !ok {
+			t.Fatalf("result type = %T, want *ListEnvelope", result)
+		}
+		envelope.Error = &EnvelopeError{Code: "not_found", Message: "no such playbook"}
+	}}
+	var out strings.Builder
+	if err := RunList(&out, client); err != nil {
+		t.Fatalf("in-band envelope error must not fail the command: %v", err)
+	}
+	if !strings.Contains(out.String(), `"message": "no such playbook"`) {
+		t.Fatalf("output = %q, want the envelope error in-band", out.String())
+	}
+}
+
+// Same invariant for resolve: the envelope's error member is payload, not an
+// exit code.
+func TestRunResolvePrintsInBandEnvelopeError(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeClient{fill: func(result any) {
+		envelope, ok := result.(*ResolveEnvelope)
+		if !ok {
+			t.Fatalf("result type = %T, want *ResolveEnvelope", result)
+		}
+		envelope.Error = &EnvelopeError{Code: "capability_unavailable", Message: "resolver offline"}
+	}}
+	var out strings.Builder
+	if err := RunResolve(&out, client, ResolveOptions{PlaybookID: "service_story_citation"}); err != nil {
+		t.Fatalf("in-band envelope error must not fail the command: %v", err)
+	}
+	if !strings.Contains(out.String(), `"message": "resolver offline"`) {
+		t.Fatalf("output = %q, want the envelope error in-band", out.String())
+	}
+}
+
+// fetchResolve's doc comment promises the request contract is testable without
+// an output writer; this is that test. Path, trimmed ID, and body shape are
+// pinned against the raw fetch seam directly.
+func TestFetchResolveRequestContractWithoutWriter(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeClient{fill: func(result any) {
+		envelope, ok := result.(*ResolveEnvelope)
+		if !ok {
+			t.Fatalf("result type = %T, want *ResolveEnvelope", result)
+		}
+		envelope.Data.Resolved.PlaybookID = "service_story_citation"
+	}}
+	envelope, err := fetchResolve(client, ResolveOptions{
+		PlaybookID: "\tservice_story_citation \n",
+		Inputs:     map[string]string{"environment": "prod"},
+	})
+	if err != nil {
+		t.Fatalf("fetchResolve: %v", err)
+	}
+	if got, want := client.gotPath, "/api/v0/query-playbooks/resolve"; got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	body, ok := client.gotBody.(map[string]any)
+	if !ok {
+		t.Fatalf("body type = %T, want map[string]any", client.gotBody)
+	}
+	if got, want := body["playbook_id"], "service_story_citation"; got != want {
+		t.Fatalf("playbook_id = %v, want %v (trimmed)", got, want)
+	}
+	if got, want := len(body), 2; got != want {
+		t.Fatalf("body has %d keys (%v), want exactly %d: playbook_id and inputs", got, body, want)
+	}
+	if envelope.Data.Resolved.PlaybookID != "service_story_citation" {
+		t.Fatalf("decoded envelope = %+v, want the filled resolved playbook id", envelope)
+	}
+}
+
 func TestRunResolveClientErrorPropagatesUnchangedWithNoOutput(t *testing.T) {
 	t.Parallel()
 

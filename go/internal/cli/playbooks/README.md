@@ -49,6 +49,9 @@ no metrics, spans, or logs of their own.
 
 - An envelope-level `error` member exits 0: it is printed in-band as part of
   the JSON, unlike the freshness family, which maps error codes to exit codes.
+  `TestRunListPrintsInBandEnvelopeError` and
+  `TestRunResolvePrintsInBandEnvelopeError` pin both halves — the error in the
+  output and the nil return.
 - Transport errors are returned unwrapped on purpose — the client's message is
   the operator-visible text and `go/cmd/eshu` prints it verbatim. That is the
   wrapcheck carryover this package keeps from its `cmd/` origin.
