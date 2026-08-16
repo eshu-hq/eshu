@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,9 +25,38 @@ type latencyBackfillDB struct {
 	stmtLatency   time.Duration
 }
 
-func (db *latencyBackfillDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	time.Sleep(db.stmtLatency)
-	return &queueFakeRows{rows: db.activeGenRows}, nil
+	return &queueFakeRows{rows: db.rowsFor(query, args)}, nil
+}
+
+// rowsFor answers with the column shape the requested query actually scans.
+// The corpus-wide active-generation load reads three columns (repo_id, scope_id,
+// generation_id); the fan-in's per-scope re-read
+// (loadActiveGenerationForScope) reads one. A stub that returns activeGenRows
+// for BOTH compiles fine and fails only at run time with "scan destination
+// count = 1, want 3", which is invisible until a benchmark actually executes --
+// so the shape is dispatched on the query here rather than assumed.
+func (db *latencyBackfillDB) rowsFor(query string, args []any) [][]any {
+	if !strings.HasPrefix(query, activeScopeGenerationQuery) {
+		return db.activeGenRows
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil
+	}
+	for _, row := range db.activeGenRows {
+		if len(row) < 3 {
+			continue
+		}
+		if rowScope, ok := row[1].(string); ok && rowScope == scopeID {
+			return [][]any{{row[2]}}
+		}
+	}
+	return nil
 }
 
 func (db *latencyBackfillDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -40,9 +70,9 @@ func (db *latencyBackfillDB) Begin(context.Context) (Transaction, error) {
 
 type latencyBackfillTx struct{ db *latencyBackfillDB }
 
-func (tx *latencyBackfillTx) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	time.Sleep(tx.db.stmtLatency)
-	return &queueFakeRows{rows: tx.db.activeGenRows}, nil
+	return &queueFakeRows{rows: tx.db.rowsFor(query, args)}, nil
 }
 
 func (tx *latencyBackfillTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
