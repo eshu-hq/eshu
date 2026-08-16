@@ -179,12 +179,46 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# call must precede ITS OWN final edge assertion (ifa_deployable_unit_live_assert
 	# ... || return 1 -- a call moved below it never executes on the only path
 	# where the diagnostic matters, the failing path).
-	local du_standalone_report_line du_standalone_assert_line
-	du_standalone_report_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}"' "${deployable_unit_live_lib}" | cut -d: -f1 || true)"
-	du_standalone_assert_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}"' "${deployable_unit_live_lib}" | cut -d: -f1 || true)"
+	#
+	# Containment, not a bare line-number comparison (#5993 convergence-loop
+	# follow-up): ifa_deployable_unit_live_converge_edges's own body also
+	# calls `ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}"`
+	# (its shared parameter names match the standalone cell's local ones
+	# verbatim), so a plain rg match now finds that call too and a bare
+	# line-number compare breaks the moment a second textually-identical call
+	# exists anywhere in the file -- the same containment lesson the fault
+	# cells' check below already learned. Map every line to its nearest
+	# preceding top-level function definition and require both the report and
+	# the assert line to fall inside ifa_deployable_unit_live_run_standalone_cell
+	# specifically, not merely appear earlier in the file.
+	local du_standalone_fn_at_line_raw du_standalone_fn_ln du_standalone_fn_name
+	local -A du_standalone_fn_at_line
+	du_standalone_fn_at_line_raw="$(awk '
+		/^[A-Za-z_][A-Za-z0-9_]*\(\) \{$/ { sub(/\(\) \{$/, ""); fn = $0 }
+		{ print NR, (fn == "" ? "NONE" : fn) }
+	' "${deployable_unit_live_lib}")"
+	while read -r du_standalone_fn_ln du_standalone_fn_name; do
+		du_standalone_fn_at_line["${du_standalone_fn_ln}"]="${du_standalone_fn_name}"
+	done <<<"${du_standalone_fn_at_line_raw}"
+
+	local du_standalone_report_lines du_standalone_assert_lines
+	du_standalone_report_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}"' "${deployable_unit_live_lib}" | cut -d: -f1 || true))
+	du_standalone_assert_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_assert "${bin_dir}" "${expected_edges}"' "${deployable_unit_live_lib}" | cut -d: -f1 || true))
+
+	local du_standalone_report_line="" du_standalone_assert_line="" du_ln2
+	for du_ln2 in "${du_standalone_report_lines[@]}"; do
+		[[ "${du_standalone_fn_at_line[${du_ln2}]:-}" == "ifa_deployable_unit_live_run_standalone_cell" ]] || continue
+		du_standalone_report_line="${du_ln2}"
+		break
+	done
+	for du_ln2 in "${du_standalone_assert_lines[@]}"; do
+		[[ "${du_standalone_fn_at_line[${du_ln2}]:-}" == "ifa_deployable_unit_live_run_standalone_cell" ]] || continue
+		du_standalone_assert_line="${du_ln2}"
+		break
+	done
 	[[ "${du_standalone_report_line}" =~ ^[0-9]+$ && "${du_standalone_assert_line}" =~ ^[0-9]+$ \
 		&& "${du_standalone_report_line}" -lt "${du_standalone_assert_line}" ]] \
-		|| fail "deployable-unit standalone cell: post-maintenance intents diagnostic (line ${du_standalone_report_line}) must run before the cell's final edge assertion (line ${du_standalone_assert_line}) in ${deployable_unit_live_lib}"
+		|| fail "deployable-unit standalone cell: post-maintenance intents diagnostic (line ${du_standalone_report_line}) must run before the cell's final edge assertion (line ${du_standalone_assert_line}) inside ifa_deployable_unit_live_run_standalone_cell in ${deployable_unit_live_lib}"
 	# Fault cells need this diagnostic MORE than the standalone cell, not
 	# less: a fault-cell failure has four candidate causes (writer drop,
 	# correlation produced nothing, the injected fault did not recover, or

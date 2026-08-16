@@ -213,8 +213,11 @@ cell_baseline_deployable_unit() {
 	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "baseline_deployable_unit"
-	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
-		|| die "baseline-deployable-unit: fault-free graph does not match the one-edge exact set (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
+	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		ifa_deployable_unit_live_converge_edges "baseline_deployable_unit" "${bin_dir}" "${log_dir}" \
+			"${deployable_unit_expected_edges}" run_drain_gate baseline_deployable_unit \
+			|| die "baseline-deployable-unit: deployable_unit_edges did not converge to its one-edge exact set within the maintenance-pass convergence bound (fault-free baseline must materialize this family's edge before the recovery cells compare against it)"
+	fi
 	capture_digest baseline_deployable_unit
 
 	# Snapshot the fault-free retry count so the fault cells can prove their
@@ -284,8 +287,11 @@ cell_killworker_deployable_unit() {
 	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "killworkerdeployableunit"
-	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
-		|| die "kill-worker-after-claim-deployable-unit: recovered graph does not match the one-edge exact set"
+	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		ifa_deployable_unit_live_converge_edges "killworkerdeployableunit" "${bin_dir}" "${log_dir}" \
+			"${deployable_unit_expected_edges}" run_drain_gate killworkerdeployableunit \
+			|| die "kill-worker-after-claim-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound"
+	fi
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${baseline_deployable_unit_retried}" 15 "deployable_unit_correlation" \
 		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute above its fault-free retry baseline"
@@ -341,8 +347,11 @@ cell_failgraphwrite_deployable_unit() {
 	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "failgraphwritedeployableunit"
-	ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}" \
-		|| die "fail-graph-write-once-then-succeed-deployable-unit: recovered graph does not match the one-edge exact set"
+	if ! ifa_deployable_unit_live_assert "${bin_dir}" "${deployable_unit_expected_edges}"; then
+		ifa_deployable_unit_live_converge_edges "failgraphwritedeployableunit" "${bin_dir}" "${log_dir}" \
+			"${deployable_unit_expected_edges}" run_drain_gate failgraphwritedeployableunit \
+			|| die "fail-graph-write-once-then-succeed-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound"
+	fi
 	marker_rc=0
 	ifa_fault_assert_once_fault_marker "${fault_once_script}" "${deployable_unit_edge_operation_match}" || marker_rc=$?
 	[[ "${marker_rc}" -eq 0 ]] \
