@@ -124,9 +124,13 @@ key. Those two tests were replaced by positive proofs of the closed mechanism
 `TestCodeownersOwnershipIdentityExcludesOrderIndex`), and the third is green
 because of splice group 2 above.
 
-No live gate has been run. Nothing here proves the family materializes on a
-real graph; the coverage rows and the waiver removal stay for the live-proof
-phase.
+The live lane runs on this diff — the trigger wiring selects it — and it
+passed. It proves nothing about this family: no codeowners cell reaches either
+driver, since `scripts/verify-ifa-determinism.sh` and
+`scripts/verify-ifa-fault-injection.sh` reference neither
+`ifa_codeowners_live.sh` nor the cells library, so the lane exercised the
+pre-existing cells only. A green live lane on this PR is not family proof, and
+the coverage rows and the waiver removal stay for the live-proof phase.
 
 ## No-Observability-Change:
 
