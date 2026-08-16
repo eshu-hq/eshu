@@ -62,8 +62,10 @@ changed in this branch:
   materialized-edge vacuity guard. Today it is invoked only from `go test`;
   `MaterializedEdgeOduResolver.Resolve` (`materialized_edges.go`) dispatches
   `sql_relationships`, `documentation_edges`, `code_calls`,
-  `rationale_edges`, and `codeowners_ownership_family` but has no
-  `deployable_unit_edges` case, so the guard is not yet reachable from the
+  `rationale_edges`, and `codeowners_ownership_edges` (the `case` label is
+  the Go identifier `codeownersOwnershipFamily`, whose value is
+  `"codeowners_ownership_edges"` -- `materialized_edges_codeowners.go:20`) but
+  has no `deployable_unit_edges` case, so the guard is not yet reachable from the
   `eshu-ifa`/`eshu-golden-corpus-gate` gate binaries -- that dispatch wiring
   lands with the coverage row in the follow-up, deliberately out of this
   PR's scope. It calls the SAME production seams
@@ -131,12 +133,15 @@ rather than "argued pure":
   against one fixed ~17-fact Odù (`TestDeployableUnitFamilyOduPreservesEnvelopeFields`
   confirms 17 facts) -- not yet the Ifá gate binaries, per the dispatch-wiring
   note above -- never in a request or write path.
-- **Fresh test evidence, this run:** `go test ./internal/reducer -run DeployableUnit -count=1`
-  → `ok ... 0.957s`; `go test ./internal/ifa -run DeployableUnit -count=1` →
-  `ok ... 0.590s`; `go test ./internal/ifa -run DeployableUnit -v -count=1`
-  (10/10 subtests) and `go test ./internal/reducer -run DeployableUnit -v -count=1`
-  (26/26 subtests, including the two extraction-equivalence tests above) both
-  pass. `go build ./...` and `go vet ./internal/ifa ./cmd/ifa` are clean.
+- **Fresh test evidence, re-run at this SHA:** `go test ./internal/reducer -run DeployableUnit -count=1`
+  → `ok ... 0.951s`; `go test ./internal/ifa -run DeployableUnit -count=1` →
+  `ok ... 0.652s`; `go test ./internal/ifa -run DeployableUnit -v -count=1`
+  (11/11 subtests) and `go test ./internal/reducer -run DeployableUnit -v -count=1`
+  (29/29 subtests, including the two extraction-equivalence tests above) both
+  pass -- the subtest counts moved up from an earlier version of this doc
+  (10/10, 26/26) as later commits on this branch added coverage; re-verify
+  against `-v` output rather than trusting a fixed number here too. `go build
+  ./...` and `go vet ./internal/ifa ./cmd/ifa` are clean.
 - **Live-lane terminal counts.** The family's expected-edge-set fixture
   (`go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json`)
   asserts exactly one admitted `CORRELATES_DEPLOYABLE_UNIT` edge from the
@@ -163,11 +168,21 @@ tooling, never shipped in a production binary):
 - **Three new diagnostic probes**, all diagnostic-only (none of them can flip
   a cell's pass/fail outcome; `ifa_deployable_unit_live_assert` remains the
   sole authority): a post-maintenance `shared_projection_intents` count, a
-  count of resolved `DEPLOYS_FROM` relationships (separates "correlation had
-  nothing to correlate" from "the reopen found admitted rows the writer then
-  dropped"), and a tail of `ReopenSucceededReducerWorkItems`'s per-domain
-  reopen line (separates "the reopen never fired" from "it fired and found
-  nothing"). The `shared_projection_intents` probe originally claimed to
+  count of resolved `DEPLOYS_FROM` relationships, and a tail of
+  `ReopenSucceededReducerWorkItems`'s per-domain reopen line (separates "the
+  reopen never fired" from "it fired and found nothing"). The `DEPLOYS_FROM`
+  probe (`SELECT count(*) FROM resolved_relationships WHERE relationship_type
+  = 'DEPLOYS_FROM'`) is a bare, unscoped existence count -- it does not
+  establish visibility to this intent. The handler's own loader
+  (`listResolvedByGenerationSQL` / `listResolvedByReposSQL`,
+  `relationship_schema.go:262-295`) joins `relationship_generations` and
+  filters by scope, generation or repo, and status; a nonzero probe count can
+  come from a row the handler's own scoped query would never see. An earlier
+  version of this doc claimed the probe separates "correlation had nothing to
+  correlate" from "the reopen found admitted rows the writer then dropped" --
+  it cannot: no count of any scoping can catch an ordering or visibility
+  failure the way this bare existence count is built. The
+  `shared_projection_intents` probe originally claimed to
   separate "the writer dropped admitted rows" from "correlation produced
   nothing" too, but a later commit on this same branch (#6149 review)
   established that count is always 0 for this family regardless of outcome
