@@ -121,6 +121,20 @@ ifa_deployable_unit_live_init_maintenance_scratch() {
 # exist", never "did correlation see it in time" -- do not read either as
 # proof correlation had material to work with.
 #
+# EACH RETRY PASS RESETS attempt_count TO 0 (found live in CI, #6149): the
+# maintenance pass this loop runs on every retry reopens every succeeded row
+# crossScopeCorrelationReopenDomains covers, including a row a fault cell's
+# OWN kill-and-reclaim already recovered -- ReopenSucceeded
+# (go/internal/storage/postgres/reducer_queue_replay.go) sets attempt_count
+# = 0 unconditionally on reopen, "the start of a fresh repair cycle" by its
+# own doc comment. Any counter-based assertion (attempt_count-derived retry
+# proof, e.g. ifa_fault_assert_retried_above) MUST be captured BEFORE this
+# loop runs, not after: capturing after reads whatever the last reopen reset
+# it to, not the evidence the recovery actually produced. This is not a rare
+# edge case for the deployable-unit family specifically -- it converges on
+# pass 2 as its NORMAL path, so a counter read after this loop engages reads
+# the reset far more often than it reads the original evidence.
+#
 # Args: pass_label_prefix bin_dir log_dir expected_edges drain_cmd...
 # drain_cmd is invoked once per extra pass as "$@" followed by ONE appended
 # argument, "${pass_label_prefix}-pass${extra_pass}" -- e.g.

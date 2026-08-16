@@ -243,6 +243,21 @@ cell_baseline_deployable_unit() {
 # retries in a clean maintenance-pass run, so any positive count is the
 # fault's fingerprint) proves the replacement reducer re-executed
 # deployable_unit_correlation, not merely another queued row.
+#
+# THE RETRY EVIDENCE IS SNAPSHOTTED, NOT RE-QUERIED (found live in CI):
+# attempt_count is captured immediately after the post-kill drain reaches
+# its residual bound, before this cell's own edge-assert/converge_edges
+# steps run. A LIVE re-query at assertion time is not equivalent -- this
+# family's convergence loop (ifa_deployable_unit_live_converge_edges) can
+# run another bootstrap-index maintenance pass, which reopens the recovered
+# row and resets attempt_count to 0 (ReopenSucceeded, reducer_queue_
+# replay.go), erasing the recovery's own evidence AFTER recovery already
+# succeeded. Whether that race fires depends only on whether the recovered
+# row reached 'succeeded' before the maintenance pass enumerated succeeded
+# rows -- and this family converges on maintenance pass 2 as its NORMAL
+# path, so the failing case is the common one, not a rare one. See
+# ifa_deployable_unit_live_converge_edges's own header (ifa_deployable_
+# unit_live_converge.sh) for the general shape of this hazard.
 cell_killworker_deployable_unit() {
 	local cell_start
 	cell_start=$(date +%s)
@@ -276,6 +291,18 @@ cell_killworker_deployable_unit() {
 	ifa_deployable_unit_release_admission_decisions_lock "killworkerdeployableunit" "${lock_holder_pid}"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkerdeployableunit
+	# Snapshot HERE, not at the assertion below: by the time run_drain_gate
+	# returns, the recovered row is already 'succeeded' with attempt_count
+	# intact, and nothing between here and this snapshot can have reopened it
+	# -- so a single direct read, not a poll, is correct. Everything after
+	# this line (the edge assert and its convergence-loop retries) can run
+	# another maintenance pass that reopens this same row and resets
+	# attempt_count to 0; reading the count again after that point would read
+	# the reset, not the recovery. See this cell's own header and
+	# ifa_deployable_unit_live_converge_edges's for why.
+	local killed_retried
+	killed_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"
+	killed_retried="${killed_retried:-}"
 	assert_no_dead_letters killworkerdeployableunit
 	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-after" "killworkerdeployableunit" \
 		|| die "kill-worker-after-claim-deployable-unit: post-maintenance reducer log does not prove the readiness gate opened"
@@ -300,9 +327,19 @@ cell_killworker_deployable_unit() {
 		*) die "kill-worker-after-claim-deployable-unit: recovered graph did not converge to the one-edge exact set within the maintenance-pass convergence bound" ;;
 		esac
 	fi
-	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${baseline_deployable_unit_retried}" 15 "deployable_unit_correlation" \
-		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute above its fault-free retry baseline"
+	# Assert on the SNAPSHOT captured right after the drain, not a fresh
+	# query here -- by this point the edge-assert/converge_edges steps above
+	# may already have run a maintenance pass that reopened and zeroed this
+	# row's attempt_count. ifa_fault_assert_retried_above (which polls a
+	# live query) is deliberately NOT used here for that reason. Same
+	# fail-closed shape as the rest of this family: empty or non-numeric
+	# output is unknown, never a legitimate zero or a legitimate pass.
+	[[ -n "${killed_retried}" ]] \
+		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query returned empty output; treat this as unknown, not as zero"
+	[[ "${killed_retried}" =~ ^[0-9]+$ ]] \
+		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query returned non-numeric output '${killed_retried}'; treat this as unknown, not as zero"
+	[[ "${killed_retried}" -gt "${baseline_deployable_unit_retried}" ]] \
+		|| die "kill-worker-after-claim-deployable-unit: deployable_unit_correlation did not re-execute above its fault-free retry baseline (snapshot ${killed_retried}, baseline ${baseline_deployable_unit_retried})"
 	capture_digest killworkerdeployableunit
 	assert_matches_baseline killworkerdeployableunit baseline_deployable_unit
 	teardown_cell killworkerdeployableunit

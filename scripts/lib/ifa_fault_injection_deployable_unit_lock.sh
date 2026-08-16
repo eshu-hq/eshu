@@ -124,9 +124,17 @@ ifa_deployable_unit_require_admission_decisions_written() {
 # write repeats as an idempotent MERGE and the admission-decision write that
 # was blocked repeats as a fresh, successful one -- this proves recovery from
 # a POST-write death, not a PRE-write death. It is still a real
-# reclaim-and-re-execute proof (ifa_fault_assert_retried_above below still
-# requires attempt_count to rise above the fault-free baseline), just a
-# different one than code_calls' pre-write proof.
+# reclaim-and-re-execute proof: the kill cell (ifa_fault_injection_
+# deployable_unit_cells.sh) snapshots attempt_count immediately after the
+# post-kill drain reaches its residual bound and compares that SNAPSHOT
+# against the fault-free baseline, not a live re-query at assertion time.
+# CI caught why the live re-query is not equivalent: this family's own
+# convergence loop (ifa_deployable_unit_live_converge_edges) can run another
+# bootstrap-index maintenance pass after the drain, which reopens the
+# recovered row and resets attempt_count back to 0 -- a live re-query taken
+# after that point reads the repair's reset, not the recovery's evidence,
+# and this family converges on maintenance pass 2 as its NORMAL path, so
+# that race is the common case here, not a rare one.
 ifa_deployable_unit_start_admission_decisions_lock() {
 	local cell="$1" pid_var="$2"
 	local app_name="ifa_deployable_unit_lock_${cell}"
