@@ -23,7 +23,7 @@
           "source_confidence": "observed",
           "payload": {
             "graph_id": "repo-ifa-deployable-unit-app",
-            "local_path": "/repo-deployable-unit-app",
+            "local_path": "/repo-ifa-deployable-unit-app",
             "name": "deployable-unit-family",
             "repo_id": "repo-ifa-deployable-unit-app",
             "source_run_id": "run-ifa-deployable-unit-family-1"
@@ -55,7 +55,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "repo:repo-deployable-unit-app",
+            "entity_key": "repo:repo-ifa-deployable-unit-app",
             "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
             "reducer_domain": "deployable_unit_correlation",
             "repo_id": "repo-ifa-deployable-unit-app"
@@ -68,7 +68,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "deployment:repo-deployable-unit-app",
+            "entity_key": "deployment:repo-ifa-deployable-unit-app",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-deployable-unit-app"
@@ -82,7 +82,7 @@
           "source_confidence": "observed",
           "payload": {
             "graph_id": "repo-ifa-deployable-unit-deploy",
-            "local_path": "/repo-deployable-unit-deploy",
+            "local_path": "/repo-ifa-deployable-unit-deploy",
             "name": "deployable-unit-family-deploy",
             "repo_id": "repo-ifa-deployable-unit-deploy",
             "source_run_id": "run-ifa-deployable-unit-family-1"
@@ -115,7 +115,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "repo:repo-deployable-unit-deploy",
+            "entity_key": "repo:repo-ifa-deployable-unit-deploy",
             "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
             "reducer_domain": "deployable_unit_correlation",
             "repo_id": "repo-ifa-deployable-unit-deploy"
@@ -128,7 +128,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "deployment:repo-deployable-unit-deploy",
+            "entity_key": "deployment:repo-ifa-deployable-unit-deploy",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-deployable-unit-deploy"
@@ -142,7 +142,7 @@
           "source_confidence": "observed",
           "payload": {
             "graph_id": "repo-ifa-deployable-unit-rejected",
-            "local_path": "/repo-deployable-unit-rejected",
+            "local_path": "/repo-ifa-deployable-unit-rejected",
             "name": "deployable-unit-family-rejected",
             "repo_id": "repo-ifa-deployable-unit-rejected",
             "source_run_id": "run-ifa-deployable-unit-family-1"
@@ -174,7 +174,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "repo:repo-deployable-unit-rejected",
+            "entity_key": "repo:repo-ifa-deployable-unit-rejected",
             "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
             "reducer_domain": "deployable_unit_correlation",
             "repo_id": "repo-ifa-deployable-unit-rejected"
@@ -187,7 +187,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "deployment:repo-deployable-unit-rejected",
+            "entity_key": "deployment:repo-ifa-deployable-unit-rejected",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-deployable-unit-rejected"
@@ -201,7 +201,7 @@
           "source_confidence": "observed",
           "payload": {
             "graph_id": "repo-ifa-deployable-unit-jenkins",
-            "local_path": "/repo-deployable-unit-jenkins",
+            "local_path": "/repo-ifa-deployable-unit-jenkins",
             "name": "deployable-unit-family-jenkins",
             "repo_id": "repo-ifa-deployable-unit-jenkins",
             "source_run_id": "run-ifa-deployable-unit-family-1"
@@ -250,7 +250,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "repo:repo-deployable-unit-jenkins",
+            "entity_key": "repo:repo-ifa-deployable-unit-jenkins",
             "reason": "repository snapshot emitted deployable_unit_correlation follow-up",
             "reducer_domain": "deployable_unit_correlation",
             "repo_id": "repo-ifa-deployable-unit-jenkins"
@@ -263,7 +263,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "deployment:repo-deployable-unit-jenkins",
+            "entity_key": "deployment:repo-ifa-deployable-unit-jenkins",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-deployable-unit-jenkins"

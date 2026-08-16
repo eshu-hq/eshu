@@ -96,10 +96,10 @@ func deployableUnitFamilyOdu() CatalogOdu {
 	// live determinism matrix's canonical path cleanup for one family cannot
 	// delete this family's repository, mirroring
 	// TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily's proof.
-	appLocalPath := "/repo-deployable-unit-app"
-	deployLocalPath := "/repo-deployable-unit-deploy"
-	rejectedLocalPath := "/repo-deployable-unit-rejected"
-	jenkinsLocalPath := "/repo-deployable-unit-jenkins"
+	appLocalPath := "/repo-ifa-deployable-unit-app"
+	deployLocalPath := "/repo-ifa-deployable-unit-deploy"
+	rejectedLocalPath := "/repo-ifa-deployable-unit-rejected"
+	jenkinsLocalPath := "/repo-ifa-deployable-unit-jenkins"
 	factsForOdu := []facts.Envelope{
 		deployableUnitCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID:      deployableUnitFamilyAppRepoID,
