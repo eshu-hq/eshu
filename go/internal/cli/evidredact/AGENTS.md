@@ -8,9 +8,10 @@
 3. `go/internal/urlredact/AGENTS.md` — the shared boundary, the percent-escape
    depth rule, and the differential corpus. Every rule there binds this package.
 4. `go/cmd/eshu/first_run_evidence.go` — the consumer. It keeps thin wrappers
-   (`redactEndpoint`, `scrubEvidenceText`) because `hosted_onboard.go` also
-   redacts an endpoint and because the shared corpus is driven through
-   `redactEndpoint` by that package's differential test.
+   (`redactEndpoint`, `scrubEvidenceText`) because the shared corpus is driven
+   through `redactEndpoint` by that package's differential test. The other
+   endpoint redaction site, `go/internal/cli/hosted/onboard.go`, calls
+   `evidredact.Endpoint` directly.
 
 ## Invariants this package enforces
 
