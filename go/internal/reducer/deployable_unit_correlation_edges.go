@@ -22,19 +22,24 @@ const (
 )
 
 // ExtractDeployableUnitCorrelationRows runs the pure deployable-unit
-// correlation pipeline over one intent's fact envelopes and its
-// already-resolved cross-repo relationships, returning every candidate row
-// (admitted and rejected) exactly as DeployableUnitCorrelationHandler.Handle
-// computes them, plus the engine.Evaluation the rows were derived from.
+// correlation pipeline over one intent's already-extracted workload
+// candidates and its already-resolved cross-repo relationships, returning
+// every candidate row (admitted and rejected) exactly as
+// DeployableUnitCorrelationHandler.Handle computes them, plus the
+// engine.Evaluation the rows were derived from.
 //
-// DeployableUnitCorrelationHandler.Handle calls this function for its own row
-// computation after loading `resolved` through its ResolvedRelationshipLoader
-// (the I/O stays in Handle; this function performs none). Ifá's
-// deployable_unit_edges materialized-edge vacuity guard
-// (go/internal/ifa/materialized_edges_deployable_unit.go, #5993) calls it
-// directly against a cataloged Odù's facts plus a hand-authored
-// resolved-relationship fixture, mirroring the role ExtractSQLRelationshipRows
-// and ExtractAllCodeRelationshipRows play for their families.
+// The caller extracts candidates from fact envelopes via
+// ExtractWorkloadCandidates exactly once and passes the result in here.
+// DeployableUnitCorrelationHandler.Handle needs that same candidate slice for
+// its ResolvedRelationshipLoader call (loadWorkloadResolvedRelationships), so
+// this seam accepting candidates instead of re-deriving them from envelopes
+// avoids running ExtractWorkloadCandidates twice per intent (#5993 review).
+// Ifá's deployable_unit_edges materialized-edge vacuity guard
+// (go/internal/ifa/materialized_edges_deployable_unit.go, #5993) extracts
+// candidates from a cataloged Odù's facts the same way before calling this
+// seam directly with a hand-authored resolved-relationship fixture, mirroring
+// the role ExtractSQLRelationshipRows and ExtractAllCodeRelationshipRows play
+// for their families.
 //
 // Unlike those two families, deployable-unit correlation cannot derive its
 // edges from facts alone: a candidate's deployment_repo_id only exists once a
@@ -57,7 +62,7 @@ const (
 // and is never asserted by an edge-identity comparison.
 func ExtractDeployableUnitCorrelationRows(
 	intent Intent,
-	envelopes []facts.Envelope,
+	candidates []WorkloadCandidate,
 	resolved []relationships.ResolvedRelationship,
 	now func() time.Time,
 ) ([]SharedProjectionIntentRow, engine.Evaluation, error) {
@@ -65,7 +70,6 @@ func ExtractDeployableUnitCorrelationRows(
 	if err != nil {
 		return nil, engine.Evaluation{}, err
 	}
-	candidates, _ := ExtractWorkloadCandidates(envelopes)
 	candidates = applyResolvedDeploymentSources(candidates, resolved)
 	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
 	if len(candidates) == 0 {

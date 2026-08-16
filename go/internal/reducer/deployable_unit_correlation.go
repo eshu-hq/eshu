@@ -63,9 +63,15 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)
 	}
 
+	// Extracted once and reused for both the resolved-relationship lookup and
+	// the row extraction below -- ExtractWorkloadCandidates re-derives the
+	// same candidates from the same envelopes each time it runs, so calling
+	// it twice per intent was pure wasted CPU on this reducer path (#5993
+	// review).
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+
 	var resolved []relationships.ResolvedRelationship
 	if h.ResolvedLoader != nil {
-		candidates, _ := ExtractWorkloadCandidates(envelopes)
 		resolved, err = loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
@@ -78,7 +84,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// time.Now().UTC(), never h.AdmissionDecisionNow (a distinct clock for a
 	// distinct field, admission_decision_mapping_test.go's fixed-clock cases
 	// must stay unaffected by this row's CreatedAt).
-	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, resolved, nil)
+	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
 	if err != nil {
 		return Result{}, err
 	}

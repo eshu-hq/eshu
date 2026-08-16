@@ -53,7 +53,8 @@ func TestExtractDeployableUnitCorrelationRowsReproducesHandleAdmittedEdge(t *tes
 		},
 	}
 
-	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, resolved, nil)
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
+	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}
@@ -106,8 +107,9 @@ func TestExtractDeployableUnitCorrelationRowsEmptyCandidatesYieldsNoResults(t *t
 
 	intent := deployableUnitIntent("documentation")
 	envelopes := deployableUnitCorrelationEnvelopes("repo-docs", "documentation", nil)
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, nil, nil)
+	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}
@@ -127,8 +129,9 @@ func TestExtractDeployableUnitCorrelationRowsRequiresEntityKeys(t *testing.T) {
 
 	intent := deployableUnitIntent()
 	envelopes := deployableUnitCorrelationEnvelopes("repo-edge-api", "edge-api", nil)
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	_, _, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, nil, nil)
+	_, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
 	if err == nil {
 		t.Fatal("ExtractDeployableUnitCorrelationRows() error = nil, want non-nil")
 	}
@@ -176,8 +179,9 @@ func TestExtractDeployableUnitCorrelationRowsUsesInjectedClock(t *testing.T) {
 		},
 	}
 	fixed := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	rows, _, err := ExtractDeployableUnitCorrelationRows(intent, envelopes, resolved, func() time.Time { return fixed })
+	rows, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return fixed })
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}

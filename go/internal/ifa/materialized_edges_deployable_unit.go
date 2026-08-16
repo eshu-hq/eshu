@@ -79,7 +79,13 @@ func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	if err != nil {
 		return false, err.Error()
 	}
-	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, odu.Facts, resolved, func() time.Time { return deployableUnitGuardClock })
+	// ExtractDeployableUnitCorrelationRows takes already-extracted candidates,
+	// not raw fact envelopes, matching production's Handle (#5993 review): the
+	// extraction step (ExtractWorkloadCandidates) is itself pure, so doing it
+	// here rather than inside the seam does not weaken this guard's claim to
+	// run the same code path production runs.
+	candidates, _ := reducer.ExtractWorkloadCandidates(odu.Facts)
+	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return deployableUnitGuardClock })
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractDeployableUnitCorrelationRows: %v", odu.Name, err)
 	}
