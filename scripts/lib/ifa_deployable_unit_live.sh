@@ -92,16 +92,16 @@
 # collection is an honest degenerate case, not a trick.
 #
 # STILL UNPROVEN (the successor unknown, not resolved by reading code): that
-# zero-repo filesystem collection is inert rather than actively harmful --
-# specifically, that no reconcile path reads "a repo generation present in
+# a genuinely zero-repo filesystem collection is inert rather than actively
+# harmful -- that no reconcile path reads "a repo generation present in
 # Postgres but absent from an empty collection source" as a removal and
-# retracts the cassette-deposited facts this cell depends on. Judged unlikely
-# (reconciliation is scoped to the collector's own sync scope, and an
-# empty-root first run has no prior generations of its own to reconcile
-# against), but not proven. This cell's own tripwires cover it: the
-# post-maintenance drain's exact-set assertion and the fault-injection
-# baseline's whole-graph digest would both fail loudly if the pass retracted
-# anything.
+# retracts facts this cell depends on. Judged unlikely, not proven. This
+# cell's own tripwires cover it: the post-maintenance drain's exact-set
+# assertion and the fault-injection baseline's whole-graph digest would both
+# fail loudly if the pass retracted anything. NOTE this is about zero-repo
+# collection specifically -- a literally EMPTY root is a different, now
+# PROVEN case: see ifa_deployable_unit_live_init_maintenance_scratch's
+# PHANTOM-REPO finding in ifa_deployable_unit_live_converge.sh.
 #
 # STABILIZED (#6149): this used to `mktemp -d` a fresh ESHU_FILESYSTEM_ROOT/
 # ESHU_REPOS_DIR every call; every Repository property bootstrap-index writes

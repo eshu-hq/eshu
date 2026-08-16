@@ -25,13 +25,43 @@
 # under it so the driver's existing EXIT-trap cleanup covers these too.
 # Idempotent (skips if already set) so a stray second call is harmless.
 #
+# PHANTOM-REPO FINDING (second digest fix, same #6149 live run that proved
+# the path-stability fix above): a genuinely EMPTY ESHU_FILESYSTEM_ROOT is
+# NOT inert. DiscoverFilesystemRepositoryIDs (go/internal/collector/
+# git_selection_discovery.go) recurses via discoverRepoRootsWithGitPriority,
+# and repositoryRootLikeFromEntries's fallback -- `return childDirectories ==
+# 0` -- reports a directory with ZERO entries as repository-root-like, so an
+# empty root is discovered as ONE repository (repoID "."), not zero. This
+# reproduced directly with collector.DiscoverFilesystemRepositoryIDs against
+# a bare os.MkdirTemp root, unrelated to any other directory's location,
+# proving it is emptiness that triggers it, NOT which directory sits next to
+# or under which. Moving DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT and
+# _SCRATCH_REPOS_DIR to unrelated parents would not have fixed it -- the
+# phantom Repository node's local_path (ReposDir/basename(FilesystemRoot))
+# looked like a nesting bug but is a filesystemRepoPaths computed string, not
+# evidence of where the directories actually sit. This is the real collector
+# behavior, working as coded, not a layout defect in this file -- confirmed
+# a finding, not a bug to route around by rearranging paths.
+#
+# Fix, scoped to this harness: seed the root with one HIDDEN entry so it is
+# no longer empty. `.` prefixed entries are skipped both by the file-based
+# fast path in repositoryRootLikeFromEntries and by discoverRepoRootsWithGit
+# Priority's own recursion filter, so a single hidden placeholder directory
+# makes childDirectories>0 (repositoryRootLikeFromEntries's fallback no
+# longer fires) while never itself being recursed into or selected --
+# collection then discovers zero repositories, the behavior this family's
+# header always intended and (until this run) never actually observed.
+# Verified directly against collector.DiscoverFilesystemRepositoryIDs: a
+# bare empty temp dir returns `["."]`; the same dir with one
+# `.eshu-no-repos-marker` subdirectory returns `[]`.
+#
 # Args: work_dir
 ifa_deployable_unit_live_init_maintenance_scratch() {
 	local work_dir="$1"
 	[[ -n "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT:-}" ]] && return 0
 	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT="${work_dir}/deployable-unit-maintenance-scratch-root"
 	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR="${work_dir}/deployable-unit-maintenance-scratch-repos"
-	mkdir -p "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT}" "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR}"
+	mkdir -p "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT}/.eshu-no-repos-marker" "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR}"
 }
 
 # ifa_deployable_unit_live_converge_bound is the number of bootstrap-index
