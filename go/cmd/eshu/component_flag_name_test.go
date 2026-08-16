@@ -26,8 +26,8 @@ import (
 // Not parallel, and neither are the subtests: cobra's Find writes the resolved
 // name back onto the shared rootCmd tree, so two goroutines resolving a path
 // at once is a data race -- which -race caught here before this test was ever
-// committed. The sibling registration tests in change_impact_test.go run
-// serially for the same reason.
+// committed. The sibling registration tests in change_impact_test.go are
+// serial too, whatever their author's reason was.
 func TestComponentRequiredFlagNamesAreRegistered(t *testing.T) {
 	cases := []struct {
 		name string
