@@ -91,19 +91,41 @@ ifa_det_untrack_bg_pid() {
 # mode (via a local psql client against dsn).
 #
 # Args: compose_project use_compose dsn sql [compose_file=docker-compose.yaml]
+#
+# Stdout is streamed straight through unbuffered, byte-identical to the
+# pre-existing behavior, on both the success and the failure path -- callers
+# that pipe it (e.g. `| tr -d '[:space:]'`) see no change. Stderr used to be
+# discarded unconditionally (`2>/dev/null`), which meant every non-zero exit
+# was unrecoverable: the caller learned a query failed but never why. Stderr
+# is now captured to a temp file and, only when psql exits non-zero, echoed
+# to this function's own stderr before returning that same exit code --
+# nothing is added to the success path (#5993 fault-injection review: a
+# `duplicate-delivery` cell failure in ifa_fault_redeliver_succeeded could not
+# be diagnosed past "exited non-zero" because this swallow made the actual
+# psql error text unrecoverable).
 ifa_det_pg() {
 	local compose_project="$1" use_compose="$2" dsn="$3" sql="$4"
 	local compose_file="${5:-docker-compose.yaml}"
+	local errfile rc
+	errfile="$(mktemp)"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
-			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
+			psql -U eshu -d eshu -tA -c "${sql}" 2>"${errfile}"
+		rc=$?
 	else
 		command -v psql >/dev/null 2>&1 || {
 			echo "ifa_det_pg: psql client required in --no-compose mode" >&2
+			rm -f "${errfile}"
 			return 1
 		}
-		psql "${dsn}" -tA -c "${sql}" 2>/dev/null
+		psql "${dsn}" -tA -c "${sql}" 2>"${errfile}"
+		rc=$?
 	fi
+	if [[ ${rc} -ne 0 && -s "${errfile}" ]]; then
+		echo "ifa_det_pg: psql failed (exit ${rc}): $(cat "${errfile}")" >&2
+	fi
+	rm -f "${errfile}"
+	return "${rc}"
 }
 
 # ifa_det_wait_for_backends polls the compose project's nornicdb + postgres
