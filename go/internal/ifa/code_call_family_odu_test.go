@@ -6,6 +6,7 @@ package ifa
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
 	}
 
-	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot), "code_calls")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestCodeCallFamilyCoversAllFourEdgeTypes(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeCallFamilyExpectedEdgesPath(repoRoot), "code_calls")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -261,4 +262,65 @@ func TestCodeCallOduPreservesEnvelopeFields(t *testing.T) {
 		t.Fatal("no facts compared; this guard would pass vacuously")
 	}
 	t.Logf("verified envelope fields preserved across %d facts", checked)
+}
+
+// TestLoadCodeCallFamilyOduRejectsUnknownJSONField proves the cassette
+// decoder catches a typo (e.g. "fact_knd" instead of "fact_kind") rather than
+// silently decoding it away -- the same false-attestation shape #5994 forced
+// a coverage-row withdrawal for: an unnoticed typo here would silently
+// project a WRONG fact set from a cassette, and the resulting Odù would still
+// drive an exact-set gate, whose green result would then attest to something
+// the cassette did not actually say. A well-formed cassette carrying every
+// real envelope field (collector, schema_version, source_system, scope_kind,
+// partition_key, metadata, observed_at, trigger_kind) -- the full shape the
+// real committed cassette carries, not just the load-bearing subset this
+// loader consumes -- still loads.
+func TestLoadCodeCallFamilyOduRejectsUnknownJSONField(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	goodRaw := `{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-1",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-1",
+      "metadata": {"fixture": "typo-probe"},
+      "generation_id": "gen-1",
+      "observed_at": "2026-08-09T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "content_entity",
+          "schema_version": "1",
+          "stable_fact_key": "k1",
+          "collector_kind": "git",
+          "source_confidence": "high",
+          "payload": {"entity_id": "e1"}
+        }
+      ]
+    }
+  ]
+}`
+	goodPath := filepath.Join(dir, "good.json")
+	if err := os.WriteFile(goodPath, []byte(goodRaw), 0o600); err != nil {
+		t.Fatalf("write temp cassette: %v", err)
+	}
+	if _, err := loadCodeCallFamilyOdu(goodPath); err != nil {
+		t.Fatalf("loadCodeCallFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
+	}
+
+	badRaw := strings.Replace(goodRaw, `"fact_kind": "content_entity"`, `"fact_knd": "content_entity"`, 1)
+	badPath := filepath.Join(dir, "typo.json")
+	if err := os.WriteFile(badPath, []byte(badRaw), 0o600); err != nil {
+		t.Fatalf("write temp cassette: %v", err)
+	}
+	if _, err := loadCodeCallFamilyOdu(badPath); err == nil {
+		t.Fatal("loadCodeCallFamilyOdu accepted a cassette with an unknown field (fact_knd typo)")
+	}
 }

@@ -76,7 +76,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	repoExpected := []ifa.ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "repo-a", TargetEntityID: "repo-b"},
 	}
-	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", repoTypes, repoEndpoints, repoExpected); err != nil {
+	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", repoTypes, repoEndpoints, nil, repoExpected); err != nil {
 		t.Errorf("repo_dependency assertion = %v, want nil; the Workload->Workload edge leaked into this family", err)
 	}
 
@@ -91,7 +91,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	workloadExpected := []ifa.ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "wl-a", TargetEntityID: "wl-b"},
 	}
-	if err := assertMaterializedEdges(context.Background(), graph, "workload_dependency", workloadTypes, workloadEndpoints, workloadExpected); err != nil {
+	if err := assertMaterializedEdges(context.Background(), graph, "workload_dependency", workloadTypes, workloadEndpoints, nil, workloadExpected); err != nil {
 		t.Errorf("workload_dependency assertion = %v, want nil; the Repository->Repository edge leaked into this family", err)
 	}
 }
@@ -118,7 +118,7 @@ func TestTypeOnlyFilteringWouldConflateTheSharedType(t *testing.T) {
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "repo-a", TargetEntityID: "repo-b"},
 	}
 
-	err = assertMaterializedEdges(context.Background(), graph, "repo_dependency", repoTypes, nil, repoExpected)
+	err = assertMaterializedEdges(context.Background(), graph, "repo_dependency", repoTypes, nil, nil, repoExpected)
 	if err == nil {
 		t.Fatal("type-only filtering accepted a graph holding another family's DEPENDS_ON; endpoint scoping would then be unnecessary and this test is no longer meaningful")
 	}
@@ -151,7 +151,7 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 	expected := []ifa.ExpectedEdge{
 		{RelationshipType: "RUNS_IN", SourceEntityID: "fn-a", TargetEntityID: "wl-a"},
 	}
-	if err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, endpoints, expected); err != nil {
+	if err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, endpoints, nil, expected); err != nil {
 		t.Fatalf("unconstrained family assertion = %v, want nil; a nil constraint map must not filter the family's edges away", err)
 	}
 }
@@ -183,13 +183,113 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 	}
 
 	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
-	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, byUID); err != nil {
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, nil, byUID); err != nil {
 		t.Errorf("expected set naming the uids = %v, want nil; uid must win when both properties are present", err)
 	}
 
 	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
-	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, byID); err == nil {
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, nil, byID); err == nil {
 		t.Error("expected set naming the ids passed; id must NOT win over uid, or the fallback silently reverses identity for every content entity")
+	}
+}
+
+// TestRefFallbackResolvesCodeownerTeamEndpoint proves the third endpointID
+// fallback: a CodeownerTeam endpoint, MERGEd `{ref: row.owner_ref}`
+// (canonical_codeowners_edges.go) and carrying neither uid nor id, still
+// resolves by its ref rather than reporting as an unmaterialized endpoint —
+// the exact shape a live DECLARES_CODEOWNER edge's target carries. ToLabels
+// is set to CodeownerTeam because the fallback is scoped to that label (see
+// TestRefFallbackIsScopedToCodeownerTeam) — a real live edge always carries
+// its endpoint's labels, so this is the realistic shape, not a simplification
+// the scoping happens to tolerate.
+func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "DECLARES_CODEOWNER",
+		FromProps: map[string]any{"id": "repo-1"},
+		ToLabels:  []string{"CodeownerTeam"},
+		ToProps:   map[string]any{"ref": "team-a"}, // ref-only: no uid, no id.
+	}}}
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a"},
+	}
+
+	if err := assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected); err != nil {
+		t.Fatalf("assertMaterializedEdges(ref-only CodeownerTeam target) = %v, want nil; ref must resolve the endpoint", err)
+	}
+}
+
+// TestRefFallbackIsScopedToCodeownerTeam proves the ref fallback does NOT
+// apply globally: an endpoint of some OTHER label that lost its real
+// identity (no uid, no id) but happens to carry an incidental "ref" property
+// must still report as unmaterialized, not silently resolve by that ref. An
+// unscoped fallback would mask exactly this failure mode — a node in a
+// uid/id-keyed family that lost its real identity would read as
+// "identified" instead of "unmaterialized".
+func TestRefFallbackIsScopedToCodeownerTeam(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{{
+		Type:      "DECLARES_CODEOWNER",
+		FromProps: map[string]any{"id": "repo-1"},
+		ToLabels:  []string{"SomeOtherLabel"},
+		ToProps:   map[string]any{"ref": "incidental"}, // no uid, no id -- must NOT resolve.
+	}}}
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "incidental"},
+	}
+
+	err = assertMaterializedEdges(context.Background(), graph, "codeowners_ownership_edges", types, nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(non-CodeownerTeam endpoint with only an incidental ref) = nil, want an endpoint-defect failure")
+	}
+	if !strings.Contains(err.Error(), "endpoint") {
+		t.Errorf("error %q does not report the endpoint defect", err)
+	}
+}
+
+// TestUidAndIDWinOverRef pins the fallback precedence: an endpoint carrying
+// uid or id must resolve by that property, never by a stale or unrelated ref
+// it also happens to carry.
+func TestUidAndIDWinOverRef(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
+	}
+
+	uidWins := graphdump.Edge{
+		Type:       "RUNS_IN",
+		FromLabels: []string{"Function"},
+		FromProps:  map[string]any{"uid": "u-from", "ref": "ref-from"},
+		ToLabels:   []string{"Workload"},
+		ToProps:    map[string]any{"uid": "u-to", "ref": "ref-to"},
+	}
+	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{uidWins}}, "runs_in", types, nil, nil, byUID); err != nil {
+		t.Errorf("expected set naming the uids = %v, want nil; uid must win over ref", err)
+	}
+
+	idWins := graphdump.Edge{
+		Type:       "RUNS_IN",
+		FromLabels: []string{"Function"},
+		FromProps:  map[string]any{"id": "i-from", "ref": "ref-from"},
+		ToLabels:   []string{"Workload"},
+		ToProps:    map[string]any{"id": "i-to", "ref": "ref-to"},
+	}
+	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{idWins}}, "runs_in", types, nil, nil, byID); err != nil {
+		t.Errorf("expected set naming the ids = %v, want nil; id must win over ref", err)
 	}
 }
 
@@ -223,7 +323,7 @@ func TestEndpointDefectNamesWhichSideIsUnidentified(t *testing.T) {
 				Type: "RUNS_IN", FromLabels: []string{"Function"}, FromProps: tc.from,
 				ToLabels: []string{"Workload"}, ToProps: tc.to,
 			}}}
-			err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, nil, expected)
+			err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, nil, nil, expected)
 			if err == nil {
 				t.Fatal("an endpoint with no identity was accepted")
 			}
@@ -280,7 +380,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 	expected := []ifa.ExpectedEdge{
 		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-resolver", TargetEntityID: "plat-a"},
 	}
-	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, expected); err != nil {
+	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, nil, expected); err != nil {
 		t.Errorf("repo_dependency assertion = %v, want nil; the workload-materialized RUNS_ON edge leaked into this family", err)
 	}
 
@@ -290,7 +390,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 	wrong := []ifa.ExpectedEdge{
 		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-workload", TargetEntityID: "plat-b"},
 	}
-	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, wrong); err == nil {
+	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, nil, wrong); err == nil {
 		t.Error("an expected set naming the workload-materialized edge passed; the family must not be able to claim another writer's RUNS_ON")
 	}
 }

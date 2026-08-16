@@ -4,8 +4,11 @@
 package ifa
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -44,19 +47,37 @@ type rationaleExpectedEdge struct {
 }
 
 type rationaleExpectedEdgesFile struct {
-	Odu   string                  `json:"odu"`
+	Odu string `json:"odu"`
+	// Note is free-form authoring context every committed rationale
+	// expected-edge-set fixture carries (see
+	// testdata/rationale/ifa-rationale-family-expected-edges.json); modeled
+	// here, rather than left to strict-decode rejection, so the
+	// DisallowUnknownFields decoder below does not reject that fixture.
+	Note  string                  `json:"note,omitempty"`
 	Edges []rationaleExpectedEdge `json:"edges"`
 }
 
-// loadRationaleExpectedEdges reads and parses the expected-edge fixture.
+// loadRationaleExpectedEdges reads and parses the expected-edge fixture. The
+// decoder disallows unknown fields so a typo (e.g. "target_pth" instead of
+// "target_path") fails loudly at load time instead of silently decoding to a
+// zero value -- the same class of gap #5992 review found and fixed for the
+// SQL family's loader (loadSQLRelationshipExpectedEdges). json.Decoder.Decode
+// reads exactly one JSON value and stops, unlike the json.Unmarshal this
+// replaces, so a second Decode requiring io.EOF closes the trailing-content
+// gap switching decoders would otherwise reopen.
 func loadRationaleExpectedEdges(path string) ([]rationaleExpectedEdge, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return nil, fmt.Errorf("ifa: read rationale expected edges %s: %w", path, err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
 	var parsed rationaleExpectedEdgesFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
+	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("ifa: parse rationale expected edges %s: %w", path, err)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("ifa: rationale expected edges %s has trailing content after its JSON object", path)
 	}
 	if len(parsed.Edges) == 0 {
 		return nil, fmt.Errorf("ifa: rationale expected edges %s declares no edges; an empty expected set would make the gate vacuous", path)
@@ -80,8 +101,21 @@ func rationaleRowsToExpectedEdges(rows []map[string]any) []rationaleExpectedEdge
 	return out
 }
 
+// rationaleEdgeKey renders e's comparison key using the same
+// writeLengthPrefixedField netstring encoding as ExpectedEdge.Key(),
+// sqlRelationshipEdgeKey, and codeCallEdgeKey (materialized_edges_assert.go,
+// materialized_edges_sql.go, materialized_edges_code_calls.go). It used to
+// join its five fields with a raw "\x00" delimiter instead; unified onto the
+// shared encoding so no comparison key in this package depends on a
+// delimiter byte its fields happen not to contain.
 func rationaleEdgeKey(e rationaleExpectedEdge) string {
-	return strings.Join([]string{e.RationaleUID, e.TargetEntityID, e.TargetPath, e.RepoID, e.CommentKind}, "\x00")
+	var b strings.Builder
+	writeLengthPrefixedField(&b, e.RationaleUID)
+	writeLengthPrefixedField(&b, e.TargetEntityID)
+	writeLengthPrefixedField(&b, e.TargetPath)
+	writeLengthPrefixedField(&b, e.RepoID)
+	writeLengthPrefixedField(&b, e.CommentKind)
+	return b.String()
 }
 
 func rationaleEdgeLabel(e rationaleExpectedEdge) string {

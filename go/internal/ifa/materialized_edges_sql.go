@@ -4,8 +4,11 @@
 package ifa
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -56,28 +59,52 @@ func sqlFamilyDeltaLiveExpectedEdgesPath(repoRoot string) string {
 // edge: the identity triple the #5351 vacuity guard asserts, deliberately
 // excluding source_path (production content_entity facts never carry a
 // top-level "path" key — see sql_relationship_odu.go's doc comment — so
-// source_path is not part of any edge's identity here).
+// source_path is not part of any edge's identity here). Field order and
+// types MUST stay identical to ExpectedEdge (materialized_edges_assert.go):
+// LoadExpectedEdges converts directly between the two structs, and the
+// compiler rejects that conversion the moment their shapes diverge.
 type sqlRelationshipExpectedEdge struct {
-	RelationshipType string `json:"relationship_type"`
-	SourceEntityID   string `json:"source_entity_id"`
-	TargetEntityID   string `json:"target_entity_id"`
+	RelationshipType string            `json:"relationship_type"`
+	SourceEntityID   string            `json:"source_entity_id"`
+	TargetEntityID   string            `json:"target_entity_id"`
+	Identity         map[string]string `json:"identity,omitempty"`
 }
 
 type sqlRelationshipExpectedEdgesFile struct {
-	Odu   string                        `json:"odu"`
+	Odu string `json:"odu"`
+	// Note is free-form authoring context every committed expected-edge-set
+	// fixture carries; it is modeled here (rather than left to strict-decode
+	// rejection) purely so loadSQLRelationshipExpectedEdges's
+	// DisallowUnknownFields decoder does not reject every existing fixture.
+	Note  string                        `json:"note,omitempty"`
 	Edges []sqlRelationshipExpectedEdge `json:"edges"`
 }
 
 // loadSQLRelationshipExpectedEdges reads and parses one hand-derived
-// expected-edge-set fixture file.
+// expected-edge-set fixture file. The decoder disallows unknown fields so a
+// typo in a fixture (e.g. "identiy" instead of "identity") fails loudly at
+// load time instead of silently decoding to a zero value.
+//
+// json.Decoder.Decode reads exactly one JSON value off the stream and
+// stops -- unlike json.Unmarshal, it does not require the input to end
+// there, so a fixture holding a second, concatenated JSON value after a
+// valid first one would decode only the first and silently drop the rest.
+// Requiring io.EOF from a second Decode call closes that gap: any trailing
+// non-whitespace content after the first value is a fixture error, not a
+// value this loader ignores.
 func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdge, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is a checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return nil, fmt.Errorf("ifa: read sql relationship expected edges %s: %w", path, err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
 	var parsed sqlRelationshipExpectedEdgesFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
+	if err := decoder.Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("ifa: parse sql relationship expected edges %s: %w", path, err)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has trailing content after its JSON object", path)
 	}
 	if len(parsed.Edges) == 0 {
 		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has no edges", path)
@@ -86,9 +113,23 @@ func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdg
 }
 
 // sqlRelationshipEdgeKey builds the canonical set-membership key for one
-// expected or derived edge.
+// expected or derived edge, using the same length-prefixed
+// ("<byte length>:<content>") encoding as ExpectedEdge.Key()'s
+// Identity-bearing path (writeLengthPrefixedField,
+// materialized_edges_assert.go) rather than a raw "|"-joined string. A raw
+// join is not injective: nothing stops relationshipType, sourceEntityID, or
+// targetEntityID from containing "|" itself, so two distinct edges could
+// render the identical key (see TestSQLRelationshipEdgeKeyIsInjective).
+// ExpectedEdge.Key()'s empty-Identity path delegates here, so fixing this one
+// function closes the gap for every family with no declared identity at
+// once, keeping exactly one encoding for all of Key()'s paths instead of
+// two.
 func sqlRelationshipEdgeKey(relationshipType, sourceEntityID, targetEntityID string) string {
-	return relationshipType + "|" + sourceEntityID + "|" + targetEntityID
+	var b strings.Builder
+	writeLengthPrefixedField(&b, relationshipType)
+	writeLengthPrefixedField(&b, sourceEntityID)
+	writeLengthPrefixedField(&b, targetEntityID)
+	return b.String()
 }
 
 // sqlRelationshipEdgeSet builds a set keyed by sqlRelationshipEdgeKey so exact

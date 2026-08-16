@@ -4,6 +4,8 @@
 package ifa
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -89,5 +91,61 @@ func TestDocumentationEdgesFamilyResolvesLiveEdgeTypes(t *testing.T) {
 	}
 	if _, ok := types["DOCUMENTS"]; !ok || len(types) != 1 {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(documentation_edges) = %v, want exactly {DOCUMENTS}", types)
+	}
+}
+
+// TestLoadDocumentationFamilyOduRejectsUnknownJSONField mirrors
+// TestLoadCodeCallFamilyOduRejectsUnknownJSONField: the cassette decoder
+// catches a typo (e.g. "fact_knd" instead of "fact_kind") rather than
+// silently decoding it away -- the same false-attestation shape #5994 forced
+// a coverage-row withdrawal for. A well-formed cassette carrying every real
+// envelope field still loads.
+func TestLoadDocumentationFamilyOduRejectsUnknownJSONField(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	goodRaw := `{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-1",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-1",
+      "metadata": {"fixture": "typo-probe"},
+      "generation_id": "gen-1",
+      "observed_at": "2026-08-09T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "content_entity",
+          "schema_version": "1",
+          "stable_fact_key": "k1",
+          "collector_kind": "git",
+          "source_confidence": "high",
+          "payload": {"entity_id": "e1"}
+        }
+      ]
+    }
+  ]
+}`
+	goodPath := filepath.Join(dir, "good.json")
+	if err := os.WriteFile(goodPath, []byte(goodRaw), 0o600); err != nil {
+		t.Fatalf("write temp cassette: %v", err)
+	}
+	if _, err := loadDocumentationFamilyOdu(goodPath); err != nil {
+		t.Fatalf("loadDocumentationFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
+	}
+
+	badRaw := strings.Replace(goodRaw, `"fact_kind": "content_entity"`, `"fact_knd": "content_entity"`, 1)
+	badPath := filepath.Join(dir, "typo.json")
+	if err := os.WriteFile(badPath, []byte(badRaw), 0o600); err != nil {
+		t.Fatalf("write temp cassette: %v", err)
+	}
+	if _, err := loadDocumentationFamilyOdu(badPath); err == nil {
+		t.Fatal("loadDocumentationFamilyOdu accepted a cassette with an unknown field (fact_knd typo)")
 	}
 }
