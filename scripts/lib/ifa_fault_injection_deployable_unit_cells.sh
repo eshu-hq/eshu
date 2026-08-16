@@ -76,35 +76,63 @@
 # identically, against its own correctly-shaped baseline.
 
 # ifa_deployable_unit_require_fresh_intents fails closed unless a fresh
-# compose stack has a numeric zero count for the deployable_unit_edges
-# shared-projection domain, mirroring
-# ifa_code_call_require_fresh_intents exactly.
+# compose stack has a numeric zero count of CORRELATES_DEPLOYABLE_UNIT edges
+# in the live graph. This USED to query shared_projection_intents WHERE
+# projection_domain = 'deployable_unit_edges', mirroring
+# ifa_code_call_require_fresh_intents -- vacuous for this family for the
+# exact reason ifa_deployable_unit_live_assert_empty_before_maintenance's own
+# header documents (ifa_deployable_unit_live.sh): this handler never writes
+# shared_projection_intents at all, so that count is always 0 whether the
+# stack is genuinely fresh or not. This check landed in the same review that
+# established that fact and should have been repointed with it (#6149
+# review). Repointed to the graph, the only place these edges exist,
+# mirroring ifa_deployable_unit_live_assert_empty_before_maintenance exactly
+# -- same four fail-closed properties (dump/count failed, empty, non-numeric,
+# non-zero), each rejected distinctly; empty and non-numeric read as unknown,
+# never as a legitimate zero.
+#
+# ifa_deployable_unit_fresh_stack_dump_path is deliberately NOT `local`, for
+# the same reason ifa_deployable_unit_before_probe_dump_path (that sibling
+# function) is not: a `RETURN` trap referencing a `local` variable can fire
+# after this function's own return, on the NEXT function to return anywhere
+# in this shell, once its local binding is already gone -- confirmed live
+# earlier on this same branch ("dump_path: unbound variable" aborted the
+# fault-injection matrix). Named distinctly from that sibling's global to
+# avoid any doubt about which dump each one is using.
+#
+# Args: cell bin_dir
 ifa_deployable_unit_require_fresh_intents() {
-	local cell="$1" compose_project="$2" use_compose_arg="$3" postgres_dsn="$4" compose_file_arg="$5"
-	local pre_intents pre_intents_rc
-	if pre_intents="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
-		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'deployable_unit_edges';" \
-		"${compose_file_arg}")"; then
-		pre_intents_rc=0
-	else
-		pre_intents_rc=$?
-	fi
-	if [[ "${pre_intents_rc}" -ne 0 ]]; then
-		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${pre_intents_rc}" >&2
-		return "${pre_intents_rc}"
-	fi
-	pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
-	if [[ -z "${pre_intents}" ]]; then
-		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
+	local cell="$1" bin_dir="$2"
+	local count
+	if ! command -v jq >/dev/null 2>&1; then
+		printf '%s: fresh-stack precondition requires jq, which is not on PATH; treat this as unknown, not as a verdict\n' "${cell}" >&2
 		return 1
 	fi
-	if [[ ! "${pre_intents}" =~ ^[0-9]+$ ]]; then
-		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
-			"${cell}" "${pre_intents}" >&2
+	ifa_deployable_unit_fresh_stack_dump_path="$(mktemp)" || {
+		printf '%s: fresh-stack precondition could not create a scratch file for the graph dump; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	}
+	trap 'rm -f "${ifa_deployable_unit_fresh_stack_dump_path}"' RETURN
+	if ! "${bin_dir}/eshu-ifa" graph-dump -out "${ifa_deployable_unit_fresh_stack_dump_path}"; then
+		printf '%s: fresh-stack precondition graph-dump FAILED; treat this as unknown, not as a verdict\n' "${cell}" >&2
 		return 1
 	fi
-	if [[ "${pre_intents}" != "0" ]]; then
-		printf '%s: %s deployable_unit_edges intent row(s) survived fresh_stack\n' "${cell}" "${pre_intents}" >&2
+	if ! count="$(jq '[.edges[] | select(.type == "CORRELATES_DEPLOYABLE_UNIT")] | length' "${ifa_deployable_unit_fresh_stack_dump_path}")"; then
+		printf '%s: fresh-stack precondition could not count CORRELATES_DEPLOYABLE_UNIT edges in the graph dump; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	fi
+	count="$(printf '%s' "${count}" | tr -d '[:space:]')"
+	if [[ -z "${count}" ]]; then
+		printf '%s: fresh-stack precondition edge count came back empty; treat that as unknown, not as zero\n' "${cell}" >&2
+		return 1
+	fi
+	if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition edge count %q is non-numeric; treat that as unknown, not as zero\n' \
+			"${cell}" "${count}" >&2
+		return 1
+	fi
+	if [[ "${count}" != "0" ]]; then
+		printf '%s: %s CORRELATES_DEPLOYABLE_UNIT edge(s) survived fresh_stack\n' "${cell}" "${count}" >&2
 		return 1
 	fi
 }
@@ -121,12 +149,8 @@ cell_baseline_deployable_unit() {
 	cell_start=$(date +%s)
 	log "cell baseline-deployable-unit: fresh stack"
 	fresh_stack baseline_deployable_unit
-	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_deployable_unit_require_fresh_intents \
-			"baseline-deployable-unit" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
-			"${ESHU_POSTGRES_DSN}" "${compose_file}" \
-			|| die "baseline-deployable-unit: fresh-stack precondition failed"
-	fi
+	ifa_deployable_unit_require_fresh_intents "baseline-deployable-unit" "${bin_dir}" \
+		|| die "baseline-deployable-unit: fresh-stack precondition failed"
 	drive_all_cassettes baseline_deployable_unit
 	drive_deployable_unit_cassette baseline_deployable_unit
 
@@ -224,12 +248,8 @@ cell_killworker_deployable_unit() {
 	cell_start=$(date +%s)
 	log "cell kill-worker-after-claim-deployable-unit: fresh stack"
 	fresh_stack killworkerdeployableunit
-	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_deployable_unit_require_fresh_intents \
-			"kill-worker-after-claim-deployable-unit" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
-			"${ESHU_POSTGRES_DSN}" "${compose_file}" \
-			|| die "kill-worker-after-claim-deployable-unit: fresh-stack precondition failed"
-	fi
+	ifa_deployable_unit_require_fresh_intents "kill-worker-after-claim-deployable-unit" "${bin_dir}" \
+		|| die "kill-worker-after-claim-deployable-unit: fresh-stack precondition failed"
 	drive_all_cassettes killworkerdeployableunit
 	drive_deployable_unit_cassette killworkerdeployableunit
 
@@ -300,12 +320,8 @@ cell_failgraphwrite_deployable_unit() {
 	cell_start=$(date +%s)
 	log "cell fail-graph-write-once-then-succeed-deployable-unit: fresh stack"
 	fresh_stack failgraphwritedeployableunit
-	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_deployable_unit_require_fresh_intents \
-			"fail-graph-write-once-then-succeed-deployable-unit" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
-			"${ESHU_POSTGRES_DSN}" "${compose_file}" \
-			|| die "fail-graph-write-once-then-succeed-deployable-unit: fresh-stack precondition failed"
-	fi
+	ifa_deployable_unit_require_fresh_intents "fail-graph-write-once-then-succeed-deployable-unit" "${bin_dir}" \
+		|| die "fail-graph-write-once-then-succeed-deployable-unit: fresh-stack precondition failed"
 	drive_all_cassettes failgraphwritedeployableunit
 	drive_deployable_unit_cassette failgraphwritedeployableunit
 

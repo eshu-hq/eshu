@@ -127,8 +127,17 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# wrong cell, so ordering and cell containment are pinned as line-number /
 	# enclosing-function checks below rather than as text needles.
 	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic definition" "ifa_deployable_unit_live_report_intents_after_maintenance() {"
-	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic writer-cause framing" "intents > 0 with 0 edges implicates the writer"
-	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic correlation-cause framing" "intents == 0 implicates correlation"
+	# #6149 review (P2a): the printed message used to claim it could
+	# discriminate writer-drop from correlation-produced-nothing via a
+	# nonzero/zero branch on a count that is always 0 for this family --
+	# printing the WRONG cause with confidence on every single run. Dropped
+	# the branch language; the message now states plainly that this count
+	# cannot discriminate the two causes.
+	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic states it cannot discriminate the two causes" "this count is always 0 for this family regardless of outcome"
+	rg --quiet --fixed-strings -- 'intents > 0 with 0 edges implicates the writer' "${deployable_unit_diagnostics_lib}" \
+		&& fail "the post-maintenance intents diagnostic must not claim it can discriminate writer-drop from correlation-produced-nothing any more (#6149 P2a) in ${deployable_unit_diagnostics_lib}"
+	rg --quiet --fixed-strings -- 'intents == 0 implicates correlation' "${deployable_unit_diagnostics_lib}" \
+		&& fail "the post-maintenance intents diagnostic must not claim intents==0 implicates correlation any more (#6149 P2a, always false for this family) in ${deployable_unit_diagnostics_lib}"
 	require_deployable_unit_diagnostics_lib "diagnostics lib post-maintenance intents diagnostic failure-tolerant reading" 'admitted="unavailable (query failed)"'
 	# The after-probe never pipes its query capture (ifa_det_pg is called bare,
 	# not through `| tr`), so its own success/failure never depends on the
@@ -452,4 +461,23 @@ run_ifa_fault_injection_deployable_unit_cases() {
 		&& "${du_baseline_fn_at_line[${du_precondition_line}]:-}" == "cell_baseline_deployable_unit" \
 		&& "${du_precondition_line}" -gt "${du_maintenance_drain_line}" ]] \
 		|| fail "ifa_deployable_unit_require_admission_decisions_written must be called inside cell_baseline_deployable_unit, after the maintenance pass, in ${deployable_unit_cells_lib}"
+
+	# #6149 review: ifa_deployable_unit_require_fresh_intents queried
+	# shared_projection_intents (always 0 for this family, same vacuous shape
+	# as the BEFORE probe P1-1 fixed) even after the review that established
+	# why. Repointed to graph-dump + jq, mirroring the BEFORE probe exactly.
+	rg --quiet --fixed-strings -- 'SELECT count(*) FROM shared_projection_intents' "${deployable_unit_cells_lib}" \
+		&& fail "ifa_deployable_unit_require_fresh_intents must not query shared_projection_intents any more (vacuous for this family -- see #6149) in ${deployable_unit_cells_lib}"
+	require_deployable_unit_cells "fresh-intents precondition dumps the graph, not a Postgres query" '"${bin_dir}/eshu-ifa" graph-dump -out "${ifa_deployable_unit_fresh_stack_dump_path}"'
+	require_deployable_unit_cells "fresh-intents precondition counts CORRELATES_DEPLOYABLE_UNIT edges via jq" 'select(.type == "CORRELATES_DEPLOYABLE_UNIT")'
+	require_deployable_unit_cells "fresh-intents precondition uses its own distinctly-named global dump path, not local" 'ifa_deployable_unit_fresh_stack_dump_path="$(mktemp)"'
+	rg --quiet --fixed-strings -- 'local dump_path' "${deployable_unit_cells_lib}" \
+		&& fail "fresh-intents precondition's graph-dump scratch path must not be declared local in ${deployable_unit_cells_lib} -- its RETURN trap references it after the local binding would already be torn down (#6149 live-run abort, same class as the BEFORE probe's earlier fix)"
+	# All three call sites now pass only cell + bin_dir -- the Postgres args
+	# (compose_project/use_compose/dsn/compose_file) the old query needed are
+	# gone from every call site, not just the definition.
+	local du_fresh_intents_call_count
+	du_fresh_intents_call_count="$(rg --fixed-strings --count-matches -- 'ifa_deployable_unit_require_fresh_intents "' "${deployable_unit_cells_lib}" || true)"
+	[[ "${du_fresh_intents_call_count}" -eq 3 ]] \
+		|| fail "expected ifa_deployable_unit_require_fresh_intents to be called with only cell + bin_dir at all 3 call sites (baseline, killworker, failgraphwrite); found ${du_fresh_intents_call_count:-0}"
 }

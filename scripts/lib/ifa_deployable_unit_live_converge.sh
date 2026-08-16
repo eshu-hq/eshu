@@ -43,17 +43,24 @@
 # behavior, working as coded, not a layout defect in this file -- confirmed
 # a finding, not a bug to route around by rearranging paths.
 #
-# Fix, scoped to this harness: seed the root with one HIDDEN entry so it is
-# no longer empty. `.` prefixed entries are skipped both by the file-based
-# fast path in repositoryRootLikeFromEntries and by discoverRepoRootsWithGit
-# Priority's own recursion filter, so a single hidden placeholder directory
-# makes childDirectories>0 (repositoryRootLikeFromEntries's fallback no
-# longer fires) while never itself being recursed into or selected --
-# collection then discovers zero repositories, the behavior this family's
-# header always intended and (until this run) never actually observed.
-# Verified directly against collector.DiscoverFilesystemRepositoryIDs: a
-# bare empty temp dir returns `["."]`; the same dir with one
-# `.eshu-no-repos-marker` subdirectory returns `[]`.
+# Fix, scoped to this harness: seed the root with one hidden MARKER
+# DIRECTORY (not a file -- the distinction is load-bearing, see the mkdir
+# line below). Corrected mechanism (#6149 review; an earlier version of this
+# comment had it backwards): repositoryRootLikeFromEntries counts EVERY
+# directory entry toward childDirectories BEFORE it ever looks at the name --
+# `if entry.IsDir() { childDirectories++; continue }` runs first, and the
+# dot-prefix check after it only ever applies to the FILE branch. A hidden
+# marker DIRECTORY still increments childDirectories, which is what flips
+# the empty-root fallback (`return childDirectories == 0`) to false; a hidden
+# marker FILE would be skipped by that dot-prefix check without incrementing
+# anything, leaving childDirectories at 0 and the phantom-repo bug intact.
+# The dot-prefix also makes discoverRepoRootsWithGitPriority's own recursion
+# loop skip descending into the marker, but that is a separate, secondary
+# property -- it keeps the marker from being evaluated as its own candidate
+# repo, not what saves the outer root; the directory-counting above is.
+# Verified directly against collector.DiscoverFilesystemRepositoryIDs: a bare
+# empty temp dir returns `["."]`; the same dir with one
+# `.eshu-no-repos-marker` SUBDIRECTORY returns `[]`.
 #
 # Args: work_dir
 ifa_deployable_unit_live_init_maintenance_scratch() {
@@ -61,6 +68,11 @@ ifa_deployable_unit_live_init_maintenance_scratch() {
 	[[ -n "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT:-}" ]] && return 0
 	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT="${work_dir}/deployable-unit-maintenance-scratch-root"
 	export DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR="${work_dir}/deployable-unit-maintenance-scratch-repos"
+	# .eshu-no-repos-marker MUST be a directory, not a file (`mkdir`, never
+	# `touch`) -- see this function's header. A file would be skipped by
+	# discovery's dot-prefix check without ever counting toward
+	# childDirectories, silently reintroducing the phantom-repo bug this
+	# marker exists to prevent.
 	mkdir -p "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_ROOT}/.eshu-no-repos-marker" "${DEPLOYABLE_UNIT_MAINTENANCE_SCRATCH_REPOS_DIR}"
 }
 

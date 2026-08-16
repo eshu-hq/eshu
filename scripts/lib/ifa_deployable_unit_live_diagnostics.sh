@@ -96,7 +96,7 @@ ifa_deployable_unit_live_report_intents_after_maintenance() {
 	if [[ "${admitted_rc}" -ne 0 || -z "${admitted}" || ! "${admitted}" =~ ^[0-9]+$ ]]; then
 		admitted="unavailable (query failed)"
 	fi
-	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- intents > 0 with 0 edges implicates the writer: an endpoint MATCH miss in canonical_deployable_unit_edges.go; intents == 0 implicates correlation: no admitted rows produced; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"
+	printf 'deployable_unit_edges: post-maintenance shared_projection_intents count = %s (diagnostic only, not a gate -- this count is always 0 for this family regardless of outcome, since this handler never writes shared_projection_intents at all; it cannot distinguish a writer MATCH-miss in canonical_deployable_unit_edges.go from correlation producing nothing, only whether this query itself could run; a failed query reports as unavailable rather than failing this cell or reading as zero)\n' "${admitted}"
 }
 
 # ifa_deployable_unit_live_report_resolved_deploys_from_count and
