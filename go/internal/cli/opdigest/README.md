@@ -226,10 +226,12 @@ the union of the new imports, minus `opdigest` itself, is the old set exactly.
 Comments are excluded, which is the whole point of dropping them -- but it also
 means the three `//nolint:wrapcheck` directives are not covered. Those change
 what golangci-lint reports and nothing the compiler emits. Then the two files
-neither bullet names. `competitive_parity_cmd.go`: its five changed lines
-qualify four existing references in `exerciseOperatorDigestArtifact` with
-`opdigest.`, which the compiler resolves and
-`go test ./cmd/eshu/... -count=1` runs. And this package's `doc.go`, which the
+neither bullet names. `competitive_parity_cmd.go`, which at the time carried
+`exerciseOperatorDigestArtifact`: its five changed lines qualified that
+function's four existing references with `opdigest.`, which the compiler
+resolves and `go test ./cmd/eshu/... -count=1` runs. (The function has since
+moved to `go/internal/cli/compparity/exercises.go`; the qualified references
+moved with it.) And this package's `doc.go`, which the
 commit adds: it holds nothing but the package comment, and a method that drops
 comments has nothing in it to compare. The commit writes one more non-test
 `.go` file, `tools/golangci-lint-dirgate/grandfather.go`, but that one is

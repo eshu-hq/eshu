@@ -43,8 +43,13 @@ func Inventory(repoRoot string, commands []string, firstRun func() error) (compe
 			inv.ConsolePages = append(inv.ConsolePages, surface.Name)
 		default:
 			// The remaining surface categories are deliberately not part
-			// of the parity inventory: CLI command paths come from the
-			// live cobra tree the wrapper walks, not from the catalog.
+			// of the parity inventory. CLI command paths (SurfaceCommand)
+			// come from the live cobra tree the wrapper walks, not from
+			// the catalog. SurfaceCollector and SurfaceReducerDomain are
+			// internal pipeline stages, not operator-invocable endpoints,
+			// so a parity comparison of operator-facing surfaces has no
+			// row for them — the pre-extraction switch skipped them the
+			// same way.
 		}
 	}
 	sort.Strings(inv.APIRoutes)
