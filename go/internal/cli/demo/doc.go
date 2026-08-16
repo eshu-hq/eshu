@@ -59,8 +59,9 @@
 // imported from go/internal/cli/firstrunbench, so a harness reading either
 // scorecard sees one shape by construction rather than by parallel copies.
 // criteria.go declares only the two criterion names scored solely by the demo
-// lane; quoteIfEmpty stays a local copy of go/cmd/eshu's first_run.go helper
-// because package main cannot be imported.
+// lane; quoteIfEmpty stays a local adaptation of go/cmd/eshu's first_run.go
+// helper because package main cannot be imported (the placeholder is
+// mode-neutral here, where the original fills a repo slot).
 //
 // Outside the standard library the package depends only on gopkg.in/yaml.v3,
 // for the manifest. Its only Eshu import is

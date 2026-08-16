@@ -25,12 +25,14 @@ const (
 )
 
 // quoteIfEmpty renders a placeholder for an empty value so the scorecard line
-// stays readable. Copied from go/cmd/eshu's first_run.go, which is `package
+// stays readable. Adapted from go/cmd/eshu's first_run.go, which is `package
 // main` and cannot be imported; firstrunbench keeps its own unexported copy
-// for the same reason.
+// for the same reason. The original fills a repo-argument slot and says
+// `<repo>`; this package's only caller renders the benchmark mode, so the
+// placeholder is neutral here.
 func quoteIfEmpty(value string) string {
 	if strings.TrimSpace(value) == "" {
-		return "<repo>"
+		return "<unset>"
 	}
 	return value
 }

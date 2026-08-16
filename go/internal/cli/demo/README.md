@@ -68,10 +68,11 @@ surface.
 
 ## Dependencies
 
-Outside the standard library: `gopkg.in/yaml.v3`, for the manifest. Nothing
-else. `go list -deps ./internal/cli/demo` names no other Eshu package — this
-package sits below the graph, storage, and query layers rather than beside
-them.
+Outside the standard library: `gopkg.in/yaml.v3`, for the manifest. Its only
+Eshu import is `go/internal/cli/firstrunbench`, for the shared scorecard
+vocabulary and envelope error object — `go list -deps ./internal/cli/demo`
+names exactly those two beyond the standard library. The package sits below
+the graph, storage, and query layers rather than beside them.
 
 Consumed by `go/cmd/eshu`: `demo.go` (the `demo up|down|status` tree) and
 `demo_benchmark_cmd.go` (the `demo-benchmark` scorer).

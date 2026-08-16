@@ -40,6 +40,24 @@ func warmMeasurements() BenchmarkMeasurements {
 	}
 }
 
+// An empty --mode must render a mode-shaped placeholder. The helper was
+// copied from cmd/eshu's first_run.go, where it fills a REPO argument slot,
+// and the copy kept that placeholder; in this package the mode line is the
+// only caller, so `mode : <repo>` was a repository placeholder in a field
+// that holds cold/warm (#6152 review).
+func TestRenderBenchmarkVerdict_EmptyModeRendersUnsetPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	var out strings.Builder
+	RenderBenchmarkVerdict(&out, BenchmarkVerdict{Mode: ""})
+	if !strings.Contains(out.String(), "mode : <unset>\n") {
+		t.Fatalf("output = %q, want the empty mode rendered as <unset>", out.String())
+	}
+	if strings.Contains(out.String(), "<repo>") {
+		t.Fatalf("output = %q, must not use the repo placeholder for a mode", out.String())
+	}
+}
+
 func TestEvaluateDemoBenchmark_PassesACompleteWarmRun(t *testing.T) {
 	t.Parallel()
 	v := EvaluateBenchmark(goodDemoEnvelope(), warmMeasurements())
