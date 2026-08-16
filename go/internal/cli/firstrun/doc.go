@@ -18,12 +18,15 @@
 // writes the artifact with owner-only (0600) permissions.
 //
 // Process contact is deliberately thin. APIHealthy dials <baseURL>/health with
-// a three-second budget; WriteEvidenceArtifact writes one file; and Truth
-// reads ESHU_GRAPH_BACKEND indirectly through scan.CurrentGraphBackend. Every
-// other host dependency -- cobra flags, the API client, PATH lookup, the
-// config-backed MCP endpoint, the repository selector matcher, and the scan
-// runtime -- arrives through Deps, resolved by the cobra wrapper in
-// go/cmd/eshu. The split is mechanical rather than a design preference:
+// a three-second budget; WriteEvidenceArtifact writes one file; Truth reads
+// ESHU_GRAPH_BACKEND through scan.CurrentGraphBackend; the scan-target step
+// probes the workspace root for .eshu.yaml and .git through scan.TargetKind;
+// and when Deps.ReposDir is left nil the scan.ReposDir fallback resolves the
+// cache layout from the environment. Everything else -- cobra flags, the API
+// client, PATH lookup, the config-backed MCP endpoint, the repository selector
+// matcher, and the scan runtime -- arrives through Deps, resolved by the cobra
+// wrapper in go/cmd/eshu. The split is mechanical rather than a design
+// preference:
 // cmd/eshu is package main, so nothing can import it, and any symbol that
 // reads cobra flags, the environment, or the exit-code contract stays there.
 package firstrun

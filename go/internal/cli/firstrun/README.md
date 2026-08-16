@@ -56,8 +56,11 @@ their own telemetry.
   redacted data. Keep new fields behind the same scrubs; the composed-string
   redaction tests in this package and the corpus in `internal/urlredact` are
   the guard.
-- `Truth` reads `ESHU_GRAPH_BACKEND` through `scan.CurrentGraphBackend` — an
-  env read that is invisible at the call site.
+- Three host contacts hide behind scan callees: `Truth` reads
+  `ESHU_GRAPH_BACKEND` through `scan.CurrentGraphBackend`, the scan-target step
+  stats `.eshu.yaml`/`.git` through `scan.TargetKind`, and a nil `Deps.ReposDir`
+  falls back to `scan.ReposDir`, which resolves the cache layout from the
+  environment. None of them is visible at the call site.
 - A nil `Deps.MatchesSelector` matches nothing, so a miswired caller falls
   back to a fresh scan instead of reusing an unproven index; a nil
   `Deps.ResolveMCPEndpoint` reads as "no MCP endpoint configured".
