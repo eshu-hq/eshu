@@ -9,9 +9,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/playbooks"
 )
 
-func TestFetchQueryPlaybookResolveUsesEnvelopeAPI(t *testing.T) {
+// TestPlaybookResolveThroughRealClient closes the seam between the concrete
+// APIClient and internal/cli/playbooks: the real client must satisfy the
+// package's EnvelopeClient interface, hit the resolve route with the envelope
+// Accept header, and carry the parsed inputs in the request body.
+func TestPlaybookResolveThroughRealClient(t *testing.T) {
 	t.Parallel()
 
 	var gotPath string
@@ -27,16 +33,16 @@ func TestFetchQueryPlaybookResolveUsesEnvelopeAPI(t *testing.T) {
 	}))
 	defer server.Close()
 
-	opts := queryPlaybookResolveOptions{
+	var out strings.Builder
+	err := playbooks.RunResolve(&out, NewAPIClient(server.URL, "", ""), playbooks.ResolveOptions{
 		PlaybookID: "service_story_citation",
 		Inputs: map[string]string{
 			"service_name": "payments-api",
 			"environment":  "prod",
 		},
-	}
-	envelope, err := fetchQueryPlaybookResolve(NewAPIClient(server.URL, "", ""), opts)
+	})
 	if err != nil {
-		t.Fatalf("fetch resolve: %v", err)
+		t.Fatalf("resolve: %v", err)
 	}
 	if got, want := gotPath, "/api/v0/query-playbooks/resolve"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
@@ -47,7 +53,7 @@ func TestFetchQueryPlaybookResolveUsesEnvelopeAPI(t *testing.T) {
 	if !strings.Contains(gotBody, `"service_name":"payments-api"`) {
 		t.Fatalf("request body = %s, want service_name input", gotBody)
 	}
-	if got, want := envelope.Data.Resolved.PlaybookID, "service_story_citation"; got != want {
-		t.Fatalf("resolved playbook_id = %q, want %q", got, want)
+	if !strings.Contains(out.String(), `"playbook_id": "service_story_citation"`) {
+		t.Fatalf("output = %q, want resolved playbook_id", out.String())
 	}
 }
