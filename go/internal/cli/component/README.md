@@ -68,8 +68,13 @@ between binaries built from the base commit and from this branch.
   unify them -- that changes emitted bytes.
 - The envelope readers in `values.go` are private copies of `go/cmd/eshu`'s
   trace helpers, coexisting with the sets in `internal/cli/change` and
-  `internal/cli/freshness`. `TestEnvelopeReaderParity` in `go/cmd/eshu` pins
-  every copy; an edit to one set belongs in all of them.
+  `internal/cli/freshness` and with a differently named one in
+  `internal/cli/entitymap`. Not every set has every reader: `boolValue`'s
+  `go/cmd/eshu` original left with its last caller in #6059, and `stringsValue`
+  is here but not in change or freshness, neither of which renders a string
+  list. So an edit belongs in every set that has the reader you touched.
+  `TestEnvelopeReaderParity` in `go/cmd/eshu` compares each reader across only
+  the copies that reader has.
 - `newCollectorSpec` resolves the scaffold output directory against the
   process working directory (`filepath.Abs`), the one piece of process state
   this package touches.

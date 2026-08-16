@@ -15,15 +15,20 @@ import "strings"
 // traceString / traceInt (the bool reader's original left cmd/eshu with its
 // last caller in #6059), and not the only ones: sets with these same names
 // live in go/internal/cli/change/envelope.go and
-// go/internal/cli/freshness/values.go. The surviving originals stay in
+// go/internal/cli/freshness/values.go, with the entitymap family keeping a
+// differently named set (without the bool reader) in
+// go/internal/cli/entitymap/values.go. The surviving originals stay in
 // go/cmd/eshu and keep their other callers, because that is package main and
 // a copy is the only way to share anything out of it. Copying is deliberate
 // rather than a shared helper package: the reading shape is four lines and
 // the coupling would not be.
 //
-// An edit to any one set belongs in every set. TestEnvelopeReaderParity in
-// go/cmd/eshu compares the declarations across the copies and goes red when
-// one drifts, which is the part a comment on its own cannot do.
+// An edit to any one set belongs in every set that has the reader you
+// touched. TestEnvelopeReaderParity in go/cmd/eshu compares each reader
+// across only the copies that reader has and goes red when one drifts, which
+// is the part a comment on its own cannot do;
+// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap
+// set.
 
 // mapValue returns parent[key] when it holds a JSON object, else nil.
 func mapValue(parent map[string]any, key string) map[string]any {

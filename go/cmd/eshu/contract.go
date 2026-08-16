@@ -35,4 +35,4 @@ func removedCommandError(command, guidance string) error {
 // #6126. Its three surviving copies are boolValue in
 // go/internal/cli/change/envelope.go, go/internal/cli/freshness/values.go,
 // and go/internal/cli/component/values.go; TestEnvelopeReaderParity pins
-// those to each other alongside the four readers still declared in trace.go.
+// those to each other alongside the readers still declared in trace.go.

@@ -16,8 +16,11 @@ side: `go/cmd/eshu/component.go` and `go/cmd/eshu/component_api.go`.
   component payload and API envelope write with HTML escaping off, while the
   extraction-readiness and schema-versions surfaces keep the encoder default.
 - The readers in `values.go` are pinned copies. `TestEnvelopeReaderParity`
-  in `go/cmd/eshu` goes red if this set drifts from the originals or from
-  the change/freshness sets. Edit every copy or none.
+  in `go/cmd/eshu` goes red if one drifts, comparing each reader across only
+  the copies that reader has: `boolValue` against change and freshness (its
+  `go/cmd/eshu` original left with its last caller in #6059), `stringsValue`
+  against `traceStrings` alone, and the rest against all four sets. Edit every
+  set that has the reader you touched, or none.
 - The `eshu.component.cli.v1` schema version on `CLIOutput` only moves with a
   deliberate payload-shape change, with docs updated in the same PR.
 

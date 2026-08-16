@@ -20,6 +20,8 @@
 // The API commands consume the canonical Eshu envelope through the
 // EnvelopeFetcher interface, declared here because the concrete HTTP client
 // lives in package main and cannot be imported. The envelope readers in
-// values.go are deliberate private copies of go/cmd/eshu's trace* helpers;
-// TestEnvelopeReaderParity in go/cmd/eshu pins every copy.
+// values.go are deliberate private copies of go/cmd/eshu's trace* helpers,
+// except boolValue, whose original left go/cmd/eshu with its last caller in
+// #6059; TestEnvelopeReaderParity in go/cmd/eshu compares each reader across
+// the copies that reader has, here and in the sibling cli families.
 package component
