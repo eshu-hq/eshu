@@ -135,10 +135,14 @@ func (r Result) addStage(stage Stage) Result {
 }
 
 // firstFailure returns the first stage that recorded a failure category, or an
-// empty stage and false when every stage was clean.
+// empty stage and false when every stage was clean. It matches on the category,
+// not on StageFailed, because the not-ready index path records its stage as
+// StageWarn with a category — matching status alone left the empty/partial/
+// stale next-step branches unreachable and sent those operators the generic
+// re-run step.
 func (r Result) firstFailure() (Stage, bool) {
 	for _, s := range r.Stages {
-		if s.Status == StageFailed {
+		if s.Category != FailNone {
 			return s, true
 		}
 	}
