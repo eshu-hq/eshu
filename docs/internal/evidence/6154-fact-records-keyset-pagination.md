@@ -98,18 +98,33 @@ predicate:
 
 ## DDL behaviour
 
-Measured on the corpus store:
+Measured on the corpus store, with the migration in its shipped
+`CREATE INDEX CONCURRENTLY` form:
 
-- first apply: index built, 10.3 s to 13.2 s across three builds
-- reapply: clean no-op in 0.06 s (`already exists, skipping`)
-- build losing its `lock_timeout` race against a held ROW EXCLUSIVE lock:
-  fails with `canceling statement due to lock timeout` and leaves **zero**
-  matching indexes behind, so the next start retries cleanly
-- retry once the blocker clears: succeeds
+- first apply: index built valid in 10.84 s
+- reapply: clean no-op in 0.067 s (`already exists, skipping`)
+- writes are not blocked by the build: five real inserts issued during an
+  11.07 s build completed in 0.098, 0.089, 0.083, 0.078 and 0.077 s. Each was
+  rolled back, and the corpus store ended with zero probe rows.
+- a cancelled build leaves an invalid index, and it is reclaimable by name: after
+  cancelling a build mid-flight, `pg_indexes` showed the index present with
+  `indisvalid = false`; dropping it by name — which is exactly what
+  `SQLDB.dropInvalidConcurrentIndexes` does before executing each definition —
+  returned 0 present / 0 invalid, and the next build produced 1 present /
+  0 invalid.
 - no `ANALYZE` needed: after a drop and rebuild with no `ANALYZE`, the cursor
   query took the seek under both a custom plan (15.964 ms) and a forced generic
   plan (1.078 ms). This is a plain-column btree; the expression indexes in this
   repo do need a post-build `ANALYZE`, this one does not.
+
+An earlier draft of this change used a blocking `CREATE INDEX` and justified it
+by claiming a failed CONCURRENTLY build leaves an invalid index that
+`IF NOT EXISTS` would skip forever. That claim was wrong, and the measurements
+above are the correction: this repo already drops invalid concurrent indexes by
+name before every schema definition (`db.go`, `schema_bootstrap_lock.go`), and
+migrations 069 and 075 already build CONCURRENTLY on this same table. The
+blocking form would have imposed an avoidable multi-second write stall on
+`fact_records` at every upgrade.
 
 Index size 844 MB against a 45 MB `fact_records_scope_generation_idx` and a
 4240 MB heap. `fact_id` is unique and wide, so btree deduplication cannot
@@ -152,24 +167,37 @@ emitted.
 Write amplification on the batched `UpsertFacts` path, measured against a
 scratch database on the same host as the corpus store, so the hardware matches
 the read numbers. 60,000 `content_entity` envelopes per arm, all sharing one
-`observed_at` as production does, three rounds, arms alternating each round so
+`observed_at` as production does, seven rounds, arms alternating each round so
 cache warmth does not settle on one side. Foreign-key parents are seeded
 outside the measured window.
 
 | round | without index | with index |
 | --- | --- | --- |
-| 1 | 4.840 s | 4.840 s |
-| 2 | 4.507 s | 4.867 s |
-| 3 | 4.535 s | 4.861 s |
+| 1 | 4.791 s | 4.830 s |
+| 2 | 4.744 s | 4.821 s |
+| 3 | 4.719 s | 4.835 s |
+| 4 | 4.721 s | 4.825 s |
+| 5 | 4.715 s | 4.824 s |
+| 6 | 4.719 s | 4.829 s |
+| 7 | 4.736 s | 4.849 s |
 
-Average without 4.627 s (12,967 rows/s), with 4.856 s (12,355 rows/s):
-**+5.0%** on the insert path.
+Average without 4.735 s (12,672 rows/s), with 4.831 s (12,421 rows/s):
+**+2.0%** on the insert path. All seven rounds move the same direction with a
+spread under 0.04 s within each arm, which is why this number is trustworthy
+where earlier ones were not.
+
+Two earlier three-round runs of the same harness reported +5.0% and +12.3%.
+Neither is quoted here, and neither should be: the +5.0% run contained an
+impossible datapoint (both arms of round 1 identical to the millisecond across
+two independent 60,000-row inserts), and the +12.3% run spanned +1.7% to +16%
+across its three rounds. Three rounds was simply too few to separate the index
+from noise on this host. The seven-round run above replaces both.
 
 Net effect over the reference corpus. Ingesting all 3,642,630 fact rows costs
-280.9 s at 12,967 rows/s and 294.8 s at 12,355 rows/s, so the index adds about
-13.9 s across a full corpus ingest. Against that, the measured load saving on
-the single worst-case generation is 84.12 s to 3.37 s, or 80.8 s — roughly six
-times the entire corpus-wide write cost, from one generation. Three further
+287.4 s at 12,672 rows/s and 293.3 s at 12,421 rows/s, so the index adds about
+5.9 s across a full corpus ingest. Against that, the measured load saving on
+the single worst-case generation is 84.12 s to 3.37 s, or 80.8 s — more than
+thirteen times the entire corpus-wide write cost, from one generation. Three further
 per-generation domains (`semantic_entity_materialization`, `sql_relationship`,
 `inheritance`) read through the same path on `main` and gain the same
 improvement without paying anything additional.

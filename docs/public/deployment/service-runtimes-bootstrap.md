@@ -20,14 +20,12 @@ It owns this sequence:
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
 statement timeouts fail before DDL runs.
 
-Applying the Postgres storage schema can block fact writes while an index
-builds. Migration `099` builds an index on `fact_records` and holds a lock that
-blocks writes to that table for the duration of the build: roughly 10-13
-seconds on a store of 3.6 million fact rows, growing with table size. Upgrading
-a deployment substantially larger than that should expect a proportionally
-longer pause. If the build cannot take its lock within the schema lock timeout
-it fails cleanly, leaves no partial index behind, and the next start retries
-it.
+Index-building migrations use `CREATE INDEX CONCURRENTLY`, so they do not block
+writes to the table they build on. They do take longer than a blocking build
+and they extend schema bootstrap: migration `099` builds an index on
+`fact_records`, and that build scales with table size. A build that fails part
+way leaves an invalid index behind, which the next schema apply drops by name
+before retrying, so a failed upgrade does not need manual cleanup.
 
 ## Deployment Contract
 

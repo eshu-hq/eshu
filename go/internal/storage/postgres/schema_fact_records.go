@@ -39,8 +39,6 @@ ALTER TABLE fact_records
     ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown';
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
-CREATE INDEX IF NOT EXISTS fact_records_scope_generation_keyset_idx
-    ON fact_records (scope_id, generation_id, observed_at, fact_id);
 CREATE INDEX IF NOT EXISTS fact_records_collector_status_active_idx
     ON fact_records (
         scope_id,

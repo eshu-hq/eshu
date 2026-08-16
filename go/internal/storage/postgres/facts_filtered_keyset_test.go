@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -50,16 +51,52 @@ func makeConstantObservedAtFactRows(count int, offset int) [][]any {
 // Then every page scans the whole generation again. See issue #6154.
 const keysetGuardFragment = "IS NULL"
 
+// cursorPredicatePattern matches the ONLY acceptable form of the cursor
+// predicate: a bare row comparison, nothing else on the line.
+//
+// Asserting the absence of "IS NULL" alone would ban one spelling of the
+// pathology rather than the pathology. Any disjunction in this predicate
+// demotes it from an index qual to a filter under a generic plan, so
+// `$6::text = ” OR (observed_at, fact_id) > (...)` would restore the
+// quadratic scan while containing no "IS NULL" at all.
+var cursorPredicatePattern = regexp.MustCompile(
+	`(?m)^\s*AND \(observed_at, fact_id\) > \(\$\d+::timestamptz, \$\d+::text\)\s*$`,
+)
+
+// assertCursorPredicateIsIndexable fails when a cursor statement's row
+// comparison is anything other than a bare predicate.
+//
+// Only the WHERE clause is scanned. The SELECT list legitimately contains
+// COALESCE, and banning it across the whole statement would fail on a
+// projection that has nothing to do with the index qual.
+func assertCursorPredicateIsIndexable(t *testing.T, name string, query string) {
+	t.Helper()
+
+	if !cursorPredicatePattern.MatchString(query) {
+		t.Fatalf("%s: cursor predicate is not a bare row comparison:\n%s", name, query)
+	}
+
+	whereStart := strings.Index(query, "WHERE ")
+	if whereStart < 0 {
+		t.Fatalf("%s: no WHERE clause found:\n%s", name, query)
+	}
+	whereClause := query[whereStart:]
+	if orderStart := strings.Index(whereClause, "ORDER BY"); orderStart >= 0 {
+		whereClause = whereClause[:orderStart]
+	}
+
+	for _, banned := range []string{keysetGuardFragment, " OR ", "COALESCE", "CASE "} {
+		if strings.Contains(whereClause, banned) {
+			t.Fatalf("%s: cursor predicate must not contain %q, which defeats the index qual:\n%s",
+				name, banned, whereClause)
+		}
+	}
+}
+
 func TestListFactsByKindCursorQueryKeepsRowCompareIndexable(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(listFactsByKindCursorQuery, keysetGuardFragment) {
-		t.Fatalf(
-			"cursor query must not guard the row comparison with IS NULL, "+
-				"or the generic plan demotes it to a filter:\n%s",
-			listFactsByKindCursorQuery,
-		)
-	}
+	assertCursorPredicateIsIndexable(t, "listFactsByKindCursorQuery", listFactsByKindCursorQuery)
 	if !strings.Contains(
 		listFactsByKindCursorQuery,
 		"(observed_at, fact_id) > ($4::timestamptz, $5::text)",
@@ -88,12 +125,8 @@ func TestListFactsByKindFirstPageQueryOmitsCursorPredicate(t *testing.T) {
 func TestListFactsByKindAndPayloadValueCursorQueryKeepsRowCompareIndexable(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(listFactsByKindAndPayloadValueCursorQuery, keysetGuardFragment) {
-		t.Fatalf(
-			"payload-value cursor query must not guard the row comparison with IS NULL:\n%s",
-			listFactsByKindAndPayloadValueCursorQuery,
-		)
-	}
+	assertCursorPredicateIsIndexable(t,
+		"listFactsByKindAndPayloadValueCursorQuery", listFactsByKindAndPayloadValueCursorQuery)
 	if !strings.Contains(
 		listFactsByKindAndPayloadValueCursorQuery,
 		"(observed_at, fact_id) > ($6::timestamptz, $7::text)",
