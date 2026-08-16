@@ -1480,13 +1480,37 @@ the pass single-flight for `ESHU_POSTGRES_MAX_OPEN_CONNS=1`). All run under `-ra
 Benchmark Evidence (concurrency, the long-pole fix): `BenchmarkDeferredBackfill{Serial,Concurrent4,Concurrent8}`
 in `ingestion_backfill_bench_test.go`, 256 repositories at batch size 8 (32
 batches) with a 50 µs per-statement round-trip stand-in, darwin/arm64. Serial
-(1 worker) `40,976,430 ns/op`; 4 workers `10,295,819 ns/op` (3.98x faster); 8
-workers `5,238,341 ns/op` (7.82x faster) — near-linear in worker count, as
+(1 worker) `93,695,479 ns/op`; 4 workers `23,405,054 ns/op` (4.00x faster); 8
+workers `11,706,554 ns/op` (8.00x faster) — near-linear in worker count, as
 expected for round-trip-bound batch writes. End-to-end wall-time on the de-nested
 896-repo / ~3.5M-fact corpus is measured by the operator's remote validation
 stack (no local corpus of that size); the structural argument is serial → W-way
 concurrent across the independent per-repository batches plus N → ⌈N/500⌉
 evidence-write round-trips.
+
+Read the absolutes as one measured run on a loaded developer machine, not as a
+reproducible constant: three runs of this suite spanned 93.7–103.4 ms serial,
+23.4–23.8 ms at 4 workers, and 11.7–13.4 ms at 8 workers, with the speedups
+between 4.00x–4.34x and 7.73x–8.25x. The ratios are the durable claim; a
+re-run within roughly ±10% on the absolutes is agreement, not drift.
+
+These absolutes replace the pre-fan-in numbers (`40,976,430` / `10,295,819` /
+`5,238,341 ns/op`, 3.98x / 7.82x) and are ~2.4x higher for a structural reason,
+not a regression in the concurrency this section measures: the fixture is 256
+repositories at one repository per scope, so moving publication into the fan-in
+adds 256 per-partition transactions — Begin, advisory locks, generation re-read,
+phase publish, each paying the 50 µs per-statement stand-in — on top of the 32
+batch transactions. The ratios are what this section is evidence for, and they
+held (3.98x → 4.00x, 7.82x → 8.00x).
+
+Treat the absolutes as a LOWER BOUND on the fan-in's production cost. The
+benchmark calls `writeDeferredBackfillInBatches` with an empty
+`catalogFingerprint`, which skips the memo write and therefore skips the
+per-partition ArgoCD probe entirely — the probe measured at 2.34 ms per call in
+`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md`. Benchmarking
+the fan-in's real cost requires a non-empty fingerprint, and the benchmark's
+`latencyBackfillDB` deliberately errors on the probe query rather than guessing
+its column shape, so that run fails with a named error until someone adds it.
 
 Performance Evidence (CTE plan shape, supporting cleanup): PostgreSQL 18, fixture
 of 2000 scopes × 3 generations (6000 generation rows, half with an active

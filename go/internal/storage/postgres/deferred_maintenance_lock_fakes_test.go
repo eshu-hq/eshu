@@ -108,6 +108,17 @@ func (tx *advisoryLockTx) Rollback() error {
 // acquisition and release are observable. It tracks the peak number of repo
 // exclusive locks held simultaneously so a test can prove the whole-corpus pass
 // never holds a fleet-wide lock set.
+//
+// Note for anyone adding or reordering a query on this path: QueryContext here
+// is FIFO over snapshotRows and ignores the query string, so its correctness
+// depends on the ORDER of reads on the outer handle, not on their shape -- and
+// once the staged list is exhausted it returns an empty result set rather than
+// an error. A change that inserts a snapshot read, or reorders two, makes this
+// fake mis-answer silently instead of failing. That is a different failure mode
+// from the column-arity mismatch a shape change causes in the per-query stubs
+// (see latencyBackfillDB in ingestion_backfill_bench_test.go), and it is not
+// caught by running the benchmarks. Stage a matching row set and assert the
+// call order when you touch the sequence.
 type lockAwareMaintenanceDB struct {
 	mgr              *advisoryLockManager
 	snapshotRows     []*queueFakeRows

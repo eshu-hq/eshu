@@ -166,6 +166,44 @@ All nine live proofs are enrolled in the reducer contention gate's `-run`
 filter, and `TestReducerContentionPostgresProofsRunInTheReducerContentionGate`
 fails if a rename drops one of them out of it.
 
+### Test-harness fakes a query-shape change here can break
+
+Adding or reshaping a query on this path breaks in-memory fakes in ways the
+compiler cannot see, so this is the list to walk before changing one. Eleven
+fakes in the package ignore the query string; seven belong to other subsystems.
+The four on this path, and the two distinct ways they break:
+
+- **Wrong column arity, silent until executed.** `latencyBackfillDB` /
+  `latencyBackfillTx` (`ingestion_backfill_bench_test.go`) answered every query
+  with the three-column active-generation rows. The fan-in's per-scope re-read
+  scans one column, so the benchmarks failed with `scan destination count = 1,
+  want 3` — in CI, because `make pre-pr` runs no benchmarks. They now dispatch on
+  the query and error on anything unrecognized. The other three
+  (`concurrencyProbeTx`, `fakeExecQueryer`, `fakeTx`) were caught during the
+  change because the compiler flagged their signature changes; the benchmark's
+  needed only different row *data*, which is why it was the one that escaped.
+- **Wrong call ORDER, silent always.** `lockAwareMaintenanceDB`
+  (`deferred_maintenance_lock_fakes_test.go`) is FIFO-staged on `snapshotRows`
+  and ignores the query, so its correctness depends on the sequence of reads
+  rather than their shape, and past the end of the staged list it returns an
+  empty result set rather than an error. It is correct today and its tests pass,
+  but a change that adds or reorders a snapshot read on the outer handle would
+  make it mis-answer silently. It drives the whole-corpus maintenance entrypoint,
+  so it is the most on-path fake in the package.
+
+Two fakes are safe by construction and need no per-change check:
+`failingPartitionQueryer` always returns an error, and `fifoExecQueryer` is a
+read-only queryer that cannot drive the fan-in and errors loudly when its staged
+responses run out.
+
+The empirical check that catches the arity class is running the benchmarks, not
+the tests: `go test ./internal/storage/postgres -run '^$' -bench '.' -benchtime 1x`.
+It is worth noting what that check could not have proven here — the ArgoCD probe
+never executes under these benchmarks because they pass an empty
+`catalogFingerprint`, so a zero-error sweep says the path is skipped, not that
+the stub handles it. That is why the stub's default arm errors instead of
+guessing.
+
 No-Regression Evidence: full-package runs, same container, same env, before
 and after the change:
 
