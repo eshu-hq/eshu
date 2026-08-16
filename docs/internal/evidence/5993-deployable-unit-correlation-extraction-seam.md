@@ -6,25 +6,56 @@ Three files the performance-evidence gate flags as hot Go runtime paths
 changed in this branch:
 
 - `go/internal/reducer/deployable_unit_correlation_edges.go` — adds an
-  exported pure function, `ExtractDeployableUnitCorrelationRows`, that wraps
-  the EXISTING call sequence `ExtractWorkloadCandidates` →
-  `applyResolvedDeploymentSources` → `filterDeployableUnitCandidates` →
-  `evaluateDeployableUnitCandidates` → `deployableUnitCorrelationRows`, in the
-  same order, with the same arguments, into one function. `now func()
-  time.Time` is threaded through `deployableUnitCorrelationRows` /
-  `deployableUnitCorrelationRow` to stamp `CreatedAt`, defaulting through the
-  existing `admissionNow(nil)` helper to `time.Now().UTC()` — byte-identical
-  to the pre-refactor literal. `admittedDeployableUnitRows` is renamed to
-  exported `AdmittedDeployableUnitRows`; its body is untouched.
+  exported pure function, `ExtractDeployableUnitCorrelationRows`, that now
+  takes **already-extracted** `[]WorkloadCandidate` (not fact envelopes) and
+  wraps the EXISTING call sequence `applyResolvedDeploymentSources` →
+  `filterDeployableUnitCandidates` → `evaluateDeployableUnitCandidates` →
+  `deployableUnitCorrelationRows` — four functions, in the same order, with
+  the same arguments, into one function. `ExtractWorkloadCandidates` itself
+  moved OUTSIDE the seam (see the be0b1bc49 note below); it is no longer one
+  of the calls this function wraps. `now func() time.Time` is threaded
+  through `deployableUnitCorrelationRows` / `deployableUnitCorrelationRow` to
+  stamp `CreatedAt`, defaulting through the existing `admissionNow(nil)`
+  helper to `time.Now().UTC()` — byte-identical to the pre-refactor literal.
+  `admittedDeployableUnitRows` is renamed to exported
+  `AdmittedDeployableUnitRows`; its body is untouched.
 - `go/internal/reducer/deployable_unit_correlation.go` —
-  `DeployableUnitCorrelationHandler.Handle` now calls
-  `ExtractDeployableUnitCorrelationRows` (passing `nil` for the clock) instead
-  of the five separate calls it used to make directly, and reads its
-  empty-candidates guard off `len(evaluation.Results) == 0` instead of the
-  old `len(candidates) == 0`. `deployableUnitCorrelationEntityKeys(intent)` is
-  now called twice per `Handle` invocation: once up front (fail-fast, result
-  discarded) and once again inside the extracted seam, which re-derives it
-  independently so the seam has no hidden dependency on its caller.
+  `DeployableUnitCorrelationHandler.Handle` now calls `ExtractWorkloadCandidates`
+  exactly once (previously it called it once conditionally, inside the
+  `ResolvedLoader != nil` branch, AND `ExtractDeployableUnitCorrelationRows`
+  called it again internally from the same envelopes — a doubled call fixed
+  in `be0b1bc49`, after this seam originally shipped), then passes that one
+  `candidates` slice to both `loadWorkloadResolvedRelationships` and
+  `ExtractDeployableUnitCorrelationRows` (passing `nil` for the clock).
+  `Handle` still reads its empty-candidates guard off
+  `len(evaluation.Results) == 0` instead of the old `len(candidates) == 0`.
+  `deployableUnitCorrelationEntityKeys(intent)` is still called twice per
+  `Handle` invocation — this is a SEPARATE, unrelated doubled call from the
+  `ExtractWorkloadCandidates` one `be0b1bc49` removed: once up front in
+  `Handle` (fail-fast, result discarded) and once again inside
+  `ExtractDeployableUnitCorrelationRows`, which re-derives it independently
+  from `intent` (not from `candidates`) so the seam has no hidden dependency
+  on its caller having already validated entity keys. `be0b1bc49` did not
+  touch this call; it remains exactly as described below.
+- **`be0b1bc49` (post-seam follow-up, same PR):** removed the doubled
+  `ExtractWorkloadCandidates` call described above. `Handle` now extracts
+  candidates once; `ExtractDeployableUnitCorrelationRows`'s signature changed
+  from `(intent, envelopes []facts.Envelope, resolved, now)` to `(intent,
+  candidates []WorkloadCandidate, resolved, now)` accordingly. This is a real
+  narrowing of the seam's guarantee, not just a rename: before this commit,
+  `ExtractWorkloadCandidates` was itself one of the wrapped calls, so
+  production and the Ifá guard (`materialized_edges_deployable_unit.go`)
+  were STRUCTURALLY unable to diverge on how candidates get extracted — both
+  ran through the one seam. After this commit, `ExtractWorkloadCandidates` is
+  called separately by each caller (`Handle` and the guard's own call site),
+  outside the seam. They call the same function today, so the observable
+  behavior is unchanged, but the guarantee is now "both call the same
+  function by convention", not "both go through the same code path by
+  construction" — a caller could in principle extract candidates a different
+  way and the seam would not notice. `go build ./...` and
+  `go test ./internal/reducer ./internal/ifa ./cmd/ifa -count=1` (all green,
+  this run) confirm current behavior is unchanged; they cannot and do not
+  prove the stronger structural guarantee the pre-`be0b1bc49` seam had.
 - `go/internal/ifa/materialized_edges_deployable_unit.go` — new file, ~290
   lines. Not a production file: it defines
   `resolveDeployableUnitMaterializedEdges`, the family's Ifá
