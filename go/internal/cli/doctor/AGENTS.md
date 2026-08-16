@@ -25,6 +25,13 @@
   this by redacting the whole URI: an operator has to be able to tell which
   backend was configured, and a report that says only `[ok] configured` cannot
   distinguish the right backend from the wrong one.
+- **The probe URL is built structurally, never concatenated.** `healthURL`
+  parses the base URL and extends its path. `baseURL + "/health"` appends to
+  whatever the string ends with, and for a base URL carrying a query that is the
+  query *value* — `http://host/x?api_key=t` becomes
+  `http://host/x?api_key=t/health`, so the probe misses and doctor reports the
+  API unreachable when it is healthy. `health_url_test.go` covers the shapes;
+  reverting to concatenation turns it red.
 - **Every check is advisory and `Run` returns nil.** Do not add an error return
   for a failed check. An operator running doctor wants the whole picture; the
   combination of findings is what identifies the cause, and returning early
