@@ -25,7 +25,10 @@ writes to the table they build on. They do take longer than a blocking build
 and they extend schema bootstrap: migration `099` builds an index on
 `fact_records`, and that build scales with table size. A build that fails part
 way leaves an invalid index behind, which the next schema apply drops by name
-before retrying, so a failed upgrade does not need manual cleanup.
+before retrying, so a failed upgrade does not need manual cleanup. Until that
+retry, though, the invalid index still costs write overhead on every insert
+while serving no reads, so a failed build is worth restarting promptly rather
+than leaving in place.
 
 ## Deployment Contract
 

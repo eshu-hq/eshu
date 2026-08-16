@@ -57,7 +57,8 @@ and thousands of tiny Postgres round trips on large repositories.
 contract is tied to `content_entity.entity_type`, such as inheritance and SQL
 relationships. Each loader ships a first-page statement and a separate cursor
 statement; see the keyset invariant in `gotchas-and-invariants.md` before
-changing either, because merging them reintroduces quadratic pagination. Both paths select the full
+changing either, because merging them reintroduces quadratic pagination.
+Both paths select the full
 `facts.Envelope` column shape before calling the shared scanner, so filtered
 reads keep schema version, collector, fencing, and source-confidence metadata.
 `ListActiveRepositoryFacts` pages active, non-tombstoned Git repository facts

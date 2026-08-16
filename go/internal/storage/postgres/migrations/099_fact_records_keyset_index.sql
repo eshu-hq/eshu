@@ -65,8 +65,10 @@
 -- index which `IF NOT EXISTS` then skips forever -- does not apply here: the
 -- schema apply path drops invalid concurrent indexes by name before executing
 -- each definition (SQLDB.dropInvalidConcurrentIndexes, db.go), and it runs each
--- statement on its own connection outside any transaction, which CONCURRENTLY
--- requires.
+-- statement outside any transaction on a dedicated bootstrap connection, which
+-- CONCURRENTLY requires. That also means this index cannot move into
+-- 003_fact_records.sql: that definition is multi-statement, and a
+-- multi-statement Exec is sent as an implicit transaction.
 --
 -- See #6154 for the full plans and the corpus distribution.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_scope_generation_keyset_idx

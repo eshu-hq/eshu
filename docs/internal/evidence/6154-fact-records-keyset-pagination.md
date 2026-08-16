@@ -131,13 +131,6 @@ Index size 844 MB against a 45 MB `fact_records_scope_generation_idx` and a
 compress it; dropping `observed_at` from the key saves 3-4% and would force an
 ordering-contract change, so the key stays as it is.
 
-`CREATE INDEX` rather than `CREATE INDEX CONCURRENTLY`: a failed CONCURRENTLY
-build leaves an INVALID index that `IF NOT EXISTS` then skips on every later
-run, which is a permanent silent regression wearing this fix's name. The
-blocking build is bounded and visible, and its failure mode leaves nothing
-behind. `docs/public/deployment/service-runtimes-bootstrap.md` carries the
-operator note, because the pause grows with table size.
-
 ## No-Observability-Change:
 
 No metric, span, structured log, status field, or dashboard changes. The two
@@ -182,16 +175,28 @@ outside the measured window.
 | 7 | 4.736 s | 4.849 s |
 
 Average without 4.735 s (12,672 rows/s), with 4.831 s (12,421 rows/s):
-**+2.0%** on the insert path. All seven rounds move the same direction with a
-spread under 0.04 s within each arm, which is why this number is trustworthy
-where earlier ones were not.
+**+2.0%** on the insert path. All seven rounds move the same direction, and the
+arms are separated by 0.096 s against a within-arm spread of 0.028 s on the
+with-index arm and 0.029 s on the without-index arm across rounds 2-7. Round 1
+without-index (4.791 s) sits 0.05 s above the rest of its arm and looks like a
+warm-up; including it the without-index spread is 0.076 s, still smaller than
+the gap between arms. That separation is why this number is trustworthy where
+the earlier ones were not.
 
 Two earlier three-round runs of the same harness reported +5.0% and +12.3%.
-Neither is quoted here, and neither should be: the +5.0% run contained an
-impossible datapoint (both arms of round 1 identical to the millisecond across
-two independent 60,000-row inserts), and the +12.3% run spanned +1.7% to +16%
-across its three rounds. Three rounds was simply too few to separate the index
-from noise on this host. The seven-round run above replaces both.
+Neither is quoted here, and neither should be. The +5.0% run contained an
+impossible datapoint: both arms of round 1 identical to the millisecond across
+two independent 60,000-row inserts. The +12.3% run spanned +1.7% to +16% across
+its three rounds, and that +16% round is a large outlier against the 0.03 s
+within-arm spread the seven-round run shows — I do not know what caused it
+(checkpoint, autovacuum, and other load on the host are all candidates), and
+"unexplained" is the honest description rather than "noise". Either way three
+rounds could not separate the index from it, and the seven-round run replaces
+both.
+
+Worth stating plainly, since the discarded runs are the ones that made this
+change look more expensive: the run kept is the one most favourable to shipping.
+That is why both discarded numbers are named here rather than dropped.
 
 Net effect over the reference corpus. Ingesting all 3,642,630 fact rows costs
 287.4 s at 12,672 rows/s and 293.3 s at 12,421 rows/s, so the index adds about
@@ -204,5 +209,5 @@ improvement without paying anything additional.
 
 The write cost is real and worth restating plainly rather than rounding away:
 every fact insert on this table now maintains one more index, forever, and that
-5% does not disappear as the corpus grows. It is accepted because the read side
+2% does not disappear as the corpus grows. It is accepted because the read side
 it buys is quadratic and this is linear.
