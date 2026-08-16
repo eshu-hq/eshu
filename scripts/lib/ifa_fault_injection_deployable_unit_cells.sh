@@ -300,9 +300,12 @@ cell_killworker_deployable_unit() {
 	# attempt_count to 0; reading the count again after that point would read
 	# the reset, not the recovery. See this cell's own header and
 	# ifa_deployable_unit_live_converge_edges's for why.
-	local killed_retried
-	killed_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"
-	killed_retried="${killed_retried:-}"
+	local killed_retried killed_retried_rc
+	if killed_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "deployable_unit_correlation")"; then
+		killed_retried_rc=0
+	else
+		killed_retried_rc=$?
+	fi
 	assert_no_dead_letters killworkerdeployableunit
 	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-after" "killworkerdeployableunit" \
 		|| die "kill-worker-after-claim-deployable-unit: post-maintenance reducer log does not prove the readiness gate opened"
@@ -320,7 +323,7 @@ cell_killworker_deployable_unit() {
 			# on the first post-fault drain -- worth its own line so a
 			# reader diffing this cell's log against a clean run can see it,
 			# rather than both cases printing the identical final assertion.
-			printf 'kill-worker-after-claim-deployable-unit: convergence loop engaged -- the post-fault drain alone did not reach the one-edge exact set; it converged only after extra bootstrap-index maintenance passes\n'
+			printf 'kill-worker-after-claim-deployable-unit: converged via the convergence loop -- extra bootstrap-index maintenance passes were needed; the post-fault drain alone did not reach the one-edge exact set\n'
 			;;
 		2) die "kill-worker-after-claim-deployable-unit: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" ;;
 		3) die "kill-worker-after-claim-deployable-unit: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" ;;
@@ -331,9 +334,25 @@ cell_killworker_deployable_unit() {
 	# query here -- by this point the edge-assert/converge_edges steps above
 	# may already have run a maintenance pass that reopened and zeroed this
 	# row's attempt_count. ifa_fault_assert_retried_above (which polls a
-	# live query) is deliberately NOT used here for that reason. Same
-	# fail-closed shape as the rest of this family: empty or non-numeric
-	# output is unknown, never a legitimate zero or a legitimate pass.
+	# live query) is deliberately NOT used here for that reason.
+	#
+	# The rc check below is checked against killed_retried_rc, captured by
+	# the if/else at the snapshot line above -- the family idiom used by
+	# every sibling precondition in this family (e.g.
+	# ifa_deployable_unit_require_admission_decisions_written,
+	# ifa_fault_injection_deployable_unit_lock.sh). Capturing rc through
+	# if/else, rather than a bare `killed_retried="$(...)"` assignment, is
+	# not stylistic here: under this script's `set -euo pipefail`, a bare
+	# assignment's failing command substitution aborts the whole script on
+	# that line, so a failed query would die with ifa_fault_count_retried's
+	# own generic message and never reach any of the three checks below.
+	# The if/else keeps the failure inside this cell's control, so it can be
+	# named and rejected as unknown right here, at the point that actually
+	# needs the answer -- same fail-closed shape as the rest of this family:
+	# query failed, empty, and non-numeric are each rejected distinctly as
+	# unknown, never read as a legitimate zero or a legitimate pass.
+	[[ "${killed_retried_rc}" -eq 0 ]] \
+		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query FAILED (exit ${killed_retried_rc}); treat this as unknown, not as a verdict"
 	[[ -n "${killed_retried}" ]] \
 		|| die "kill-worker-after-claim-deployable-unit: retried-row snapshot query returned empty output; treat this as unknown, not as zero"
 	[[ "${killed_retried}" =~ ^[0-9]+$ ]] \
@@ -397,7 +416,7 @@ cell_failgraphwrite_deployable_unit() {
 			# a fault cell that needed extra convergence passes is a
 			# materially different result from one that converged on the
 			# first post-fault drain, and today both printed the same line.
-			printf 'fail-graph-write-once-then-succeed-deployable-unit: convergence loop engaged -- the post-fault drain alone did not reach the one-edge exact set; it converged only after extra bootstrap-index maintenance passes\n'
+			printf 'fail-graph-write-once-then-succeed-deployable-unit: converged via the convergence loop -- extra bootstrap-index maintenance passes were needed; the post-fault drain alone did not reach the one-edge exact set\n'
 			;;
 		2) die "fail-graph-write-once-then-succeed-deployable-unit: a maintenance-pass convergence retry crashed (bootstrap-index itself failed), not an eventual-consistency timeout" ;;
 		3) die "fail-graph-write-once-then-succeed-deployable-unit: a maintenance-pass convergence retry's drain failed, not an eventual-consistency timeout" ;;

@@ -76,6 +76,18 @@ changed in this branch:
   `go/internal/ifa/AGENTS.md`), so the fixture and production cannot silently
   diverge.
 
+**Note for the follow-up (#6149, not chased here):** the kill-worker cell's
+`admission_decisions` precondition read 5 rows for
+`domain = 'deployable_unit_correlation'` on one live run against 4 on another,
+while the graph digest stayed byte-identical between them. Nothing in this
+branch depends on the exact count -- the gate only asserts non-zero, and
+`admission_decisions` is outside the digest comparison -- so this is benign
+on the evidence available. `writeDeployableUnitAdmissionDecisions` writes one
+row per evaluated candidate, admitted and rejected alike, so the underlying
+cause is the correlation engine seeing a different candidate count between
+runs. If a future run reports a count around 6, this note is the prior: it
+is not new until someone has a reason to think otherwise.
+
 None of the three touches `go/internal/storage/cypher/canonical_deployable_unit_edges.go`
 (the actual `MATCH`/`MATCH`/`MERGE` write template) or any other file under
 `go/internal/storage/cypher/`: `git diff --name-only` against the merge base
