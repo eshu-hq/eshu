@@ -169,40 +169,53 @@ fails if a rename drops one of them out of it.
 ### Test-harness fakes a query-shape change here can break
 
 Adding or reshaping a query on this path breaks in-memory fakes in ways the
-compiler cannot see, so this is the list to walk before changing one. Eleven
-fakes in the package ignore the query string; seven belong to other subsystems.
-The four on this path, and the two distinct ways they break:
+compiler cannot see, so this is the list to walk before changing one. There are
+two distinct populations, and conflating them produces an off-by-one:
 
-- **Wrong column arity, silent until executed.** `latencyBackfillDB` /
-  `latencyBackfillTx` (`ingestion_backfill_bench_test.go`) answered every query
-  with the three-column active-generation rows. The fan-in's per-scope re-read
-  scans one column, so the benchmarks failed with `scan destination count = 1,
-  want 3` — in CI, because `make pre-pr` runs no benchmarks. They now dispatch on
-  the query and error on anything unrecognized. The other three
-  (`concurrencyProbeTx`, `fakeExecQueryer`, `fakeTx`) were caught during the
-  change because the compiler flagged their signature changes; the benchmark's
-  needed only different row *data*, which is why it was the one that escaped.
-- **Wrong call ORDER, silent always.** `lockAwareMaintenanceDB`
-  (`deferred_maintenance_lock_fakes_test.go`) is FIFO-staged on `snapshotRows`
-  and ignores the query, so its correctness depends on the sequence of reads
-  rather than their shape, and past the end of the staged list it returns an
-  empty result set rather than an error. It is correct today and its tests pass,
-  but a change that adds or reorders a snapshot read on the outer handle would
-  make it mis-answer silently. It drives the whole-corpus maintenance entrypoint,
-  so it is the most on-path fake in the package.
+**Population A — fakes that ignore the query string.** Reproduce with
+`rg 'func .*\) QueryContext\(_ context\.Context, _ string' go/internal/storage/postgres/`.
+Eleven today; eight belong to other subsystems (`acceptanceStoreErrorDB`,
+`cicdWatermarkTestDB`, `generationFreshnessTestDB`, `poolExhaustionProbeDB`,
+`poolExhaustionProbeTx`, `recordingReducerInputInvalidFactDB`,
+`strictResolvedQueryDB`, `erroringQueryer`) and three are on this path:
 
-Two fakes are safe by construction and need no per-change check:
-`failingPartitionQueryer` always returns an error, and `fifoExecQueryer` is a
-read-only queryer that cannot drive the fan-in and errors loudly when its staged
-responses run out.
+- `lockAwareMaintenanceDB` (`deferred_maintenance_lock_fakes_test.go`) — the one
+  to watch. It is FIFO-staged on `snapshotRows`, so its correctness depends on
+  the ORDER of reads rather than their shape, and past the end of the staged
+  list it returns an empty result set rather than an error. Correct today and
+  its tests pass, but a change that adds or reorders a snapshot read on the outer
+  handle makes it mis-answer **silently**. It drives the whole-corpus maintenance
+  entrypoint, so it is the most on-path fake in the package.
+- `failingPartitionQueryer` and `fifoExecQueryer` — safe by construction, no
+  per-change check needed. The first always returns an error, so it can never
+  yield a wrong-shaped row set. The second is a read-only queryer that cannot
+  drive the fan-in and errors loudly when its staged responses run out.
+
+`latencyBackfillDB` and `latencyBackfillTx` were a twelfth and thirteenth member
+of this population until this change taught them to dispatch on the query. They
+are the reason it is worth walking: they answered everything with three-column
+active-generation rows, the fan-in's per-scope re-read scans one, and the
+benchmarks failed with `scan destination count = 1, want 3` — in CI, because
+`make pre-pr` runs no benchmarks. Their default arm now errors by name rather
+than guessing.
+
+**Population B — fakes that take a named `query string` and dispatch on it.**
+`concurrencyProbeTx`, `fakeExecQueryer`, and `fakeTx` are here, not in
+population A. They also needed updating for the fan-in, but the compiler flagged
+them because their signatures changed. That is the whole reason exactly one
+shape mismatch escaped to CI: the benchmark's fakes needed no signature change,
+only different row *data*, which nothing static checks.
 
 The empirical check that catches the arity class is running the benchmarks, not
 the tests: `go test ./internal/storage/postgres -run '^$' -bench '.' -benchtime 1x`.
-It is worth noting what that check could not have proven here — the ArgoCD probe
-never executes under these benchmarks because they pass an empty
-`catalogFingerprint`, so a zero-error sweep says the path is skipped, not that
-the stub handles it. That is why the stub's default arm errors instead of
-guessing.
+It does NOT catch the ordering class, which has no automated check at all — that
+one is why `lockAwareMaintenanceDB` is called out by name here and carries a
+pointer comment in its own file.
+
+Note also what a clean benchmark sweep does not prove. The ArgoCD probe never
+executes under these benchmarks, because they pass an empty
+`catalogFingerprint`, so a zero-error sweep says that path is skipped rather
+than handled. That is why the stub's default arm errors instead of guessing.
 
 No-Regression Evidence: full-package runs, same container, same env, before
 and after the change:
