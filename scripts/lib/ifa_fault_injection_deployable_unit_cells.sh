@@ -16,16 +16,29 @@
 # ifa_deployable_unit_live_assert).
 #
 # BOTH cells below need one thing no sibling family's cells do: a bootstrap-
-# index maintenance pass between drive_all_cassettes and the point where a
-# fault can usefully target this family's work, because
-# deployable_unit_correlation is gated shut on the FIRST pass (see
-# ifa_deployable_unit_live.sh's header for the full traced rationale: the
-# readiness gate CrossRepoRelationshipHandler.Resolve checks is never
-# published without a maintenance pass in this gate's runtime). So the shape
-# here is: fresh_stack -> drive_all_cassettes -> a PRE-maintenance drain (so
-# every other family reaches a terminal state cleanly) -> ONE bootstrap-index
-# maintenance pass -> the fault is injected on the POST-maintenance drain,
-# which is the first point deployable_unit_correlation has real work to do.
+# index maintenance pass between the drive and the point where a fault can
+# usefully target this family's work, because deployable_unit_correlation is
+# gated shut on the FIRST pass (see ifa_deployable_unit_live.sh's header for
+# the full traced rationale: the readiness gate
+# CrossRepoRelationshipHandler.Resolve checks is never published without a
+# maintenance pass in this gate's runtime). So the shape here is: fresh_stack
+# -> drive_all_cassettes -> drive_deployable_unit_cassette -> a PRE-
+# maintenance drain (so every other family reaches a terminal state cleanly)
+# -> ONE bootstrap-index maintenance pass -> the fault is injected on the
+# POST-maintenance drain, which is the first point deployable_unit_correlation
+# has real work to do.
+#
+# drive_deployable_unit_cassette (ifa_fault_injection_driver.sh) is a
+# SEPARATE call from drive_all_cassettes, immediately after it, in all three
+# cells below -- not folded into drive_all_cassettes itself. Driving this
+# family's cassette unconditionally into every one of the suite's eleven
+# cells used to be the convenient choice, but duplicate-delivery's redelivery
+# UPDATE (`WHERE stage = 'reducer' AND status = 'succeeded'`,
+# ifa_fault_redeliver_succeeded) touches every succeeded reducer row
+# regardless of admission outcome, and a live run proved that surface was
+# never actually covered (#5993 review). Scoping the drive to only the three
+# cells that need it removes the untested surface instead of trying to prove
+# it safe after the fact.
 #
 # RULING (superseding an earlier draft that omitted baseline-digest comparison
 # entirely): the shared digests[baseline] (cell_baseline,
@@ -160,6 +173,7 @@ cell_baseline_deployable_unit() {
 			|| die "baseline-deployable-unit: fresh-stack precondition failed"
 	fi
 	drive_all_cassettes baseline_deployable_unit
+	drive_deployable_unit_cassette baseline_deployable_unit
 
 	log "baseline-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
 	local projector_pid reducer_pid
@@ -238,6 +252,7 @@ cell_killworker_deployable_unit() {
 			|| die "kill-worker-after-claim-deployable-unit: fresh-stack precondition failed"
 	fi
 	drive_all_cassettes killworkerdeployableunit
+	drive_deployable_unit_cassette killworkerdeployableunit
 
 	log "kill-worker-after-claim-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
 	local projector_pid reducer_pid
@@ -298,6 +313,7 @@ cell_failgraphwrite_deployable_unit() {
 			|| die "fail-graph-write-once-then-succeed-deployable-unit: fresh-stack precondition failed"
 	fi
 	drive_all_cassettes failgraphwritedeployableunit
+	drive_deployable_unit_cassette failgraphwritedeployableunit
 
 	log "fail-graph-write-once-then-succeed-deployable-unit: pre-maintenance drain (deployable_unit_correlation is gated shut here by design)"
 	local projector_pid reducer_pid

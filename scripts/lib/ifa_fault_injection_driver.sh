@@ -57,19 +57,28 @@ fresh_stack() {
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-${cell}.log"; die "${cell}: bootstrap-data-plane failed"; }
 }
 
-# drive_all_cassettes drives demo-org, synth-multiscope, SQL, code-call,
-# documentation, and deployable-unit family cassettes into the fresh stack and
-# asserts the drive actually enqueued work (never a vacuous drain proof). The SQL family
+# drive_all_cassettes drives demo-org, synth-multiscope, SQL, code-call, and
+# documentation family cassettes into the fresh stack and asserts the drive
+# actually enqueued work (never a vacuous drain proof). The SQL family
 # cassette (#5351) makes cells 2/3 (and the SQL-targeted cells #5555 adds)
 # exercise the SQL relationship materialization handler's replay through the
 # real durable fault path, not only the GCP resource path.
 #
-# The deployable-unit family cassette (#5993) is safe to drive unconditionally
-# into every cell, including ones that never target this family: without a
-# bootstrap-index maintenance pass (which only the deployable_unit-specific
-# cells run), deployable_unit_correlation's intent finds nothing admitted and
-# succeeds immediately, so it cannot affect any other cell's residual=0 drain
-# or digest.
+# The deployable-unit family cassette (#5993) is deliberately NOT driven here.
+# An earlier version of this comment claimed driving it unconditionally into
+# every cell was safe because deployable_unit_correlation's intent finds
+# nothing admitted and succeeds immediately without a maintenance pass. That
+# claim covered only the drain (residual=0) and the digest -- it never
+# reached duplicate-delivery's redelivery UPDATE (`WHERE stage = 'reducer' AND
+# status = 'succeeded'`, ifa_fault_redeliver_succeeded), which touches every
+# succeeded reducer row regardless of what it admitted, so the extra
+# deployable_unit_correlation row this family enqueues into cells that never
+# maintenance-pass it was a real, unproven surface, not a covered one (#5993
+# review; see cell_duplicatedelivery's live failure on ifa_det_pg's
+# now-surfaced stderr for the trigger). drive_deployable_unit_cassette below
+# is called only by the three deployable_unit-targeted cells
+# (ifa_fault_injection_deployable_unit_cells.sh) that actually need this
+# family's rows to exist.
 drive_all_cassettes() {
 	local cell="$1"
 	log "${cell}: drive demo-org cassette (-workers ${drive_workers})"
@@ -88,16 +97,29 @@ drive_all_cassettes() {
 		|| die "${cell}: eshu-ifa drive (code-call family) failed"
 	ifa_documentation_drive "${cell}" "${bin_dir}" "${documentation_cassette}" "${drive_workers}" "${log_dir}" \
 		|| die "${cell}: eshu-ifa drive (documentation family) failed"
-	log "${cell}: drive deployable-unit family cassette (-workers ${drive_workers})"
-	"${bin_dir}/eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}" \
-		>"${log_dir}/ifa-drive-deployable-unit-${cell}.log" 2>&1 \
-		|| { tail -40 "${log_dir}/ifa-drive-deployable-unit-${cell}.log" >&2; die "${cell}: eshu-ifa drive (deployable-unit family) failed"; }
 	local enqueued
 	enqueued="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${enqueued}" && "${enqueued}" -gt 0 ]] \
 		|| die "${cell}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
 	printf '%s: fact_work_items enqueued: %s\n' "${cell}" "${enqueued}"
+}
+
+# drive_deployable_unit_cassette drives the deployable-unit family cassette
+# (#5993) into the fresh stack. Called only by the three deployable_unit-
+# targeted cells (cell_baseline_deployable_unit, cell_killworker_deployable_unit,
+# cell_failgraphwrite_deployable_unit in
+# ifa_fault_injection_deployable_unit_cells.sh), immediately after
+# drive_all_cassettes -- never unconditionally by every cell, so this family's
+# extra succeeded reducer row cannot enlarge duplicate-delivery's redelivery
+# UPDATE or any other sibling cell's row set. See drive_all_cassettes' header
+# comment for why unconditional driving stopped being safe.
+drive_deployable_unit_cassette() {
+	local cell="$1"
+	log "${cell}: drive deployable-unit family cassette (-workers ${drive_workers})"
+	"${bin_dir}/eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}" \
+		>"${log_dir}/ifa-drive-deployable-unit-${cell}.log" 2>&1 \
+		|| { tail -40 "${log_dir}/ifa-drive-deployable-unit-${cell}.log" >&2; die "${cell}: eshu-ifa drive (deployable-unit family) failed"; }
 }
 
 # run_drain_gate polls the gate binary to the B-12 residual bound (0), which
