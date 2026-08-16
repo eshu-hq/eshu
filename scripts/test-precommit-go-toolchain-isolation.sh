@@ -327,6 +327,40 @@ else
 	pass "all 4 ensure_* install sites route through go_install_tool"
 fi
 
+# ---------------------------------------------------------------------------
+# The same leak reaches ci-gates commands, not just this script.
+#
+# go/cmd/ci-gates shells each gate command out through /bin/sh with the
+# environment it inherited, so a gate that runs `go` from a module OUTSIDE go/
+# hits the identical mismatch: the host driver builds against a GOROOT exported
+# by a switched newer toolchain and every package fails with
+# `compile: version "go1.26.6" does not match go tool version "go1.26.5"`.
+#
+# It is not hypothetical -- go-file-cap's test_command runs the filelength
+# plugin's own module (pinned a minor below go/go.mod), and it failed exactly
+# this way in a real pre-pr run. The command passes standalone, because an
+# interactive shell has no leaked GOROOT; only the runner reproduces it.
+#
+# This checks the registry rather than a behaviour, because the command lives
+# in YAML and no amount of running this script would otherwise notice it going
+# missing.
+# ---------------------------------------------------------------------------
+registry="${repo_root}/specs/ci-gates.v1.yaml"
+if [ -f "${registry}" ]; then
+	# Gate commands that cd into a non-go/ module and then invoke `go`.
+	outside_go="$(rg -c 'cd tools/[^ ]* && [^"]*\bgo (test|build|run|install)\b' "${registry}" 2>/dev/null || printf '0')"
+	guarded="$(rg -c 'cd tools/[^ ]* && env -u GOROOT go (test|build|run|install)\b' "${registry}" 2>/dev/null || printf '0')"
+	if [ "${outside_go}" -eq 0 ]; then
+		pass "no ci-gates command runs go from a module outside go/ (nothing to guard)"
+	elif [ "${guarded}" -ne "${outside_go}" ]; then
+		fail "specs/ci-gates.v1.yaml: ${outside_go} gate command(s) run go from a module outside go/, but only ${guarded} clear GOROOT — add 'env -u GOROOT' before go, or the ci-gates runner leaks a switched toolchain's GOROOT into a host-driver build"
+	else
+		pass "all ${outside_go} ci-gates command(s) running go outside go/ clear GOROOT"
+	fi
+else
+	fail "specs/ci-gates.v1.yaml not found at ${registry}"
+fi
+
 if [ "${failures}" -ne 0 ]; then
 	printf 'test-precommit-go-toolchain-isolation: %d failure(s)\n' "${failures}" >&2
 	exit 1

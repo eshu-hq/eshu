@@ -47,7 +47,15 @@ var goPackageSubcommands = map[string]struct{}{
 // "go/internal/query/**" is already an explicit, correct trigger on it — but
 // checkGoPackageTriggerCoverage's derived cross-check no longer independently
 // re-confirms that fact for this one gate the way it does for the other 17.
-const goPackageGateCount = 17
+// #6124 raised this from 17 to 18: go-file-cap's local.test_command now also
+// runs the authoritative plugin's own module
+// (`cd tools/golangci-lint-filelength && go test -count=1 .`), so the
+// extractor recognizes it as a gate running a Go package. That is the point of
+// the change -- the plugin is the authority the two bash cap variants mirror,
+// and skip_parity_test.go there is what compares them. The gate already
+// carries "tools/golangci-lint-filelength/**" as an explicit trigger, so the
+// derived cross-check confirms coverage that was already correct.
+const goPackageGateCount = 18
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

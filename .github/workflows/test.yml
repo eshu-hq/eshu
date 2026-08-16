@@ -229,6 +229,16 @@ jobs:
         working-directory: tools/golangci-lint-filelength
         run: make build
 
+      # skip_parity_test.go compares this plugin's skip() against the bash
+      # mirror in scripts/dev/precommit-go.sh. It is the regression guard for
+      # #6104, where the two drifted and the local hook rejected long _test.go
+      # files CI accepted. Building the plugin does not run it, so without this
+      # step the guard fires only under `make pre-pr` and never in CI.
+      - name: Test golangci-lint filelength plugin
+        if: ${{ !cancelled() }}
+        working-directory: tools/golangci-lint-filelength
+        run: make test
+
       - name: Build golangci-lint dirgate plugin
         if: ${{ !cancelled() }}
         working-directory: tools/golangci-lint-dirgate

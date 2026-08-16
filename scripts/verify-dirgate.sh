@@ -58,13 +58,24 @@ case "${mode}" in
 		;;
 	--files)
 		exit_status=0
+		# Count what was actually evaluated. Zero is legitimate -- a commit
+		# touching only .go paths outside go/ (tools/, or the generated
+		# grandfather.go itself) maps to no package directory -- but it is
+		# indistinguishable from "checked everything, all clean" unless the
+		# count is reported. A run that evaluated nothing has been cited as
+		# proof a row was correct; printing the number is what makes that
+		# citation self-refuting.
+		evaluated=0
 		while IFS= read -r dirkey; do
 			[[ -n "${dirkey}" ]] || continue
 			dirgate_skip_dir "${dirkey}" && continue
+			evaluated=$((evaluated + 1))
 			if ! dirgate_evaluate_dir "${dirkey}" "${go_dir}/${dirkey}"; then
 				exit_status=1
 			fi
 		done < <(dirgate_changed_dirs "$@")
+		printf 'dirgate: evaluated %d director%s from %d path(s)\n' \
+			"${evaluated}" "$([[ ${evaluated} -eq 1 ]] && printf 'y' || printf 'ies')" "$#"
 		exit "${exit_status}"
 		;;
 	--digest)
