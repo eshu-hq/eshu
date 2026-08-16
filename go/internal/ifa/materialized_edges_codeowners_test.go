@@ -4,6 +4,8 @@
 package ifa
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -80,13 +82,12 @@ func TestCodeownersOwnershipDomainEdgeTypesComeFromTheWriterRegistry(t *testing.
 // identified graph nodes end to end (see the CodeownerTeam endpoint-identity
 // gap this package's cmd/ifa sibling test documents).
 //
-// Derivation record for ifa-codeowners-family-expected-edges.json (kept
-// here rather than as a JSON "note" field, mirroring the documentation_edges
-// precedent, commit 48d3bdf6a / #5994: codeownersExpectedEdgesFile declares
-// only "odu" and "edges" -- "identity" is a third DECLARED field this
-// family's own loadCodeownersExpectedEdges reads, unlike "note", which
-// never was declared anywhere and only parsed because encoding/json accepts
-// unknown fields by default). Five DECLARES_CODEOWNER edges from
+// Derivation record for ifa-codeowners-family-expected-edges.json. The
+// shared loader models a "note" field, so this prose COULD live in the JSON;
+// it is kept here instead, mirroring the documentation_edges precedent
+// (commit 48d3bdf6a / #5994), because a Go doc comment can name the symbols
+// it describes and moves with them under review, while a JSON string cannot
+// and silently rots. Five DECLARES_CODEOWNER edges from
 // ExtractCodeownersOwnershipEdgeRowsWithQuarantine over the
 // ifa-codeowners-family cassette: RULE A (*.md), RULE C's second owner token
 // (*.go), and RULE B (docs/**) are three DISTINCT relationships from
@@ -101,19 +102,17 @@ func TestCodeownersOwnershipDomainEdgeTypesComeFromTheWriterRegistry(t *testing.
 // extractor's rowIndexByKey dedup collapses it into RULE A's row (keeping
 // the higher order_index) rather than emitting a second edge -- proving the
 // last-match-wins contract, not just adding a sixth entry here. Each edge's
-// identity object carries pattern/source_path so this family's own pure
-// guard (materialized_edges_codeowners.go) can prove per-rule property
-// truth, not just edge count between a (repo, team) pair -- see
-// TestExpectedEdgeDetectsCodeownersPropertyCorruption and
-// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate for the two
-// RED proofs that the SHARED ifa.ExpectedEdge 3-tuple (still what the live
-// assert-edges verb reads via ifa.LoadExpectedEdges, which ignores this
-// file's identity keys) cannot do the same. This is a family-local
-// strengthening, not a widening of the shared mechanism. The fixture's
-// top-level "odu" field is likewise NOT validated against
-// Catalog()/CatalogByName() or anything else -- loadCodeownersExpectedEdges
-// decodes it and never reads it back -- so "odu:ifa-codeowners-family" here
-// is a human label, not a resolvable identity.
+// identity object carries pattern/source_path, the two properties
+// cypher.MaterializedEdgeIdentityProperties declares for this family, so
+// both this pure guard and the live assert-edges verb prove per-rule
+// property truth rather than only the edge count between a (repo, team)
+// pair -- see TestExpectedEdgeKeyDistinguishesCrossWiredCodeownersRules and
+// TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate for
+// the two proofs of what that identity buys. The fixture's top-level "odu"
+// field is NOT validated against Catalog()/CatalogByName() or anything else
+// -- ifa.LoadExpectedEdges decodes it and never reads it back -- so
+// "odu:ifa-codeowners-family" here is a human label, not a resolvable
+// identity.
 func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -123,9 +122,9 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Fatalf("loadCodeownersFamilyOdu: %v", err)
 	}
 
-	expectedEdges, err := loadCodeownersExpectedEdges(codeownersFamilyExpectedEdgesPath(repoRoot))
+	expectedEdges, err := LoadExpectedEdges(codeownersFamilyExpectedEdgesPath(repoRoot), codeownersOwnershipFamily)
 	if err != nil {
-		t.Fatalf("loadCodeownersExpectedEdges: %v", err)
+		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 	if len(expectedEdges) == 0 {
 		t.Fatal("expected-edge set is empty; an empty expectation makes this guard vacuous")
@@ -141,20 +140,12 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 
 	actual := map[string]int{}
-	for _, row := range rows {
-		actual[codeownersEdgeKey(codeownersExpectedEdge{
-			RelationshipType: "DECLARES_CODEOWNER",
-			SourceEntityID:   anyToStringValue(row["repo_id"]),
-			TargetEntityID:   anyToStringValue(row["owner_ref"]),
-			Identity: map[string]string{
-				"pattern":     anyToStringValue(row["pattern"]),
-				"source_path": anyToStringValue(row["source_path"]),
-			},
-		})]++
+	for _, edge := range codeownersOwnershipRowsToExpectedEdges(rows) {
+		actual[edge.Key()]++
 	}
 	expected := map[string]int{}
 	for _, e := range expectedEdges {
-		expected[codeownersEdgeKey(e)]++
+		expected[e.Key()]++
 	}
 
 	var missing, extra []string
@@ -298,39 +289,83 @@ func TestResolveCodeownersOwnershipMaterializedEdgesReturnsZeroRowsFalse(t *test
 	}
 }
 
-// TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption is the
-// positive proof this family's own review-round-2 rework exists for: unlike
-// the SHARED ifa.ExpectedEdge mechanism
-// (TestExpectedEdgeDetectsCodeownersPropertyCorruption proves that gap RED),
-// THIS family's compareCodeownersOwnershipExpectedEdges DOES catch a
-// materialization bug that cross-wires pattern/source_path between two rules
-// sharing a (repo, team) pair, because its key includes pattern and
-// source_path.
+// TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption proves the
+// guard's comparison, not just ExpectedEdge.Key() in isolation, catches a
+// materialization bug that drops one rule and duplicates another between the
+// same (repo, team) pair. A triple-only key nets those two independent
+// defects to the same multiset; the declared pattern/source_path identity
+// keeps them apart.
 func TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption(t *testing.T) {
 	t.Parallel()
 
-	correctA := codeownersExpectedEdge{
+	correctA := ExpectedEdge{
 		RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-x", TargetEntityID: "org/docs",
 		Identity: map[string]string{"pattern": "*.md", "source_path": ".github/CODEOWNERS"},
 	}
-	correctB := codeownersExpectedEdge{
+	correctB := ExpectedEdge{
 		RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-x", TargetEntityID: "org/docs",
 		Identity: map[string]string{"pattern": "docs/**", "source_path": ".github/CODEOWNERS"},
 	}
 	// The corrupted actual set: RULE A's edge is simply missing (its pattern
-	// went unwritten), and RULE B's edge was written TWICE instead -- the
-	// exact "dropped edge masked by an unrelated duplicate" shape
-	// TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate proves the
-	// shared 3-tuple mechanism cannot see. This family's own key includes
-	// pattern, so RULE A's absence and RULE B's duplication are each visible.
-	corrupted := []codeownersExpectedEdge{correctB, correctB}
+	// went unwritten), and RULE B's edge was written TWICE instead.
+	corrupted := []ExpectedEdge{correctB, correctB}
 
-	mismatch := compareCodeownersOwnershipExpectedEdges("odu:probe", []codeownersExpectedEdge{correctA, correctB}, corrupted)
+	mismatch := compareCodeownersOwnershipExpectedEdges("odu:probe", []ExpectedEdge{correctA, correctB}, corrupted)
 	if mismatch == "" {
 		t.Fatal("compareCodeownersOwnershipExpectedEdges did not catch the property-corrupted set; this family's whole point is detecting what the shared ExpectedEdge mechanism cannot")
 	}
 	if !strings.Contains(mismatch, "*.md") {
 		t.Errorf("mismatch %q does not name the missing *.md rule", mismatch)
 	}
-	t.Logf("confirmed: family-local property-aware guard catches what the shared mechanism misses: %s", mismatch)
+	t.Logf("confirmed: the property-aware guard catches a dropped rule masked by an unrelated duplicate: %s", mismatch)
+}
+
+// TestResolveCodeownersOwnershipMaterializedEdgesRejectsMalformedFixtures
+// proves this family reads its expected-edge fixture through the SHARED
+// strict loader (ifa.LoadExpectedEdges) rather than a family-local
+// encoding/json.Unmarshal. Both sub-cases load cleanly under a permissive
+// decoder and are silently accepted, so each one is a fixture-typo class the
+// family would otherwise ship without noticing.
+func TestResolveCodeownersOwnershipMaterializedEdgesRejectsMalformedFixtures(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		fixture string
+		want    string
+	}{
+		{
+			name: "undeclared top-level field",
+			fixture: `{
+  "odu": "odu:ifa-codeowners-family",
+  "descriptoin": "a typo'd key a permissive decoder drops on the floor",
+  "edges": [{"relationship_type": "DECLARES_CODEOWNER", "source_entity_id": "r", "target_entity_id": "t", "identity": {"pattern": "*.md", "source_path": ".github/CODEOWNERS"}}]
+}`,
+			want: "descriptoin",
+		},
+		{
+			name: "undeclared identity property",
+			fixture: `{
+  "odu": "odu:ifa-codeowners-family",
+  "edges": [{"relationship_type": "DECLARES_CODEOWNER", "source_entity_id": "r", "target_entity_id": "t", "identity": {"pattern": "*.md", "source_path": ".github/CODEOWNERS", "order_index": "1"}}]
+}`,
+			want: "order_index",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "expected-edges.json")
+			if err := os.WriteFile(path, []byte(tc.fixture), 0o600); err != nil {
+				t.Fatalf("write fixture: %v", err)
+			}
+			ok, detail := resolveCodeownersOwnershipMaterializedEdges(codeownersFamilyOdu().Odu, path)
+			if ok {
+				t.Fatalf("resolveCodeownersOwnershipMaterializedEdges(%s) = true; a malformed fixture must fail the guard, not load through a permissive decoder", tc.name)
+			}
+			if !strings.Contains(detail, tc.want) {
+				t.Fatalf("detail = %q, want it to name %q", detail, tc.want)
+			}
+		})
+	}
 }

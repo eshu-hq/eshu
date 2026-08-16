@@ -49,16 +49,23 @@ the production Cypher writer
 byte-identical to `origin/main` in this PR's diff — this PR only calls the
 existing extractor from new test code, it does not modify it.
 
-`cd go && go test ./internal/ifa/... ./cmd/ifa/... -count=1` passes with
-exactly 3 expected-red tests, all of which assert a PRE-EXISTING, already
-merged-on-main structural gap in the SHARED `ifa.ExpectedEdge` exhaustiveness
-mechanism (`TestExpectedEdgeDetectsCodeownersPropertyCorruption`,
-`TestExpectedEdgeDetectsMissingEdgeMaskedByUnrelatedDuplicate`) plus one test
-that documents a still-pending shared-file splice this family's coordinator
-owns (`TestCodeownersFamilyIsCatalogedAndResolvable`) — none of the three
-represent a regression this PR introduced; all are new tests proving a
-pre-existing state. Every other test in both packages passes, and `go build
-./...` is clean.
+`cd go && go test ./internal/ifa/... ./cmd/ifa/... -count=1` passes with no
+red tests, and `go build ./...` is clean.
+
+An earlier revision of this branch carried three deliberately-red tests: two
+proving that the shared `ifa.ExpectedEdge` triple could not tell two
+codeowners rules apart, and one proving the family was not yet cataloged.
+#6137 landed the relationship-identity properties on `ExpectedEdge`, so the
+first gap is closed and this branch now reads the fixture through the shared
+`ifa.LoadExpectedEdges` loader and `ExpectedEdge.Key()` instead of a
+family-local struct, loader, and key. The two gap tests were replaced by
+positive proofs of the closed mechanism
+(`TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate`,
+`TestCodeownersOwnershipIdentityExcludesOrderIndex`), and the family is now
+spliced into `catalogSeed` and `MaterializedEdgeOduResolver.Resolve` the same
+way `rationale_edges` is: cataloged and resolvable, still waived in
+`specs/ifa-materialized-edge-coverage.v1.yaml` because no live gate has proven
+it yet.
 
 ## No-Observability-Change:
 

@@ -53,6 +53,7 @@ var catalogSeed = []CatalogOdu{
 	codeCallFamilyOdu(),
 	documentationFamilyOdu(),
 	rationaleFamilyOdu(),
+	codeownersFamilyOdu(),
 	sqlFamilyDeltaOdu(),
 }
 

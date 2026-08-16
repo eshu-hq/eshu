@@ -168,6 +168,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveCodeCallMaterializedEdges(odu, codeCallFamilyExpectedEdgesPath(r.RepoRoot))
 	case "rationale_edges":
 		return resolveRationaleEdgeMaterializedEdges(odu, rationaleFamilyExpectedEdgesPath(r.RepoRoot))
+	case codeownersOwnershipFamily:
+		return resolveCodeownersOwnershipMaterializedEdges(odu, codeownersFamilyExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}
