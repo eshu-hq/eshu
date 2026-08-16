@@ -1498,9 +1498,25 @@ What IS falsifiable here is the speedup, and that is the claim to test: the
 suite must stay **near-linear in worker count**, meaning roughly 4x at 4 workers
 and 8x at 8, within about ±10% of the worker count. All nine runs sit inside
 that (3.67x–4.34x and 7.72x–8.64x), and the band comes from what "near-linear"
-means rather than from fitting the samples. A change that flattened concurrency —
-the regression this section exists to catch — misses it by a wide margin, so
-this stays a real gate rather than an appeal to variance.
+means rather than from fitting the samples.
+
+What that floor buys, as a number rather than a feeling. Amdahl at 7.2x on 8
+workers admits no more than ~1.59% of total work becoming serial. The fan-in is
+~57% of serial work after this change — pre-fan-in serial 41.0 ms over 32 batch
+transactions, post-fan-in ~95 ms, the ~54 ms difference spread across 256
+partition transactions; counting the 50 µs statements the fake actually sleeps on
+gives 58.5% independently — so serializing ~2.8% of the fan-in trips the gate.
+Modelled with the fan-in's parallelism degraded to W while the batch phase still
+runs at 8: a fully serialized fan-in reads 1.60x, 4-of-8 workers 5.10x, 6-of-8
+6.72x, all caught; 7-of-8 reads 7.40x and is not.
+
+The limit is worth stating alongside the reach. Observed 8-worker ratios span
+7.72x–8.64x against that 7.2x floor, about 7% of margin at the worst run seen, so
+a regression costing a few percent of parallel efficiency can hide inside an
+unlucky one. What this catches reliably is structural — serialized publication, a
+halved connection pool, a lock held across the phase. What it will not catch is a
+small efficiency shave. That is the honest trade for a benchmark on a loaded
+laptop, and it is the whole of what this block promises.
 
 These absolutes replace the pre-fan-in numbers (`40,976,430` / `10,295,819` /
 `5,238,341 ns/op`, 3.98x / 7.82x), and serial is roughly 2.3x–2.9x higher for a structural reason,
