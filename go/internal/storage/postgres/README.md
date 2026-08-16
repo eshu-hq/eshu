@@ -1503,7 +1503,7 @@ the regression this section exists to catch — misses it by a wide margin, so
 this stays a real gate rather than an appeal to variance.
 
 These absolutes replace the pre-fan-in numbers (`40,976,430` / `10,295,819` /
-`5,238,341 ns/op`, 3.98x / 7.82x) and are 2.3x–2.9x higher for a structural reason,
+`5,238,341 ns/op`, 3.98x / 7.82x), and serial is roughly 2.3x–2.9x higher for a structural reason,
 not a regression in the concurrency this section measures: the fixture is 256
 repositories at one repository per scope, so moving publication into the fan-in
 adds 256 per-partition transactions — Begin, advisory locks, generation re-read,
