@@ -115,11 +115,20 @@ func TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate(t *tes
 // (canonical_codeowners_edges.go). Two rules that differ only in order_index
 // are therefore the SAME graph edge as far as identity is concerned, and the
 // guard projects them to the same key on purpose
-// (codeownersOwnershipRowsToExpectedEdges). One consequence is worth stating
-// plainly: a materialization bug that swapped two same-team rules' order_index
-// values would change no edge identity and would not be caught here -- that is
-// a limit of the write template's identity, not of the assertion, and closing
-// it would mean widening the MERGE key, not the fixture.
+// (codeownersOwnershipRowsToExpectedEdges).
+//
+// State the residual at its real width, because the case for retiring this
+// family's own key rests on it. The comparison is a multiset of Key()s, so ANY
+// permutation of identity properties AMONG EDGES SHARING ONE (source, target)
+// pair is invisible -- swapping pattern/source_path between two @org/docs
+// rules leaves the multiset unchanged just as an order_index swap does.
+// order_index is only the least interesting instance. What #6137 actually
+// bought is the endpoint-pair boundary: a corruption that moves an identity
+// property ACROSS (source, target) pairs, or drops one rule while duplicating
+// another, changes the multiset and is caught -- see this file's sibling test,
+// and TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption for the same
+// proof at the guard level. Widening past that boundary would mean widening
+// the MERGE key, not the fixture.
 //
 // The registry half of the assertion is what makes this a lockstep guard
 // rather than a comment: adding order_index to

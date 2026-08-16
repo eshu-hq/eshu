@@ -235,7 +235,7 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 // gone stale. This check binds the two.
 //
 // It is keyed to COVERAGE ROWS, not to all families, and deliberately so.
-// Requiring triggers of every family would land 10 red rows for families that
+// Requiring triggers of every family would land 9 red rows for families that
 // are honestly waived and not yet wired, and a check that ships red is a check
 // somebody switches off. Keyed to coverage it lands clean and stays purely
 // prospective: the next family to claim a row has to wire its triggers in the
@@ -253,8 +253,13 @@ func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
 
 	families := reducer.MaterializedEdgeFamilies()
 	for _, family := range families {
-		if _, ok := materializedEdgeFamilyTriggerStems[family]; !ok {
-			t.Errorf("family %q has no trigger stem; add one to materializedEdgeFamilyTriggerStems or this family's coverage row would be checked against nothing", family)
+		// Blank is rejected alongside missing. `"new_family": ""` is the natural
+		// placeholder and it satisfies key-set equality, so checking presence
+		// alone would let the map stay total while the value it contributes
+		// matches every trigger vacuously -- the exact silence this half of the
+		// guard exists to break.
+		if stem, ok := materializedEdgeFamilyTriggerStems[family]; !ok || strings.TrimSpace(stem) == "" {
+			t.Errorf("family %q has no usable trigger stem (present=%t, stem=%q); give it a non-blank entry in materializedEdgeFamilyTriggerStems or this family's coverage row would be checked against nothing", family, ok, stem)
 		}
 	}
 	for family := range materializedEdgeFamilyTriggerStems {
@@ -297,9 +302,12 @@ func TestEveryCoveredFamilyTriggersBothLiveGates(t *testing.T) {
 		if _, ok := covered[family]; !ok {
 			continue
 		}
-		stem := materializedEdgeFamilyTriggerStems[family]
+		stem := strings.TrimSpace(materializedEdgeFamilyTriggerStems[family])
 		if stem == "" {
-			continue // already reported above
+			// Missing or blank, both already reported by the totality loop above.
+			// Continuing here would otherwise match every trigger and report the
+			// family as wired.
+			continue
 		}
 		for gateID, triggers := range triggersByGate {
 			matched := 0

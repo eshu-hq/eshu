@@ -31,11 +31,12 @@ const (
 //     order_index 2) both name @org/docs: two DISTINCT DECLARES_CODEOWNER
 //     relationships between the SAME (repo, team) pair, exercising the
 //     relationship-MERGE-key-on-{pattern,source_path} shape
-//     canonical_codeowners_edges.go documents. This is the exact scenario
-//     TestExpectedEdgeDetectsCodeownersPropertyCorruption proves the shared
-//     ExpectedEdge identity cannot distinguish (a reported, out-of-scope gap
-//     in the shared mechanism, not something this fixture can self-correct;
-//     see materialized_edges_codeowners.go's guard doc comment).
+//     canonical_codeowners_edges.go documents. A triple-only edge identity
+//     collapses these two onto one key; the declared pattern/source_path
+//     identity (#6137) keeps them apart, which is what lets a dropped rule
+//     stay visible when an unrelated duplicate masks the count. See
+//     TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate,
+//     which proves that on these exact rules.
 //   - RULE C (pattern "*.go", order_index 1) names TWO owners (@org/backend
 //     and @org/docs): one codeowners.ownership fact must project N edges for
 //     its N owner tokens, and its @org/docs owner is a THIRD edge to the same

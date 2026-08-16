@@ -181,23 +181,19 @@ func TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 // cannot honestly resolve unless the installed binary carries the Odù and the
 // materialized-edge resolver dispatches through the family's own exact guard.
 //
-// This test is EXPECTED RED until two shared files (out of #5992's scope this
-// phase, owned by the #5543 umbrella coordinator) are spliced:
-//  1. catalog_seed.go's catalogSeed slice must add codeownersFamilyOdu().
-//  2. materialized_edges.go's Resolve switch must add
-//     `case "codeowners_ownership_edges":` dispatching to
-//     resolveCodeownersOwnershipMaterializedEdges(odu,
-//     codeownersFamilyExpectedEdgesPath(r.RepoRoot)).
-//
-// Both are documented as the exact one-line splices needed; this test proves
-// the family-specific half is ready for them.
+// Two shared files carry the splices this depends on, both landed here:
+// catalog_seed.go's catalogSeed slice adds codeownersFamilyOdu(), and
+// materialized_edges.go's Resolve switch adds the family's arm. They follow
+// rationale_edges exactly -- cataloged and resolvable while still waived,
+// since neither one claims coverage on its own. Removing either is what this
+// test catches.
 func TestCodeownersFamilyIsCatalogedAndResolvable(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 	catalog := CatalogByName()
 	compiled, ok := catalog[codeownersFamilyOduName]
 	if !ok {
-		t.Fatalf("CatalogByName omits %q -- catalog_seed.go needs `codeownersFamilyOdu(),` spliced into catalogSeed (out of #5992's scope this phase; see this test's doc comment)", codeownersFamilyOduName)
+		t.Fatalf("CatalogByName omits %q -- restore `codeownersFamilyOdu(),` in catalog_seed.go's catalogSeed; without it the installed binary cannot resolve this family's manifest row", codeownersFamilyOduName)
 	}
 	fromCassette, err := loadCodeownersFamilyOdu(codeownersFamilyCassetteFullPath(repoRoot))
 	if err != nil {
@@ -214,7 +210,7 @@ func TestCodeownersFamilyIsCatalogedAndResolvable(t *testing.T) {
 		Ref:          codeownersFamilyOduName,
 	})
 	if !ok2 {
-		t.Fatalf("codeowners_ownership_edges resolver rejected the cataloged Odù: %s -- materialized_edges.go needs a `case \"codeowners_ownership_edges\":` arm spliced into Resolve (out of #5992's scope this phase; see this test's doc comment)", detail)
+		t.Fatalf("codeowners_ownership_edges resolver rejected the cataloged Odù: %s -- restore the `case codeownersOwnershipFamily:` arm in materialized_edges.go's Resolve", detail)
 	}
 	if !strings.Contains(detail, "expected 5-edge set exactly") {
 		t.Fatalf("resolver detail = %q, want the exact edge count", detail)
@@ -222,9 +218,9 @@ func TestCodeownersFamilyIsCatalogedAndResolvable(t *testing.T) {
 }
 
 // TestCodeownersFamilyOduBuildsFiveRuleFacts exercises codeownersFamilyOdu
-// directly (not only through CatalogByName(), which cannot see it until
-// catalog_seed.go splices it in), so this family-specific stack is fully
-// proven independent of that shared-file dependency.
+// directly rather than through CatalogByName(), so a catalog_seed.go
+// regression fails one test with a clear cause instead of taking the whole
+// family-specific stack down with it.
 func TestCodeownersFamilyOduBuildsFiveRuleFacts(t *testing.T) {
 	t.Parallel()
 	catalogOdu := codeownersFamilyOdu()
@@ -241,8 +237,8 @@ func TestCodeownersFamilyOduBuildsFiveRuleFacts(t *testing.T) {
 // the guard function itself (resolveCodeownersOwnershipMaterializedEdges),
 // not just the parallel logic TestCodeownersFamilyCassetteDerivesTheExpectedEdgeSet
 // hand-rolls, against the compiled catalog Odù directly -- proving the guard
-// entry point works independent of the catalog_seed.go/materialized_edges.go
-// splices this test's cataloged/resolvable sibling depends on.
+// entry point works without going through the catalog_seed.go and
+// materialized_edges.go wiring its cataloged/resolvable sibling exercises.
 func TestResolveCodeownersOwnershipMaterializedEdgesAcceptsTheCompiledOdu(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
