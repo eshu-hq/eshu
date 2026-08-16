@@ -85,6 +85,12 @@ type Diagnostic struct {
 	Summary       string   `json:"summary"`
 	RecoverySteps []string `json:"recovery_steps"`
 	DocsLink      string   `json:"docs_link"`
+	// Cause is the preserved root-cause error text. The canonical struct keeps
+	// the error in an unexported field and emits this key through a custom
+	// MarshalJSON, so no struct tag on that side declares it; the mirror names
+	// it explicitly (without omitempty, matching the always-emitted key) so the
+	// root cause decodes instead of being silently dropped.
+	Cause string `json:"cause"`
 }
 
 // ParseEnvelope decodes the canonical `eshu first-run --json` output. It

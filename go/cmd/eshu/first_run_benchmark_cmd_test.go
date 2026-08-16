@@ -6,9 +6,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -140,6 +142,7 @@ func TestFirstRunEnvelopeMatchesBenchmarkMirror(t *testing.T) {
 				Summary:       "no reachable API",
 				RecoverySteps: []string{"start the API"},
 				DocsLink:      "docs/public/run-locally/docker-compose.md",
+				Underlying:    errors.New("dial tcp 127.0.0.1:8080: connection refused"),
 			},
 		},
 		Truth: map[string]any{"freshness": "current", "completeness": "complete"},
@@ -174,6 +177,7 @@ func TestFirstRunEnvelopeMatchesBenchmarkMirror(t *testing.T) {
 				Summary:       "no reachable API",
 				RecoverySteps: []string{"start the API"},
 				DocsLink:      "docs/public/run-locally/docker-compose.md",
+				Cause:         "dial tcp 127.0.0.1:8080: connection refused",
 			},
 		},
 		Truth: map[string]any{"freshness": "current", "completeness": "complete"},
@@ -196,7 +200,39 @@ func TestFirstRunEnvelopeMatchesBenchmarkMirror(t *testing.T) {
 // field-kind sets of the canonical structs against the firstrunbench mirror.
 // The round-trip test above only exercises fields it populates, so it cannot
 // catch a field added, removed, or retagged on one side alone; this guard can.
+// The diagnostic pair is deliberately absent: onboardingDiagnostic's wire shape
+// comes from a custom MarshalJSON, not its tags, so its parity is pinned by
+// TestFirstRunEnvelopeEmittedKeysMatchBenchmarkMirror below instead.
 func TestFirstRunEnvelopeFieldSetsMatchBenchmarkMirror(t *testing.T) {
+	t.Parallel()
+
+	pairs := []struct {
+		name      string
+		canonical any
+		mirror    any
+	}{
+		{"envelope", firstRunEnvelope{}, firstrunbench.Envelope{}},
+		{"result", firstRunResult{}, firstrunbench.Result{}},
+		{"step", firstRunStep{}, firstrunbench.Step{}},
+	}
+	for _, pair := range pairs {
+		got := jsonFieldKinds(t, pair.mirror)
+		want := jsonFieldKinds(t, pair.canonical)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: mirror JSON fields = %v, canonical = %v; change both sides together", pair.name, got, want)
+		}
+	}
+}
+
+// TestFirstRunEnvelopeEmittedKeysMatchBenchmarkMirror diffs the top-level key
+// sets each side actually marshals, pair by pair. Tag walking cannot see a key
+// that only a custom MarshalJSON adds — onboardingDiagnostic emits "cause"
+// from an unexported error field with no tag — so this guard marshals both
+// sides and compares the emitted keys, which covers every current and future
+// custom marshaler. Zero values are used on purpose: keys the canonical side
+// always emits (like "cause") must survive a zero value too, and an omitempty
+// asymmetry between the sides shows up as a missing key.
+func TestFirstRunEnvelopeEmittedKeysMatchBenchmarkMirror(t *testing.T) {
 	t.Parallel()
 
 	pairs := []struct {
@@ -210,12 +246,33 @@ func TestFirstRunEnvelopeFieldSetsMatchBenchmarkMirror(t *testing.T) {
 		{"diagnostic", onboardingDiagnostic{}, firstrunbench.Diagnostic{}},
 	}
 	for _, pair := range pairs {
-		got := jsonFieldKinds(t, pair.mirror)
-		want := jsonFieldKinds(t, pair.canonical)
+		got := marshaledKeys(t, pair.mirror)
+		want := marshaledKeys(t, pair.canonical)
 		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: mirror JSON fields = %v, canonical = %v; change both sides together", pair.name, got, want)
+			t.Errorf("%s: mirror emitted keys = %v, canonical = %v; change both sides together", pair.name, got, want)
 		}
 	}
+}
+
+// marshaledKeys returns the sorted set of top-level keys json.Marshal emits
+// for v. Unlike a struct-tag walk, this sees keys a custom MarshalJSON adds
+// and misses keys omitempty suppresses, which is exactly the wire truth.
+func marshaledKeys(t *testing.T, v any) []string {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("json.Marshal(%T) error = %v", v, err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("json.Unmarshal(%T keys) error = %v", v, err)
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // jsonFieldKinds maps each wire-visible JSON tag of v's struct type to the

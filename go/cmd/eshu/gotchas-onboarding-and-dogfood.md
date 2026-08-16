@@ -76,10 +76,10 @@ The root-command invariants and the pointer back to these pages stay in
 - `eshu first-run-benchmark` is the dogfood benchmark contract. It consumes a
   captured `first-run --json` envelope (from `--envelope <path>` or stdin) and
   scores it against the first-five-minutes onboarding criteria through the pure
-  `evaluateFirstAnswerBenchmark` function. The benchmark exits non-zero, and the
-  verdict is FAIL, whenever the "first answer" is health-only: no bounded query
-  returned, missing truth metadata, missing source handle, incomplete indexing,
-  or an error envelope. Optional criteria (time-to-answer, manual-step count)
+  `firstrunbench.Evaluate` function (`go/internal/cli/firstrunbench`). The
+  benchmark exits non-zero, and the verdict is FAIL, whenever the "first
+  answer" is health-only: no bounded query returned, missing truth metadata,
+  missing source handle, incomplete indexing, or an error envelope. Optional criteria (time-to-answer, manual-step count)
   record honest `not_measured` values rather than fabricated numbers and never
   flip an otherwise-complete run to FAIL.
 - `eshu answer-quality-scorecard` is the broader answer dogfood contract. It
