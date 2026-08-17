@@ -64,6 +64,17 @@ candidate. More candidates grow the baseline's post-map loop while leaving the
 added pass unchanged, so the ratio would improve. Named rather than claimed,
 since no number backs it.
 
+**These figures were not re-run after the #6157 review changed the benchmarked
+code, and the bound is why they did not need to be.** That review renamed
+`applied` to `passed_guards` (constant, struct field, increment, log key — zero
+runtime effect) and added exactly one `int < int` comparison to the warn
+condition, evaluated once per call. The six ranges above span **6, 18, 24, 47,
+77, and 124 ns** respectively; a single integer comparison is sub-nanosecond,
+below even the tightest of them. So the added work sits under the noise floor of
+the measurement itself — checkable against the spreads already printed here,
+rather than resting on "a rename does not move the numbers", which would be an
+assertion of exactly the kind this note exists to avoid.
+
 ## Regression assessment
 
 No-Regression Evidence: 2.9us added per handler invocation against a handler
