@@ -10,16 +10,16 @@ import (
 	"testing"
 )
 
-// coveredExcept returns a trigger set covering every validator input and the
-// referenced package except the named displays, so a test can prove one anchor
-// is load-bearing without riding on another anchor's finding.
+// coveredExcept returns a trigger set covering every anchor and the referenced
+// package except the named globs, so a test can prove one anchor is
+// load-bearing without riding on another anchor's finding.
 func coveredExcept(pkgGlob string, dropped ...string) []string {
 	skip := map[string]struct{}{}
 	for _, d := range dropped {
 		skip[d] = struct{}{}
 	}
 	globs := []string{pkgGlob}
-	for _, glob := range validatorInputTriggerGlobs {
+	for _, glob := range anchorTriggerGlobs() {
 		if _, ok := skip[glob]; ok {
 			continue
 		}

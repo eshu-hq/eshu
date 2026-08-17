@@ -72,10 +72,28 @@ var validatorInputTriggerGlobs = []string{
 	gateWorkflowPath,
 }
 
-// fullyCoveredTriggers returns pkgGlobs plus a glob for every validator input,
-// i.e. the trigger set of a repository with no blind spot at all.
+// validatorCodeDepTriggerGlobs returns a directory-wide trigger glob for every
+// package the validator is built from. It is derived rather than written out so
+// a new code dependency cannot leave the clean fixtures describing a repo that
+// still has a blind spot.
+func validatorCodeDepTriggerGlobs() []string {
+	globs := make([]string, 0, len(validatorCodeDeps))
+	for _, dep := range validatorCodeDeps {
+		globs = append(globs, dep+"/**")
+	}
+	return globs
+}
+
+// anchorTriggerGlobs are the globs a repository needs to cover both anchor
+// categories: the validator's data inputs and its code dependencies.
+func anchorTriggerGlobs() []string {
+	return append(append([]string{}, validatorInputTriggerGlobs...), validatorCodeDepTriggerGlobs()...)
+}
+
+// fullyCoveredTriggers returns pkgGlobs plus a glob for every anchor, i.e. the
+// trigger set of a repository with no blind spot at all.
 func fullyCoveredTriggers(pkgGlobs ...string) []string {
-	return append(append([]string{}, pkgGlobs...), validatorInputTriggerGlobs...)
+	return append(append([]string{}, pkgGlobs...), anchorTriggerGlobs()...)
 }
 
 // TestValidatorInputGlobsCoverEveryAnchor closes the loop between the two
@@ -154,13 +172,7 @@ func TestValidatorGateTriggerCoverage_MissingSpecAnchorReported(t *testing.T) {
 // others uncovered would pass on their findings alone and prove nothing about
 // these two.
 func TestValidatorGateTriggerCoverage_MissingCapabilityMatrixAnchorReported(t *testing.T) {
-	covered := []string{
-		"go/internal/query/**",
-		contractSpecPath,
-		surfaceInventoryPath,
-		gateRegistryPath,
-		gateWorkflowPath,
-	}
+	covered := coveredExcept("go/internal/query/**", capabilityMatrixPath, capabilityFragmentDir+"/**")
 	root := writeGateTriggerFixture(t, covered, covered)
 
 	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
@@ -227,14 +239,7 @@ func TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarro
 	}
 	// The narrowed glob spans the package's root _test.go files but nothing
 	// under data/, so the package check passes and only the anchor can fail.
-	narrowed := []string{
-		"go/internal/capabilitycatalog/*_test.go",
-		contractSpecPath,
-		capabilityMatrixPath,
-		capabilityFragmentDir + "/**",
-		gateRegistryPath,
-		gateWorkflowPath,
-	}
+	narrowed := coveredExcept("go/internal/capabilitycatalog/*_test.go", "go/internal/capabilitycatalog/**")
 	root := writeGateTriggerFixture(t, narrowed, narrowed)
 
 	findings, err := validateGateTriggerCoverage(root, contract)

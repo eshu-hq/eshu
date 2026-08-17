@@ -23,7 +23,9 @@ prove runtime behavior directly.
 ## Dependencies
 
 The package imports the Go standard library, `gopkg.in/yaml.v3`, and
-`internal/cigates` (registry loading, `MatchGlob`, `DornyFilters`). It reads
+`internal/cigates` (registry loading, `MatchGlob`, `DornyFilters`). That import
+is itself anchored in both trigger sets — see the code-dependency anchor below.
+It reads
 the capability matrix under `specs/`, the generated surface inventory under
 `go/internal/capabilitycatalog/data/`, the CI gate registry
 `specs/ci-gates.v1.yaml`, and the workflow
@@ -78,7 +80,31 @@ gate and leave the next trigger narrowing unwatched. A family read as a director
 carries two differently named probe paths, because a single probe cannot tell a
 directory-wide glob from a filename-narrowed one such as
 `specs/capability-matrix/a*.yaml`. If `ValidateRepository` grows a new input, add
-it to `validatorInputs` in the same change.
+it to `validatorInputs` in the same change; nothing detects an input this
+package never declared, so that step is convention, and only the trigger
+requirement for a listed input is enforced.
+
+The third anchor category is the code the validator is built from, not the data
+it reads: this package and every first-party package it imports, listed in
+`validatorCodeDeps`. `cigates.MatchGlob` and `cigates.DornyFilters` decide what
+`gate_trigger_gap` reports, so a semantic change to either alters this gate's
+verdict — yet neither trigger set named `go/internal/cigates`, so a
+cigates-only change never selected the gate. This package's own directory is
+anchored for the same reason one layer in: no `go test` proof ref names it, so
+the package half of the check never demanded it, and dropping it from both
+trigger sets would have passed every gate. Unlike the input list, this category
+is mechanically enforced end to end —
+`TestValidatorCodeDepsMatchRealImports` derives the set from this package's own
+source and fails on an unlisted import, and `gate_trigger_gap` then demands the
+trigger in both sets.
+
+That category stops at first-party source. A third-party bump in `go/go.mod` or
+`go/go.sum` can also move this gate's verdict — `gopkg.in/yaml.v3` does the
+parsing — but neither file names a package directory to anchor, and the
+validator does not read them, so listing them would be an unenforced glob of the
+kind this check exists to replace. A bump there still runs these tests in CI
+through the `code` filter in `test.yml`, which matches `**` outside docs and
+runs `go test ./...`.
 
 ## Related docs
 

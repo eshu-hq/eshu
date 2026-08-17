@@ -382,8 +382,9 @@ gates:
     # The triggers cover every package the spec's `go test` proof refs name,
     # every file the validator reads -- the contract spec, the capability matrix
     # and its fragments, the generated surface inventory, and this registry plus
-    # the workflow that carries the gate's path filter -- and the validator's own
-    # package.
+    # the workflow that carries the gate's path filter -- and every package the
+    # validator is built from: its own, plus internal/cigates, whose MatchGlob
+    # and DornyFilters decide what the trigger check below reports.
     # Before #6131 the go/ triggers were disjoint from the referenced set, so
     # renaming a referenced test never selected this gate and CI on unrelated
     # PRs was the first place the stale ref failed. The validator now asserts
@@ -398,6 +399,7 @@ gates:
       - "specs/capability-matrix/**"
       - "go/cmd/eshu/**"
       - "go/internal/capabilitycatalog/**"
+      - "go/internal/cigates/**"
       - "go/internal/cli/**"
       - "go/internal/collector/**"
       - "go/internal/evidencecontinuity/**"

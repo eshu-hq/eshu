@@ -103,6 +103,7 @@ jobs:
               - 'specs/capability-matrix/**'
               - 'go/cmd/eshu/**'
               - 'go/internal/capabilitycatalog/**'
+              - 'go/internal/cigates/**'
               - 'go/internal/cli/**'
               - 'go/internal/collector/**'
               - 'go/internal/evidencecontinuity/**'

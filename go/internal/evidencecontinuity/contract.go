@@ -97,12 +97,16 @@ const (
 	FindingMissingProperty       FindingKind = "missing_property"
 	FindingInvalidProperty       FindingKind = "invalid_property"
 	FindingInvalidProofRef       FindingKind = "invalid_proof_ref"
-	// FindingGateTriggerGap reports a Go package named by a `go test` proof
-	// ref that the evidence-continuity CI gate cannot see: no registry
-	// trigger (specs/ci-gates.v1.yaml) or workflow path filter
-	// (static-contract-gates.yml) spans the package's _test.go files, so a
-	// rename of a referenced test would not select this gate and unrelated
-	// PRs would be the first place the stale ref fails (#6131).
+	// FindingGateTriggerGap reports something the evidence-continuity CI gate
+	// cannot see, meaning neither the registry triggers
+	// (specs/ci-gates.v1.yaml) nor the workflow path filter
+	// (static-contract-gates.yml) spans it. Three things must stay in reach:
+	// a Go package named by a `go test` proof ref, whose referenced test
+	// could then be renamed without selecting this gate, leaving unrelated
+	// PRs to fail on the stale ref (#6131); a file ValidateRepository reads,
+	// whose edit changes what this gate reports; and a Go package the
+	// validator is built from, whose code decides that report. The message
+	// names which one and the glob that would close it.
 	FindingGateTriggerGap FindingKind = "gate_trigger_gap"
 )
 

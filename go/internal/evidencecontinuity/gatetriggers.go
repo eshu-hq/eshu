@@ -110,10 +110,44 @@ var validatorInputs = []validatorInput{
 	{display: gateWorkflowPath, probes: []string{gateWorkflowPath}},
 }
 
+// validatorPackageDir is this validator's own package, relative to the repo
+// root. Its source decides every finding the gate reports, and the gate's local
+// command runs `go test` here.
+const validatorPackageDir = "go/internal/evidencecontinuity"
+
+// validatorCodeDeps are the repo-relative directories of every Go package whose
+// source decides what this gate reports: this validator's own package plus the
+// first-party packages it imports, transitively. This is the third category the
+// trigger sets must span, after the proof refs' packages and validatorInputs --
+// a code dependency rather than a data file.
+//
+// The two categories above watch what the validator reads; neither watches what
+// it is built from. validateGateTriggerCoverage calls cigates.Load,
+// cigates.MatchGlob, and cigates.DornyFilters, so a semantic change to
+// MatchGlob or DornyFilters changes what gate_trigger_gap reports -- yet before
+// #6131's follow-up neither trigger set named go/internal/cigates, so a
+// cigates-only edit never selected this gate. The validator's own package is
+// listed for the same reason one layer in: no `go test` proof ref names it, so
+// the package half of this check never demands it either, and dropping it from
+// both trigger sets would pass every gate today.
+//
+// TestValidatorCodeDepsMatchRealImports derives this set from the package's own
+// source and fails when the two disagree, so a new import cannot land without
+// either listing it here or deleting that test. The list is written out rather
+// than derived at run time because the fixtures below are bare temp roots
+// holding only a registry and a workflow: a validator that read its own source
+// out of repoRoot would derive an empty set there, and the anchor would
+// silently check nothing in every test that exercises it.
+var validatorCodeDeps = []string{
+	validatorPackageDir,
+	"go/internal/cigates",
+}
+
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can
-// see every file whose edit could change what it reports. That is two file
-// sets: the packages the contract's `go test` proof refs name, and the inputs
-// ValidateRepository reads (validatorInputs). Both the gate's registry
+// see every file whose edit could change what it reports. That is three file
+// sets: the packages the contract's `go test` proof refs name, the inputs
+// ValidateRepository reads (validatorInputs), and the packages the validator is
+// built from (validatorCodeDeps). Both the gate's registry
 // triggers (specs/ci-gates.v1.yaml) and its CI workflow path filter
 // (static-contract-gates.yml, dorny filter key "evidence") must span each.
 // For a package that means its _test.go files — the exact file set
@@ -179,6 +213,18 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 				),
 			})
 		}
+		for _, dep := range validatorCodeDeps {
+			if oneGlobMatchesAll(side.globs, packageSourceProbes(dep)) {
+				continue
+			}
+			findings = append(findings, Finding{
+				Kind: FindingGateTriggerGap,
+				Message: fmt.Sprintf(
+					"no %s selects %s, whose Go source this validator is built from; a change there could alter what this gate reports without ever running it — add %q",
+					label, dep, dep+"/**",
+				),
+			})
+		}
 	}
 	return findings, nil
 }
@@ -222,6 +268,21 @@ func packageTestProbes(dir string) []string {
 	return []string{
 		path.Join(dir, "a_test.go"),
 		path.Join(dir, "z_test.go"),
+	}
+}
+
+// packageSourceProbes returns the synthetic paths a single glob must match to
+// count as covering a Go package's compiled source: files ending in .go
+// directly in the package directory, which is exactly what the compiler builds
+// for that package. Two differently named probes reject a filename-narrowed
+// glob for the same reason packageTestProbes does — "go/internal/cigates/g*.go"
+// matches the file MatchGlob lives in today and would read as coverage while
+// leaving every sibling outside the gate's reach. A `dir/*.go` glob spans the
+// package's test files too, so no separate _test.go probe is needed here.
+func packageSourceProbes(dir string) []string {
+	return []string{
+		path.Join(dir, "a.go"),
+		path.Join(dir, "z.go"),
 	}
 }
 

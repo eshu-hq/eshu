@@ -262,6 +262,7 @@ have to remember the matching verifier — the selector picks it.
 | Collector (`go/internal/collector/**`) | edge source-tool coverage, evidence continuity, scale corpus | — |
 | API / MCP (`go/internal/query/**`, `go/internal/mcp/**`) | OpenAPI surface, route coverage, MCP schema drift, capability budget, operator dashboard, evidence continuity (its spec's proof refs cite tests in these packages) | — |
 | CLI (`go/cmd/eshu/**`, `go/internal/cli/**`) | evidence continuity (its spec's proof refs cite tests in these packages) | — |
+| CI gate registry helpers (`go/internal/cigates/**`) | evidence continuity (its trigger self-check is built on this package's glob and workflow parsing) | — |
 | Facts / contracts (`go/internal/facts/**`, `specs/*.v1.yaml`) | fact-kind registry, contract source-of-truth, evidence continuity | — |
 | `go.mod` / `go.sum` | nothing extra (the whole-module Go gates always run) | pre-push runs changed-file gosec; `make security-preflight` runs whole-module gosec, govulncheck, nancy |
 | Deploy / runtime (`Dockerfile`, `deploy/**`, `docker-compose*`) | — | `make security-preflight` (Trivy fs); golden-corpus + e2e are CI-only (Docker) |
