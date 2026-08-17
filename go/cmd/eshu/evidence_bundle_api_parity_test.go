@@ -81,6 +81,11 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 			{Stage: "parse", Status: "running", Count: 3},
 			{Stage: "parse", Status: "succeeded", Count: 11},
 		},
+		// Six non-empty domains against a DomainLimit of 5, so the status layer
+		// caps the list and sets DomainBacklogsTruncated. Both readings then
+		// have to carry that flag through to Bounds.Truncated; with a single
+		// domain the flag stayed false on both sides and the comparison could
+		// not see one of them dropping it.
 		DomainBacklogs: []status.DomainBacklog{
 			{
 				Domain:      "aws_relationship_materialization",
@@ -89,6 +94,11 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 				DeadLetter:  1,
 				OldestAge:   41500 * time.Millisecond,
 			},
+			{Domain: "code_relationship_materialization", Outstanding: 4},
+			{Domain: "gcp_relationship_materialization", Outstanding: 3},
+			{Domain: "secrets_iam_graph_projection", Outstanding: 2},
+			{Domain: "supply_chain_materialization", Outstanding: 1},
+			{Domain: "terraform_relationship_materialization", Outstanding: 1},
 		},
 		QueueBlockages: []status.QueueBlockage{
 			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k1", Blocked: 3},
@@ -170,6 +180,16 @@ func TestEvidenceBundleAPIRouteMatchesCLILiveExport(t *testing.T) {
 	var apiBundle evidencebundle.Bundle
 	if err := json.NewDecoder(resp.Body).Decode(&apiBundle); err != nil {
 		t.Fatalf("decode API bundle: %v", err)
+	}
+
+	// The fixture is built to be truncated. Assert it on both sides before
+	// comparing: two bundles that had both silently dropped the flag would
+	// still compare equal.
+	if !cliBundle.Bounds.Truncated {
+		t.Fatal("CLI bundle bounds.truncated = false; the capped domain list reads as complete")
+	}
+	if !apiBundle.Bounds.Truncated {
+		t.Fatal("API bundle bounds.truncated = false; the capped domain list reads as complete")
 	}
 
 	// Both bundles must independently validate.
