@@ -157,6 +157,44 @@ gates:
 	}
 }
 
+// A repeated path inside one gate's own triggers: block was invisible before
+// this check: Load only ever validated that the id set had no duplicates
+// (TestLoad_DuplicateID above), never that a trigger LIST was actually a SET.
+// A copy-paste of a trigger line -- or a near-miss merge of two sibling
+// families' trigger blocks -- silently doubled an entry with no error and no
+// functional effect on matching (MatchGlob against a duplicated glob behaves
+// identically to matching it once), so it could go unnoticed indefinitely.
+func TestLoad_DuplicateTrigger(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: dup-trigger-gate
+    name: Duplicate Trigger
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-thing.sh"
+      - "go/**"
+    local:
+      command: "bash scripts/verify-license-header.sh"
+    ci:
+      workflow: test.yml
+      job: "test"
+    requirements: [go]
+    ci_only_reason: ""
+`
+	path := writeYAML(t, yaml)
+	_, err := cigates.Load(path)
+	if err == nil {
+		t.Fatal("expected error for duplicate trigger entry, got nil")
+	}
+	if !strings.Contains(err.Error(), "dup-trigger-gate") || !strings.Contains(err.Error(), "go/**") {
+		t.Errorf("error %q should name the gate and the duplicated trigger", err.Error())
+	}
+}
+
 func TestLoad_BadCategory(t *testing.T) {
 	t.Parallel()
 	yaml := `version: v1

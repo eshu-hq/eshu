@@ -296,7 +296,8 @@ var validRequirements = map[Requirement]struct{}{
 }
 
 // Load reads and structurally validates the ci-gates registry at path.
-// Validation checks: unique IDs, non-empty triggers, valid category/tier/requirement
+// Validation checks: unique IDs, non-empty triggers with no duplicate entry
+// within one gate's own triggers: list, valid category/tier/requirement
 // enum values, and that local==null gates have a non-empty ci_only_reason.
 func Load(path string) (*Registry, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured gate registry under specs/, not external input
@@ -333,6 +334,20 @@ func Load(path string) (*Registry, error) {
 
 		if len(gf.Triggers) == 0 {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has empty triggers (must be non-empty)", path, id)
+		}
+		// triggers: is meant to be a SET of path globs, but YAML has no set
+		// type: nothing before this rejected a LIST that carries the same
+		// entry twice. A copy-paste of one trigger line, or a near-miss merge
+		// of two sibling families' trigger blocks, silently doubled an entry
+		// with no error and no functional effect on matching -- MatchGlob
+		// against a duplicated glob behaves identically to matching it once
+		// -- so it could go unnoticed indefinitely.
+		seenTriggers := make(map[string]struct{}, len(gf.Triggers))
+		for _, trig := range gf.Triggers {
+			if _, dup := seenTriggers[trig]; dup {
+				return nil, fmt.Errorf("ci-gates registry %s: gate %q has duplicate trigger %q (triggers: must be a set, not a list)", path, id, trig)
+			}
+			seenTriggers[trig] = struct{}{}
 		}
 
 		reqs := make([]Requirement, 0, len(gf.Requirements))
