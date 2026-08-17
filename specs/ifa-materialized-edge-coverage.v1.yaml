@@ -96,12 +96,14 @@
 # supersedes that gap: cell_killworker_documentation blocks the queue ACK
 # rather than the handler -- a BEFORE UPDATE trigger on fact_work_items taking
 # an advisory lock held by a separate session -- so handler width no longer
-# matters. That mechanism was probed 3-of-3 before adoption, but with a psql
-# session standing in for the reducer, so the ordering half of the claim is
-# structural rather than measured; the live fault gate is what settles it, and
-# a failure there means removing this row again rather than softening it. See
-# scripts/lib/ifa_fault_injection_documentation_cells.sh's header for the
-# mechanism, the probe, and exactly what the probe did not cover. #5998 likewise added
+# matters. That mechanism was probed 3-of-3 before adoption with a psql session
+# standing in for the reducer, which left the ordering half structural rather
+# than measured; the live fault gate has since measured it on the reviewed head
+# ("ACK backend ... blocked by holder ... after exact graph write", the real
+# reducer blocked by the holder specifically). The pre-adoption substitution is
+# kept on the record rather than erased, because it is what makes the claim
+# checkable. See scripts/lib/ifa_fault_injection_documentation_cells.sh's header
+# and docs/internal/evidence/5998-rationale-relative-path.md. #5998 likewise added
 # full-record rationale assertions and domain-scoped recovery cells, retiring
 # both rationale waivers. #6158 wired deployable_unit_edges' already-implemented
 # vacuity guard into the resolver dispatch and its Odù into the catalog --

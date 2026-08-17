@@ -71,8 +71,10 @@ matrix from 15 cells to 18 and moved both gates onto
 - `mkdocs build --strict` — exit 0; `git diff --check` — exit 0.
 
 These are the credential-free mirrors. They pin gate structure, not gate
-behavior: neither proves the 18-cell matrix converges on a live stack, which
-is why the live re-run above is still required.
+behavior: neither proves the 18-cell matrix converges on a live stack. That
+proof is the accepted live run recorded under
+[Supported-backend live proof](#supported-backend-live-proof), which passed on
+the final reviewed head.
 - The collector follow-up helper benchmark, five one-second samples, measured
   `1.462–1.481 us/op`, `2315 B/op`, and `34 allocs/op`.
 - Full/delta collector generation benchmarks, three one-second samples,
@@ -100,20 +102,81 @@ cover the supported backend and durable recovery path.
 
 ## Supported-backend live proof
 
-> **These runs predate the rebase onto `ae96cae7f` and do not bind to the
-> current head.** They were recorded on `25f325fac347ef984be2546fb20c278d1d50253f`,
-> a commit that no longer exists: this branch was rebased and its history
-> collapsed to land alongside #6149, which added the `deployable_unit_edges`
-> family to the same two gates. The fault matrix described below ran **15
-> cells**; after the rebase it runs **18** (the three #5993 deployable-unit
-> cells were appended as 16-18), and both gates now read their committed
-> family fixtures through the shared `scripts/lib/ifa_family_fixtures.sh`.
-> Nothing below is retracted — every recorded digest, durable tuple, and wall
-> time is what that run produced — but the run does not cover the merged
-> 18-cell shape. Both live gates MUST be re-run on the final head and this
-> section replaced with the new transcripts before merge. The credential-free
-> structural mirrors for the merged shape did pass on the rebased head; they
-> are recorded under [No-Regression](#no-regression).
+### Accepted run: the final reviewed head
+
+Both live gates were re-run after the rebase onto `a013fc6f9` and both passed:
+
+| Field | Value |
+| --- | --- |
+| Reviewed head | `c9cf0d544d4a432916d54593ebfc4e7ce5dc3bda` |
+| `scripts/verify-ifa-determinism.sh` | exit 0 |
+| `scripts/verify-ifa-fault-injection.sh` | exit 0 |
+| Run window | 2026-08-17T15:39:39Z → 2026-08-17T15:55:43Z |
+| Fault matrix cells | 18, verified two ways: the dispatch list at this head, and the run's own cell headers |
+| Determinism gate cells | 3 |
+| Machine profile | remote reference validation host, 16 vCPU, 123 GiB, Linux x86_64, Docker 29.3.1, bash 5.2.21 |
+
+Source reached the host by Git, per the remote-validation contract: the
+reviewed head was pushed to a scratch ref, fetched there, and checked out
+detached at `c9cf0d544d4a432916d54593ebfc4e7ce5dc3bda`, with the checked-out
+SHA verified equal and `git status --porcelain` empty before either gate ran.
+No worktree was copied or `rsync`ed.
+
+The run binds to `c9cf0d544d4a432916d54593ebfc4e7ce5dc3bda`, not to the branch
+tip. Every commit after it changes prose only — this evidence record, plus the
+comment headers in `scripts/lib/ifa_fault_injection_documentation_cells.sh` and
+`specs/ifa-materialized-edge-coverage.v1.yaml` that cite it. No executable gate
+input differs between the tested tree and the tip: no cassette, no
+expected-edge set, no cell body, no dispatch list, no reducer or writer source.
+A re-run would spend the same ~16 minutes of remote time to reproduce the same
+result, so it is redundant rather than more correct.
+
+That is a rule, not a one-off judgement, and it is checkable. Note that two of
+those three files ARE gate inputs — the cells script defines a cell, the
+manifest is read by the coverage gate — so a path-only check is not sufficient
+and would license a real behavioural edit hiding in a "docs" commit. The check
+must be that nothing executable changed:
+
+```bash
+git diff c9cf0d544..HEAD -- scripts specs go sdk testdata \
+  | rg '^[+-]' | rg -v '^(\+\+\+|---)' | rg -v '^[+-]\s*#' | rg -v '^[+-]\s*$'
+```
+
+Empty output means this section still binds. **Any line of output means a gate
+input changed and both gates MUST be re-run before merge**, however small the
+change looks.
+
+The documentation kill cell carries the load-bearing line, because its
+mechanism is the one #6149 follow-up item 8 had ruled could not be made
+deterministic (70 s wall time):
+
+```text
+kill-worker-after-claim-documentation: non-vacuous: 1 claimed row;
+ACK backend 188 blocked by holder 140 after exact graph write
+```
+
+Three claims, each measured rather than argued:
+
+- `1 claimed row` — non-vacuous. The cell observed a genuinely claimed
+  `documentation_materialization` row; it did not pass against an empty queue.
+- `ACK backend 188 blocked by holder 140` — the real `eshu-reducer` blocked at
+  the ACK, and blocked by the **holder specifically**. The cell asserts
+  `blocked_holder_pid == holder_backend_pid`, so an incidental block by some
+  other backend fails rather than passes.
+- `after exact graph write` — the ordering. The ACK window opens *after* the
+  handler's graph write, which is why a ~7 ms handler cannot race it. This is
+  the half the pre-adoption probe could not observe, and it is now observed
+  against the real reducer.
+
+### Superseded: the pre-rebase run on a collapsed commit
+
+Everything below this heading is retained for chronology and is **not** the
+accepted proof. It was recorded on
+`25f325fac347ef984be2546fb20c278d1d50253f`, a commit that no longer exists
+after the rebase, and its fault matrix ran **15 cells** rather than the 18 the
+reviewed head dispatches. Nothing in it is retracted — every digest, durable
+tuple, and wall time is what that run produced — but the accepted run is the
+one recorded above.
 
 The post-rebase determinism matrix passed at N=1, N=2, and N=4 on commit
 `25f325fac347ef984be2546fb20c278d1d50253f`. This is the first accepted run

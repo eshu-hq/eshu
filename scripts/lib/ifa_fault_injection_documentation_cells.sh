@@ -75,21 +75,35 @@
 #   - releasing the holder completes the item exactly once;
 #   - the drop leaves zero triggers and zero functions behind.
 #
-# What that probe did NOT cover, stated so it is not read as more than it is.
-# It drove a psql session issuing the same ACK UPDATE, not the real
-# eshu-reducer, and ended that session with pg_terminate_backend rather than a
-# SIGKILL of a reducer process. So the half that actually answers the #6149
-# item 8 objection -- that the ACK window opens AFTER Handle returns and
-# therefore cannot be raced by a ~7ms handler -- is STRUCTURAL, argued from
-# where the ACK UPDATE sits in the reducer, not measured. The probe proves the
-# barrier mechanism; it does not prove the reducer ordering.
+# What that probe did NOT cover: it drove a psql session issuing the same ACK
+# UPDATE, not the real eshu-reducer, and ended that session with
+# pg_terminate_backend rather than a SIGKILL of a reducer process. So the half
+# that actually answers the #6149 item 8 objection -- that the ACK window opens
+# AFTER Handle returns and therefore cannot be raced by a ~7ms handler -- was
+# structural at adoption time, argued from where the ACK UPDATE sits in the
+# reducer rather than observed.
 #
-# The live fault matrix is the decider, and it can still overturn this. If it
-# shows the real reducer's ACK slipping past the trigger, or the holder's
-# advisory lock dying with the reducer, this cell does not work and the honest
-# outcome is to remove it again and record the ACK-transition trigger as a
-# THIRD rejected mechanism alongside the wrong-table lock and the raced
-# expire-lease -- not to weaken the assertion until it passes.
+# THE LIVE MATRIX HAS SINCE MEASURED IT. On the reviewed head, this cell
+# reported:
+#
+#   kill-worker-after-claim-documentation: non-vacuous: 1 claimed row;
+#   ACK backend 188 blocked by holder 140 after exact graph write
+#
+# `ACK backend ... blocked by holder ...` is the real eshu-reducer blocked at
+# the ACK by the holder specifically (the blocked_holder_pid ==
+# holder_backend_pid assertion below, so an incidental block by any other
+# backend fails), and `after exact graph write` is the ordering itself. The
+# structural argument is now a measurement; see
+# docs/internal/evidence/5998-rationale-relative-path.md.
+#
+# The psql-stand-in history above is kept deliberately rather than deleted now
+# that the stronger evidence exists. It records what was and was not proven at
+# the moment this cell was adopted, which is why the claim is checkable instead
+# of merely asserted. If a future change to the ACK path invalidates the live
+# result, the honest outcome is still to remove this cell and record the
+# ACK-transition trigger as a THIRD rejected mechanism alongside the
+# wrong-table lock and the raced expire-lease -- not to weaken the assertion
+# until it passes.
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
