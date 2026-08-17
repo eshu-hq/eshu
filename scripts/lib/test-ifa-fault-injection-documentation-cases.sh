@@ -128,12 +128,12 @@ run_ifa_documentation_live_static_cases() {
 		|| fail "documentation kill cell does not prove graph+claim+blocked ACK before KILL and clean exact backends before replacement"
 	require "claimed-row proof inventory includes every lease-reclaim cell" "cells 2/3/6/7/8/9"
 	require "once-fired proof inventory includes every graph-write cell" "cells 4/12/13/14/15"
-	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15's queue-retry lane"
+	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
 	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other seventeen cells remain bound"
-	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (15 cells, fresh stack per cell)" \
+	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (18 cells, fresh stack per cell)" \
 		"${repo_root}/.github/workflows/ifa-determinism-gate.yml" \
-		|| fail "fault workflow job label does not name all fifteen cells"
+		|| fail "fault workflow job label does not name all eighteen cells"
 	local private_scan_block static_test
 	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
 	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"
