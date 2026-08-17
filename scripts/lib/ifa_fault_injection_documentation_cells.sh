@@ -75,11 +75,21 @@
 #   - releasing the holder completes the item exactly once;
 #   - the drop leaves zero triggers and zero functions behind.
 #
-# What that probe did NOT cover, stated so it is not read as more than it is:
-# it drove a psql session issuing the same ACK UPDATE, not the real
-# eshu-reducer, and ended it with pg_terminate_backend rather than SIGKILL of a
-# reducer process. It proves the barrier mechanism. The live fault matrix is
-# what proves this cell end to end.
+# What that probe did NOT cover, stated so it is not read as more than it is.
+# It drove a psql session issuing the same ACK UPDATE, not the real
+# eshu-reducer, and ended that session with pg_terminate_backend rather than a
+# SIGKILL of a reducer process. So the half that actually answers the #6149
+# item 8 objection -- that the ACK window opens AFTER Handle returns and
+# therefore cannot be raced by a ~7ms handler -- is STRUCTURAL, argued from
+# where the ACK UPDATE sits in the reducer, not measured. The probe proves the
+# barrier mechanism; it does not prove the reducer ordering.
+#
+# The live fault matrix is the decider, and it can still overturn this. If it
+# shows the real reducer's ACK slipping past the trigger, or the holder's
+# advisory lock dying with the reducer, this cell does not work and the honest
+# outcome is to remove it again and record the ACK-transition trigger as a
+# THIRD rejected mechanism alongside the wrong-table lock and the raced
+# expire-lease -- not to weaken the assertion until it passes.
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every

@@ -126,6 +126,18 @@ run_ifa_documentation_live_static_cases() {
 	fi
 	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[\s\S]*ifa_documentation_wait_for_blocked_ack[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_assert[\s\S]*ifa_det_stop_join_untrack_bg_pid[\s\S]*ifa_documentation_terminate_blocked_ack[\s\S]*ifa_documentation_wait_for_ack_backend_gone[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_release_ack_barrier[\s\S]*reducer-killworkerdocumentation-after' "${documentation_cells_lib}" \
 		|| fail "documentation kill cell does not prove graph+claim+blocked ACK before KILL and clean exact backends before replacement"
+	# The sequence pin above proves the guards are CALLED. These two prove the
+	# claimed-row guard also FAILS CLOSED, which the sequence cannot see: a
+	# `|| die` softened to `|| true` would leave the call site intact and the
+	# cell would then "pass" against a queue that never claimed the row at all.
+	# That inert-fixture shape is not hypothetical -- the #5998 pre-adoption
+	# probe hit exactly it (a fixture INSERT rejected on a NOT NULL column left
+	# every observation running against an empty table while still printing
+	# plausible output), and it is the same class as #5974 and the vacuous
+	# intents guard #6157 repointed.
+	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[^\n]*\\\n\s*\|\| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed"' "${documentation_cells_lib}" \
+		|| fail "documentation kill cell's claimed-row guard must die when no documentation_materialization row was claimed -- otherwise the cell passes against an empty queue"
+	require_documentation_cells "documentation kill cell reports its non-vacuity evidence" "non-vacuous: %s claimed row; ACK backend %s blocked by holder %s after exact graph write"
 	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17"
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
