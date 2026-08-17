@@ -61,11 +61,13 @@ var validatorInputAnchors = []string{
 }
 
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can
-// see every file whose edit could invalidate the contract's `go test` proof
-// refs. For each package a proof ref names, both the gate's registry triggers
-// (specs/ci-gates.v1.yaml) and its CI workflow path filter
-// (static-contract-gates.yml, dorny filter key "evidence") must span the
-// package's _test.go files — the exact file set loadPackageTestNames reads.
+// see every file whose edit could change what it reports. That is two file
+// sets: the packages the contract's `go test` proof refs name, and the inputs
+// ValidateRepository reads (validatorInputAnchors). Both the gate's registry
+// triggers (specs/ci-gates.v1.yaml) and its CI workflow path filter
+// (static-contract-gates.yml, dorny filter key "evidence") must span each.
+// For a package that means its _test.go files — the exact file set
+// loadPackageTestNames reads.
 // Before #6131 the trigger set was disjoint from the referenced packages, so
 // renaming a referenced test selected nothing locally and broke CI on
 // unrelated PRs; this check makes that gap a gate failure on the spec edit
