@@ -179,14 +179,15 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"go/internal/reducer/documentation_edge*.go",
 			"go/internal/storage/cypher/*documentation*.go",
 			"sdk/go/factschema/documentation/v1/**",
+			"specs/ifa-materialized-edge-coverage.v1.yaml",
 		} {
 			if !slices.Contains(found.Triggers, trigger) {
 				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep a family covered without rerunning its live proof", gateID, trigger)
 			}
 		}
-		// deployable_unit_edges (#5993) triggers: pinned here ahead of its
-		// coverage rows landing, so the ci-gates.v1.yaml trigger lists cannot
-		// silently drift from the family's real source paths in the meantime.
+		// deployable_unit_edges (#5993) triggers: its coverage rows have landed,
+		// so this pin now keeps the ci-gates.v1.yaml trigger lists from drifting
+		// away from the family's real source paths under normal maintenance.
 		for _, trigger := range []string{
 			"go/internal/reducer/deployable_unit*.go",
 			"go/internal/storage/cypher/canonical_deployable_unit_edges.go",

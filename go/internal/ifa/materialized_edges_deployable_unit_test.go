@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // TestResolveDeployableUnitMaterializedEdgesReproducesExpectedSet pins the
@@ -31,6 +32,34 @@ func TestResolveDeployableUnitMaterializedEdgesReproducesExpectedSet(t *testing.
 	if !strings.Contains(detail, odu.Name) {
 		t.Fatalf("detail = %q, want it to name the odù %q", detail, odu.Name)
 	}
+}
+
+// TestDeployableUnitFamilyResolvesThroughTheManifestResolver proves the
+// vacuity guard is reachable by surface name through
+// MaterializedEdgeOduResolver, not only by calling
+// resolveDeployableUnitMaterializedEdges directly. This is the regression
+// test for the #5993 defect: the guard existed and was fully unit-tested, but
+// MaterializedEdgeOduResolver.Resolve's dispatch switch had no
+// deployable_unit_edges case, so every coverage-manifest row naming this
+// family resolved through the switch's default branch ("no vacuity guard
+// registered") no matter how correct the guard itself was. Mirrors
+// TestDocumentationFamilyResolvesThroughTheManifestResolver
+// (materialized_edges_documentation_test.go).
+func TestDeployableUnitFamilyResolvesThroughTheManifestResolver(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+
+	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
+		Surface:      MaterializedEdgeSurfacePrefix + deployableUnitEdgesFamily,
+		Scenario:     replaycoverage.ScenarioOdu,
+		ScenarioType: replaycoverage.ScenarioTypeBaseline,
+		Ref:          deployableUnitFamilyOduName,
+	})
+	if !ok {
+		t.Fatalf("resolver.Resolve for %s: %s", deployableUnitEdgesFamily, detail)
+	}
+	t.Logf("%s", detail)
 }
 
 // TestResolveDeployableUnitMaterializedEdgesRejectsWrongExpectedSet proves the

@@ -43,6 +43,7 @@ ifa_live_gate_common_seams=(
 	'sdk/go/factschema/fact_kinds.go|sdk/go/factschema/fact_kinds.go'
 	'.github/workflows/ifa-determinism-gate.yml|.github/workflows/ifa-determinism-gate.yml'
 	'specs/ci-gates.v1.yaml|specs/ci-gates.v1.yaml'
+	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
 	'go/internal/ifa/graphdump/**|go/internal/ifa/graphdump/canonical.go'
 	'go/internal/ifa/graphdump/**|go/internal/ifa/graphdump/reader.go'
 	'go/cmd/ifa/**|go/cmd/ifa/main.go'
