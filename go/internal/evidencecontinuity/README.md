@@ -48,9 +48,14 @@ The verifier also guards its own gate's reach (`gate_trigger_gap`): every
 package a `go test` proof ref names must be spanned by the evidence-continuity
 triggers in `specs/ci-gates.v1.yaml` AND by the `evidence` path filter in
 `.github/workflows/static-contract-gates.yml`. On top of those packages, every
-input `ValidateRepository` reads must stay in both trigger sets — the contract
-spec, `specs/capability-matrix.v1.yaml`, and the `specs/capability-matrix/`
-fragments — because an edit to any of them can change what this gate reports.
+input `ValidateRepository` reads must stay in both trigger sets, because an edit
+to any of them can change what this gate reports. There are three:
+
+- the contract spec `specs/evidence-continuity.v1.yaml`
+- `specs/capability-matrix.v1.yaml` and the `specs/capability-matrix/` fragments
+- the generated surface inventory
+  `go/internal/capabilitycatalog/data/surface-inventory.generated.json`
+
 Those anchors are what make the check self-enforcing: an edit that could create
 a blind spot also selects the gate that would catch it.
 
@@ -58,8 +63,12 @@ The anchor list is the whole of the claim, and it is deliberately explicit
 rather than "the spec". An earlier version anchored only the contract spec
 while the validator also read the capability matrix, so a capability-id rename
 passed this gate green and surfaced later as `unknown_capability` on an
-unrelated pull request. If `ValidateRepository` grows a new input, add it to
-`validatorInputAnchors` in the same change.
+unrelated pull request. The surface inventory is anchored for the same reason
+even though `go/internal/capabilitycatalog/**` covers it today: that trigger is
+demanded by the package check, which probes only `_test.go` files in the package
+root, so narrowing it to `*_test.go` would keep the package check green and drop
+`data/` from the gate's reach. If `ValidateRepository` grows a new input, add it
+to `validatorInputAnchors` in the same change.
 
 ## Related docs
 

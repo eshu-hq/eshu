@@ -31,13 +31,24 @@ const evidenceFilterKey = "evidence"
 const contractSpecPath = "specs/evidence-continuity.v1.yaml"
 
 // validatorInputAnchors are every file family ValidateRepository reads whose
-// edit could invalidate a result this gate reports. The contract spec is the
-// obvious one; the capability matrix and its fragments are the ones that were
-// missed, and they are read through LoadSurfaceIndex -> loadCapabilities on
-// the same code path. Anchoring only the contract left a capability-id rename
-// able to pass this gate green and surface later as `unknown_capability` on an
-// unrelated pull request -- the exact blind-spot class the gate exists to
-// close, re-opened one input over.
+// edit could invalidate a result this gate reports. There are three, all
+// reached from the same call: the contract spec, the capability matrix and its
+// fragments (LoadSurfaceIndex -> loadCapabilities), and the generated surface
+// inventory (LoadSurfaceIndex -> loadSurfaces). Anchoring only the contract
+// left a capability-id rename able to pass this gate green and surface later as
+// `unknown_capability` on an unrelated pull request -- the exact blind-spot
+// class the gate exists to close, re-opened one input over.
+//
+// The surface inventory is anchored explicitly even though the repo covers it
+// today through the "go/internal/capabilitycatalog/**" trigger the package
+// check already demands. That coverage is incidental, not enforced: the package
+// check probes only _test.go files directly in the package root
+// (packageTestProbes), so narrowing that trigger to "*_test.go" keeps the
+// package check green while dropping data/ -- and a regeneration removing a
+// route or tool would then surface as `unknown_api_route`/`unknown_mcp_tool` on
+// an unrelated pull request. Anchoring the file makes the coverage a stated
+// requirement rather than a side effect of how another check happens to be
+// written.
 //
 // The fragment entry is a representative path rather than a glob: the check
 // asks whether the trigger globs would select a file in that directory, so any
@@ -46,6 +57,7 @@ var validatorInputAnchors = []string{
 	contractSpecPath,
 	"specs/capability-matrix.v1.yaml",
 	"specs/capability-matrix/a.yaml",
+	"go/internal/capabilitycatalog/data/surface-inventory.generated.json",
 }
 
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can

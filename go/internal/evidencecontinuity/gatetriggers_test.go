@@ -67,6 +67,7 @@ var validatorInputTriggerGlobs = []string{
 	contractSpecPath,
 	"specs/capability-matrix.v1.yaml",
 	"specs/capability-matrix/**",
+	"go/internal/capabilitycatalog/**",
 }
 
 // fullyCoveredTriggers returns pkgGlobs plus a glob for every validator input,
@@ -187,6 +188,60 @@ func TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored(t *testing.T) {
 	}
 	for _, anchor := range validatorInputAnchors {
 		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+anchor)
+	}
+}
+
+// TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarrowing
+// pins the third input family: ValidateRepository reads the generated surface
+// inventory under go/internal/capabilitycatalog/data/ through LoadSurfaceIndex
+// -> loadSurfaces, alongside the contract spec and the capability matrix.
+//
+// Today the repo covers that file transitively, because the proof refs name
+// ./internal/capabilitycatalog and the package check demands a trigger spanning
+// go/internal/capabilitycatalog. But the package check only probes _test.go
+// files directly in the package root (packageTestProbes), so a `dir/*_test.go`
+// glob satisfies it -- TestValidatorGateTriggerCoverage_TestFileGlobAccepted
+// pins that as intended coverage. Narrowing the trigger that way therefore
+// keeps the package check green while silently dropping the data/ subdirectory,
+// and a regeneration that removes a route or tool would surface as
+// unknown_api_route/unknown_mcp_tool on an unrelated pull request -- the exact
+// blind-spot class this gate exists to close, re-opened on the one input that
+// was not anchored.
+//
+// The fixture is that narrowing, with every other anchor deliberately covered,
+// so the only thing that can produce a finding is the surface inventory.
+func TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarrowing(t *testing.T) {
+	contract := Contract{
+		Version: "v1",
+		Rows: []Row{{
+			ID:         "surface-inventory-row",
+			Domain:     "code_to_cloud",
+			Capability: "platform_impact.deployment_chain",
+			SourceFact: ProofRef{Ref: "go test ./internal/capabilitycatalog -run '^(TestSomething)$' -count=1"},
+		}},
+	}
+	// The narrowed glob spans the package's root _test.go files but nothing
+	// under data/, so the package check passes and only the anchor can fail.
+	narrowed := append(
+		[]string{"go/internal/capabilitycatalog/*_test.go"},
+		"specs/evidence-continuity.v1.yaml",
+		"specs/capability-matrix.v1.yaml",
+		"specs/capability-matrix/**",
+	)
+	root := writeGateTriggerFixture(t, narrowed, narrowed)
+
+	findings, err := validateGateTriggerCoverage(root, contract)
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects go/internal/capabilitycatalog/data/surface-inventory.generated.json")
+
+	// The narrowing must not be reported as a package gap: if it were, this
+	// test would pass for the wrong reason and prove nothing about the anchor.
+	for _, f := range findings {
+		if strings.Contains(f.Message, "proof refs run tests in") {
+			t.Fatalf("package check reported a gap the narrowed glob actually covers, so the anchor is not what this test proves: %s", f.Message)
+		}
 	}
 }
 
