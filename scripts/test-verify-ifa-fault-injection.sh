@@ -103,6 +103,13 @@ bash -n "${entrypoint_cases_lib}" || fail "test-ifa-fault-injection-entrypoint-c
 bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
+# The GATE script needs the same guard as this mirror. Its determinism sibling
+# has always had one (test-verify-ifa-determinism.sh asserts on ${script}); the
+# fault side asserted only on itself, so verify-ifa-fault-injection.sh could
+# drift over the cap with nothing to catch it. `filecap-all` does not close the
+# hole either -- it walks `git ls-files 'go/*.go'` and never sees shell.
+[[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "verify-ifa-fault-injection.sh must stay under 500 lines"
 
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
 source "${assertions_lib}"
