@@ -56,6 +56,23 @@ Focused proof on this branch, with exit codes captured directly:
 - `go test ./internal/ifa ./internal/reducer ./internal/collector ./internal/replay/schema -count=1`
   — exit 0 (`ifa 8.027s`, `reducer 3.986s`, `collector 11.278s`,
   `replay/schema 1.144s`).
+
+Re-proved on the rebased head, after the merge with #6149 took the fault
+matrix from 15 cells to 18 and moved both gates onto
+`scripts/lib/ifa_family_fixtures.sh`. Exit codes captured directly:
+
+- `go test ./cmd/ifa ./internal/ifa ./internal/reducer ./internal/collector ./internal/storage/cypher -count=1`
+  — exit 0 (`cmd/ifa 3.747s`, `ifa 10.936s`, `reducer 7.689s`,
+  `collector 52.970s`, `storage/cypher 4.999s`).
+- `bash scripts/test-verify-ifa-determinism.sh` — exit 0.
+- `bash scripts/test-verify-ifa-fault-injection.sh` — exit 0, asserting the
+  18-cell shape.
+- `bash scripts/dev/precommit-go.sh lint-all` — exit 0, 0 issues.
+- `mkdocs build --strict` — exit 0; `git diff --check` — exit 0.
+
+These are the credential-free mirrors. They pin gate structure, not gate
+behavior: neither proves the 18-cell matrix converges on a live stack, which
+is why the live re-run above is still required.
 - The collector follow-up helper benchmark, five one-second samples, measured
   `1.462–1.481 us/op`, `2315 B/op`, and `34 allocs/op`.
 - Full/delta collector generation benchmarks, three one-second samples,
@@ -82,6 +99,21 @@ evidence rather than repo-scale performance evidence; the live matrices below
 cover the supported backend and durable recovery path.
 
 ## Supported-backend live proof
+
+> **These runs predate the rebase onto `ae96cae7f` and do not bind to the
+> current head.** They were recorded on `25f325fac347ef984be2546fb20c278d1d50253f`,
+> a commit that no longer exists: this branch was rebased and its history
+> collapsed to land alongside #6149, which added the `deployable_unit_edges`
+> family to the same two gates. The fault matrix described below ran **15
+> cells**; after the rebase it runs **18** (the three #5993 deployable-unit
+> cells were appended as 16-18), and both gates now read their committed
+> family fixtures through the shared `scripts/lib/ifa_family_fixtures.sh`.
+> Nothing below is retracted — every recorded digest, durable tuple, and wall
+> time is what that run produced — but the run does not cover the merged
+> 18-cell shape. Both live gates MUST be re-run on the final head and this
+> section replaced with the new transcripts before merge. The credential-free
+> structural mirrors for the merged shape did pass on the rebased head; they
+> are recorded under [No-Regression](#no-regression).
 
 The post-rebase determinism matrix passed at N=1, N=2, and N=4 on commit
 `25f325fac347ef984be2546fb20c278d1d50253f`. This is the first accepted run

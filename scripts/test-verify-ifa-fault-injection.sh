@@ -153,10 +153,12 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The fifteen-cell shape: baseline plus fourteen cells with a live seam -- four
-# original recovery cells, two SQL-targeted (#5555), two delivery-shaped
+# The eighteen-cell shape: baseline plus seventeen cells with a live seam --
+# four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
 # (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
-# and two rationale-targeted (#5998). All fifteen run by default.
+# two rationale-targeted (#5998), and a family-scoped baseline plus two
+# recovery cells for deployable_unit_edges (#5993). All eighteen run by
+# default.
 for cell in baseline killworker expirelease failgraphwrite restartbackend; do
 	require "cell present: ${cell}" "cell_${cell}"
 done
@@ -269,7 +271,7 @@ if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${deliv
 	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 fi
 
-require "fail-terminal explicitly excluded with rationale" "fail-terminal (a sixteenth possible cell) is deliberately NOT included"
+require "fail-terminal explicitly excluded with rationale" "fail-terminal (a nineteenth possible cell) is deliberately NOT included"
 
 # Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 # documentation, and rationale):
