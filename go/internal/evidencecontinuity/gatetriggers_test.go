@@ -367,8 +367,10 @@ func TestValidatorGateTriggerCoverage_GateScopeFindingsLeaveRowIDEmpty(t *testin
 	}
 }
 
-func TestValidatorGateTriggerCoverage_NoGoTestRefsNoReads(t *testing.T) {
-	contract := Contract{
+// scriptOnlyContract has proof refs but no `go test` ref, so it names no
+// package for the package half of the check to examine.
+func scriptOnlyContract() Contract {
+	return Contract{
 		Version: "v1",
 		Rows: []Row{{
 			ID:         "script-proof-row",
@@ -377,14 +379,51 @@ func TestValidatorGateTriggerCoverage_NoGoTestRefsNoReads(t *testing.T) {
 			SourceFact: ProofRef{Ref: "bash scripts/run-remote-e2e-check.sh"},
 		}},
 	}
+}
 
-	// No fixture files exist under this root; the check must not need them
-	// when the contract references no go-test packages.
-	findings, err := validateGateTriggerCoverage(t.TempDir(), contract)
+// A contract with no go-test refs names no package, so the package half has
+// nothing to report -- but the inputs are still read and must still be covered.
+func TestValidatorGateTriggerCoverage_NoGoTestRefsNoPackageFindings(t *testing.T) {
+	root := writeGateTriggerFixture(t, fullyCoveredTriggers(), fullyCoveredTriggers())
+
+	findings, err := validateGateTriggerCoverage(root, scriptOnlyContract())
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
 	if len(findings) != 0 {
 		t.Fatalf("expected no findings, got:\n%s", FormatFindings(findings))
+	}
+}
+
+// TestValidatorGateTriggerCoverage_AnchorsCheckedWithoutGoTestRefs stops the
+// anchor half from riding on the package half.
+//
+// ValidateRepository reads the capability matrix and the surface inventory on
+// every run, whether or not the contract carries a `go test` ref -- Validate
+// consumes both to report unknown_capability/unknown_api_route. An earlier
+// version returned early when the contract named no package, which silently
+// took the anchor check with it: strip the go-test refs from the spec and an
+// uncovered capability-matrix trigger would pass green again. That is the same
+// incidental-coverage shape the surface-inventory anchor exists to remove, so
+// the anchors must not depend on the package half having work to do.
+func TestValidatorGateTriggerCoverage_AnchorsCheckedWithoutGoTestRefs(t *testing.T) {
+	// Nothing is covered, and the contract names no package, so every finding
+	// this produces has to come from the anchor half.
+	root := writeGateTriggerFixture(t, []string{"docs/**"}, []string{"docs/**"})
+
+	findings, err := validateGateTriggerCoverage(root, scriptOnlyContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	if len(validatorInputAnchors) == 0 {
+		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	}
+	for _, anchor := range validatorInputAnchors {
+		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+anchor)
+	}
+	for _, f := range findings {
+		if strings.Contains(f.Message, "proof refs run tests in") {
+			t.Fatalf("contract names no go-test package yet a package finding appeared: %s", f.Message)
+		}
 	}
 }

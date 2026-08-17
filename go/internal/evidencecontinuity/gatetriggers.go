@@ -69,13 +69,16 @@ var validatorInputAnchors = []string{
 // Before #6131 the trigger set was disjoint from the referenced packages, so
 // renaming a referenced test selected nothing locally and broke CI on
 // unrelated PRs; this check makes that gap a gate failure on the spec edit
-// that would create it. A contract with no go-test refs reads nothing and
-// reports nothing.
+// that would create it.
+//
+// The validator-input anchors below are checked on every call, including for a
+// contract with no go-test refs. They do not depend on the package half having
+// work to do: ValidateRepository reads the capability matrix and the surface
+// inventory whatever the proof refs look like, so gating the anchors on a
+// non-empty package set would let stripping the go-test refs from the spec
+// silently retire the anchor check too.
 func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding, error) {
 	packageDirs := proofRefPackageDirs(contract)
-	if len(packageDirs) == 0 {
-		return nil, nil
-	}
 
 	triggers, err := evidenceGateTriggers(repoRoot)
 	if err != nil {
