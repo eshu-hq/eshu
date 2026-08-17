@@ -59,15 +59,17 @@ func mustWriteFile(t *testing.T, path, content string) {
 }
 
 // validatorInputTriggerGlobs are trigger globs that span every entry in
-// validatorInputAnchors. They live beside the anchors so adding a validator
-// input updates both, and the "fully covered" fixtures below build from them
-// rather than each repeating a literal list -- otherwise a new anchor turns
-// every clean fixture red and the tempting fix is to trim the anchor list.
+// validatorInputs. They live beside the anchors so adding a validator input
+// updates both, and the "fully covered" fixtures below build from them rather
+// than each repeating a literal list -- otherwise a new anchor turns every
+// clean fixture red and the tempting fix is to trim the anchor list.
 var validatorInputTriggerGlobs = []string{
 	contractSpecPath,
-	"specs/capability-matrix.v1.yaml",
-	"specs/capability-matrix/**",
+	capabilityMatrixPath,
+	capabilityFragmentDir + "/**",
 	"go/internal/capabilitycatalog/**",
+	gateRegistryPath,
+	gateWorkflowPath,
 }
 
 // fullyCoveredTriggers returns pkgGlobs plus a glob for every validator input,
@@ -81,12 +83,12 @@ func fullyCoveredTriggers(pkgGlobs ...string) []string {
 // clean fixture fail, and adding a glob for an anchor that does not exist would
 // go unnoticed -- either way the fixtures would stop describing a covered repo.
 func TestValidatorInputGlobsCoverEveryAnchor(t *testing.T) {
-	if len(validatorInputAnchors) == 0 {
-		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	if len(validatorInputs) == 0 {
+		t.Fatal("validatorInputs is empty; the anchor check would evaluate nothing")
 	}
-	for _, anchor := range validatorInputAnchors {
-		if !oneGlobMatchesAll(validatorInputTriggerGlobs, []string{anchor}) {
-			t.Errorf("no glob in validatorInputTriggerGlobs selects anchor %q; a clean fixture would report it as a gap", anchor)
+	for _, input := range validatorInputs {
+		if !oneGlobMatchesAll(validatorInputTriggerGlobs, input.probes) {
+			t.Errorf("no glob in validatorInputTriggerGlobs selects %q (probes %v); a clean fixture would report it as a gap", input.display, input.probes)
 		}
 	}
 }
@@ -147,14 +149,17 @@ func TestValidatorGateTriggerCoverage_MissingSpecAnchorReported(t *testing.T) {
 // `unknown_capability` on an unrelated pull request instead of here -- the
 // blind-spot class this gate exists to close, re-opened one input over.
 //
-// The fixture covers the contract spec deliberately, so the only thing that can
-// produce a finding is the capability-matrix anchor: a test that left both
-// uncovered would pass on the contract's finding alone and prove nothing about
-// the new ones.
+// The fixture covers every other input deliberately, so the capability-matrix
+// anchors are the only thing that can produce a finding: a test that left the
+// others uncovered would pass on their findings alone and prove nothing about
+// these two.
 func TestValidatorGateTriggerCoverage_MissingCapabilityMatrixAnchorReported(t *testing.T) {
 	covered := []string{
 		"go/internal/query/**",
-		"specs/evidence-continuity.v1.yaml",
+		contractSpecPath,
+		surfaceInventoryPath,
+		gateRegistryPath,
+		gateWorkflowPath,
 	}
 	root := writeGateTriggerFixture(t, covered, covered)
 
@@ -162,20 +167,20 @@ func TestValidatorGateTriggerCoverage_MissingCapabilityMatrixAnchorReported(t *t
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
-	mustContainFinding(t, findings, FindingGateTriggerGap, "selects specs/capability-matrix.v1.yaml")
-	mustContainFinding(t, findings, FindingGateTriggerGap, "selects specs/capability-matrix/")
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+capabilityMatrixPath)
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+capabilityFragmentDir+"/")
 
 	for _, f := range findings {
-		if strings.Contains(f.Message, "selects specs/evidence-continuity.v1.yaml") {
-			t.Fatalf("contract spec is covered by the fixture yet still reported: %s", f.Message)
+		if !strings.Contains(f.Message, capabilityFragmentDir) {
+			t.Fatalf("every other input is covered by the fixture yet something else was reported: %s", f.Message)
 		}
 	}
 }
 
 // TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored is the totality
-// half: every path in validatorInputAnchors must actually be checked. Asserting
-// two named findings would still pass if a third anchor were added to the list
-// and never consulted, which is how an anchor list quietly becomes decorative.
+// half: every entry in validatorInputs must actually be checked. Asserting two
+// named findings would still pass if a third anchor were added to the list and
+// never consulted, which is how an anchor list quietly becomes decorative.
 func TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored(t *testing.T) {
 	root := writeGateTriggerFixture(t, []string{"go/internal/query/**"}, []string{"go/internal/query/**"})
 
@@ -183,11 +188,11 @@ func TestValidatorGateTriggerCoverage_AllValidatorInputsAnchored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
-	if len(validatorInputAnchors) == 0 {
-		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	if len(validatorInputs) == 0 {
+		t.Fatal("validatorInputs is empty; the anchor check would evaluate nothing")
 	}
-	for _, anchor := range validatorInputAnchors {
-		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+anchor)
+	for _, input := range validatorInputs {
+		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+input.display)
 	}
 }
 
@@ -224,9 +229,11 @@ func TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarro
 	// under data/, so the package check passes and only the anchor can fail.
 	narrowed := []string{
 		"go/internal/capabilitycatalog/*_test.go",
-		"specs/evidence-continuity.v1.yaml",
-		"specs/capability-matrix.v1.yaml",
-		"specs/capability-matrix/**",
+		contractSpecPath,
+		capabilityMatrixPath,
+		capabilityFragmentDir + "/**",
+		gateRegistryPath,
+		gateWorkflowPath,
 	}
 	root := writeGateTriggerFixture(t, narrowed, narrowed)
 
@@ -234,13 +241,16 @@ func TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarro
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
-	mustContainFinding(t, findings, FindingGateTriggerGap, "selects go/internal/capabilitycatalog/data/surface-inventory.generated.json")
+	mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+surfaceInventoryPath)
 
 	// The narrowing must not be reported as a package gap: if it were, this
 	// test would pass for the wrong reason and prove nothing about the anchor.
 	for _, f := range findings {
 		if strings.Contains(f.Message, "proof refs run tests in") {
 			t.Fatalf("package check reported a gap the narrowed glob actually covers, so the anchor is not what this test proves: %s", f.Message)
+		}
+		if !strings.Contains(f.Message, surfaceInventoryPath) {
+			t.Fatalf("every other input is covered by the fixture yet something else was reported: %s", f.Message)
 		}
 	}
 }
@@ -415,11 +425,11 @@ func TestValidatorGateTriggerCoverage_AnchorsCheckedWithoutGoTestRefs(t *testing
 	if err != nil {
 		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
 	}
-	if len(validatorInputAnchors) == 0 {
-		t.Fatal("validatorInputAnchors is empty; the anchor check would evaluate nothing")
+	if len(validatorInputs) == 0 {
+		t.Fatal("validatorInputs is empty; the anchor check would evaluate nothing")
 	}
-	for _, anchor := range validatorInputAnchors {
-		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+anchor)
+	for _, input := range validatorInputs {
+		mustContainFinding(t, findings, FindingGateTriggerGap, "selects "+input.display)
 	}
 	for _, f := range findings {
 		if strings.Contains(f.Message, "proof refs run tests in") {

@@ -379,8 +379,11 @@ gates:
     category: exactness
     tier: pre-pr
     blocking: true
-    # The go/ triggers cover every package the spec's `go test` proof refs
-    # name, plus the validator's own package and its capability-matrix inputs.
+    # The triggers cover every package the spec's `go test` proof refs name,
+    # every file the validator reads -- the contract spec, the capability matrix
+    # and its fragments, the generated surface inventory, and this registry plus
+    # the workflow that carries the gate's path filter -- and the validator's own
+    # package.
     # Before #6131 the go/ triggers were disjoint from the referenced set, so
     # renaming a referenced test never selected this gate and CI on unrelated
     # PRs was the first place the stale ref failed. The validator now asserts

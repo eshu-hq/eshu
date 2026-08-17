@@ -240,6 +240,27 @@ func TestDornyFilters_ReportsEveryQuantifier(t *testing.T) {
 	}
 }
 
+// TestDornyFilters_PicksFirstJobDeterministically pins the iteration order.
+// dornyFilters walks the workflow's jobs, which yaml decodes into a map, and Go
+// randomises map iteration -- so with two dorny steps "the first" would resolve
+// to a different step run to run and a caller's verdict would flake. Sorted job
+// order makes the lowest job key win every time. Repeated because a randomised
+// walk passes roughly half the time on a single attempt.
+func TestDornyFilters_PicksFirstJobDeterministically(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte("jobs:\n" +
+		"  zzz-changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            late:\n              - 'z/**'\n" +
+		"  aaa-changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            early:\n              - 'a/**'\n")
+
+	for i := 0; i < 50; i++ {
+		filters, _ := cigates.DornyFilters(raw)
+		if _, ok := filters["early"]; !ok {
+			t.Fatalf("attempt %d: want the sorted-first job's filters (key %q), got %v", i, "early", filters)
+		}
+	}
+}
+
 // containsAll reports whether s contains every one of substrs.
 func containsAll(s string, substrs ...string) bool {
 	for _, sub := range substrs {

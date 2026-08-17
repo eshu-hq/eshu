@@ -24,20 +24,65 @@ const evidenceContinuityGateID = "evidence-continuity"
 // evidence-continuity CI job in static-contract-gates.yml.
 const evidenceFilterKey = "evidence"
 
-// contractSpecPath is the repo-relative path of the evidence-continuity
-// matrix. It must stay a trigger on both sides, because an edit to it can
-// create a trigger blind spot, so having it in the trigger set guarantees the
-// check runs on the edit that would create the blindness.
-const contractSpecPath = "specs/evidence-continuity.v1.yaml"
+// The repo-relative paths ValidateRepository reads. The contract spec, the gate
+// registry, and the workflow are joined onto repoRoot at their read sites, so
+// those three cannot drift from the anchor list below. The capability matrix,
+// its fragment directory, and the surface inventory are still mirrors of the
+// paths LoadSurfaceIndex builds from its specs/ and data/ arguments, so
+// TestValidatorInputPathsExistInRepo resolves every one against this repository:
+// a rename would otherwise leave an anchor watching a path that no longer
+// exists, which passes the coverage check while the real input goes unwatched.
+const (
+	// contractSpecPath is the evidence-continuity matrix.
+	contractSpecPath = "specs/evidence-continuity.v1.yaml"
+	// capabilityMatrixPath is the capability matrix root file.
+	capabilityMatrixPath = "specs/capability-matrix.v1.yaml"
+	// capabilityFragmentDir holds the matrix fragments, read non-recursively
+	// and .yaml-only by loadCapabilities.
+	capabilityFragmentDir = "specs/capability-matrix"
+	// surfaceInventoryPath is the generated API-route/MCP-tool inventory.
+	surfaceInventoryPath = "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
+	// gateRegistryPath is the CI gate registry this check reads its own gate's
+	// triggers back from.
+	gateRegistryPath = "specs/ci-gates.v1.yaml"
+	// gateWorkflowPath is the workflow whose "evidence" dorny filter selects
+	// this gate in CI.
+	gateWorkflowPath = ".github/workflows/static-contract-gates.yml"
+)
 
-// validatorInputAnchors are every file family ValidateRepository reads whose
-// edit could invalidate a result this gate reports. There are three, all
-// reached from the same call: the contract spec, the capability matrix and its
-// fragments (LoadSurfaceIndex -> loadCapabilities), and the generated surface
-// inventory (LoadSurfaceIndex -> loadSurfaces). Anchoring only the contract
-// left a capability-id rename able to pass this gate green and surface later as
-// `unknown_capability` on an unrelated pull request -- the exact blind-spot
-// class the gate exists to close, re-opened one input over.
+// validatorInput is one file family ValidateRepository reads whose edit could
+// invalidate a result this gate reports, paired with the probe paths a single
+// trigger glob must match to count as covering it.
+//
+// A family backed by a directory carries two differently named probes for the
+// same reason packageTestProbes does: one probe cannot tell a directory-wide
+// glob from a filename-narrowed one that leaves the siblings uncovered, so a
+// lone "specs/capability-matrix/a.yaml" probe would accept
+// "specs/capability-matrix/a*.yaml" and drop every fragment not starting with
+// an "a".
+type validatorInput struct {
+	// display names the family in a finding message.
+	display string
+	// probes are the paths one trigger glob must match, all of them, to count
+	// as covering the family.
+	probes []string
+}
+
+// validatorInputs are every file family ValidateRepository reads, all reached
+// from the same call: the contract spec, the capability matrix and its
+// fragments (LoadSurfaceIndex -> loadCapabilities), the generated surface
+// inventory (LoadSurfaceIndex -> loadSurfaces), and the two files
+// validateGateTriggerCoverage itself opens to decide the coverage below -- the
+// CI gate registry and the workflow.
+//
+// Anchoring only the contract left a capability-id rename able to pass this
+// gate green and surface later as `unknown_capability` on an unrelated pull
+// request -- the exact blind-spot class the gate exists to close, re-opened one
+// input over. The registry and workflow entries close it again on the two
+// inputs this check itself introduced: nothing else in the repo requires a gate
+// to trigger on either file, so dropping one from BOTH trigger sets passes
+// every gate today, and the next PR narrowing a package trigger would then
+// never run this check at all.
 //
 // The surface inventory is anchored explicitly even though the repo covers it
 // today through the "go/internal/capabilitycatalog/**" trigger the package
@@ -46,34 +91,39 @@ const contractSpecPath = "specs/evidence-continuity.v1.yaml"
 // (packageTestProbes), so narrowing that trigger to "*_test.go" keeps the
 // package check green while dropping data/ -- and a regeneration removing a
 // route or tool would then surface as `unknown_api_route`/`unknown_mcp_tool` on
-// an unrelated pull request. Anchoring the file makes the coverage a stated
+// an unrelated pull request. Anchoring a file makes the coverage a stated
 // requirement rather than a side effect of how another check happens to be
-// written.
-//
-// The fragment entry is a representative path rather than a glob: the check
-// asks whether the trigger globs would select a file in that directory, so any
-// name under it answers the question.
-var validatorInputAnchors = []string{
-	contractSpecPath,
-	"specs/capability-matrix.v1.yaml",
-	"specs/capability-matrix/a.yaml",
-	"go/internal/capabilitycatalog/data/surface-inventory.generated.json",
+// written, which is why every entry is listed whether or not something else
+// covers it today.
+var validatorInputs = []validatorInput{
+	{display: contractSpecPath, probes: []string{contractSpecPath}},
+	{display: capabilityMatrixPath, probes: []string{capabilityMatrixPath}},
+	{
+		display: capabilityFragmentDir + "/*.yaml",
+		probes: []string{
+			path.Join(capabilityFragmentDir, "a.yaml"),
+			path.Join(capabilityFragmentDir, "z.yaml"),
+		},
+	},
+	{display: surfaceInventoryPath, probes: []string{surfaceInventoryPath}},
+	{display: gateRegistryPath, probes: []string{gateRegistryPath}},
+	{display: gateWorkflowPath, probes: []string{gateWorkflowPath}},
 }
 
 // validateGateTriggerCoverage asserts that the evidence-continuity gate can
 // see every file whose edit could change what it reports. That is two file
 // sets: the packages the contract's `go test` proof refs name, and the inputs
-// ValidateRepository reads (validatorInputAnchors). Both the gate's registry
+// ValidateRepository reads (validatorInputs). Both the gate's registry
 // triggers (specs/ci-gates.v1.yaml) and its CI workflow path filter
 // (static-contract-gates.yml, dorny filter key "evidence") must span each.
 // For a package that means its _test.go files — the exact file set
 // loadPackageTestNames reads.
 // Before #6131 the trigger set was disjoint from the referenced packages, so
 // renaming a referenced test selected nothing locally and broke CI on
-// unrelated PRs; this check makes that gap a gate failure on the spec edit
-// that would create it.
+// unrelated PRs; this check makes that gap a gate failure on the edit that
+// would create it, which is why every input it reads is itself anchored below.
 //
-// The validator-input anchors below are checked on every call, including for a
+// The validator inputs below are checked on every call, including for a
 // contract with no go-test refs. They do not depend on the package half having
 // work to do: ValidateRepository reads the capability matrix and the surface
 // inventory whatever the proof refs look like, so gating the anchors on a
@@ -95,8 +145,8 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 		label string
 		globs []string
 	}{
-		{"gate trigger in specs/ci-gates.v1.yaml", triggers},
-		{fmt.Sprintf("path filter %q entry in .github/workflows/static-contract-gates.yml", evidenceFilterKey), filterPaths},
+		{fmt.Sprintf("gate trigger in %s", gateRegistryPath), triggers},
+		{fmt.Sprintf("path filter %q entry in %s", evidenceFilterKey, gateWorkflowPath), filterPaths},
 	}
 	var findings []Finding
 	for _, side := range sides {
@@ -117,15 +167,15 @@ func validateGateTriggerCoverage(repoRoot string, contract Contract) ([]Finding,
 				),
 			})
 		}
-		for _, anchor := range validatorInputAnchors {
-			if oneGlobMatchesAll(side.globs, []string{anchor}) {
+		for _, input := range validatorInputs {
+			if oneGlobMatchesAll(side.globs, input.probes) {
 				continue
 			}
 			findings = append(findings, Finding{
 				Kind: FindingGateTriggerGap,
 				Message: fmt.Sprintf(
 					"no %s selects %s, which ValidateRepository reads; an edit there could create a trigger blind spot and must always run this gate",
-					label, anchor,
+					label, input.display,
 				),
 			})
 		}
@@ -198,7 +248,7 @@ func oneGlobMatchesAll(globs, probes []string) bool {
 // gate's trigger globs, failing loudly when the registry or the gate entry is
 // missing rather than letting the coverage check pass vacuously.
 func evidenceGateTriggers(repoRoot string) ([]string, error) {
-	registryPath := filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml")
+	registryPath := filepath.Join(repoRoot, filepath.FromSlash(gateRegistryPath))
 	registry, err := cigates.Load(registryPath)
 	if err != nil {
 		return nil, fmt.Errorf("load ci-gates registry for trigger coverage: %w", err)
@@ -221,7 +271,7 @@ func evidenceGateTriggers(repoRoot string) ([]string, error) {
 // set `every`, so refusing here keeps a copy-paste of that step from turning
 // this self-check false-green.
 func evidenceWorkflowFilter(repoRoot string) ([]string, error) {
-	workflowPath := filepath.Join(repoRoot, ".github", "workflows", "static-contract-gates.yml")
+	workflowPath := filepath.Join(repoRoot, filepath.FromSlash(gateWorkflowPath))
 	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- static verifier reads a repo-local workflow path, not request input.
 	if err != nil {
 		return nil, fmt.Errorf("read workflow for trigger coverage: %w", err)

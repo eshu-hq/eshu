@@ -24,12 +24,21 @@
   `evidence` filter in `.github/workflows/static-contract-gates.yml` in the
   same change; `gate_trigger_gap` findings enforce this.
 - When `ValidateRepository` starts reading a new input file, add it to
-  `validatorInputAnchors` in `gatetriggers.go` in the same change, and give it
+  `validatorInputs` in `gatetriggers.go` in the same change, and give it
   a trigger in both sets above. An input the gate cannot see is a blind spot:
-  an edit to it changes what this gate reports without ever running it.
-  Do not rely on a package trigger to cover an input file incidentally — the
-  package check probes only `_test.go` files in the package root, so narrowing
-  such a trigger keeps that check green while dropping the input.
+  an edit to it changes what this gate reports without ever running it. This
+  includes the files the trigger check itself reads — the CI gate registry and
+  `static-contract-gates.yml` are anchored, not assumed.
+  Do not rely on a package trigger, or on another gate, to cover an input file
+  incidentally — the package check probes only `_test.go` files in the package
+  root, so narrowing such a trigger keeps that check green while dropping the
+  input, and `checkPathFilterCoverage` compares the two trigger sets against
+  each other, so a path removed from both is not a mismatch it can see.
+- An input read as a directory gets two differently named probe paths, never
+  one. A lone `specs/capability-matrix/a.yaml` probe accepts the trigger
+  `specs/capability-matrix/a*.yaml`, which leaves every other fragment outside
+  the gate's reach — the same filename-narrowing hole `packageTestProbes`
+  closes for packages.
 
 ## Verification
 

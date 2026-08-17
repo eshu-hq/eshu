@@ -49,12 +49,15 @@ package a `go test` proof ref names must be spanned by the evidence-continuity
 triggers in `specs/ci-gates.v1.yaml` AND by the `evidence` path filter in
 `.github/workflows/static-contract-gates.yml`. On top of those packages, every
 input `ValidateRepository` reads must stay in both trigger sets, because an edit
-to any of them can change what this gate reports. There are three:
+to any of them can change what this gate reports:
 
 - the contract spec `specs/evidence-continuity.v1.yaml`
 - `specs/capability-matrix.v1.yaml` and the `specs/capability-matrix/` fragments
 - the generated surface inventory
   `go/internal/capabilitycatalog/data/surface-inventory.generated.json`
+- the CI gate registry `specs/ci-gates.v1.yaml` and the workflow
+  `.github/workflows/static-contract-gates.yml`, the two files the check itself
+  reads to decide the coverage above
 
 Those anchors are what make the check self-enforcing: an edit that could create
 a blind spot also selects the gate that would catch it.
@@ -67,8 +70,15 @@ unrelated pull request. The surface inventory is anchored for the same reason
 even though `go/internal/capabilitycatalog/**` covers it today: that trigger is
 demanded by the package check, which probes only `_test.go` files in the package
 root, so narrowing it to `*_test.go` would keep the package check green and drop
-`data/` from the gate's reach. If `ValidateRepository` grows a new input, add it
-to `validatorInputAnchors` in the same change.
+`data/` from the gate's reach. The registry and the workflow are anchored for the
+same reason once more: nothing else in the repo requires a gate to trigger on
+either file — `checkPathFilterCoverage` compares the two sets against each other,
+which stays satisfied when a path leaves both — so dropping one would pass every
+gate and leave the next trigger narrowing unwatched. A family read as a directory
+carries two differently named probe paths, because a single probe cannot tell a
+directory-wide glob from a filename-narrowed one such as
+`specs/capability-matrix/a*.yaml`. If `ValidateRepository` grows a new input, add
+it to `validatorInputs` in the same change.
 
 ## Related docs
 

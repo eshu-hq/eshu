@@ -38,8 +38,9 @@ type pathFilterWorkflowFile struct {
 }
 
 // DornyFilters returns the parsed "filter key -> path glob list" map from the
-// first dorny/paths-filter step found in the raw workflow file bytes, plus
-// whether that step sets `predicate-quantifier: every`. The map is nil when
+// first dorny/paths-filter step in the raw workflow file bytes, taking the jobs
+// in sorted key order, plus whether that step sets
+// `predicate-quantifier: every`. The map is nil when
 // no such step is present or its filters block does not parse. It is the
 // exported face of dornyFilters for gates that must assert their own workflow
 // filter covers the files their verdict depends on; the evidence-continuity
@@ -62,12 +63,26 @@ func DornyFilters(raw []byte) (filters map[string][]string, every bool) {
 // dorny/paths-filter step found in raw, or nil if no such step is present or
 // its filters block does not parse. A workflow with no such step (true for
 // most workflows) returns nil so callers skip it rather than false-erroring.
+//
+// Jobs are visited in sorted key order. Every workflow in this repo hosts
+// exactly one dorny step, so today the order cannot change the answer -- but Go
+// randomises map iteration, so a second dorny step would otherwise make "the
+// first" mean a different step run to run, and the result would silently vary.
+// That is the same randomised-iteration hazard ifGatedFilterKeys reports as
+// ambiguous rather than guessing at; deterministic order keeps a caller's
+// verdict reproducible instead of flaky (#6145 review).
 func dornyFilters(raw []byte) (map[string][]string, bool, string) {
 	var wf pathFilterWorkflowFile
 	if err := yaml.Unmarshal(raw, &wf); err != nil {
 		return nil, false, ""
 	}
-	for jobKey, job := range wf.Jobs {
+	jobKeys := make([]string, 0, len(wf.Jobs))
+	for jobKey := range wf.Jobs {
+		jobKeys = append(jobKeys, jobKey)
+	}
+	sort.Strings(jobKeys)
+	for _, jobKey := range jobKeys {
+		job := wf.Jobs[jobKey]
 		for _, step := range job.Steps {
 			if !strings.Contains(step.Uses, "dorny/paths-filter") {
 				continue
