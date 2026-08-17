@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
 	"context"
@@ -20,14 +20,14 @@ import (
 // than a fixture that could drift from it.
 func repoManifestPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join("..", "..", "..", "specs", "demo-first-answers.v1.yaml")
+	return filepath.Join("..", "..", "..", "..", "specs", "demo-first-answers.v1.yaml")
 }
 
 func TestLoadDemoManifest_ReadsTheCommittedOracle(t *testing.T) {
 	t.Parallel()
-	m, err := loadDemoManifest(repoManifestPath(t))
+	m, err := LoadManifest(repoManifestPath(t))
 	if err != nil {
-		t.Fatalf("loadDemoManifest: %v", err)
+		t.Fatalf("LoadManifest: %v", err)
 	}
 	if len(m.Questions) < 5 {
 		t.Fatalf("questions = %d, want at least the five demo questions", len(m.Questions))
@@ -49,13 +49,13 @@ func TestLoadDemoManifest_ReadsTheCommittedOracle(t *testing.T) {
 
 func TestLoadDemoManifest_FirstQuestionIsTheMCPServiceStory(t *testing.T) {
 	t.Parallel()
-	m, err := loadDemoManifest(repoManifestPath(t))
+	m, err := LoadManifest(repoManifestPath(t))
 	if err != nil {
-		t.Fatalf("loadDemoManifest: %v", err)
+		t.Fatalf("LoadManifest: %v", err)
 	}
 	q := m.Questions[0]
-	if q.Execute.Kind != demoExecuteMCP {
-		t.Errorf("first question execute kind = %q, want %q", q.Execute.Kind, demoExecuteMCP)
+	if q.Execute.Kind != executeMCP {
+		t.Errorf("first question execute kind = %q, want %q", q.Execute.Kind, executeMCP)
 	}
 	if q.Execute.Ref != "get_service_story" {
 		t.Errorf("first question execute ref = %q, want get_service_story", q.Execute.Ref)
@@ -83,20 +83,20 @@ func TestAskDemoQuestion_MCPPostsToolsCallAndReturnsTheAnswer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	q := demoQuestion{
+	q := Question{
 		ID:       "q1",
 		Question: "which workload?",
-		Execute: demoExecute{
-			Kind:      demoExecuteMCP,
+		Execute: Execute{
+			Kind:      executeMCP,
 			Ref:       "get_service_story",
 			Arguments: map[string]any{"workload_id": "workload:api-svc"},
 		},
 	}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"answer_metadata", "answer_packet", "api_surface"}
 
-	ans, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q)
+	ans, err := ExecuteQuestion(context.Background(), srv.URL, srv.URL, "k", q)
 	if err != nil {
-		t.Fatalf("executeDemoQuestion: %v", err)
+		t.Fatalf("ExecuteQuestion: %v", err)
 	}
 	if !strings.Contains(gotPath, "mcp") {
 		t.Errorf("posted to %q, want the MCP endpoint", gotPath)
@@ -129,10 +129,10 @@ func TestAskDemoQuestion_MissingRequiredFieldIsAnError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	q := demoQuestion{ID: "q1", Question: "q", Execute: demoExecute{Kind: demoExecuteMCP, Ref: "get_service_story"}}
+	q := Question{ID: "q1", Question: "q", Execute: Execute{Kind: executeMCP, Ref: "get_service_story"}}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"answer_metadata", "answer_packet", "api_surface"}
 
-	_, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q)
+	_, err := ExecuteQuestion(context.Background(), srv.URL, srv.URL, "k", q)
 	if err == nil {
 		t.Fatal("error = nil; a reply missing a required field must not pass as an answer")
 	}
@@ -150,13 +150,13 @@ func TestAskDemoQuestion_HTTPExecutesTheDeclaredRoute(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	q := demoQuestion{ID: "q3", Question: "which services?", Execute: demoExecute{
-		Kind: demoExecuteHTTP, Ref: "GET /api/v0/incidents/PSCD1/context",
+	q := Question{ID: "q3", Question: "which services?", Execute: Execute{
+		Kind: executeHTTP, Ref: "GET /api/v0/incidents/PSCD1/context",
 	}}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"incident", "services"}
 
-	if _, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q); err != nil {
-		t.Fatalf("executeDemoQuestion: %v", err)
+	if _, err := ExecuteQuestion(context.Background(), srv.URL, srv.URL, "k", q); err != nil {
+		t.Fatalf("ExecuteQuestion: %v", err)
 	}
 	if gotMethod != http.MethodGet {
 		t.Errorf("method = %q, want GET", gotMethod)
@@ -168,8 +168,8 @@ func TestAskDemoQuestion_HTTPExecutesTheDeclaredRoute(t *testing.T) {
 
 func TestAskDemoQuestion_UnknownExecuteKindFailsLoudly(t *testing.T) {
 	t.Parallel()
-	q := demoQuestion{ID: "qX", Execute: demoExecute{Kind: "carrier-pigeon", Ref: "x"}}
-	_, err := executeDemoQuestion(context.Background(), "http://127.0.0.1:1", "http://127.0.0.1:1", "k", q)
+	q := Question{ID: "qX", Execute: Execute{Kind: "carrier-pigeon", Ref: "x"}}
+	_, err := ExecuteQuestion(context.Background(), "http://127.0.0.1:1", "http://127.0.0.1:1", "k", q)
 	if err == nil {
 		t.Fatal("error = nil; an unrecognized execute kind must fail rather than be skipped")
 	}
@@ -180,7 +180,7 @@ func TestDemoUp_MintsAnEphemeralKeyAndPassesItToCompose(t *testing.T) {
 	exec := &fakeDemoExec{}
 	rt := newTestDemoRuntime(exec)
 
-	if _, err := rt.up(context.Background()); err != nil {
+	if _, err := rt.Up(context.Background()); err != nil {
 		t.Fatalf("up: %v", err)
 	}
 	// The demo runtime overlay refuses to start mcp-server with no resolvable
@@ -207,13 +207,13 @@ func TestDemoUp_MintsAnEphemeralKeyAndPassesItToCompose(t *testing.T) {
 
 func TestDemoEphemeralKeys_AreNotReusedAcrossRuns(t *testing.T) {
 	t.Parallel()
-	a, err := newEphemeralDemoKey()
+	a, err := newEphemeralKey()
 	if err != nil {
-		t.Fatalf("newEphemeralDemoKey: %v", err)
+		t.Fatalf("newEphemeralKey: %v", err)
 	}
-	b, err := newEphemeralDemoKey()
+	b, err := newEphemeralKey()
 	if err != nil {
-		t.Fatalf("newEphemeralDemoKey: %v", err)
+		t.Fatalf("newEphemeralKey: %v", err)
 	}
 	if a == b {
 		t.Error("two demo runs minted the same key; it must be per-run, not a constant")
@@ -231,12 +231,12 @@ func TestDemoStatus_RecoversTheKeyFromTheRunningStack(t *testing.T) {
 	rt.apiKey = "" // status runs in a fresh process; up's ephemeral key is gone.
 
 	var probedWith string
-	rt.probe = func(_ context.Context, _, key string) (demoIndexStatus, error) {
+	rt.probe = func(_ context.Context, _, key string) (IndexStatus, error) {
 		probedWith = key
-		return demoIndexStatus{Status: "healthy", RepositoryCount: 6}, nil
+		return IndexStatus{Status: "healthy", RepositoryCount: 6}, nil
 	}
 
-	res, err := rt.status(context.Background())
+	res, err := rt.Status(context.Background())
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -251,28 +251,55 @@ func TestDemoStatus_RecoversTheKeyFromTheRunningStack(t *testing.T) {
 	}
 }
 
+// lookup builds the environment-lookup function the wrapper passes in as
+// os.Getenv. A map keeps these tests parallel-safe and independent of whatever
+// the developer happens to have exported in their shell.
+func lookup(pairs map[string]string) func(string) string {
+	return func(k string) string { return pairs[k] }
+}
+
 func TestDemoBases_FollowTheOverlayPortOverrides(t *testing.T) {
+	t.Parallel()
 	// The overlay binds ${ESHU_DEMO_API_PORT:-18080} and
 	// ${ESHU_DEMO_MCP_PORT:-18091}. A second demo that moves its ports to
 	// avoid the first one's must still be probed where it actually listens.
-	t.Setenv("ESHU_DEMO_API_PORT", "19080")
-	t.Setenv("ESHU_DEMO_MCP_PORT", "19091")
-	t.Setenv("ESHU_DEMO_BIND_ADDR", "127.0.0.1")
-	if got := demoAPIBase(); got != "http://127.0.0.1:19080" {
-		t.Errorf("demoAPIBase() = %q, want the overridden API port", got)
+	getenv := lookup(map[string]string{
+		EnvAPIPort:  "19080",
+		EnvMCPPort:  "19091",
+		EnvBindAddr: "127.0.0.1",
+	})
+	if got := APIBase(getenv); got != "http://127.0.0.1:19080" {
+		t.Errorf("APIBase() = %q, want the overridden API port", got)
 	}
-	if got := demoMCPBase(); got != "http://127.0.0.1:19091" {
-		t.Errorf("demoMCPBase() = %q, want the overridden MCP port", got)
+	if got := MCPBase(getenv); got != "http://127.0.0.1:19091" {
+		t.Errorf("MCPBase() = %q, want the overridden MCP port", got)
 	}
 }
 
 func TestDemoBases_DefaultToTheOverlayDefaults(t *testing.T) {
 	t.Parallel()
-	if got := demoAPIBase(); got != "http://127.0.0.1:18080" {
-		t.Errorf("demoAPIBase() = %q, want the overlay default", got)
+	getenv := lookup(nil)
+	if got := APIBase(getenv); got != "http://127.0.0.1:18080" {
+		t.Errorf("APIBase() = %q, want the overlay default", got)
 	}
-	if got := demoMCPBase(); got != "http://127.0.0.1:18091" {
-		t.Errorf("demoMCPBase() = %q, want the overlay default", got)
+	if got := MCPBase(getenv); got != "http://127.0.0.1:18091" {
+		t.Errorf("MCPBase() = %q, want the overlay default", got)
+	}
+}
+
+// TestResolveComposeFile_HonoursTheOverride proves EnvComposeFile short-circuits
+// the parent-directory walk. The wrapper passes os.Getenv in, so an operator
+// pointing at their own overlay must not be sent walking up from the working
+// directory instead.
+func TestResolveComposeFile_HonoursTheOverride(t *testing.T) {
+	t.Parallel()
+	const override = "/somewhere/else/my-overlay.yaml"
+	got, err := ResolveComposeFile(t.TempDir(), lookup(map[string]string{EnvComposeFile: override}))
+	if err != nil {
+		t.Fatalf("ResolveComposeFile: %v", err)
+	}
+	if got != override {
+		t.Errorf("resolved %q, want the override %q", got, override)
 	}
 }
 
@@ -285,13 +312,13 @@ func TestResolveDemoComposeFile_FindsItFromASubdirectory(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(dir, demoComposeFileName)
+	want := filepath.Join(dir, ComposeFileName)
 	if err := os.WriteFile(want, []byte("name: x\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolveDemoComposeFile(nested)
+	got, err := ResolveComposeFile(nested, lookup(nil))
 	if err != nil {
-		t.Fatalf("resolveDemoComposeFile: %v", err)
+		t.Fatalf("ResolveComposeFile: %v", err)
 	}
 	if got != want {
 		t.Errorf("resolved %q, want %q", got, want)
@@ -300,11 +327,11 @@ func TestResolveDemoComposeFile_FindsItFromASubdirectory(t *testing.T) {
 
 func TestResolveDemoComposeFile_SaysWhatItLookedForWhenAbsent(t *testing.T) {
 	t.Parallel()
-	_, err := resolveDemoComposeFile(t.TempDir())
+	_, err := ResolveComposeFile(t.TempDir(), lookup(nil))
 	if err == nil {
 		t.Fatal("error = nil; a missing overlay must fail with guidance, not a bare compose error")
 	}
-	if !strings.Contains(err.Error(), demoComposeFileName) {
+	if !strings.Contains(err.Error(), ComposeFileName) {
 		t.Errorf("error %q does not name the file it searched for", err)
 	}
 }
@@ -318,7 +345,7 @@ func TestDemoDown_RefusesAProjectItDoesNotOwn(t *testing.T) {
 	}}
 	rt := newTestDemoRuntime(exec)
 
-	err := rt.down(context.Background())
+	err := rt.Down(context.Background())
 	if err == nil {
 		t.Fatal("down() error = nil; it must refuse a project it did not create")
 	}
@@ -335,11 +362,11 @@ func TestDemoDown_RefusesAProjectItDoesNotOwn(t *testing.T) {
 func TestDemoDown_ProceedsOnItsOwnProject(t *testing.T) {
 	t.Parallel()
 	exec := &fakeDemoExec{replies: map[string]demoExecReply{
-		"config_files": {out: []byte("/repo/" + demoComposeFileName + "\n")},
+		"config_files": {out: []byte("/repo/" + ComposeFileName + "\n")},
 	}}
 	rt := newTestDemoRuntime(exec)
 
-	if err := rt.down(context.Background()); err != nil {
+	if err := rt.Down(context.Background()); err != nil {
 		t.Fatalf("down: %v", err)
 	}
 	if !exec.sawContaining("--remove-orphans") {
@@ -357,7 +384,7 @@ func TestDemoDown_ProceedsOnItsOwnProject(t *testing.T) {
 // operator pasting the line would hit.
 func TestRunnableFormSurvivesShellQuoting(t *testing.T) {
 	args := map[string]any{"repository": "it's-a-repo", "note": `he said "hi"`}
-	q := demoQuestion{Execute: demoExecute{Kind: demoExecuteMCP, Ref: "get_context", Arguments: args}}
+	q := Question{Execute: Execute{Kind: executeMCP, Ref: "get_context", Arguments: args}}
 
 	line := q.RunnableForm()
 	_, quoted, found := strings.Cut(line, "--arguments ")
@@ -391,13 +418,13 @@ func TestRunnableFormSurvivesShellQuoting(t *testing.T) {
 // right tool with no arguments comes back with the wrong answer, not an error.
 func TestLoadDemoManifest_ResolvesTheFlatSurfaceShape(t *testing.T) {
 	t.Parallel()
-	m, err := loadDemoManifest(repoManifestPath(t))
+	m, err := LoadManifest(repoManifestPath(t))
 	if err != nil {
-		t.Fatalf("loadDemoManifest: %v", err)
+		t.Fatalf("LoadManifest: %v", err)
 	}
-	var flat *demoQuestion
+	var flat *Question
 	for i := range m.Questions {
-		if m.Questions[i].Surface.Execute.Kind == "" && m.Questions[i].Surface.Kind == demoExecuteMCP {
+		if m.Questions[i].Surface.Execute.Kind == "" && m.Questions[i].Surface.Kind == executeMCP {
 			flat = &m.Questions[i]
 			break
 		}
@@ -405,8 +432,8 @@ func TestLoadDemoManifest_ResolvesTheFlatSurfaceShape(t *testing.T) {
 	if flat == nil {
 		t.Fatal("no flat-shape question in the manifest; this test no longer guards the fallback branch")
 	}
-	if flat.Execute.Kind != demoExecuteMCP {
-		t.Errorf("%s Execute.Kind = %q, want %q", flat.ID, flat.Execute.Kind, demoExecuteMCP)
+	if flat.Execute.Kind != executeMCP {
+		t.Errorf("%s Execute.Kind = %q, want %q", flat.ID, flat.Execute.Kind, executeMCP)
 	}
 	if flat.Execute.Ref != flat.Surface.Ref || flat.Execute.Ref == "" {
 		t.Errorf("%s Execute.Ref = %q, want the surface ref %q", flat.ID, flat.Execute.Ref, flat.Surface.Ref)

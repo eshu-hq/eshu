@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
 	"context"
@@ -11,15 +11,15 @@ import (
 	"strings"
 )
 
-// down removes the demo stack along with its volumes and networks.
+// Down removes the demo stack along with its volumes and networks.
 //
 // `-v` and `--remove-orphans` are not optional niceties: the acceptance
 // criteria for the demo are zero leaked containers, volumes, or networks, and
 // a plain `compose down` leaves named volumes behind. Every invocation is
 // scoped to the demo project, so a stack the demo did not create is out of
 // reach here by construction rather than by care.
-func (r *demoRuntime) down(ctx context.Context) error {
-	// up refuses to adopt a project it did not start; down holds the same
+func (r *Runtime) Down(ctx context.Context) error {
+	// Up refuses to adopt a project it did not start; Down holds the same
 	// line, or --project pointed at an operator's stack removes it along with
 	// its volumes.
 	owned, err := r.ownsProject(ctx)
@@ -29,7 +29,7 @@ func (r *demoRuntime) down(ctx context.Context) error {
 	if !owned {
 		return fmt.Errorf(
 			"compose project %q was not created from %s; refusing to remove a stack eshu demo did not start",
-			r.project, demoComposeFileName)
+			r.project, ComposeFileName)
 	}
 	if _, err := r.exec(ctx, nil, "docker", r.composeArgs("down", "-v", "--remove-orphans")...); err != nil {
 		return fmt.Errorf("remove demo stack (project %q): %w", r.project, err)
@@ -46,7 +46,7 @@ func (r *demoRuntime) down(ctx context.Context) error {
 //
 // A project with no containers counts as owned: a down after a partial or
 // failed up still needs to clean up.
-func (r *demoRuntime) ownsProject(ctx context.Context) (bool, error) {
+func (r *Runtime) ownsProject(ctx context.Context) (bool, error) {
 	out, err := r.exec(ctx, nil, "docker", "ps", "--all",
 		"--filter", "label=com.docker.compose.project="+r.project,
 		"--format", "{{.Label \"com.docker.compose.project.config_files\"}}")
@@ -59,21 +59,21 @@ func (r *demoRuntime) ownsProject(ctx context.Context) (bool, error) {
 		if line == "" {
 			continue
 		}
-		if !configFilesNameTheDemoOverlay(line) {
+		if !configFilesNameTheOverlay(line) {
 			return false, nil
 		}
 	}
 	return true, nil
 }
 
-// status reports whether the demo project is running and finished indexing.
+// Status reports whether the demo project is running and finished indexing.
 //
 // Running and ready are deliberately separate: a stack that is up but still
 // indexing answers the demo questions incompletely, so reporting "running" as
 // "ready" would be the same health-vs-completeness mistake first-run refuses
 // to make.
-func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
-	res := demoResult{Project: r.project, PhaseMillis: map[string]int64{}}
+func (r *Runtime) Status(ctx context.Context) (Result, error) {
+	res := Result{Project: r.project, PhaseMillis: map[string]int64{}}
 	running, err := r.alreadyRunning(ctx)
 	if err != nil {
 		return res, err
@@ -82,11 +82,11 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 		return res, nil
 	}
 	if r.apiKey == "" {
-		// status runs in a fresh process, so up's ephemeral key is gone. Ask
+		// Status runs in a fresh process, so Up's ephemeral key is gone. Ask
 		// the running stack for its own key rather than minting a second one:
 		// an unauthenticated probe gets 401 and reports a healthy stack as not
 		// ready, which is indistinguishable from a real failure.
-		if key, keyErr := r.recoverDemoKey(ctx); keyErr == nil {
+		if key, keyErr := r.recoverKey(ctx); keyErr == nil {
 			r.apiKey = key
 		}
 	}
@@ -100,7 +100,7 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 	return res, nil
 }
 
-// configFilesNameTheDemoOverlay reports whether a config_files label lists the
+// configFilesNameTheOverlay reports whether a config_files label lists the
 // demo overlay as one of its entries.
 //
 // The label is a comma-separated list of absolute paths, so the comparison is
@@ -108,28 +108,28 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 // accept a path that merely embeds the name -- not-docker-compose.demo.yaml.bak
 // alongside it -- and this guard exists to refuse tearing down a stack the demo
 // did not create, so it has to err toward refusing.
-func configFilesNameTheDemoOverlay(label string) bool {
+func configFilesNameTheOverlay(label string) bool {
 	for _, entry := range strings.Split(label, ",") {
-		if filepath.Base(strings.TrimSpace(entry)) == demoComposeFileName {
+		if filepath.Base(strings.TrimSpace(entry)) == ComposeFileName {
 			return true
 		}
 	}
 	return false
 }
 
-// demoServiceName is the Compose service that carries the demo stack's own
+// serviceName is the Compose service that carries the demo stack's own
 // credential. It must match the service key in
 // docker-compose.demo.runtime.yaml, which docker-compose.demo.yaml includes;
 // TestDemoServiceNameMatchesComposeOverlay fails if the two drift apart.
-const demoServiceName = "eshu"
+const serviceName = "eshu"
 
-// recoverDemoKey reads the API key back out of the running demo stack.
+// recoverKey reads the API key back out of the running demo stack.
 //
 // The key belongs to the stack, not to the process that started it, so this
 // keeps one credential per stack instead of inventing a second one that the
 // services would reject.
-func (r *demoRuntime) recoverDemoKey(ctx context.Context) (string, error) {
-	out, err := r.exec(ctx, nil, "docker", r.composeArgs("exec", "-T", demoServiceName, "printenv", "ESHU_API_KEY")...)
+func (r *Runtime) recoverKey(ctx context.Context) (string, error) {
+	out, err := r.exec(ctx, nil, "docker", r.composeArgs("exec", "-T", serviceName, "printenv", "ESHU_API_KEY")...)
 	if err != nil {
 		return "", fmt.Errorf("recover demo key from project %q: %w", r.project, err)
 	}
@@ -141,5 +141,5 @@ func (r *demoRuntime) recoverDemoKey(ctx context.Context) (string, error) {
 }
 
 // sortStrings sorts in place. A tiny helper so the truth-label renderer does
-// not pull sort into demo.go's import set for one call.
+// not pull sort into render.go's import set for one call.
 func sortStrings(s []string) { sort.Strings(s) }

@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -86,42 +85,4 @@ func runFirstRunBenchmark(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("first-answer benchmark FAILED: %s", strings.Join(verdict.FailureReasons(), "; "))
 	}
 	return nil
-}
-
-// firstRunEnvelopeError is the error object inside the JSON envelope, now
-// canonically firstrun.EnvelopeError. The alias keeps the demo family's
-// envelope (demo.go, demo_benchmark_test.go) decoding the same shape until its
-// own extraction imports firstrun directly.
-type firstRunEnvelopeError = firstrun.EnvelopeError
-
-// The demo-benchmark family scores its own envelope with the shared criterion
-// vocabulary that moved to internal/cli/firstrunbench. These aliases are the
-// demo family's seam onto that package so its files stay unchanged until its
-// own extraction imports firstrunbench directly.
-type (
-	benchmarkCriterionName = firstrunbench.CriterionName
-	benchmarkCriterion     = firstrunbench.Criterion
-)
-
-const (
-	benchmarkCriterionPass        = firstrunbench.CriterionPass
-	benchmarkCriterionFail        = firstrunbench.CriterionFail
-	benchmarkCriterionNotMeasured = firstrunbench.CriterionNotMeasured
-	criterionFirstAnswer          = firstrunbench.CriterionFirstAnswer
-	criterionTruthMetadata        = firstrunbench.CriterionTruthMetadata
-	criterionRepoIndexed          = firstrunbench.CriterionRepoIndexed
-	criterionTimeToAnswer         = firstrunbench.CriterionTimeToAnswer
-)
-
-// readBenchmarkEnvelope reads the envelope bytes from a file path or, when the
-// path is empty, from the provided reader (stdin). Kept for the demo-benchmark
-// family; the first-run benchmark calls firstrunbench.ReadEnvelope directly.
-func readBenchmarkEnvelope(stdin io.Reader, path string) ([]byte, error) {
-	return firstrunbench.ReadEnvelope(stdin, path)
-}
-
-// benchmarkMarker maps a criterion status to a stable ASCII marker. Kept for
-// the demo-benchmark scorecard renderer.
-func benchmarkMarker(status firstrunbench.CriterionStatus) string {
-	return firstrunbench.Marker(status)
 }

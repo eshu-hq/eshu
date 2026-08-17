@@ -4,14 +4,12 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
-	"time"
+	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/demo"
 )
 
 func init() {
@@ -36,7 +34,7 @@ credentials are involved at any point.
   eshu demo status        report whether the demo stack is up and indexed
   eshu demo down          remove the stack, its volumes, and its networks
 
-The stack runs under its own Compose project (default "` + defaultDemoProject + `"),
+The stack runs under its own Compose project (default "` + demo.DefaultProject + `"),
 so it never adopts or tears down a stack you started for real work.`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
@@ -51,7 +49,7 @@ so it never adopts or tears down a stack you started for real work.`,
 
 // demoProjectFlag registers the shared --project override.
 func demoProjectFlag(cmd *cobra.Command) {
-	cmd.Flags().String("project", defaultDemoProject,
+	cmd.Flags().String("project", demo.DefaultProject,
 		"Compose project name for the demo stack (use a distinct name to run more than one)")
 	cmd.Flags().Bool("json", false, "Emit the {data, truth, error} envelope as JSON")
 }
@@ -95,26 +93,41 @@ func newDemoStatusCommand() *cobra.Command {
 	return cmd
 }
 
-// demoEnvelope is the canonical `{data, truth, error}` envelope, matching the
-// first-run contract so the TTFA harness reads one shape across both commands.
-type demoEnvelope struct {
-	Data  demoResult             `json:"data"`
-	Truth map[string]any         `json:"truth"`
-	Error *firstRunEnvelopeError `json:"error"`
+// resolveDemoOptions resolves the process state the demo runtime needs -- the
+// working directory, ESHU_DEMO_COMPOSE_FILE, and the ESHU_DEMO_* port and
+// bind-address overrides -- into the plain values internal/cli/demo consumes.
+// The overlay is located relative to the working directory, so an installed
+// binary works outside the repo root.
+//
+// It is split out from newResolvedDemoRuntime so a test can read the resolved
+// values back. internal/cli/demo takes its environment lookup as a parameter,
+// so no test in that package can prove this function passes os.Getenv rather
+// than a lookup that always returns "" -- and Runtime keeps the resolved bases
+// unexported, so asserting on demo.Options is the only seam that catches it.
+func resolveDemoOptions(project string) (demo.Options, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return demo.Options{}, err
+	}
+	file, err := demo.ResolveComposeFile(cwd, os.Getenv)
+	if err != nil {
+		return demo.Options{}, err
+	}
+	return demo.Options{
+		Project:     project,
+		ComposeFile: file,
+		APIBase:     demo.APIBase(os.Getenv),
+		MCPBase:     demo.MCPBase(os.Getenv),
+	}, nil
 }
 
-// demoEnvelopeFor renders a result (or a failure) into the shared envelope.
-// The answer's truth labels are lifted to the envelope's Truth field so a
-// consumer never has to reach into Data to judge provenance.
-func demoEnvelopeFor(res demoResult, err error) demoEnvelope {
-	env := demoEnvelope{Data: res, Truth: res.FirstAnswer.Truth}
-	if env.Truth == nil {
-		env.Truth = map[string]any{}
-	}
+// newResolvedDemoRuntime builds the runtime from the resolved process state.
+func newResolvedDemoRuntime(project string) (*demo.Runtime, error) {
+	opts, err := resolveDemoOptions(project)
 	if err != nil {
-		env.Error = &firstRunEnvelopeError{Message: err.Error()}
+		return nil, err
 	}
-	return env
+	return demo.NewRuntime(opts), nil
 }
 
 func runDemoUp(cmd *cobra.Command, _ []string) error {
@@ -125,9 +138,9 @@ func runDemoUp(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	res, err := rt.up(cmd.Context())
+	res, err := rt.Up(cmd.Context())
 	if jsonOut {
-		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(res, err)); encErr != nil {
+		if encErr := demo.WriteJSON(cmd.OutOrStdout(), demo.EnvelopeFor(res, err)); encErr != nil {
 			return encErr
 		}
 		return err
@@ -135,7 +148,7 @@ func runDemoUp(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	printDemoSuccess(cmd.OutOrStdout(), res)
+	demo.PrintSuccess(cmd.OutOrStdout(), res)
 	return nil
 }
 
@@ -147,9 +160,9 @@ func runDemoDown(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	err = rt.down(cmd.Context())
+	err = rt.Down(cmd.Context())
 	if jsonOut {
-		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(demoResult{Project: project}, err)); encErr != nil {
+		if encErr := demo.WriteJSON(cmd.OutOrStdout(), demo.EnvelopeFor(demo.Result{Project: project}, err)); encErr != nil {
 			return encErr
 		}
 		return err
@@ -169,9 +182,9 @@ func runDemoStatus(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	res, err := rt.status(cmd.Context())
+	res, err := rt.Status(cmd.Context())
 	if jsonOut {
-		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(res, err)); encErr != nil {
+		if encErr := demo.WriteJSON(cmd.OutOrStdout(), demo.EnvelopeFor(res, err)); encErr != nil {
 			return encErr
 		}
 		return err
@@ -185,88 +198,4 @@ func runDemoStatus(cmd *cobra.Command, _ []string) error {
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Demo stack %q: %s\n", project, state)
 	return nil
-}
-
-// writeDemoJSON emits the envelope with a trailing newline so shell pipelines
-// and `jq` behave.
-func writeDemoJSON(w io.Writer, env demoEnvelope) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(env)
-}
-
-// printDemoSuccess renders the human path: what was proven, then what to ask
-// next. The guided questions are the point of the command.
-func printDemoSuccess(w io.Writer, res demoResult) {
-	_, _ = fmt.Fprintf(w, "Demo stack %q is up and indexed in %s.\n\n", res.Project,
-		(time.Duration(res.TotalMillis) * time.Millisecond).Round(time.Second))
-	_, _ = fmt.Fprintf(w, "First answer\n  Q: %s\n  A: %s\n", res.FirstAnswer.Question, res.FirstAnswer.Answer)
-	if len(res.FirstAnswer.Truth) > 0 {
-		_, _ = fmt.Fprintf(w, "  Truth: %s\n", formatDemoTruth(res.FirstAnswer.Truth))
-	}
-	printDemoGuidedPath(w)
-	_, _ = fmt.Fprintf(w, "\nWhen you are done: eshu demo down --project %s\n", res.Project)
-}
-
-// printDemoGuidedPath prints the remaining manifest questions with the command
-// that actually answers each one.
-//
-// Generated from the manifest, never hand-written: the questions and their
-// callable surfaces are declared there, and a list maintained beside it drifts
-// into naming services the corpus does not contain.
-func printDemoGuidedPath(w io.Writer) {
-	m, err := loadDemoManifest(demoManifestPath)
-	if err != nil || len(m.Questions) < 2 {
-		// Saying nothing reads as "there is nothing more to ask", so the
-		// operator never learns the section was dropped. Name the manifest:
-		// it is the one fact that makes this actionable.
-		_, _ = fmt.Fprintf(w, "\nGuided questions unavailable: could not read %s\n", demoManifestPath)
-		return
-	}
-	_, _ = fmt.Fprintf(w, "\nAsk these next:\n")
-	n := 2
-	for _, q := range m.Questions[1:] {
-		runnable := q.RunnableForm()
-		if runnable == "" {
-			continue
-		}
-		_, _ = fmt.Fprintf(w, "  %d. %s\n     %s\n", n, collapseDemoWhitespace(q.Question), runnable)
-		n++
-	}
-}
-
-// collapseDemoWhitespace flattens a manifest question's folded YAML text onto
-// one line.
-func collapseDemoWhitespace(s string) string {
-	return strings.Join(strings.Fields(s), " ")
-}
-
-// formatDemoTruth renders truth labels deterministically so two runs of the
-// same stack print the same line.
-func formatDemoTruth(truth map[string]any) string {
-	keys := make([]string, 0, len(truth))
-	for k := range truth {
-		keys = append(keys, k)
-	}
-	sortStrings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, truth[k]))
-	}
-	return strings.Join(parts, " ")
-}
-
-// askDemoQuestion executes the manifest's first question against the running
-// demo stack.
-//
-// It resolves the surface the manifest declares rather than calling a general
-// query route, because no such route exists. An earlier draft invented
-// GET /api/v0/query; the manifest is the acceptance oracle precisely so
-// sibling issues do not do that.
-func askDemoQuestion(ctx context.Context, apiBase, apiKey string) (demoAnswer, error) {
-	m, err := loadDemoManifest(demoManifestPath)
-	if err != nil {
-		return demoAnswer{}, err
-	}
-	return executeDemoQuestion(ctx, apiBase, demoMCPBase(), apiKey, m.Questions[0])
 }

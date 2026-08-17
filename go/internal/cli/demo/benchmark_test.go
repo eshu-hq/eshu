@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package demo
 
 import (
-	"bytes"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
 // goodDemoEnvelope is a complete, passing run. Tests degrade one field at a
 // time from here so each assertion names exactly one cause.
-func goodDemoEnvelope() demoEnvelope {
-	return demoEnvelope{
-		Data: demoResult{
+func goodDemoEnvelope() Envelope {
+	return Envelope{
+		Data: Result{
 			Project: "eshu-demo",
 			Ready:   true,
-			FirstAnswer: demoAnswer{
+			FirstAnswer: Answer{
 				Question: "Which workload does the api-svc repository run in?",
 				Answer:   "Workload api-svc (kind: service) is defined in repository api-svc.",
 				Truth:    map[string]any{"level": "derived", "basis": "hybrid", "freshness": "fresh"},
@@ -34,24 +33,42 @@ func goodDemoEnvelope() demoEnvelope {
 	}
 }
 
-func warmMeasurements() demoBenchmarkMeasurements {
-	return demoBenchmarkMeasurements{
-		Mode:           demoModeWarm,
+func warmMeasurements() BenchmarkMeasurements {
+	return BenchmarkMeasurements{
+		Mode:           ModeWarm,
 		Target:         6 * time.Minute,
-		ImagesObserved: demoImagesPresent,
+		ImagesObserved: ImagesPresent,
+	}
+}
+
+// An empty --mode must render a mode-shaped placeholder. The helper was
+// copied from cmd/eshu's first_run.go, where it fills a REPO argument slot,
+// and the copy kept that placeholder; in this package the mode line is the
+// only caller, so `mode : <repo>` was a repository placeholder in a field
+// that holds cold/warm (#6152 review).
+func TestRenderBenchmarkVerdict_EmptyModeRendersUnsetPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	var out strings.Builder
+	RenderBenchmarkVerdict(&out, BenchmarkVerdict{Mode: ""})
+	if !strings.Contains(out.String(), "mode : <unset>\n") {
+		t.Fatalf("output = %q, want the empty mode rendered as <unset>", out.String())
+	}
+	if strings.Contains(out.String(), "<repo>") {
+		t.Fatalf("output = %q, must not use the repo placeholder for a mode", out.String())
 	}
 }
 
 func TestEvaluateDemoBenchmark_PassesACompleteWarmRun(t *testing.T) {
 	t.Parallel()
-	v := evaluateDemoBenchmark(goodDemoEnvelope(), warmMeasurements())
+	v := EvaluateBenchmark(goodDemoEnvelope(), warmMeasurements())
 	if !v.Pass {
-		t.Fatalf("Pass = false, want true; reasons: %v", v.failureReasons())
+		t.Fatalf("Pass = false, want true; reasons: %v", v.FailureReasons())
 	}
-	if v.Mode != demoModeWarm {
-		t.Errorf("Mode = %q, want %q", v.Mode, demoModeWarm)
+	if v.Mode != ModeWarm {
+		t.Errorf("Mode = %q, want %q", v.Mode, ModeWarm)
 	}
-	if got := v.criterion(criterionTimeToAnswer); got.Status != benchmarkCriterionPass {
+	if got := v.Criterion(firstrunbench.CriterionTimeToAnswer); got.Status != firstrunbench.CriterionPass {
 		t.Errorf("time_to_first_answer = %q (%s), want pass", got.Status, got.Detail)
 	}
 }
@@ -61,17 +78,17 @@ func TestEvaluateDemoBenchmark_PassesACompleteWarmRun(t *testing.T) {
 // total whose composition cannot be checked.
 func TestEvaluateDemoBenchmark_FailsOnMissingPhaseTiming(t *testing.T) {
 	t.Parallel()
-	for _, phase := range demoRequiredPhases {
+	for _, phase := range requiredPhases {
 		t.Run(phase, func(t *testing.T) {
 			t.Parallel()
 			env := goodDemoEnvelope()
 			delete(env.Data.PhaseMillis, phase)
-			v := evaluateDemoBenchmark(env, warmMeasurements())
+			v := EvaluateBenchmark(env, warmMeasurements())
 			if v.Pass {
 				t.Fatalf("Pass = true with %q missing, want false", phase)
 			}
-			c := v.criterion(criterionDemoPhaseTimings)
-			if c.Status != benchmarkCriterionFail {
+			c := v.Criterion(CriterionPhaseTimings)
+			if c.Status != firstrunbench.CriterionFail {
 				t.Errorf("phase_timings_complete = %q, want fail", c.Status)
 			}
 			if !strings.Contains(c.Detail, phase) {
@@ -89,11 +106,11 @@ func TestEvaluateDemoBenchmark_FailsWhenOverTarget(t *testing.T) {
 	m := warmMeasurements()
 	m.Target = time.Duration(env.Data.TotalMillis-1) * time.Millisecond
 
-	v := evaluateDemoBenchmark(env, m)
+	v := EvaluateBenchmark(env, m)
 	if v.Pass {
 		t.Fatal("Pass = true for a run over target, want false")
 	}
-	if c := v.criterion(criterionTimeToAnswer); c.Status != benchmarkCriterionFail {
+	if c := v.Criterion(firstrunbench.CriterionTimeToAnswer); c.Status != firstrunbench.CriterionFail {
 		t.Errorf("time_to_first_answer = %q (%s), want fail", c.Status, c.Detail)
 	}
 }
@@ -107,40 +124,40 @@ func TestEvaluateDemoBenchmark_RejectsAMislabelledMode(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		mode     string
-		observed demoImageState
+		observed ImageState
 		wantPass bool
 	}{
-		{"warm declared, images present", demoModeWarm, demoImagesPresent, true},
-		{"cold declared, images absent", demoModeCold, demoImagesAbsent, true},
-		{"cold declared but images present", demoModeCold, demoImagesPresent, false},
-		{"warm declared but images absent", demoModeWarm, demoImagesAbsent, false},
+		{"warm declared, images present", ModeWarm, ImagesPresent, true},
+		{"cold declared, images absent", ModeCold, ImagesAbsent, true},
+		{"cold declared but images present", ModeCold, ImagesPresent, false},
+		{"warm declared but images absent", ModeWarm, ImagesAbsent, false},
 		// The not-probed fallback is the only evaluateDemoModeCriterion branch
 		// the four permutations above miss. It must pass without claiming a
 		// check happened, so it records not_measured and stops being required.
-		{"cache not probed, cold", demoModeCold, demoImagesUnknown, true},
-		{"cache not probed, warm", demoModeWarm, demoImagesUnknown, true},
+		{"cache not probed, cold", ModeCold, ImagesUnknown, true},
+		{"cache not probed, warm", ModeWarm, ImagesUnknown, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			m := warmMeasurements()
 			m.Mode, m.ImagesObserved = tc.mode, tc.observed
-			v := evaluateDemoBenchmark(goodDemoEnvelope(), m)
+			v := EvaluateBenchmark(goodDemoEnvelope(), m)
 			if v.Pass != tc.wantPass {
 				t.Errorf("Pass = %v, want %v (%s)", v.Pass, tc.wantPass,
-					v.criterion(criterionDemoModeObserved).Detail)
+					v.Criterion(CriterionModeObserved).Detail)
 			}
-			c := v.criterion(criterionDemoModeObserved)
-			if tc.observed == demoImagesUnknown {
+			c := v.Criterion(CriterionModeObserved)
+			if tc.observed == ImagesUnknown {
 				// Not probed must read as not-measured and drop its required
 				// flag, so the row never implies a check that did not run.
-				if c.Status != benchmarkCriterionNotMeasured || c.Required {
+				if c.Status != firstrunbench.CriterionNotMeasured || c.Required {
 					t.Errorf("unprobed cache scored %q required=%v, want not_measured and not required",
 						c.Status, c.Required)
 				}
 				if !strings.Contains(c.Detail, "not probed") {
 					t.Errorf("detail = %q, want it to say the cache was not probed", c.Detail)
 				}
-			} else if c.Status == benchmarkCriterionNotMeasured {
+			} else if c.Status == firstrunbench.CriterionNotMeasured {
 				t.Errorf("probed cache scored not_measured; the cross-check was skipped")
 			}
 		})
@@ -154,28 +171,28 @@ func TestEvaluateDemoBenchmark_RejectsAHealthOnlyRun(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name    string
-		mutate  func(*demoEnvelope)
-		wantRow benchmarkCriterionName
+		mutate  func(*Envelope)
+		wantRow firstrunbench.CriterionName
 	}{
-		{"no answer text", func(e *demoEnvelope) { e.Data.FirstAnswer.Answer = "" }, criterionFirstAnswer},
-		{"not ready", func(e *demoEnvelope) { e.Data.Ready = false }, criterionRepoIndexed},
-		{"no truth labels", func(e *demoEnvelope) {
+		{"no answer text", func(e *Envelope) { e.Data.FirstAnswer.Answer = "" }, firstrunbench.CriterionFirstAnswer},
+		{"not ready", func(e *Envelope) { e.Data.Ready = false }, firstrunbench.CriterionRepoIndexed},
+		{"no truth labels", func(e *Envelope) {
 			e.Truth = map[string]any{}
 			e.Data.FirstAnswer.Truth = map[string]any{}
-		}, criterionTruthMetadata},
-		{"envelope error", func(e *demoEnvelope) {
-			e.Error = &firstRunEnvelopeError{Message: "compose failed"}
-		}, criterionFirstAnswer},
+		}, firstrunbench.CriterionTruthMetadata},
+		{"envelope error", func(e *Envelope) {
+			e.Error = &firstrun.EnvelopeError{Message: "compose failed"}
+		}, firstrunbench.CriterionFirstAnswer},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := goodDemoEnvelope()
 			tc.mutate(&env)
-			v := evaluateDemoBenchmark(env, warmMeasurements())
+			v := EvaluateBenchmark(env, warmMeasurements())
 			if v.Pass {
 				t.Fatalf("Pass = true for %q, want false", tc.name)
 			}
-			if c := v.criterion(tc.wantRow); c.Status != benchmarkCriterionFail {
+			if c := v.Criterion(tc.wantRow); c.Status != firstrunbench.CriterionFail {
 				t.Errorf("%s = %q, want fail", tc.wantRow, c.Status)
 			}
 		})
@@ -190,58 +207,15 @@ func TestEvaluateDemoBenchmark_ReportsColdAndWarmSeparately(t *testing.T) {
 	env := goodDemoEnvelope()
 
 	warm := warmMeasurements()
-	cold := demoBenchmarkMeasurements{
-		Mode: demoModeCold, Target: 9 * time.Minute, ImagesObserved: demoImagesAbsent,
+	cold := BenchmarkMeasurements{
+		Mode: ModeCold, Target: 9 * time.Minute, ImagesObserved: ImagesAbsent,
 	}
-	if got := evaluateDemoBenchmark(env, warm); got.Mode != demoModeWarm || got.TargetMillis != warm.Target.Milliseconds() {
+	if got := EvaluateBenchmark(env, warm); got.Mode != ModeWarm || got.TargetMillis != warm.Target.Milliseconds() {
 		t.Errorf("warm verdict = mode %q target %d, want %q / %d",
-			got.Mode, got.TargetMillis, demoModeWarm, warm.Target.Milliseconds())
+			got.Mode, got.TargetMillis, ModeWarm, warm.Target.Milliseconds())
 	}
-	if got := evaluateDemoBenchmark(env, cold); got.Mode != demoModeCold || got.TargetMillis != cold.Target.Milliseconds() {
+	if got := EvaluateBenchmark(env, cold); got.Mode != ModeCold || got.TargetMillis != cold.Target.Milliseconds() {
 		t.Errorf("cold verdict = mode %q target %d, want %q / %d",
-			got.Mode, got.TargetMillis, demoModeCold, cold.Target.Milliseconds())
-	}
-}
-
-// TestDemoBenchmarkCommand_ExitsNonZeroOnFailure proves the verdict reaches the
-// process boundary. A scorer that prints FAILED but exits 0 lets a measurement
-// script record a missed target as a pass, which is the failure mode the whole
-// lane exists to prevent.
-func TestDemoBenchmarkCommand_ExitsNonZeroOnFailure(t *testing.T) {
-	env := goodDemoEnvelope()
-	raw, err := json.Marshal(env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "demo.json")
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, tc := range []struct {
-		name    string
-		args    []string
-		wantErr bool
-	}{
-		{"within target", []string{"--mode", "warm", "--images", "present", "--target", "10m"}, false},
-		{"over target", []string{"--mode", "warm", "--images", "present", "--target", "1s"}, true},
-		{"mislabelled cold", []string{"--mode", "cold", "--images", "present", "--target", "10m"}, true},
-		{"bad images value", []string{"--mode", "warm", "--images", "sometimes"}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cmd := newDemoBenchmarkCommand()
-			var out bytes.Buffer
-			cmd.SetOut(&out)
-			cmd.SetErr(&out)
-			cmd.SetArgs(append([]string{"--envelope", path}, tc.args...))
-
-			runErr := cmd.Execute()
-			if tc.wantErr && runErr == nil {
-				t.Fatalf("Execute() = nil, want an error; output:\n%s", out.String())
-			}
-			if !tc.wantErr && runErr != nil {
-				t.Fatalf("Execute() = %v, want nil; output:\n%s", runErr, out.String())
-			}
-		})
+			got.Mode, got.TargetMillis, ModeCold, cold.Target.Milliseconds())
 	}
 }
