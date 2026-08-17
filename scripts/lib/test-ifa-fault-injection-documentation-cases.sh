@@ -126,8 +126,8 @@ run_ifa_documentation_live_static_cases() {
 	fi
 	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[\s\S]*ifa_documentation_wait_for_blocked_ack[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_assert[\s\S]*ifa_det_stop_join_untrack_bg_pid[\s\S]*ifa_documentation_terminate_blocked_ack[\s\S]*ifa_documentation_wait_for_ack_backend_gone[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_release_ack_barrier[\s\S]*reducer-killworkerdocumentation-after' "${documentation_cells_lib}" \
 		|| fail "documentation kill cell does not prove graph+claim+blocked ACK before KILL and clean exact backends before replacement"
-	require "claimed-row proof inventory includes every lease-reclaim cell" "cells 2/3/6/7/8/9"
-	require "once-fired proof inventory includes every graph-write cell" "cells 4/12/13/14/15"
+	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17"
+	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
 	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other seventeen cells remain bound"

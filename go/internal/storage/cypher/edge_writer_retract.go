@@ -106,11 +106,6 @@ func (w *EdgeWriter) RetractEdges(
 		stmts := BuildRetractInheritanceEdgeStatements(repoIDs, evidenceSource)
 		return w.executeInheritanceRetractStatements(ctx, stmts)
 	}
-	if domain == reducer.DomainRationaleEdges {
-		return WrapRetryableNeo4jError(
-			w.executor.Execute(ctx, BuildRetractRationaleEdges(repoIDs, evidenceSource)),
-		)
-	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
