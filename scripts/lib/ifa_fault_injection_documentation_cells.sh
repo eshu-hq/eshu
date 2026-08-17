@@ -116,10 +116,14 @@
 #
 # The GREEN run at 1f85dad68 is the harmless-removal proof: FI_EXIT=0 --
 # carrying, on its own, the fact that every dispatched cell completed -- and
-# fail-graph-write-once-then-succeed-documentation stayed green (69s, digest
-# 63558e35...) at the same digest value the family's other unscoped cells
-# produce, so removing the racy reclaim cell did not perturb what the
-# surviving cell proves. The #6149 deployable-unit trio (baseline,
+# fail-graph-write-once-then-succeed-documentation stayed green
+# (live_fi_1f85dad68.log:3371):
+#
+#   failgraphwritedocumentation: digest=63558e351f32ae028abd31f18258d64d851af12d6c85b65286982d1e214f5cd0 wall=69s
+#
+# at the same digest value the family's other unscoped cells produce, so
+# removing the racy reclaim cell did not perturb what the surviving cell
+# proves. The #6149 deployable-unit trio (baseline,
 # kill-worker, fail-graph-write) also stayed green in that same run,
 # confirming this branch did not regress the family merged the day before.
 #
