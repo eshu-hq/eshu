@@ -276,8 +276,12 @@ require "rationale durable-count helper invocation in every cell" "ifa_rationale
 require_rationale_lib "rationale cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_rationale_lib "rationale assert-edges domain" "-domain rationale_edges"
 require_rationale_lib "rationale expected-set argument" '-expected "${expected_edges}"'
-require_rationale_lib "exact durable tuple" '1|1|0|4|3|1|4|0'
-require_rationale_lib "exact delta-generation durable tuple" '1|1|0|1|0|1|1|0'
+# Pinned to the ASSIGNMENT, not the bare tuple. The header comment a hundred
+# lines below quotes both tuples verbatim, so a bare-value needle stayed
+# green with the real oracles set to garbage -- the durable-lifecycle oracle
+# for this family could be replaced wholesale and no gate would notice.
+require_rationale_lib "exact durable tuple" 'ifa_rationale_expected_tuple="1|1|0|4|3|1|4|0"'
+require_rationale_lib "exact delta-generation durable tuple" 'ifa_rationale_delta_expected_tuple="1|1|0|1|0|1|1|0"'
 require_rationale_lib "accepted generation exact count" "shared_projection_acceptance"
 require_delta_lib "rationale delta is driven before the shared drain" 'ifa_rationale_drive "delta-n${n}"'
 sql_delta_drive_line="$(rg -n --fixed-strings -- 'eshu-ifa" drive -cassette "${sql_delta_cassette}"' "${delta_lib}" | cut -d: -f1 || true)"
@@ -431,7 +435,13 @@ require "digest storage per N" "digests[\${n}]="
 require "digest mismatch detection" "MISMATCH:"
 require "full-bytes diff on divergence" "diff -u"
 require "failure-artifact framing" "failure artifact"
-require "hard failure on divergence" "graph-determinism matrix FAILED"
+# Pinned to the DIE plus the divergence-specific text, not the bare phrase.
+# "graph-determinism matrix FAILED" alone matches three places -- a comment,
+# the --teeth branch, and the real assertion -- so any two of them satisfied
+# it and downgrading the real `die` to `log`, message unchanged, kept the
+# mirror green. That is precisely the "do NOT normalize this away" drift the
+# asserted line itself warns against.
+require "hard failure on divergence" '|| die "graph-determinism matrix FAILED: digests diverged across worker counts'
 require "no-normalize-away directive" "do NOT lower N, retry, or otherwise normalize this away"
 
 # Per-cell wall time is reported.
