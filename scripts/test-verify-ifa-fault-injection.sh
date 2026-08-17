@@ -128,10 +128,10 @@ require_driver "vacuous-drive guard" "vacuous drain proof"
 # edges before the recovery cells compare against it. Backs the
 # materialized_edges:sql_relationships manifest row's proof_gate:
 # ifa-fault-injection claim.
-require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-require "SQL cassette existence guard" 'SQL cassette not found'
-require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
+require_fixture "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+require_fixture "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+require_fixture "SQL cassette existence guard" 'SQL cassette not found'
+require_fixture "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
 require_driver "SQL cassette driven into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}"'
 require_driver "drive helper defined" "drive_all_cassettes() {"
 require_cells "assert-edges verb invocation on baseline" '"${bin_dir}/eshu-ifa" assert-edges'
@@ -260,7 +260,7 @@ require_delivery_cells "delta-retract collateral success names every exact famil
 require "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
 require "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
 require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
-require "gate defines the delta expected-edge set" "sql_delta_expected_edges="
+require_fixture "gate defines the delta expected-edge set" "sql_delta_expected_edges="
 if rg --fixed-strings --quiet -- "ifa_fault_compare_non_sql_edges" "${delivery_cells_lib}"; then
 	fail "delta-retract must not compare whole non-SQL graph-dump endpoint hashes: SQL generation updates legitimately replace SQL-owned CONTAINS/REPO_CONTAINS hashes; assert unaffected covered families exactly instead"
 fi
@@ -343,10 +343,10 @@ require_lib "wait_for_claimed generalized with a domain arg" 'domain="${6:-}"'
 # code_calls (#5991): every cell drives the family, baseline exact-asserts it,
 # and two dedicated cells prove queue reclaim and graph-write retry against the
 # code-call domains rather than an unrelated row that happened to run first.
-require "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
-require "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-require "code-call cassette existence guard" "code-call cassette not found"
-require "code-call expected-edge set existence guard" "code-call expected-edge set not found"
+require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
+require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+require_fixture "code-call cassette existence guard" "code-call cassette not found"
+require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
 require "code-call MERGE operation_match anchor" 'code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"'
 require_driver "code-call drive in every cell" "ifa_code_call_drive"
 require_cells "code-call exact assertion in baseline" "ifa_code_call_assert"

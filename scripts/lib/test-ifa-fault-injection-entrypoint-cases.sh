@@ -5,7 +5,7 @@
 
 run_ifa_fault_entrypoint_static_cases() {
 	# Strict mode, self-cleanup, and the masking-safe bash>=4.4 guard.
-	require "strict mode" "set -euo pipefail"
+	require_line "strict mode" "set -euo pipefail"
 	require "exit trap" "trap cleanup EXIT"
 	require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 	require "sources determinism lib" "scripts/lib/ifa_determinism_common.sh"
