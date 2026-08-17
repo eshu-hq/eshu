@@ -151,13 +151,19 @@ func equalStrings(a, b []string) bool {
 
 // parityMap / paritySlice / parityString / parityInt are test-local envelope
 // readers for the fixture JSON these parity tests project on both sides of
-// each comparison. They mirror the semantics of the reader family the command
-// packages carry (internal/cli/{change,freshness,component,trace}), but they
-// are deliberately local: the cmd/eshu originals lost their last production
-// callers to the component (#6139) and trace (#6059) extractions, and a test
-// helper is not a reason to keep dead production code alive. Because every
-// comparison runs the same projection over both envelopes, a quirk here
-// cannot bias the parity verdict.
+// each comparison. They are deliberately local: the cmd/eshu originals lost
+// their last production callers to the component (#6139) and trace (#6059)
+// extractions, and a test helper is not a reason to keep dead production code
+// alive.
+//
+// Three of the four carry the same body as the reader family the command
+// packages keep (internal/cli/{change,freshness,component,trace}). paritySlice
+// does not: it reads []any and stops, where the production sliceValue also
+// accepts []map[string]any. Every envelope reaching these readers is decoded
+// from the httptest server this file serves the canonical handler on, and
+// encoding/json turns every JSON array into []any, so the arm it leaves out
+// is unreachable here. Add it back the first time a case in this file hands
+// them an envelope built in Go.
 func parityMap(parent map[string]any, key string) map[string]any {
 	if parent == nil {
 		return nil

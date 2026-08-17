@@ -53,7 +53,14 @@ here; `*eshu.APIClient` satisfies it without knowing this package exists.
 Standard library only: `encoding/json` (via the caller), `fmt`, `io`,
 `net/url`, `strings`. No cobra, and no other internal package.
 
-The no-cobra rule is machine-checkable:
+A test enforces that rule rather than a note asking you to keep it.
+`TestPackageImportsStayStandardLibraryOnly` in
+[`doc_lockstep_test.go`](doc_lockstep_test.go) parses every non-test file here
+and fails on any import whose first path segment contains a dot — which covers
+cobra, every other module, and every other internal package. Reaching for one
+more standard-library import needs no change to it.
+
+To check the same thing by hand:
 
 ```bash
 cd go && go list -deps ./internal/cli/trace | rg spf13

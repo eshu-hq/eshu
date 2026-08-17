@@ -13,7 +13,10 @@ the package [`README.md`](README.md) still apply.
 ## Invariants
 
 1. **Nothing here imports cobra, reads the process environment, or decides a
-   process exit code.** Those belong to `go/cmd/eshu`. Check with
+   process exit code.** Those belong to `go/cmd/eshu`.
+   `TestPackageImportsStayStandardLibraryOnly` in `doc_lockstep_test.go` is the
+   gate: it rejects any non-standard-library import, so this holds without
+   anyone remembering to check. By hand:
    `cd go && go list -deps ./internal/cli/trace | rg spf13` — empty is passing.
 
 2. **Renderer output is pinned byte for byte.** `RenderServiceSummary` and
