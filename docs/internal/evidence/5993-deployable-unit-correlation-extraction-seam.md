@@ -68,7 +68,19 @@ changed in this branch:
   has no `deployable_unit_edges` case, so the guard is not yet reachable from the
   `eshu-ifa`/`eshu-golden-corpus-gate` gate binaries -- that dispatch wiring
   lands with the coverage row in the follow-up, deliberately out of this
-  PR's scope. It calls the SAME production seams
+  PR's scope.
+
+  **RESOLVED 2026-08-17 (#5993 follow-up):** that follow-up landed. The paragraph
+  above is kept as history because the gap it describes is how the defect
+  survived: the guard's own tests called it directly, so nothing noticed
+  `Resolve`'s switch had no case for it. Three layers were unwired, not one --
+  `deployableUnitFamilyOdu()` was built but never added to `catalogSeed`, the
+  `deployable_unit_edges` case was absent from `Resolve`, and two waiver rows
+  kept the coverage gate from asking either question. All three are fixed, the
+  waivers are dropped, and `TestDeployableUnitFamilyResolvesThroughTheManifestResolver`
+  now pins the dispatch path so it cannot silently regress.
+
+  It calls the SAME production seams
   (`DiscoveredEvidence` → `relationships.Resolve` →
   `ExtractDeployableUnitCorrelationRows` → `AdmittedDeployableUnitRows`) the
   reducer handler calls, with a fixed injected clock
@@ -144,7 +156,9 @@ rather than "argued pure":
   and no worker/lease/batch code; today it runs only inside `go test`
   against one fixed ~17-fact Odù (`TestDeployableUnitFamilyOduPreservesEnvelopeFields`
   confirms 17 facts) -- not yet the Ifá gate binaries, per the dispatch-wiring
-  note above -- never in a request or write path.
+  note above -- never in a request or write path. **RESOLVED 2026-08-17:** the
+  dispatch wiring landed, so the guard now runs in the gate binaries too; see the
+  resolution note above. Still never in a request or write path.
 - **Fresh test evidence, re-run at this SHA:** `go test ./internal/reducer -run DeployableUnit -count=1`
   → `ok ... 0.951s`; `go test ./internal/ifa -run DeployableUnit -count=1` →
   `ok ... 0.652s`; `go test ./internal/ifa -run DeployableUnit -v -count=1`

@@ -52,7 +52,7 @@ func TestCodeCallLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"are proven; none of those three families carries a waiver.",
+				"are proven; none of those four families carries a waiver.",
 			},
 			prohibited: []string{
 				"confirmed-false fault row is waived",
@@ -83,7 +83,7 @@ func TestCodeCallLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, and rationale edges.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, and deployable-unit edges.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",
@@ -94,7 +94,7 @@ func TestCodeCallLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 11 not-yet-covered allProjectionDomains families",
+				"current 10 not-yet-covered allProjectionDomains families",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",
