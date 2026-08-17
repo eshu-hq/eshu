@@ -15,8 +15,10 @@
 # the entire class of bug — no shell field-splitting of generated data ever
 # happens.
 #
-# Three record shapes exist in the registry (validated against the live file
-# before this parser was written):
+# Four record shapes exist in the registry (validated against the live file
+# before this parser was written; shape 4 added when
+# prepr-stamp-verify-selftest exposed it as a real, non-synthetic case rather
+# than a hypothetical one):
 #
 #   1. A full local+CI gate: id, name, category, tier, blocking, a
 #      local.command, an optional local.test_command, a ci.workflow/ci.job
@@ -30,6 +32,14 @@
 #      commit-msg-stage variant of another gate's check, sharing its
 #      command). Rendered as its own row shape rather than guessing values
 #      that were never in the registry.
+#   4. A local-only gate with a real self-test but an intentionally empty
+#      local.command (1 in the live registry: prepr-stamp-verify-selftest,
+#      whose guard reads the stamp of the commit about to be pushed, so
+#      running it as this gate's own command inside `make pre-pr` would fail
+#      every time). Falling through to shape 2's ci_only_reason fallback would
+#      render a bare "—" here, silently hiding that `make pre-pr` genuinely
+#      runs the self-test — command_cell surfaces test_command explicitly
+#      instead.
 #
 # Fail-closed: a record whose id is empty, or a file with zero records, is a
 # parser or registry bug, not a silent empty table.
@@ -77,6 +87,8 @@ function render_row() {
 			if (test_command != "" && test_command != command) {
 				command_cell = command_cell "<br>then self-test: `" escape_pipe(test_command) "`"
 			}
+		} else if (test_command != "") {
+			command_cell = "— (no primary command; self-test only: `" escape_pipe(test_command) "`)"
 		} else if (ci_only_reason != "") {
 			command_cell = "— (CI-only: " escape_pipe(ci_only_reason) ")"
 		} else {

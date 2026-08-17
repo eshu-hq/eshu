@@ -181,6 +181,27 @@ else
 	record_fail "identical command/test_command pair rendered more than once: ${dedupe_row}"
 fi
 
+# Case 14: a gate with a real self-test but NO primary local.command and no
+# ci_only_reason (a permanently local-only gate whose enforcement mechanism
+# cannot be a `local.command` at all -- prepr-stamp-verify-selftest, whose
+# guard reads the stamp of the commit about to be pushed, so running it as
+# this gate's own command inside `make pre-pr` would fail every time) must
+# still surface the test_command in the command cell. Before this case, the
+# parser's three documented record shapes (full local+CI, CI-only via
+# ci_only_reason, alias) had no fourth branch for this shape, so it silently
+# fell through to a bare "—" and the table read as "this gate does nothing
+# locally" even though `make pre-pr` genuinely runs its self-test. Regression
+# for that gap (#6149 follow-up item 8 review, P1).
+selftest_only_registry="${tmp_root}/selftest-only-registry.yaml"
+printf 'version: v1\ngates:\n  - id: selftest-only\n    name: Selftest Only\n    category: hygiene\n    tier: pre-pr\n    blocking: false\n    local:\n      command: ""\n      test_command: "bash scripts/some-test.sh"\n    ci:\n      workflow: ""\n      job: ""\n' >"${selftest_only_registry}"
+selftest_only_row="$(awk -f "${parser}" "${selftest_only_registry}")"
+if printf '%s' "${selftest_only_row}" | rg -Fq 'self-test only: `bash scripts/some-test.sh`' \
+	&& ! printf '%s' "${selftest_only_row}" | rg -Fq '| false | — |'; then
+	record_pass "a self-test-only gate (no command, no ci_only_reason) surfaces its test_command"
+else
+	record_fail "a self-test-only gate rendered a bare em dash, hiding its real test_command: ${selftest_only_row}"
+fi
+
 if [[ "${FAIL}" -ne 0 ]]; then
 	printf 'test-generate-ci-gates-doc FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
 	exit 1

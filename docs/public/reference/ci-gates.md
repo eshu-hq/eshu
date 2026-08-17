@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 103 gates. Local execution runs the primary
+The registry currently defines 104 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -119,6 +119,7 @@ Advisory rows remain visible but do not block merge.
 | `replay-tier` | Replay tier (offline cassette replay) | exactness | ci-heavy | true | `bash scripts/verify-replay-tier.sh`<br>then self-test: `bash scripts/test-verify-replay-tier.sh` | verify-replay-tier.yml / Offline replay tier vs real NornicDB | 16 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/replay/**, … |
 | `go-test-race` | Go tests with race detector | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/... ./internal/replay/costcounting/...` | test.yml / go-race-complete | 6 path(s): go/internal/replay/inputtape/**, go/internal/replay/schedulereplay/**, go/internal/replay/crashreplay/**, … |
 | `ci-gate-registry` | CI gate registry + drift | hygiene | pre-pr | true | `bash scripts/verify-ci-gates-registry.sh --drift`<br>then self-test: `bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && (cd go && go test ./internal/cigates -count=1)` | verify-ci-gate-registry.yml / Verify ci-gate registry + drift | 22 path(s): specs/ci-gates.v1.yaml, go/internal/cigates/**, go/cmd/ci-gates/**, … |
+| `prepr-stamp-verify-selftest` | pre-pr stamp verify guard self-test | hygiene | pre-pr | false | — (no primary command; self-test only: `bash scripts/dev/test-prepr-stamp-verify.sh`) | — | 3 path(s): scripts/dev/prepr-stamp-verify.sh, scripts/dev/test-prepr-stamp-verify.sh, specs/ci-gates.v1.yaml |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |
 | `frontend-format-staged` | *(alias — staged-file variant of frontend-format-changed (same prettier check, pre-commit stage))* | — | — | — | — | — | — |
 | `frontend-format-verifier-tests` | *(alias — self-test of the frontend-format verifier + hook wiring)* | — | — | — | — | — | — |
