@@ -325,29 +325,38 @@ func TestEveryDockerInvocationGoesThroughTheSeam(t *testing.T) {
 
 	fset, files := packageSourceFiles(t)
 	for _, file := range files {
+		// Locate the seam's body by position and then walk the WHOLE file,
+		// rather than walking function declarations and skipping the seam by
+		// name. Iterating declarations would leave a package-level
+		// `var _ = exec.Command(...)` unexamined, and a totality claim with a
+		// shape it never looks at is the decay this file exists to stop.
+		var seamStart, seamEnd token.Pos
 		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Name.Name == seamImpl {
-				continue
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == seamImpl && fn.Recv == nil {
+				seamStart, seamEnd = fn.Pos(), fn.End()
 			}
-			ast.Inspect(fn, func(n ast.Node) bool {
-				call, isCall := n.(*ast.CallExpr)
-				if !isCall {
-					return true
-				}
-				sel, isSel := call.Fun.(*ast.SelectorExpr)
-				if !isSel {
-					return true
-				}
-				pkg, isIdent := sel.X.(*ast.Ident)
-				if !isIdent || pkg.Name != "exec" || !strings.HasPrefix(sel.Sel.Name, "Command") {
-					return true
-				}
-				t.Errorf("%s: %s calls exec.%s directly; every subprocess in this package must go through the ExecFunc seam (%s), which doc.go states and the runtime_test fake relies on",
-					fset.Position(call.Pos()), fn.Name.Name, sel.Sel.Name, seamImpl)
-				return true
-			})
 		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, isCall := n.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			sel, isSel := call.Fun.(*ast.SelectorExpr)
+			if !isSel {
+				return true
+			}
+			pkg, isIdent := sel.X.(*ast.Ident)
+			if !isIdent || pkg.Name != "exec" || !strings.HasPrefix(sel.Sel.Name, "Command") {
+				return true
+			}
+			if seamStart.IsValid() && call.Pos() >= seamStart && call.Pos() < seamEnd {
+				return true
+			}
+			t.Errorf("%s: exec.%s is called outside the %s seam; every subprocess in this package must go through ExecFunc, which doc.go states and the runtime_test fake relies on",
+				fset.Position(call.Pos()), sel.Sel.Name, seamImpl)
+			return true
+		})
 	}
 }
 
