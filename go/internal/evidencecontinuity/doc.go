@@ -14,9 +14,12 @@
 // that exercise runtime behavior.
 //
 // The verifier also checks its own CI gate's reach: every Go package a
-// `go test` proof ref names must be spanned by the evidence-continuity
-// triggers in specs/ci-gates.v1.yaml and by the "evidence" path filter in
-// .github/workflows/static-contract-gates.yml (finding gate_trigger_gap).
+// `go test` proof ref names, and every input ValidateRepository reads, must be
+// spanned by the evidence-continuity triggers in specs/ci-gates.v1.yaml and by
+// the "evidence" path filter in .github/workflows/static-contract-gates.yml
+// (finding gate_trigger_gap). The inputs are the contract spec, the capability
+// matrix and its fragments, and the generated surface inventory; they are
+// listed in validatorInputAnchors, which a new input must be added to.
 // Before #6131 those trigger sets were disjoint from the referenced packages,
 // so renaming a referenced test never ran this gate and unrelated PRs were
 // the first place the stale ref failed.

@@ -222,12 +222,12 @@ func TestValidatorGateTriggerCoverage_SurfaceInventoryAnchorSurvivesPackageNarro
 	}
 	// The narrowed glob spans the package's root _test.go files but nothing
 	// under data/, so the package check passes and only the anchor can fail.
-	narrowed := append(
-		[]string{"go/internal/capabilitycatalog/*_test.go"},
+	narrowed := []string{
+		"go/internal/capabilitycatalog/*_test.go",
 		"specs/evidence-continuity.v1.yaml",
 		"specs/capability-matrix.v1.yaml",
 		"specs/capability-matrix/**",
-	)
+	}
 	root := writeGateTriggerFixture(t, narrowed, narrowed)
 
 	findings, err := validateGateTriggerCoverage(root, contract)
