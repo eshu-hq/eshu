@@ -123,19 +123,37 @@ SHA verified equal and `git status --porcelain` empty before either gate ran.
 No worktree was copied or `rsync`ed.
 
 The run binds to `c9cf0d544d4a432916d54593ebfc4e7ce5dc3bda`, not to the branch
-tip. Every commit after it changes prose only — this evidence record, plus the
-comment headers in `scripts/lib/ifa_fault_injection_documentation_cells.sh` and
-`specs/ifa-materialized-edge-coverage.v1.yaml` that cite it. No executable gate
-input differs between the tested tree and the tip: no cassette, no
-expected-edge set, no cell body, no dispatch list, no reducer or writer source.
-A re-run would spend the same ~16 minutes of remote time to reproduce the same
-result, so it is redundant rather than more correct.
+tip, **and it no longer covers the tip.** When this paragraph was first written
+every commit after that SHA changed prose only, and it said so. That stopped
+being true, and the sentence was left standing after it went stale — which is
+the failure mode the rule below exists to catch, caught here on its own author.
 
-That is a rule, not a one-off judgement, and it is checkable. Note that two of
-those three files ARE gate inputs — the cells script defines a cell, the
-manifest is read by the coverage gate — so a path-only check is not sufficient
-and would license a real behavioural edit hiding in a "docs" commit. The check
-must be that nothing executable changed:
+Executable gate input HAS changed since `c9cf0d544`. The restart-recovery work
+is source, not prose:
+
+- `go/internal/storage/cypher/retryable_error.go` —
+  `isNornicDBStoreClosingCommitFailure` and
+  `isNornicDBStoreClosedStatementFailure`, two new retry classifications.
+- `go/internal/storage/cypher/retrying_executor.go` —
+  `isNornicDBRelationshipCreateMissingEndpoint`, folded into the existing
+  relationship-snapshot guard.
+- `scripts/lib/ifa_fault_injection_common.sh` and
+  `scripts/lib/ifa_fault_injection_cells.sh` — the restart cell's bounded
+  outage and its `ifa_fault_assert_retried_above` non-vacuity assertion. Cell
+  bodies are gate input by definition.
+
+The branch has also since been rebased onto a moved `main`, which brings its
+own executable changes.
+
+So a re-run of both gates at the current head is **mandatory before merge**, not
+redundant. The ~16 minutes buys a result that binds; the recorded run does not.
+
+The binding rule below is not a one-off judgement, and it is checkable. A
+path-only check is not sufficient and would license a real behavioural edit
+hiding in a "docs" commit: `scripts/lib/ifa_fault_injection_*cells.sh` defines
+cells and `specs/ifa-materialized-edge-coverage.v1.yaml` is read by the
+coverage gate, so both are gate inputs however docs-shaped a commit touching
+them looks. The check must be that nothing executable changed:
 
 ```bash
 git diff c9cf0d544..HEAD -- scripts specs go sdk testdata \
@@ -145,6 +163,13 @@ git diff c9cf0d544..HEAD -- scripts specs go sdk testdata \
 Empty output means this section still binds. **Any line of output means a gate
 input changed and both gates MUST be re-run before merge**, however small the
 change looks.
+
+Run at the current head it prints **5151 lines**, so this section does not bind
+and the re-run is required. That is the rule deciding the question, not prose
+about the rule — which is the point of writing it as a command. The stale
+"prose only" claim above survived precisely because nobody re-ran the check the
+same document defines; if you are reading this section, run it before trusting
+any binding claim near it.
 
 The documentation kill cell carries the load-bearing line, because its
 mechanism is the one #6149 follow-up item 8 had ruled could not be made
