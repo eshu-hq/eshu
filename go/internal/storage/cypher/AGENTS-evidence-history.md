@@ -487,3 +487,13 @@ already relies on. No code change is warranted for this alone -- if it proves
 operationally noisy in practice (repeated retract-then-reappear on the SAME
 backend across many cycles), that is a signal for a follow-up, not evidence
 this fix is wrong.
+
+## #6142 — a backend restart's refused commit was terminal
+
+`WrapRetryableNeo4jError` classified `TransactionCommitFailed` /
+`...badger commit failed: Writes are blocked, possibly due to DropAll or Close`
+as terminal, so a restart landing on the commit dead-lettered
+`gcp_resource_materialization` as `projection_bug` and stranded every intent
+behind the phase it publishes. It is the commit-side twin of the #5989
+transaction-start guard and is now retryable on the durable queue only, never
+in place. Full record: [evidence-6142-backend-restart-commit-retryable.md](evidence-6142-backend-restart-commit-retryable.md).
