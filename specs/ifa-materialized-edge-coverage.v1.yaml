@@ -232,7 +232,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 15-cell fault
+  # the exact one-edge survivor. The 18-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.

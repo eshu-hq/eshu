@@ -138,17 +138,18 @@
 # has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9 already can't use live.
+# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17 already can't use live.
 # Building a live fail-terminal seam is out of scope; this is reported as an
 # explicit, honest gap, not silently dropped.
 #
 # Flake policy: NO retry-to-green, ever. A digest mismatch or a non-zero
 # dead_letter count after a cell's drain is a real concurrency/recovery
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
-# it away (Serialization-Is-Not-A-Fix). A fault that never fires (checked
-# per-cell: a claimed-row proof for cells 2/3/6/7/8/9, a once-fired marker for
-# cells 4/12/13/14/15, a sentinel-fired proof for cell 5) is an inert script, not a
-# pass.
+# it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
+# script, not a pass, so every cell checks that its own fault actually fired:
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17
+#   - a once-fired marker for cells 4/12/13/14/15/18
+#   - a sentinel-fired proof for cell 5
 #
 # Usage:
 #   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep]

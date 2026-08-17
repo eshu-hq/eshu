@@ -29,8 +29,8 @@ const rationaleHandlerBenchmarkEntityCount = 5_000
 // observed_at) loaded in 84.12 s and was quadratic in generation size. That was
 // root-caused and fixed in #6155 (commit e6453efd, keyset paging plus the
 // statement split), taking the same load to 3.37 s. Reverting that fix fails
-// this module's build: go/internal/storage/postgres/facts_filtered_keyset_test.go
-// and fact_records_keyset_index_live_test.go both reference the split cursor
+// the storage/postgres test build: facts_filtered_keyset_test.go and
+// fact_records_keyset_index_live_test.go both reference the split cursor
 // statement it introduced.
 func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 	previousLogger := slog.Default()
