@@ -70,15 +70,21 @@
 # genuine fail-graph-write-once-then-succeed mode and remains full coverage
 # for that fault class.
 #
-# The removal itself is proven, not asserted: the live fault-injection matrix
-# at commit 1f85dad68 (the commit that deleted cell_expirelease_documentation)
-# ran FI_EXIT=0 across all 16 cells, including
-# fail-graph-write-once-then-succeed-documentation (69s, digest 63558e35...) --
-# the same digest value the family's other unscoped cells produce, so removing
-# the racy reclaim cell did not perturb what the surviving cell proves. The
-# #6149 deployable-unit trio (baseline, kill-worker, fail-graph-write) also
-# stayed green in that same run, confirming this branch did not regress the
-# family merged the day before.
+# The removal is safe, not just asserted -- two different runs prove two
+# different claims, and citing only one would conflate them. The RED run at
+# cf2d033b1 (16 cells; that commit still had cell_expirelease_documentation)
+# established the cell could never fire: FI_EXIT=1, the handler's
+# duration_seconds: 0.0073, the forced-expiry UPDATE matching zero rows. That
+# is what justifies removal -- a green run afterward cannot show the removal
+# was CORRECT, only that it was HARMLESS. The GREEN run at 1f85dad68 (15
+# cells -- one fewer than cf2d033b1's 16, exactly the cell that commit
+# deletes) is the harmless-removal proof: FI_EXIT=0, and
+# fail-graph-write-once-then-succeed-documentation stayed green (69s, digest
+# 63558e35...) at the same digest value the family's other unscoped cells
+# produce, so removing the racy reclaim cell did not perturb what the
+# surviving cell proves. The #6149 deployable-unit trio (baseline,
+# kill-worker, fail-graph-write) also stayed green in that same run,
+# confirming this branch did not regress the family merged the day before.
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
