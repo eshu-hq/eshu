@@ -61,13 +61,25 @@ bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
-# require searches the gate script AND the family-fixtures lib it sources.
-# The committed cassette/expected-set paths and their fail-fast existence
-# guards moved into that lib so both gates share one definition; they are
-# still this gate's own source, so the assertion is unchanged in substance.
 require() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" || fail "missing ${label}: ${needle}"
+	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+# require_fixture asserts a needle that lives in the shared family-fixtures lib
+# the gate sources, not in the gate script: the committed cassette and
+# expected-set paths plus their fail-fast existence guards. Kept separate from
+# require() so moving anything ELSE out of the gate script still fails.
+# require_line pins a WHOLE line, so a needle that also appears inside a comment
+# cannot satisfy it. Strict mode needs this: the gate script names
+# `set -euo pipefail` in its bash>=4.4 header comment as well as running it, so
+# the fixed-strings form still passed with the real line deleted.
+require_line() {
+	local label="$1" needle="$2"
+	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_fixture() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
 }
 require_lib() {
 	local label="$1" needle="$2"
@@ -100,7 +112,7 @@ require_rationale_lib() {
 }
 
 # Strict mode and self-cleanup.
-require "strict mode" "set -euo pipefail"
+require_line "strict mode" "set -euo pipefail"
 require "exit trap" "trap ifa_det_cleanup EXIT"
 # The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
 # masked by the exit trap above as a false PASS. Pin the exact check so a
@@ -175,14 +187,14 @@ require "combined-graph digest framing" "demo-org + synth-multiscope + SQL famil
 # absolute-set assertion (`ifa assert-edges`) that the P2 digest cannot make: a
 # family silently empty in ALL cells has an identical digest in every cell and
 # passes the digest comparison vacuously; the absolute expected set catches it.
-require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-require "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
-require "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
-require "SQL cassette existence guard" 'SQL cassette not found'
-require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
-require "SQL delta cassette existence guard" 'SQL delta cassette not found'
-require "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
+require_fixture "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+require_fixture "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+require_fixture "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+require_fixture "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
+require_fixture "SQL cassette existence guard" 'SQL cassette not found'
+require_fixture "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
+require_fixture "SQL delta cassette existence guard" 'SQL delta cassette not found'
+require_fixture "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
 require "SQL baseline helper invocation in every cell" "ifa_det_drive_sql_baseline"
 require_delta_lib "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
 require "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
@@ -200,10 +212,10 @@ require_delta_lib "delta assert-edges exactness framing" "SQL delta-live materia
 
 # code_calls (#5991): every N cell must drive the committed cassette and assert
 # its hand-derived five-edge set. Digest equality cannot detect empty == empty.
-require "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
-require "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-require "code-call cassette existence guard" "code-call cassette not found"
-require "code-call expected-edge set existence guard" "code-call expected-edge set not found"
+require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
+require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+require_fixture "code-call cassette existence guard" "code-call cassette not found"
+require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
 require "code-call drive helper invocation in every cell" "ifa_code_call_drive"
 require "code-call assertion helper invocation in every cell" "ifa_code_call_assert"
 require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
@@ -216,10 +228,10 @@ require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
 # sql_relationships/code_calls, this family needs a bootstrap-index
 # maintenance pass to materialize anything, so its live proof is not a
 # worker-count invariance test.
-require "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-require "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
-require "deployable-unit cassette existence guard" "deployable-unit cassette not found"
-require "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
+require_fixture "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
+require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
 require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 require "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
 require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
@@ -250,14 +262,14 @@ compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=
 # the durable queue/intent lifecycle is exactly 1|1|0|4|3|1|4|0 with one
 # accepted generation. The shared SQL and rationale delta replay must then
 # converge to exact-one EXPLAINS plus the exact Charge node before graph dump.
-require "rationale cassette path" "testdata/cassettes/rationale/ifa-rationale-family.json"
-require "rationale expected-edge set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json"
-require "rationale delta cassette path" "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
-require "rationale delta expected-record set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json"
-require "rationale cassette existence guard" "rationale cassette not found"
-require "rationale expected-edge set existence guard" "rationale expected-edge set not found"
-require "rationale delta cassette existence guard" "rationale delta cassette not found"
-require "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
+require_fixture "rationale cassette path" "testdata/cassettes/rationale/ifa-rationale-family.json"
+require_fixture "rationale expected-edge set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json"
+require_fixture "rationale delta cassette path" "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
+require_fixture "rationale delta expected-record set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json"
+require_fixture "rationale cassette existence guard" "rationale cassette not found"
+require_fixture "rationale expected-edge set existence guard" "rationale expected-edge set not found"
+require_fixture "rationale delta cassette existence guard" "rationale delta cassette not found"
+require_fixture "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
 require "rationale drive helper invocation in every cell" "ifa_rationale_drive"
 require "rationale assertion helper invocation in every cell" "ifa_rationale_assert"
 require "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"

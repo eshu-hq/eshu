@@ -18,10 +18,10 @@
 run_ifa_documentation_live_static_cases() {
 	# Every cell drives the family via drive_all_cassettes, baseline exact-asserts
 	# it, and two dedicated cells prove queue reclaim and graph-write retry.
-	require "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
-	require "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-	require "documentation cassette existence guard" "documentation cassette not found"
-	require "documentation expected-edge set existence guard" "documentation expected-edge set not found"
+	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
+	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+	require_fixture "documentation cassette existence guard" "documentation cassette not found"
+	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
 	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
@@ -258,10 +258,10 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	# happened to run first. The family also proves the SqlTable target case
 	# (batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation,
 	# TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel).
-	require "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
-	require "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-	require "documentation cassette existence guard" "documentation cassette not found"
-	require "documentation expected-edge set existence guard" "documentation expected-edge set not found"
+	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
+	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+	require_fixture "documentation cassette existence guard" "documentation cassette not found"
+	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
 	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"

@@ -57,10 +57,10 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# fault cells, run after a bootstrap-index maintenance pass
 	# (ifa_deployable_unit_live.sh's header explains why); fault cells compare
 	# against their OWN baseline.
-	require "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-	require "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
-	require "deployable-unit cassette existence guard" "deployable-unit cassette not found"
-	require "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
+	require_fixture "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+	require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+	require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
+	require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
 	require "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
 	require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 	require_driver "deployable-unit drive in every cell" 'eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}"'

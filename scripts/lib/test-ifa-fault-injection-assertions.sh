@@ -3,13 +3,25 @@
 # File-scoped assertion helpers for scripts/test-verify-ifa-fault-injection.sh.
 # The parent verifier owns strict mode, fail(), and all target path variables.
 
-# require searches the gate script AND the family-fixtures lib it sources. The
-# committed cassette/expected-set paths and their fail-fast existence guards
-# moved into that lib so both Ifá live gates share one definition; they are
-# still this gate's own source, so the assertion is unchanged in substance.
 require() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" || fail "missing ${label}: ${needle}"
+	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+# require_fixture asserts a needle that lives in the shared family-fixtures lib
+# the gate sources, not in the gate script: the committed cassette and
+# expected-set paths plus their fail-fast existence guards. Kept separate from
+# require() so moving anything ELSE out of the gate script still fails.
+# require_line pins a WHOLE line, so a needle that also appears inside a comment
+# cannot satisfy it. Strict mode needs this: the gate script names
+# `set -euo pipefail` in its bash>=4.4 header comment as well as running it, so
+# the fixed-strings form still passed with the real line deleted.
+require_line() {
+	local label="$1" needle="$2"
+	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_fixture() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
 }
 require_lib() {
 	local label="$1" needle="$2"
