@@ -313,3 +313,135 @@ func TestDriftCheck_CdPrefixedCommandWithScriptsTokenReported(t *testing.T) {
 		t.Errorf("error should name the hidden script, got: %s", errs[0])
 	}
 }
+
+// writeWorkflowWithRun creates repoRoot/.github/workflows/name with a single
+// job keyed jobKey (also used as its display name, so gateWith's default
+// ci.job value "job" resolves), running each of commands as its own `run:`
+// step in order.
+func writeWorkflowWithRun(t *testing.T, root, name, jobKey string, commands []string) {
+	t.Helper()
+	var steps strings.Builder
+	for _, c := range commands {
+		steps.WriteString("      - run: ")
+		steps.WriteString(c)
+		steps.WriteString("\n")
+	}
+	body := "name: test\non: [push]\njobs:\n  " + jobKey + ":\n    name: " + jobKey +
+		"\n    runs-on: ubuntu-latest\n    steps:\n" + steps.String()
+	p := filepath.Join(root, ".github", "workflows", name)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The script CI actually executes for a gate is routinely a DIFFERENT file
+// than local.command: ifa-determinism's CI job runs the live driver
+// scripts/verify-ifa-determinism.sh while local.command runs the static
+// mirror scripts/test-verify-ifa-determinism.sh. Check 8 only ever walked
+// local.command/local.test_command, so a scripts/ token that appears ONLY in
+// the CI job's own run: command was invisible to it -- a PR editing only
+// that script would pass locally and fail first in CI, the exact gap check 8
+// exists to close for local.command (#6149 follow-up item 2).
+func TestDriftCheck_CIJobScriptNotCoveredByOwnTriggers(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeScript(t, root, "scripts/verify-thing.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeWorkflowWithRun(t, root, "verify.yml", "job", []string{"bash scripts/verify-thing.sh"})
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{"go/**"} // scripts/verify-thing.sh deliberately absent
+	// g.Local stays gateWith's neutral inline command, so check 8's OWN
+	// local.command walk contributes nothing here -- only the new CI-job walk
+	// should trip.
+
+	errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 CI-job script-trigger error, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], "scripts/verify-thing.sh") || !strings.Contains(errs[0], "ci job") {
+		t.Errorf("error should name the CI job and the script, got: %s", errs[0])
+	}
+}
+
+// The same gate goes clean once the CI-run script is among its triggers.
+func TestDriftCheck_CIJobScriptCoveredByOwnTriggers(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeScript(t, root, "scripts/verify-thing.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeWorkflowWithRun(t, root, "verify.yml", "job", []string{"bash scripts/verify-thing.sh"})
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{"go/**", "scripts/verify-thing.sh"}
+
+	if errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
+		t.Errorf("expected no CI-job script-trigger errors, got %d: %v", len(errs), errs)
+	}
+}
+
+// The shape #6149 hit for real: a gate's CI job runs a "live driver" script
+// that SOURCES per-family case libraries, while local.command runs a static
+// mirror that never sources them at all (scripts/verify-ifa-determinism.sh
+// vs. scripts/test-verify-ifa-determinism.sh). Three cap-driven split files
+// shipped with no trigger row on that branch and had to be caught by hand,
+// because nothing walked the CI job's own sourcing graph. This fixture pins
+// that the CI-job walk follows sourcing exactly like the local.command walk
+// does.
+func TestDriftCheck_CIJobSourcedScriptNotCoveredByOwnTriggers(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeScript(t, root, "scripts/verify-thing.sh",
+		"#!/usr/bin/env bash\nsource \"${repo_root}/scripts/lib/thing-live-cases.sh\"\n")
+	writeScript(t, root, "scripts/lib/thing-live-cases.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeWorkflowWithRun(t, root, "verify.yml", "job", []string{"bash scripts/verify-thing.sh"})
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{"go/**", "scripts/verify-thing.sh"}
+	// scripts/lib/thing-live-cases.sh is deliberately absent from triggers.
+
+	errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 CI-job sourced-file error, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], `sources "scripts/lib/thing-live-cases.sh"`) {
+		t.Errorf("error should name the uncovered sourced file, got: %s", errs[0])
+	}
+}
+
+// A CI job shared by more than one gate (the real registry's
+// test.yml/verify-contracts shape: 11 gates all declare that same ci.job as
+// a backstop job that runs roughly thirty unrelated gates' verify scripts as
+// separate steps) carries no per-gate attribution signal. A first version of
+// the CI-job walk attributed every run: step in a resolved job to whichever
+// gate named it and produced 352 false positives against the committed
+// registry from exactly this shape. This fixture pins that a shared
+// (workflow, job) pair is skipped entirely, for BOTH gates that share it --
+// even though gate-a's own uncovered script is really there and gate-b's
+// covered one is really there too, neither should be reported, because
+// nothing here can tell which step belongs to which gate.
+func TestDriftCheck_CIJobSharedByMultipleGatesSkipped(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeScript(t, root, "scripts/verify-a.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeScript(t, root, "scripts/verify-b.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeWorkflowWithRun(t, root, "shared.yml", "shared-job", []string{
+		"bash scripts/verify-a.sh",
+		"bash scripts/verify-b.sh",
+	})
+
+	a := gateWith("gate-a", "gate-a", "shared.yml")
+	a.Triggers = []string{"go/**"} // scripts/verify-a.sh deliberately absent
+	b := gateWith("gate-b", "gate-b", "shared.yml")
+	b.Triggers = []string{"go/**", "scripts/verify-b.sh"}
+
+	errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{a, b}, nil, nil))
+	if len(errs) != 0 {
+		t.Errorf("expected zero CI-job script-trigger errors for a shared job, got %d: %v", len(errs), errs)
+	}
+}

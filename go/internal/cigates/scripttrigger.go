@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // sourcedScriptRE captures a repo-relative scripts/ path from a shell `source`
@@ -283,4 +285,128 @@ func anyTriggerMatches(triggers []string, path string) bool {
 		}
 	}
 	return false
+}
+
+// checkCIScriptTriggerCoverage extends checkScriptTriggerCoverage's
+// guarantee to the script CI actually executes, not only the local static
+// mirror. The two are routinely different files: ifa-determinism's CI job
+// runs the live driver scripts/verify-ifa-determinism.sh while
+// local.command runs the static mirror scripts/test-verify-ifa-determinism.sh
+// (specs/ci-gates.v1.yaml, ifa-determinism). checkScriptTriggerCoverage walks
+// outward only from local.command/local.test_command, so a scripts/ token
+// that appears ONLY in the CI job's own run: command -- or that command's own
+// sourcing graph, at any depth -- was invisible to it. That gap is not
+// hypothetical: it is why three cap-driven split files
+// (ifa_deployable_unit_live_diagnostics.sh, ifa_deployable_unit_live_converge.sh,
+// and a documentation-family cells split) shipped with no trigger row on a
+// prior branch and had to be caught by hand, because the live driver sources
+// them and nothing walked that graph.
+//
+// Narrowed to gates whose ci.workflow and ci.job both resolve, AND whose
+// (workflow, job) pair is not shared with another gate. ci.workflow must
+// name a readable, parseable file under .github/workflows/, and ci.job must
+// be a literal key in that file's `jobs:` map -- a gate whose CI job is a
+// matrix-dispatched check (ci.job names an append_gate display or a
+// ${{ matrix.* }} job, not a literal jobs: key -- see checkJobNamesResolve)
+// is skipped rather than false-flagged, since this check does not attempt
+// the matrix-dispatch resolution checkPathFilterCoverage already owns for a
+// different purpose.
+//
+// The shared-pair exclusion is required, not a nicety: a first version of
+// this check attributed every `run:` step in the resolved job to whichever
+// single gate named it, and measured against the committed registry that
+// produced 352 false positives from exactly one shape -- test.yml's
+// verify-contracts job is a single CI job that runs roughly thirty unrelated
+// gates' verify scripts as separate named steps, and 11 gates in the
+// registry all declare ci.job: "verify-contracts" as a shared backstop
+// rather than a gate-dedicated job (go-core, docs-helm-hygiene, and several
+// others follow the same pattern with different counts). Walking every step
+// of a shared job and attributing it to one gate is exactly the wrong
+// direction of narrowing: it invents a claim the registry itself does not
+// make (that THIS gate owns THAT step), rather than skipping what genuinely
+// cannot be attributed -- the same "carries no correspondence signal, so it
+// is skipped rather than guessed" convention scriptWorkflowSoundSubset
+// already applies to gate-vs-workflow attribution, applied here to
+// gate-vs-job-step attribution instead. A (workflow, job) pair used by
+// exactly one gate is unambiguous: every run: step in it is that gate's own,
+// which is the ifa-determinism/ifa-fault-injection shape this check exists
+// for (each has its own dedicated determinism-matrix / fault-injection job).
+//
+// Within a resolved, unambiguous job, only `run:` steps count -- exactly the
+// same "only executable run: blocks count as executing it" convention
+// checkVerifyScriptWorkflowMatch already applies for the same reason (a
+// dorny/paths-filter entry watches a path, it does not invoke it).
+//
+// Shares extractScriptPaths, allSourcedScripts, and anyTriggerMatches with
+// checkScriptTriggerCoverage, so it inherits every narrowing documented on
+// that function's own doc comment (the cd-prefix skip, the literal-"scripts/"-
+// text-only sourcing walk, and so on) applied per run: command instead of per
+// local.command/local.test_command.
+func checkCIScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
+	wfDir := filepath.Join(repoRoot, ".github", "workflows")
+
+	type ciJobKey struct{ workflow, job string }
+	jobGateCounts := make(map[ciJobKey]int, len(reg.Gates))
+	for _, g := range reg.Gates {
+		if g.CI.Workflow == "" || g.CI.Job == "" {
+			continue
+		}
+		jobGateCounts[ciJobKey{g.CI.Workflow, g.CI.Job}]++
+	}
+
+	var errs []error
+	for _, g := range reg.Gates {
+		if g.CI.Workflow == "" || g.CI.Job == "" {
+			continue
+		}
+		if jobGateCounts[ciJobKey{g.CI.Workflow, g.CI.Job}] > 1 {
+			// A CI job shared by more than one gate carries no per-gate
+			// attribution signal -- see the shared-pair discussion above.
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(wfDir, g.CI.Workflow)) // #nosec G304 -- wfDir-confined, registry-declared filename
+		if err != nil {
+			// An unreadable or missing workflow file is a different check's
+			// finding (checkWorkflowCompleteness / checkJobNamesResolve);
+			// reporting it again here would duplicate, not add, signal.
+			continue
+		}
+		var wf runWorkflowFile
+		if yaml.Unmarshal(raw, &wf) != nil {
+			continue
+		}
+		job, ok := wf.Jobs[g.CI.Job]
+		if !ok {
+			// ci.job did not resolve to a literal jobs: key -- a
+			// matrix-dispatched check name, or a genuine mismatch
+			// checkJobNamesResolve already reports. Neither is this check's
+			// signal to add to.
+			continue
+		}
+		for _, step := range job.Steps {
+			if step.Run == "" {
+				continue
+			}
+			for _, script := range extractScriptPaths(step.Run) {
+				if !anyTriggerMatches(g.Triggers, script) {
+					errs = append(errs, fmt.Errorf(
+						"drift: gate %q ci job %q (workflow %s) runs %q but no trigger of that gate matches it (triggers: %v); "+
+							"a PR editing only that script would not select the gate locally and would first fail in CI",
+						g.ID, g.CI.Job, g.CI.Workflow, script, g.Triggers,
+					))
+				}
+				for _, sourced := range allSourcedScripts(repoRoot, script) {
+					if anyTriggerMatches(g.Triggers, sourced) {
+						continue
+					}
+					errs = append(errs, fmt.Errorf(
+						"drift: gate %q ci job %q (workflow %s, %s) sources %q but no trigger of that gate matches it (triggers: %v); "+
+							"a PR editing only that sourced file would not select the gate locally and would first fail in CI",
+						g.ID, g.CI.Job, g.CI.Workflow, script, sourced, g.Triggers,
+					))
+				}
+			}
+		}
+	}
+	return errs
 }
