@@ -77,8 +77,11 @@
 # commit. The runs themselves are reproduced by `make ifa-fault-injection`
 # at that commit; their logs are not committed (they carry local paths), so
 # every line below is quoted verbatim AND cited by file:line against
-# live_fi_cf2d033b1.log -- the quote is checkable without opening that file,
-# the citation is where it came from.
+# live_fi_cf2d033b1.log (the RED run) or live_fi_1f85dad68.log (the GREEN
+# run) -- the quote is checkable without opening either file, the citation
+# is only where it came from. Re-running reproduces the semantic lines and
+# the digest; it will NOT reproduce the timings (8s, 69s, the handler
+# durations), so a mismatch there is expected, not a discrepancy.
 #
 # The RED run at cf2d033b1 -- whose driver still dispatched
 # cell_expirelease_documentation, one more than here -- established the cell
@@ -99,8 +102,7 @@
 #
 # The reason is handler width. BOTH documentation_materialization executions
 # observed in that run were milliseconds wide, each at the end of a queue
-# wait an order of magnitude longer (live_fi_cf2d033b1.log:3970 and its
-# sibling row):
+# wait an order of magnitude longer (live_fi_cf2d033b1.log:3970 and :4048):
 #
 #   handler_duration_seconds 0.022566833  queue_wait_seconds 0.969149  (43x)
 #   handler_duration_seconds 0.007342625  queue_wait_seconds 0.09283   (13x)
