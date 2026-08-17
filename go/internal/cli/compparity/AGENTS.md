@@ -43,12 +43,16 @@
 - **Change what the gate reads from the repo** → the doc set comes from
   `internal/competitiveparity.DefaultExpectations` via `DocPaths`; change the
   expectations there rather than hard-coding paths here.
+
 ## Anti-patterns specific to this package
 
 - Importing cobra or reading flags, environment, or process streams — that
-  is the wrapper's job. `TestPackageStaysProcessNeutral` pins the whole
-  import set, so a new import fails the guard until the README sentence it
-  widens is revisited too.
+  is the wrapper's job. `TestPackageStaysProcessNeutral` pins this package's
+  direct import list, so a new direct import fails the guard until the
+  README sentence it widens is revisited too. It does not reach through an
+  already-allowed import: calling a network or file-writing function on a
+  package this one already imports adds no import and no `os`/`fmt`
+  selector, and the guard stays green. Read what you are calling.
 - Putting real error text, absolute paths, or repo-root values into exercise
   details or the rendered artifact.
 - Writing files. The package is read-only; the wrapper owns the `--out`

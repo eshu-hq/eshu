@@ -46,15 +46,26 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	wantFmt := []string{"Errorf"}
 
 	// README.md also claims "no subprocess or network call is made". The os and
-	// fmt sets cannot see that: os/exec, net, net/http and syscall would all
-	// leave both sets untouched. Pinning the import set closes it, and closes it
-	// for the call nobody predicted rather than for a list of packages someone
-	// remembered to ban -- the same reason the selector checks are equalities.
+	// fmt sets cannot see that: a direct os/exec, net, net/http or syscall
+	// import would leave both sets untouched. Pinning the import set catches
+	// that, and catches it for the package nobody thought to ban rather than
+	// for a list someone remembered -- the same reason the selector checks are
+	// equalities. A genuinely new import then needs this list edited, which is
+	// the intended trade: an import that changes what this package touches
+	// should not land without someone revisiting the sentence saying it does
+	// not.
 	//
-	// The cost is that a genuinely new import needs this list edited. That is
-	// the intended trade: this package's README makes totality claims about what
-	// it touches, so an import that changes what it touches should not be able
-	// to land without someone revisiting the sentence that says it does not.
+	// Be exact about the limit, because the honest version of this comment is
+	// the part that keeps working. The pin is over DIRECT imports. It cannot
+	// see through one: internal/cli/firstrun is on this list, and it also owns
+	// firstrun.APIHealthy (an http.Client GET) and firstrun.WriteEvidenceArtifact
+	// (an os.WriteFile). Calling either from exercises.go would add no import
+	// and no os/fmt selector, so all three sets would stay green while the
+	// README sentence quietly went false. What this test guarantees is that a
+	// new direct dependency cannot arrive unannounced; what still needs a human
+	// is checking that the functions called on an allowed dependency stay pure.
+	// Today they are: NewResult, BuildEvidence and RenderEvidenceArtifact are
+	// value transforms.
 	wantImports := []string{
 		"bytes",
 		"encoding/json",

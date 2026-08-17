@@ -679,12 +679,14 @@ linters:
       # operator output during what is otherwise a move -- the same reasoning
       # as localsupervisor above.
       #
-      # The other eight are the exercise* helpers in exercises.go. Their
-      # errors never reach anyone: ExerciseResults discards the error and
-      # records the static exerciseFailureDetail string instead, because the
-      # real text can carry local paths and the artifact is share-safe
-      # output. They are covered here so the package has one rule rather than
-      # a per-function split, not because their text is operator-visible.
+      # The other eight are in exercises.go: seven in the exercise* helpers,
+      # and one in SupportedSupplyChainPacket, whose only non-test caller is
+      # exerciseInvestigationEvidencePacketArtifact. Their errors never reach
+      # anyone: ExerciseResults discards the error and records the static
+      # exerciseFailureDetail string instead, because the real text can carry
+      # local paths and the artifact is share-safe output. They are covered
+      # here so the package has one rule rather than a per-function split,
+      # not because their text is operator-visible.
       - path: 'internal/cli/compparity/'
         linters:
           - wrapcheck
