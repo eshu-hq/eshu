@@ -127,7 +127,13 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 	}
 	defer closeFn()
 
-	counts, ok, err := pollUntilDrained(ctx, q, snap.DrainAssertions, len(populatedDomains), o.drainTimeout, o.drainPoll)
+	// 15s cadence: frequent enough that a human tailing --keep output can tell
+	// "still draining" (residual shrinking) from "wedged" (identical residual
+	// across several lines) well before the drain-timeout bound, but far
+	// below one line per poll -- the default 2s poll interval against the
+	// default 10-minute timeout would otherwise be up to 300 lines.
+	const drainProgressInterval = 15 * time.Second
+	counts, ok, err := pollUntilDrained(ctx, q, snap.DrainAssertions, len(populatedDomains), o.drainTimeout, o.drainPoll, stderr, drainProgressInterval)
 	if err != nil {
 		return err
 	}

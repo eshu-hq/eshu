@@ -81,6 +81,17 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   binary, `repo_dependency` in the orchestrator). The reducer runs in the
   background, so a poll that fires before it starts would otherwise read an empty
   queue and pass on an unreduced pipeline. Do not weaken this to "queue empty".
+- **`pollUntilDrained` reports progress, not only the final bound.** Its
+  `progress`/`progressEvery` parameters write a residual line to the given
+  writer (`runDrains` wires `stderr` at a 15s cadence) whenever
+  `time.Since(lastProgress) >= progressEvery`, so a human tailing `--keep`
+  output can tell "still draining" (residual shrinking across lines) from
+  "wedged" (identical residual repeated) before the drain-timeout bound, not
+  only after it. Keep the printed field set identical to `runDrains`'s own
+  timeout message so the vocabulary matches. Do not print once per poll — the
+  default 2s poll interval against the default 10-minute timeout would be up
+  to 300 lines. A nil writer or non-positive `progressEvery` disables this
+  entirely; every unit-test call site does so deliberately.
 
 ## Tests
 
