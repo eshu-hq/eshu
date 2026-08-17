@@ -317,10 +317,14 @@ func anyTriggerMatches(triggers []string, path string) bool {
 // single gate named it, and measured against the committed registry that
 // produced 352 false positives from exactly one shape -- test.yml's
 // verify-contracts job is a single CI job that runs roughly thirty unrelated
-// gates' verify scripts as separate named steps, and 11 gates in the
-// registry all declare ci.job: "verify-contracts" as a shared backstop
+// gates' verify scripts as separate named steps, and several other gates in
+// the registry declare ci.job: "verify-contracts" as a shared backstop
 // rather than a gate-dedicated job (go-core, docs-helm-hygiene, and several
-// others follow the same pattern with different counts). Walking every step
+// others follow the same pattern with different member counts). The exact,
+// live member count for verify-contracts and every other shared pair is
+// CIScriptTriggerCoverageSummary's own output, not a number restated here --
+// see that function's doc comment for why a hardcoded count in prose drifts
+// from the registry while a derived one cannot. Walking every step
 // of a shared job and attributing it to one gate is exactly the wrong
 // direction of narrowing: it invents a claim the registry itself does not
 // make (that THIS gate owns THAT step), rather than skipping what genuinely
@@ -358,6 +362,19 @@ func anyTriggerMatches(triggers []string, path string) bool {
 // carry today -- a real gap, left open rather than silently narrowed further,
 // since closing it changes the hygiene_hooks schema, not this function's
 // walk.
+//
+// The remedy that does not need a schema change: a hygiene hook that grows a
+// testable script -- its own local.command, or a self-test like
+// test-prepr-stamp-verify.sh -- should become a gate, not stay a hook. This
+// is not hypothetical; it is what this same PR did four commits earlier --
+// see prepr-stamp-verify-selftest (specs/ci-gates.v1.yaml). The underlying
+// git pre-push hook (prepr-stamp-verify) correctly stays a hygiene_hooks
+// entry -- it still has no testable local.command shape, the chicken-and-egg
+// problem prepr-stamp-verify-selftest's own local_only_reason explains -- but
+// its self-test did have a testable script and gained a real gate instead of
+// staying invisible, which is why this check now sees it. A hygiene_hooks
+// entry with nothing to test (a staged-file variant, a commit-msg-stage
+// alias) has no remedy and stays a hook; one whose script gains a test does.
 //
 // Silent, until CIScriptTriggerCoverageSummary: the ONLY visible signal this
 // check emits on success is DriftCheck's empty []error, so a clean run reads
