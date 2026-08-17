@@ -71,9 +71,12 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 12
+	followupFactCount := 13
 	if snapshot.Delta {
-		followupFactCount = 1
+		// EstimatedFactCount is a conservative metadata-only floor. Preserve
+		// its existing delta baseline and account for the newly unconditional
+		// rationale marker; the drained atomic remains the exact emitted count.
+		followupFactCount = 2
 	}
 	dataflowScannedFactCount := 0
 	if snapshot.DataflowScanned && !snapshot.Delta {
@@ -395,6 +398,7 @@ func streamFacts(
 	// re-projects (and sweeps stale edges). The data facts they consume are emitted
 	// above (emitSubmoduleFactsForCandidates/emitCodeownersFactsForCandidates, which
 	// re-read current disk state on both delta and full generations).
+	w.send(rationaleMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(submodulePinFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	if snapshot.Delta {

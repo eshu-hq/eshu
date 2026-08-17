@@ -309,6 +309,12 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   re-reads file bodies from disk at emit time. Do not change this design to
   in-memory bodies without accounting for `O(repo_size)` memory growth on
   large repositories.
+- Every admitted full or delta Git generation emits one
+  `rationale_materialization` follow-up after its content-entity facts. This
+  adds one follow-up fact and one reducer work item even when the current
+  generation has no rationale comments; the empty case is required to retract
+  stale EXPLAINS edges. The reducer uses a bounded repository/content-entity
+  fact-kind load, then writes one refresh intent plus any current edge intents.
 
 The full runtime-knob reference, discovery/streaming notes, and the
 accumulated performance/observability evidence trail (including the

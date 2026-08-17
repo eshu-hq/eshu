@@ -129,13 +129,15 @@ authoring; it does not build a second coverage framework.
   cypher's shared single-type table. An unregistered family returns an error
   rather than an empty set, so a caller fails closed instead of asserting
   nothing. This is what backs
-  the `materialized_edges:sql_relationships` and
-  `materialized_edges:code_calls` manifest rows' `proof_gate` claims from inside
-  the `ifa-determinism` and `ifa-fault-injection` live gates — digest equality
+  the `materialized_edges:sql_relationships`,
+  `materialized_edges:code_calls`, `materialized_edges:documentation_edges`,
+  and `materialized_edges:rationale_edges`
+  manifest rows' `proof_gate` claims from inside the `ifa-determinism` and
+  `ifa-fault-injection` live gates — digest equality
   across worker counts cannot catch a family silently
-  empty in all cells; the absolute expected set can. The determinism gate first
-  asserts gen 1, then drives gen 2 into the same durable cell and asserts the
-  accumulated exact set before comparing N=1/2/4 graph digests.
+  empty in all cells; the absolute expected set can. The determinism gate
+  asserts each baseline, drives the SQL and rationale generation-2 cassettes,
+  and checks both delta outcomes before comparing N=1/2/4 graph digests.
   `ExpectedEdge` additionally carries `Identity map[string]string`: the
   relationship-property values, beyond the endpoint pair, that participate in
   an edge's MERGE identity for `codeowners_ownership_edges` and
@@ -151,6 +153,23 @@ authoring; it does not build a second coverage framework.
   (`cmd/ifa/assert_edges.go`) mirrors the same validation against the LIVE
   graph: a declared identity property missing, non-string, or blank on a live
   edge is a loud identity defect, never silently keyed as `""`.
+
+- `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
+  `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)
+  extend the single rationale expected fixture with the complete source node,
+  EXPLAINS relationship, and target node record used by the live CLI assertion.
+  The loader rejects an empty or mixed repository scope and any disagreement
+  between the fixture's top-level identities and nested raw properties before
+  the graph backend is opened. Both live matrices drive the rationale cassette
+  and exact-assert its full EXPLAINS records; the determinism matrix also drives
+  generation 2 and checks the exact one-record survivor.
+
+- `LoadDocumentationExpectedEdges` (`materialized_edges_documentation.go`,
+  #5994) loads the exact three-edge DOCUMENTS set used by the live CLI
+  assertion. Both live matrices drive the documentation cassette and
+  exact-assert its three DOCUMENTS edges in baseline and domain-scoped recovery
+  cells; the fault delta cell keeps those full graph records exact through its
+  collateral comparison rather than a separate documentation assertion.
 
 ## Dependencies
 

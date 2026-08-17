@@ -1,27 +1,147 @@
 {
   "odu": "odu:ifa-rationale-family",
-  "note": "Hand-derived from ExtractRationaleEdgeRows' decision surface, NOT captured from a run. rationale_uid is \"rationale:\" + entity_id + \":\" + kind + \":\" + excerpt_hash, where excerpt_hash is the first 8 bytes of sha256(text) in hex. The two payments.Charge edges share an excerpt hash on purpose: same comment text, two kinds, so the kind must be part of the node identity or they would collapse to one. The fixture's other seven inputs derive no edge — a repeated comment, a blank kind, whitespace-only text, a tombstone, a missing repo_id, a blank entity_id, and a non-content_entity fact kind.",
+  "note": "Hand-derived from ExtractRationaleEdgeRows' decision surface, NOT captured from a run. target_path is the repo-relative content_entity relative_path. rationale_uid is \"rationale:\" + entity_id + \":\" + kind + \":\" + excerpt_hash, where excerpt_hash is the first 8 bytes of sha256(text) in hex. The two charge.py edges share an excerpt hash on purpose: same parser-emitted text, two supported uppercase kinds, so kind must remain part of the node identity. The live Python sources also pin duplicate WHY deduplication, empty TODO rejection, lowercase and unsupported marker rejection, blank-line adjacency, and a no-comment function.",
   "edges": [
     {
-      "rationale_uid": "rationale:func:payments.Charge:why:665f8977884c3003",
-      "target_entity_id": "func:payments.Charge",
-      "target_path": "services/payments/charge.go",
-      "repo_id": "repo-ifa-rationale",
-      "comment_kind": "why"
+      "relationship_type": "EXPLAINS",
+      "source_entity_id": "rationale:content-entity:e_763200c9adc3:WHY:665f8977884c3003",
+      "rationale_uid": "rationale:content-entity:e_763200c9adc3:WHY:665f8977884c3003",
+      "target_entity_id": "content-entity:e_763200c9adc3",
+      "target_path": "services/payments/charge.py",
+      "repo_id": "repository:r_f781caa5",
+      "comment_kind": "WHY",
+      "source_record": {
+        "labels": ["Rationale"],
+        "props": {
+          "uid": "rationale:content-entity:e_763200c9adc3:WHY:665f8977884c3003",
+          "type": "rationale",
+          "repo_id": "repository:r_f781caa5",
+          "comment_kind": "WHY",
+          "excerpt_hash": "665f8977884c3003",
+          "evidence_source": "reducer/rationale"
+        }
+      },
+      "edge_props": {
+        "confidence": 0.95,
+        "reason": "Intent comment explains the code entity it precedes",
+        "evidence_source": "reducer/rationale",
+        "comment_kind": "WHY"
+      },
+      "target_record": {
+        "labels": ["Function"],
+        "props": {
+          "uid": "content-entity:e_763200c9adc3",
+          "id": "content-entity:e_763200c9adc3",
+          "name": "charge",
+          "path": "/repo-rationale/services/payments/charge.py",
+          "relative_path": "services/payments/charge.py",
+          "line_number": 5,
+          "start_line": 5,
+          "end_line": 6,
+          "repo_id": "repository:r_f781caa5",
+          "language": "python",
+          "lang": "python",
+          "scope_id": "scope-ifa-rationale-family",
+          "generation_id": "gen-ifa-rationale-family-1",
+          "evidence_source": "projector/canonical",
+          "async": false,
+          "cyclomatic_complexity": 1
+        }
+      }
     },
     {
-      "rationale_uid": "rationale:func:payments.Charge:caveat:665f8977884c3003",
-      "target_entity_id": "func:payments.Charge",
-      "target_path": "services/payments/charge.go",
-      "repo_id": "repo-ifa-rationale",
-      "comment_kind": "caveat"
+      "relationship_type": "EXPLAINS",
+      "source_entity_id": "rationale:content-entity:e_763200c9adc3:NOTE:665f8977884c3003",
+      "rationale_uid": "rationale:content-entity:e_763200c9adc3:NOTE:665f8977884c3003",
+      "target_entity_id": "content-entity:e_763200c9adc3",
+      "target_path": "services/payments/charge.py",
+      "repo_id": "repository:r_f781caa5",
+      "comment_kind": "NOTE",
+      "source_record": {
+        "labels": ["Rationale"],
+        "props": {
+          "uid": "rationale:content-entity:e_763200c9adc3:NOTE:665f8977884c3003",
+          "type": "rationale",
+          "repo_id": "repository:r_f781caa5",
+          "comment_kind": "NOTE",
+          "excerpt_hash": "665f8977884c3003",
+          "evidence_source": "reducer/rationale"
+        }
+      },
+      "edge_props": {
+        "confidence": 0.95,
+        "reason": "Intent comment explains the code entity it precedes",
+        "evidence_source": "reducer/rationale",
+        "comment_kind": "NOTE"
+      },
+      "target_record": {
+        "labels": ["Function"],
+        "props": {
+          "uid": "content-entity:e_763200c9adc3",
+          "id": "content-entity:e_763200c9adc3",
+          "name": "charge",
+          "path": "/repo-rationale/services/payments/charge.py",
+          "relative_path": "services/payments/charge.py",
+          "line_number": 5,
+          "start_line": 5,
+          "end_line": 6,
+          "repo_id": "repository:r_f781caa5",
+          "language": "python",
+          "lang": "python",
+          "scope_id": "scope-ifa-rationale-family",
+          "generation_id": "gen-ifa-rationale-family-1",
+          "evidence_source": "projector/canonical",
+          "async": false,
+          "cyclomatic_complexity": 1
+        }
+      }
     },
     {
-      "rationale_uid": "rationale:func:billing.Invoice:why:06749b8de60ce629",
-      "target_entity_id": "func:billing.Invoice",
-      "target_path": "services/billing/invoice.go",
-      "repo_id": "repo-ifa-rationale",
-      "comment_kind": "why"
+      "relationship_type": "EXPLAINS",
+      "source_entity_id": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+      "rationale_uid": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+      "target_entity_id": "content-entity:e_2dc98238d686",
+      "target_path": "services/billing/invoice.py",
+      "repo_id": "repository:r_f781caa5",
+      "comment_kind": "HACK",
+      "source_record": {
+        "labels": ["Rationale"],
+        "props": {
+          "uid": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+          "type": "rationale",
+          "repo_id": "repository:r_f781caa5",
+          "comment_kind": "HACK",
+          "excerpt_hash": "06749b8de60ce629",
+          "evidence_source": "reducer/rationale"
+        }
+      },
+      "edge_props": {
+        "confidence": 0.95,
+        "reason": "Intent comment explains the code entity it precedes",
+        "evidence_source": "reducer/rationale",
+        "comment_kind": "HACK"
+      },
+      "target_record": {
+        "labels": ["Function"],
+        "props": {
+          "uid": "content-entity:e_2dc98238d686",
+          "id": "content-entity:e_2dc98238d686",
+          "name": "issue_invoice",
+          "path": "/repo-rationale/services/billing/invoice.py",
+          "relative_path": "services/billing/invoice.py",
+          "line_number": 2,
+          "start_line": 2,
+          "end_line": 3,
+          "repo_id": "repository:r_f781caa5",
+          "language": "python",
+          "lang": "python",
+          "scope_id": "scope-ifa-rationale-family",
+          "generation_id": "gen-ifa-rationale-family-1",
+          "evidence_source": "projector/canonical",
+          "async": false,
+          "cyclomatic_complexity": 1
+        }
+      }
     }
   ]
 }

@@ -31,20 +31,34 @@ func rationaleFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, rationaleExpectedEdgesRelPath)
 }
 
-// rationaleExpectedEdge is one hand-derived expected EXPLAINS edge.
+// RationaleExpectedNodeRecord is one endpoint's complete graph record.
+// Labels and Props are compared exactly by the live rationale assertion.
+type RationaleExpectedNodeRecord struct {
+	Labels []string       `json:"labels"`
+	Props  map[string]any `json:"props"`
+}
+
+// RationaleExpectedEdgeRecord is one hand-derived expected EXPLAINS edge.
 //
 // RationaleUID carries the full projected node identity, excerpt hash included.
 // The hash is sha256(text) truncated to eight bytes, so the fixture's value is
 // computed independently from the comment text rather than captured from a run:
 // if the shipped hashing changes, this fixture fails, which is the point. A
 // fixture recorded from output would instead follow the code wherever it went.
-type rationaleExpectedEdge struct {
-	RationaleUID   string `json:"rationale_uid"`
-	TargetEntityID string `json:"target_entity_id"`
-	TargetPath     string `json:"target_path"`
-	RepoID         string `json:"repo_id"`
-	CommentKind    string `json:"comment_kind"`
+type RationaleExpectedEdgeRecord struct {
+	RelationshipType string                      `json:"relationship_type"`
+	SourceEntityID   string                      `json:"source_entity_id"`
+	RationaleUID     string                      `json:"rationale_uid"`
+	TargetEntityID   string                      `json:"target_entity_id"`
+	TargetPath       string                      `json:"target_path"`
+	RepoID           string                      `json:"repo_id"`
+	CommentKind      string                      `json:"comment_kind"`
+	SourceRecord     RationaleExpectedNodeRecord `json:"source_record"`
+	EdgeProps        map[string]any              `json:"edge_props"`
+	TargetRecord     RationaleExpectedNodeRecord `json:"target_record"`
 }
+
+type rationaleExpectedEdge = RationaleExpectedEdgeRecord
 
 type rationaleExpectedEdgesFile struct {
 	Odu string `json:"odu"`
@@ -53,8 +67,10 @@ type rationaleExpectedEdgesFile struct {
 	// testdata/rationale/ifa-rationale-family-expected-edges.json); modeled
 	// here, rather than left to strict-decode rejection, so the
 	// DisallowUnknownFields decoder below does not reject that fixture.
-	Note  string                  `json:"note,omitempty"`
-	Edges []rationaleExpectedEdge `json:"edges"`
+	Note          string                        `json:"note,omitempty"`
+	GenerationID  string                        `json:"generation_id,omitempty"`
+	Edges         []rationaleExpectedEdge       `json:"edges"`
+	RequiredNodes []RationaleExpectedNodeRecord `json:"required_nodes,omitempty"`
 }
 
 // loadRationaleExpectedEdges reads and parses the expected-edge fixture. The
@@ -85,17 +101,96 @@ func loadRationaleExpectedEdges(path string) ([]rationaleExpectedEdge, error) {
 	return parsed.Edges, nil
 }
 
+// LoadRationaleExpectedEdgeRecords loads and validates the complete graph
+// records used by `ifa assert-edges -domain rationale_edges`. It returns the
+// fixture's single repository scope separately so the live reader can ignore
+// wholly foreign EXPLAINS edges while retaining cross-repository pollution.
+func LoadRationaleExpectedEdgeRecords(path string) (string, []RationaleExpectedEdgeRecord, error) {
+	records, err := loadRationaleExpectedEdges(path)
+	if err != nil {
+		return "", nil, err
+	}
+
+	repoID := strings.TrimSpace(records[0].RepoID)
+	if repoID == "" {
+		return "", nil, fmt.Errorf("ifa: rationale expected edges %s edge 0 has a blank repo_id", path)
+	}
+	for i, record := range records {
+		if err := validateRationaleExpectedEdgeRecord(record, repoID); err != nil {
+			return "", nil, fmt.Errorf("ifa: rationale expected edges %s edge %d: %w", path, i, err)
+		}
+	}
+	return repoID, records, nil
+}
+
+func validateRationaleExpectedEdgeRecord(record RationaleExpectedEdgeRecord, repoID string) error {
+	if record.RelationshipType != "EXPLAINS" {
+		return fmt.Errorf("relationship_type=%q, want EXPLAINS", record.RelationshipType)
+	}
+	if strings.TrimSpace(record.RepoID) == "" || record.RepoID != repoID {
+		return fmt.Errorf("repo_id=%q, want the single fixture repository %q", record.RepoID, repoID)
+	}
+	if record.SourceEntityID == "" || record.SourceEntityID != record.RationaleUID {
+		return fmt.Errorf("source_entity_id=%q does not equal nonblank rationale_uid=%q", record.SourceEntityID, record.RationaleUID)
+	}
+	if record.TargetEntityID == "" || strings.TrimSpace(record.TargetPath) == "" || strings.TrimSpace(record.CommentKind) == "" {
+		return fmt.Errorf("target_entity_id, target_path, and comment_kind must be nonblank")
+	}
+	if len(record.SourceRecord.Labels) == 0 || record.SourceRecord.Props == nil {
+		return fmt.Errorf("source_record must contain labels and a property map")
+	}
+	if len(record.TargetRecord.Labels) == 0 || record.TargetRecord.Props == nil {
+		return fmt.Errorf("target_record must contain labels and a property map")
+	}
+	if record.EdgeProps == nil {
+		return fmt.Errorf("edge_props must be present")
+	}
+	if got := stringProperty(record.SourceRecord.Props, "uid"); got != record.SourceEntityID {
+		return fmt.Errorf("source_record.props.uid=%q, want source_entity_id %q", got, record.SourceEntityID)
+	}
+	if got := stringProperty(record.SourceRecord.Props, "repo_id"); got != repoID {
+		return fmt.Errorf("source_record.props.repo_id=%q, want %q", got, repoID)
+	}
+	if got := stringProperty(record.SourceRecord.Props, "comment_kind"); got != record.CommentKind {
+		return fmt.Errorf("source_record.props.comment_kind=%q, want %q", got, record.CommentKind)
+	}
+	if got := stringProperty(record.TargetRecord.Props, "uid"); got != record.TargetEntityID {
+		return fmt.Errorf("target_record.props.uid=%q, want target_entity_id %q", got, record.TargetEntityID)
+	}
+	if got := stringProperty(record.TargetRecord.Props, "id"); got != record.TargetEntityID {
+		return fmt.Errorf("target_record.props.id=%q, want target_entity_id %q", got, record.TargetEntityID)
+	}
+	if got := stringProperty(record.TargetRecord.Props, "repo_id"); got != repoID {
+		return fmt.Errorf("target_record.props.repo_id=%q, want %q", got, repoID)
+	}
+	if got := stringProperty(record.TargetRecord.Props, "relative_path"); got != record.TargetPath {
+		return fmt.Errorf("target_record.props.relative_path=%q, want target_path %q", got, record.TargetPath)
+	}
+	if got := stringProperty(record.EdgeProps, "comment_kind"); got != record.CommentKind {
+		return fmt.Errorf("edge_props.comment_kind=%q, want %q", got, record.CommentKind)
+	}
+	return nil
+}
+
+func stringProperty(props map[string]any, name string) string {
+	value, _ := props[name].(string)
+	return value
+}
+
 // rationaleRowsToExpectedEdges projects extractor rows onto the comparable
 // identity.
 func rationaleRowsToExpectedEdges(rows []map[string]any) []rationaleExpectedEdge {
 	out := make([]rationaleExpectedEdge, 0, len(rows))
 	for _, row := range rows {
+		rationaleUID := anyToStringValue(row["rationale_uid"])
 		out = append(out, rationaleExpectedEdge{
-			RationaleUID:   anyToStringValue(row["rationale_uid"]),
-			TargetEntityID: anyToStringValue(row["target_entity_id"]),
-			TargetPath:     anyToStringValue(row["target_path"]),
-			RepoID:         anyToStringValue(row["repo_id"]),
-			CommentKind:    anyToStringValue(row["comment_kind"]),
+			RelationshipType: "EXPLAINS",
+			SourceEntityID:   rationaleUID,
+			RationaleUID:     rationaleUID,
+			TargetEntityID:   anyToStringValue(row["target_entity_id"]),
+			TargetPath:       anyToStringValue(row["target_path"]),
+			RepoID:           anyToStringValue(row["repo_id"]),
+			CommentKind:      anyToStringValue(row["comment_kind"]),
 		})
 	}
 	return out
@@ -105,11 +200,13 @@ func rationaleRowsToExpectedEdges(rows []map[string]any) []rationaleExpectedEdge
 // writeLengthPrefixedField netstring encoding as ExpectedEdge.Key(),
 // sqlRelationshipEdgeKey, and codeCallEdgeKey (materialized_edges_assert.go,
 // materialized_edges_sql.go, materialized_edges_code_calls.go). It used to
-// join its five fields with a raw "\x00" delimiter instead; unified onto the
+// join its seven fields with a raw "\x00" delimiter instead; unified onto the
 // shared encoding so no comparison key in this package depends on a
 // delimiter byte its fields happen not to contain.
 func rationaleEdgeKey(e rationaleExpectedEdge) string {
 	var b strings.Builder
+	writeLengthPrefixedField(&b, e.RelationshipType)
+	writeLengthPrefixedField(&b, e.SourceEntityID)
 	writeLengthPrefixedField(&b, e.RationaleUID)
 	writeLengthPrefixedField(&b, e.TargetEntityID)
 	writeLengthPrefixedField(&b, e.TargetPath)
@@ -213,10 +310,9 @@ func resolveRationaleEdgeMaterializedEdges(odu Odu, expectedEdgesPath string) (b
 	}
 
 	// Deliberately NOT reporting a count of "inputs that derived no edge".
-	// len(Facts)-len(rows) would be wrong here: three of this fixture's seven
-	// negative cases are comments INSIDE a fact, not facts of their own, so that
-	// subtraction undercounts them and would state a number this function never
-	// computed. The negative cases are pinned by their own test instead.
+	// len(Facts)-len(rows) would be wrong because comments live inside facts, so
+	// that subtraction would state a number this function never computed.
+	// Parser-source tests pin the production-reachable exclusions; reducer guard tests pin malformed-envelope and precedence cases.
 	return true, fmt.Sprintf("odù %q: ExtractRationaleEdgeRows reproduces the expected %d-edge set exactly across %d repository/ies, from %d fact envelope(s)",
 		odu.Name, len(expected), len(wantRepos), len(odu.Facts))
 }

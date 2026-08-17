@@ -42,6 +42,14 @@
 // prove all three across the nine SQL writer-registry types. Code calls require
 // baseline and fault dimensions; the live matrices exact-assert their five
 // edges at N=1/2/4 and after domain-scoped worker and graph-write failures.
+// Documentation edges require baseline and fault dimensions. Both live matrices
+// exact-assert their three DOCUMENTS edges in baseline and domain-scoped
+// recovery cells; the fault delta cell protects them through its full-record
+// collateral comparison.
+// Rationale edges require baseline and fault dimensions. Both live matrices
+// exact-assert full EXPLAINS records with the complete source, relationship,
+// and target properties carried by the expected fixture. The determinism
+// matrix also proves the generation-2 exact-one survivor.
 // Other unproven family dimensions remain explicitly waived in the manifest.
 // Registry-derived inventories fail closed when a writer type is added without
 // a matching Odù expectation.

@@ -52,6 +52,75 @@ func TestRetractRationaleEdgesIsRepoScoped(t *testing.T) {
 	if !strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
 		t.Errorf("retract is not repo-scoped: %q", stmt.Cypher)
 	}
+	if !strings.Contains(stmt.Cypher, "rel.evidence_source IN $evidence_sources") {
+		t.Errorf("retract does not combine the bounded rationale sources: %q", stmt.Cypher)
+	}
+	wantSources := []string{"reducer/rationale", "finalization/workloads"}
+	if got := stmt.Parameters["evidence_sources"]; !reflect.DeepEqual(got, wantSources) {
+		t.Fatalf("evidence_sources = %#v, want %#v", got, wantSources)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRationaleFullCleansCanonicalAndLegacyEvidenceSources(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload:      map[string]any{"repo_id": "repo-a"},
+	}}
+
+	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("Execute calls = %d, want %d combined canonical-plus-legacy retract", got, want)
+	}
+	stmt := executor.calls[0]
+	if !strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
+		t.Fatalf("full retract is not repo-scoped: %q", stmt.Cypher)
+	}
+	if !strings.Contains(stmt.Cypher, "rel.evidence_source IN $evidence_sources") {
+		t.Fatalf("full retract does not combine the bounded rationale sources: %q", stmt.Cypher)
+	}
+	wantSources := []string{"reducer/rationale", "finalization/workloads"}
+	if got := stmt.Parameters["evidence_sources"]; !reflect.DeepEqual(got, wantSources) {
+		t.Fatalf("evidence_sources = %#v, want %#v", got, wantSources)
+	}
+	if _, ok := stmt.Parameters["evidence_source"]; ok {
+		t.Fatalf("singular evidence_source unexpectedly present: %#v", stmt.Parameters)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRationaleDoesNotBroadenUnknownEvidenceSource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload:      map[string]any{"repo_id": "repo-a"},
+	}}
+
+	const source = "custom/rationale"
+	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, source); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 1; got != want {
+		t.Fatalf("Execute calls = %d, want %d for an unknown source", got, want)
+	}
+	if got := executor.calls[0].Parameters["evidence_source"]; got != source {
+		t.Fatalf("evidence_source = %#v, want %#v", got, source)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "rel.evidence_source = $evidence_source") {
+		t.Fatalf("custom-source retract lost exact equality: %q", executor.calls[0].Cypher)
+	}
+	if _, ok := executor.calls[0].Parameters["evidence_sources"]; ok {
+		t.Fatalf("evidence_sources unexpectedly present for custom source: %#v", executor.calls[0].Parameters)
+	}
 }
 
 // TestBuildRetractRationaleEdgeStatementsByFilePath guards the rationale
@@ -91,8 +160,15 @@ func TestBuildRetractRationaleEdgeStatementsByFilePath(t *testing.T) {
 		if strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
 			t.Fatalf("cypher = %q, want no repo-wide rationale filter", stmt.Cypher)
 		}
-		if got, want := stmt.Parameters["evidence_source"], "reducer/rationale"; got != want {
-			t.Fatalf("evidence_source = %#v, want %#v", got, want)
+		if !strings.Contains(stmt.Cypher, "rel.evidence_source IN $evidence_sources") {
+			t.Fatalf("cypher = %q, want combined evidence_sources filter", stmt.Cypher)
+		}
+		wantSources := []string{"reducer/rationale", "finalization/workloads"}
+		if got := stmt.Parameters["evidence_sources"]; !reflect.DeepEqual(got, wantSources) {
+			t.Fatalf("evidence_sources = %#v, want %#v", got, wantSources)
+		}
+		if _, ok := stmt.Parameters["evidence_source"]; ok {
+			t.Fatalf("singular evidence_source unexpectedly present: %#v", stmt.Parameters)
 		}
 		gotPaths, ok := stmt.Parameters["file_paths"].([]string)
 		if !ok {
@@ -124,7 +200,7 @@ func TestRationaleRetractCoversEveryWriteTargetLabel(t *testing.T) {
 	}
 }
 
-func TestEdgeWriterRetractEdgesRationaleDeltaRunsPerLabelStatementsSequentially(t *testing.T) {
+func TestEdgeWriterRetractEdgesRationaleDeltaCleansCanonicalAndLegacySourcesSequentially(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
@@ -153,7 +229,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaRunsPerLabelStatementsSequentially(
 		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
 	if got, want := len(executor.calls), len(rationaleExplainsTargetLabels); got != want {
-		t.Fatalf("Execute calls = %d, want %d (one per target label)", got, want)
+		t.Fatalf("Execute calls = %d, want %d (one combined-source statement per target label)", got, want)
 	}
 	for _, stmt := range executor.calls {
 		if strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
@@ -171,6 +247,51 @@ func TestEdgeWriterRetractEdgesRationaleDeltaRunsPerLabelStatementsSequentially(
 		}
 		if got, want := strings.Join(filePaths, ","), "/repo/src/handler.go"; got != want {
 			t.Fatalf("file_paths = %q, want %q", got, want)
+		}
+		if !strings.Contains(stmt.Cypher, "rel.evidence_source IN $evidence_sources") {
+			t.Fatalf("delta retract does not combine the bounded rationale sources: %q", stmt.Cypher)
+		}
+		wantSources := []string{"reducer/rationale", "finalization/workloads"}
+		if got := stmt.Parameters["evidence_sources"]; !reflect.DeepEqual(got, wantSources) {
+			t.Fatalf("evidence_sources = %#v, want %#v", got, wantSources)
+		}
+		if _, ok := stmt.Parameters["evidence_source"]; ok {
+			t.Fatalf("singular evidence_source unexpectedly present: %#v", stmt.Parameters)
+		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesRationaleDeltaDoesNotBroadenUnknownEvidenceSource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload: map[string]any{
+			"repo_id":          "repo-a",
+			"delta_projection": true,
+			"delta_file_paths": []string{"/repo/src/handler.go"},
+		},
+	}}
+
+	const source = "custom/rationale"
+	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, source); err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), len(rationaleExplainsTargetLabels); got != want {
+		t.Fatalf("Execute calls = %d, want %d exact-source per-label retracts", got, want)
+	}
+	for _, stmt := range executor.calls {
+		if !strings.Contains(stmt.Cypher, "rel.evidence_source = $evidence_source") {
+			t.Fatalf("custom-source delta retract lost exact equality: %q", stmt.Cypher)
+		}
+		if got := stmt.Parameters["evidence_source"]; got != source {
+			t.Fatalf("evidence_source = %#v, want %#v", got, source)
+		}
+		if _, ok := stmt.Parameters["evidence_sources"]; ok {
+			t.Fatalf("evidence_sources unexpectedly present for custom source: %#v", stmt.Parameters)
 		}
 	}
 }

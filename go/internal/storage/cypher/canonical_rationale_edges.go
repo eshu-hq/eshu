@@ -53,6 +53,15 @@ WHERE rationale.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// retractCanonicalRationaleEdgesCypher removes both the canonical rationale
+// provenance and the bounded legacy provenance written before #5998 corrected
+// the runner mapping. Custom rationale writers continue to use the exact-source
+// statement above.
+const retractCanonicalRationaleEdgesCypher = `MATCH (rationale:Rationale)-[rel:EXPLAINS]->()
+WHERE rationale.repo_id IN $repo_ids
+  AND rel.evidence_source IN $evidence_sources
+DELETE rel`
+
 // The delta (by-file) EXPLAINS retract is built per target label by
 // buildRationaleDeltaRetractStatements in edge_writer_rationale_labels.go, not
 // as a single constant: on NornicDB v1.1.11 a bare MATCH whose target carries

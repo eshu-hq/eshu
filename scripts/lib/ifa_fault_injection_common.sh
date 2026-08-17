@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2154  # Exported constants and driver-owned globals
+# are consumed across sourced fault-injection libraries.
 # Shared helpers for scripts/verify-ifa-fault-injection.sh (issue #4580 P6
 # slice S5, design doc docs/internal/design/4389-ifa-conformance-platform.md
 # Layer 4, "deterministic fault injection"). Extends
@@ -145,6 +147,103 @@ ifa_fault_wait_for_claimed() {
 		echo "ifa_fault_wait_for_claimed: no claimed/running fact_work_items row appeared within ${budget}s" >&2
 	fi
 	return 1
+}
+
+# ifa_fault_require_fresh_domain_intents fails closed unless projection_domain
+# has exactly zero durable shared intents. Call only after fresh_stack when the
+# verifier owns the Compose lifecycle; --no-compose state belongs to its caller.
+#
+# Args: cell projection_domain compose_project use_compose dsn compose_file
+ifa_fault_require_fresh_domain_intents() {
+	local cell="$1" domain="$2" compose_project="$3" use_compose_arg="$4"
+	local postgres_dsn="$5" compose_file_arg="$6"
+	local count count_rc
+	if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+		printf '%s: projection domain must match ^[a-z0-9_]+$, got %q\n' "${cell}" "${domain}" >&2
+		return 1
+	fi
+	if count="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
+		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = '${domain}';" \
+		"${compose_file_arg}")"; then
+		count_rc=0
+	else
+		count_rc=$?
+	fi
+	if [[ "${count_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${count_rc}" >&2
+		return "${count_rc}"
+	fi
+	count="$(printf '%s' "${count}" | tr -d '[:space:]')"
+	if [[ -z "${count}" ]]; then
+		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
+		return 1
+	fi
+	if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
+			"${cell}" "${count}" >&2
+		return 1
+	fi
+	if [[ "${count}" != "0" ]]; then
+		printf '%s: %s %s intent row(s) survived fresh_stack\n' "${cell}" "${count}" "${domain}" >&2
+		return 1
+	fi
+}
+
+# ifa_fault_start_shared_intent_lock holds the first shared-intent write so a
+# short domain handler cannot acknowledge between the claimed-row observation
+# and kill. namespace and cell are validated before interpolation into SQL.
+#
+# Args: cell namespace pid_var
+ifa_fault_start_shared_intent_lock() {
+	local cell="$1" namespace="$2" pid_var="$3"
+	if [[ ! "${cell}" =~ ^[a-z0-9_]+$ || ! "${namespace}" =~ ^[a-z0-9_]+$ ]]; then
+		printf 'ifa_fault_start_shared_intent_lock: cell and namespace must match ^[a-z0-9_]+$\n' >&2
+		return 1
+	fi
+	local app_name="ifa_${namespace}_lock_${cell}"
+	local log_namespace="${namespace//_/-}"
+	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
+	if [[ "${use_compose}" -eq 1 ]]; then
+		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
+			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
+			>"${log_dir}/${log_namespace}-lock-${cell}.log" 2>&1 &
+	else
+		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -c "${lock_sql}" \
+			>"${log_dir}/${log_namespace}-lock-${cell}.log" 2>&1 &
+	fi
+	local holder_pid=$!
+	bg_pids+=("${holder_pid}")
+	printf -v "${pid_var}" '%s' "${holder_pid}"
+
+	local i lock_count
+	for i in $(seq 1 60); do
+		lock_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.application_name = '${app_name}' AND l.relation = 'shared_projection_intents'::regclass AND l.mode = 'AccessExclusiveLock' AND l.granted;" \
+			"${compose_file}" | tr -d '[:space:]')"
+		if [[ "${lock_count}" == "1" ]]; then
+			return 0
+		fi
+		sleep 0.25
+	done
+	return 1
+}
+
+# ifa_fault_release_shared_intent_lock terminates the named backend, joins the
+# local psql/docker process, and removes its PID from cleanup ownership.
+#
+# Args: cell namespace holder_pid
+ifa_fault_release_shared_intent_lock() {
+	local cell="$1" namespace="$2" holder_pid="$3"
+	if [[ ! "${cell}" =~ ^[a-z0-9_]+$ || ! "${namespace}" =~ ^[a-z0-9_]+$ ]]; then
+		printf 'ifa_fault_release_shared_intent_lock: cell and namespace must match ^[a-z0-9_]+$\n' >&2
+		return 1
+	fi
+	local app_name="ifa_${namespace}_lock_${cell}"
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
+		"${compose_file}" >/dev/null
+	wait "${holder_pid}" 2>/dev/null || true
+	ifa_det_untrack_bg_pid "${holder_pid}"
 }
 
 # ifa_fault_count_retried prints the number of succeeded fact_work_items

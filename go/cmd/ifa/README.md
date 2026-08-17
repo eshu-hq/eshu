@@ -107,30 +107,47 @@ session.
   `-expected` (same count, same `relationship_type`/source/target triples, where
   an endpoint's identity is its `uid` when present and its `id` otherwise —
   `Repository`, `Workload`, `WorkloadInstance` and `Platform` carry no uid).
-  The live matrices invoke this verb for `sql_relationships` and `code_calls`,
-  requiring nine SQL edges and five code-call edges exactly in every applicable
-  cell. Families sharing a relationship type with another family are
+  The `rationale_edges` domain uses the same flags but compares complete
+  EXPLAINS records: sorted endpoint labels plus every raw source, relationship,
+  and target property. It scopes the fixture to one nonblank repository and
+  retains an EXPLAINS edge when either endpoint names that repository or carries
+  an expected endpoint identity. Cross-repository attachments and repository
+  property drift are therefore extras rather than hidden as foreign data.
+  The live matrices invoke this verb for `sql_relationships`, `code_calls`,
+  `documentation_edges`, and `rationale_edges`. They require nine SQL edges,
+  five code-call edges, three documentation edges, and three full rationale
+  records exactly in every applicable baseline or recovery cell.
+  Families sharing a relationship type with another family are
   additionally scoped by endpoint label, so repo_dependency and
   workload_dependency do not count each other's DEPENDS_ON edges. This is the
   assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
   vacuously; the absolute expected set catches that regression. The coverage
-  manifest records five rows under two proof-gate IDs.
+  manifest records nine rows under two proof-gate IDs.
   `sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;
   fault uses `ifa-fault-injection`.
   `code_calls` has two rows: baseline uses `ifa-determinism`; fault uses
   `ifa-fault-injection`.
+  `documentation_edges` has two rows: baseline uses `ifa-determinism`; fault
+  uses `ifa-fault-injection`.
+  `rationale_edges` has two rows: baseline uses `ifa-determinism`; fault uses
+  `ifa-fault-injection`.
 
   The `ifa-determinism` live gate invokes it in every worker-count cell for the
-  baseline families, then asserts the generation-2 SQL set and reasserts code
-  calls after the delta. In fault injection, the fault-free baseline asserts
-  both families.
+  baseline families, then asserts the generation-2 SQL and rationale sets and
+  reasserts code calls after the delta. In fault injection, the fault-free
+  baseline asserts all four families.
   The SQL kill/reclaim cell compares its graph with the baseline digest; the
   SQL write-retry cell repeats the exact nine-edge assertion.
   Both code-call recovery cells repeat the exact five-edge assertion.
+  Both documentation recovery cells repeat the exact three-edge assertion.
+  The rationale recovery cells repeat the exact three-record assertion and
+  require zero dead letters.
   In the SQL delta-retract cell, the generation-2 SQL assertion runs first. The
-  post-delta code-call assertion follows before the collateral comparison.
+  post-delta code-call and one-record rationale assertions follow before the
+  collateral comparison; that full-record comparison keeps documentation graph
+  records exact without claiming a separate post-delta documentation assertion.
   Read-only: no schema DDL, no write.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -

@@ -30,6 +30,17 @@ func buildRationaleRowMap(
 // BuildRetractRationaleEdges builds a repo-scoped EXPLAINS edge retraction
 // statement.
 func BuildRetractRationaleEdges(repoIDs []string, evidenceSource string) Statement {
+	sources := rationaleRetractEvidenceSources(evidenceSource)
+	if len(sources) > 1 {
+		return Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    retractCanonicalRationaleEdgesCypher,
+			Parameters: map[string]any{
+				"repo_ids":         repoIDs,
+				"evidence_sources": sources,
+			},
+		}
+	}
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    retractRationaleEdgesCypher,
@@ -53,19 +64,28 @@ func BuildRetractRationaleEdges(repoIDs []string, evidenceSource string) Stateme
 // transaction, for the managed-transaction reason documented on
 // executeCodeCallRetractStatements.
 func BuildRetractRationaleEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
+	sources := rationaleRetractEvidenceSources(evidenceSource)
+	evidencePredicate := "rel.evidence_source = $evidence_source"
+	evidenceParameters := map[string]any{"evidence_source": evidenceSource}
+	if len(sources) > 1 {
+		evidencePredicate = "rel.evidence_source IN $evidence_sources"
+		evidenceParameters = map[string]any{"evidence_sources": sources}
+	}
+
 	stmts := make([]Statement, 0, len(rationaleExplainsTargetLabels))
 	for _, label := range rationaleExplainsTargetLabels {
 		cypher := "MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:" + label + ")\n" +
 			"WHERE target.path IN $file_paths\n" +
-			"  AND rel.evidence_source = $evidence_source\n" +
+			"  AND " + evidencePredicate + "\n" +
 			"DELETE rel"
+		parameters := map[string]any{"file_paths": filePaths}
+		for key, value := range evidenceParameters {
+			parameters[key] = value
+		}
 		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cypher,
-			Parameters: map[string]any{
-				"file_paths":      filePaths,
-				"evidence_source": evidenceSource,
-			},
+			Operation:  OperationCanonicalRetract,
+			Cypher:     cypher,
+			Parameters: parameters,
 		})
 	}
 	return stmts

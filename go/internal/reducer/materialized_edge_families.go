@@ -33,8 +33,9 @@ import "sort"
 // relationship-materialization families) are NOT enumerated here. #5351
 // landed the gate plus first coverage for sql_relationships, leaving the rest
 // waived to per-family child issues. #5991 later added the live code_calls
-// baseline/fault proof and removed that family's waivers.
-// The current 11 not-yet-covered allProjectionDomains families remain tracked
+// baseline/fault proof, #5994 added documentation_edges, and #5998 added
+// rationale_edges. Those changes removed their families' waivers.
+// The current 10 not-yet-covered allProjectionDomains families remain tracked
 // by #5543 in specs/ifa-materialized-edge-coverage.v1.yaml. Adding direct-materialization
 // families to this enumeration remains separate follow-up work under #5543
 // because they bypass the shared intent path this function inventories.

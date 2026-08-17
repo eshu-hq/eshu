@@ -76,7 +76,7 @@ ifa_fault_write_repo_node_identities() {
 	while IFS= read -r node_record; do
 		node_hash="$(printf '%s\n' "${node_record}" | jq -S . | ifa_fault_sha256_stdin)" \
 			|| return 2
-		node_identity="$(printf '%s\n' "${node_record}" | jq -c '
+		node_identity="$(printf '%s\n' "${node_record}" | jq -c --arg repo_id "${repo_id}" '
 			if ((.props.uid? // "") | length) > 0 then
 				{labels: .labels, uid: .props.uid}
 			elif ((.labels | index("Directory")) != null)
@@ -88,6 +88,7 @@ ifa_fault_write_repo_node_identities() {
 			else
 				error("mutable repository node lacks a stable logical identity")
 			end
+			| . + {owner_repo_id: $repo_id}
 		')" || return 2
 		jq -nc --arg hash "${node_hash}" --argjson identity "${node_identity}" \
 			'{hash: $hash, identity: $identity}' >>"${identity_rows}" || return 2
@@ -130,27 +131,35 @@ ifa_fault_write_repo_node_membership() {
 		"${membership_rows}" >"${output}" || return 2
 }
 
-# ifa_fault_write_collateral_edges writes the graph edge set outside the SQL
-# family, which the cell asserts independently against an exact expected
-# fixture. Code-call edges remain in this full-record comparison because their
-# exact assertion covers type and endpoints, not properties. SQL generation 2
-# legitimately changes node properties,
-# replacing content hashes on SQL-repository CONTAINS/REPO_CONTAINS endpoints.
-# Replace only those repository-attributed hashes with stable labels+uid (or
-# the Repository's repo_id). On mapped containment edges whose original
-# endpoints are both members of that repository, a present projector/canonical
-# generation_id must be gen-1 in the baseline. In the changed dump it must be
-# gen-2 when both endpoints are mutable identities, or remain gen-1 at the
-# one-mapped preserved-subtree seam. All other properties, attachment topology,
+# ifa_fault_write_collateral_edges writes graph truth outside the SQL and
+# rationale relationship families, which the cell asserts independently
+# against exact expected fixtures. Code-call edges remain in this full-record
+# comparison because their exact assertion covers type and endpoints, not
+# properties. SQL and rationale deltas legitimately change canonical node
+# properties, replacing content hashes on their repositories' containment
+# endpoints. Replace only those repository-attributed hashes with stable
+# identities. SQL keeps gen-1/gen-2 provenance; rationale uses its explicitly
+# supplied family-specific generation IDs. Cross-repository containment is not
+# normalized as either family. All other properties, attachment topology,
 # types, and counts remain exact.
 ifa_fault_write_collateral_edges() {
 	local graph_dump="$1" repo_identities="$2" repo_membership="$3"
-	local output="$4" comparison_side="$5"
+	local output="$4" comparison_side="$5" rationale_repo_membership="$6"
+	local rationale_baseline_generation_id="${7:-}"
+	local rationale_delta_generation_id="${8:-}"
+	local rationale_repo_id="${9:-}"
+	if [[ -n "${rationale_repo_id}" ]] \
+		&& [[ -z "${rationale_baseline_generation_id}" || -z "${rationale_delta_generation_id}" ]]; then
+		return 2
+	fi
 	local sql_types='["EXECUTES","HAS_COLUMN","INDEXES","MIGRATES","QUERIES_TABLE","READS_FROM","REFERENCES_TABLE","TRIGGERS","WRITES_TO"]'
 	jq -S --slurpfile repo_identities "${repo_identities}" \
 		--slurpfile repo_membership "${repo_membership}" \
+		--slurpfile rationale_repo_membership "${rationale_repo_membership}" \
 		--argjson sql_types "${sql_types}" \
-		--arg comparison_side "${comparison_side}" '
+		--arg comparison_side "${comparison_side}" \
+		--arg rationale_baseline_generation_id "${rationale_baseline_generation_id}" \
+		--arg rationale_delta_generation_id "${rationale_delta_generation_id}" '
 		if ($comparison_side != "baseline" and $comparison_side != "changed") then
 			error("collateral comparison side must be baseline or changed")
 		elif ((.nodes | type) != "array") or ((.edges | type) != "array") then
@@ -162,29 +171,39 @@ ifa_fault_write_collateral_edges() {
 				| select($sql_types | index($edge.type) | not)
 				| ($repo_identities[0][$edge.from] // null) as $from_identity
 				| ($repo_identities[0][$edge.to] // null) as $to_identity
-				| ($repo_membership[0][$edge.from] // false) as $from_repo_member
-				| ($repo_membership[0][$edge.to] // false) as $to_repo_member
+				| ($repo_membership[0][$edge.from] // false) as $from_sql_repo_member
+				| ($repo_membership[0][$edge.to] // false) as $to_sql_repo_member
+				| ($rationale_repo_membership[0][$edge.from] // false) as $from_rationale_member
+				| ($rationale_repo_membership[0][$edge.to] // false) as $to_rationale_member
+				| select(
+					($edge.type == "EXPLAINS"
+						and ($from_rationale_member or $to_rationale_member))
+					| not
+				)
 				| (
 					($edge.type == "CONTAINS" or $edge.type == "REPO_CONTAINS")
 					and ($from_identity != null or $to_identity != null)
-				) as $mapped_sql_containment
-				| if $mapped_sql_containment then
+				) as $mapped_fixture_containment
+				| ($from_sql_repo_member and $to_sql_repo_member) as $sql_owned_containment
+				| ($from_rationale_member and $to_rationale_member) as $rationale_owned_containment
+				| if $mapped_fixture_containment then
 					$edge
 					| if $from_identity != null then .from = $from_identity else . end
 					| if $to_identity != null then .to = $to_identity else . end
 				else
 					$edge
 				end
-				| if (
-					$mapped_sql_containment
-					and $from_repo_member
-					and $to_repo_member
-					and ((.props | type) == "object")
-					and (.props.evidence_source? == "projector/canonical")
-					and (.props | has("generation_id"))
-				) then
+				| if ($mapped_fixture_containment and ($sql_owned_containment or $rationale_owned_containment)) then
 					(
-						if $comparison_side == "baseline" then
+						if $rationale_owned_containment then
+							if $comparison_side == "baseline" then
+								$rationale_baseline_generation_id
+							elif ($from_identity != null and $to_identity != null) then
+								$rationale_delta_generation_id
+							else
+								$rationale_baseline_generation_id
+							end
+						elif $comparison_side == "baseline" then
 							"gen-1"
 						elif ($from_identity != null and $to_identity != null) then
 							"gen-2"
@@ -193,10 +212,14 @@ ifa_fault_write_collateral_edges() {
 						end
 					) as $expected_generation
 					|
-					if .props.generation_id == $expected_generation then
-						.props.generation_id = "<generation-provenance>"
+					if (.props | type) != "object" then
+						error("owned mapped containment edge props must be an object")
+					elif (.props.evidence_source? != "projector/canonical")
+						or ((.props | has("generation_id")) | not)
+						or (.props.generation_id != $expected_generation) then
+						error("owned mapped containment edge has invalid generation provenance")
 					else
-						error("mapped projector/canonical containment edge has unexpected generation_id")
+						.props.generation_id = "<generation-provenance>"
 					end
 				else
 					.
@@ -209,19 +232,34 @@ ifa_fault_write_collateral_edges() {
 
 # ifa_fault_compare_collateral_edges returns 0 for exact collateral parity, 1
 # for a real difference, and 2 for jq/hash/diff failure. It supplements rather
-# than replaces the dedicated SQL and code-call exact assertions: SQL edges are
-# excluded here, while code-call edges retain their complete property records.
+# than replaces the dedicated SQL, code-call, and rationale exact assertions:
+# SQL and fixture-owned rationale edges are excluded here, while code-call
+# edges retain their complete property records.
 ifa_fault_compare_collateral_edges() {
 	local baseline_dump="$1" changed_dump="$2" output_dir="$3"
 	local sql_repo_id="${4:-repo-ifa-sql-family}"
 	local mutable_relative_path="${5:-db/schema.sql}"
 	local mutable_absolute_path="${6:-/repo/db/schema.sql}"
+	local rationale_repo_id="${7:-}" rationale_mutable_relative_path="${8:-}"
+	local rationale_mutable_absolute_path="${9:-}"
+	local rationale_baseline_generation_id="${10:-}"
+	local rationale_delta_generation_id="${11:-}"
+	if [[ -n "${rationale_repo_id}" ]] \
+		&& [[ -z "${rationale_baseline_generation_id}" || -z "${rationale_delta_generation_id}" ]]; then
+		return 2
+	fi
 	local baseline_identities="${output_dir}/baseline-sql-repo-node-identities.json"
 	local changed_identities="${output_dir}/changed-sql-repo-node-identities.json"
+	local baseline_rationale_identities="${output_dir}/baseline-rationale-repo-node-identities.json"
+	local changed_rationale_identities="${output_dir}/changed-rationale-repo-node-identities.json"
+	local baseline_combined_repo_identities="${output_dir}/baseline-combined-repo-identities.json"
+	local changed_combined_repo_identities="${output_dir}/changed-combined-repo-identities.json"
 	local baseline_membership="${output_dir}/baseline-sql-repo-node-membership.json"
 	local changed_membership="${output_dir}/changed-sql-repo-node-membership.json"
 	local baseline_edges="${output_dir}/baseline-collateral-edges.json"
 	local changed_edges="${output_dir}/changed-collateral-edges.json"
+	local baseline_rationale_membership="${output_dir}/baseline-rationale-repo-membership.json"
+	local changed_rationale_membership="${output_dir}/changed-rationale-repo-membership.json"
 	local diff_output="${output_dir}/collateral-edges.diff"
 	ifa_fault_write_repo_node_identities \
 		"${baseline_dump}" "${sql_repo_id}" \
@@ -231,10 +269,25 @@ ifa_fault_compare_collateral_edges() {
 		"${changed_dump}" "${sql_repo_id}" \
 		"${mutable_relative_path}" "${mutable_absolute_path}" \
 		"${changed_identities}" || return 2
+	ifa_fault_write_repo_node_identities \
+		"${baseline_dump}" "${rationale_repo_id}" \
+		"${rationale_mutable_relative_path}" "${rationale_mutable_absolute_path}" \
+		"${baseline_rationale_identities}" || return 2
+	ifa_fault_write_repo_node_identities \
+		"${changed_dump}" "${rationale_repo_id}" \
+		"${rationale_mutable_relative_path}" "${rationale_mutable_absolute_path}" \
+		"${changed_rationale_identities}" || return 2
+	ifa_fault_merge_disjoint_maps \
+		"${baseline_identities}" "${baseline_rationale_identities}" \
+		"${baseline_combined_repo_identities}" || return 2
+	ifa_fault_merge_disjoint_maps \
+		"${changed_identities}" "${changed_rationale_identities}" \
+		"${changed_combined_repo_identities}" || return 2
 	local node_rc=0
 	ifa_fault_compare_collateral_nodes \
 		"${baseline_dump}" "${changed_dump}" \
-		"${baseline_identities}" "${changed_identities}" "${output_dir}" || node_rc=$?
+		"${baseline_combined_repo_identities}" "${changed_combined_repo_identities}" "${output_dir}" \
+		"${rationale_repo_id}" "${rationale_baseline_generation_id}" "${rationale_delta_generation_id}" || node_rc=$?
 	if [[ "${node_rc}" -ne 0 ]]; then
 		: >"${diff_output}"
 		return "${node_rc}"
@@ -243,12 +296,18 @@ ifa_fault_compare_collateral_edges() {
 		"${baseline_dump}" "${sql_repo_id}" "${baseline_membership}" || return 2
 	ifa_fault_write_repo_node_membership \
 		"${changed_dump}" "${sql_repo_id}" "${changed_membership}" || return 2
+	ifa_fault_write_repo_node_membership \
+		"${baseline_dump}" "${rationale_repo_id}" "${baseline_rationale_membership}" || return 2
+	ifa_fault_write_repo_node_membership \
+		"${changed_dump}" "${rationale_repo_id}" "${changed_rationale_membership}" || return 2
 	ifa_fault_write_collateral_edges \
-		"${baseline_dump}" "${baseline_identities}" "${baseline_membership}" "${baseline_edges}" \
-		"baseline" || return 2
+		"${baseline_dump}" "${baseline_combined_repo_identities}" "${baseline_membership}" "${baseline_edges}" \
+		"baseline" "${baseline_rationale_membership}" \
+		"${rationale_baseline_generation_id}" "${rationale_delta_generation_id}" "${rationale_repo_id}" || return 2
 	ifa_fault_write_collateral_edges \
-		"${changed_dump}" "${changed_identities}" "${changed_membership}" "${changed_edges}" \
-		"changed" || return 2
+		"${changed_dump}" "${changed_combined_repo_identities}" "${changed_membership}" "${changed_edges}" \
+		"changed" "${changed_rationale_membership}" \
+		"${rationale_baseline_generation_id}" "${rationale_delta_generation_id}" "${rationale_repo_id}" || return 2
 	local diff_rc=0
 	diff -u "${baseline_edges}" "${changed_edges}" >"${diff_output}" || diff_rc=$?
 	[[ "${diff_rc}" -le 1 ]] || return 2
@@ -358,16 +417,16 @@ cell_deltaretract() {
 	ifa_det_run_sql_delta_live \
 		1 "${bin_dir}" "${sql_delta_cassette}" "${sql_delta_expected_edges}" "${log_dir}" \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
+		"${compose_file}" "${GATE_DRAIN_TIMEOUT}" "${rationale_delta_cassette}" \
 		|| die "delta-retract: SQL delta-live proof failed -- the generation-2 retract did not converge to the expected accumulated edge set"
 
 	assert_no_dead_letters deltaretract
 	capture_digest deltaretract
 
-	# Generation 2 intentionally updates SQL-owned canonical nodes. graph-dump
+	# Generation 2 intentionally updates SQL- and rationale-owned canonical nodes. graph-dump
 	# identifies relationship endpoints by the digest of every endpoint
 	# property, so those legitimate updates replace the apparent hashes of the
-	# SQL repository's CONTAINS and REPO_CONTAINS edges. A whole-graph
+	# SQL and rationale repositories' CONTAINS and REPO_CONTAINS edges. A whole-graph
 	# "everything except the nine SQL types" comparison therefore cannot use
 	# raw endpoint hashes. Reassert code calls through their stable, hand-derived
 	# edge identities, then compare the remaining graph through the scoped stable
@@ -375,10 +434,16 @@ cell_deltaretract() {
 	# wrongly attached edges without globally ignoring structural edge types.
 	ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "delta-retract: SQL generation 2 changed the code-call family's five-edge exact set"
+	assert_rationale_delta_truth "deltaretract-post-delta"
+	ifa_rationale_assert_work_counts "deltaretract-post-delta" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
+		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${ifa_rationale_delta_generation_id}" "${ifa_rationale_delta_expected_tuple}" \
+		|| die "delta-retract: rationale delta-generation durable lifecycle did not match the exact tuple"
 
-	# The SQL-v2 and code-call assertions above own their relationship families.
+	# The SQL-v2, code-call, and rationale assertions above own their relationship families.
 	# Compare every remaining edge exactly, except that content-addressed endpoint
-	# hashes on the Repository plus db/schema.sql and its Directory ancestors are
+	# hashes on the SQL Repository plus db/schema.sql and its Directory ancestors,
+	# and on the rationale Repository plus the mutable File and Charge nodes, are
 	# replaced by stable logical identities after proving ownership in each dump.
 	# Preserved paths such as cmd/api/handlers.go stay raw and exact. The records
 	# retain topology, type, count, generation_id presence, and every other
@@ -390,7 +455,7 @@ cell_deltaretract() {
 	command -v jq >/dev/null 2>&1 \
 		|| die "delta-retract: jq is required for fail-closed collateral graph comparison"
 	if ! command -v shasum >/dev/null 2>&1 && ! command -v sha256sum >/dev/null 2>&1; then
-		die "delta-retract: shasum or sha256sum is required to attribute SQL-owned containment endpoints"
+		die "delta-retract: shasum or sha256sum is required to attribute SQL/rationale-owned containment endpoints"
 	fi
 	local collateral_rc=0 collateral_diff
 	ifa_fault_compare_collateral_edges \
@@ -399,17 +464,22 @@ cell_deltaretract() {
 		"${work_dir}" \
 		"repo-ifa-sql-family" \
 		"db/schema.sql" \
-		"/repo/db/schema.sql" || collateral_rc=$?
+		"/repo/db/schema.sql" \
+		"${ifa_rationale_repository_id}" \
+		"${ifa_rationale_delta_relative_path}" \
+		"${ifa_rationale_delta_absolute_path}" \
+		"${ifa_rationale_generation_id}" \
+		"${ifa_rationale_delta_generation_id}" || collateral_rc=$?
 	if [[ "${collateral_rc}" -eq 1 ]]; then
-		printf 'delta-retract: graph collateral changed outside the exact SQL and code-call families:\n' >&2
+		printf 'delta-retract: graph collateral changed outside the exact SQL, code-call, and rationale families:\n' >&2
 		for collateral_diff in "${work_dir}/collateral-nodes.diff" "${work_dir}/collateral-edges.diff"; do
 			[[ ! -s "${collateral_diff}" ]] || cat "${collateral_diff}" >&2
 		done
-		die "delta-retract: SQL generation 2 changed unrelated graph truth; do not widen the family allowlists"
+		die "delta-retract: SQL/rationale delta generations changed unrelated graph truth; do not widen the family allowlists"
 	fi
 	[[ "${collateral_rc}" -eq 0 ]] \
 		|| die "delta-retract: collateral graph comparison failed (status ${collateral_rc}); refusing to report parity"
-	printf 'delta-retract: collateral graph node and edge sets unchanged outside exact SQL/code-call assertions\n'
+	printf 'delta-retract: collateral graph node and edge sets unchanged outside exact SQL/code-call/rationale assertions\n'
 
 	teardown_cell deltaretract
 	wall_times[deltaretract]=$(( $(date +%s) - cell_start ))

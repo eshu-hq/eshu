@@ -19,6 +19,7 @@
 # NOT set `set -euo pipefail` (sourcing it would rebind the caller's shell
 # options). Every function here reads driver-owned globals directly
 # (bin_dir, log_dir, work_dir, cassette, synth_cassette, sql_cassette,
+# rationale_cassette, rationale_expected_edges, rationale_delta_expected_records,
 # drive_workers, compose_file, use_compose, FAULT_COMPOSE_PROJECT,
 # ESHU_POSTGRES_DSN, GATE_DRAIN_TIMEOUT, digests, bg_pids, log, die) rather
 # than taking them as arguments, exactly as they did before this extraction
@@ -57,12 +58,12 @@ fresh_stack() {
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-${cell}.log"; die "${cell}: bootstrap-data-plane failed"; }
 }
 
-# drive_all_cassettes drives demo-org, synth-multiscope, SQL, code-call, and
-# documentation family cassettes into the fresh stack and asserts the drive
-# actually enqueued work (never a vacuous drain proof). The SQL family
-# cassette (#5351) makes cells 2/3 (and the SQL-targeted cells #5555 adds)
-# exercise the SQL relationship materialization handler's replay through the
-# real durable fault path, not only the GCP resource path.
+# drive_all_cassettes drives demo-org, synth-multiscope, SQL, code-call,
+# documentation, and rationale family cassettes into the fresh stack and
+# asserts the drive actually enqueued work (never a vacuous drain proof). The
+# SQL family cassette (#5351) makes cells 2/3 (and the SQL-targeted cells
+# #5555 adds) exercise the SQL relationship materialization handler's replay
+# through the real durable fault path, not only the GCP resource path.
 #
 # The deployable-unit family cassette (#5993) is deliberately NOT driven here.
 # An earlier version of this comment claimed driving it unconditionally into
@@ -97,6 +98,8 @@ drive_all_cassettes() {
 		|| die "${cell}: eshu-ifa drive (code-call family) failed"
 	ifa_documentation_drive "${cell}" "${bin_dir}" "${documentation_cassette}" "${drive_workers}" "${log_dir}" \
 		|| die "${cell}: eshu-ifa drive (documentation family) failed"
+	ifa_rationale_drive "${cell}" "${bin_dir}" "${rationale_cassette}" "${drive_workers}" "${log_dir}" \
+		|| die "${cell}: eshu-ifa drive (rationale family) failed"
 	local enqueued
 	enqueued="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
@@ -122,6 +125,30 @@ drive_deployable_unit_cassette() {
 		|| { tail -40 "${log_dir}/ifa-drive-deployable-unit-${cell}.log" >&2; die "${cell}: eshu-ifa drive (deployable-unit family) failed"; }
 }
 
+# assert_rationale_truth binds every cell to an absolute three-record graph
+# oracle and the exact durable lifecycle. Digest equality alone cannot detect
+# a family that is missing from the baseline and every recovery cell.
+assert_rationale_truth() {
+	local cell="$1"
+	ifa_rationale_assert "${cell}" "${bin_dir}" "${rationale_expected_edges}" \
+		|| die "${cell}: rationale graph does not match the three-record exact set"
+	ifa_rationale_assert_work_counts "${cell}" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" \
+		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${ifa_rationale_generation_id}" "${ifa_rationale_expected_tuple}" \
+		|| die "${cell}: rationale durable lifecycle does not match the exact fixture counts"
+}
+
+# assert_rationale_delta_truth is used only after delta-retract's combined SQL
+# and rationale delta drain. The other seventeen cells remain bound to the
+# rationale baseline three-record graph and exact durable tuple through
+# run_drain_gate.
+assert_rationale_delta_truth() {
+	local cell="$1"
+	ifa_rationale_assert_delta_truth "${cell}" "${bin_dir}" \
+		"${rationale_delta_expected_records}" "${work_dir}/rationale-delta-${cell}.dump" \
+		|| die "${cell}: rationale delta truth is not exact-one plus the exact Charge survivor node"
+}
+
 # run_drain_gate polls the gate binary to the B-12 residual bound (0), which
 # folds in this gate's own dead_letter=0 requirement: factWorkItemsResidualSQL
 # (go/cmd/golden-corpus-gate/drains.go) counts a dead_letter row AS residual,
@@ -141,6 +168,7 @@ run_drain_gate() {
 		tail -40 "${log_dir}/projector-${cell}.log" 2>/dev/null || true
 		die "${cell}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
+	assert_rationale_truth "${cell}"
 }
 
 # assert_no_dead_letters is a second, explicit dead_letter=0 check independent
@@ -192,13 +220,25 @@ assert_matches_baseline() {
 # cell starts from a genuinely fresh Postgres + NornicDB pair.
 teardown_cell() {
 	local cell="$1"
-	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
-	done
-	wait 2>/dev/null || true
-	bg_pids=()
+	local barrier_cleanup_rc=0
+	if declare -F ifa_documentation_stop_ack_producers >/dev/null; then
+		ifa_documentation_stop_ack_producers || barrier_cleanup_rc=$?
+	else
+		for pid in "${bg_pids[@]:-}"; do
+			[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
+		done
+	fi
+	if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then
+		ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-${cell}}" \
+			|| { local cleanup_rc=$?; [[ "${barrier_cleanup_rc}" -ne 0 ]] || barrier_cleanup_rc="${cleanup_rc}"; }
+	fi
+	# Each owned producer and holder is joined explicitly above. An unbounded
+	# aggregate wait could hang behind a deliberately retained unsafe holder.
+	[[ "${barrier_cleanup_rc}" -ne 0 ]] || bg_pids=()
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "${cell}: tear down cell (fresh stack for the next cell)"
 		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
 	fi
+	[[ "${barrier_cleanup_rc}" -eq 0 ]] \
+		|| die "${cell}: documentation ACK barrier teardown failed"
 }

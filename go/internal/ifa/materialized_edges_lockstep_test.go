@@ -147,6 +147,24 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 	}
 
+	// #5998 promotes rationale_edges after both live matrices proved the same
+	// production-shaped cassette and full-record expected set. Pin both rows and
+	// the waiver deletion so the ledger cannot drift back to extractor-only
+	// credit while the live wiring remains in place.
+	rationaleBaseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"rationale_edges", replaycoverage.ScenarioTypeBaseline)
+	if rationaleBaseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:rationale_edges (baseline) status = %q, detail=%q, want covered", rationaleBaseline.Status, rationaleBaseline.Detail)
+	}
+	rationaleFault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"rationale_edges", replaycoverage.ScenarioTypeFault)
+	if rationaleFault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:rationale_edges (fault) status = %q, detail=%q, want covered", rationaleFault.Status, rationaleFault.Detail)
+	}
+	for _, waiver := range waivers {
+		if waiver.Surface == MaterializedEdgeSurfacePrefix+"rationale_edges" {
+			t.Errorf("stale rationale_edges waiver remains for proof gate %q; #5998 requires both waivers to be removed with the live rows", waiver.ProofGate)
+		}
+	}
+
 	// Assert both proof gates this manifest references are CI-blocking with a
 	// local command, mirroring coverage_lockstep_test.go's ifa-contract-layer
 	// assertions: a non-blocking or command-less gate cannot be trusted to
@@ -170,6 +188,7 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		for _, trigger := range []string{
 			"go/internal/ifa/catalog_seed.go",
 			"go/internal/ifa/code_call_family_catalog.go",
+			"go/internal/ifa/testdata/rationale/**",
 			"go/internal/ifa/materialized_edges*.go",
 			"go/internal/reducer/code_call*.go",
 			"go/internal/storage/cypher/*code_call*.go",
@@ -179,9 +198,11 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"go/internal/reducer/documentation_edge*.go",
 			"go/internal/storage/cypher/*documentation*.go",
 			"sdk/go/factschema/documentation/v1/**",
+			"scripts/lib/ifa_rationale_live.sh",
+			"testdata/cassettes/rationale/**",
 		} {
 			if !slices.Contains(found.Triggers, trigger) {
-				t.Errorf("%s gate does not trigger on %q; a catalog or vacuity-guard change could keep a family covered without rerunning its live proof", gateID, trigger)
+				t.Errorf("%s gate does not trigger on %q; a fixture, catalog, or vacuity-guard change could keep materialized-edge coverage green without rerunning its live proof", gateID, trigger)
 			}
 		}
 		// deployable_unit_edges (#5993) triggers: pinned here ahead of its

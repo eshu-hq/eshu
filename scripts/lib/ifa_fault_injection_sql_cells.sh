@@ -74,7 +74,8 @@ cell_killworker_sql() {
 		|| die "kill-worker-after-claim-sql: no sql_relationship_materialization row was ever claimed before the kill -- non-vacuous SQL-targeted precondition failed"
 	printf 'kill-worker-after-claim-sql: non-vacuous: %s claimed/running sql_relationship_materialization row(s) observed before kill\n' "${claimed_before}"
 	log "kill-worker-after-claim-sql: kill -9 the live reducer (pid ${reducer_pid_before})"
-	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
+	ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL \
+		|| die "kill-worker-after-claim-sql: could not stop, join, and untrack the killed reducer"
 	log "kill-worker-after-claim-sql: start a fresh reducer process (1-minute lease expiry reclaim)"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkersql-after" reducer_pid_after "${bin_dir}/eshu-reducer"
 	run_drain_gate killworkersql

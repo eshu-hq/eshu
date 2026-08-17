@@ -3,9 +3,13 @@
 # File-scoped assertion helpers for scripts/test-verify-ifa-fault-injection.sh.
 # The parent verifier owns strict mode, fail(), and all target path variables.
 
+# require searches the gate script AND the family-fixtures lib it sources. The
+# committed cassette/expected-set paths and their fail-fast existence guards
+# moved into that lib so both Ifá live gates share one definition; they are
+# still this gate's own source, so the assertion is unchanged in substance.
 require() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+	rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" || fail "missing ${label}: ${needle}"
 }
 require_lib() {
 	local label="$1" needle="$2"
@@ -42,6 +46,14 @@ require_documentation_lib() {
 require_documentation_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${documentation_cells_lib}" || fail "missing ${label} (documentation cells lib): ${needle}"
+}
+require_documentation_barrier() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_lib}" || fail "missing ${label} (documentation ACK barrier lib): ${needle}"
+}
+require_documentation_barrier_setup() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_setup_lib}" || fail "missing ${label} (documentation ACK barrier setup lib): ${needle}"
 }
 
 # Deleting only the function name from a continued call leaves its arguments

@@ -73,9 +73,10 @@
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls
-# BASELINE and FAULT rows, and the documentation_edges BASELINE and FAULT rows
-# are proven; none of those three families carries a waiver. #5555
+# The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls BASELINE
+# and FAULT rows, the documentation_edges BASELINE and FAULT rows, and the
+# rationale_edges BASELINE and FAULT rows are proven; none of those four
+# families carries a waiver. #5555
 # rebuilt both SQL cells in
 # scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a
@@ -85,15 +86,19 @@
 # its fired-fault marker called a binary the runner does not have (#5974), and
 # is green live now that the assertion matches in bash. #5994 added the
 # documentation cassette, its per-cell absolute DOCUMENTS assertion, the static
-# gate mirrors, and one domain-scoped fault cell (graph-write failure),
-# retiring both of that family's waivers. #6149 follow-up item 8 later found
-# and removed a second, dedicated reclaim cell for that family: neither a
-# kill-worker lock (wrong table, blocked nothing) nor a domain-scoped
-# expire-lease UPDATE (raced the handler's ~7ms completion, never landed)
-# could be made deterministic, so mid-handler-interruption coverage for
-# documentation_edges is a named, documented gap rather than a proven cell --
-# see scripts/lib/ifa_fault_injection_documentation_cells.sh's header. Every
-# remaining
+# gate mirrors, and two domain-scoped fault cells (graph-write failure, and
+# mid-handler interruption via the ACK barrier), retiring both of that
+# family's waivers. #6149 follow-up item 8 had removed the reclaim cell and
+# recorded mid-handler interruption as a named gap for this family, on the
+# finding that its handler holds no Postgres lock and completes in ~7ms so
+# neither a kill-worker lock nor a forced expire-lease can land. #5998
+# supersedes that gap: cell_killworker_documentation blocks the queue ACK
+# rather than the handler -- a BEFORE UPDATE trigger on fact_work_items taking
+# an advisory lock held by a separate session -- so handler width no longer
+# matters. See scripts/lib/ifa_fault_injection_documentation_cells.sh's header
+# for the mechanism and its pre-adoption probe evidence. #5998 likewise added
+# full-record rationale assertions and domain-scoped recovery cells, retiring
+# both rationale waivers. Every remaining
 # allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
 # `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
 # #5543, which is now decomposed into per-domain child issues #5991-#6003;
@@ -196,6 +201,25 @@ coverage:
     ref: "odu:ifa-documentation-family"
     proof_gate: ifa-fault-injection
 
+  # Both live gates drive the rationale cassette and exact-assert its full
+  # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
+  # exact-compares the complete Rationale source, EXPLAINS relationship, and
+  # Function target records. The same matrix drives generation 2 and requires
+  # the exact one-edge survivor. The 15-cell fault
+  # matrix drives the cassette in every cell; its domain-scoped worker-kill and
+  # one-shot EXPLAINS-write cells converge to the same exact three-record set
+  # with zero dead letters.
+  - surface: "materialized_edges:rationale_edges"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-rationale-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:rationale_edges"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-rationale-family"
+    proof_gate: ifa-fault-injection
+
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
   # 2026-08-08 until #5974, on the belief that cell_failgraphwrite_sql did not
@@ -204,9 +228,10 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 11 other allProjectionDomains families: both gates unproven. ---
+  # --- The 10 other allProjectionDomains families: both live gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
-  # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
+  # waiver. Most still lack an Odù + expected-edge-set fixture; family-specific
+  # comments below name any stronger offline proof that still lacks a live gate.
   # Each names its own per-domain child issue (#5991-#6003) under the #5344
   # epic umbrella #5543, not the umbrella itself: a waiver should name the issue
   # whose closure retires it, and the umbrella retires none of them individually.
@@ -288,25 +313,6 @@ waivers:
     issue: "#6002"
     waived: "2026-07-21"
     reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending #6002 for an Odù + expected-edge-set fixture"
-  # rationale_edges: the EXTRACTOR is proven by odu:ifa-rationale-family (#5998)
-  # -- ExtractRationaleEdgeRows reproduces a hand-derived exact edge set, and
-  # mutating the tombstone guard, the blank kind/text guard, the dedup, or the
-  # comment kind in the node identity each turns it red. Both dimensions stay
-  # WAIVED anyway: a coverage row names a proof GATE, and neither gate executes
-  # this family. verify-ifa-determinism.sh asserts expected edges for
-  # sql_relationships and code_calls only, and MaterializedEdgeDomainEdgeTypes
-  # rejects rationale_edges, so a row here would claim a gate proves something
-  # it never runs.
-  - surface: "materialized_edges:rationale_edges"
-    proof_gate: ifa-determinism
-    issue: "#5998"
-    waived: "2026-08-09"
-    reason: "reducer.DomainRationaleEdges extraction proven by odu:ifa-rationale-family; live determinism-gate execution pending a cassette + absolute EXPLAINS assertion"
-  - surface: "materialized_edges:rationale_edges"
-    proof_gate: ifa-fault-injection
-    issue: "#5998"
-    waived: "2026-08-09"
-    reason: "reducer.DomainRationaleEdges extraction proven by odu:ifa-rationale-family; fault dimension pending domain-scoped live cells"
   - surface: "materialized_edges:deployable_unit_edges"
     proof_gate: ifa-determinism
     issue: "#5993"
@@ -366,7 +372,12 @@ waivers:
 #     cell_failgraphwrite_sql are green live, so the family carries no waiver.
 #   - code_calls BASELINE and FAULT are covered by the exact-set replay and two
 #     domain-scoped recovery cells described above (#5991).
-#   - The 11 other allProjectionDomains families are blocked on the epic #5344
+#   - documentation_edges BASELINE and FAULT are covered by exact three-edge
+#     assertions and two domain-scoped recovery cells (#5994).
+#   - rationale_edges BASELINE and FAULT are covered by full-record assertions
+#     in both matrices. The determinism matrix also proves its generation-2
+#     exact-one survivor; that delta behavior is not a separate required row.
+#   - The 10 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------

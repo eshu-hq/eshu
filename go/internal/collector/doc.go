@@ -24,7 +24,10 @@
 // items into commit mutations so storage can fence fact persistence.
 // Full Git snapshots emit reducer follow-ups for shell-exec materialization
 // alongside the existing workload, code-call, deployment, SQL, and inheritance
-// follow-ups; delta snapshots skip those repo-wide follow-ups.
+// follow-ups. Full and delta Git generations emit one unconditional
+// rationale-materialization follow-up after their content-entity facts,
+// including generations with no current rationale comments, so downstream
+// reconciliation can retract stale EXPLAINS edges.
 // Repository-hosted Markdown, lightweight text, HTML, API contracts, notebook
 // narrative, bounded DOCX summaries, conservative delimited spreadsheet files,
 // bounded XLSX workbook summaries, bounded PPTX slide summaries, bounded ZIP

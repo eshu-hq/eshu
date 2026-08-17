@@ -28,8 +28,9 @@ disjunction-target statement with one statement per label in
 `executeSequentialRetractStatements` path (the #5116 managed-transaction
 under-apply forbids grouping). The write template's target disjunction is now
 built from the same label list, so the write and retract sides cannot drift
-(`TestRationaleRetractCoversEveryWriteTargetLabel`). The whole-repo retract is
-untouched.
+(`TestRationaleRetractCoversEveryWriteTargetLabel`). The later #5998 provenance
+repair keeps that target-label fan-out while combining the canonical and one
+legacy rationale evidence source in each statement.
 
 ## Benchmark Evidence:
 
@@ -56,11 +57,35 @@ fixed-fan-out class as the code-call, inheritance, and SQL retracts. There is
 no correct faster baseline to regress against; the prior single statement was
 buying its speed by not deleting anything.
 
-## Observability Evidence:
+### Benchmark Evidence (#5998 provenance repair):
 
-No-Observability-Change. The retract statements keep the
-`OperationCanonicalRetract` operation and the same parameters, and flow through
-the existing canonical retract spans and graph-write failure/retry telemetry;
-sequential execution surfaces per-statement errors through the same
+The #5998 provenance repair was also probed before implementation against the
+pinned `eshu-nornicdb-pr290:3722b483c02c` image
+(`sha256:c8141c6cd9ec270391562fabf1b047502a681e4d0036a15451b96967681930b9`).
+The successful Go Bolt probe used
+`rel.evidence_source IN $evidence_sources` with the exact bounded parameter
+`[reducer/rationale, finalization/workloads]`:
+
+| Scope | Statements | Relationships deleted | Query wall time |
+| --- | ---: | ---: | ---: |
+| Full repository | 1 | 2 | 2.481 ms |
+| Changed path, seven target labels | 7 | 14 | 18.292 ms total |
+
+The full probe preserved `custom/rationale` and `foreign/tool` edges in the
+same repository. The delta probe preserved those sources on the changed path,
+the legacy edge on an unchanged path, and all edges in another repository.
+`PROBE_RESULT=PASS` and `GO_PROBE_RC=0`; the retained transcript has SHA-256
+`1a9f7316cec43946202e830cc008ac6491a0fa3063e084eb46469af45908362a`.
+An earlier Python-driver attempt was unusable because its driver rejected the
+backend agent string; none of its timings are used here.
+
+## No-Observability-Change (#5998 provenance repair):
+
+The retract statements keep the `OperationCanonicalRetract` operation and flow
+through the existing canonical retract spans and graph-write failure/retry
+telemetry. Canonical rationale cleanup changes its evidence parameter from one
+string to a bounded two-string list; custom sources retain the exact
+single-source parameter. Sequential delta execution surfaces per-statement
+errors through the same
 `WrapRetryableNeo4jError` path. No metric name, span, log field, queue stage,
 worker knob, or status field changes.
