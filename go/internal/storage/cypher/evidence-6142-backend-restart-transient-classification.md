@@ -166,8 +166,10 @@ terminal:
 - `isNornicDBStoreClosingCommitFailure` (`retryable_error.go`) — the commit-side
   twin of #5989's transaction-start guard.
 - `isNornicDBStoreClosedStatementFailure` (`retryable_error.go`) — the `DB
-  Closed` body. No statement-shape guard: a closed store answered a read, so
-  nothing was written.
+  Closed` body. No statement-shape guard -- not because nothing was written (the
+  probe above raised this exact error from a write transaction 4,597 statements
+  in) but because that interrupted transaction rolled back whole, `survived=0`,
+  so a replay finds nothing half-applied.
 - `isNornicDBRelationshipCreateMissingEndpoint` (`retrying_executor.go`) — folded
   into `isNornicDBRelationshipSnapshotConflict` beside its update-side sibling,
   so it inherits that path's existing MERGE-shape gate. Both bracketing

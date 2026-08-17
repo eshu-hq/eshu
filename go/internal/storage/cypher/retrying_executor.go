@@ -357,11 +357,19 @@ func isNornicDBRelationshipSnapshotConflict(err error) bool {
 }
 
 // isNornicDBRelationshipCreateMissingEndpoint reports whether msg is the
-// create-side missing-endpoint failure, requiring both bracketing fragments so
-// the neighbouring "create failed: not found" body stays terminal.
+// create-side missing-endpoint failure. The two fragments must genuinely
+// BRACKET the node id -- suffix after prefix -- which is the narrowness the
+// guard's justification rests on. Two unordered Contains calls would also
+// accept a message carrying the fragments in the wrong order or in unrelated
+// clauses, which is a wider match than the comment claims and than the
+// neighbouring terminal bodies deserve.
 func isNornicDBRelationshipCreateMissingEndpoint(msg string) bool {
-	return strings.Contains(msg, nornicDBRelationshipCreateMissingEndpointPrefix) &&
-		strings.Contains(msg, nornicDBRelationshipCreateMissingEndpointSuffix)
+	start := strings.Index(msg, nornicDBRelationshipCreateMissingEndpointPrefix)
+	if start < 0 {
+		return false
+	}
+	rest := msg[start+len(nornicDBRelationshipCreateMissingEndpointPrefix):]
+	return strings.Contains(rest, nornicDBRelationshipCreateMissingEndpointSuffix)
 }
 
 // isNornicDBMergeUniqueConflict treats commit-time unique conflicts from

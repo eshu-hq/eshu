@@ -89,10 +89,13 @@ func (e *schemaFenceError) Retryable() bool { return true }
 
 // WrapRetryableNeo4jError inspects err for graph-write failures that are safe
 // to retry from the durable reducer queue. It wraps known retryable Neo4j error
-// codes, driver retry-budget exhaustion, connectivity failures, and the two
-// exact NornicDB failures a backend restart emits -- the transaction-start
-// failure raised once the WAL is closed, and the commit failure raised once the
-// store has blocked writes for shutdown. Malformed connectivity errors remain
+// codes, driver retry-budget exhaustion, connectivity failures, and the three
+// NornicDB failures a backend restart emits: the transaction-start failure
+// raised once the WAL is closed (matched on an exact message), the commit
+// failure raised once the store has blocked writes for shutdown, and the
+// statement failure raised once the store is closed outright (both matched on a
+// distinguishing substring, since their bodies carry variable context). Every
+// one requires its error code as well. Malformed connectivity errors remain
 // terminal, and all other errors are returned unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
@@ -188,9 +191,15 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 // because the store was already closed under it. NornicDB's UNWIND MERGE chain
 // fast path reports this as nornicDBStatementSyntaxErrorCode, so the code alone
 // cannot be trusted -- a genuinely malformed query carries the same one. The
-// "DB Closed" body is what makes it unambiguous, and it needs no
-// statement-shape guard: a closed store answered a read, so nothing was
-// written and replay cannot double-apply anything.
+// "DB Closed" body is what makes it unambiguous.
+//
+// It needs no statement-shape guard, but NOT because nothing was written -- an
+// earlier version of this comment claimed that and it is false. This error was
+// raised live from a WRITE transaction that had already executed 4,597 of
+// 20,000 statements. Replay is safe on the measured outcome instead: that same
+// probe found the interrupted transaction rolled back whole (survived=0 of
+// 20,000), so there is nothing half-applied for a replay to double up. See
+// evidence-6142-backend-restart-transient-classification.md.
 func isNornicDBStoreClosedStatementFailure(err error) bool {
 	var neo4jErr *neo4jdriver.Neo4jError
 	return errors.As(err, &neo4jErr) &&

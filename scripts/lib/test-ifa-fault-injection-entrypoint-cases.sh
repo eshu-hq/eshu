@@ -21,6 +21,12 @@ run_ifa_fault_entrypoint_static_cases() {
 	require "sources collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, and rationale family cassettes"
 	require "failure log dump" "host binary logs (failure)"
+	# The container-log tail alone cannot name a dead-lettered row: its
+	# failure_message lives only in Postgres, and one real CI failure spent
+	# all 60 tail lines on INFO chatter. Pin the durable dump and its
+	# failure_message column so neither can be dropped silently.
+	require "durable work-item failure dump" "durable work-item failures (Postgres)"
+	require "durable dump selects failure_message" "failure_class, failure_message FROM fact_work_items"
 	require "--no-compose flag" "--no-compose"
 	require "--keep flag" "--keep"
 

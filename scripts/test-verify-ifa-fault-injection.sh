@@ -166,15 +166,22 @@ fi
 # two rationale-targeted (#5998), and a family-scoped baseline plus two
 # recovery cells for deployable_unit_edges (#5993). All eighteen run by
 # default.
-for cell in baseline killworker expirelease failgraphwrite restartbackend; do
-	require "cell present: ${cell}" "cell_${cell}"
-done
-# Anchored to the invocation line, not the bare name: the verifier's
-# source-helper comments mention cell_deltaretract, so a bare-name needle stays
-# green after the call is deleted. rg without --fixed-strings so ^...$ binds.
-# Pin every split-library invocation to its own line so mentioning a function
-# in documentation cannot keep the test green after the call is deleted.
-for cell in cell_killworker_sql cell_killworker_code_calls cell_duplicatedelivery cell_deltaretract cell_failgraphwrite_code_calls; do
+# Every cell is anchored to its own invocation line, never matched by bare name.
+# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
+# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
+# the cell_baseline dispatch line left the mirror green -- and cell_baseline is
+# the sole writer of digests[baseline], so all sixteen assert_matches_baseline
+# calls would then compare against an unset key. The anchored form was
+# previously applied to only five of the eighteen; it now covers all of them.
+# rg without --fixed-strings so ^...$ binds.
+for cell in \
+	cell_baseline cell_killworker cell_expirelease cell_failgraphwrite cell_restartbackend \
+	cell_killworker_sql cell_killworker_code_calls cell_killworker_documentation \
+	cell_killworker_rationale cell_duplicatedelivery cell_deltaretract \
+	cell_failgraphwrite_sql cell_failgraphwrite_code_calls \
+	cell_failgraphwrite_documentation cell_failgraphwrite_rationale \
+	cell_baseline_deployable_unit cell_killworker_deployable_unit \
+	cell_failgraphwrite_deployable_unit; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
 # #5974 probes. A missing marker had two explanations and the gate had to guess

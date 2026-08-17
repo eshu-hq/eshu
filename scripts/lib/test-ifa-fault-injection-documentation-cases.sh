@@ -37,11 +37,13 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
-	require_documentation_cells "graph-write cell probes documentation intents" "projection_domain = 'documentation_edges'"
-	# The fresh-stack precondition's fail-closed messages are pinned in
-	# run_ifa_fault_injection_documentation_registry_cases below, against the
-	# graph-dump wording #6157 repointed them to. They are deliberately NOT
-	# duplicated here on the old intents-query wording, which no longer exists.
+	# Pinned against the real precondition CALL, not against prose. The previous
+	# literal here ("projection_domain = 'documentation_edges'") was satisfied
+	# only by a COMMENT explaining that this probe had been deleted as vacuous,
+	# so rewording that comment turned the mirror red while deleting the actual
+	# precondition below left it green -- a guard pinned to the explanation of a
+	# thing rather than the thing.
+	require_documentation_cells "graph-write cell probes fresh DOCUMENTS edges" 'ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation"'
 	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
 	require_documentation_cells "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline"
 	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'

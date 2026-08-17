@@ -48,8 +48,11 @@ import (
 // evidence-6142-backend-restart-transient-classification.md.
 
 // TestBackendClosedDuringMergeChainRemainsQueueRetryable covers the
-// unambiguous half: the store answered "DB Closed". No statement-shape guard
-// is needed for it — a closed store wrote nothing.
+// unambiguous half: the store answered "DB Closed". No statement-shape guard is
+// needed for it -- not because a closed store wrote nothing (it does not: this
+// error was observed from a write transaction 4,597 statements in) but because
+// the interrupted transaction was measured to roll back whole, survived=0 of
+// 20,000, leaving nothing half-applied for a replay to double up.
 func TestBackendClosedDuringMergeChainRemainsQueueRetryable(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +146,18 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 		t.Parallel()
 		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
 			"UNWIND MERGE chain relationship create failed: not found")
+		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
+			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
+		}}))
+		require.Same(t, err, WrapRetryableNeo4jError(err))
+	})
+
+	// The guard claims the fragments BRACKET the node id. Reversed order must
+	// therefore stay terminal; two unordered Contains calls would accept it.
+	t.Run("reversed fragments stay terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			" does not exist UNWIND MERGE chain relationship create failed: start node ")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
 		}}))

@@ -341,6 +341,16 @@ cleanup() {
 	local status=$?
 	local barrier_cleanup_rc=0
 	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
+		# A dead-lettered row's failure_message exists ONLY in Postgres, and the
+		# tail below is routinely flooded by INFO chatter (one real CI failure
+		# spent all 60 of its lines on "drift finding admitted"), so a red cell
+		# could name its own cause nowhere. Print the durable rows first and
+		# unelided. Never allowed to change the exit status: status was captured
+		# above, and the dump cannot fail the trap.
+		printf '\n=== durable work-item failures (Postgres) ===\n' >&2
+		ifa_det_pg "${FAULT_COMPOSE_PROJECT:-}" "${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" \
+			"SELECT stage, domain, scope_id, status, attempt_count, failure_class, failure_message FROM fact_work_items WHERE status NOT IN ('succeeded', 'superseded') ORDER BY status, domain;" \
+			"${compose_file:-}" >&2 || printf '(durable work-item dump unavailable)\n' >&2
 		printf '\n=== host binary logs (failure) ===\n' >&2
 		for logf in "${log_dir}"/*.log; do
 			[[ -f "${logf}" ]] || continue
