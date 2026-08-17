@@ -17,9 +17,21 @@ import (
 const rationaleHandlerBenchmarkEntityCount = 5_000
 
 // BenchmarkRationaleEdgeMaterializationHandlerRepoScale measures the in-process
-// cost newly activated by the unconditional collector follow-up: fact loading,
-// extraction, and durable refresh/edge-intent construction. The writer is
+// cost newly activated by the unconditional collector follow-up: extraction and
+// durable refresh/edge-intent construction. The loader and writer are
 // intentionally in-memory, so these numbers do not claim Postgres or graph I/O.
+//
+// The Postgres side of that follow-up -- the per-generation
+// ListFactsByKind([repository, content_entity]) load this handler issues -- is
+// measured against a real store in
+// docs/internal/evidence/6154-fact-records-keyset-pagination.md: on the
+// 896-repository corpus the worst-case generation (241,726 facts sharing one
+// observed_at) loaded in 84.12 s and was quadratic in generation size. That was
+// root-caused and fixed in #6155 (commit e6453efd, keyset paging plus the
+// statement split), taking the same load to 3.37 s. Reverting that fix fails
+// this module's build: go/internal/storage/postgres/facts_filtered_keyset_test.go
+// and fact_records_keyset_index_live_test.go both reference the split cursor
+// statement it introduced.
 func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 	previousLogger := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
