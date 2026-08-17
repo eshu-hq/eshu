@@ -1,0 +1,226 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-rationale-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-rationale-family",
+      "metadata": {
+        "fixture": "ifa-rationale-family-delta"
+      },
+      "generation_id": "gen-ifa-rationale-family-2",
+      "observed_at": "2026-08-15T01:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:r_f781caa5",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repository:r_f781caa5",
+            "graph_kind": "repository",
+            "imports_map": {
+              "charge": [
+                "/repo-rationale/services/payments/charge.py"
+              ],
+              "healthcheck": [
+                "/repo-rationale/services/support/healthcheck.py"
+              ],
+              "issue_invoice": [
+                "/repo-rationale/services/billing/invoice.py"
+              ],
+              "reconcile": [
+                "/repo-rationale/services/support/reconcile.py"
+              ],
+              "refund": [
+                "/repo-rationale/services/payments/refund.py"
+              ]
+            },
+            "is_dependency": false,
+            "local_path": "/repo-rationale",
+            "name": "repo-rationale",
+            "parsed_file_count": "1",
+            "remote_url": "https://github.com/eshu-hq/ifa-rationale-fixture",
+            "repo_id": "repository:r_f781caa5",
+            "repo_slug": "eshu-hq/ifa-rationale-fixture",
+            "source_run_id": "run-ifa-rationale-family-1",
+            "delta_generation": true,
+            "delta_relative_paths": [
+              "services/payments/charge.py"
+            ],
+            "delta_deleted_relative_paths": null
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:r_f781caa5:services/payments/charge.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repository:r_f781caa5:services/payments/charge.py",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "python",
+            "parsed_file_data": {
+              "analytics_models": null,
+              "annotations": null,
+              "argocd_applications": null,
+              "argocd_applicationsets": null,
+              "atlantis_projects": null,
+              "atlantis_workflows": null,
+              "classes": [],
+              "cloudformation_conditions": null,
+              "cloudformation_cross_stack_exports": null,
+              "cloudformation_cross_stack_imports": null,
+              "cloudformation_outputs": null,
+              "cloudformation_parameters": null,
+              "cloudformation_resources": null,
+              "components": null,
+              "crossplane_claims": null,
+              "crossplane_compositions": null,
+              "crossplane_xrds": null,
+              "dashboard_assets": null,
+              "data_assets": null,
+              "data_columns": null,
+              "data_contracts": null,
+              "data_owners": null,
+              "data_quality_checks": null,
+              "embedded_shell_commands": [],
+              "enums": null,
+              "flux_buckets": null,
+              "flux_git_repositories": null,
+              "flux_helm_releases": null,
+              "flux_helm_repositories": null,
+              "flux_kustomizations": null,
+              "flux_oci_repositories": null,
+              "framework_semantics": {
+                "frameworks": []
+              },
+              "function_calls": [],
+              "functions": [
+                {
+                  "args": [],
+                  "async": false,
+                  "cyclomatic_complexity": 1,
+                  "decorators": [],
+                  "end_line": 6,
+                  "lang": "python",
+                  "line_number": 5,
+                  "name": "charge",
+                  "source": "def charge():\n    pass",
+                  "uid": "content-entity:e_763200c9adc3"
+                }
+              ],
+              "gitlab_jobs": null,
+              "gitlab_pipelines": null,
+              "helm_charts": null,
+              "helm_template_value_usages": null,
+              "helm_value_definitions": null,
+              "helm_values": null,
+              "iac_relevant": false,
+              "impl_blocks": null,
+              "imports": [],
+              "interfaces": null,
+              "is_dependency": false,
+              "k8s_resources": null,
+              "kustomize_overlays": null,
+              "lang": "python",
+              "macros": null,
+              "modules": [],
+              "orm_table_mappings": [],
+              "pagerduty_declarations": null,
+              "path": "/repo-rationale/services/payments/charge.py",
+              "properties": null,
+              "protocol_implementations": null,
+              "protocols": null,
+              "query_executions": null,
+              "records": null,
+              "repo_path": "/repo-rationale",
+              "sql_columns": null,
+              "sql_functions": null,
+              "sql_indexes": null,
+              "sql_migrations": null,
+              "sql_tables": null,
+              "sql_triggers": null,
+              "sql_views": null,
+              "structs": null,
+              "terraform_backends": null,
+              "terraform_blocks": null,
+              "terraform_checks": null,
+              "terraform_data_sources": null,
+              "terraform_imports": null,
+              "terraform_locals": null,
+              "terraform_lock_providers": null,
+              "terraform_modules": null,
+              "terraform_moved_blocks": null,
+              "terraform_outputs": null,
+              "terraform_providers": null,
+              "terraform_removed_blocks": null,
+              "terraform_resources": null,
+              "terraform_variables": null,
+              "terragrunt_configs": null,
+              "terragrunt_dependencies": null,
+              "terragrunt_inputs": null,
+              "terragrunt_locals": null,
+              "traits": null,
+              "type_aliases": null,
+              "type_annotations": [],
+              "typedefs": null,
+              "unions": null,
+              "variables": []
+            },
+            "relative_path": "services/payments/charge.py",
+            "repo_id": "repository:r_f781caa5"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_763200c9adc3",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "end_line": 6,
+            "entity_id": "content-entity:e_763200c9adc3",
+            "entity_metadata": {
+              "args": null,
+              "async": false,
+              "cyclomatic_complexity": 1,
+              "decorators": null
+            },
+            "entity_name": "charge",
+            "entity_type": "Function",
+            "graph_id": "content-entity:e_763200c9adc3",
+            "graph_kind": "content_entity",
+            "iac_relevant": false,
+            "indexed_at": "1970-01-01T00:00:00Z",
+            "language": "python",
+            "relative_path": "services/payments/charge.py",
+            "repo_id": "repository:r_f781caa5",
+            "source_cache": "def charge():\n    pass\n",
+            "start_line": 5
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repository:r_f781caa5:rationale_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "rationale:repo-rationale",
+            "reason": "repository generation requested rationale materialization reconciliation",
+            "reducer_domain": "rationale_materialization",
+            "repo_id": "repository:r_f781caa5"
+          }
+        }
+      ]
+    }
+  ]
+}

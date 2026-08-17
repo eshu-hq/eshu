@@ -22,11 +22,12 @@ const rationalePartitionKeyVersion = "rationale-edges:v1"
 // ProcessPartitionOnce selection deduplicates rows by (acceptance key, partition
 // key) via LatestIntentsByRepoAndPartition, so two edges that shared one partition
 // key would collapse and one edge would be silently dropped. The key therefore
-// hashes the repo, the target entity's repo-qualified file path, and the edge
-// identity (rationale_uid->target_entity_id). The target_path is the durable
-// anchor (the file-scoped delta retract keys on target.path, since the EXPLAINS
-// edge precedes the code entity the comment annotates), so it is hashed so the
-// value reads as file-scoped while the edge identity makes it collision-free.
+// hashes the repo, the target entity's repo-relative file path, and the edge
+// identity (rationale_uid->target_entity_id). The target_path is the entity's
+// repo-relative partition anchor, so it is hashed to keep the value visibly
+// file-scoped while the edge identity makes it collision-free. Delta retraction
+// does not reuse this value: it matches repository-qualified delta_file_paths
+// against canonical target.path values.
 // Hashing spreads a repo's edges across the partition ring so distinct edges
 // project concurrently, and the repo is mixed in first so two repos never collide
 // (#2869).
@@ -68,11 +69,11 @@ func rationaleWholeScopePartitionKey(repoID string) string {
 // For each edge row it emits a write-only per-edge intent placed under the
 // file-scoped partition key for that edge's target_path, marked
 // retract_via_refresh so the worker fences the write behind the paired refresh.
-// Because many edges in one file share a partition key, the per-edge intent uses
-// an IdentityKey (rationale_uid->target_entity_id) so each intent ID stays
-// distinct and same-file edges do not collapse. Rows whose repo has no projection
-// context are skipped: without an acceptance identity they cannot be fenced or
-// freshness-gated.
+// The partition key already mixes the edge identity, so same-file edges occupy
+// distinct durable partitions. IdentityKey repeats that edge identity for
+// deterministic intent-ID construction rather than relying on the encoded
+// partition-key string. Rows whose repo has no projection context are skipped:
+// without an acceptance identity they cannot be fenced or freshness-gated.
 func buildRationaleSharedIntentRows(
 	edgeRows []map[string]any,
 	deltaScope rationaleDeltaScope,
@@ -167,12 +168,12 @@ func buildRationaleRefreshIntents(
 	return intents
 }
 
-// rationaleEdgeIdentityKey is the deterministic per-edge identity used for the
-// intent ID when many edges share one file-scoped partition key. It matches the
-// edge key the canonical rationale edge writer uses: the identity-only Rationale
-// node's uid to the target code entity it EXPLAINS. Two distinct rationale
-// comments (different kind or excerpt) on the same entity carry different
-// rationale_uids, so they stay separate intents (#2869).
+// rationaleEdgeIdentityKey is the deterministic per-edge identity mixed into
+// both the file-scoped partition key and the intent ID. It matches the edge key
+// the canonical rationale edge writer uses: the identity-only Rationale node's
+// uid to the target code entity it EXPLAINS. Two distinct rationale comments
+// (different kind or excerpt) on the same entity carry different rationale_uids,
+// so they stay separate partitions and intents (#2869).
 func rationaleEdgeIdentityKey(row map[string]any) string {
 	return anyToString(row["rationale_uid"]) + "->" +
 		anyToString(row["target_entity_id"])

@@ -105,7 +105,14 @@
   matched by type alone, never by nothing — that exact silent no-op is what #5351's
   fixture work surfaced. Read-only, flags-before-backend like `graph-dump`; the
   set-comparison core (`assertMaterializedEdges`) takes a `graphdump.Reader` so
-  it is hermetically testable against a fake with no Docker. A new family gains
+  it is hermetically testable against a fake with no Docker. A family uses its
+  own comparator only when its proof contract requires more than identity:
+  `rationale_edges` exact-compares sorted endpoint labels and every raw node/edge
+  property, scoped to one fixture repository. Its filter retains EXPLAINS when
+  either endpoint belongs to that repository or carries an expected identity,
+  so cross-repository pollution and repository-property drift cannot disappear
+  behind source-only scoping. The full-record comparator also
+  takes a `graphdump.Reader` and streams the graph exactly once. A new family gains
   live coverage by adding its case to `ifa.MaterializedEdgeDomainEdgeTypes` and
   its cassette/expected-set to BOTH gate scripts — not by hand-listing edge
   types here.

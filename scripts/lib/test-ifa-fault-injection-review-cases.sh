@@ -209,8 +209,8 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/nonprojector-baseline.dump" "${case_dir}/unexpected-nonprojector-generation.dump" "${case_dir}" \
 		>/dev/null 2>&1 || rc=$?
-	[[ "${rc}" -eq 1 ]] \
-		|| fail "non-projector generation_id churn returned ${rc}, want collateral-diff status 1"
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "owned containment with noncanonical evidence returned ${rc}, want fail-closed status 2"
 	rc=0
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-noncontained-generation.dump" "${case_dir}" \
@@ -233,8 +233,8 @@ test_ifa_fault_collateral_compare_is_scoped_and_fail_closed() (
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-missing-owned-generation.dump" "${case_dir}" \
 		>/dev/null 2>&1 || rc=$?
-	[[ "${rc}" -eq 1 ]] \
-		|| fail "missing changed-side SQL-owned generation_id returned ${rc}, want collateral-diff status 1"
+	[[ "${rc}" -eq 2 ]] \
+		|| fail "missing changed-side SQL-owned generation_id returned ${rc}, want fail-closed status 2"
 	rc=0
 	ifa_fault_compare_collateral_edges \
 		"${case_dir}/baseline.dump" "${case_dir}/unexpected-unrefreshed-mutable.dump" "${case_dir}" \
@@ -365,90 +365,6 @@ test_ifa_fault_collateral_nodes_preserve_full_multiset() (
 	[[ "${rc}" -eq 2 ]] || fail "malformed node identity map returned ${rc}, want status 2"
 )
 
-test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed() (
-	source "${code_call_cells_lib}"
-	declare -F ifa_code_call_require_fresh_intents >/dev/null \
-		|| fail "code-call cells do not expose ifa_code_call_require_fresh_intents"
-
-	local query_output query_rc output rc
-	ifa_det_pg() {
-		printf '%s' "${query_output}"
-		return "${query_rc}"
-	}
-
-	query_output="ignored"
-	query_rc=7
-	rc=0
-	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -eq 7 ]] || fail "failed code-call precondition query returned ${rc}, want original exit 7"
-	[[ "${output}" == *"precondition query FAILED (exit 7)"* ]] \
-		|| fail "failed code-call precondition query did not preserve exit 7: ${output}"
-	[[ "${output}" != *"survived fresh_stack"* ]] \
-		|| fail "failed code-call precondition query was misreported as stale intents: ${output}"
-
-	query_output=""
-	query_rc=0
-	rc=0
-	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "empty code-call precondition count was accepted"
-	[[ "${output}" == *"returned empty output"* ]] \
-		|| fail "empty code-call precondition count was not diagnosed distinctly: ${output}"
-
-	query_output="not-a-count"
-	query_rc=0
-	rc=0
-	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "non-numeric code-call precondition count was accepted"
-	[[ "${output}" == *"returned non-numeric output"* ]] \
-		|| fail "non-numeric code-call precondition count was not diagnosed distinctly: ${output}"
-
-	query_output=$' 3\n'
-	query_rc=0
-	rc=0
-	output="$(ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "stale code-call intents were accepted"
-	[[ "${output}" == *"3 code_calls intent row(s) survived fresh_stack"* ]] \
-		|| fail "stale code-call intents were not reported as stale: ${output}"
-
-	query_output=$' 0\n'
-	query_rc=0
-	ifa_code_call_require_fresh_intents test project 1 postgresql://unused compose.yaml >/dev/null \
-		|| fail "zero code-call intents did not continue"
-)
-
-test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
-	source "${det_lib}"
-	source "${driver_lib}"
-	source "${code_call_cells_lib}"
-	declare -F ifa_det_untrack_bg_pid >/dev/null \
-		|| fail "determinism helpers do not expose ifa_det_untrack_bg_pid"
-
-	local case_dir holder_pid survivor_pid
-	case_dir="$(mktemp -d -t ifa-fault-lock-owner.XXXXXX)"
-	trap 'rm -rf "${case_dir}"' EXIT
-	holder_pid=41001
-	survivor_pid=41002
-	bg_pids=("${holder_pid}" "${survivor_pid}")
-	use_compose=0
-	FAULT_COMPOSE_PROJECT="test"
-	ESHU_POSTGRES_DSN="postgresql://unused"
-	compose_file="docker-compose.yaml"
-
-	ifa_det_pg() { return 0; }
-	wait() { return 0; }
-	kill() { printf '%s\n' "$@" >>"${case_dir}/kill.log"; }
-	log() { :; }
-
-	ifa_code_call_release_intent_lock test "${holder_pid}"
-	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
-		|| fail "joined code-call lock-holder PID remained in tracked ownership"
-	teardown_cell test
-	if rg --line-regexp --quiet -- "${holder_pid}" "${case_dir}/kill.log"; then
-		fail "teardown signaled the joined code-call lock-holder PID; PID reuse could target an unrelated process"
-	fi
-	rg --line-regexp --quiet -- "${survivor_pid}" "${case_dir}/kill.log" \
-		|| fail "teardown stopped tracking the still-owned background PID"
-)
 
 # The documentation_edges cases (#5994) live in
 # test-ifa-fault-injection-documentation-cases.sh, a sibling file: adding
@@ -466,4 +382,12 @@ run_ifa_fault_injection_review_cases() {
 	test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed
 	test_ifa_fault_released_lock_holder_is_not_torn_down_twice
 	test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed
+	test_ifa_documentation_ack_barrier_queries_are_typed_and_fail_closed
+	test_ifa_documentation_waiter_cleanup_preserves_exact_claim
+	test_ifa_documentation_ack_barrier_sql_executes_on_postgres
+	test_ifa_documentation_ack_barrier_cleanup_is_fail_closed
+	test_ifa_documentation_cleanup_requires_exact_backend_outcomes
+	test_ifa_documentation_cleanup_censuses_uncaptured_sessions_and_stops_in_parallel
+	test_ifa_documentation_released_ack_holder_is_not_torn_down_twice
+	test_ifa_documentation_contending_run_never_owns_or_drops_winner_ddl
 }

@@ -137,7 +137,7 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	if !strings.HasPrefix(edges[0].PartitionKey, rationalePartitionKeyVersion+":files:") {
 		t.Fatalf("edge partition key %q lacks file-scoped prefix", edges[0].PartitionKey)
 	}
-	if got, want := anyToString(edges[0].Payload["target_path"]), "/repo/src/handler.go"; got != want {
+	if got, want := anyToString(edges[0].Payload["target_path"]), "src/handler.go"; got != want {
 		t.Fatalf("edge target_path = %q, want %q", got, want)
 	}
 }
@@ -196,7 +196,7 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 					"repo_id":       "repo-1",
 					"entity_id":     "content-entity:func",
 					"entity_type":   "Function",
-					"relative_path": "/repo/src/x.go",
+					"relative_path": "src/x.go",
 					"entity_metadata": map[string]any{
 						"rationale_comments": []any{
 							map[string]any{"kind": "WHY", "text": "memoize because recompute is expensive"},
@@ -258,7 +258,7 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:func",
 				"entity_type":   "Function",
-				"relative_path": "/repo/src/func.go",
+				"relative_path": "src/func.go",
 				"entity_metadata": map[string]any{
 					"rationale_comments": []any{
 						map[string]any{"kind": "WHY", "text": "memoize because recompute is expensive"},
@@ -279,7 +279,7 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 	if got, want := row["target_entity_id"], "content-entity:func"; got != want {
 		t.Errorf("target_entity_id = %#v, want %#v", got, want)
 	}
-	if got, want := row["target_path"], "/repo/src/func.go"; got != want {
+	if got, want := row["target_path"], "src/func.go"; got != want {
 		t.Errorf("target_path = %#v, want %#v", got, want)
 	}
 	if got, want := row["comment_kind"], "WHY"; got != want {
@@ -372,7 +372,7 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 				"entity_id":     "content-entity:handler",
 				"entity_type":   "Function",
 				"entity_name":   "Handle",
-				"relative_path": "/repo/src/handler.go",
+				"relative_path": "src/handler.go",
 				"entity_metadata": map[string]any{
 					"rationale_comments": []any{
 						map[string]any{"kind": "WHY", "text": "explain cached projector path"},

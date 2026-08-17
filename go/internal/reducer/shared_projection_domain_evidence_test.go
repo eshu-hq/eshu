@@ -18,6 +18,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 		want   string
 	}{
 		{DomainInheritanceEdges, inheritanceEvidenceSource},
+		{DomainRationaleEdges, rationaleEvidenceSource},
 		{DomainHandlesRoute, fallback},
 		{DomainRunsIn, fallback},
 		{DomainWorkloadDependency, fallback},
@@ -31,7 +32,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 			}
 		})
 	}
-	if inheritanceEvidenceSource == fallback {
-		t.Fatal("inheritance evidence source must differ from the runner global to exercise the fix")
+	if inheritanceEvidenceSource == fallback || rationaleEvidenceSource == fallback {
+		t.Fatal("dedicated evidence sources must differ from the runner global to exercise the fix")
 	}
 }

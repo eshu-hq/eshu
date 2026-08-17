@@ -104,6 +104,18 @@ accumulate in this README now lands in `docs/internal/evidence/` (see
 [Related docs](#related-docs)); `scripts/verify-performance-evidence.sh`
 accepts markers from that directory as well as from this file.
 
+## Rationale EXPLAINS reconciliation
+
+`DomainRationaleMaterialization` loads the admitted repository and
+`content_entity` facts, extracts parser-emitted rationale comments, and emits
+one refresh intent per repository plus one `EXPLAINS` intent per exact comment
+identity. Edge payloads keep repo-relative target paths for partition identity;
+full refreshes retract repo-wide, while delta refreshes use separately
+repository-qualified changed and deleted paths. The unconditional Git follow-up
+also runs zero-positive generations so stale rationale edges can retract. See
+[`docs/internal/evidence/5998-rationale-relative-path.md`](../../../docs/internal/evidence/5998-rationale-relative-path.md)
+for the fixture, benchmark boundary, and completed live proof on the supported backend.
+
 ## Cross-repo call resolver coverage (issue #3487)
 
 `DomainCodeCallMaterialization` resolves a parser-emitted call to a callee entity

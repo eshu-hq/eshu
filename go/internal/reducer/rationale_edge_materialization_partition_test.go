@@ -33,11 +33,16 @@ import (
 // the direct write path.
 type rationaleStateModelingEdgeWriter struct {
 	// edgesByRepo maps repo_id -> edgeKey -> target_path.
-	edgesByRepo map[string]map[string]string
+	edgesByRepo      map[string]map[string]string
+	repoPathByRepoID map[string]string
 }
 
-func newRationaleStateModelingEdgeWriter() *rationaleStateModelingEdgeWriter {
-	return &rationaleStateModelingEdgeWriter{edgesByRepo: make(map[string]map[string]string)}
+func newRationaleStateModelingEdgeWriter(repoPaths ...map[string]string) *rationaleStateModelingEdgeWriter {
+	w := &rationaleStateModelingEdgeWriter{edgesByRepo: make(map[string]map[string]string)}
+	if len(repoPaths) > 0 {
+		w.repoPathByRepoID = repoPaths[0]
+	}
+	return w
 }
 
 func (w *rationaleStateModelingEdgeWriter) RetractEdges(
@@ -79,7 +84,11 @@ func (w *rationaleStateModelingEdgeWriter) WriteEdges(
 			edges = make(map[string]string)
 			w.edgesByRepo[repoID] = edges
 		}
-		edges[rationaleTestEdgeKey(row.Payload)] = anyToString(row.Payload["target_path"])
+		targetPath := anyToString(row.Payload["target_path"])
+		if repoPath := w.repoPathByRepoID[repoID]; repoPath != "" {
+			targetPath = semanticQualifyDeltaPath(repoPath, targetPath)
+		}
+		edges[rationaleTestEdgeKey(row.Payload)] = targetPath
 	}
 	return SharedProjectionWriteReport{}, nil
 }
@@ -169,11 +178,11 @@ func rationaleConvergenceFixture(repoID, repoPath string, delta bool, changedRel
 			FactKind: factKindContentEntity,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
-				"repo_id":     repoID,
-				"entity_id":   id,
-				"entity_type": "Function",
-				"entity_name": name,
-				"path":        repoPath + "/" + relPath,
+				"repo_id":       repoID,
+				"entity_id":     id,
+				"entity_type":   "Function",
+				"entity_name":   name,
+				"relative_path": relPath,
 				"entity_metadata": map[string]any{
 					"rationale_comments": []any{
 						map[string]any{"kind": kind, "text": text},
@@ -198,7 +207,7 @@ func rationaleConvergenceFixture(repoID, repoPath string, delta bool, changedRel
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"repo_id":       repoID,
-			"path":          repoPath,
+			"local_path":    repoPath,
 			"source_run_id": "run-1",
 		},
 	}
@@ -209,11 +218,38 @@ func rationaleConvergenceFixture(repoID, repoPath string, delta bool, changedRel
 	return append(envelopes, repository)
 }
 
+func TestRationaleConvergenceFixtureUsesCollectorAndCanonicalPathShapes(t *testing.T) {
+	t.Parallel()
+	const repoID = "repo-rationale"
+	const repoPath = "/repo"
+	envelopes := rationaleConvergenceFixture(repoID, repoPath, true, []string{"a.go", "b.go"})
+	_, rows := ExtractRationaleEdgeRows(envelopes)
+	if len(rows) != 4 {
+		t.Fatalf("extracted rationale rows = %d, want 4", len(rows))
+	}
+	for _, row := range rows {
+		targetPath := anyToString(row["target_path"])
+		if targetPath != "a.go" && targetPath != "b.go" && targetPath != "c.go" {
+			t.Errorf("extracted target_path = %q, want repo-relative a.go/b.go/c.go", targetPath)
+		}
+	}
+	deltaScope := buildRationaleDeltaScope(envelopes)
+	if got := strings.Join(deltaScope.filePathsByRepoID[repoID], ","); got != "/repo/a.go,/repo/b.go" {
+		t.Fatalf("qualified delta paths = %q, want /repo/a.go,/repo/b.go", got)
+	}
+	seeded := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
+	for _, targetPath := range seeded.edgesByRepo[repoID] {
+		if !strings.HasPrefix(targetPath, repoPath+"/") {
+			t.Errorf("modeled canonical target.path = %q, want repository-qualified path", targetPath)
+		}
+	}
+}
+
 // seedPriorRationaleEdges writes the prior-generation edges directly so the
 // promoted path actually exercises a retract (not a first-generation no-op). It
 // returns the seeded edge writer.
-func seedPriorRationaleEdges(rows []map[string]any) *rationaleStateModelingEdgeWriter {
-	edges := newRationaleStateModelingEdgeWriter()
+func seedPriorRationaleEdges(rows []map[string]any, repoPaths ...map[string]string) *rationaleStateModelingEdgeWriter {
+	edges := newRationaleStateModelingEdgeWriter(repoPaths...)
 	_, _ = edges.WriteEdges(context.Background(), DomainRationaleEdges, rationaleDirectWriteRows(rows), rationaleEvidenceSource)
 	return edges
 }
@@ -251,7 +287,7 @@ func TestRationalePartitionConvergesFullReprojection(t *testing.T) {
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
-	direct := seedPriorRationaleEdges(rows)
+	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	if err := direct.RetractEdges(
 		context.Background(), DomainRationaleEdges,
 		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
@@ -269,7 +305,7 @@ func TestRationalePartitionConvergesFullReprojection(t *testing.T) {
 	intents := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertRationaleIntentKeyShapes(t, intents)
 
-	partitioned := seedPriorRationaleEdges(rows)
+	partitioned := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	partitioned = drainRationaleInto(t, partitioned, intents, partitionCount, now)
 
 	assertSameRationaleEdgeKeys(t, direct, partitioned, repoID)
@@ -301,7 +337,8 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	}
 
 	// DIRECT path.
-	direct := seedPriorRationaleEdges(rows)
+	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
+	direct.edgesByRepo[repoID]["rationale:stale->ent:removed"] = "/repo/a.go"
 	if err := direct.RetractEdges(
 		context.Background(), DomainRationaleEdges,
 		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
@@ -318,10 +355,17 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	// PARTITIONED path.
 	intents := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, now.Add(-time.Minute))
 	assertRationaleIntentKeyShapes(t, intents)
-	partitioned := seedPriorRationaleEdges(rows)
+	partitioned := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
+	partitioned.edgesByRepo[repoID]["rationale:stale->ent:removed"] = "/repo/a.go"
 	partitioned = drainRationaleInto(t, partitioned, intents, partitionCount, now)
 
 	assertSameRationaleEdgeKeys(t, direct, partitioned, repoID)
+	if _, ok := direct.edgesByRepo[repoID]["rationale:stale->ent:removed"]; ok {
+		t.Fatal("direct delta retract retained stale edge for changed a.go")
+	}
+	if _, ok := partitioned.edgesByRepo[repoID]["rationale:stale->ent:removed"]; ok {
+		t.Fatal("partitioned delta retract retained stale edge for changed a.go")
+	}
 
 	// The unchanged file c.go's edge (Delta) must survive in both. Its key is the
 	// rationale uid for the TODO comment on ent:delta.

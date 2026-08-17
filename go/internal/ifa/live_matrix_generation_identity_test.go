@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package ifa
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+// TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes pins the database
+// contract behind ingestion_scopes_active_generation_idx: every non-null
+// active generation ID is globally unique, even when different fixture scopes
+// are driven into the same live stack.
+func TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	fixturePaths := []string{
+		"testdata/cassettes/gcpcloud/supply-chain-demo.json",
+		"testdata/cassettes/sqlrelationships/ifa-sql-family.json",
+		"testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json",
+		"testdata/cassettes/codecalls/ifa-code-call-family.json",
+		"testdata/cassettes/documentation/ifa-documentation-family.json",
+		rationaleFamilyCassetteRelPath,
+		rationaleFamilyDeltaCassetteRelPath,
+	}
+
+	generationScopes := map[string]string{}
+	for _, fixturePath := range fixturePaths {
+		envelopes := loadCassetteEnvelopes(t, filepath.Join(repoRoot, fixturePath))
+		if len(envelopes) == 0 {
+			t.Fatalf("live cassette %q contains no facts", fixturePath)
+		}
+		for _, envelope := range envelopes {
+			if envelope.ScopeID == "" || envelope.GenerationID == "" {
+				t.Fatalf("live cassette %q contains a blank scope/generation coordinate", fixturePath)
+			}
+			if priorScope, exists := generationScopes[envelope.GenerationID]; exists && priorScope != envelope.ScopeID {
+				t.Fatalf("live generation ID %q belongs to both %q and %q; ingestion_scopes_active_generation_idx permits only one active scope",
+					envelope.GenerationID, priorScope, envelope.ScopeID)
+			}
+			generationScopes[envelope.GenerationID] = envelope.ScopeID
+		}
+	}
+}

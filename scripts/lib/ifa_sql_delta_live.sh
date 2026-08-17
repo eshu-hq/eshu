@@ -33,16 +33,20 @@ ifa_det_assert_sql_baseline() {
 	fi
 }
 
-# ifa_det_run_sql_delta_live drives generation 2 into the current durable cell,
-# proves the drive added work, drains it through projector + reducer, and
-# asserts the accumulated SQL edge set exactly.
+# ifa_det_run_sql_delta_live drives SQL generation 2 and, when argument 11 is
+# non-empty, the rationale family's separately namespaced delta cassette into
+# the current durable cell.
+# It proves the combined drive added work, drains both through the caller-owned
+# running projector + reducer lifecycle, and asserts the accumulated SQL edge
+# set exactly. The caller owns worker lifecycle plus the rationale exact-record,
+# durable-count, and survivor-node assertions.
 ifa_det_run_sql_delta_live() {
 	local n="$1" bin_dir="$2" sql_delta_cassette="$3"
 	local sql_delta_expected_edges="$4" log_dir="$5"
 	local compose_project="$6" use_compose="$7" postgres_dsn="$8"
 	local compose_file="$9" drain_timeout="${10}"
-	local work_items_before_delta work_items_after_delta
-	local projector_pid reducer_pid
+	local rationale_delta_cassette="${11:-}"
+	local work_items_before_delta work_items_after_sql work_items_after_delta
 
 	work_items_before_delta="$(ifa_det_pg "${compose_project}" "${use_compose}" "${postgres_dsn}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
@@ -54,27 +58,37 @@ ifa_det_run_sql_delta_live() {
 		return 1
 	fi
 	cat "${log_dir}/ifa-drive-sql-delta-n${n}.log"
-	work_items_after_delta="$(ifa_det_pg "${compose_project}" "${use_compose}" "${postgres_dsn}" \
+	work_items_after_sql="$(ifa_det_pg "${compose_project}" "${use_compose}" "${postgres_dsn}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
-	if [[ -z "${work_items_before_delta}" || -z "${work_items_after_delta}" || \
-		"${work_items_after_delta}" -le "${work_items_before_delta}" ]]; then
+	if [[ -z "${work_items_before_delta}" || -z "${work_items_after_sql}" || \
+		"${work_items_after_sql}" -le "${work_items_before_delta}" ]]; then
 		echo "N=${n}: SQL delta drive enqueued 0 new fact_work_items rows (vacuous delta proof)" >&2
 		return 1
 	fi
+	if [[ -n "${rationale_delta_cassette}" ]]; then
+		if ! declare -F ifa_rationale_drive >/dev/null; then
+			echo "N=${n}: rationale delta cassette was supplied but ifa_rationale_drive is unavailable" >&2
+			return 1
+		fi
+		ifa_rationale_drive "delta-n${n}" "${bin_dir}" "${rationale_delta_cassette}" "${n}" "${log_dir}" \
+			|| { echo "N=${n}: eshu-ifa drive (rationale delta) failed" >&2; return 1; }
+	fi
+	work_items_after_delta="$(ifa_det_pg "${compose_project}" "${use_compose}" "${postgres_dsn}" \
+		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
+	if [[ -n "${rationale_delta_cassette}" ]] && \
+		[[ -z "${work_items_after_delta}" || "${work_items_after_delta}" -le "${work_items_after_sql}" ]]; then
+		echo "N=${n}: rationale delta drive enqueued 0 new fact_work_items rows (vacuous delta proof)" >&2
+		return 1
+	fi
 
-	printf '\n=== N=%s: drain SQL gen-2 delta through projector + reducer ===\n' "${n}"
-	ifa_det_start_bg "${log_dir}" "projector-delta-n${n}" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-delta-n${n}" reducer_pid "${bin_dir}/eshu-reducer"
+	printf '\n=== N=%s: drain SQL + rationale delta through caller-owned running projector + reducer ===\n' "${n}"
 	if ! "${bin_dir}/eshu-golden-corpus-gate" \
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 		-drain-timeout="${drain_timeout}"; then
-		tail -30 "${log_dir}/reducer-delta-n${n}.log" || true
-		tail -30 "${log_dir}/projector-delta-n${n}.log" || true
 		echo "N=${n}: SQL delta drain did not reach the snapshot residual bound within ${drain_timeout}" >&2
 		return 1
 	fi
-	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 
 	printf '\n=== N=%s: assert SQL delta-live accumulated materialized edges (exact set) ===\n' "${n}"
 	if ! "${bin_dir}/eshu-ifa" assert-edges \

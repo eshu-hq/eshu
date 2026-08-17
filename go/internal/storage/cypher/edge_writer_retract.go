@@ -10,6 +10,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+const (
+	canonicalRationaleEvidenceSource = "reducer/rationale"
+	legacyRationaleEvidenceSource    = "finalization/workloads"
+)
+
+func rationaleRetractEvidenceSources(evidenceSource string) []string {
+	if evidenceSource != canonicalRationaleEvidenceSource {
+		return []string{evidenceSource}
+	}
+	return []string{evidenceSource, legacyRationaleEvidenceSource}
+}
+
 // RetractEdges retracts canonical domain edges for the given rows. Retraction
 // collects repo IDs from all rows and executes one batched DELETE statement,
 // except for the domains special-cased below (delta-scoped, per-source-label,
@@ -58,6 +70,8 @@ func (w *EdgeWriter) RetractEdges(
 		if hasDeltaScope {
 			// Per-target-label statements run sequentially (#5116 sibling): a
 			// target-label disjunction matches zero rows on NornicDB v1.1.11.
+			// The canonical source also retracts the one bounded legacy source
+			// in each statement; custom sources remain exact-source retracts.
 			stmts := BuildRetractRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
 			return w.executeSequentialRetractStatements(ctx, stmts)
 		}
@@ -91,6 +105,11 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainInheritanceEdges {
 		stmts := BuildRetractInheritanceEdgeStatements(repoIDs, evidenceSource)
 		return w.executeInheritanceRetractStatements(ctx, stmts)
+	}
+	if domain == reducer.DomainRationaleEdges {
+		return WrapRetryableNeo4jError(
+			w.executor.Execute(ctx, BuildRetractRationaleEdges(repoIDs, evidenceSource)),
+		)
 	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)

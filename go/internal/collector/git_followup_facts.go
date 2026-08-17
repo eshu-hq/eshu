@@ -115,6 +115,35 @@ func codeCallMaterializationFactEnvelope(
 	)
 }
 
+// rationaleMaterializationFactEnvelope builds the per-repository reconciliation
+// marker for canonical EXPLAINS edges. It is emitted for every admitted full or
+// delta generation, including generations with no rationale comments, so the
+// reducer can retract stale edges after comments disappear.
+func rationaleMaterializationFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "rationale_materialization",
+		"entity_key":     "rationale:" + filepath.Base(repoPath),
+		"reason":         "repository generation requested rationale materialization reconciliation",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":rationale_materialization",
+		payload,
+		repoPath,
+	)
+}
+
 // platformInfraMaterializationFactEnvelope builds the per-repository follow-up
 // fact that triggers the platform_infra_materialization reducer domain. The
 // handler extracts Terraform/terragrunt platform-provisioning signals from the

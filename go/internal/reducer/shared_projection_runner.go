@@ -102,12 +102,15 @@ func (c SharedProjectionRunnerConfig) leaseOwner() string {
 // handler keep the handler's original evidence source so that, across an upgrade,
 // the refresh/delta retract still matches the edges the old handler wrote (a
 // mismatched source would leave stale edges un-retracted and change edge
-// provenance). inheritance_edges keeps reducer/inheritance (#2867); the symbol→runtime
-// domains have no pre-existing edges and stay on the runner's global source.
+// provenance). inheritance_edges keeps reducer/inheritance (#2867),
+// rationale_edges keeps reducer/rationale (#5998), and the symbol→runtime domains
+// have no pre-existing edges and stay on the runner's global source.
 func sharedProjectionDomainEvidenceSource(domain, fallback string) string {
 	switch domain {
 	case DomainInheritanceEdges:
 		return inheritanceEvidenceSource
+	case DomainRationaleEdges:
+		return rationaleEvidenceSource
 	default:
 		return fallback
 	}

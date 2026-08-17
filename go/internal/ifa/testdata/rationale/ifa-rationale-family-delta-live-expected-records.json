@@ -1,0 +1,82 @@
+{
+  "generation_id": "gen-ifa-rationale-family-2",
+  "note": "Hand-derived delta assertion: charge.py loses all supported rationale markers, so its two baseline EXPLAINS records retract; the unchanged invoice.py HACK record remains byte-exact at gen-ifa-rationale-family-1, while the changed charge Function is reprojected at gen-ifa-rationale-family-2 without an EXPLAINS edge.",
+  "edges": [
+    {
+      "relationship_type": "EXPLAINS",
+      "source_entity_id": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+      "rationale_uid": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+      "target_entity_id": "content-entity:e_2dc98238d686",
+      "target_path": "services/billing/invoice.py",
+      "repo_id": "repository:r_f781caa5",
+      "comment_kind": "HACK",
+      "source_record": {
+        "labels": [
+          "Rationale"
+        ],
+        "props": {
+          "uid": "rationale:content-entity:e_2dc98238d686:HACK:06749b8de60ce629",
+          "type": "rationale",
+          "repo_id": "repository:r_f781caa5",
+          "comment_kind": "HACK",
+          "excerpt_hash": "06749b8de60ce629",
+          "evidence_source": "reducer/rationale"
+        }
+      },
+      "edge_props": {
+        "confidence": 0.95,
+        "reason": "Intent comment explains the code entity it precedes",
+        "evidence_source": "reducer/rationale",
+        "comment_kind": "HACK"
+      },
+      "target_record": {
+        "labels": [
+          "Function"
+        ],
+        "props": {
+          "uid": "content-entity:e_2dc98238d686",
+          "id": "content-entity:e_2dc98238d686",
+          "name": "issue_invoice",
+          "path": "/repo-rationale/services/billing/invoice.py",
+          "relative_path": "services/billing/invoice.py",
+          "line_number": 2,
+          "start_line": 2,
+          "end_line": 3,
+          "repo_id": "repository:r_f781caa5",
+          "language": "python",
+          "lang": "python",
+          "scope_id": "scope-ifa-rationale-family",
+          "generation_id": "gen-ifa-rationale-family-1",
+          "evidence_source": "projector/canonical",
+          "async": false,
+          "cyclomatic_complexity": 1
+        }
+      }
+    }
+  ],
+  "required_nodes": [
+    {
+      "labels": [
+        "Function"
+      ],
+      "props": {
+        "uid": "content-entity:e_763200c9adc3",
+        "id": "content-entity:e_763200c9adc3",
+        "name": "charge",
+        "path": "/repo-rationale/services/payments/charge.py",
+        "relative_path": "services/payments/charge.py",
+        "line_number": 5,
+        "start_line": 5,
+        "end_line": 6,
+        "repo_id": "repository:r_f781caa5",
+        "language": "python",
+        "lang": "python",
+        "scope_id": "scope-ifa-rationale-family",
+        "generation_id": "gen-ifa-rationale-family-2",
+        "evidence_source": "projector/canonical",
+        "async": false,
+        "cyclomatic_complexity": 1
+      }
+    }
+  ]
+}

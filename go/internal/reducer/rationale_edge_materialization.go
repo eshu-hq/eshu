@@ -70,6 +70,15 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
 	repoIDs = mergeRationaleRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	contextRepoIDs := make([]string, 0, len(contextByRepoID))
+	for repoID := range contextByRepoID {
+		contextRepoIDs = append(contextRepoIDs, repoID)
+	}
+	// A full generation with no current rationale rows still needs one repo-wide
+	// refresh to retract edges whose comments disappeared. Projection contexts
+	// are the admitted repository set: they require both repo_id and
+	// source_run_id, so this does not manufacture refreshes for malformed input.
+	repoIDs = mergeRationaleRepositoryIDs(repoIDs, contextRepoIDs)
 	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
 		return Result{
 			IntentID:        intent.IntentID,
@@ -130,10 +139,10 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 		if entityID == "" || repoID == "" {
 			continue
 		}
-		// targetPath is the repo-qualified path of the code entity the comment
-		// precedes. It is the durable anchor for the file-scoped partition key and
-		// the target.path delta retract (the EXPLAINS edge precedes this entity), so
-		// it rides every emitted edge row as provenance (#2869).
+		// targetPath is the repo-relative path emitted on the content_entity fact.
+		// It is the durable anchor for the file-scoped intent partition key; the
+		// separate repository delta scope qualifies changed paths for target.path
+		// retraction. It rides every edge row as provenance (#2869).
 		//
 		// Read "relative_path", which is the key contentEntityFactEnvelope actually
 		// emits (git_content_fact_envelopes.go), and which every sibling extractor

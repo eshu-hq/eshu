@@ -4,7 +4,13 @@
 package ifa
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The rationale_edges family Odù (#5998, under the #5543 umbrella).
@@ -17,163 +23,231 @@ import (
 // emits the right ones — and the set is asserted exactly, so an edge nobody
 // derived fails as loudly as a missing one.
 const (
-	rationaleFamilyOduName      = "odu:ifa-rationale-family"
-	rationaleFamilyScopeID      = "scope-ifa-rationale-family"
-	rationaleFamilyGenerationID = "gen-1"
-	rationaleFamilyRepoID       = "repo-ifa-rationale"
+	rationaleFamilyOduName           = "odu:ifa-rationale-family"
+	rationaleFamilyScopeID           = "scope-ifa-rationale-family"
+	rationaleFamilyGenerationID      = "gen-ifa-rationale-family-1"
+	rationaleFamilyDeltaGenerationID = "gen-ifa-rationale-family-2"
+	rationaleFamilyRepoID            = "repository:r_f781caa5"
+	rationaleFamilyRemoteURL         = "https://github.com/eshu-hq/ifa-rationale-fixture"
+	rationaleFamilyCassetteRelPath   = "testdata/cassettes/rationale/ifa-rationale-family.json"
+	rationaleFamilySourceRunID       = "run-ifa-rationale-family-1"
+	rationaleFamilyLocalPath         = "/repo-rationale"
+	rationaleFamilyChargePath        = "services/payments/charge.py"
+	rationaleFamilyInvoicePath       = "services/billing/invoice.py"
+	rationaleFamilyRefundPath        = "services/payments/refund.py"
+	rationaleFamilyReconcilePath     = "services/support/reconcile.py"
+	rationaleFamilyHealthcheckPath   = "services/support/healthcheck.py"
+	rationaleFamilyChargeName        = "charge"
+	rationaleFamilyInvoiceName       = "issue_invoice"
+	rationaleFamilyChargeLine        = 5
+	rationaleFamilyInvoiceLine       = 2
 )
 
-// rationaleFamilyOdu carries two content entities whose comments derive exactly
-// three EXPLAINS edges, plus seven inputs that must derive none.
-//
-// The negatives map one-to-one onto the extractor's early returns, so deleting
-// any single guard turns the exact-set assertion red rather than passing with a
-// quietly larger graph:
-//
-//   - a non-content_entity fact kind      (only content entities carry comments)
-//   - a tombstoned content entity         (a retraction is not evidence)
-//   - a content entity with no repo_id    (an edge with no repo has no scope)
-//   - a content entity with a blank entity_id
-//     (the edge would have no target identity; guarded in the same condition
-//     as repo_id, so a regression to checking only the repo would project it)
-//   - a comment with a blank kind         (kind is half the node identity)
-//   - a comment whose text is whitespace  (trims to empty, so no excerpt)
-//   - a repeated (entity, kind, text)     (the seen[rationaleUID] dedup)
-//
-// Two positives are deliberately near-identical: the same comment text under
-// two different kinds. They share an excerpt hash but differ in kind, so they
-// must produce TWO edges. That pins the kind into the node identity — a UID
-// built from entity+hash alone would collapse them and the count would drop.
+// rationaleFamilyOdu carries five parser-reachable Python functions. Two
+// functions derive exactly three EXPLAINS edges; the other three pin the
+// parser's case, supported-marker, adjacency, and no-comment exclusions. The
+// charge function repeats WHY and carries an empty TODO so exact-set comparison
+// also pins deduplication and empty-text rejection. Synthetic malformed-envelope
+// and precedence guards live in reducer unit tests rather than this live Odù.
 func rationaleFamilyOdu() CatalogOdu {
 	const (
 		chargeText  = "Retries are capped at three to bound tail latency."
 		invoiceText = "Invoices are immutable once issued."
 	)
+	chargeID := content.CanonicalEntityID(
+		rationaleFamilyRepoID, rationaleFamilyChargePath, "Function",
+		rationaleFamilyChargeName, rationaleFamilyChargeLine,
+	)
+	invoiceID := content.CanonicalEntityID(
+		rationaleFamilyRepoID, rationaleFamilyInvoicePath, "Function",
+		rationaleFamilyInvoiceName, rationaleFamilyInvoiceLine,
+	)
+	refundID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyRefundPath, "Function", "refund", 3)
+	reconcileID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyReconcilePath, "Function", "reconcile", 3)
+	healthID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyHealthcheckPath, "Function", "healthcheck", 1)
+	sourceRunID := rationaleFamilySourceRunID
+	localPath := rationaleFamilyLocalPath
+	files := []struct {
+		path         string
+		name         string
+		entityID     string
+		startLine    int
+		endLine      int
+		entitySource string
+		comments     []any
+	}{
+		{rationaleFamilyInvoicePath, rationaleFamilyInvoiceName, invoiceID, rationaleFamilyInvoiceLine, 3, "def issue_invoice():\n    pass\n", []any{
+			map[string]any{"kind": "HACK", "text": invoiceText},
+		}},
+		{rationaleFamilyChargePath, rationaleFamilyChargeName, chargeID, rationaleFamilyChargeLine, 6, "def charge():\n    pass\n", []any{
+			map[string]any{"kind": "WHY", "text": chargeText},
+			map[string]any{"kind": "NOTE", "text": chargeText},
+			map[string]any{"kind": "WHY", "text": chargeText},
+			map[string]any{"kind": "TODO", "text": ""},
+		}},
+		{rationaleFamilyRefundPath, "refund", refundID, 3, 4, "def refund():\n    pass\n", nil},
+		{rationaleFamilyHealthcheckPath, "healthcheck", healthID, 1, 2, "def healthcheck():\n    pass\n", nil},
+		{rationaleFamilyReconcilePath, "reconcile", reconcileID, 3, 4, "def reconcile():\n    pass\n", nil},
+	}
+	factsForOdu := make([]facts.Envelope, 0, 12)
+	graphID, graphKind, repoName, parsedCount := rationaleFamilyRepoID, "repository", "repo-rationale", "5"
+	repoSlug, remoteURL := "eshu-hq/ifa-rationale-fixture", rationaleFamilyRemoteURL
+	isDependency := false
+	factsForOdu = append(factsForOdu, rationaleFamilyRepositoryFact(codegraphv1.Repository{
+		RepoID: rationaleFamilyRepoID, SourceRunID: &sourceRunID, LocalPath: &localPath,
+		GraphID: &graphID, GraphKind: &graphKind, Name: &repoName,
+		ParsedFileCount: &parsedCount, IsDependency: &isDependency,
+		RepoSlug: &repoSlug, RemoteURL: &remoteURL,
+	}))
+	for _, file := range files {
+		fileGraphID, fileGraphKind, language := rationaleFamilyRepoID+":"+file.path, "file", "python"
+		factsForOdu = append(factsForOdu, rationaleFamilyFileFact(codegraphv1.File{
+			RepoID: rationaleFamilyRepoID, RelativePath: file.path,
+			ParsedFileData: rationaleFamilyParsedFile(file.path, file.name, file.entityID, file.startLine, file.endLine, file.entitySource, file.comments),
+			GraphID:        &fileGraphID, GraphKind: &fileGraphKind,
+			IsDependency: &isDependency, Language: &language,
+		}))
+	}
+	for _, file := range files {
+		metadata := map[string]any{
+			"args": nil, "async": false, "cyclomatic_complexity": float64(1), "decorators": nil,
+		}
+		if len(file.comments) > 0 {
+			metadata["rationale_comments"] = file.comments
+		}
+		factsForOdu = append(factsForOdu, rationaleFamilyContentEntity(
+			file.entityID, file.name, file.path, file.startLine, file.endLine, file.entitySource, metadata,
+		))
+	}
+	factsForOdu = append(factsForOdu, rationaleFamilyFollowupFact())
 	odu := Odu{
-		Name: rationaleFamilyOduName,
-		Facts: []facts.Envelope{
-			// EDGES 1 and 2: same text, two kinds, from the top-level key.
-			// EDGE 3's entity uses the entity_metadata fallback instead.
-			rationaleFamilyContentEntity("func:payments.Charge", "services/payments/charge.go", map[string]any{
-				"rationale_comments": []map[string]any{
-					{"kind": "why", "text": chargeText},
-					{"kind": "caveat", "text": chargeText},
-					// NOT AN EDGE: identical (entity, kind, text) as the first
-					// comment. A parser re-emitting the same comment must not
-					// double the graph.
-					{"kind": "why", "text": chargeText},
-					// NOT AN EDGE: kind is half the Rationale node's identity,
-					// so a blank one cannot address a node.
-					{"kind": "", "text": "A comment with no kind."},
-					// NOT AN EDGE: whitespace-only text trims to empty, so
-					// there is no excerpt to hash.
-					{"kind": "why", "text": "   "},
-				},
-			}),
-			// EDGE 3: comments carried under entity_metadata rather than at the
-			// top level. rationalePayloadComments falls back to that nesting,
-			// and a fixture that only used the top-level key would leave the
-			// fallback branch unproven.
-			rationaleFamilyContentEntity("func:billing.Invoice", "services/billing/invoice.go", map[string]any{
-				"entity_metadata": map[string]any{
-					"rationale_comments": []map[string]any{
-						{"kind": "why", "text": invoiceText},
-					},
-				},
-			}),
-			// NOT AN EDGE: tombstoned. A retraction is not evidence for a new
-			// edge, however well-formed its comments are.
-			rationaleFamilyTombstone("func:payments.Refund", "services/payments/refund.go", map[string]any{
-				"rationale_comments": []map[string]any{
-					{"kind": "why", "text": "Refunds are idempotent by request id."},
-				},
-			}),
-			// NOT AN EDGE: no repo_id. The edge would have no repository scope
-			// to belong to.
-			{
-				ScopeID:      rationaleFamilyScopeID,
-				GenerationID: rationaleFamilyGenerationID,
-				FactKind:     "content_entity",
-				Payload: map[string]any{
-					"entity_id":     "func:orphan.NoRepo",
-					"relative_path": "services/orphan/no_repo.go",
-					"rationale_comments": []map[string]any{
-						{"kind": "why", "text": "This entity names no repository."},
-					},
-				},
-			},
-			// NOT AN EDGE: blank entity_id. entity_id is the edge's target and
-			// half the Rationale UID, so an edge without one has no target
-			// identity at all. Kept distinct from the missing-repo_id case
-			// because the extractor guards them in one condition
-			// (entityID == "" || repoID == ""): if that regressed to checking
-			// only the repository, an edge with an empty target would project
-			// and a fixture testing only the repo half would stay green.
-			{
-				ScopeID:      rationaleFamilyScopeID,
-				GenerationID: rationaleFamilyGenerationID,
-				FactKind:     "content_entity",
-				Payload: map[string]any{
-					"repo_id":       rationaleFamilyRepoID,
-					"entity_id":     "",
-					"relative_path": "services/orphan/no_entity.go",
-					"rationale_comments": []map[string]any{
-						{"kind": "why", "text": "This content entity names no target."},
-					},
-				},
-			},
-			// NOT AN EDGE: wrong fact kind. Only content entities carry
-			// parser-emitted rationale comments.
-			{
-				ScopeID:      rationaleFamilyScopeID,
-				GenerationID: rationaleFamilyGenerationID,
-				FactKind:     "repository",
-				Payload: map[string]any{
-					"repo_id":   rationaleFamilyRepoID,
-					"entity_id": "repo:ifa-rationale",
-					"rationale_comments": []map[string]any{
-						{"kind": "why", "text": "A repository fact is not a content entity."},
-					},
-				},
-			},
-		},
+		Name:  rationaleFamilyOduName,
+		Facts: factsForOdu,
 	}
 	return CatalogOdu{
 		Odu: odu,
-		Detail: "two content entities whose rationale comments derive exactly " +
-			"three EXPLAINS edges — including the same text under two kinds, and " +
-			"one set reached through the entity_metadata fallback — plus seven " +
-			"inputs deriving none: a repeated comment, a blank kind, " +
-			"whitespace-only text, a tombstone, a missing repo_id, a blank " +
-			"entity_id, and a non-content_entity fact kind",
+		Detail: "one typed repository, five typed Python files, five valid content entities, and the production rationale follow-up; " +
+			"uppercase parser comments derive exactly three EXPLAINS edges while duplicate WHY, empty TODO, lowercase why, unsupported CAVEAT, " +
+			"blank-line-detached FIXME, and a no-comment function derive none",
 	}
 }
 
-// rationaleFamilyContentEntity builds a live content_entity envelope carrying
-// the given payload fields alongside this fixture's repo and entity identity.
-func rationaleFamilyContentEntity(entityID, relativePath string, extra map[string]any) facts.Envelope {
-	return rationaleFamilyEnvelope(entityID, relativePath, extra, false)
-}
-
-// rationaleFamilyTombstone builds the tombstoned variant of the same shape.
-func rationaleFamilyTombstone(entityID, relativePath string, extra map[string]any) facts.Envelope {
-	return rationaleFamilyEnvelope(entityID, relativePath, extra, true)
-}
-
-func rationaleFamilyEnvelope(entityID, relativePath string, extra map[string]any, tombstone bool) facts.Envelope {
+// rationaleFamilyContentEntity builds a live Function content_entity envelope
+// carrying the given payload fields alongside this fixture's canonical inputs.
+func rationaleFamilyContentEntity(entityID, name, relativePath string, startLine, endLine int, source string, metadata map[string]any) facts.Envelope {
 	payload := map[string]any{
+		"graph_id":      entityID,
+		"graph_kind":    "content_entity",
 		"repo_id":       rationaleFamilyRepoID,
 		"entity_id":     entityID,
+		"entity_type":   "Function",
+		"entity_name":   name,
 		"relative_path": relativePath,
+		"start_line":    float64(startLine),
+		"end_line":      float64(endLine),
+		"language":      "python",
+		"source_cache":  source,
+		"indexed_at":    "1970-01-01T00:00:00Z",
+		"iac_relevant":  false,
 	}
-	for k, v := range extra {
-		payload[k] = v
+	if len(metadata) > 0 {
+		payload["entity_metadata"] = metadata
 	}
+	return rationaleFamilyFact("content_entity", "content_entity:"+entityID, payload, false)
+}
+
+func rationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
+	payload, err := factschema.EncodeCodegraphRepository(repository)
+	if err != nil {
+		panic(fmt.Sprintf("ifa: encode rationale repository %q: %v", repository.RepoID, err))
+	}
+	payload["imports_map"] = map[string]any{
+		"charge":        []any{rationaleFamilyLocalPath + "/" + rationaleFamilyChargePath},
+		"healthcheck":   []any{rationaleFamilyLocalPath + "/" + rationaleFamilyHealthcheckPath},
+		"issue_invoice": []any{rationaleFamilyLocalPath + "/" + rationaleFamilyInvoicePath},
+		"reconcile":     []any{rationaleFamilyLocalPath + "/" + rationaleFamilyReconcilePath},
+		"refund":        []any{rationaleFamilyLocalPath + "/" + rationaleFamilyRefundPath},
+	}
+	return rationaleFamilyFact(factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload, false)
+}
+
+func rationaleFamilyFileFact(file codegraphv1.File) facts.Envelope {
+	payload, err := factschema.EncodeCodegraphFile(file)
+	if err != nil {
+		panic(fmt.Sprintf("ifa: encode rationale file %q: %v", file.RelativePath, err))
+	}
+	return rationaleFamilyFact(factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload, false)
+}
+
+func rationaleFamilyParsedFile(relativePath, name, uid string, startLine, endLine int, source string, comments []any) map[string]any {
+	function := map[string]any{
+		"args": []any{}, "async": false, "cyclomatic_complexity": float64(1), "decorators": []any{},
+		"name": name, "uid": uid, "line_number": float64(startLine), "end_line": float64(endLine),
+		"lang": "python", "source": strings.TrimSuffix(source, "\n"),
+	}
+	if comments != nil {
+		function["rationale_comments"] = comments
+	}
+	parsed := map[string]any{
+		"path":          rationaleFamilyLocalPath + "/" + relativePath,
+		"repo_path":     rationaleFamilyLocalPath,
+		"lang":          "python",
+		"is_dependency": false,
+		"iac_relevant":  false,
+		"functions":     []any{function},
+		"classes":       []any{}, "embedded_shell_commands": []any{}, "function_calls": []any{},
+		"imports": []any{}, "modules": []any{}, "orm_table_mappings": []any{},
+		"type_annotations": []any{}, "variables": []any{},
+		"framework_semantics": map[string]any{"frameworks": []any{}},
+	}
+	for _, key := range rationaleFamilyNilParserKeys {
+		parsed[key] = nil
+	}
+	return parsed
+}
+
+var rationaleFamilyNilParserKeys = []string{
+	"analytics_models", "annotations", "argocd_applications", "argocd_applicationsets",
+	"atlantis_projects", "atlantis_workflows", "cloudformation_conditions",
+	"cloudformation_cross_stack_exports", "cloudformation_cross_stack_imports",
+	"cloudformation_outputs", "cloudformation_parameters", "cloudformation_resources",
+	"components", "crossplane_claims", "crossplane_compositions", "crossplane_xrds",
+	"dashboard_assets", "data_assets", "data_columns", "data_contracts", "data_owners",
+	"data_quality_checks", "enums", "flux_buckets", "flux_git_repositories",
+	"flux_helm_releases", "flux_helm_repositories", "flux_kustomizations",
+	"flux_oci_repositories", "gitlab_jobs", "gitlab_pipelines", "helm_charts",
+	"helm_template_value_usages", "helm_value_definitions", "helm_values", "impl_blocks",
+	"interfaces", "k8s_resources", "kustomize_overlays", "macros", "pagerduty_declarations",
+	"properties", "protocol_implementations", "protocols", "query_executions", "records",
+	"sql_columns", "sql_functions", "sql_indexes", "sql_migrations", "sql_tables",
+	"sql_triggers", "sql_views", "structs", "terraform_backends", "terraform_blocks",
+	"terraform_checks", "terraform_data_sources", "terraform_imports", "terraform_locals",
+	"terraform_lock_providers", "terraform_modules", "terraform_moved_blocks",
+	"terraform_outputs", "terraform_providers", "terraform_removed_blocks",
+	"terraform_resources", "terraform_variables", "terragrunt_configs",
+	"terragrunt_dependencies", "terragrunt_inputs", "terragrunt_locals", "traits",
+	"type_aliases", "typedefs", "unions",
+}
+
+func rationaleFamilyFollowupFact() facts.Envelope {
+	return rationaleFamilyFact("shared_followup", "shared_followup:"+rationaleFamilyRepoID+":rationale_materialization", map[string]any{
+		"reducer_domain": "rationale_materialization",
+		"entity_key":     "rationale:repo-rationale",
+		"reason":         "repository generation requested rationale materialization reconciliation",
+		"repo_id":        rationaleFamilyRepoID,
+	}, false)
+}
+
+func rationaleFamilyFact(factKind, stableFactKey string, payload map[string]any, tombstone bool) facts.Envelope {
 	return facts.Envelope{
-		ScopeID:      rationaleFamilyScopeID,
-		GenerationID: rationaleFamilyGenerationID,
-		FactKind:     "content_entity",
-		IsTombstone:  tombstone,
-		Payload:      payload,
+		ScopeID:          rationaleFamilyScopeID,
+		GenerationID:     rationaleFamilyGenerationID,
+		FactKind:         factKind,
+		StableFactKey:    stableFactKey,
+		SchemaVersion:    "1.0.0",
+		CollectorKind:    "git",
+		SourceConfidence: "observed",
+		IsTombstone:      tombstone,
+		Payload:          payload,
 	}
 }

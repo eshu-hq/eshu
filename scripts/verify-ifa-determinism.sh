@@ -133,6 +133,7 @@ source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"  # two sources, one line, deliberately: this file is at the 500-line cap (#5993 P6 review) and a genuinely new line here is not free
+source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -159,41 +160,12 @@ compose_file="docker-compose.yaml"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
 
-# SQL relationship family cassette (#5351): a committed cassette (unlike the
-# generated synth cassette) that exercises the reducer's SQL relationship edge
-# materialization across all nine materialized edge types (QUERIES_TABLE,
-# READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, MIGRATES,
-# REFERENCES_TABLE, WRITES_TO). It is driven
-# into every cell alongside the demo-org + synth-multiscope cassettes, and the
-# materialized_edges:sql_relationships manifest row's proof_gate: ifa-determinism
-# claim is backed by an ADDITIONAL per-cell absolute-set assertion (see the
-# `ifa assert-edges` call after the drain): digest equality across N cannot
-# catch a family silently empty in ALL cells, the absolute expected set can.
-sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
-sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
-code_call_cassette="${repo_root}/testdata/cassettes/codecalls/ifa-code-call-family.json"
-code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-
-# documentation_edges family cassette (#5994): a committed cassette exercising
-# the reducer's DOCUMENTS edge materialization, including the SqlTable-target
-# case (batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation).
-# Driven into every cell alongside the SQL + code-call families; the
-# materialized_edges:documentation_edges manifest row's proof_gate:
-# ifa-determinism claim is backed by the same per-cell absolute-set assertion
-# pattern the SQL/code-call families use.
-documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
-documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-
-# deployable_unit_edges family cassette (#5993): driven in its OWN standalone
-# cell after the N-loop below, not into the shared N={1,2,4} cells -- see
-# scripts/lib/ifa_deployable_unit_live.sh's header for why (a bootstrap-index
-# maintenance pass is required for this family to materialize anything, and
-# folding that into the shared loop would move every other family's digest
-# terminal for a reason unrelated to what that loop tests).
-deployable_unit_cassette="${repo_root}/testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+# Committed materialized-edge family cassettes and their expected-set files.
+# Shared verbatim with scripts/verify-ifa-fault-injection.sh, which drives the
+# same fixtures; see that lib's header for why the two gates share one
+# definition instead of keeping drifting copies.
+# shellcheck source=scripts/lib/ifa_family_fixtures.sh
+source "${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
@@ -247,16 +219,7 @@ if [[ "${teeth}" -eq 1 ]]; then
 fi
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-determinism: cassette not found: ${cassette}" >&2; exit 1; }
-[[ -f "${sql_cassette}" ]] || { echo "verify-ifa-determinism: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
-[[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
-[[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-determinism: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
-[[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
-[[ -f "${code_call_cassette}" ]] || { echo "verify-ifa-determinism: code-call cassette not found: ${code_call_cassette}" >&2; exit 1; }
-[[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-determinism: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
-[[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-determinism: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
-[[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-determinism: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
-[[ -f "${deployable_unit_cassette}" ]] || { echo "verify-ifa-determinism: deployable-unit cassette not found: ${deployable_unit_cassette}" >&2; exit 1; }
-[[ -f "${deployable_unit_expected_edges}" ]] || { echo "verify-ifa-determinism: deployable-unit expected-edge set not found: ${deployable_unit_expected_edges}" >&2; exit 1; }
+ifa_family_fixtures_require verify-ifa-determinism
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -377,8 +340,10 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: code-call family drive failed"
 	ifa_documentation_drive "n${n}" "${bin_dir}" "${documentation_cassette}" "${n}" "${log_dir}" \
 		|| die "N=${n}: documentation family drive failed"
+	ifa_rationale_drive "n${n}" "${bin_dir}" "${rationale_cassette}" "${n}" "${log_dir}" \
+		|| die "N=${n}: rationale family drive failed"
 
-	# Fourth drive (opt-in --contention): the #5007 overlapping-identity cassette.
+	# Optional seventh drive (--contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
 	# must make the contended node's final state identical across N=1/2/4. A
 	# digest divergence that appears ONLY with --contention is a real ledger
@@ -393,17 +358,19 @@ for n in "${worker_counts[@]}"; do
 		cat "${log_dir}/ifa-drive-contention-n${n}.log"
 	fi
 
-	# Prove both drives actually enqueued something before the drain runs: a
-	# residual=0 reading over a queue nothing was ever put in would be a
-	# vacuous drain proof.
+	# After the six baseline drives (and the optional seventh contention drive),
+	# prove the combined cell actually enqueued work before the drain runs: a
+	# residual=0 reading over a queue nothing was ever put in would be vacuous.
 	work_items="$(ifa_det_pg "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family): %s\n' "${n}" "${work_items}"
+	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family + rationale family): %s\n' "${n}" "${work_items}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()
+	projector_pid=""
+	reducer_pid=""
 	ifa_det_start_bg "${log_dir}" "projector-n${n}" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-n${n}" reducer_pid "${bin_dir}/eshu-reducer"
 
@@ -415,25 +382,37 @@ for n in "${worker_counts[@]}"; do
 		tail -30 "${log_dir}/projector-n${n}.log" || true
 		die "N=${n}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
-	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
-
 	ifa_det_assert_sql_baseline "${n}" "${bin_dir}" "${sql_expected_edges}" \
 		|| die "N=${n}: SQL relationship baseline assertion failed"
 	ifa_code_call_assert "N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "N=${n}: code-call family assertion failed"
 	ifa_documentation_assert "N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "N=${n}: documentation family assertion failed"
+	ifa_rationale_assert "N=${n}" "${bin_dir}" "${rationale_expected_edges}" \
+		|| die "N=${n}: rationale family assertion failed"
+	ifa_rationale_assert_work_counts "N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" \
+		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${ifa_rationale_generation_id}" "${ifa_rationale_expected_tuple}" \
+		|| die "N=${n}: rationale durable lifecycle assertion failed"
 
 	# #5554: gen 2 reuses source_run_id in this same durable cell and retargets
 	# INDEXES, exercising the generation-aware refresh fence end to end.
 	ifa_det_run_sql_delta_live \
 		"${n}" "${bin_dir}" "${sql_delta_cassette}" "${sql_delta_expected_edges}" "${log_dir}" \
 		"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
+		"${rationale_delta_cassette}" \
 		|| die "N=${n}: SQL delta-live proof failed"
 	ifa_code_call_assert "post-delta N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
 		|| die "N=${n}: SQL generation 2 changed the code-call family's five-edge exact set"
 	ifa_documentation_assert "post-delta N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "N=${n}: SQL generation 2 changed the documentation family's three-edge exact set"
+	ifa_rationale_assert_delta_truth "post-delta N=${n}" "${bin_dir}" \
+		"${rationale_delta_expected_records}" "${work_dir}/rationale-delta-n${n}.dump" \
+		|| die "N=${n}: rationale generation 2 did not converge to exact-one EXPLAINS plus the exact Charge survivor node"
+	ifa_rationale_assert_work_counts "post-delta N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" \
+		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${ifa_rationale_delta_generation_id}" "${ifa_rationale_delta_expected_tuple}" \
+		|| die "N=${n}: rationale generation-2 durable lifecycle assertion failed"
 
 	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \
@@ -442,6 +421,10 @@ for n in "${worker_counts[@]}"; do
 	[[ -n "${digest_n}" ]] || die "N=${n}: ifa graph-dump -digest returned empty output"
 	digests[${n}]="${digest_n}"
 	printf 'N=%s post-delta digest: %s\n' "${n}" "${digest_n}"
+	ifa_det_stop_join_untrack_bg_pid "${projector_pid}" TERM \
+		|| die "N=${n}: could not stop and join the cell projector"
+	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM \
+		|| die "N=${n}: could not stop and join the cell reducer"
 
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "N=${n}: tear down cell (fresh stack for the next cell)"

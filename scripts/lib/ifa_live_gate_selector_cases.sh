@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2034
 # Concrete trigger|path fixtures for the real IFA live-gate registry matcher.
 # Patterns appear once per representative path so wildcard drift cannot hide
 # behind a string-only workflow/registry check.
@@ -154,6 +154,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/factschema_decode_codegraph.go|go/internal/reducer/factschema_decode_codegraph.go'
 	'go/internal/reducer/factschema_decode.go|go/internal/reducer/factschema_decode.go'
 	'go/internal/reducer/fact_kind_loader.go|go/internal/reducer/fact_kind_loader.go'
+	'go/internal/reducer/graph_projection_phase.go|go/internal/reducer/graph_projection_phase.go'
 	'sdk/go/factschema/decode_codegraph.go|sdk/go/factschema/decode_codegraph.go'
 	'sdk/go/factschema/codegraph/v1/file.go|sdk/go/factschema/codegraph/v1/file.go'
 	'sdk/go/factschema/codegraph/v1/repository.go|sdk/go/factschema/codegraph/v1/repository.go'
@@ -212,11 +213,30 @@ ifa_live_gate_common_seams=(
 	'schema/data-plane/postgres/012_graph_projection_phase_state.sql|schema/data-plane/postgres/012_graph_projection_phase_state.sql'
 	'go/cmd/reducer/config.go|go/cmd/reducer/config.go'
 	'go/cmd/reducer/main_helpers.go|go/cmd/reducer/main_helpers.go'
+	'go/internal/reducer/rationale_edge_materialization.go|go/internal/reducer/rationale_edge_materialization.go'
+	'go/internal/reducer/rationale_delta_scope.go|go/internal/reducer/rationale_delta_scope.go'
+	'go/internal/reducer/rationale_edge_intents.go|go/internal/reducer/rationale_edge_intents.go'
+	'go/internal/reducer/semantic_entity_delta_scope.go|go/internal/reducer/semantic_entity_delta_scope.go'
+	'go/internal/reducer/semantic_entity_materialization_helpers.go|go/internal/reducer/semantic_entity_materialization_helpers.go'
+	'go/internal/reducer/intent_emission.go|go/internal/reducer/intent_emission.go'
+	'go/internal/reducer/dependency_domain.go|go/internal/reducer/dependency_domain.go'
+	'go/internal/replay/canonical.go|go/internal/replay/canonical.go'
+	'go/internal/storage/cypher/canonical_rationale_edges.go|go/internal/storage/cypher/canonical_rationale_edges.go'
+	'go/internal/storage/cypher/edge_writer_rationale_labels.go|go/internal/storage/cypher/edge_writer_rationale_labels.go'
+	'testdata/cassettes/rationale/**|testdata/cassettes/rationale/ifa-rationale-family.json'
+	'testdata/cassettes/rationale/**|testdata/cassettes/rationale/ifa-rationale-family-delta.json'
+	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json'
+	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'
+	'scripts/lib/ifa_rationale_live.sh|scripts/lib/ifa_rationale_live.sh'
+	'scripts/lib/ifa_family_fixtures.sh|scripts/lib/ifa_family_fixtures.sh'
+	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
 )
 
 ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_collateral_nodes.sh|scripts/lib/ifa_fault_injection_collateral_nodes.sh'
 	'scripts/lib/ifa_fault_injection_documentation_cells.sh|scripts/lib/ifa_fault_injection_documentation_cells.sh'
+	'scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh|scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh'
+	'scripts/lib/ifa_fault_injection_documentation_ack_setup.sh|scripts/lib/ifa_fault_injection_documentation_ack_setup.sh'
 	'scripts/lib/test-ifa-fault-injection-documentation-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
@@ -224,6 +244,10 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh|scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
 	'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-marker-cases.sh|scripts/lib/test-ifa-fault-injection-marker-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-code-call-cases.sh|scripts/lib/test-ifa-fault-injection-code-call-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh|scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh'
 	'go/internal/storage/cypher/fault_executor_marker.go|go/internal/storage/cypher/fault_executor_marker.go'
 	'go/internal/storage/cypher/canonical_node_writer_metadata.go|go/internal/storage/cypher/canonical_node_writer_metadata.go'
 	'go/internal/projector/scope_generation_intents.go|go/internal/projector/scope_generation_intents.go'
@@ -236,4 +260,6 @@ ifa_live_gate_fault_only_seams=(
 	'go/internal/graphowner/family_writers.go|go/internal/graphowner/family_writers.go'
 	'go/internal/graphowner/gated_writer.go|go/internal/graphowner/gated_writer.go'
 	'go/internal/storage/postgres/graph_node_owner_store.go|go/internal/storage/postgres/graph_node_owner_store.go'
+	'scripts/lib/ifa_fault_injection_rationale_cells.sh|scripts/lib/ifa_fault_injection_rationale_cells.sh'
+	'scripts/lib/test-ifa-fault-injection-rationale-cases.sh|scripts/lib/test-ifa-fault-injection-rationale-cases.sh'
 )
