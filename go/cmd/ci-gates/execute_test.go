@@ -94,6 +94,49 @@ func TestExecuteGatesAdvisoryTestCommandFailureDoesNotFailRun(t *testing.T) {
 	}
 }
 
+// TestExecuteGatesEmptyCommandNotReportedAsRun proves a gate with an
+// intentionally empty local.command (a permanently local-only gate whose
+// enforcement mechanism cannot be a command at all -- prepr-stamp-verify-selftest
+// is the real one) does not get an "RUN <gate>: " line with nothing after the
+// colon. Before this test, localGateCommands unconditionally included the
+// empty command as a step: runShellCommand executed an empty shell command,
+// which always succeeds, so the output showed a RUN line that looked like
+// every other real command line in the log but never ran anything -- a
+// reporting false-green in the very row that exists to prevent one (#6149
+// follow-up
+// item 8 review, "verify before push").
+func TestExecuteGatesEmptyCommandNotReportedAsRun(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	selection := cigates.Selection{
+		Selected: true,
+		Gate: cigates.Gate{
+			ID:       "test-gate",
+			Blocking: false,
+			Local: &cigates.Local{
+				Command:     "",
+				TestCommand: "printf 'test\\n' >> trace.log",
+			},
+		},
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, []cigates.Selection{selection}, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil", err)
+	}
+
+	if strings.Contains(output.String(), "RUN      test-gate: \n") {
+		t.Fatalf("executeGates() reported an empty local.command as a RUN step:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "TEST     test-gate: printf 'test\\n' >> trace.log") {
+		t.Fatalf("executeGates() output did not report the real test command:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "PASS     test-gate") {
+		t.Fatalf("executeGates() output did not report the gate as passing:\n%s", output.String())
+	}
+	assertTrace(t, repoRoot, "test\n")
+}
+
 func TestRunSubcommandExecutesTestCommand(t *testing.T) {
 	t.Parallel()
 	bin := buildBinary(t)

@@ -57,8 +57,21 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 	return nil
 }
 
+// localGateCommands returns the shell commands this gate actually runs, in
+// order. local.Command is intentionally OMITTED when it is the empty string,
+// rather than run as an empty shell command -- a permanently local-only gate
+// whose enforcement cannot be a command at all (prepr-stamp-verify-selftest:
+// its guard reads the stamp of the commit about to be pushed, so running it
+// here would fail every time) leaves local.command blank on purpose. An
+// empty shell command always succeeds and used to print a "RUN <gate>: "
+// line with nothing after the colon -- a reporting false-green: it read
+// exactly like every other command line in the log but never ran anything
+// (#6149 follow-up item 8 review, "verify before push").
 func localGateCommands(local *cigates.Local) []localGateCommand {
-	commands := []localGateCommand{{label: "command", command: local.Command}}
+	var commands []localGateCommand
+	if local.Command != "" {
+		commands = append(commands, localGateCommand{label: "command", command: local.Command})
+	}
 	if local.TestCommand != "" && local.TestCommand != local.Command {
 		commands = append(commands, localGateCommand{
 			label:   "test_command",
