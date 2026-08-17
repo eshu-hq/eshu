@@ -342,24 +342,44 @@ func anyTriggerMatches(triggers []string, path string) bool {
 // that function's own doc comment (the cd-prefix skip, the literal-"scripts/"-
 // text-only sourcing walk, and so on) applied per run: command instead of per
 // local.command/local.test_command.
+//
+// Blind, visibly: this walks reg.Gates only, never hygiene_hooks. A
+// hygiene_hooks entry is a bare id+reason pair (specs/ci-gates.v1.yaml's
+// `hygiene_hooks:` list) -- it declares no ci.workflow, no ci.job, no
+// local.command, nothing this check (or checkScriptTriggerCoverage) could
+// walk a script from. That is why this check could not have caught
+// prepr-stamp-verify's own self-test going unwired (#6149 follow-up item 8
+// review, P1): the orphaned file was test-prepr-stamp-verify.sh, reachable
+// from no gate's local.command/local.test_command and no CI job either, and
+// hygiene_hooks is where prepr-stamp-verify already lived at the time,
+// outside every walk in this file. Extending this check (or
+// checkScriptTriggerCoverage) into hygiene_hooks would need those entries to
+// name a script to walk from in the first place, which the schema does not
+// carry today -- a real gap, left open rather than silently narrowed further,
+// since closing it changes the hygiene_hooks schema, not this function's
+// walk.
+//
+// Silent, until CIScriptTriggerCoverageSummary: the ONLY visible signal this
+// check emits on success is DriftCheck's empty []error, so a clean run reads
+// as "no drift" with no scope attached -- 40 of the registry's 93 CI-backed
+// gates (test.yml/verify-contracts alone accounts for 11) sit on a shared
+// (workflow, job) pair and are silently skipped by the exclusion above,
+// leaving only 53 gates this check actually attributes drift to. The skip
+// logic itself is correct and stays (see the false-positive count above);
+// what was missing was a summary saying so. CIScriptTriggerCoverageSummary
+// (below) reports the split so a caller can print "no drift among N
+// attributable gates" instead of an unqualified "no drift" (#6149 follow-up
+// item 8 review, P2(a)).
 func checkCIScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
 	wfDir := filepath.Join(repoRoot, ".github", "workflows")
-
-	type ciJobKey struct{ workflow, job string }
-	jobGateCounts := make(map[ciJobKey]int, len(reg.Gates))
-	for _, g := range reg.Gates {
-		if g.CI.Workflow == "" || g.CI.Job == "" {
-			continue
-		}
-		jobGateCounts[ciJobKey{g.CI.Workflow, g.CI.Job}]++
-	}
+	jobGates := ciJobGateIDs(reg)
 
 	var errs []error
 	for _, g := range reg.Gates {
 		if g.CI.Workflow == "" || g.CI.Job == "" {
 			continue
 		}
-		if jobGateCounts[ciJobKey{g.CI.Workflow, g.CI.Job}] > 1 {
+		if len(jobGates[ciJobKey{g.CI.Workflow, g.CI.Job}]) > 1 {
 			// A CI job shared by more than one gate carries no per-gate
 			// attribution signal -- see the shared-pair discussion above.
 			continue
