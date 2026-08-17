@@ -38,10 +38,10 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
 	require_documentation_cells "graph-write cell probes documentation intents" "projection_domain = 'documentation_edges'"
-	require_documentation_cells "documentation precondition preserves query failure" "precondition query FAILED (exit"
-	require_documentation_cells "documentation precondition distinguishes empty output" "returned empty output"
-	require_documentation_cells "documentation precondition rejects non-numeric output" "returned non-numeric output"
-	require_documentation_cells "documentation precondition reports stale intents" "survived fresh_stack"
+	# The fresh-stack precondition's fail-closed messages are pinned in
+	# run_ifa_fault_injection_documentation_registry_cases below, against the
+	# graph-dump wording #6157 repointed them to. They are deliberately NOT
+	# duplicated here on the old intents-query wording, which no longer exists.
 	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
 	require_documentation_cells "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline"
 	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
