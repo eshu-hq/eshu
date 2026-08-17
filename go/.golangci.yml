@@ -674,10 +674,9 @@ linters:
       # Removing this block measures 10 wrapcheck findings, and they split
       # two ways. Two are operator-visible and are the reason for the grant:
       # Inventory's LoadSurfaceInventory error and Artifact's RenderJSON
-      # error travel unwrapped through the wrapper's RunE to the terminal,
-      # and the CLI parity check pins that text, so wrapping would rewrite
-      # operator output during what is otherwise a move -- the same reasoning
-      # as localsupervisor above.
+      # error travel unwrapped through the wrapper's RunE to the terminal, so
+      # wrapping would rewrite operator output during what is otherwise a
+      # move -- the same reasoning as localsupervisor above.
       #
       # The other eight are in exercises.go: seven in the exercise* helpers,
       # and one in SupportedSupplyChainPacket, whose only non-test caller is
