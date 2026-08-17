@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"errors"
+	"strings"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -14,6 +15,14 @@ const malformedNeo4jConnectivityErrorMessage = "neo4j connectivity error is miss
 const (
 	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
 	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
+	// nornicDBStoreClosingCommitMsg is the body NornicDB reports under
+	// nornicDBTransactionCommitFailedCode when its embedded Badger store has
+	// already blocked writes for shutdown, so the commit is refused rather than
+	// attempted. "Writes are blocked, possibly due to DropAll or Close" is
+	// Badger's own exported ErrBlockedWrites sentence, which is why matching it
+	// is stable across NornicDB builds; the code is checked alongside it so an
+	// unrelated commit failure stays terminal.
+	nornicDBStoreClosingCommitMsg = "Writes are blocked, possibly due to DropAll or Close"
 )
 
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
@@ -73,10 +82,11 @@ func (e *schemaFenceError) Retryable() bool { return true }
 
 // WrapRetryableNeo4jError inspects err for graph-write failures that are safe
 // to retry from the durable reducer queue. It wraps known retryable Neo4j error
-// codes, driver retry-budget exhaustion, connectivity failures, and the exact
-// NornicDB transaction-start failure emitted during backend restart. Malformed
-// connectivity errors remain terminal, and all other errors are returned
-// unchanged.
+// codes, driver retry-budget exhaustion, connectivity failures, and the two
+// exact NornicDB failures a backend restart emits -- the transaction-start
+// failure raised once the WAL is closed, and the commit failure raised once the
+// store has blocked writes for shutdown. Malformed connectivity errors remain
+// terminal, and all other errors are returned unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
 		return nil
@@ -97,6 +107,9 @@ func WrapRetryableNeo4jError(err error) error {
 	}
 	if isNornicDBRestartTransactionStartFailure(err) {
 		return &neo4jRetryableError{inner: err, code: nornicDBRestartTransactionStartCode}
+	}
+	if isNornicDBStoreClosingCommitFailure(err) {
+		return &neo4jRetryableError{inner: err, code: nornicDBTransactionCommitFailedCode}
 	}
 	var neo4jErr *neo4jdriver.Neo4jError
 	if !errors.As(err, &neo4jErr) {
@@ -123,4 +136,37 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBRestartTransactionStartCode &&
 		neo4jErr.Msg == nornicDBRestartTransactionStartMsg
+}
+
+// isNornicDBStoreClosingCommitFailure recognizes the commit-side twin of
+// isNornicDBRestartTransactionStartFailure: a backend restart that reaches the
+// store between the transaction body and its commit, so Badger refuses the
+// commit instead of the WAL refusing the begin. A restart interrupts a
+// canonical write at one of four points -- store healthy, store closing
+// (here), WAL closed (the start failure above), process gone (a
+// *neo4jdriver.ConnectivityError) -- and this one was the only point still
+// classified as terminal, which dead-lettered a restart as failure_class
+// projection_bug and stranded every intent gated on the phase it would have
+// published.
+//
+// Retry here means DURABLE QUEUE replay only; this shape is deliberately kept
+// out of classifyTransientNeo4jError, which replays a transaction body in
+// place. A commit failure leaves an outcome this process cannot observe, and
+// that file already excludes the driver's own CommitFailedDeadError for
+// exactly that reason. Queue replay needs no such observation: it re-runs the
+// whole handler, and the canonical writers it drives are MERGE-shaped upserts
+// that converge on the same node or edge however many times they run. The
+// relationship handlers go further -- shouldSkipRetract stops skipping the
+// prior-generation retract once AttemptCount exceeds 1 -- so a partially
+// applied attempt is swept before the replay rewrites it rather than doubled.
+//
+// Both the code and the message are required, matching the start-failure guard
+// beside it: NornicDB reports this backend-unavailable condition under a
+// ClientError prefix that a real constraint violation also uses, so the code
+// alone would swallow genuine terminal commit failures.
+func isNornicDBStoreClosingCommitFailure(err error) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	return errors.As(err, &neo4jErr) &&
+		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
+		strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg)
 }
