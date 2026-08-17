@@ -314,8 +314,9 @@ func anyTriggerMatches(triggers []string, path string) bool {
 //
 // The shared-pair exclusion is required, not a nicety: a first version of
 // this check attributed every `run:` step in the resolved job to whichever
-// single gate named it, and measured against the committed registry that
-// produced 352 false positives from exactly one shape -- test.yml's
+// single gate named it, and measured once against the committed registry at
+// the time this narrowing was added -- a historical count, not a live one --
+// that produced 352 false positives from exactly one shape -- test.yml's
 // verify-contracts job is a single CI job that runs roughly thirty unrelated
 // gates' verify scripts as separate named steps, and several other gates in
 // the registry declare ci.job: "verify-contracts" as a shared backstop
@@ -378,10 +379,16 @@ func anyTriggerMatches(triggers []string, path string) bool {
 //
 // Silent, until CIScriptTriggerCoverageSummary: the ONLY visible signal this
 // check emits on success is DriftCheck's empty []error, so a clean run reads
-// as "no drift" with no scope attached -- 40 of the registry's 93 CI-backed
-// gates (test.yml/verify-contracts alone accounts for 11) sit on a shared
-// (workflow, job) pair and are silently skipped by the exclusion above,
-// leaving only 53 gates this check actually attributes drift to. The skip
+// as "no drift" with no scope attached -- some fraction of the registry's
+// CI-backed gates sit on a shared (workflow, job) pair and are silently
+// skipped by the exclusion above, leaving only the rest this check actually
+// attributes drift to. Run `bash scripts/verify-ci-gates-registry.sh
+// --drift` for the live split (the `ci-job-trigger-coverage` line) rather
+// than trusting a count here -- an earlier version of this exact paragraph
+// hardcoded "40 of 93... accounts for 11... leaving only 53" instead of
+// deriving it, the same drift-prone pattern the summary function two
+// paragraphs above was written to stop, restated by hand in the paragraph
+// right next to it. A #6157 review thread caught it. The skip
 // logic itself is correct and stays (see the false-positive count above);
 // what was missing was a summary saying so. CIScriptTriggerCoverageSummary
 // (below) reports the split so a caller can print "no drift among N

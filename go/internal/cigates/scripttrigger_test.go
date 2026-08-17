@@ -414,12 +414,15 @@ func TestDriftCheck_CIJobSourcedScriptNotCoveredByOwnTriggers(t *testing.T) {
 }
 
 // A CI job shared by more than one gate (the real registry's
-// test.yml/verify-contracts shape: 11 gates all declare that same ci.job as
-// a backstop job that runs roughly thirty unrelated gates' verify scripts as
-// separate steps) carries no per-gate attribution signal. A first version of
-// the CI-job walk attributed every run: step in a resolved job to whichever
-// gate named it and produced 352 false positives against the committed
-// registry from exactly this shape. This fixture pins that a shared
+// test.yml/verify-contracts shape: several gates all declare that same
+// ci.job as a backstop job that runs roughly thirty unrelated gates' verify
+// scripts as separate steps -- run `bash scripts/verify-ci-gates-registry.sh
+// --drift` for the live member count rather than a number restated here)
+// carries no per-gate attribution signal. A first version of the CI-job walk
+// attributed every run: step in a resolved job to whichever gate named it
+// and produced 352 false positives from exactly this shape -- measured once
+// against the committed registry at the time this narrowing was added, a
+// historical count, not a live one. This fixture pins that a shared
 // (workflow, job) pair is skipped entirely, for BOTH gates that share it --
 // even though gate-a's own uncovered script is really there and gate-b's
 // covered one is really there too, neither should be reported, because

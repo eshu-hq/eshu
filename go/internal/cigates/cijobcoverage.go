@@ -43,11 +43,15 @@ func ciJobGateIDs(reg *Registry) map[ciJobKey][]string {
 // checkCIScriptTriggerCoverage's own []error slice cannot carry this: a
 // clean run returns nil regardless of how many gates were skipped, so
 // DriftCheck's caller had no way to print anything but an unqualified "no
-// drift" -- which is a true statement about the 53 gates the check actually
-// walks and a silent one about the 40 it does not (test.yml/verify-contracts
-// alone accounts for 11 of them). Callers should print this alongside a
+// drift" -- true about the gates the check actually walks and silent about
+// the ones it does not (#6149 follow-up item 8 review, P2(a)). Run `bash
+// scripts/verify-ci-gates-registry.sh --drift` for the live split (the
+// `ci-job-trigger-coverage` line this function's caller prints) rather than
+// trusting a count here -- this doc comment itself once restated the live
+// counts as fixed numbers, in the very file added to stop that pattern, and
+// a #6157 review thread caught it. Callers should print this alongside a
 // clean drift result so "no drift" reads as "no drift among the N
-// attributable gates" (#6149 follow-up item 8 review, P2(a)).
+// attributable gates".
 //
 // Only counts gates with both ci.workflow and ci.job set; a gate with no CI
 // job at all is neither attributed nor skipped by

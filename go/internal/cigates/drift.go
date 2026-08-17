@@ -117,11 +117,14 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     those source, at any depth — must be matched by one of that gate's own
 //     triggers, the same rule and the same narrowings check 8 applies, just
 //     rooted at the CI job instead of local.command. Skips any (ci.workflow,
-//     ci.job) pair shared by more than one gate: a shared job (11 gates in
-//     the committed registry point at test.yml's verify-contracts backstop
-//     job alone) carries no per-gate attribution over which step belongs to
-//     which gate, so guessing produced 352 false positives before this
-//     narrowing existed. See checkCIScriptTriggerCoverage.
+//     ci.job) pair shared by more than one gate: a shared job (multiple
+//     gates in the committed registry point at test.yml's verify-contracts
+//     backstop job alone -- see CIScriptTriggerCoverageSummary for the live
+//     count rather than a number restated here) carries no per-gate
+//     attribution over which step belongs to which gate, so guessing
+//     produced 352 false positives, measured once against the committed
+//     registry at the time this narrowing was added, before this narrowing
+//     existed. See checkCIScriptTriggerCoverage.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
