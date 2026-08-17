@@ -208,7 +208,12 @@ func TestExportLiveRefusesASnapshotCarryingAPrivateEndpoint(t *testing.T) {
 	}
 }
 
-func TestWriteBundleWritesTheFileOwnerOnly(t *testing.T) {
+// TestWriteBundleCreatesTheFileOwnerOnly covers the CREATE path only, which is
+// the whole of what the 0600 argument buys. "Creates", not "writes": os.WriteFile
+// hands perm to open(2), which ignores it for an existing path, so the mode is a
+// create-time default and not a guarantee about the file at outPath. The paired
+// case below pins that boundary so the name cannot quietly re-broaden.
+func TestWriteBundleCreatesTheFileOwnerOnly(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bundle.json")
 	if err := WriteBundle(&bytes.Buffer{}, []byte("{}\n"), path); err != nil {
 		t.Fatalf("WriteBundle() error = %v", err)
@@ -226,6 +231,44 @@ func TestWriteBundleWritesTheFileOwnerOnly(t *testing.T) {
 	}
 	if string(raw) != "{}\n" {
 		t.Fatalf("bundle contents = %q", raw)
+	}
+}
+
+// TestWriteBundleLeavesAnExistingFilesModeAlone documents the boundary of the
+// case above rather than blessing it. An operator who pre-creates the --out
+// path keeps whatever mode they chose, so the doc comment on WriteBundle says
+// the 0600 applies on creation. If someone later makes WriteBundle chmod the
+// path -- a real behavior change, and the operator's call to ask for -- this
+// test is what tells them to update that sentence in the same commit.
+func TestWriteBundleLeavesAnExistingFilesModeAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bundle.json")
+	if err := os.WriteFile(path, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("seed pre-existing bundle: %v", err)
+	}
+	// Chmod explicitly: os.WriteFile's perm is masked by the process umask, so
+	// a runner with umask 077 would seed 0600 and this case would assert
+	// against a mode it never actually set.
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatalf("chmod pre-existing bundle: %v", err)
+	}
+	if err := WriteBundle(&bytes.Buffer{}, []byte("{}\n"), path); err != nil {
+		t.Fatalf("WriteBundle() error = %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat bundle: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o644 {
+		t.Fatalf("bundle mode = %04o, want the pre-existing 0644; WriteBundle now changes the mode of a path the operator chose, so update its doc comment", perm)
+	}
+	// The contents must still have been replaced -- this pins the mode, not a
+	// refusal to write.
+	raw, err := os.ReadFile(path) // #nosec G304 -- test-owned temp path
+	if err != nil {
+		t.Fatalf("read bundle: %v", err)
+	}
+	if string(raw) != "{}\n" {
+		t.Fatalf("bundle contents = %q, want the new bytes", raw)
 	}
 }
 

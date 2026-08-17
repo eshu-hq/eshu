@@ -77,9 +77,15 @@ func renderBundle(bundle evidencebundle.Bundle) ([]byte, error) {
 }
 
 // WriteBundle writes rendered bundle JSON to outPath when it is set, and to
-// out otherwise. The file is created 0600: a bundle is share-safe by
-// construction, but it is the operator's decision who reads it, not the
-// filesystem's default umask.
+// out otherwise.
+//
+// A new file is created 0600 rather than at the process umask: a bundle is
+// share-safe by construction, but it is still the operator's decision who
+// reads it. The mode applies only when the file is created. os.WriteFile
+// passes its perm argument through to open(2), which ignores it for a path
+// that already exists, so exporting over a file the operator pre-created 0644
+// leaves it 0644. Widening that into a guarantee would mean chmod-ing a path
+// the operator chose, so the limit is documented here instead of hidden.
 func WriteBundle(out io.Writer, raw []byte, outPath string) error {
 	if strings.TrimSpace(outPath) != "" {
 		if err := os.WriteFile(outPath, raw, 0o600); err != nil {

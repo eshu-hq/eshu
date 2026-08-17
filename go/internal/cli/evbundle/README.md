@@ -45,7 +45,9 @@ families need.
   an `evidencebundle.LiveSnapshot`
 - `ExportDemo`, `ExportLive` -- build, validate, stamp, render; both return
   no bytes at all when validation rejects
-- `WriteBundle` -- writes to a path (mode `0600`) or to the supplied writer
+- `WriteBundle` -- writes to a path or to the supplied writer; a file it
+  creates is mode `0600`, and a path that already exists keeps the mode the
+  operator gave it
 - `ReadBundleInput` -- reads a bundle from a path or the supplied reader
 - `ValidateBundle` -- decodes, validates, writes the verdict line, returns the
   reason
