@@ -272,12 +272,24 @@ cell_failgraphwrite_documentation() {
 	# cell" from "it was written here and the fault missed it". Without this, a
 	# missing marker has two explanations and the failure message has to guess
 	# between them.
-	log "fail-graph-write-once-then-succeed-documentation: probe documentation edges and this cell's intent window"
+	#
+	# This used to also print a documentation_edges shared_projection_intents
+	# "intent window" (total/pending/first_created/last_completed) right below
+	# the assert. It always printed total=0, pending=0, and two NULLs, for the
+	# same structural reason ifa_documentation_require_fresh_documents_edges's
+	# own header explains: documentationEdgeMaterializationHandler has no
+	# IntentWriter and never writes that table, so the query could not report
+	# anything else regardless of whether this cell was healthy or broken
+	# (#6149 follow-up item 9). During a failure investigation an
+	# unconditional zero reads as a finding ("nothing landed"), not as the
+	# structural non-signal it actually was -- removed rather than repointed
+	# at the graph, since ifa_documentation_assert immediately above already
+	# is a fail-closed, graph-based, exact-set check with its own diff on
+	# failure; a second graph-based count here would report strictly less
+	# than that diff already does.
+	log "fail-graph-write-once-then-succeed-documentation: probe documentation edges"
 	ifa_documentation_assert "failgraphwritedocumentation" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "fail-graph-write-once-then-succeed-documentation: the documentation edge set does not match the expected set after the drain. assert-edges is set-exact, so this covers a MISSING DOCUMENTS edge (the MERGE never ran here, and the fault had nothing to intercept) AND an extra, duplicated, or wrong-typed edge (a write ran and produced something else). Read the assert-edges diff above before deciding which -- they point at different code (#5974)."
-	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT count(*) AS total, count(*) FILTER (WHERE completed_at IS NULL) AS pending, min(created_at) AS first_created, max(completed_at) AS last_completed FROM shared_projection_intents WHERE projection_domain = 'documentation_edges';" \
-		"${compose_file}" | sed 's/^/  documentation_edges intent window: /'
 	capture_digest failgraphwritedocumentation
 	assert_matches_baseline failgraphwritedocumentation
 	# #5974: assert on the durable marker the fault decorator writes, not the
