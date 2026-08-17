@@ -11,17 +11,17 @@ import "strings"
 // missing or holds a different type, which is what lets a renderer print a
 // partial row instead of panicking on a server-side shape change.
 //
-// They are private copies of go/cmd/eshu's traceMap / traceSlice /
-// traceString / traceInt (the bool reader's original left cmd/eshu with its
-// last caller in #6059), and not the only ones: sets with these same names
-// live in go/internal/cli/change/envelope.go and
-// go/internal/cli/freshness/values.go, with the entitymap family keeping a
-// differently named set (without the bool reader) in
-// go/internal/cli/entitymap/values.go. The surviving originals stay in
-// go/cmd/eshu and keep their other callers, because that is package main and
-// a copy is the only way to share anything out of it. Copying is deliberate
-// rather than a shared helper package: the reading shape is four lines and
-// the coupling would not be.
+// They were forked from go/cmd/eshu's traceMap / traceSlice / traceString /
+// traceInt, which could not be imported (package main) and which are gone
+// now: the component (#6139) and trace (#6059) extractions removed their last
+// cmd/eshu callers, and the originals with them. They are not the only
+// copies: sets with these same names live in
+// go/internal/cli/change/envelope.go, go/internal/cli/freshness/values.go,
+// and go/internal/cli/trace/value.go (which carries no boolValue), with the
+// entitymap family keeping a differently named set (without the bool reader)
+// in go/internal/cli/entitymap/values.go. Copying is deliberate rather than a
+// shared helper package: the reading shape is four lines and the coupling
+// would not be.
 //
 // An edit to any one set belongs in every set that has the reader you
 // touched. TestEnvelopeReaderParity in go/cmd/eshu compares each reader
@@ -104,9 +104,11 @@ func boolValue(parent map[string]any, key string) bool {
 }
 
 // stringsValue coerces a decoded JSON array into its non-empty trimmed string
-// elements. It is a private copy of go/cmd/eshu's traceStrings, taken for the
-// same reason as the five readers above; the strings role of
-// TestEnvelopeReaderParity in go/cmd/eshu compares the two declarations and
+// elements. It was forked from go/cmd/eshu's traceStrings, which left with
+// its last caller; its sibling copies are stringsValue in
+// go/internal/cli/trace/value.go and stringList in
+// go/internal/cli/entitymap/values.go. The strings role of
+// TestEnvelopeReaderParity in go/cmd/eshu compares this copy and trace's and
 // goes red when one drifts.
 func stringsValue(value any) []string {
 	switch typed := value.(type) {

@@ -104,6 +104,8 @@ func TestFirstRunReportSubcommandRejectsEmptyEnvelope(t *testing.T) {
 // TestFirstRunReportSubcommandRegistered proves the report subcommand is wired
 // under first-run with its flags.
 func TestFirstRunReportSubcommandRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"first-run", "report"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(first-run report) error = %v", err)
@@ -120,6 +122,8 @@ func TestFirstRunReportSubcommandRegistered(t *testing.T) {
 
 // TestFirstRunReportFlagsRegistered proves the evidence flags exist on first-run.
 func TestFirstRunReportFlagsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"first-run"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(first-run) error = %v", err)

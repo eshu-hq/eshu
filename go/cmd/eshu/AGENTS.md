@@ -170,6 +170,19 @@
   through `internal/runtime` helpers already used here. All data-plane work
   runs in the launched binaries.
 
+- **Reaching `rootCmd` from a test without `lockCommandTree(t)`** — every
+  command here is a package-level singleton wired together by `init()`, and
+  cobra has no read-only accessor for the resulting tree: `Find`, `Execute`,
+  `Help`, `Commands`, and `Flags` all memoize state in place. `Find` merges
+  persistent flag sets on the way down and writes through to the *root* even
+  when it starts at a subcommand, so the whole tree is one conflict domain and
+  two parallel tests resolving a path at once is a data race. Call
+  `lockCommandTree(t)` once at the top of any test that reaches the tree
+  (after `t.Parallel()`); `TestSharedCommandTreeAccessIsGuarded` fails the
+  build if a test file skips it. Do not "fix" a race here by dropping
+  `t.Parallel()` — that hides the shared mutable state for the next caller
+  instead of synchronizing it. `command_tree_test.go` has the mechanism.
+
 - **Adding a hidden command without tests** — hidden `local-host` subcommands
   have integration-level tests in `local_host_supervision_test.go` and
   `service_local_test.go`. New hidden commands need coverage before merging.

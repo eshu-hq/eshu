@@ -4,13 +4,18 @@
 package main
 
 // Parity tests tying internal/cli/entitymap's deliberate copies to their
-// go/cmd/eshu originals.
+// siblings.
 //
 // The #6059 extraction copied traceErrorCodeFromTransport and the trace*
 // value readers into internal/cli/entitymap (transportErrorCode and
 // values.go) because this package is `package main` and cannot be imported.
 // The entitymap AGENTS.md states the invariant: a behavior change to one copy
 // is a bug unless it is made to both. Nothing enforced that until this file.
+// The trace* value reader originals have since left cmd/eshu entirely (#6139
+// and #6059 removed their last callers here), so the source-level pins below
+// compare entitymap's set against internal/cli/trace's surviving copy; the
+// classifier original is still declared and called in trace.go and keeps its
+// pin.
 //
 // The tests live here, not in entitymap, because the import only works in
 // this direction: package main can import internal/cli/entitymap, while
@@ -26,7 +31,7 @@ package main
 //   - The values.go readers are unexported and only partially reachable
 //     through entitymap's exported surface, so they are pinned at the source
 //     level instead: each reader's function body must be token-identical to
-//     its trace.go original. mapField/stringField additionally get a
+//     its internal/cli/trace sibling. mapField/stringField additionally get a
 //     behavioral table through the exported FreshnessState.
 
 import (
@@ -41,6 +46,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/entitymap"
+	"github.com/eshu-hq/eshu/go/internal/cli/trace"
 )
 
 // entityMapParityStatusErr carries an HTTP status through the
@@ -119,10 +125,11 @@ func TestEntityMapTransportClassifierPinnedDivergences(t *testing.T) {
 }
 
 // TestEntityMapFreshnessStateMatchesTraceReaders runs one table of truth
-// blocks through entitymap.FreshnessState (stringField over mapField) and the
-// same composition of the trace.go originals, asserting identical results.
-// This is the behavioral slice of the values.go parity: these two readers are
-// the only ones reachable through entitymap's exported surface, and the table
+// blocks through entitymap.FreshnessState (stringField over mapField) and
+// trace.ServiceFreshnessState, which composes internal/cli/trace's stringValue
+// over mapValue the same way, asserting identical results. This is the
+// behavioral slice of the values.go parity: these two readers are the only
+// ones reachable through each package's exported surface, and the table
 // covers the degradation cases where a drifted copy would differ -- nil maps,
 // missing members, wrong-typed members, and whitespace trimming.
 func TestEntityMapFreshnessStateMatchesTraceReaders(t *testing.T) {
@@ -141,10 +148,10 @@ func TestEntityMapFreshnessStateMatchesTraceReaders(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			traceGot := traceString(traceMap(tc.truth, "freshness"), "state")
+			traceGot := trace.ServiceFreshnessState(trace.ServiceEnvelope{Truth: tc.truth})
 			mapGot := entitymap.FreshnessState(entitymap.Envelope{Truth: tc.truth})
 			if traceGot != mapGot {
-				t.Fatalf("readers diverged: trace composition = %q, entitymap.FreshnessState = %q", traceGot, mapGot)
+				t.Fatalf("readers diverged: trace.ServiceFreshnessState = %q, entitymap.FreshnessState = %q", traceGot, mapGot)
 			}
 			if traceGot != tc.want {
 				t.Fatalf("both readers returned %q, want %q", traceGot, tc.want)
@@ -182,34 +189,40 @@ func entityMapParityFuncBody(t *testing.T, file, name string) string {
 
 // TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the four
 // values.go readers the exported entitymap surface cannot reach (plus the two
-// it can) to their trace.go originals at the source level: each copy's
-// function body must be token-identical to its original. The copies were
-// created byte-identical on purpose, and a behavior change to one is a bug
-// unless made to both; a legitimate change made to both keeps this green.
+// it can) to their internal/cli/trace siblings at the source level: each
+// copy's function body must be token-identical to its pair. The cmd/eshu
+// originals these copies were forked from are gone -- the component (#6139),
+// entitymap (#6127), and trace (#6059) extractions removed their last callers
+// here -- so the surviving copies pin to each other, with trace's set as the
+// anchor because TestEnvelopeReaderParity already holds that set to change,
+// freshness, and component. The copies were created byte-identical on
+// purpose, and a behavior change to one is a bug unless made to both; a
+// legitimate change made to both keeps this green.
 func TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers(t *testing.T) {
 	const (
-		traceFile  = "trace.go"
-		valuesFile = "../../internal/cli/entitymap/values.go"
+		traceValueFile = "../../internal/cli/trace/value.go"
+		valuesFile     = "../../internal/cli/entitymap/values.go"
 	)
 	pairs := []struct {
+		traceFile string
 		traceName string
 		mapName   string
 	}{
-		{"traceMap", "mapField"},
-		{"traceSlice", "sliceField"},
-		{"traceString", "stringField"},
-		{"traceInt", "intField"},
-		{"traceStrings", "stringList"},
-		{"traceFirstString", "firstNonEmpty"},
+		{traceValueFile, "mapValue", "mapField"},
+		{traceValueFile, "sliceValue", "sliceField"},
+		{traceValueFile, "stringValue", "stringField"},
+		{traceValueFile, "intValue", "intField"},
+		{traceValueFile, "stringsValue", "stringList"},
+		{traceValueFile, "firstString", "firstNonEmpty"},
 	}
 	for _, pair := range pairs {
 		t.Run(pair.mapName, func(t *testing.T) {
-			original := entityMapParityFuncBody(t, traceFile, pair.traceName)
+			original := entityMapParityFuncBody(t, pair.traceFile, pair.traceName)
 			copied := entityMapParityFuncBody(t, valuesFile, pair.mapName)
 			if original != copied {
 				t.Fatalf(
-					"%s (entitymap/values.go) drifted from %s (cmd/eshu/trace.go); change both or neither\noriginal:\n%s\ncopy:\n%s",
-					pair.mapName, pair.traceName, original, copied,
+					"%s (entitymap/values.go) drifted from %s (%s); change both or neither\noriginal:\n%s\ncopy:\n%s",
+					pair.mapName, pair.traceName, pair.traceFile, original, copied,
 				)
 			}
 		})

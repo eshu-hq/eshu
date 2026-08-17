@@ -39,6 +39,8 @@ func configSubcommandNames() []string {
 }
 
 func TestConfigSetThenShowRoundTripsThroughTheStore(t *testing.T) {
+	lockCommandTree(t)
+
 	t.Setenv("ESHU_HOME", t.TempDir())
 
 	setCmd := configSubcommand(t, "set")
@@ -63,6 +65,8 @@ func TestConfigSetThenShowRoundTripsThroughTheStore(t *testing.T) {
 }
 
 func TestConfigShowReportsTheEmptyStorePath(t *testing.T) {
+	lockCommandTree(t)
+
 	home := t.TempDir()
 	t.Setenv("ESHU_HOME", home)
 
@@ -78,6 +82,8 @@ func TestConfigShowReportsTheEmptyStorePath(t *testing.T) {
 }
 
 func TestConfigDBWritesBackendSelection(t *testing.T) {
+	lockCommandTree(t)
+
 	t.Setenv("ESHU_HOME", t.TempDir())
 
 	dbCmd := configSubcommand(t, "db")
@@ -102,6 +108,8 @@ func TestConfigDBWritesBackendSelection(t *testing.T) {
 }
 
 func TestConfigDBRejectsUnknownBackend(t *testing.T) {
+	lockCommandTree(t)
+
 	t.Setenv("ESHU_HOME", t.TempDir())
 
 	dbCmd := configSubcommand(t, "db")

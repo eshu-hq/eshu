@@ -17,6 +17,8 @@ import (
 )
 
 func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
+	lockCommandTree(t)
+
 	outDir := filepath.Join(t.TempDir(), "demo-component")
 	output := executeRootCommand(
 		t,
@@ -79,6 +81,8 @@ func TestComponentInitCollectorScaffoldsValidPackage(t *testing.T) {
 }
 
 func TestComponentInitCollectorJSONOutput(t *testing.T) {
+	lockCommandTree(t)
+
 	outDir := filepath.Join(t.TempDir(), "demo-component")
 	output := executeRootCommand(
 		t,
@@ -109,6 +113,8 @@ func TestComponentInitCollectorJSONOutput(t *testing.T) {
 }
 
 func TestComponentInitCollectorRequiresIDFlagName(t *testing.T) {
+	lockCommandTree(t)
+
 	_, err := executeRootCommandError(
 		t,
 		"component", "init", "collector",
@@ -125,6 +131,8 @@ func TestComponentInitCollectorRequiresIDFlagName(t *testing.T) {
 }
 
 func TestComponentInitCollectorRejectsNonNamespacedFactKind(t *testing.T) {
+	lockCommandTree(t)
+
 	_, err := executeRootCommandError(
 		t,
 		"component", "init", "collector",
@@ -142,6 +150,8 @@ func TestComponentInitCollectorRejectsNonNamespacedFactKind(t *testing.T) {
 }
 
 func TestComponentInitCollectorRejectsExistingOutputDirectory(t *testing.T) {
+	lockCommandTree(t)
+
 	outDir := t.TempDir()
 	_, err := executeRootCommandError(
 		t,
@@ -160,6 +170,8 @@ func TestComponentInitCollectorRejectsExistingOutputDirectory(t *testing.T) {
 }
 
 func TestComponentInitCollectorRejectsUnsafeIdentifiers(t *testing.T) {
+	lockCommandTree(t)
+
 	outDir := filepath.Join(t.TempDir(), "bad-component")
 	_, err := executeRootCommandError(
 		t,

@@ -23,6 +23,8 @@ func newExtractionReadinessCmdForTest(out io.Writer) *cobra.Command {
 
 func TestExtractionReadinessCommandRegistered(t *testing.T) {
 	t.Parallel()
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"component", "extraction-readiness"})
 	if err != nil {
 		t.Fatalf("Find(component extraction-readiness) error = %v", err)

@@ -30,9 +30,12 @@ func removedCommandError(command, guidance string) error {
 }
 
 // The bool envelope reader (traceBool) lived here until the component family
-// moved to go/internal/cli/component (#6059) and took its last caller in this
+// moved to go/internal/cli/component (#6139) and took its last caller in this
 // package with it -- the change families' callers had already left with
 // #6126. Its three surviving copies are boolValue in
 // go/internal/cli/change/envelope.go, go/internal/cli/freshness/values.go,
 // and go/internal/cli/component/values.go; TestEnvelopeReaderParity pins
-// those to each other alongside the readers still declared in trace.go.
+// those three to each other. It pins the other readers the same way, across
+// the internal/cli copies that declare them. None of them is declared in
+// trace.go any more: the trace extraction (#6059) removed the last of the
+// originals from this package.

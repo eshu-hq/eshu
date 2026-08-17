@@ -32,7 +32,7 @@ import (
 // This test compares behaviour rather than source text, which is where it
 // differs from TestEnvelopeReaderParity. Both functions are reachable from one
 // test package: traceExitCode is declared here, and ExitCodeForErrorCode is
-// exported. The readers are unexported in all three of their packages, which is
+// exported. The readers are unexported in all four of their packages, which is
 // the only reason that test compares declarations instead of calling them.
 //
 // A failure here means one copy no longer answers what the other does. That is

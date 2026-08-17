@@ -11,24 +11,24 @@ import "strings"
 // or holds a different type, which is what lets a renderer print a partial row
 // instead of panicking on a server-side shape change.
 //
-// They are private copies of go/cmd/eshu's traceMap / traceSlice /
-// traceString / traceInt (the bool reader's original left cmd/eshu with its
-// last caller in #6059), and they are not the only copies: sets with these
-// same five names live in go/internal/cli/change/envelope.go and
-// go/internal/cli/component/values.go, and the entitymap family keeps a
-// differently named set (without the bool reader) in
-// go/internal/cli/entitymap/values.go. The surviving originals stay in
-// go/cmd/eshu and keep their other callers, because that is package main and
-// a copy is the only way to share anything out of it. Copying is deliberate
-// rather than a shared helper package: the reading shape is four lines and
-// the coupling would not be.
+// They were forked from go/cmd/eshu's traceMap / traceSlice / traceString /
+// traceInt / traceBool, which could not be imported (package main) and which
+// are gone now: the component (#6139) and trace (#6059) extractions removed
+// their last cmd/eshu callers, and the originals with them. They are not the
+// only copies: sets with these same names live in
+// go/internal/cli/change/envelope.go and go/internal/cli/component/values.go,
+// go/internal/cli/trace/value.go carries the non-bool readers plus a strings
+// reader, and the entitymap family keeps a differently named set (without
+// the bool reader) in go/internal/cli/entitymap/values.go. Copying is
+// deliberate rather than a shared helper package: the reading shape is four
+// lines and the coupling would not be.
 //
-// An edit to any one set belongs in every set that has the reader you touched.
-// TestEnvelopeReaderParity in go/cmd/eshu compares the change, freshness, and
-// component sets per role and goes red when one drifts, which is the part a
-// comment on its own cannot do;
-// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap
-// set.
+// An edit to any one set belongs in every set that has the reader you
+// touched. TestEnvelopeReaderParity in go/cmd/eshu compares the change,
+// freshness, component, and trace sets per role and goes red when one
+// drifts, which is the part a comment on its own cannot do;
+// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the
+// entitymap set.
 
 // mapValue returns parent[key] when it holds a JSON object, else nil.
 func mapValue(parent map[string]any, key string) map[string]any {

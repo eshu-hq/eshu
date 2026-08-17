@@ -109,7 +109,8 @@ artifact wrapper, and the share-safe scope rules live in
     `developer_change_plan.v1` request to `/api/v0/impact/developer-change-plan`
     (`change_impact.go`, `internal/cli/change`)
   - service tracing: `trace service <name>` renders the API service-story
-    dossier through a canonical envelope-aware CLI consumer (`trace.go`)
+    dossier through a canonical envelope-aware CLI consumer (`trace.go`,
+    `internal/cli/trace`)
   - query playbooks: `playbooks list` and `playbooks resolve <playbook-id>`
     read the API query-playbook catalog and resolver envelopes without
     executing the resolved calls (`playbooks.go`)

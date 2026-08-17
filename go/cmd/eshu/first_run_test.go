@@ -137,6 +137,8 @@ func TestFirstRunJSONEnvelopeRoundTripsThroughParseEnvelope(t *testing.T) {
 
 // TestFirstRunCommandIsRegistered proves the command and its flags exist.
 func TestFirstRunCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"first-run"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(first-run) error = %v, want nil", err)

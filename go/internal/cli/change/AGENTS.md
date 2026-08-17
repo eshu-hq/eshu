@@ -72,8 +72,13 @@
 
 - **Sharing the trace helpers with `go/cmd/eshu` by importing across the
   boundary.** It cannot be done — that directory is `package main`. The
-  duplication here is deliberate and both sides still have callers. A shared
-  home is a separate decision.
+  duplication here is deliberate. `ErrorCodeFromTransport` still has an
+  original there (`traceErrorCodeFromTransport`, with callers of its own); the
+  value readers no longer do, because the component (#6139) and trace (#6059)
+  extractions took the last `go/cmd/eshu` callers and the originals with them.
+  Their surviving siblings are the sets in `internal/cli/freshness`,
+  `internal/cli/component`, and `internal/cli/trace`. A shared home is a
+  separate decision.
 - **Screening the envelope error message.** It is printed verbatim today, the
   behavior is pinned by a test, and quietly adding a filter would hide the
   service URL an operator needs in order to see which endpoint failed.

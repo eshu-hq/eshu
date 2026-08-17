@@ -69,18 +69,20 @@ type EnvelopeError struct {
 
 // mapValue returns parent[key] when it is a JSON object, and nil otherwise.
 //
-// This and the four readers below are copies of go/cmd/eshu's trace* helpers,
-// not shared with them. Most originals still have callers that are not moving
-// (trace.go and trace_render.go); the bool reader's original left cmd/eshu
-// with its last caller in #6059. The copies coexist deliberately until a
-// shared home exists. The freshness and component families keep their own
-// sets in go/internal/cli/freshness/values.go and
-// go/internal/cli/component/values.go, and the entitymap family a
-// differently named set (without the bool reader) in
-// go/internal/cli/entitymap/values.go, so an edit here belongs in every set
-// that has the reader you touched. TestEnvelopeReaderParity in go/cmd/eshu
-// compares the change, freshness, and component sets per role and goes red
-// when one drifts;
+// This and the four readers below are the change family's copy of a reader
+// set shared by convention, not code. They were forked from go/cmd/eshu's
+// trace* originals, which could not be imported (package main); the component
+// (#6139) and trace
+// (#6059) extractions have since removed the originals' last callers, and
+// the originals with them. The copies coexist deliberately until a shared
+// home exists. The freshness, component, and trace families keep their own
+// sets in go/internal/cli/freshness/values.go,
+// go/internal/cli/component/values.go, and go/internal/cli/trace/value.go,
+// and the entitymap family a differently named set (without the bool reader)
+// in go/internal/cli/entitymap/values.go, so an edit here belongs in every
+// set that has the reader you touched. TestEnvelopeReaderParity in
+// go/cmd/eshu compares the change, freshness, component, and trace sets per
+// role and goes red when one drifts;
 // TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers pins the entitymap
 // set.
 // ErrorCodeFromTransport in failure.go is a copy of the same kind, and the one

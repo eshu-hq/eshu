@@ -19,6 +19,8 @@ import (
 )
 
 func TestMapFromCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"map", "--from", "terraform/aws_lb.main"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(map --from) error = %v, want nil", err)

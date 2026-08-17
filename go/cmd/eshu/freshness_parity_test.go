@@ -149,11 +149,70 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
+// parityMap / paritySlice / parityString / parityInt are test-local envelope
+// readers for the fixture JSON these parity tests project on both sides of
+// each comparison. They are deliberately local: the cmd/eshu originals lost
+// their last production callers to the component (#6139) and trace (#6059)
+// extractions, and a test helper is not a reason to keep dead production code
+// alive.
+//
+// Three of the four carry the same body as the reader family the command
+// packages keep (internal/cli/{change,freshness,component,trace}). paritySlice
+// does not: it reads []any and stops, where the production sliceValue also
+// accepts []map[string]any. Every envelope reaching these readers is decoded
+// from the httptest server this file serves the canonical handler on, and
+// encoding/json turns every JSON array into []any, so the arm it leaves out
+// is unreachable here. Add it back the first time a case in this file hands
+// them an envelope built in Go.
+func parityMap(parent map[string]any, key string) map[string]any {
+	if parent == nil {
+		return nil
+	}
+	if typed, ok := parent[key].(map[string]any); ok {
+		return typed
+	}
+	return nil
+}
+
+func paritySlice(parent map[string]any, key string) []any {
+	if parent == nil {
+		return nil
+	}
+	if typed, ok := parent[key].([]any); ok {
+		return typed
+	}
+	return nil
+}
+
+func parityString(parent map[string]any, key string) string {
+	if parent == nil {
+		return ""
+	}
+	if value, ok := parent[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func parityInt(parent map[string]any, key string) int {
+	if parent == nil {
+		return 0
+	}
+	switch value := parent[key].(type) {
+	case int:
+		return value
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
+}
+
 // freshnessStateFromEnvelope reads the canonical truth.freshness.state the CLI
 // envelope carries. The CLI parses truth as a generic map, so the parity layer
 // reads the same path the renderer reads.
 func freshnessStateFromEnvelope(env freshness.Envelope) string {
-	return traceString(traceMap(env.Truth, "freshness"), "state")
+	return parityString(parityMap(env.Truth, "freshness"), "state")
 }
 
 // generationIDsFromEnvelope flattens the source generation identities the CLI
@@ -161,23 +220,23 @@ func freshnessStateFromEnvelope(env freshness.Envelope) string {
 // so the two can be reasoned about as equal contracts.
 func generationIDsFromEnvelope(env freshness.Envelope) []string {
 	ids := []string{}
-	if rows := traceSlice(env.Data, "generations"); len(rows) > 0 {
+	if rows := paritySlice(env.Data, "generations"); len(rows) > 0 {
 		for _, raw := range rows {
 			row, ok := raw.(map[string]any)
 			if !ok {
 				continue
 			}
-			ids = append(ids, "gen:"+traceString(row, "generation_id"))
-			if active := traceString(row, "current_active_generation_id"); active != "" {
+			ids = append(ids, "gen:"+parityString(row, "generation_id"))
+			if active := parityString(row, "current_active_generation_id"); active != "" {
 				ids = append(ids, "active:"+active)
 			}
 		}
 		return ids
 	}
-	if since := traceString(env.Data, "since_generation_id"); since != "" {
+	if since := parityString(env.Data, "since_generation_id"); since != "" {
 		ids = append(ids, "since:"+since)
 	}
-	if active := traceString(env.Data, "current_active_generation_id"); active != "" {
+	if active := parityString(env.Data, "current_active_generation_id"); active != "" {
 		ids = append(ids, "current:"+active)
 	}
 	return ids
@@ -324,12 +383,12 @@ func TestCLIFreshnessChangedSinceParityRetiredEvidence(t *testing.T) {
 	if got := generationIDsFromEnvelope(env); !equalStrings(got, wantIDs) {
 		t.Fatalf("CLI generation ids = %v, want %v", got, wantIDs)
 	}
-	category := traceSlice(env.Data, "categories")[0].(map[string]any)
-	counts := traceMap(category, "counts")
-	if got := traceInt(counts, "retired"); got != 2 {
+	category := paritySlice(env.Data, "categories")[0].(map[string]any)
+	counts := parityMap(category, "counts")
+	if got := parityInt(counts, "retired"); got != 2 {
 		t.Fatalf("CLI retired count = %d, want 2", got)
 	}
-	if got := traceInt(counts, "superseded"); got != 0 {
+	if got := parityInt(counts, "superseded"); got != 0 {
 		t.Fatalf("CLI superseded count = %d, want 0 (retired must not collapse)", got)
 	}
 }

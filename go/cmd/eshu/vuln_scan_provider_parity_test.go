@@ -20,6 +20,8 @@ import (
 )
 
 func TestVulnScanProviderParityCommandIsRegisteredWithPrivateSafeFlags(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"vuln-scan", "provider-parity"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(vuln-scan provider-parity) error = %v, want nil", err)

@@ -30,18 +30,24 @@ func assistantSubcommand(t *testing.T, name string) *cobra.Command {
 }
 
 func TestAssistantStatusCommandHasVerifyFlag(t *testing.T) {
+	lockCommandTree(t)
+
 	if flag := assistantSubcommand(t, "status").Flags().Lookup("verify"); flag == nil {
 		t.Fatal("assistant status command missing --verify flag")
 	}
 }
 
 func TestAssistantInstallCommandHasVerifyFlag(t *testing.T) {
+	lockCommandTree(t)
+
 	if flag := assistantSubcommand(t, "install").Flags().Lookup("verify"); flag == nil {
 		t.Fatal("assistant install command missing --verify flag")
 	}
 }
 
 func TestAssistantCommandsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	for _, name := range []string{"install", "status", "uninstall"} {
 		if cmd := assistantSubcommand(t, name); cmd.RunE == nil {
 			t.Fatalf("assistant %s has no RunE", name)
@@ -85,6 +91,8 @@ func TestResolveRootUsesFlagThenWorkingDirectory(t *testing.T) {
 // cobra and asserts the guidance landed on disk and the summary landed on the
 // stream cobra resolved -- the two things the wrapper is responsible for.
 func TestRunAssistantInstallWritesToResolvedStream(t *testing.T) {
+	lockCommandTree(t)
+
 	root := t.TempDir()
 	t.Cleanup(func() {
 		assistantGuidanceRoot = ""
@@ -121,6 +129,8 @@ func TestRunAssistantInstallWritesToResolvedStream(t *testing.T) {
 }
 
 func TestRunAssistantCommandsRejectUnsupportedPlatform(t *testing.T) {
+	lockCommandTree(t)
+
 	t.Cleanup(func() {
 		assistantGuidanceRoot = ""
 		assistantPlatformFilter = ""
