@@ -351,7 +351,7 @@ func newTestTraceServiceCommand() *cobra.Command {
 func stubTraceServiceFetch(t *testing.T, envelope trace.ServiceEnvelope) func() {
 	t.Helper()
 	original := traceFetchServiceStory
-	traceFetchServiceStory = func(_ *APIClient, selector string, opts trace.ServiceQuery) (trace.ServiceEnvelope, error) {
+	traceFetchServiceStory = func(_ *APIClient, selector string, _ trace.ServiceQuery) (trace.ServiceEnvelope, error) {
 		if selector != "checkout" {
 			t.Fatalf("selector = %q, want checkout", selector)
 		}

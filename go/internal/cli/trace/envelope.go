@@ -58,19 +58,19 @@ type ServiceQuery struct {
 // synthesize their own envelope from it rather than rendering a half-filled one.
 //
 //nolint:wrapcheck // The transport error text is operator-facing: go/cmd/eshu renders it verbatim and matches its substrings to classify the failure. Wrapping would change both.
-func FetchServiceStory(client EnvelopeFetcher, selector string, opts ServiceQuery) (ServiceEnvelope, error) {
+func FetchServiceStory(client EnvelopeFetcher, selector string, query ServiceQuery) (ServiceEnvelope, error) {
 	path := "/api/v0/services/" + url.PathEscape(strings.TrimSpace(selector)) + "/story"
-	query := url.Values{}
-	if opts.Repo != "" {
-		query.Set("repo", opts.Repo)
+	params := url.Values{}
+	if query.Repo != "" {
+		params.Set("repo", query.Repo)
 	}
-	if opts.Environment != "" {
-		query.Set("environment", opts.Environment)
+	if query.Environment != "" {
+		params.Set("environment", query.Environment)
 	}
-	if opts.ServiceID != "" {
-		query.Set("service_id", opts.ServiceID)
+	if query.ServiceID != "" {
+		params.Set("service_id", query.ServiceID)
 	}
-	if encoded := query.Encode(); encoded != "" {
+	if encoded := params.Encode(); encoded != "" {
 		path += "?" + encoded
 	}
 	var envelope ServiceEnvelope
