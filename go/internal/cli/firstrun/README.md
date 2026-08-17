@@ -32,11 +32,15 @@ operator summary. `BuildEvidence` projects a `Result` into an
 `RuntimeProbe`, `Repository`, and `RepositoryList` are the seam types the
 wrapper fills. `Diagnostic`, `FailureClass`, and the `Class*` constants are
 the classified-failure vocabulary carried in `Result` and `EvidenceReport`.
-`APIHealthy`, `QuoteIfEmpty`, `Truth`, and `QueryEndpoint` back the wrapper's
-production wiring. `Envelope`, `EnvelopeError`, and `ParseEnvelope` are the
-canonical decode of a saved `first-run --json` artifact, consumed by the
-wrapper's evidence report, the `firstrunbench` scoring engine, and (through a
-wrapper alias) the demo family. See `doc.go` for the godoc contract.
+`APIHealthy`, `Truth`, and `QueryEndpoint` back the wrapper's production
+wiring. `QuoteIfEmpty` substitutes `<repo>` for an empty value so a
+copy-pasteable hint never trails a space; because that placeholder names a
+repository, a caller rendering some other kind of field needs its own instead,
+which is why the demo scorecard uses a mode-neutral `<unset>`. `Envelope`,
+`EnvelopeError`, and `ParseEnvelope` are the canonical decode of a saved
+`first-run --json` artifact, consumed by the wrapper's evidence report, the
+`firstrunbench` scoring engine, and (through a wrapper alias) the demo family.
+See `doc.go` for the godoc contract.
 
 ## Dependencies
 

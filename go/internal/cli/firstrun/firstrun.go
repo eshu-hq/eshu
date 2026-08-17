@@ -221,9 +221,15 @@ func firstRunNextSteps(result Result, detection firstRunRuntimeDetection) []stri
 	}
 }
 
-// QuoteIfEmpty renders a placeholder for an empty repo target so a
-// copy-pasteable command hint never ends in a dangling space. The benchmark
-// and demo scorecard renderers in go/cmd/eshu share it for the same reason.
+// QuoteIfEmpty substitutes the placeholder "<repo>" for an empty value so a
+// copy-pasteable command hint never ends in a dangling space. The placeholder
+// names a repository, so it only reads correctly in a field that holds one,
+// such as this package's own next-step hint (eshu story <repo>). Callers
+// rendering something else need their own placeholder rather than this one:
+// go/internal/cli/demo renders a cold/warm mode and uses "<unset>".
+//
+// The caller list is deliberately not enumerated here. An earlier version
+// named callers by package path and went stale twice as they moved.
 func QuoteIfEmpty(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "<repo>"
