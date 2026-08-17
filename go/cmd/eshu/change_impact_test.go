@@ -35,6 +35,8 @@ func stubChangePlanFetch(t *testing.T, envelope change.Envelope, err error) func
 }
 
 func TestChangeImpactCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"change", "impact"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(change impact) error = %v", err)
@@ -50,6 +52,8 @@ func TestChangeImpactCommandIsRegistered(t *testing.T) {
 }
 
 func TestChangePlanCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"change", "plan"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(change plan) error = %v", err)

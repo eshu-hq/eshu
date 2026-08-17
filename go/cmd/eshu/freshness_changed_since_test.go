@@ -13,6 +13,8 @@ import (
 )
 
 func TestFreshnessChangedSinceCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"freshness", "changed-since"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(freshness changed-since) error = %v", err)

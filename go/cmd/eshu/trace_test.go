@@ -19,6 +19,8 @@ import (
 )
 
 func TestTraceServiceCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"trace", "service", "checkout"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(trace service) error = %v, want nil", err)

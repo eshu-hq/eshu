@@ -21,6 +21,8 @@ import (
 )
 
 func TestVulnScanRepoCommandIsRegisteredWithBoundedFlags(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"vuln-scan", "repo"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(vuln-scan repo) error = %v, want nil", err)

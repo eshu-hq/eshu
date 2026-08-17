@@ -13,6 +13,8 @@ import (
 )
 
 func TestCLIReadSurfaceGoldensMatchCommandTree(t *testing.T) {
+	lockCommandTree(t)
+
 	snap, err := goldengate.LoadSnapshot(filepath.Join("..", "..", "..", "testdata", "golden", "e2e-20repo-snapshot.json"))
 	if err != nil {
 		t.Fatalf("LoadSnapshot() error = %v", err)

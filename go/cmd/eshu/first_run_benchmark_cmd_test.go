@@ -49,6 +49,7 @@ const healthOnlyBenchmarkJSON = `{
 // TestFirstRunBenchmarkCommandIsRegistered proves the subcommand is wired in.
 func TestFirstRunBenchmarkCommandIsRegistered(t *testing.T) {
 	t.Parallel()
+	lockCommandTree(t)
 
 	cmd, _, err := rootCmd.Find([]string{"first-run-benchmark"})
 	if err != nil {

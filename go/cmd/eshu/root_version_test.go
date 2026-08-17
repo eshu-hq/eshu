@@ -9,6 +9,8 @@ import (
 )
 
 func TestRootVersionFlagPrintsBuildVersion(t *testing.T) {
+	lockCommandTree(t)
+
 	got := executeRootVersionForTest(t, "--version")
 	if want := "Eshu dev\n"; got != want {
 		t.Fatalf("eshu --version output = %q, want %q", got, want)
@@ -16,6 +18,8 @@ func TestRootVersionFlagPrintsBuildVersion(t *testing.T) {
 }
 
 func TestRootVersionShorthandPrintsBuildVersion(t *testing.T) {
+	lockCommandTree(t)
+
 	got := executeRootVersionForTest(t, "-v")
 	if want := "Eshu dev\n"; got != want {
 		t.Fatalf("eshu -v output = %q, want %q", got, want)

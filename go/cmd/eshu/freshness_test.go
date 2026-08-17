@@ -43,6 +43,8 @@ func freshnessTestServer(t *testing.T, status int, body string) *httptest.Server
 }
 
 func TestFreshnessGenerationsCommandIsRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"freshness", "generations"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(freshness generations) error = %v", err)

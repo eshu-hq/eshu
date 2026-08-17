@@ -14,6 +14,8 @@ import (
 )
 
 func TestComponentCommandTreeIncludesIndexVerify(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := componentCmd.Find([]string{"index", "verify", "index.yaml"})
 	if err != nil {
 		t.Fatalf("component index verify lookup error = %v, want nil", err)

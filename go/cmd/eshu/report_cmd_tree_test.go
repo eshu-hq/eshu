@@ -24,6 +24,8 @@ import (
 // Direct-instantiation command tests never exercise the real root tree, so
 // they cannot catch a duplicate root registration; this test can.
 func TestRootCommandTree_ReportSubtreeIsSingleAndComplete(t *testing.T) {
+	lockCommandTree(t)
+
 	reportCommands := make([]*cobra.Command, 0, 1)
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Name() == "report" {

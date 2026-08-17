@@ -17,6 +17,8 @@ import (
 )
 
 func TestComponentCommandTreeIncludesConform(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := componentCmd.Find([]string{"conform", "component.yaml"})
 	if err != nil {
 		t.Fatalf("component conform lookup error = %v, want nil", err)

@@ -23,6 +23,7 @@ import (
 
 func TestDocsVerifyCommandIsRegistered(t *testing.T) {
 	t.Parallel()
+	lockCommandTree(t)
 
 	cmd, _, err := rootCmd.Find([]string{"docs", "verify"})
 	if err != nil {

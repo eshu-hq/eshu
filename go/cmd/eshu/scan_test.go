@@ -302,6 +302,8 @@ func TestRunScanAllowPartialPrintsHumanWarning(t *testing.T) {
 }
 
 func TestScanCommandIsRegisteredWithReadinessFlags(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := rootCmd.Find([]string{"scan"})
 	if err != nil {
 		t.Fatalf("rootCmd.Find(scan) error = %v, want nil", err)

@@ -15,6 +15,8 @@ import (
 )
 
 func TestComponentCommandTreeIncludesSchemaVersions(t *testing.T) {
+	lockCommandTree(t)
+
 	cmd, _, err := componentCmd.Find([]string{"schema-versions"})
 	if err != nil {
 		t.Fatalf("component schema-versions lookup error = %v, want nil", err)

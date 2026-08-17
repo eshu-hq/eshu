@@ -23,12 +23,16 @@ import (
 // literal at a registration site -- the drift the inversion removes -- lands
 // here as a missing flag.
 //
-// Not parallel, and neither are the subtests: cobra's Find writes the resolved
-// name back onto the shared rootCmd tree, so two goroutines resolving a path
-// at once is a data race -- which -race caught here before this test was ever
-// committed. The sibling registration tests in change_impact_test.go are
-// serial too, whatever their author's reason was.
+// This test resolves paths against the shared rootCmd tree, so it takes
+// lockCommandTree. Cobra's Find is not a read: it merges persistent flag sets
+// into the whole tree on the way down, so two goroutines resolving a path at
+// once is a data race -- which -race caught here before this test was ever
+// committed. Staying serial was the earlier workaround; the lock is the fix,
+// and it is why the sibling registration tests can keep their t.Parallel().
+// See command_tree_test.go for the mechanism.
 func TestComponentRequiredFlagNamesAreRegistered(t *testing.T) {
+	lockCommandTree(t)
+
 	cases := []struct {
 		name string
 		path []string
