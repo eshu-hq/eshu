@@ -125,10 +125,14 @@ func stringsValue(value any) []string {
 // spellings the API has used for one field.
 //
 // Its cmd/eshu original, traceFirstString, was deleted when this extraction
-// and the entitymap extraction removed its last callers. The one other copy is
-// firstNonEmpty in go/internal/cli/entitymap/values.go;
-// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers in go/cmd/eshu pins
-// the two copies to each other, so an edit here belongs there too.
+// and the entitymap extraction removed its last callers. The copy pinned
+// against this one is firstNonEmpty in go/internal/cli/entitymap/values.go;
+// TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers in go/cmd/eshu
+// holds the two to each other, so an edit here belongs there too.
+//
+// go/internal/cli/vulnscan/values.go declares a third function of this name
+// and shape for its SARIF mapping. Nothing pins it to these two, so an edit
+// here does not reach it and no test will say so.
 func firstString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

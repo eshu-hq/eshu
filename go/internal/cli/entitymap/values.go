@@ -5,15 +5,18 @@ package entitymap
 
 import "strings"
 
-// The readers below are local copies of the trace* helpers in
-// go/cmd/eshu/trace.go. They are copied rather than shared because that file
-// is package main and unimportable, and because every original still has
-// callers in commands that have not been extracted. When a shared
-// internal/cli helper package for them lands, these become its first
-// candidates for deletion. Until then,
+// The readers below were forked from the trace* helpers in
+// go/cmd/eshu/trace.go, which could not be imported because that file is
+// package main. Those originals are gone: the component (#6139) and trace
+// (#6059) extractions removed their last cmd/eshu callers, and the originals
+// with them. What these are pinned against now is the surviving sibling set
+// -- mapValue / sliceValue / stringValue / intValue / stringsValue /
+// firstString in go/internal/cli/trace/value.go. When a shared internal/cli
+// helper package for them lands, these become its first candidates for
+// deletion. Until then,
 // TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers in
 // go/cmd/eshu/entitymap_parity_test.go fails when any copy's function body
-// drifts from its original.
+// drifts from its twin.
 
 // mapField returns parent[key] when it is a JSON object, and nil otherwise.
 // A missing, null, or wrong-typed member reads as an empty section rather

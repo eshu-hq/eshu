@@ -37,9 +37,12 @@
   compares the two bodies' source with the `http.Status*` constants
   normalised to their numeric values, so the focused loop
   `go test ./internal/cli/entitymap/` also goes red on drift.
-- **The value readers in `values.go` are copies too**, of the `trace*`
-  helpers in the same file. Do not "deduplicate" them by importing
-  `go/cmd/eshu`; it cannot be imported.
+- **The value readers in `values.go` are copies too**, forked from the
+  `trace*` helpers that used to live in `go/cmd/eshu/trace.go`. Those
+  originals are gone: the component (#6139) and trace (#6059) extractions
+  removed their last callers there. The set these are pinned against is now
+  `go/internal/cli/trace/value.go`, whose readers are unexported, so
+  "deduplicating" by importing it does not work either.
   `TestEntityMapValueReadersAreTokenIdenticalToTraceHelpers` in
   `go/cmd/eshu/entitymap_parity_test.go` enforces token-identical function
   bodies for all six readers (change both or neither), and

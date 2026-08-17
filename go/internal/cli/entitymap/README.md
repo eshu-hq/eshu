@@ -87,14 +87,17 @@ metrics.
 - **An empty relationship section prints nothing, including its title**, so a
   map with two populated sections does not read as five sections that mostly
   failed.
-- **The value readers in `values.go` are copies** of the `trace*` helpers in
-  `go/cmd/eshu/trace.go`, not a shared dependency: that file is `package
-  main`, and every original still has callers in commands that have not been
-  extracted. When a shared `internal/cli` helper package for them lands,
-  these are its first candidates for deletion. Until then the parity tests
-  in `go/cmd/eshu/entitymap_parity_test.go` hold the copies to their
-  originals: token-identical bodies for the readers, and a shared input
-  table for the transport classifier. `twin_source_test.go` in this package
+- **The value readers in `values.go` are copies** forked from the `trace*`
+  helpers in `go/cmd/eshu/trace.go`, not a shared dependency: that file is
+  `package main`. Those originals are gone -- the component (#6139) and trace
+  (#6059) extractions removed their last callers there -- so the copies are
+  now held against the surviving sibling set in
+  `go/internal/cli/trace/value.go`. When a shared `internal/cli` helper
+  package for them lands, these are its first candidates for deletion. Until
+  then the parity tests in `go/cmd/eshu/entitymap_parity_test.go` hold the
+  copies to their twins: token-identical bodies for the readers, and a shared
+  input table for the transport classifier, whose original **is** still
+  declared in `go/cmd/eshu/trace.go`. `twin_source_test.go` in this package
   repeats the source checks from the focused
   `go test ./internal/cli/entitymap/` loop -- for the classifier it first
   normalises the `http.Status*` constants to the numbers the original
