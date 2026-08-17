@@ -11,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 )
 
 // Envelope is the canonical `{data, truth, error}` envelope, matching the
 // first-run contract so the TTFA harness reads one shape across both commands.
-// The error object is firstrunbench.EnvelopeError itself, not a mirror, so the
-// two envelopes cannot drift apart.
+// The error object is firstrun.EnvelopeError itself, not a mirror, so the two
+// envelopes cannot drift apart.
 type Envelope struct {
-	Data  Result                       `json:"data"`
-	Truth map[string]any               `json:"truth"`
-	Error *firstrunbench.EnvelopeError `json:"error"`
+	Data  Result                  `json:"data"`
+	Truth map[string]any          `json:"truth"`
+	Error *firstrun.EnvelopeError `json:"error"`
 }
 
 // EnvelopeFor renders a result (or a failure) into the shared envelope.
@@ -33,7 +33,7 @@ func EnvelopeFor(res Result, err error) Envelope {
 		env.Truth = map[string]any{}
 	}
 	if err != nil {
-		env.Error = &firstrunbench.EnvelopeError{Message: err.Error()}
+		env.Error = &firstrun.EnvelopeError{Message: err.Error()}
 	}
 	return env
 }

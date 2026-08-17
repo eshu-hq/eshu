@@ -55,15 +55,18 @@
 // an exit code has to stay there.
 //
 // The scorecard vocabulary (Criterion, CriterionName, CriterionStatus and
-// their constants), the envelope error object, and the status marker are
-// imported from go/internal/cli/firstrunbench, so a harness reading either
-// scorecard sees one shape by construction rather than by parallel copies.
-// criteria.go declares only the two criterion names scored solely by the demo
-// lane; quoteIfEmpty stays a local adaptation of go/cmd/eshu's first_run.go
-// helper because package main cannot be imported (the placeholder is
-// mode-neutral here, where the original fills a repo slot).
+// their constants) and the status marker are imported from
+// go/internal/cli/firstrunbench, and the envelope error object from
+// go/internal/cli/firstrun, so a harness reading either scorecard sees one
+// shape by construction rather than by parallel copies. criteria.go declares
+// only the two criterion names scored solely by the demo lane
+// (CriterionPhaseTimings, CriterionModeObserved). quoteIfEmpty is a
+// deliberate local adaptation rather than a call to the importable
+// firstrun.QuoteIfEmpty: the original fills a repo-argument slot, while this
+// package's only caller renders the benchmark mode, so the placeholder here is
+// mode-neutral and a test pins it.
 //
 // Outside the standard library the package depends only on gopkg.in/yaml.v3,
-// for the manifest. Its only Eshu import is
-// go/internal/cli/firstrunbench, and it emits no telemetry.
+// for the manifest. Its Eshu imports are go/internal/cli/firstrunbench and
+// go/internal/cli/firstrun, and it emits no telemetry.
 package demo

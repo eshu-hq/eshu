@@ -31,6 +31,12 @@ the same shape as `internal/cli/servicereport`'s `ReadInput`.
 
 ## Exported surface
 
+Every backticked name between the two markers below is checked against the
+package's real exported surface by `TestREADMEExportedSurfaceIsReal` — a
+symbol this list claims but does not export fails the test.
+
+<!-- exported-surface:begin -->
+
 Lifecycle:
 
 - `Options` / `NewRuntime` / `Runtime` — the resolved inputs and the runtime
@@ -56,23 +62,34 @@ Manifest:
 Output and scoring:
 
 - `Envelope`, `EnvelopeFor`, `WriteJSON`, `PrintSuccess` (the envelope's
-  error field is `firstrunbench.EnvelopeError`, imported, not mirrored)
+  error field is `firstrun.EnvelopeError`, imported, not mirrored)
 - `EvaluateBenchmark`, `BenchmarkMeasurements`, `BenchmarkVerdict` (with
   `Criterion` and `FailureReasons`), `RenderBenchmarkVerdict`
 - `ParseImageState`, `ImageState` (`ImagesUnknown` / `ImagesPresent` /
-  `ImagesAbsent`), `ModeCold`, `ModeWarm`, `RequiredPhases`
-- `Criterion`, `CriterionName`, `CriterionStatus` and their constants
+  `ImagesAbsent`), `ModeCold`, `ModeWarm`
+- `CriterionPhaseTimings`, `CriterionModeObserved` — the two criterion names
+  scored only by this lane
+
+<!-- exported-surface:end -->
+
+Not exported here, despite appearing on the scorecard: the `Criterion`,
+`CriterionName`, and `CriterionStatus` types and the shared criterion names
+belong to `firstrunbench`, and the required-phase list is the package-internal
+`requiredPhases`.
 
 See `doc.go` for the godoc contract and the full subprocess/network/file
 surface.
 
 ## Dependencies
 
-Outside the standard library: `gopkg.in/yaml.v3`, for the manifest. Its only
-Eshu import is `go/internal/cli/firstrunbench`, for the shared scorecard
-vocabulary and envelope error object — `go list -deps ./internal/cli/demo`
-names exactly those two beyond the standard library. The package sits below
-the graph, storage, and query layers rather than beside them.
+Outside the standard library: `gopkg.in/yaml.v3`, for the manifest. Its Eshu
+imports are `go/internal/cli/firstrunbench`, for the shared scorecard
+vocabulary, and `go/internal/cli/firstrun`, for the envelope error object —
+`go list -f '{{.Imports}}' ./internal/cli/demo` names exactly those three.
+(Use `-f '{{.Imports}}'`, not `go list -deps`: `-deps` is the transitive
+closure, and `firstrun` reaches the query and storage layers through its own
+imports.) This package itself sits below the graph, storage, and query layers
+rather than beside them.
 
 Consumed by `go/cmd/eshu`: `demo.go` (the `demo up|down|status` tree) and
 `demo_benchmark_cmd.go` (the `demo-benchmark` scorer).
@@ -112,10 +129,11 @@ measurement lane consumes.
   `serviceName` must match the service key in
   `docker-compose.demo.runtime.yaml`; `TestDemoServiceNameMatchesComposeOverlay`
   reads the committed fragment and fails if they drift.
-- **The scorecard vocabulary is imported from
-  `go/internal/cli/firstrunbench`**, not copied. `Criterion`, `CriterionName`,
-  `CriterionStatus`, their constants, and `EnvelopeError` are that package's
-  exported types, so the two scorecards cannot drift apart. Only the two
+- **The scorecard vocabulary is imported, not copied.** `Criterion`,
+  `CriterionName`, `CriterionStatus`, and their constants are
+  `go/internal/cli/firstrunbench`'s exported types; `EnvelopeError` is
+  `go/internal/cli/firstrun`'s, alongside the envelope contract it belongs to.
+  Importing both is why the two scorecards cannot drift apart. Only the two
   demo-only criterion names (`CriterionPhaseTimings`, `CriterionModeObserved`)
   live in `criteria.go`.
 

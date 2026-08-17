@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench"
 )
 
@@ -180,7 +181,7 @@ func TestEvaluateDemoBenchmark_RejectsAHealthOnlyRun(t *testing.T) {
 			e.Data.FirstAnswer.Truth = map[string]any{}
 		}, firstrunbench.CriterionTruthMetadata},
 		{"envelope error", func(e *Envelope) {
-			e.Error = &firstrunbench.EnvelopeError{Message: "compose failed"}
+			e.Error = &firstrun.EnvelopeError{Message: "compose failed"}
 		}, firstrunbench.CriterionFirstAnswer},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

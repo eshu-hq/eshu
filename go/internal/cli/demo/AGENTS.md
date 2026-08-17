@@ -74,10 +74,13 @@
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`). If
   new logic needs something only the wrapper has, add a parameter.
 - **Re-copying the criterion vocabulary.** `Criterion`, `CriterionName`,
-  `CriterionStatus`, their constants, and `EnvelopeError` are imported from
-  `go/internal/cli/firstrunbench` so one harness reads both scorecards. A
-  local mirror of any of them reintroduces the silent-drift risk the import
-  removed.
+  `CriterionStatus`, and their constants are imported from
+  `go/internal/cli/firstrunbench`; `EnvelopeError` from
+  `go/internal/cli/firstrun`, which owns the envelope contract. That is what
+  lets one harness read both scorecards. A local mirror of any of them
+  reintroduces the silent-drift risk the import removed. The one deliberate
+  exception is `quoteIfEmpty`, whose placeholder must stay mode-neutral —
+  see `criteria.go`.
 - **Making the explicit build unconditional.** It was measured at 221,590 ms
   on a warm run. Instrumentation that slows what it measures is worse than the
   attribution it was added for.
