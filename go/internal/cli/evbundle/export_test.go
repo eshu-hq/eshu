@@ -126,13 +126,24 @@ func TestExportLiveStampsCreatedAtAfterTheFetch(t *testing.T) {
 	}
 
 	bundle := decodeBundle(t, raw)
+
+	// Assert this is a SUCCESSFUL live export before asserting the timestamp.
+	// A refusal returns no bytes, so a case that quietly became a rejection
+	// would never reach the CreatedAt check and the guard would rot silently.
+	if bundle.Validation.Status != "passed" {
+		t.Fatalf("Validation.Status = %q, want passed; this case must be a successful live export, not a refusal", bundle.Validation.Status)
+	}
+	if err := evidencebundle.Validate(bundle); err != nil {
+		t.Fatalf("exported live bundle does not re-validate: %v", err)
+	}
+	if len(fetcher.inner.asked) != 3 {
+		t.Fatalf("fetched %d routes, want 3; the step-per-GET arithmetic below assumes all three ran", len(fetcher.inner.asked))
+	}
+
 	want := fixedCreatedAt.Add(3 * time.Second).Format(time.RFC3339)
 	if bundle.Identity.CreatedAt != want {
 		t.Fatalf("CreatedAt = %q, want %q (the post-fetch instant); %q is the fetch-START time, so the clock was read before FetchLiveSnapshot",
 			bundle.Identity.CreatedAt, want, fixedCreatedAt.Format(time.RFC3339))
-	}
-	if len(fetcher.inner.asked) != 3 {
-		t.Fatalf("fetched %d routes, want 3; the step-per-GET arithmetic above assumes all three ran", len(fetcher.inner.asked))
 	}
 }
 
