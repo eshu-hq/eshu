@@ -28,10 +28,20 @@ const rationaleHandlerBenchmarkEntityCount = 5_000
 // 896-repository corpus the worst-case generation (241,726 facts sharing one
 // observed_at) loaded in 84.12 s and was quadratic in generation size. That was
 // root-caused and fixed in #6155 (commit e6453efd, keyset paging plus the
-// statement split), taking the same load to 3.37 s. Reverting that fix fails
-// the storage/postgres test build: facts_filtered_keyset_test.go and
-// fact_records_keyset_index_live_test.go both reference the split cursor
-// statement it introduced.
+// statement split), taking the same load to 3.37 s.
+//
+// Only the LOAD is comparable across the two branches, and the numbers above
+// are load numbers. Do not read them as a handler speedup: main has no
+// rationale follow-up, so its handler returns "no repositories available for
+// rationale materialization" without doing this work at all. The evidence doc
+// reports the two handler totals (84.34 s here, 3.49 s on main) apart from the
+// load table for exactly that reason and draws no speedup from them.
+//
+// Reverting the fix is caught at COMPILE time, not by the live test:
+// facts_filtered_keyset_test.go and fact_records_keyset_index_live_test.go
+// both reference listFactsByKindCursorQuery, which the fix introduced, so the
+// storage/postgres test build fails. The live test cannot itself guard a
+// revert credential-free -- it skips without ESHU_POSTGRES_TEST_DSN.
 func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 	previousLogger := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
