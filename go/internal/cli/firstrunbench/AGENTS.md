@@ -11,10 +11,10 @@
 4. `go/internal/cli/demo` (criteria.go, benchmark.go, benchmark_render.go,
    render.go) and its wrapper `go/cmd/eshu/demo_benchmark_cmd.go` — the second
    consumer. The demo family builds its criteria rows from this package's
-   `CriterionName`/`CriterionStatus` vocabulary, types its envelope error as
-   `EnvelopeError`, renders with `Marker`, and reads envelopes with
-   `ReadEnvelope`. Removing or renaming any of those breaks a family that
-   lives in a different directory.
+   `CriterionName`/`CriterionStatus` vocabulary, renders with `Marker`, and
+   reads envelopes with `ReadEnvelope`; its envelope error is
+   `firstrun.EnvelopeError`, from the package in item 5. Removing or renaming
+   any of those breaks a family that lives in a different directory.
 5. `go/internal/cli/firstrun/envelope.go` — the canonical envelope contract
    (`Envelope`, `EnvelopeError`, `ParseEnvelope`) this package scores.
 

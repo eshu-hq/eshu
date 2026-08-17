@@ -66,8 +66,13 @@
   goes out unauthenticated, gets 401, and reads as not-ready.
 - Symptom: an operator's `ESHU_DEMO_*` override stops working while every test
   here still passes → this package cannot catch that, because it takes the
-  lookup as a parameter. `TestNewResolvedDemoRuntime_ReadsTheComposeFileOverride`
-  in `go/cmd/eshu` is the test that covers it.
+  lookup as a parameter. The tests that cover it both live in `go/cmd/eshu`:
+  `TestNewResolvedDemoRuntime_ReadsTheComposeFileOverride` for
+  `ESHU_DEMO_COMPOSE_FILE`, and `TestResolveDemoOptions_ReadsThePortAndBindOverrides`
+  for `ESHU_DEMO_BIND_ADDR`, `ESHU_DEMO_API_PORT`, and `ESHU_DEMO_MCP_PORT`. A
+  new `ESHU_DEMO_*` variable needs its own case there; a test in this package
+  that feeds `APIBase` a fake lookup proves only that the function honours the
+  map it was handed.
 
 ## Anti-patterns specific to this package
 

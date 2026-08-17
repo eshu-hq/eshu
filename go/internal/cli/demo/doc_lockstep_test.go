@@ -168,12 +168,41 @@ func TestREADMEExportedSurfaceIsReal(t *testing.T) {
 		t.Fatalf("only %d exported-surface claims parsed out of README.md; the marker section is not being read", len(claims))
 	}
 
+	claimed := make(map[string]bool, len(claims))
 	for _, name := range claims {
+		claimed[name] = true
 		if !surface[name] {
 			t.Errorf("README.md's exported-surface list claims %q, which package demo does not export; "+
 				"either export it or move it out of the marked list (an unexported or another package's symbol belongs in the prose below the end marker)",
 				name)
 		}
+	}
+
+	// The inverse direction. A subset check only catches a list that overclaims;
+	// a symbol exported and never documented slips through it silently, which is
+	// how the list decays back into being approximately true. Asserted as SET
+	// EQUALITY, like the two tests below, so a new export nobody thought to
+	// document fails too.
+	//
+	// Bare method names are skipped: exportedSurface records each method both as
+	// `Runtime.Up` and as `Up`, and README cites whichever form reads better, so
+	// requiring both would demand text that says nothing.
+	methodShorthand := map[string]bool{}
+	for name := range surface {
+		if _, method, isQualified := strings.Cut(name, "."); isQualified {
+			methodShorthand[method] = true
+		}
+	}
+	for name := range surface {
+		if claimed[name] || methodShorthand[name] {
+			continue
+		}
+		if strings.Contains(name, ".") && claimed[name[strings.Index(name, ".")+1:]] {
+			continue
+		}
+		t.Errorf("package demo exports %q, which README.md's exported-surface list does not mention; "+
+			"add it between the markers or unexport it (an export no reader is told about is the same drift in the other direction)",
+			name)
 	}
 }
 
@@ -193,9 +222,11 @@ func TestREADMEExportedSurfaceIsReal(t *testing.T) {
 func TestSideEffectSurfaceMatchesDocGo(t *testing.T) {
 	t.Parallel()
 
-	// The exact numbers doc.go states. Changing either means changing doc.go's
-	// enumeration in the same commit.
-	const wantExecCalls = 9
+	// Read the count out of doc.go rather than restating it. A constant frozen
+	// here only pins the code: doc.go's prose could be edited to claim any
+	// number at all and this test would still pass, which is the exact decay it
+	// exists to stop. Parsing the sentence makes the claim itself load-bearing.
+	wantExecCalls := docGoDockerInvocationCount(t)
 	wantOSSelectors := []string{"Environ", "ReadFile", "Stat"}
 
 	fset, files := packageSourceFiles(t)
@@ -237,6 +268,86 @@ func TestSideEffectSurfaceMatchesDocGo(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(wantOSSelectors, ",") {
 		t.Errorf("os selectors used = %v, want exactly %v; doc.go claims os.Stat and os.ReadFile are the only file access and names os.Environ as the one other os call, so any difference means the code and the claim have diverged",
 			got, wantOSSelectors)
+	}
+}
+
+// numberWords maps the spelled-out counts doc.go may use for its enumeration.
+// doc.go writes the number as a word, so the assertion has to read one.
+var numberWords = map[string]int{
+	"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5, "Six": 6,
+	"Seven": 7, "Eight": 8, "Nine": 9, "Ten": 10, "Eleven": 11, "Twelve": 12,
+}
+
+var docGoInvocationRE = regexp.MustCompile(`(?m)^// ([A-Z][a-z]+) docker invocations, all through the ExecFunc seam\b`)
+
+// docGoDockerInvocationCount reads the number doc.go actually claims.
+//
+// Without this, TestSideEffectSurfaceMatchesDocGo never opened the file it is
+// named after: rewriting doc.go's "Nine docker invocations" to "Seventeen" left
+// the whole package suite green. A totality claim nobody can falsify is prose,
+// not a contract.
+func docGoDockerInvocationCount(t *testing.T) int {
+	t.Helper()
+
+	raw, err := os.ReadFile("doc.go")
+	if err != nil {
+		t.Fatalf("read doc.go: %v", err)
+	}
+	match := docGoInvocationRE.FindSubmatch(raw)
+	if match == nil {
+		t.Fatalf("doc.go no longer states \"<N> docker invocations, all through the ExecFunc seam\"; " +
+			"that sentence is the enumeration this test pins, so rewording it silently unpins the claim")
+	}
+	word := string(match[1])
+	count, ok := numberWords[word]
+	if !ok {
+		t.Fatalf("doc.go claims %q docker invocations, which is not a number word this test knows; add it to numberWords", word)
+	}
+	return count
+}
+
+// TestEveryDockerInvocationGoesThroughTheSeam pins the other half of doc.go's
+// subprocess claim: not just how many invocations there are, but that all of
+// them go through the ExecFunc seam.
+//
+// Counting r.exec call sites cannot see a call that skips the seam. Adding an
+// exec.CommandContext(ctx, "docker", ...) straight into a Runtime method left
+// the package suite green -- and because the fake in runtime_test.go only
+// records seam calls, such a bypass would really shell out during unit tests.
+// AGENTS.md tells contributors to "route it through r.exec"; this is what makes
+// that instruction fail rather than merely be ignored.
+func TestEveryDockerInvocationGoesThroughTheSeam(t *testing.T) {
+	t.Parallel()
+
+	// runCommand is the seam's own implementation, so it is the one function
+	// allowed to construct a subprocess directly.
+	const seamImpl = "runCommand"
+
+	fset, files := packageSourceFiles(t)
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Name.Name == seamImpl {
+				continue
+			}
+			ast.Inspect(fn, func(n ast.Node) bool {
+				call, isCall := n.(*ast.CallExpr)
+				if !isCall {
+					return true
+				}
+				sel, isSel := call.Fun.(*ast.SelectorExpr)
+				if !isSel {
+					return true
+				}
+				pkg, isIdent := sel.X.(*ast.Ident)
+				if !isIdent || pkg.Name != "exec" || !strings.HasPrefix(sel.Sel.Name, "Command") {
+					return true
+				}
+				t.Errorf("%s: %s calls exec.%s directly; every subprocess in this package must go through the ExecFunc seam (%s), which doc.go states and the runtime_test fake relies on",
+					fset.Position(call.Pos()), fn.Name.Name, sel.Sel.Name, seamImpl)
+				return true
+			})
+		}
 	}
 }
 

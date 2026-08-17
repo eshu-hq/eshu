@@ -20,8 +20,9 @@
 // benchmark, the evidence report, and the emitter share one shape and a
 // corrupt artifact fails the decode instead of being silently scored. The
 // demo-benchmark family (go/internal/cli/demo and its go/cmd/eshu wrapper)
-// imports the criterion vocabulary, EnvelopeError, ReadEnvelope, and Marker
-// for its own scorecard, so those stay exported.
+// imports the criterion vocabulary, ReadEnvelope, and Marker from here for its
+// own scorecard, so those stay exported; it types its envelope error as
+// firstrun.EnvelopeError, which belongs to that package, not this one.
 //
 // Flag resolution, stdin/stdout stream selection, and exit-code mapping stay
 // in the cobra wrapper go/cmd/eshu/first_run_benchmark_cmd.go.

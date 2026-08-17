@@ -93,26 +93,41 @@ func newDemoStatusCommand() *cobra.Command {
 	return cmd
 }
 
-// newResolvedDemoRuntime resolves the process state the demo runtime needs --
-// the working directory, ESHU_DEMO_COMPOSE_FILE, and the ESHU_DEMO_* port and
-// bind-address overrides -- and hands it to internal/cli/demo as plain values.
+// resolveDemoOptions resolves the process state the demo runtime needs -- the
+// working directory, ESHU_DEMO_COMPOSE_FILE, and the ESHU_DEMO_* port and
+// bind-address overrides -- into the plain values internal/cli/demo consumes.
 // The overlay is located relative to the working directory, so an installed
 // binary works outside the repo root.
-func newResolvedDemoRuntime(project string) (*demo.Runtime, error) {
+//
+// It is split out from newResolvedDemoRuntime so a test can read the resolved
+// values back. internal/cli/demo takes its environment lookup as a parameter,
+// so no test in that package can prove this function passes os.Getenv rather
+// than a lookup that always returns "" -- and Runtime keeps the resolved bases
+// unexported, so asserting on demo.Options is the only seam that catches it.
+func resolveDemoOptions(project string) (demo.Options, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return demo.Options{}, err
 	}
 	file, err := demo.ResolveComposeFile(cwd, os.Getenv)
 	if err != nil {
-		return nil, err
+		return demo.Options{}, err
 	}
-	return demo.NewRuntime(demo.Options{
+	return demo.Options{
 		Project:     project,
 		ComposeFile: file,
 		APIBase:     demo.APIBase(os.Getenv),
 		MCPBase:     demo.MCPBase(os.Getenv),
-	}), nil
+	}, nil
+}
+
+// newResolvedDemoRuntime builds the runtime from the resolved process state.
+func newResolvedDemoRuntime(project string) (*demo.Runtime, error) {
+	opts, err := resolveDemoOptions(project)
+	if err != nil {
+		return nil, err
+	}
+	return demo.NewRuntime(opts), nil
 }
 
 func runDemoUp(cmd *cobra.Command, _ []string) error {

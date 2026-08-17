@@ -104,3 +104,37 @@ func TestNewResolvedDemoRuntime_ReadsTheComposeFileOverride(t *testing.T) {
 		t.Errorf("newResolvedDemoRuntime() = %v; the wrapper is not passing os.Getenv through to ResolveComposeFile", err)
 	}
 }
+
+// TestResolveDemoOptions_ReadsThePortAndBindOverrides proves the wrapper passes
+// os.Getenv to APIBase and MCPBase, not just to ResolveComposeFile.
+//
+// internal/cli/demo's own TestDemoBases_FollowTheOverlayPortOverrides hands
+// APIBase a fake lookup, so it proves the function honours whatever map it is
+// given and nothing about what production supplies. Replacing os.Getenv here
+// with func(string) string { return "" } left every test in ./cmd/eshu/... and
+// ./internal/cli/... green while `eshu demo` probed 18080/18091 instead of the
+// operator's ports -- a second demo stack moved off the defaults would then
+// never reach ready, and the readiness loop would time out against a healthy
+// stack. Runtime keeps the resolved bases unexported, so demo.Options is the
+// seam this asserts on.
+func TestResolveDemoOptions_ReadsThePortAndBindOverrides(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(demo.EnvComposeFile, filepath.Join(dir, "my-overlay.yaml"))
+	t.Setenv(demo.EnvBindAddr, "10.1.2.3")
+	t.Setenv(demo.EnvAPIPort, "19080")
+	t.Setenv(demo.EnvMCPPort, "19091")
+
+	opts, err := resolveDemoOptions(demo.DefaultProject)
+	if err != nil {
+		t.Fatalf("resolveDemoOptions() = %v, want nil", err)
+	}
+	if want := "http://10.1.2.3:19080"; opts.APIBase != want {
+		t.Errorf("opts.APIBase = %q, want %q; the wrapper is not passing os.Getenv through to demo.APIBase",
+			opts.APIBase, want)
+	}
+	if want := "http://10.1.2.3:19091"; opts.MCPBase != want {
+		t.Errorf("opts.MCPBase = %q, want %q; the wrapper is not passing os.Getenv through to demo.MCPBase",
+			opts.MCPBase, want)
+	}
+}
