@@ -14,6 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
+// deployableUnitEdgesFamily is the materialized-edge family key this guard
+// asserts, mirroring codeownersOwnershipFamily's role for its own family: it
+// names the fixture's identity contract as well as its edge-type registry,
+// so MaterializedEdgeOduResolver.Resolve's dispatch and this file's own
+// LoadExpectedEdges/MaterializedEdgeDomainEdgeTypes calls can never be
+// pointed at different families by a typo in one of them.
+const deployableUnitEdgesFamily = "deployable_unit_edges"
+
 // deployableUnitGuardClock is the fixed, deterministic wall-clock reading
 // this guard hands to reducer.ExtractDeployableUnitCorrelationRows for every
 // row's CreatedAt. go/internal/ifa/AGENTS.md forbids wall-clock time inside
@@ -57,11 +65,11 @@ func deployableUnitFamilyExpectedEdgesPath(repoRoot string) string {
 // endpoint identity; running the real resolver closes that gap for the
 // resolved-relationship input too.
 func resolveDeployableUnitMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
-	expected, err := LoadExpectedEdges(expectedEdgesPath, "deployable_unit_edges")
+	expected, err := LoadExpectedEdges(expectedEdgesPath, deployableUnitEdgesFamily)
 	if err != nil {
 		return false, err.Error()
 	}
-	registry, err := MaterializedEdgeDomainEdgeTypes("deployable_unit_edges")
+	registry, err := MaterializedEdgeDomainEdgeTypes(deployableUnitEdgesFamily)
 	if err != nil {
 		return false, err.Error()
 	}

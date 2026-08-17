@@ -94,7 +94,7 @@ func TestCodeCallLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 11 not-yet-covered allProjectionDomains families",
+				"current 10 not-yet-covered allProjectionDomains families",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",
