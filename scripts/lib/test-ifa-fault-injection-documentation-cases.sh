@@ -14,55 +14,101 @@
 # script's ${documentation_cells_lib}/${det_lib}/${driver_lib} globals and
 # `fail` helper.
 
-test_ifa_documentation_fresh_stack_intent_guard_is_typed_and_fail_closed() (
+test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed() (
 	source "${documentation_cells_lib}"
+	declare -F ifa_documentation_require_fresh_documents_edges >/dev/null \
+		|| fail "documentation cells do not expose ifa_documentation_require_fresh_documents_edges"
+	# The precondition used to be ifa_documentation_require_fresh_intents,
+	# querying shared_projection_intents WHERE projection_domain =
+	# 'documentation_edges' -- vacuous, because documentationEdgeMaterializationHandler
+	# never writes that table (no IntentWriter field, only
+	# EdgeWriter.WriteEdges), so the count was always zero and the guard could
+	# never fail. Runtime check, not just a grep: the old name must not exist
+	# as a callable function after sourcing the cells lib.
 	declare -F ifa_documentation_require_fresh_intents >/dev/null \
-		|| fail "documentation cells do not expose ifa_documentation_require_fresh_intents"
+		&& fail "the old intents-based guard (ifa_documentation_require_fresh_intents) must not survive -- it queried a table this family's handler never writes"
 
-	local query_output query_rc output rc
-	ifa_det_pg() {
-		printf '%s' "${query_output}"
-		return "${query_rc}"
+	local case_dir
+	case_dir="$(mktemp -d -t ifa-fault-documentation-fresh-edges.XXXXXX)"
+	trap 'rm -rf "${case_dir}"' EXIT
+	mkdir -p "${case_dir}/bin"
+
+	# write_dump_stub replaces the stub eshu-ifa binary so `graph-dump` exits
+	# with the given code. The guard under test never reads the dump file's
+	# content -- jq is stubbed separately below -- so the stub does not need
+	# to write real graph JSON.
+	write_dump_stub() {
+		local dump_rc="$1"
+		cat >"${case_dir}/bin/eshu-ifa" <<STUB
+#!/usr/bin/env bash
+exit ${dump_rc}
+STUB
+		chmod +x "${case_dir}/bin/eshu-ifa"
 	}
 
-	query_output="ignored"
-	query_rc=7
+	local jq_output jq_rc output rc
+	jq() {
+		printf '%s' "${jq_output}"
+		return "${jq_rc}"
+	}
+
+	# graph-dump FAILED: exact exit code preserved, not collapsed to a bare 1
+	# -- the family idiom (an explicit rc capture: `if out="$(...)"; then
+	# rc=0; else rc=$?; fi`, matching ifa_documentation_release_intent_lock
+	# and the retry-count snapshot in cell_killworker_documentation) applies
+	# to the dump step exactly as it applied to the old Postgres query.
+	write_dump_stub 9
 	rc=0
-	output="$(ifa_documentation_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -eq 7 ]] || fail "failed documentation precondition query returned ${rc}, want original exit 7"
-	[[ "${output}" == *"precondition query FAILED (exit 7)"* ]] \
-		|| fail "failed documentation precondition query did not preserve exit 7: ${output}"
+	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
+	[[ "${rc}" -eq 9 ]] || fail "failed graph-dump returned ${rc}, want original exit 9"
+	[[ "${output}" == *"graph-dump FAILED (exit 9)"* ]] \
+		|| fail "failed graph-dump did not preserve exit 9 distinctly: ${output}"
 	[[ "${output}" != *"survived fresh_stack"* ]] \
-		|| fail "failed documentation precondition query was misreported as stale intents: ${output}"
+		|| fail "failed graph-dump was misreported as stale edges: ${output}"
 
-	query_output=""
-	query_rc=0
+	# jq count FAILED (dump itself succeeded): same rc-preservation idiom.
+	write_dump_stub 0
+	jq_output="ignored"
+	jq_rc=7
 	rc=0
-	output="$(ifa_documentation_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "empty documentation precondition count was accepted"
-	[[ "${output}" == *"returned empty output"* ]] \
-		|| fail "empty documentation precondition count was not diagnosed distinctly: ${output}"
+	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
+	[[ "${rc}" -eq 7 ]] || fail "failed jq DOCUMENTS-edge count returned ${rc}, want original exit 7"
+	[[ "${output}" == *"could not count DOCUMENTS edges in the graph dump (exit 7)"* ]] \
+		|| fail "failed jq DOCUMENTS-edge count did not preserve exit 7 distinctly: ${output}"
 
-	query_output="not-a-count"
-	query_rc=0
+	# empty jq output: rejected as unknown, not zero.
+	jq_output=""
+	jq_rc=0
 	rc=0
-	output="$(ifa_documentation_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "non-numeric documentation precondition count was accepted"
-	[[ "${output}" == *"returned non-numeric output"* ]] \
-		|| fail "non-numeric documentation precondition count was not diagnosed distinctly: ${output}"
+	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "empty DOCUMENTS-edge count was accepted"
+	[[ "${output}" == *"edge count came back empty"* ]] \
+		|| fail "empty DOCUMENTS-edge count was not diagnosed distinctly: ${output}"
 
-	query_output=$' 3\n'
-	query_rc=0
+	# non-numeric jq output: rejected as unknown, not zero.
+	jq_output="not-a-count"
+	jq_rc=0
 	rc=0
-	output="$(ifa_documentation_require_fresh_intents test project 1 postgresql://unused compose.yaml 2>&1)" || rc=$?
-	[[ "${rc}" -ne 0 ]] || fail "stale documentation intents were accepted"
-	[[ "${output}" == *"3 documentation_edges intent row(s) survived fresh_stack"* ]] \
-		|| fail "stale documentation intents were not reported as stale: ${output}"
+	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "non-numeric DOCUMENTS-edge count was accepted"
+	[[ "${output}" == *"is non-numeric"* ]] \
+		|| fail "non-numeric DOCUMENTS-edge count was not diagnosed distinctly: ${output}"
 
-	query_output=$' 0\n'
-	query_rc=0
-	ifa_documentation_require_fresh_intents test project 1 postgresql://unused compose.yaml >/dev/null \
-		|| fail "zero documentation intents did not continue"
+	# stale, non-zero edge count: rejected as a genuine leak, distinct from
+	# the three "unknown" cases above.
+	jq_output=$' 3\n'
+	jq_rc=0
+	rc=0
+	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
+	[[ "${rc}" -ne 0 ]] || fail "stale DOCUMENTS edges were accepted"
+	[[ "${output}" == *"3 DOCUMENTS edge(s) survived fresh_stack"* ]] \
+		|| fail "stale DOCUMENTS edges were not reported as stale: ${output}"
+
+	# genuine zero: the only input that continues.
+	jq_output=$' 0\n'
+	jq_rc=0
+	ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" >/dev/null \
+		|| fail "zero DOCUMENTS edges did not continue"
 )
 
 test_ifa_documentation_released_lock_holder_is_not_torn_down_twice() (

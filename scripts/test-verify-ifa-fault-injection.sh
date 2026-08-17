@@ -382,11 +382,27 @@ require_documentation_cells "claimed row targets documentation materialization" 
 require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
 require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
-require_documentation_cells "graph-write cell probes documentation intents" "projection_domain = 'documentation_edges'"
-require_documentation_cells "documentation precondition preserves query failure" "precondition query FAILED (exit"
-require_documentation_cells "documentation precondition distinguishes empty output" "returned empty output"
-require_documentation_cells "documentation precondition rejects non-numeric output" "returned non-numeric output"
-require_documentation_cells "documentation precondition reports stale intents" "survived fresh_stack"
+# #6149 precedent (deployable_unit_edges): documentationEdgeMaterializationHandler
+# never writes shared_projection_intents (no IntentWriter field, only
+# EdgeWriter.WriteEdges), so a count against that table was always zero and
+# the guard could never fail. Repointed to the live graph: a fresh stack must
+# dump zero DOCUMENTS edges, counted via `eshu-ifa graph-dump` + jq, mirroring
+# ifa_deployable_unit_require_fresh_intents's graph-dump-plus-jq shape.
+require_documentation_cells "graph-write cell fresh-stack guard dumps the graph, not a Postgres query" '"${bin_dir}/eshu-ifa" graph-dump -out "${ifa_documentation_fresh_stack_dump_path}"'
+require_documentation_cells "graph-write cell fresh-stack guard counts DOCUMENTS edges via jq" 'select(.type == "DOCUMENTS")'
+require_documentation_cells "graph-write cell fresh-stack guard uses its own distinctly-named global dump path, not local" 'ifa_documentation_fresh_stack_dump_path="$(mktemp)"'
+rg --quiet --fixed-strings -- 'local dump_path' "${documentation_cells_lib}" \
+	&& fail "documentation fresh-stack guard's graph-dump scratch path must not be declared local in ${documentation_cells_lib} -- its RETURN trap references it after the local binding would already be torn down (#6149 precedent)"
+require_documentation_cells "documentation precondition preserves the dump's exact exit code" 'return "${dump_rc}"'
+require_documentation_cells "documentation precondition preserves the jq count's exact exit code" 'return "${count_rc}"'
+require_documentation_cells "documentation precondition distinguishes empty output" "edge count came back empty"
+require_documentation_cells "documentation precondition rejects non-numeric output" "edge count %q is non-numeric"
+require_documentation_cells "documentation precondition reports stale edges" "survived fresh_stack"
+require_documentation_cells "documentation precondition renamed off the old intents-based name" "ifa_documentation_require_fresh_documents_edges() {"
+rg --quiet --fixed-strings -- 'SELECT count(*) FROM shared_projection_intents' "${documentation_cells_lib}" \
+	&& fail "ifa_documentation_require_fresh_documents_edges must not query shared_projection_intents any more (vacuous for this family -- documentationEdgeMaterializationHandler never writes it) in ${documentation_cells_lib}"
+rg --quiet --fixed-strings -- 'ifa_documentation_require_fresh_intents() {' "${documentation_cells_lib}" \
+	&& fail "the old ifa_documentation_require_fresh_intents name must not survive as a callable function definition in ${documentation_cells_lib} (the name may still appear in prose explaining the rename)"
 require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
 # deployable_unit_edges (#5993) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the review-cases

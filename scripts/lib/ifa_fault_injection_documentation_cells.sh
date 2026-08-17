@@ -54,42 +54,94 @@
 # assertion below reads an unset global and fails closed rather than silently
 # comparing against zero.
 
-# ifa_documentation_require_fresh_intents fails closed unless a fresh compose
-# stack has a numeric zero count for the documentation_edges intent domain.
-# Mirrors ifa_code_call_require_fresh_intents exactly, scoped to
-# projection_domain = 'documentation_edges' -- the shared-projection domain
-# buildDocumentationIntentRows (documentation_edge_materialization.go:264-275)
-# writes, not documentation_materialization (the queue-intent domain the
-# extraction handler itself runs under).
-ifa_documentation_require_fresh_intents() {
-	local cell="$1" compose_project="$2" use_compose_arg="$3" postgres_dsn="$4" compose_file_arg="$5"
-	local pre_intents pre_intents_rc
-	if pre_intents="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
-		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'documentation_edges';" \
-		"${compose_file_arg}")"; then
-		pre_intents_rc=0
+# ifa_documentation_require_fresh_documents_edges fails closed unless a fresh
+# stack has a numeric zero count of DOCUMENTS edges in the live graph. This
+# USED to be ifa_documentation_require_fresh_intents, querying
+# shared_projection_intents WHERE projection_domain = 'documentation_edges',
+# mirroring ifa_code_call_require_fresh_intents -- vacuous for this family:
+# documentationEdgeMaterializationHandler (documentation_edge_materialization.go)
+# calls only h.EdgeWriter.WriteEdges (:90); unlike code_call_materialization's
+# handler, it has no IntentWriter field and never calls UpsertIntents. The
+# only INSERT INTO shared_projection_intents in the repo is reachable solely
+# through UpsertIntents (shared_intents_upsert.go), so this count was always 0
+# whether the stack was genuinely fresh or not -- the same vacuous-check class
+# #6149 found and fixed for ifa_deployable_unit_require_fresh_intents
+# (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh), for the same
+# reason: the handler this precondition is meant to guard never writes the
+# table it queried.
+#
+# Repointed to the graph, the only place DOCUMENTS edges exist, mirroring
+# ifa_deployable_unit_require_fresh_intents's graph-dump-plus-jq shape --
+# same four fail-closed properties (dump/count failed, empty, non-numeric,
+# non-zero), each rejected distinctly; empty and non-numeric read as unknown,
+# never as a legitimate zero. Unlike that sibling, this function still
+# captures and returns the exact dump/count exit code on failure (an
+# explicit `if out="$(...)"; then rc=0; else rc=$?; fi`, not a bare
+# assignment or a plain `if ! ...; then return 1; fi`), matching this
+# family's OWN prior idiom -- ifa_documentation_release_intent_lock and the
+# retry-count snapshot in cell_killworker_documentation below use the same
+# shape, and the mirror test pins the exact returned code.
+#
+# Renamed from ifa_documentation_require_fresh_intents: the old name asserted
+# a claim about intents that was never true for this family, and a
+# vacuous-but-plausible name is exactly the trap #6149 tripped on for its
+# deployable-unit sibling.
+#
+# ifa_documentation_fresh_stack_dump_path is deliberately NOT `local`: a
+# `RETURN` trap referencing a `local` variable can fire after this function's
+# own return, on the NEXT function to return anywhere in this shell, once its
+# local binding is already gone -- confirmed live on the deployable-unit
+# sibling ("dump_path: unbound variable" aborted that fault-injection matrix,
+# ifa_deployable_unit_fresh_stack_dump_path's own header). Named distinctly
+# from every sibling family's global to avoid any doubt about which dump each
+# one is using.
+#
+# Args: cell bin_dir
+ifa_documentation_require_fresh_documents_edges() {
+	local cell="$1" bin_dir="$2"
+	local count count_rc dump_rc
+	if ! command -v jq >/dev/null 2>&1; then
+		printf '%s: fresh-stack precondition requires jq, which is not on PATH; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	fi
+	ifa_documentation_fresh_stack_dump_path="$(mktemp)" || {
+		printf '%s: fresh-stack precondition could not create a scratch file for the graph dump; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	}
+	trap 'rm -f "${ifa_documentation_fresh_stack_dump_path}"' RETURN
+	if "${bin_dir}/eshu-ifa" graph-dump -out "${ifa_documentation_fresh_stack_dump_path}"; then
+		dump_rc=0
 	else
-		pre_intents_rc=$?
+		dump_rc=$?
 	fi
-	if [[ "${pre_intents_rc}" -ne 0 ]]; then
-		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${pre_intents_rc}" >&2
-		return "${pre_intents_rc}"
+	if [[ "${dump_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition graph-dump FAILED (exit %s); treat this as unknown, not as a verdict\n' "${cell}" "${dump_rc}" >&2
+		return "${dump_rc}"
 	fi
-	pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
-	if [[ -z "${pre_intents}" ]]; then
-		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
+	if count="$(jq '[.edges[] | select(.type == "DOCUMENTS")] | length' "${ifa_documentation_fresh_stack_dump_path}")"; then
+		count_rc=0
+	else
+		count_rc=$?
+	fi
+	if [[ "${count_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition could not count DOCUMENTS edges in the graph dump (exit %s); treat this as unknown, not as a verdict\n' "${cell}" "${count_rc}" >&2
+		return "${count_rc}"
+	fi
+	count="$(printf '%s' "${count}" | tr -d '[:space:]')"
+	if [[ -z "${count}" ]]; then
+		printf '%s: fresh-stack precondition edge count came back empty; treat that as unknown, not as zero\n' "${cell}" >&2
 		return 1
 	fi
-	if [[ ! "${pre_intents}" =~ ^[0-9]+$ ]]; then
-		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
-			"${cell}" "${pre_intents}" >&2
+	if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition edge count %q is non-numeric; treat that as unknown, not as zero\n' \
+			"${cell}" "${count}" >&2
 		return 1
 	fi
-	if [[ "${pre_intents}" != "0" ]]; then
-		printf '%s: %s documentation_edges intent row(s) survived fresh_stack\n' "${cell}" "${pre_intents}" >&2
+	if [[ "${count}" != "0" ]]; then
+		printf '%s: %s DOCUMENTS edge(s) survived fresh_stack\n' "${cell}" "${count}" >&2
 		return 1
 	fi
-	printf '%s: fresh-stack precondition: 0 documentation_edges shared_projection_intents\n' "${cell}"
+	printf '%s: fresh-stack precondition: 0 DOCUMENTS edges in the graph\n' "${cell}"
 }
 
 # ifa_documentation_start_intent_lock holds the first durable write used by
@@ -189,20 +241,21 @@ cell_failgraphwrite_documentation() {
 	log "cell fail-graph-write-once-then-succeed-documentation: fresh stack"
 	fresh_stack failgraphwritedocumentation
 
-	# Probe 1 (#5974): a genuinely fresh stack has no documentation_edges
-	# shared-projection intents. Survivors mean this cell is replaying an
-	# earlier cell's completed work -- intent IDs are deterministic and
-	# completed rows are never reopened, so the drive produces no new graph
-	# writes, nothing reaches the fault decorator, and every later assertion
-	# still passes on edges that are already there. Only meaningful when this
-	# script owns the stack; --no-compose skips it (see
-	# ifa_documentation_require_fresh_intents).
+	# Probe 1 (#5974): a genuinely fresh stack has no DOCUMENTS edges in the
+	# live graph (see ifa_documentation_require_fresh_documents_edges's own
+	# header for why this no longer queries shared_projection_intents).
+	# Survivors mean this cell is replaying an earlier cell's completed work
+	# -- intent IDs are deterministic and completed rows are never reopened,
+	# so the drive produces no new graph writes, nothing reaches the fault
+	# decorator, and every later assertion still passes on edges that are
+	# already there. Only meaningful when this script owns the stack;
+	# --no-compose skips it (see ifa_documentation_require_fresh_documents_edges).
 	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_documentation_require_fresh_intents "fail-graph-write-once-then-succeed-documentation" \
-			"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation" \
+			"${bin_dir}" \
 			|| die "fail-graph-write-once-then-succeed-documentation: fresh-stack precondition failed"
 	else
-		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n'
+		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving DOCUMENTS edges are not a leak)\n'
 	fi
 
 	drive_all_cassettes failgraphwritedocumentation
