@@ -234,6 +234,7 @@ coverage:
     scenario: odu
     scenario_type: fault
     ref: "odu:ifa-deployable-unit-family"
+    proof_gate: ifa-fault-injection
   # Both live gates drive the rationale cassette and exact-assert its full
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
