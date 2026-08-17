@@ -76,18 +76,22 @@
 # `rg -c '^cell_[a-z_]+$' scripts/verify-ifa-fault-injection.sh` at either
 # commit. The runs themselves are reproduced by `make ifa-fault-injection`
 # at that commit; their logs are not committed (they carry local paths), so
-# every line quoted below is quoted verbatim, not referenced by path.
+# every line below is quoted verbatim AND cited by file:line against
+# live_fi_cf2d033b1.log -- the quote is checkable without opening that file,
+# the citation is where it came from.
 #
 # The RED run at cf2d033b1 -- whose driver still dispatched
 # cell_expirelease_documentation, one more than here -- established the cell
 # could never fire. Same run, same mechanism, opposite outcomes. The generic
-# cell_expirelease observed its row, forced expiry, and PASSED:
+# cell_expirelease observed its row, forced expiry, and PASSED
+# (live_fi_cf2d033b1.log:595,614):
 #
 #   expire-lease-mid-handler: non-vacuous: 1 claimed/running row(s) observed
 #     before forced expiry
 #   expire-lease-mid-handler: cell wall time: 8s
 #
-# while the documentation-scoped copy observed its row and FAILED:
+# while the documentation-scoped copy observed its row and FAILED
+# (live_fi_cf2d033b1.log:1596):
 #
 #   verify-ifa-fault-injection: expire-lease-mid-handler-documentation:
 #     documentation_materialization did not re-execute above its fault-free
@@ -95,7 +99,8 @@
 #
 # The reason is handler width. BOTH documentation_materialization executions
 # observed in that run were milliseconds wide, each at the end of a queue
-# wait an order of magnitude longer:
+# wait an order of magnitude longer (live_fi_cf2d033b1.log:3970 and its
+# sibling row):
 #
 #   handler_duration_seconds 0.022566833  queue_wait_seconds 0.969149  (43x)
 #   handler_duration_seconds 0.007342625  queue_wait_seconds 0.09283   (13x)
