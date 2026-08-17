@@ -49,11 +49,23 @@ func benchResolvedRelationships(n int) []relationships.ResolvedRelationship {
 
 // benchResolvedRelationshipsWrongTypeDominated is the shape a real batch has:
 // the overwhelming majority of resolved relationships are not deployment-source
-// relationships at all. It matters for the added-cost ratio, not just for
-// realism -- applyResolvedDeploymentSources calls the SAME classifier and then
+// relationships at all.
+//
+// It is also the shape that DISPROVED the prediction it was built to test. The
+// prediction: applyResolvedDeploymentSources calls the SAME classifier and then
 // `continue`s on anything not applied, so as the applied fraction falls the
-// baseline degenerates toward exactly what the stats pass does, and the ratio
-// of added cost to existing cost rises toward 1.
+// baseline should degenerate toward what the stats pass does and the added-cost
+// ratio should rise toward 1. Measured, the ratio is nearly flat and falls
+// slightly -- ~85% at 25% applied, ~81% at 5%. The reasoning stopped one line
+// short of workload_deployment_sources.go:158, which allocates
+// make(map, len(resolved)) BEFORE the loop: 21800 B and 3 allocs at either
+// shape, a fixed cost the stats pass never pays, so the baseline never
+// degenerates. Both passes do get cheaper on wrong_type-dominated input,
+// because the classifier short-circuits before touching Details.
+//
+// Kept because a benchmark that refutes a plausible reading of the code is
+// worth more than one that confirms an obvious result. See the hypothesis
+// ledger in evidence-6149-deployment-source-guard-stats.md.
 func benchResolvedRelationshipsWrongTypeDominated(n int) []relationships.ResolvedRelationship {
 	resolved := make([]relationships.ResolvedRelationship, 0, n)
 	for i := range n {
