@@ -8,7 +8,9 @@
 //
 // The package reads no cobra flags, resolves no Eshu config or credential
 // from the process environment, calls no clock, and never calls os.Exit. It
-// takes a StatusFetcher, a scope handle, and a creation time as parameters,
+// takes a StatusFetcher, a scope handle, and a caller-owned clock function as
+// parameters -- a function rather than an already-read timestamp, so the
+// export decides when the clock is read (see ExportLive) --
 // and it reads and writes local files only behind explicit path parameters
 // (ReadBundleInput, WriteBundle) -- mechanical input and output handling, not
 // process wiring. go/cmd/eshu's evidence_bundle_cmd.go is the thin cobra

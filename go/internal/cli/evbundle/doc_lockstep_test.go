@@ -34,10 +34,12 @@ import (
 // the expected set fails on the call nobody thought of, which is how a claim
 // like this actually decays.
 //
-// The time set is the sharpest clause. `time.Time` appears as a parameter type
-// on ExportLive, which is exactly the point -- the caller owns the clock and
-// hands the timestamp in. Pinning the set to {Time} means introducing time.Now
-// turns this red without anyone having to predict it.
+// The time set is the sharpest clause. `time.Time` appears only as the result
+// type of ExportLive's `now func() time.Time` parameter, which is exactly the
+// point -- the caller owns the clock and hands the function in, and this
+// package decides when to call it, never which clock it is. Pinning the set to
+// {Time} means introducing time.Now turns this red without anyone having to
+// predict it.
 //
 // Only non-test sources are walked: the claim describes the package, and test
 // helpers legitimately reach for os.ReadDir and t.TempDir. This file is itself
@@ -103,7 +105,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	assertSelectorSet(t, "os", gotOS, wantOS,
 		"AGENTS.md permits only caller-supplied-path file access here; streams, environment and exit belong in go/cmd/eshu's evidence_bundle_cmd.go")
 	assertSelectorSet(t, "time", gotTime, wantTime,
-		"the caller owns the clock and passes createdAt in; AGENTS.md states this package never calls time.Now")
+		"the caller owns the clock and passes a now func() time.Time in; AGENTS.md states this package never calls time.Now")
 
 	// A scan that read no files, or walked no selectors, is not evidence.
 	if scanned < 2 {

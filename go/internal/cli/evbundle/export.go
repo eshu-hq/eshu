@@ -38,16 +38,24 @@ func ExportDemo(scopeID string) ([]byte, error) {
 //
 // An empty scopeID makes evidencebundle.BuildLiveBundle use its stack-wide
 // "live:local" identity, which is the only honest label for evidence read
-// from stack-global routes. createdAt stamps Identity.CreatedAt; the composer
-// never calls time.Now itself, so the caller owns the clock.
-func ExportLive(fetcher StatusFetcher, scopeID string, createdAt time.Time) ([]byte, error) {
+// from stack-global routes.
+//
+// now is a clock the caller owns, taken as a thunk rather than an already-read
+// time.Time so that this function decides WHEN it is read. It is called once,
+// only after FetchLiveSnapshot returns, so Identity.CreatedAt is the instant
+// the evidence finished being read rather than the instant the export started:
+// a time.Now() evaluated at the call site would drift earlier by the whole
+// fetch duration on a slow stack. The package still never reads a clock of its
+// own.
+func ExportLive(fetcher StatusFetcher, scopeID string, now func() time.Time) ([]byte, error) {
 	snapshot, err := FetchLiveSnapshot(fetcher)
 	if err != nil {
 		return nil, err
 	}
 	bundle := evidencebundle.BuildLiveBundle(snapshot, evidencebundle.LiveBundleOptions{
-		ScopeID:   scopeID,
-		CreatedAt: createdAt,
+		ScopeID: scopeID,
+		// Read only now that the fetch has returned; see the clock note above.
+		CreatedAt: now(),
 	})
 	if err := evidencebundle.Validate(bundle); err != nil {
 		return nil, fmt.Errorf("validate live evidence bundle: %w", err)

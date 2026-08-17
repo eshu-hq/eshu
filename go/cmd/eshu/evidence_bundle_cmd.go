@@ -93,8 +93,11 @@ func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("scope") {
 			return fmt.Errorf("--scope cannot be combined with --live: the status routes a live bundle reads are stack-wide, so a repository-scoped label would misattribute other repositories' evidence")
 		}
-		// Empty scope makes the live export use its stack-wide identity.
-		raw, err := evbundle.ExportLive(apiClientFromCmd(cmd), "", evidenceBundleLiveNow())
+		// Empty scope makes the live export use its stack-wide identity. The
+		// clock is handed over unevaluated so ExportLive reads it after the
+		// status fetch returns; calling it here would stamp the fetch-START
+		// time, which is the pre-extraction behavior inverted.
+		raw, err := evbundle.ExportLive(apiClientFromCmd(cmd), "", evidenceBundleLiveNow)
 		if err != nil {
 			return err
 		}

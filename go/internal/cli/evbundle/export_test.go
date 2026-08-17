@@ -18,6 +18,29 @@ import (
 
 var fixedCreatedAt = time.Date(2026, 7, 2, 8, 0, 0, 0, time.UTC)
 
+// fixedClock is the caller-owned clock thunk for cases where how long the
+// fetch takes is irrelevant. Ordering is pinned separately by
+// TestExportLiveStampsCreatedAtAfterTheFetch.
+func fixedClock() time.Time { return fixedCreatedAt }
+
+// tickingFetcher answers the status routes from a stubFetcher while advancing
+// a fake clock one step per GET, so wall time only moves DURING the fetch.
+// That is what makes a CreatedAt sampled before the fetch distinguishable from
+// one sampled after it: the two differ by exactly one step per status route.
+type tickingFetcher struct {
+	inner *stubFetcher
+	now   time.Time
+	step  time.Duration
+}
+
+func (f *tickingFetcher) Get(path string, result any) error {
+	f.now = f.now.Add(f.step)
+	return f.inner.Get(path, result)
+}
+
+// Now is the thunk handed to ExportLive as its clock.
+func (f *tickingFetcher) Now() time.Time { return f.now }
+
 func decodeBundle(t *testing.T, raw []byte) evidencebundle.Bundle {
 	t.Helper()
 	var bundle evidencebundle.Bundle
@@ -76,8 +99,45 @@ func TestExportDemoRefusesAScopeCarryingPrivateData(t *testing.T) {
 	}
 }
 
+// TestExportLiveStampsCreatedAtAfterTheFetch pins WHEN the clock is read.
+//
+// Identity.CreatedAt is meant to be the instant the evidence finished being
+// read, which is what the pre-extraction cmd/eshu path did: it called its
+// time.Now wrapper inside the LiveBundleOptions literal, after the three
+// status GETs had returned. Reading the clock at the call site instead --
+// ExportLive(client, "", now()) -- compiles, passes every other test here, and
+// silently moves CreatedAt earlier by the whole fetch duration on a slow
+// stack. The parity test cannot catch it either, because it blanks CreatedAt
+// before comparing.
+//
+// The fake clock advances only inside Get, so the two orderings differ by
+// exactly three seconds -- one per status route -- and nothing else in the
+// bundle moves.
+func TestExportLiveStampsCreatedAtAfterTheFetch(t *testing.T) {
+	fetcher := &tickingFetcher{
+		inner: &stubFetcher{bodies: fullStatusBodies()},
+		now:   fixedCreatedAt,
+		step:  time.Second,
+	}
+
+	raw, err := ExportLive(fetcher, "", fetcher.Now)
+	if err != nil {
+		t.Fatalf("ExportLive() error = %v", err)
+	}
+
+	bundle := decodeBundle(t, raw)
+	want := fixedCreatedAt.Add(3 * time.Second).Format(time.RFC3339)
+	if bundle.Identity.CreatedAt != want {
+		t.Fatalf("CreatedAt = %q, want %q (the post-fetch instant); %q is the fetch-START time, so the clock was read before FetchLiveSnapshot",
+			bundle.Identity.CreatedAt, want, fixedCreatedAt.Format(time.RFC3339))
+	}
+	if len(fetcher.inner.asked) != 3 {
+		t.Fatalf("fetched %d routes, want 3; the step-per-GET arithmetic above assumes all three ran", len(fetcher.inner.asked))
+	}
+}
+
 func TestExportLiveComposesAStackWideBundle(t *testing.T) {
-	raw, err := ExportLive(&stubFetcher{bodies: fullStatusBodies()}, "", fixedCreatedAt)
+	raw, err := ExportLive(&stubFetcher{bodies: fullStatusBodies()}, "", fixedClock)
 	if err != nil {
 		t.Fatalf("ExportLive() error = %v", err)
 	}
@@ -104,7 +164,7 @@ func TestExportLiveFailsWhenAStatusRouteFails(t *testing.T) {
 	raw, err := ExportLive(&stubFetcher{
 		bodies: fullStatusBodies(),
 		errs:   map[string]error{PipelineEndpoint: sentinel},
-	}, "", fixedCreatedAt)
+	}, "", fixedClock)
 	if err == nil {
 		t.Fatalf("ExportLive() error = nil, want a failure\n%s", raw)
 	}
@@ -125,7 +185,7 @@ func TestExportLiveRefusesASnapshotCarryingAPrivateEndpoint(t *testing.T) {
 		"health": {"state": "degraded", "reasons": ["dial tcp 10.42.7.9:5432: connection refused"]},
 		"queue": {"total": 1}
 	}`
-	raw, err := ExportLive(&stubFetcher{bodies: bodies}, "", fixedCreatedAt)
+	raw, err := ExportLive(&stubFetcher{bodies: bodies}, "", fixedClock)
 	if err == nil {
 		t.Fatalf("ExportLive() error = nil, want a refusal\n%s", raw)
 	}

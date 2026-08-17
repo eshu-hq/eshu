@@ -155,8 +155,15 @@ the serving API's own request telemetry.
   stack-global, so `ExportLive` is called with an empty scope and
   `evidencebundle` labels the artifact `live:local`. The wrapper refuses
   `--scope` with `--live` rather than mislabelling.
-- **The clock is a parameter.** `ExportLive` takes `createdAt`; nothing here
-  calls `time.Now`, which is what makes a bundle reproducible in a test.
+- **The clock is a parameter, and it is a function.** `ExportLive` takes
+  `now func() time.Time`; nothing here calls `time.Now`, which is what makes a
+  bundle reproducible in a test. It is a thunk rather than an already-read
+  `time.Time` so that `ExportLive` -- not its call site -- decides when the
+  clock is read. It reads it once, after `FetchLiveSnapshot` returns, so
+  `identity.created_at` is when the evidence finished being read. Passing
+  `now()` at the call site instead compiles and looks identical, but stamps the
+  fetch-START time and drifts earlier by the whole fetch duration on a slow
+  stack. `TestExportLiveStampsCreatedAtAfterTheFetch` is the guard.
 
 ## Related docs
 
