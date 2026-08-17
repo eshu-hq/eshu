@@ -177,6 +177,81 @@ func TestREADMEExportedSurfaceIsReal(t *testing.T) {
 	}
 }
 
+// TestSideEffectSurfaceMatchesDocGo pins the two totality claims doc.go makes
+// about this package's side effects:
+//
+//   - "Nine docker invocations, all through the ExecFunc seam"
+//   - "Two file reads and no writes: os.Stat ... and os.ReadFile in
+//     LoadManifest" (plus the os.Environ disclosure in the paragraph below it)
+//
+// AGENTS.md tells contributors to add a new docker call to doc.go's
+// enumeration by hand and says "that list is meant to be exhaustive; a call
+// added without updating it makes the doc wrong rather than incomplete". That
+// instruction had nothing enforcing it. Both claims are asserted as counts and
+// SET EQUALITY rather than deny-lists, so a call nobody thought to ban fails
+// them too — which is how a totality claim actually decays.
+func TestSideEffectSurfaceMatchesDocGo(t *testing.T) {
+	t.Parallel()
+
+	// The exact numbers doc.go states. Changing either means changing doc.go's
+	// enumeration in the same commit.
+	const wantExecCalls = 9
+	wantOSSelectors := []string{"Environ", "ReadFile", "Stat"}
+
+	fset, files := packageSourceFiles(t)
+	execCalls := 0
+	gotOS := map[string]bool{}
+
+	for _, file := range files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.CallExpr:
+				// r.exec(ctx, env, "docker", ...) — the single seam every
+				// subprocess in this package goes through.
+				if sel, ok := node.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "exec" {
+					execCalls++
+					if !callPassesDockerAsArgv0(node) {
+						t.Errorf("%s: exec call does not pass \"docker\" as argv[0]; doc.go states every invocation does",
+							fset.Position(node.Pos()))
+					}
+				}
+			case *ast.SelectorExpr:
+				if pkg, ok := node.X.(*ast.Ident); ok && pkg.Name == "os" {
+					gotOS[node.Sel.Name] = true
+				}
+			}
+			return true
+		})
+	}
+
+	if execCalls != wantExecCalls {
+		t.Errorf("docker invocations through the exec seam = %d, want %d; doc.go enumerates them exhaustively, so a call added or removed without updating that list makes the doc wrong",
+			execCalls, wantExecCalls)
+	}
+
+	got := make([]string, 0, len(gotOS))
+	for name := range gotOS {
+		got = append(got, name)
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != strings.Join(wantOSSelectors, ",") {
+		t.Errorf("os selectors used = %v, want exactly %v; doc.go claims os.Stat and os.ReadFile are the only file access and names os.Environ as the one other os call, so any difference means the code and the claim have diverged",
+			got, wantOSSelectors)
+	}
+}
+
+// callPassesDockerAsArgv0 reports whether an exec-seam call passes the literal
+// "docker" as its command name. The seam's signature is
+// exec(ctx, env, name, args...), so argv[0] is the third argument.
+func callPassesDockerAsArgv0(call *ast.CallExpr) bool {
+	const nameArgIndex = 2
+	if len(call.Args) <= nameArgIndex {
+		return false
+	}
+	lit, ok := call.Args[nameArgIndex].(*ast.BasicLit)
+	return ok && lit.Kind == token.STRING && lit.Value == `"docker"`
+}
+
 // TestDirectImportsMatchTheDependenciesSection is the standing guard behind
 // README.md's Dependencies claim, which names this package's direct imports
 // exactly.
