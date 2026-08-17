@@ -139,3 +139,52 @@ func rationaleMaterializationIntent() Intent {
 		EnqueuedAt: now, AvailableAt: now, Status: IntentStatusPending,
 	}
 }
+
+// TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths pins the
+// per-repo half of the delta decision. hasDelta is a SCOPE-wide flag, so one
+// repository with qualified changed paths used to stamp delta_projection=true
+// onto every repository in the scope -- including ones whose own path list is
+// empty. That payload is unroutable: collectDeltaFilePaths
+// (edge_writer_retract_scope.go) rejects delta_projection with no
+// delta_file_paths, the partition fails, and the intent dead-letters. The
+// repository simply has nothing changed in this generation, which is a
+// repo-wide refresh, not a delta.
+func TestRationaleHandlerDeltaSkipsRepositoryWithNoQualifiedPaths(t *testing.T) {
+	t.Parallel()
+	changed := rationaleRepositoryContextFact("run-delta-mixed")
+	changed.Payload["repo_id"] = "repo-changed"
+	changed.Payload["delta_generation"] = true
+	changed.Payload["delta_deleted_relative_paths"] = []string{"src/deleted.go"}
+
+	untouched := rationaleRepositoryContextFact("run-delta-mixed")
+	untouched.Payload["repo_id"] = "repo-untouched"
+	untouched.Payload["delta_generation"] = true
+
+	writer := &recordingRationaleIntentWriter{}
+	handler := RationaleEdgeMaterializationHandler{
+		FactLoader:   &stubFactLoader{envelopes: []facts.Envelope{changed, untouched}},
+		IntentWriter: writer,
+	}
+	if _, err := handler.Handle(context.Background(), rationaleMaterializationIntent()); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	for _, row := range writer.refreshRows() {
+		repoID, _ := row.Payload["repo_id"].(string)
+		paths, _ := row.Payload["delta_file_paths"].([]string)
+		isDelta, _ := row.Payload["delta_projection"].(bool)
+		switch repoID {
+		case "repo-changed":
+			if !isDelta || len(paths) == 0 {
+				t.Errorf("repo-changed: delta_projection=%v paths=%#v, want a real delta", isDelta, paths)
+			}
+		case "repo-untouched":
+			if isDelta {
+				t.Errorf("repo-untouched carries delta_projection=true with paths=%#v; an empty delta payload is unroutable and dead-letters, so this repository must emit a repo-wide refresh", paths)
+			}
+			if _, present := row.Payload["delta_file_paths"]; present {
+				t.Errorf("repo-untouched carries delta_file_paths=%#v; a repo-wide refresh must not carry delta keys at all", paths)
+			}
+		}
+	}
+}

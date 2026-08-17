@@ -77,12 +77,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 				"`sql_relationships`, `code_calls`,\n  `documentation_edges`, and `rationale_edges`",
 				"nine SQL edges,\n  five code-call edges, three documentation edges, and three full rationale",
 				"`ifa-determinism` live gate invokes it in every worker-count cell",
-				"nine rows under two proof-gate IDs",
+				"one row per (surface, scenario) under two proof-gate IDs",
 				"`sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;\n  fault uses `ifa-fault-injection`.",
 				"`code_calls` has two rows: baseline uses `ifa-determinism`; fault uses\n  `ifa-fault-injection`.",
 				"`documentation_edges` has two rows: baseline uses `ifa-determinism`; fault\n  uses `ifa-fault-injection`.",
 				"`rationale_edges` has two rows: baseline uses `ifa-determinism`; fault uses\n  `ifa-fault-injection`.",
-				"fault-free\n  baseline asserts all four families",
+				"fault-free\n  baseline asserts every family with a cataloged expected-edge set",
 				"SQL kill/reclaim cell compares its graph with the baseline digest",
 				"SQL write-retry cell repeats the exact nine-edge assertion",
 				"Both code-call recovery cells repeat the exact five-edge assertion",
@@ -232,7 +232,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materialized_edges_family_coverage_test.go"),
 			required: []string{
-				"The 20 waiver rows and the edge-type registries",
+				"The waiver rows and the edge-type registries",
 			},
 			prohibited: []string{
 				"The 22 waiver rows and the edge-type registries",

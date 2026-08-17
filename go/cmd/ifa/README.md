@@ -124,7 +124,9 @@ session.
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
   vacuously; the absolute expected set catches that regression. The coverage
-  manifest records nine rows under two proof-gate IDs.
+  manifest records one row per (surface, scenario) under two proof-gate IDs;
+  the count is derived and asserted in materialized_edges_family_coverage_test.go
+  rather than written here, because a hand-written total goes stale silently.
   `sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;
   fault uses `ifa-fault-injection`.
   `code_calls` has two rows: baseline uses `ifa-determinism`; fault uses
@@ -137,7 +139,7 @@ session.
   The `ifa-determinism` live gate invokes it in every worker-count cell for the
   baseline families, then asserts the generation-2 SQL and rationale sets and
   reasserts code calls after the delta. In fault injection, the fault-free
-  baseline asserts all four families.
+  baseline asserts every family with a cataloged expected-edge set.
   The SQL kill/reclaim cell compares its graph with the baseline digest; the
   SQL write-retry cell repeats the exact nine-edge assertion.
   Both code-call recovery cells repeat the exact five-edge assertion.

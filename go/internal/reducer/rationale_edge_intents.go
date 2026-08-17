@@ -149,9 +149,16 @@ func buildRationaleRefreshIntents(
 			"action":          repoRefreshAction,
 			"evidence_source": rationaleEvidenceSource,
 		}
-		if deltaScope.hasDelta {
+		// hasDelta is SCOPE-wide, but the delta payload is per-repository. A
+		// repository with nothing qualified in this generation must fall back to
+		// the repo-wide refresh: stamping delta_projection=true with an empty
+		// path list produces an unroutable intent, because collectDeltaFilePaths
+		// (storage/cypher/edge_writer_retract_scope.go) rejects exactly that
+		// shape, the partition fails, and the intent dead-letters. Gate on this
+		// repository's own paths, not on the scope's flag.
+		if repoFilePaths := deltaScope.filePathsByRepoID[repoID]; deltaScope.hasDelta && len(repoFilePaths) > 0 {
 			payload["delta_projection"] = true
-			payload["delta_file_paths"] = append([]string(nil), deltaScope.filePathsByRepoID[repoID]...)
+			payload["delta_file_paths"] = append([]string(nil), repoFilePaths...)
 		}
 		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainRationaleEdges,

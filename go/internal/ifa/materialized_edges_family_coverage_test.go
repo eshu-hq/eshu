@@ -60,7 +60,7 @@ func TestEveryUmbrellaFamilyResolves(t *testing.T) {
 // TestEveryWaivedFamilyIsRegistered binds the manifest's waived families to the
 // code that must resolve them (#5543).
 //
-// The 20 waiver rows and the edge-type registries are maintained in different
+// The waiver rows and the edge-type registries are maintained in different
 // places and neither knows about the other. A waived family that does not
 // resolve is one whose waiver can never be retired — `assert-edges` errors
 // before any Odù or expected-edge set gets a chance — and that is invisible
@@ -143,5 +143,46 @@ func TestEveryRegisteredEdgeTypeIsCanonical(t *testing.T) {
 			t.Errorf("family %q registers %v, which the canonical edgetype registry does not define; the live gate would assert an always-empty population for them",
 				family, unknown)
 		}
+	}
+}
+
+// TestWaiverRowsAreOnePerGatePerFamily derives the waiver arithmetic instead of
+// writing it down. Every waived family must carry exactly one row per live
+// gate, so the row total is always twice the family count.
+//
+// This exists because the hand-written totals drifted silently and repeatedly.
+// A comment here claimed "20 waiver rows" against an actual 18, cmd/ifa's
+// README claimed nine coverage rows against an actual 11, and two branches
+// each independently took a "not-yet-covered families" count from 11 to 10 --
+// producing a conflict-free merge that kept 10 when the truth was 9. Every one
+// of those numbers was pinned as a required literal in a documentation guard,
+// so the guards cemented the stale values rather than catching them: correcting
+// the prose turned them red. A derived invariant cannot go stale, and it fails
+// on the actual drift rather than on someone fixing the description of it.
+func TestWaiverRowsAreOnePerGatePerFamily(t *testing.T) {
+	t.Parallel()
+
+	manifest := filepath.Join(repoRootDir(t), "specs", MaterializedEdgeManifestFileName)
+	waivers, err := LoadMaterializedEdgeWaivers(manifest)
+	if err != nil {
+		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+	}
+	gatesByFamily := make(map[string]map[string]struct{}, len(waivers))
+	for _, waiver := range waivers {
+		family := waiver.Surface
+		if _, seen := gatesByFamily[family]; !seen {
+			gatesByFamily[family] = make(map[string]struct{}, 2)
+		}
+		gatesByFamily[family][waiver.ProofGate] = struct{}{}
+	}
+	for family, gates := range gatesByFamily {
+		if len(gates) != 2 {
+			t.Errorf("waived family %q carries %d proof gates, want 2 (one per live gate); a family waived for only one gate is silently unproven on the other",
+				family, len(gates))
+		}
+	}
+	if got, want := len(waivers), 2*len(gatesByFamily); got != want {
+		t.Errorf("waiver rows = %d, want %d (2 per waived family across %d families)",
+			got, want, len(gatesByFamily))
 	}
 }
