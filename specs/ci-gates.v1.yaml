@@ -2904,6 +2904,7 @@ gates:
     requirements: []
     ci_only_reason: ""
     hook_id: ""
+    local_only_reason: "Never wired into a CI workflow job (#6149 follow-up item 5) -- unlike docs-prose-quality/docs-contradiction, there is no known burn-down baseline blocking this: verify-root-cause-evidence.sh passes cleanly against the committed docs/internal/evidence/** today. The gap is purely that nobody wired it, and it went unnoticed because a blocking:false local-only gate has no CI backstop to make the absence visible -- this gate ran against zero evidence docs until it was run by hand. Follow the docs-refs pattern (static-contract-gates.yml dorny-filter + append_gate) to close it; tracked as a follow-up rather than done inline here because it touches a workflow file several concurrent branches edit."
 
   - id: perf-evidence
     name: Hot-path performance evidence

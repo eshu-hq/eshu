@@ -195,6 +195,105 @@ gates:
 	}
 }
 
+// A blocking:false gate with no ci.workflow/ci.job has no CI backstop at
+// all: for every other gate a local skip is harmless because CI backstops
+// it, but a gate that runs ONLY through a developer's local `make pre-pr`
+// and is never wired into CI can go unexercised indefinitely if nobody
+// happens to run it by hand -- root-cause-evidence, exactly this shape,
+// had never run against any evidence doc until it was run by hand (#6149
+// follow-up item 5). local_only_reason already exists and three of the four
+// real gates in this shape use it to declare the gap as a deliberate,
+// temporary staging decision rather than an accident -- but nothing
+// enforced that every gate in this shape declare one. This is the
+// enforcement: a blocking:false gate whose ci.workflow AND ci.job are both
+// empty must carry a non-empty local_only_reason, mirroring the existing
+// ci_only_reason-required-when-local-is-nil rule exactly.
+func TestLoad_NoCIBackstopWithoutLocalOnlyReason(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: undeclared-local-only
+    name: Undeclared Local Only
+    category: hygiene
+    tier: pre-pr
+    blocking: false
+    triggers: ["go/**"]
+    local:
+      command: "bash scripts/verify-license-header.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: [go]
+    ci_only_reason: ""
+`
+	path := writeYAML(t, yaml)
+	_, err := cigates.Load(path)
+	if err == nil {
+		t.Fatal("expected error for a blocking:false gate with no CI backstop and no local_only_reason, got nil")
+	}
+	if !strings.Contains(err.Error(), "undeclared-local-only") || !strings.Contains(err.Error(), "local_only_reason") {
+		t.Errorf("error %q should name the gate and mention local_only_reason", err.Error())
+	}
+}
+
+// The same shape with a non-empty local_only_reason is accepted: the whole
+// point is to require the DECLARATION, not to forbid the gap outright (three
+// real gates rely on exactly this staged shape today).
+func TestLoad_NoCIBackstopWithLocalOnlyReasonAccepted(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: declared-local-only
+    name: Declared Local Only
+    category: hygiene
+    tier: pre-pr
+    blocking: false
+    triggers: ["go/**"]
+    local:
+      command: "bash scripts/verify-license-header.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: [go]
+    ci_only_reason: ""
+    local_only_reason: "advisory baseline, CI wiring tracked separately"
+`
+	path := writeYAML(t, yaml)
+	reg, err := cigates.Load(path)
+	if err != nil {
+		t.Fatalf("Load returned error for a declared local-only gate: %v", err)
+	}
+	if got := reg.Gates[0].LocalOnlyReason; got != "advisory baseline, CI wiring tracked separately" {
+		t.Errorf("LocalOnlyReason = %q", got)
+	}
+}
+
+// A blocking gate with a real CI backstop needs no local_only_reason at all
+// -- this rule must not regress the common case.
+func TestLoad_BlockingGateWithCIBackstopNeedsNoLocalOnlyReason(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: blocking-with-ci
+    name: Blocking With CI
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers: ["go/**"]
+    local:
+      command: "bash scripts/verify-license-header.sh"
+    ci:
+      workflow: test.yml
+      job: "test"
+    requirements: [go]
+    ci_only_reason: ""
+`
+	path := writeYAML(t, yaml)
+	if _, err := cigates.Load(path); err != nil {
+		t.Fatalf("Load returned error for a blocking gate with a real CI backstop: %v", err)
+	}
+}
+
 func TestLoad_BadCategory(t *testing.T) {
 	t.Parallel()
 	yaml := `version: v1

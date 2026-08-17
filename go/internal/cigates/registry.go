@@ -298,7 +298,9 @@ var validRequirements = map[Requirement]struct{}{
 // Load reads and structurally validates the ci-gates registry at path.
 // Validation checks: unique IDs, non-empty triggers with no duplicate entry
 // within one gate's own triggers: list, valid category/tier/requirement
-// enum values, and that local==null gates have a non-empty ci_only_reason.
+// enum values, that local==null gates have a non-empty ci_only_reason, and
+// that a blocking:false gate with no CI backstop (ci.workflow and ci.job
+// both empty) has a non-empty local_only_reason.
 func Load(path string) (*Registry, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured gate registry under specs/, not external input
 	if err != nil {
@@ -372,6 +374,30 @@ func Load(path string) (*Registry, error) {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has local==null but empty ci_only_reason (required when local is absent)", path, id)
 		}
 		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
+		ciWorkflow := strings.TrimSpace(gf.CI.Workflow)
+		ciJob := strings.TrimSpace(gf.CI.Job)
+		// A blocking:false gate with no CI backstop at all (ci.workflow AND
+		// ci.job both empty) runs ONLY through a developer's local
+		// `make pre-pr` -- unlike every other gate, a skip here is not
+		// harmless, because nothing else ever runs the check. That gap is
+		// fine as a deliberate, temporary staging decision (three real gates
+		// use exactly this shape while a burn-down baseline goes clean
+		// before CI enforcement), but it must be DECLARED, not merely
+		// possible: root-cause-evidence carried this exact shape with no
+		// declaration and had never run against any evidence doc until it
+		// was run by hand (#6149 follow-up item 5). Mirrors the
+		// ci_only_reason-required-when-local-is-nil rule above exactly. A
+		// blocking gate is exempt: blocking:true with no CI backstop is a
+		// different, likely-worse defect this rule does not attempt to
+		// characterize -- it would fail CI itself with an empty ci.workflow
+		// wherever the required-status manifest expects one, which is a
+		// different check's signal, not this one's.
+		if !gf.Blocking && ciWorkflow == "" && ciJob == "" && localOnlyReason == "" {
+			return nil, fmt.Errorf(
+				"ci-gates registry %s: gate %q is blocking:false with no CI backstop (ci.workflow and ci.job both empty) but has empty local_only_reason (required when a gate has no CI backstop at all -- state why, and what would close the gap)",
+				path, id,
+			)
+		}
 
 		reg.Gates = append(reg.Gates, Gate{
 			ID:       id,
