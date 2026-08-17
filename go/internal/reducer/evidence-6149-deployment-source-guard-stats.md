@@ -80,9 +80,10 @@ executions. **2.9us against the faster 7.3ms handler is 0.04%.** That is the
 ratio the no-regression claim rests on: large relative to the traversal it
 joins, negligible relative to the handler that contains it.
 
-Also note the stats pass cannot be skipped when debug is off: the zero-applied
-**warn** needs `stats.applied` to decide whether to fire, and that warn is the
-failure mode this item exists to make diagnosable.
+Also note the stats pass cannot be skipped when debug is off: the **warn**
+condition needs `stats.passedGuards` and `stats.wrongType`/`stats.total` to
+decide whether to fire, and that warn is the failure mode this item exists to
+make diagnosable.
 
 ## Final Classification
 
@@ -98,7 +99,7 @@ accepted.
 | candidate | expected saving | proof | old | new | disposition |
 | --- | --- | --- | --- | --- | --- |
 | Guard attribute-slice construction on `slog.Default().Enabled(ctx, slog.LevelDebug)` | skip 512 B / 9 allocs when debug is off | `BenchmarkLogDeploymentSourceGuardStatsDebugDisabled`, count=3 | 2895-2906 ns, 512 B, 9 allocs | 2941-2976 ns, 512 B, 9 allocs | **rejected** — no measurable change, mechanism unexplained; reverted rather than shipped |
-| Skip the stats pass entirely when debug is off | skip the whole added pass | code read, not benchmarked | — | — | **rejected** — impossible: the zero-applied warn needs `stats.applied` to decide whether to fire |
+| Skip the stats pass entirely when debug is off | skip the whole added pass | code read, not benchmarked | — | — | **rejected** — impossible: the warn condition needs `stats.passedGuards` and `stats.wrongType`/`stats.total` to decide whether to fire |
 | Ratio rises toward 100% as the applied fraction falls | — (a prediction, not an optimization) | `*WrongTypeDominated` benchmarks at 5% vs 25% applied | ~85% at 25% | ~81% at 5% | **disproven** — the baseline's fixed `make(map, len(resolved))` allocation does not shrink with the applied fraction |
 
 A rejected hypothesis is a valid result and is recorded here so the next agent
@@ -109,19 +110,52 @@ cost actually is rather than from where it looked like it was.
 ## Operator surface
 
 Observability Evidence: one structured line per handler call at both production
-entry points, WARN on the zero-applied failure mode and DEBUG otherwise, with
-every field name pinned by test.
+entry points, WARN when at least one deployment-typed relationship existed and
+none survived all three guards, DEBUG otherwise, with every field name pinned
+by test.
 
 One line per handler call at the two production entry points, carrying
 `domain`, `scope_id`, `generation_id`, `resolved_total`, `skipped_wrong_type`,
-`skipped_missing_repo_id`, `skipped_no_deployment_evidence`, and `applied`.
+`skipped_missing_repo_id`, `skipped_no_deployment_evidence`, and
+`passed_guards`.
 
-Level is deliberate: **WARN** when `resolved` is non-empty and `applied == 0`
-(the zero-edges failure mode), **DEBUG** otherwise, because `wrong_type` is the
-overwhelmingly common and entirely expected outcome and reporting it at info on
-every call would be noise. `TestLogDeploymentSourceGuardStatsWarnsOnZeroApplied`
-pins the warn level and every field name, so a rename cannot silently drop a
-field an operator greps for.
+Level is deliberate, and the condition changed once already (#6157 review). The
+first version warned whenever `resolved` was non-empty and `applied == 0`,
+with no scoping to whether any row was even deployment-typed. This document's
+own sentence a few lines above -- `wrong_type` is "the overwhelmingly common
+and entirely expected outcome" -- was never connected to that condition: a
+repo with dependency evidence but no ArgoCD/Helm/Kustomize evidence at all
+(the healthy, common case) hit `applied == 0` on every single call, so the
+line warned on every healthy scope and trained an operator to ignore the exact
+WARN it exists to make findable. Fixed to **WARN** only when `resolved`
+carries at least one `RelDeploysFrom` row (`skipped_wrong_type <
+resolved_total`) and `passed_guards == 0` -- deployment-typed evidence
+existed and none of it survived -- and **DEBUG** otherwise, including the
+all-`wrong_type` case.
+`TestLogDeploymentSourceGuardStatsWarnsWhenDeploymentTypedRowsAllFail` and
+`TestLogDeploymentSourceGuardStatsDebugsWhenAllWrongType` pin both sides of
+that boundary, so a future edit narrowing or widening the condition breaks a
+test rather than shipping silently. `passed_guards` was renamed from `applied`
+in the same review pass, for the reason the next paragraph states.
+
+`passed_guards` counts relationships that survived all three guards, NOT
+relationships that enriched a candidate -- the earlier name (`applied`)
+implied the latter and was itself a #6157 review finding. A relationship can
+pass every guard and still enrich zero candidates if its normalized
+`appRepoID` matches no admitted candidate's `RepoID`; this line cannot
+currently distinguish that case from genuine enrichment, and it is not fully
+covered by this item. Closing it would need either a second pass through
+`applyResolvedDeploymentSources` at each call site (doubling the
+already-priced ~81-85%-of-baseline cost measured above, and needing its own
+benchmark proof before landing) or a return-value change to
+`ExtractDeployableUnitCorrelationRows`, whose signature Ifá's
+`deployable_unit_edges` vacuity guard depends on staying exactly as it is.
+Neither is attempted here; this paragraph exists so the gap is named rather
+than left implied by an evidence note that otherwise reads as fully covering
+the "zero enrichment" failure mode.
 
 At 3 AM the line answers which guard consumed the batch, without attaching a
-debugger or re-deriving the guard by reading the loop.
+debugger or re-deriving the guard by reading the loop -- for the "guards
+consumed the batch" failure mode. It does not yet answer "guards passed but
+nothing matched a candidate"; see the paragraph above for what that would
+need.

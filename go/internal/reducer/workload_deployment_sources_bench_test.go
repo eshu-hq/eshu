@@ -19,7 +19,7 @@ func benchResolvedRelationships(n int) []relationships.ResolvedRelationship {
 	resolved := make([]relationships.ResolvedRelationship, 0, n)
 	for i := range n {
 		switch i % 4 {
-		case 0: // applied
+		case 0: // passes all three guards
 			resolved = append(resolved, relationships.ResolvedRelationship{
 				RelationshipType: relationships.RelDeploysFrom,
 				SourceRepoID:     "repo-deploy",
@@ -131,8 +131,8 @@ func BenchmarkDeploymentSourceGuardStatsWrongTypeDominated(b *testing.B) {
 // logging around it. This is where the added cost actually lives: a first
 // attempt attributed it to building the log-attribute slice and guarded that on
 // slog's level check, which measured as no change at all. The stats pass must
-// run on every call regardless of log level, because the zero-applied warn
-// needs stats.applied to decide whether to fire.
+// run on every call regardless of log level, because the warn condition needs
+// stats.passedGuards and stats.wrongType/stats.total to decide whether to fire.
 func BenchmarkDeploymentSourceGuardStats(b *testing.B) {
 	resolved := benchResolvedRelationships(256)
 	b.ReportAllocs()

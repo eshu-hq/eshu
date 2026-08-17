@@ -113,12 +113,12 @@ func TestApplyResolvedDeploymentSourcesPreservesMultipleDeploymentRepos(t *testi
 }
 
 // deploymentSourceRelationshipOutcome names which of applyResolvedDeploymentSources's
-// three guards a resolved relationship trips, or "applied" if it survives all
-// three -- the same classification the enrichment loop uses to decide
-// skip-vs-apply, so a zero-edges materialization can be diagnosed from one
-// log line instead of the guard being reconstructed by hand (#6149 follow-up
-// item 6). One case per guard, in the same order the loop checks them, plus
-// the applied case.
+// three guards a resolved relationship trips, or "passed_guards" if it
+// survives all three -- the same classification the enrichment loop uses to
+// decide skip-vs-apply, so a zero-edges materialization can be diagnosed
+// from one log line instead of the guard being reconstructed by hand (#6149
+// follow-up item 6). One case per guard, in the same order the loop checks
+// them, plus the passed-guards case.
 func TestDeploymentSourceRelationshipOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -173,9 +173,9 @@ func TestDeploymentSourceRelationshipOutcome(t *testing.T) {
 			want: "no_deployment_evidence",
 		},
 		{
-			name:         "applied",
+			name:         "passed all three guards",
 			relationship: deploysFromWithEvidence,
-			want:         "applied",
+			want:         "passed_guards",
 		},
 	}
 	for _, tc := range cases {
@@ -207,7 +207,7 @@ func TestDeploymentSourceGuardStats(t *testing.T) {
 		{
 			RelationshipType: relationships.RelDeploysFrom, SourceRepoID: "repo-deploy", TargetRepoID: "repo-api",
 			Details: map[string]any{"evidence_kinds": []string{string(relationships.EvidenceKindHelmValues)}},
-		}, // applied
+		}, // passed_guards
 	}
 
 	stats := deploymentSourceGuardStats(resolved)
@@ -223,19 +223,20 @@ func TestDeploymentSourceGuardStats(t *testing.T) {
 	if stats.noEvidence != 1 {
 		t.Errorf("noEvidence = %d, want 1", stats.noEvidence)
 	}
-	if stats.applied != 1 {
-		t.Errorf("applied = %d, want 1", stats.applied)
+	if stats.passedGuards != 1 {
+		t.Errorf("passedGuards = %d, want 1", stats.passedGuards)
 	}
 }
 
-// logDeploymentSourceGuardStats warns, not merely informs, when resolved is
-// non-empty but zero relationships were applied -- the actual "zero edges"
-// failure mode #6149 follow-up item 6 exists to make diagnosable. No
-// t.Parallel(): this test swaps slog's process-global default logger
-// (mirrors TestSemanticEntityMaterializationHandlerLogsStageTiming's
-// established pattern in this package), which is only safe while no other
-// test in this binary is concurrently logging.
-func TestLogDeploymentSourceGuardStatsWarnsOnZeroApplied(t *testing.T) {
+// logDeploymentSourceGuardStats warns, not merely informs, when resolved
+// carries at least one deployment-typed relationship (RelDeploysFrom) and
+// none of them survived all three guards -- the actual "zero edges" failure
+// mode #6149 follow-up item 6 exists to make diagnosable. No t.Parallel():
+// this test swaps slog's process-global default logger (mirrors
+// TestSemanticEntityMaterializationHandlerLogsStageTiming's established
+// pattern in this package), which is only safe while no other test in this
+// binary is concurrently logging.
+func TestLogDeploymentSourceGuardStatsWarnsWhenDeploymentTypedRowsAllFail(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
@@ -252,13 +253,13 @@ func TestLogDeploymentSourceGuardStatsWarnsOnZeroApplied(t *testing.T) {
 	logText := logs.String()
 	for _, want := range []string{
 		`"level":"WARN"`,
-		`"msg":"deployment source resolution applied zero relationships"`,
+		`"msg":"deployment source resolution consumed every deployment-source relationship"`,
 		`"domain":"workload_projection"`,
 		`"scope_id":"scope-1"`,
 		`"generation_id":"generation-1"`,
 		`"resolved_total":1`,
 		`"skipped_no_deployment_evidence":1`,
-		`"applied":0`,
+		`"passed_guards":0`,
 	} {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("logs missing %s:\n%s", want, logText)
@@ -266,11 +267,49 @@ func TestLogDeploymentSourceGuardStatsWarnsOnZeroApplied(t *testing.T) {
 	}
 }
 
-// The routine case (at least one relationship applied) logs at debug level,
-// not warn -- the vast majority of resolved relationships in any batch are
-// legitimately not deployment-source relationships, so warning on every call
-// would be noise rather than signal.
-func TestLogDeploymentSourceGuardStatsDebugsWhenApplied(t *testing.T) {
+// A batch that is ALL wrong_type -- no RelDeploysFrom row at all -- is the
+// healthy, overwhelmingly common case (a repo with dependency evidence but
+// no ArgoCD/Helm/Kustomize evidence). It must log at debug, never warn.
+// Before this test's fix, the unconditional `stats.passedGuards == 0` check
+// warned on every single call for a repo shaped exactly like this one --
+// flooding the log with the WARN meant to be findable and training an
+// operator to ignore it (#6157 review). RED against the pre-fix condition:
+// the old code warns here because passedGuards was 0 with no scoping to
+// whether any row was even deployment-typed.
+func TestLogDeploymentSourceGuardStatsDebugsWhenAllWrongType(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(previous)
+
+	resolved := []relationships.ResolvedRelationship{
+		{RelationshipType: relationships.RelProvisionsDependencyFor}, // wrong_type
+		{RelationshipType: relationships.RelProvisionsDependencyFor}, // wrong_type
+	}
+	logDeploymentSourceGuardStats(context.Background(), "workload_projection", "scope-1", "generation-1", resolved)
+
+	logText := logs.String()
+	for _, want := range []string{
+		`"level":"DEBUG"`,
+		`"msg":"deployment source resolution guard stats"`,
+		`"resolved_total":2`,
+		`"skipped_wrong_type":2`,
+		`"passed_guards":0`,
+	} {
+		if !strings.Contains(logText, want) {
+			t.Fatalf("logs missing %s:\n%s", want, logText)
+		}
+	}
+	if strings.Contains(logText, `"level":"WARN"`) {
+		t.Fatalf("expected no WARN line for an all-wrong_type batch (the healthy case):\n%s", logText)
+	}
+}
+
+// The routine case (at least one relationship survives all three guards)
+// logs at debug level, not warn -- the vast majority of resolved
+// relationships in any batch are legitimately not deployment-source
+// relationships, so warning on every call would be noise rather than signal.
+func TestLogDeploymentSourceGuardStatsDebugsWhenGuardsPassed(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -281,7 +320,7 @@ func TestLogDeploymentSourceGuardStatsDebugsWhenApplied(t *testing.T) {
 		{
 			RelationshipType: relationships.RelDeploysFrom, SourceRepoID: "repo-deploy", TargetRepoID: "repo-api",
 			Details: map[string]any{"evidence_kinds": []string{string(relationships.EvidenceKindHelmValues)}},
-		}, // applied
+		}, // passed_guards
 	}
 	logDeploymentSourceGuardStats(context.Background(), "workload_projection", "scope-1", "generation-1", resolved)
 
@@ -291,14 +330,14 @@ func TestLogDeploymentSourceGuardStatsDebugsWhenApplied(t *testing.T) {
 		`"msg":"deployment source resolution guard stats"`,
 		`"resolved_total":2`,
 		`"skipped_wrong_type":1`,
-		`"applied":1`,
+		`"passed_guards":1`,
 	} {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("logs missing %s:\n%s", want, logText)
 		}
 	}
 	if strings.Contains(logText, `"level":"WARN"`) {
-		t.Fatalf("expected no WARN line when at least one relationship was applied:\n%s", logText)
+		t.Fatalf("expected no WARN line when at least one relationship passed all guards:\n%s", logText)
 	}
 }
 
