@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -13,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/compparity"
-	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/competitiveparity"
 )
 
@@ -24,8 +22,7 @@ func init() {
 // newCompetitiveParityCommand builds the competitive-parity command group.
 // The gate logic lives in internal/cli/compparity; this file keeps only what
 // must stay in package main: cobra registration, flag and stream resolution,
-// the cobra-tree walk for command paths, the first-run exercise (its evidence
-// helpers are still package main), and the exit-code mapping.
+// the cobra-tree walk for command paths, and the exit-code mapping.
 func newCompetitiveParityCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "competitive-parity",
@@ -65,7 +62,7 @@ func runCompetitiveParityValidate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	inventory, err := compparity.Inventory(repoRoot, commandPaths(rootCmd), exerciseFirstRunReportArtifact)
+	inventory, err := compparity.Inventory(repoRoot, commandPaths(rootCmd))
 	if err != nil {
 		return err
 	}
@@ -83,31 +80,6 @@ func runCompetitiveParityValidate(cmd *cobra.Command, _ []string) error {
 	}
 	if !report.Pass {
 		return commandExitError{message: "competitive parity gate failed", code: 1}
-	}
-	return nil
-}
-
-// exerciseFirstRunReportArtifact stays in package main because it drives the
-// first-run evidence helpers (newFirstRunResult, buildFirstRunEvidence,
-// renderEvidenceArtifact) that have not been extracted yet. The wrapper
-// injects it into compparity.Inventory as the first_run_report_artifact
-// exercise.
-func exerciseFirstRunReportArtifact() error {
-	result := firstrun.NewResult("http://localhost:8080")
-	result.RuntimeShape = firstrun.ShapeExistingAPI
-	result.RepoIndexed = "demo/repo"
-	result.RepoTarget = "demo/repo"
-	result.Readiness = "complete"
-	result.QueryAnswered = true
-	result.QuerySummary = "bounded query returned one repository"
-	result.Truth = map[string]any{"freshness": "current", "completeness": "complete"}
-	report := firstrun.BuildEvidence(result, nil)
-	raw, err := firstrun.RenderEvidenceArtifact(report, firstrun.EvidenceFormatJSON)
-	if err != nil {
-		return err
-	}
-	if !bytes.Contains(raw, []byte(`"command": "first-run-evidence"`)) {
-		return fmt.Errorf("first-run evidence artifact missing command field")
 	}
 	return nil
 }

@@ -12,10 +12,37 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/cli/evidpacket"
+	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
 	"github.com/eshu-hq/eshu/go/internal/cli/opdigest"
 	"github.com/eshu-hq/eshu/go/internal/packetdogfood"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
+
+// exerciseFirstRunReportArtifact renders the first-run evidence artifact from
+// a fixed in-memory result and checks the rendered JSON still carries the
+// command field, proving internal/cli/firstrun's evidence path stays wired.
+//
+// It builds no runtime and contacts nothing: firstrun.NewResult through
+// firstrun.RenderEvidenceArtifact are pure value transforms.
+func exerciseFirstRunReportArtifact() error {
+	result := firstrun.NewResult("http://localhost:8080")
+	result.RuntimeShape = firstrun.ShapeExistingAPI
+	result.RepoIndexed = "demo/repo"
+	result.RepoTarget = "demo/repo"
+	result.Readiness = "complete"
+	result.QueryAnswered = true
+	result.QuerySummary = "bounded query returned one repository"
+	result.Truth = map[string]any{"freshness": "current", "completeness": "complete"}
+	report := firstrun.BuildEvidence(result, nil)
+	raw, err := firstrun.RenderEvidenceArtifact(report, firstrun.EvidenceFormatJSON)
+	if err != nil {
+		return err
+	}
+	if !bytes.Contains(raw, []byte(`"command": "first-run-evidence"`)) {
+		return fmt.Errorf("first-run evidence artifact missing command field")
+	}
+	return nil
+}
 
 // exerciseOperatorDigestArtifact proves the operator digest and artifact
 // paths in internal/cli/opdigest stay wired end to end.

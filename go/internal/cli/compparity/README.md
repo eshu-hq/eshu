@@ -21,20 +21,19 @@ and exit codes stay in `go/cmd/eshu/competitive_parity_cmd.go`, which is
 
 See `doc.go` for the godoc contract. Callers use `Inventory`,
 `ExerciseResults`, `Artifact`, `DocPaths`, and `SupportedSupplyChainPacket`.
-Two inputs are injected by the wrapper because their sources live in
-`package main`: the CLI command paths (walking the cobra tree needs
-`rootCmd`) and the first-run report exercise (the first-run evidence helpers
-have not been extracted). `SupportedSupplyChainPacket` is exported so the
-package test can pin that the exercise fixture stays a supported, complete
-packet.
+One input is injected by the wrapper because its source lives in
+`package main`: the CLI command paths, since walking the cobra tree needs
+`rootCmd`. `SupportedSupplyChainPacket` is exported so the package test can
+pin that the exercise fixture stays a supported, complete packet.
 
 ## Dependencies
 
 Intra-repo: `internal/capabilitycatalog` (surface inventory and catalog),
 `internal/competitiveparity` (inventory/report types and rendering),
-`internal/cli/opdigest` and `internal/cli/evidpacket` (exercised sibling CLI
-logic), `internal/packetdogfood` (benchmark parsing and scoring), and
-`internal/query` (investigation packet building and rendering). No cobra:
+`internal/cli/firstrun`, `internal/cli/opdigest` and `internal/cli/evidpacket`
+(exercised sibling CLI logic), `internal/packetdogfood` (benchmark parsing and
+scoring), and `internal/query` (investigation packet building and rendering).
+No cobra:
 `go list -deps ./internal/cli/compparity` resolves nothing under
 `github.com/spf13`. Re-derive import lists with
 `go list -f '{{.Imports}}' ./internal/cli/compparity` rather than editing
@@ -56,8 +55,10 @@ its artifact and exit code.
 - Exercise failure details are static per-ID strings. The underlying errors
   can carry local paths, and the artifact is share-safe; never put the real
   error text in an `ExerciseResult`.
-- A nil first-run exercise records `first_run_report_artifact` as failed. It
-  must never turn into a silent pass.
+- Every exercise runs from this package. The `first_run_report_artifact`
+  exercise drives `internal/cli/firstrun`'s pure evidence render — it starts
+  no runtime and contacts nothing — so no exercise is injected any more and
+  none can be left unwired.
 - The exercise IDs and their order are part of the artifact consumers see;
   treat them as a contract.
 

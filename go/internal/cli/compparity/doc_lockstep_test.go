@@ -61,6 +61,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 		"fmt",
 		"github.com/eshu-hq/eshu/go/internal/capabilitycatalog",
 		"github.com/eshu-hq/eshu/go/internal/cli/evidpacket",
+		"github.com/eshu-hq/eshu/go/internal/cli/firstrun",
 		"github.com/eshu-hq/eshu/go/internal/cli/opdigest",
 		"github.com/eshu-hq/eshu/go/internal/competitiveparity",
 		"github.com/eshu-hq/eshu/go/internal/packetdogfood",

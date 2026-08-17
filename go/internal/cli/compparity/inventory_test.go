@@ -6,7 +6,6 @@ package compparity
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,10 +20,8 @@ import (
 // inside Inventory and ExerciseResults are joined onto it.
 const repoRoot = "../../../.."
 
-func passingFirstRun() error { return nil }
-
 func TestExerciseResultsAllPassAgainstRealRepoRoot(t *testing.T) {
-	results := ExerciseResults(repoRoot, passingFirstRun)
+	results := ExerciseResults(repoRoot)
 	wantIDs := []string{
 		"first_run_report_artifact",
 		"operator_digest_artifact",
@@ -50,19 +47,14 @@ func TestExerciseResultsAllPassAgainstRealRepoRoot(t *testing.T) {
 
 func TestExerciseResultsRedactFailureDetails(t *testing.T) {
 	dir := t.TempDir()
-	leak := "boom from " + dir
-	results := ExerciseResults(dir, func() error { return errors.New(leak) })
+	results := ExerciseResults(dir)
 	byID := map[string]competitiveparity.ExerciseResult{}
 	for _, result := range results {
 		byID[result.ID] = result
 	}
-	firstRun, ok := byID["first_run_report_artifact"]
-	if !ok || firstRun.OK {
-		t.Fatalf("first_run_report_artifact = %#v, want a failed result", firstRun)
-	}
-	if firstRun.Detail != "first-run evidence exercise failed" {
-		t.Fatalf("first-run Detail = %q", firstRun.Detail)
-	}
+	// The dogfood fixture is read from repoRoot, so a bare temp dir makes it
+	// fail with an os error carrying the absolute temp path. That is the
+	// failure whose detail must come back redacted.
 	dogfood, ok := byID["evidence_packet_dogfood_fixture"]
 	if !ok || dogfood.OK {
 		t.Fatalf("evidence_packet_dogfood_fixture = %#v, want a failed result", dogfood)
@@ -77,26 +69,42 @@ func TestExerciseResultsRedactFailureDetails(t *testing.T) {
 	}
 }
 
-func TestExerciseResultsNilFirstRunExerciseFails(t *testing.T) {
-	results := ExerciseResults(repoRoot, nil)
-	for _, result := range results {
-		if result.ID != "first_run_report_artifact" {
+// TestExerciseFailureDetailIsStaticPerID pins the share-safe detail strings
+// directly. Before the first-run exercise moved in here, the redaction test
+// above could force any exercise to fail by injecting a failing func; now
+// only the two repoRoot-reading exercises can be failed from a test, so the
+// mapping is asserted head-on instead of through whichever exercise happens
+// to be breakable.
+func TestExerciseFailureDetailIsStaticPerID(t *testing.T) {
+	want := map[string]string{
+		"first_run_report_artifact":              "first-run evidence exercise failed",
+		"operator_digest_artifact":               "operator digest artifact exercise failed",
+		"investigation_evidence_packet_artifact": "investigation evidence packet exercise failed",
+		"evidence_packet_dogfood_fixture":        "dogfood fixture unavailable",
+		"capability_catalog_artifacts":           "capability catalog artifact exercise failed",
+	}
+	for _, result := range ExerciseResults(repoRoot) {
+		detail, ok := want[result.ID]
+		if !ok {
+			t.Errorf("exercise %q has no pinned failure detail; add one to exerciseFailureDetail and to this table", result.ID)
 			continue
 		}
-		if result.OK {
-			t.Fatal("first_run_report_artifact OK = true with a nil exercise, want failure")
+		if got := exerciseFailureDetail(result.ID); got != detail {
+			t.Errorf("exerciseFailureDetail(%q) = %q, want %q", result.ID, got, detail)
 		}
-		if result.Detail != "first-run evidence exercise failed" {
-			t.Fatalf("Detail = %q", result.Detail)
-		}
-		return
+		delete(want, result.ID)
 	}
-	t.Fatal("results missing first_run_report_artifact")
+	for id := range want {
+		t.Errorf("pinned detail for %q has no exercise; ExerciseResults no longer runs it", id)
+	}
+	if got := exerciseFailureDetail("not_an_exercise"); got != "exercise failed" {
+		t.Errorf("exerciseFailureDetail(unknown) = %q, want %q", got, "exercise failed")
+	}
 }
 
 func TestInventoryCollectsCommandsSurfacesAndDocs(t *testing.T) {
 	commands := []string{"competitive-parity", "competitive-parity validate"}
-	inv, err := Inventory(repoRoot, commands, passingFirstRun)
+	inv, err := Inventory(repoRoot, commands)
 	if err != nil {
 		t.Fatalf("Inventory error = %v", err)
 	}
@@ -128,7 +136,7 @@ func TestInventoryCollectsCommandsSurfacesAndDocs(t *testing.T) {
 }
 
 func TestInventorySkipsMissingDocsWithoutError(t *testing.T) {
-	inv, err := Inventory(t.TempDir(), nil, passingFirstRun)
+	inv, err := Inventory(t.TempDir(), nil)
 	if err != nil {
 		t.Fatalf("Inventory error = %v", err)
 	}
@@ -148,7 +156,7 @@ func TestInventoryReportsUnreadableDoc(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, paths[0]), 0o750); err != nil {
 		t.Fatalf("mkdir doc path: %v", err)
 	}
-	_, err := Inventory(root, nil, passingFirstRun)
+	_, err := Inventory(root, nil)
 	if err == nil {
 		t.Fatal("Inventory error = nil, want read failure for a directory doc path")
 	}
@@ -175,7 +183,7 @@ func TestDocPathsSortedAndUnique(t *testing.T) {
 }
 
 func TestArtifactRendersJSONAndMarkdown(t *testing.T) {
-	inv, err := Inventory(repoRoot, []string{"competitive-parity validate"}, passingFirstRun)
+	inv, err := Inventory(repoRoot, []string{"competitive-parity validate"})
 	if err != nil {
 		t.Fatalf("Inventory error = %v", err)
 	}

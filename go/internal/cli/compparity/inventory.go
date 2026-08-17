@@ -19,11 +19,11 @@ import (
 // the committed parity docs read from repoRoot, and the exercise results.
 //
 // commands comes from the caller because walking the cobra command tree needs
-// rootCmd, which lives in package main. firstRun is the first-run report
-// exercise, injected for the same reason (see ExerciseResults). A missing doc
-// file is skipped — the validator reports it as a failed doc check — but any
-// other read failure surfaces as an error.
-func Inventory(repoRoot string, commands []string, firstRun func() error) (competitiveparity.Inventory, error) {
+// rootCmd, which lives in package main; it is the only input this package
+// cannot compute for itself. A missing doc file is skipped — the validator
+// reports it as a failed doc check — but any other read failure surfaces as
+// an error.
+func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory, error) {
 	surfaces, err := capabilitycatalog.LoadSurfaceInventory()
 	if err != nil {
 		return competitiveparity.Inventory{}, err
@@ -31,7 +31,7 @@ func Inventory(repoRoot string, commands []string, firstRun func() error) (compe
 	inv := competitiveparity.Inventory{
 		Commands:  commands,
 		Docs:      map[string]string{},
-		Exercises: ExerciseResults(repoRoot, firstRun),
+		Exercises: ExerciseResults(repoRoot),
 	}
 	for _, surface := range surfaces.Surfaces {
 		switch surface.Category {
@@ -73,19 +73,15 @@ func Inventory(repoRoot string, commands []string, firstRun func() error) (compe
 // per-ID strings — the underlying error may carry local paths, and the
 // artifact is share-safe output.
 //
-// firstRun is the first_run_report_artifact exercise. It is injected because
-// the first-run evidence helpers still live in package main (go/cmd/eshu) and
-// cannot be imported from here; a nil firstRun records that exercise as
-// failed rather than panicking or silently passing.
-func ExerciseResults(repoRoot string, firstRun func() error) []competitiveparity.ExerciseResult {
-	if firstRun == nil {
-		firstRun = func() error { return fmt.Errorf("first-run exercise not wired") }
-	}
+// Every exercise lives in exercises.go. Only repoRoot is a parameter: the two
+// exercises that read committed files join their paths onto it, and the rest
+// run entirely from embedded or in-memory data.
+func ExerciseResults(repoRoot string) []competitiveparity.ExerciseResult {
 	checks := []struct {
 		id string
 		fn func() error
 	}{
-		{id: "first_run_report_artifact", fn: firstRun},
+		{id: "first_run_report_artifact", fn: exerciseFirstRunReportArtifact},
 		{id: "operator_digest_artifact", fn: exerciseOperatorDigestArtifact},
 		{id: "investigation_evidence_packet_artifact", fn: exerciseInvestigationEvidencePacketArtifact},
 		{id: "evidence_packet_dogfood_fixture", fn: func() error { return exerciseEvidencePacketDogfoodFixture(repoRoot) }},
