@@ -71,14 +71,17 @@
 # for that fault class.
 #
 # The removal is safe, not just asserted -- two different runs prove two
-# different claims, and citing only one would conflate them. The RED run at
-# cf2d033b1 (16 cells; that commit still had cell_expirelease_documentation)
-# established the cell could never fire: FI_EXIT=1, the handler's
+# different claims, and citing only one would conflate them, or muddling
+# dispatched against completed within either one would. The RED run at
+# cf2d033b1 -- whose driver still dispatched cell_expirelease_documentation,
+# 16 cells to the 15 dispatched here -- established the cell could never
+# fire: FI_EXIT=1 after 7 completed cells, the handler's
 # duration_seconds: 0.0073, the forced-expiry UPDATE matching zero rows. That
 # is what justifies removal -- a green run afterward cannot show the removal
 # was CORRECT, only that it was HARMLESS. The GREEN run at 1f85dad68 (15
-# cells -- one fewer than cf2d033b1's 16, exactly the cell that commit
-# deletes) is the harmless-removal proof: FI_EXIT=0, and
+# cells dispatched, matching the driver here now that the racy cell is gone)
+# is the harmless-removal proof: FI_EXIT=0 -- carrying, on its own, the fact
+# that all 15 dispatched cells completed -- and
 # fail-graph-write-once-then-succeed-documentation stayed green (69s, digest
 # 63558e35...) at the same digest value the family's other unscoped cells
 # produce, so removing the racy reclaim cell did not perturb what the
