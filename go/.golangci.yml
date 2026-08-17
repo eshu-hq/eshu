@@ -679,7 +679,7 @@ linters:
       # move -- the same reasoning as localsupervisor above.
       #
       # The other eight are in exercises.go: seven in the exercise* helpers,
-      # and one in SupportedSupplyChainPacket, whose only non-test caller is
+      # and one in supportedSupplyChainPacket, whose only non-test caller is
       # exerciseInvestigationEvidencePacketArtifact. Their errors never reach
       # anyone: ExerciseResults discards the error and records the static
       # exerciseFailureDetail string instead, because the real text can carry

@@ -77,9 +77,10 @@ func exerciseInvestigationEvidencePacketArtifact() error {
 
 // supportedSupplyChainPacket builds the fixed supply-chain explanation used
 // by the investigation exercise: a fully supported finding with source-fact,
-// reducer, and graph evidence layers. It is exported so the package test can
-// pin that the fixture stays a supported, complete packet — if it drifts to
-// partial, the exercise proves nothing.
+// reducer, and graph evidence layers. TestSupportedSupplyChainPacketIsSupportedComplete
+// pins that the fixture stays supported and complete — if it drifts to
+// partial, the exercise proves nothing. That test is in this package, so it
+// reaches this function without the identifier being exported.
 func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 	directDependency := true
 	result := query.SupplyChainImpactExplanationResult{
