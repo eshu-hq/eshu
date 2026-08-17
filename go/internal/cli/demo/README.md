@@ -31,9 +31,12 @@ the same shape as `internal/cli/servicereport`'s `ReadInput`.
 
 ## Exported surface
 
-Every backticked name between the two markers below is checked against the
-package's real exported surface by `TestREADMEExportedSurfaceIsReal` — a
-symbol this list claims but does not export fails the test.
+`TestREADMEExportedSurfaceIsReal` checks the two markers below against the
+package's real exported surface, in both directions: a symbol this list claims
+but does not export fails, and so does a symbol the package exports that the
+list never mentions. Moving a name out of the marked region therefore does not
+excuse it — it has to be unexported instead. Prose about other packages'
+symbols belongs below the end marker, which is not scanned.
 
 <!-- exported-surface:begin -->
 
@@ -82,14 +85,27 @@ surface.
 
 ## Dependencies
 
+The names between the markers below are the package's direct non-stdlib
+imports, checked as an exact set by
+`TestDirectImportsMatchTheDependenciesSection`. The test reads them from here
+rather than restating them, so widening the assertion means widening this
+sentence.
+
+<!-- dependencies:begin -->
+
 Outside the standard library: `gopkg.in/yaml.v3`, for the manifest. Its Eshu
 imports are `go/internal/cli/firstrunbench`, for the shared scorecard
-vocabulary, and `go/internal/cli/firstrun`, for the envelope error object —
+vocabulary, and `go/internal/cli/firstrun`, for the envelope error object.
+
+<!-- dependencies:end -->
+
 `go list -f '{{.Imports}}' ./internal/cli/demo` names exactly those three.
 (Use `-f '{{.Imports}}'`, not `go list -deps`: `-deps` is the transitive
 closure, and `firstrun` reaches the query and storage layers through its own
-imports.) This package itself sits below the graph, storage, and query layers
-rather than beside them.
+imports.) Test-only imports are deliberately out of scope, matching
+`.Imports`; `.TestImports` is a separate set this claim does not cover. This
+package itself sits below the graph, storage, and query layers rather than
+beside them.
 
 Consumed by `go/cmd/eshu`: `demo.go` (the `demo up|down|status` tree) and
 `demo_benchmark_cmd.go` (the `demo-benchmark` scorer).

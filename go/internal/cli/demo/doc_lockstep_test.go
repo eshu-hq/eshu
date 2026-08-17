@@ -372,6 +372,52 @@ func callPassesDockerAsArgv0(call *ast.CallExpr) bool {
 	return ok && lit.Kind == token.STRING && lit.Value == `"docker"`
 }
 
+// modulePrefix turns the repo-relative paths README.md writes
+// (`go/internal/cli/firstrun`) into the import paths the source files use.
+const modulePrefix = "github.com/eshu-hq/eshu/"
+
+// readmeDependencyClaims returns the module paths README.md's Dependencies
+// markers name, in the form the AST reports imports.
+//
+// The markers matter: the Dependencies section also names `go/cmd/eshu` as the
+// package's CONSUMER, and a looser parse would read that as a dependency and
+// demand an import that must never exist.
+func readmeDependencyClaims(t *testing.T) []string {
+	t.Helper()
+
+	raw, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	body := string(raw)
+
+	const beginMarker = "<!-- dependencies:begin -->"
+	const endMarker = "<!-- dependencies:end -->"
+	begin := strings.Index(body, beginMarker)
+	end := strings.Index(body, endMarker)
+	if begin < 0 || end < 0 || end <= begin {
+		t.Fatalf("README.md must delimit its dependency list with %q and %q; the list is unchecked without them",
+			beginMarker, endMarker)
+	}
+
+	claims := make([]string, 0, 4)
+	for _, match := range backtickedRE.FindAllStringSubmatch(body[begin+len(beginMarker):end], -1) {
+		name := strings.TrimSpace(match[1])
+		if strings.Contains(name, " ") || !strings.Contains(name, "/") {
+			continue
+		}
+		if strings.HasPrefix(name, "go/") {
+			name = modulePrefix + name
+		}
+		claims = append(claims, name)
+	}
+	if len(claims) == 0 {
+		t.Fatal("no dependency claims parsed out of README.md's marked section; the markers are not being read")
+	}
+	sort.Strings(claims)
+	return claims
+}
+
 // TestDirectImportsMatchTheDependenciesSection is the standing guard behind
 // README.md's Dependencies claim, which names this package's direct imports
 // exactly.
@@ -384,13 +430,14 @@ func callPassesDockerAsArgv0(call *ast.CallExpr) bool {
 func TestDirectImportsMatchTheDependenciesSection(t *testing.T) {
 	t.Parallel()
 
-	// The exact set README.md's Dependencies section names. Widen this only by
-	// widening that section in the same change.
-	want := []string{
-		"github.com/eshu-hq/eshu/go/internal/cli/firstrun",
-		"github.com/eshu-hq/eshu/go/internal/cli/firstrunbench",
-		"gopkg.in/yaml.v3",
-	}
+	// Read the set out of README.md rather than restating it. A want-list
+	// frozen here protects only the code: editing the Dependencies sentence to
+	// name a package this code does not import left the test green, and so did
+	// widening the list without touching the sentence. Either way the claim the
+	// test is named for stops being the thing under test. Deriving want from
+	// the prose means the only way to widen the assertion is to widen the
+	// sentence, which is the edit a reviewer can actually see.
+	want := readmeDependencyClaims(t)
 
 	_, files := packageSourceFiles(t)
 	got := map[string]bool{}
