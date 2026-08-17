@@ -28,7 +28,7 @@
   path that does not exist so the doc check fails in the report, but any
   other read error (for example a directory at the path) surfaces as an
   error, pinned by `TestInventoryReportsUnreadableDoc`.
-- **The exercise fixture must stay supported** — `SupportedSupplyChainPacket`
+- **The exercise fixture must stay supported** — `supportedSupplyChainPacket`
   has to produce a supported, complete packet or the investigation exercise
   proves nothing; `TestSupportedSupplyChainPacketIsSupportedComplete` pins it.
 

@@ -20,11 +20,12 @@ and exit codes stay in `go/cmd/eshu/competitive_parity_cmd.go`, which is
 ## Exported surface
 
 See `doc.go` for the godoc contract. Callers use `Inventory`,
-`ExerciseResults`, `Artifact`, `DocPaths`, and `SupportedSupplyChainPacket`.
+`ExerciseResults`, `Artifact`, and `DocPaths`.
 One input is injected by the wrapper because its source lives in
 `package main`: the CLI command paths, since walking the cobra tree needs
-`rootCmd`. `SupportedSupplyChainPacket` is exported so the package test can
-pin that the exercise fixture stays a supported, complete packet.
+`rootCmd`. The supply-chain fixture builder is unexported
+(`supportedSupplyChainPacket`): its only callers are in this package, and
+`exercises_test.go` is an in-package test, so it needs no export to reach it.
 
 ## Dependencies
 

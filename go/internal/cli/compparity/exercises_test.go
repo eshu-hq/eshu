@@ -13,7 +13,7 @@ import (
 // would silently prove nothing. Moved from
 // go/cmd/eshu/competitive_parity_cmd_test.go with the packet builder.
 func TestSupportedSupplyChainPacketIsSupportedComplete(t *testing.T) {
-	packet, err := SupportedSupplyChainPacket()
+	packet, err := supportedSupplyChainPacket()
 	if err != nil {
 		t.Fatalf("build supported packet: %v", err)
 	}

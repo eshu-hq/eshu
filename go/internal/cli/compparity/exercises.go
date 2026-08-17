@@ -58,7 +58,7 @@ func exerciseOperatorDigestArtifact() error {
 // exerciseInvestigationEvidencePacketArtifact renders the fixture supply-chain
 // packet and checks it is a supported, complete v2 packet.
 func exerciseInvestigationEvidencePacketArtifact() error {
-	packet, err := SupportedSupplyChainPacket()
+	packet, err := supportedSupplyChainPacket()
 	if err != nil {
 		return err
 	}
@@ -75,12 +75,12 @@ func exerciseInvestigationEvidencePacketArtifact() error {
 	return nil
 }
 
-// SupportedSupplyChainPacket builds the fixed supply-chain explanation used
+// supportedSupplyChainPacket builds the fixed supply-chain explanation used
 // by the investigation exercise: a fully supported finding with source-fact,
 // reducer, and graph evidence layers. It is exported so the package test can
 // pin that the fixture stays a supported, complete packet — if it drifts to
 // partial, the exercise proves nothing.
-func SupportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
+func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 	directDependency := true
 	result := query.SupplyChainImpactExplanationResult{
 		Outcome: "finding_explained",

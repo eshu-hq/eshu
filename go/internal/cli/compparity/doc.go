@@ -5,7 +5,7 @@
 // validate`: assembling the live inventory of CLI commands, API routes, MCP
 // tools, console pages, and committed parity docs (Inventory, DocPaths),
 // running the offline exercises that prove sibling artifact paths stay wired
-// (ExerciseResults, SupportedSupplyChainPacket), and rendering the validated
+// (ExerciseResults), and rendering the validated
 // report as JSON or Markdown (Artifact).
 //
 // The scoring itself is not here. Expectations, validation, and rendering
