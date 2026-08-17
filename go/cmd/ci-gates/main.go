@@ -261,6 +261,24 @@ func runValidate(args []string) error {
 		allErrs = append(allErrs, cigates.DriftCheck(*repoRoot, reg)...)
 	}
 
+	// #6149 follow-up item 8 review, P2(a): checkCIScriptTriggerCoverage
+	// (one of the checks DriftCheck runs) silently skips every gate whose
+	// CI job is shared with another gate -- correctly, but with no signal
+	// that it happened, so a clean drift result read as an unqualified "no
+	// drift" regardless of how much of the registry it actually covered.
+	// Print the scope alongside the result, pass or fail, so "no drift"
+	// reads as "no drift among the N attributable gates".
+	if *drift {
+		attributable, skipped, sharedPairs := cigates.CIScriptTriggerCoverageSummary(reg)
+		_, _ = fmt.Fprintf(os.Stdout,
+			"  ci-job-trigger-coverage: %d attributable gate(s) checked, %d skipped (shared CI job, no per-gate attribution)\n",
+			attributable, skipped,
+		)
+		for _, pair := range sharedPairs {
+			_, _ = fmt.Fprintf(os.Stdout, "    skipped shared CI job: %s\n", pair)
+		}
+	}
+
 	if len(allErrs) == 0 {
 		if *drift {
 			_, _ = fmt.Fprintln(os.Stdout, "PASS: ci-gates registry integrity + drift check")

@@ -242,9 +242,15 @@ code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-co
 # documentation_edges family cassette (#5994): driven into every cell
 # alongside the SQL and code-call families, including the SqlTable-target
 # DOCUMENTS edge (batchCanonicalDocumentationEntityEdgeCypher's MATCH label
-# alternation). cell_killworker_documentation / cell_failgraphwrite_documentation
-# below back the materialized_edges:documentation_edges manifest row's
-# proof_gate: ifa-fault-injection claim.
+# alternation). cell_failgraphwrite_documentation below backs the
+# materialized_edges:documentation_edges manifest row's proof_gate:
+# ifa-fault-injection claim for injected graph-write failure. This family has
+# no mid-handler-interruption cell (no kill-worker, no expire-lease): its
+# handler has no Postgres write to lock and completes in single-digit
+# milliseconds, so neither trigger can land deterministically with existing
+# infrastructure -- see the gap note at the top of
+# ifa_fault_injection_documentation_cells.sh (#6149 follow-up item 8) for the
+# full trace and what would close it.
 documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
 documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 
@@ -417,7 +423,6 @@ cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
 cell_killworker_code_calls
-cell_killworker_documentation
 cell_duplicatedelivery
 cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.

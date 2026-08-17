@@ -76,6 +76,11 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 		}
+		// A second, independent pass over resolved purely for diagnostics
+		// (#6149 follow-up item 6) -- ExtractDeployableUnitCorrelationRows
+		// below stays side-effect-free for Ifá's direct-call contract, so
+		// this logs from Handle itself rather than from inside that seam.
+		logDeploymentSourceGuardStats(ctx, string(intent.Domain), intent.ScopeID, intent.GenerationID, resolved)
 	}
 
 	// Same pure seam Ifá's deployable_unit_edges vacuity guard calls (#5993),

@@ -32,8 +32,23 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 			continue
 		}
 
+		commands := localGateCommands(selection.Gate.Local)
+		if len(commands) == 0 {
+			// Load (go/internal/cigates/registry.go) now rejects this shape
+			// at registry-load time -- a local block with neither command
+			// nor test_command. This guards the other entry point: a Gate
+			// constructed directly (a future caller, a test double) skips
+			// Load's validation entirely. Without this, the loop below runs
+			// zero times, gateFailed never becomes true by initialization,
+			// and "PASS <gate>" prints for a gate that executed nothing --
+			// indistinguishable from one that genuinely ran and passed
+			// (#6149 follow-up item 8 review, P1).
+			_, _ = fmt.Fprintf(w, "SKIP     %s: gate declares no runnable local command\n", selection.Gate.ID)
+			continue
+		}
+
 		gateFailed := false
-		for _, localCommand := range localGateCommands(selection.Gate.Local) {
+		for _, localCommand := range commands {
 			action := "RUN"
 			if localCommand.label == "test_command" {
 				action = "TEST"
@@ -57,8 +72,21 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 	return nil
 }
 
+// localGateCommands returns the shell commands this gate actually runs, in
+// order. local.Command is intentionally OMITTED when it is the empty string,
+// rather than run as an empty shell command -- a permanently local-only gate
+// whose enforcement cannot be a command at all (prepr-stamp-verify-selftest:
+// its guard reads the stamp of the commit about to be pushed, so running it
+// here would fail every time) leaves local.command blank on purpose. An
+// empty shell command always succeeds and used to print a "RUN <gate>: "
+// line with nothing after the colon -- a reporting false-green: it read
+// exactly like every other command line in the log but never ran anything
+// (#6149 follow-up item 8 review, "verify before push").
 func localGateCommands(local *cigates.Local) []localGateCommand {
-	commands := []localGateCommand{{label: "command", command: local.Command}}
+	var commands []localGateCommand
+	if local.Command != "" {
+		commands = append(commands, localGateCommand{label: "command", command: local.Command})
+	}
 	if local.TestCommand != "" && local.TestCommand != local.Command {
 		commands = append(commands, localGateCommand{
 			label:   "test_command",

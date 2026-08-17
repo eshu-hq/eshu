@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -113,15 +114,35 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 //
 // It always returns the last observed counts so the caller can report the residual
 // even on a timeout. ok reports whether both populated and drained held.
+//
+// progress and progressEvery are the periodic-residual fix for #6149 follow-up
+// item 7: before this, the drain's residual was only ever reported at the
+// bound (runDrains's post-return diagnostic), so "still draining" and
+// "wedged" produced identical silence while the poll was actually running --
+// only the status class at timeout distinguished them, and reconstructing
+// which one happened cost real time diagnosing a flake. When progress is
+// non-nil and progressEvery > 0, one line is written at most once per
+// progressEvery of wall-clock time (never once per poll -- the default
+// 2s poll interval against a 10-minute timeout would be up to 300 lines,
+// which is noise, not signal), naming the SAME fields runDrains's own
+// timeout message reports, so a reader tailing output sees the identical
+// vocabulary trend toward (or stuck short of) that final line. Passing a nil
+// writer or a non-positive progressEvery disables this entirely -- every
+// pre-existing caller does exactly that, so this is strictly additive.
 func pollUntilDrained(
 	ctx context.Context,
 	q drainQuerier,
 	a DrainAssertions,
 	expectedPopulatedDomains int,
 	timeout, poll time.Duration,
+	progress io.Writer,
+	progressEvery time.Duration,
 ) (counts DrainCounts, ok bool, err error) {
 	deadline := time.Now().Add(timeout)
 	populated := expectedPopulatedDomains <= 0
+	progressEnabled := progress != nil && progressEvery > 0
+	start := time.Now()
+	lastProgress := start
 	for {
 		counts, err = q.Counts(ctx)
 		if err != nil {
@@ -132,6 +153,16 @@ func pollUntilDrained(
 		}
 		if populated && counts.Drained(a) {
 			return counts, true, nil
+		}
+		if progressEnabled && time.Since(lastProgress) >= progressEvery {
+			lastProgress = time.Now()
+			_, _ = fmt.Fprintf(progress,
+				"drains: still polling after %s (fact residual=%d, required intents=%d, completion events=%d, populated domains=%d/%d)\n",
+				lastProgress.Sub(start).Round(time.Second),
+				counts.FactWorkItemsResidual, counts.SharedIntentsRequiredNonterminal,
+				counts.CrossScopeCompletionEventsNonterminal,
+				counts.PopulatedDomainsPresent, expectedPopulatedDomains,
+			)
 		}
 		if !time.Now().Before(deadline) {
 			return counts, false, nil

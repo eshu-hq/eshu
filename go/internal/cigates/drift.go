@@ -104,6 +104,27 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     and by a single trigger that spans the whole package directory. Check 8
 //     is structurally blind to these — it only derives scripts/-prefixed
 //     tokens. See checkGoPackageTriggerCoverage.
+//
+//  11. Gate CI-job script → own trigger coverage (#6149 follow-up): check 8's
+//     rule extended to the script CI actually executes, not only the local
+//     static mirror check 8 walks. Some gates' local.command runs a static
+//     mirror of a separate "live driver" script that CI invokes directly (for
+//     example ifa-determinism's local.command runs
+//     scripts/test-verify-ifa-determinism.sh while its CI job runs
+//     scripts/verify-ifa-determinism.sh) — check 8's walk never reaches that
+//     live driver or anything it sources, at any depth. Every scripts/ token
+//     in a gate's resolved CI job's `run:` steps — and every scripts/ file
+//     those source, at any depth — must be matched by one of that gate's own
+//     triggers, the same rule and the same narrowings check 8 applies, just
+//     rooted at the CI job instead of local.command. Skips any (ci.workflow,
+//     ci.job) pair shared by more than one gate: a shared job (multiple
+//     gates in the committed registry point at test.yml's verify-contracts
+//     backstop job alone -- see CIScriptTriggerCoverageSummary for the live
+//     count rather than a number restated here) carries no per-gate
+//     attribution over which step belongs to which gate, so guessing
+//     produced 352 false positives, measured once against the committed
+//     registry at the time this narrowing was added, before this narrowing
+//     existed. See checkCIScriptTriggerCoverage.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -124,6 +145,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkScriptTriggerCoverage(repoRoot, reg)...)
 	errs = append(errs, checkRequiredStatusWorkflows(repoRoot, reg)...)
 	errs = append(errs, checkGoPackageTriggerCoverage(reg)...)
+	errs = append(errs, checkCIScriptTriggerCoverage(repoRoot, reg)...)
 
 	return errs
 }
@@ -277,148 +299,12 @@ func workflowCheckNames(raw []byte) map[string]struct{} {
 	return names
 }
 
-// ─── pre-commit hook parsing ────────────────────────────────────────────────
-
-// hookEntry is a parsed local hook from .pre-commit-config.yaml.
-type hookEntry struct {
-	ID     string
-	Stages []string
-}
-
-// preCommitFile is the minimal shape of .pre-commit-config.yaml we need.
-type preCommitFile struct {
-	Repos []struct {
-		Repo  string `yaml:"repo"`
-		Hooks []struct {
-			ID     string   `yaml:"id"`
-			Stages []string `yaml:"stages"`
-		} `yaml:"hooks"`
-	} `yaml:"repos"`
-}
-
-// parsePreCommitHooks reads .pre-commit-config.yaml under repoRoot and returns
-// the map of hook id → hookEntry for every hook in a "local" repo block.
-func parsePreCommitHooks(repoRoot string) (map[string]hookEntry, []error) {
-	p := filepath.Join(repoRoot, ".pre-commit-config.yaml")
-	raw, err := os.ReadFile(p) // #nosec G304 -- repoRoot is the operator-provided repo root
-	if err != nil {
-		return nil, []error{fmt.Errorf("drift: read %s: %w", p, err)}
-	}
-	var pcf preCommitFile
-	if err := yaml.Unmarshal(raw, &pcf); err != nil {
-		return nil, []error{fmt.Errorf("drift: parse %s: %w", p, err)}
-	}
-
-	hooks := make(map[string]hookEntry)
-	for _, repo := range pcf.Repos {
-		if repo.Repo != "local" {
-			continue
-		}
-		for _, h := range repo.Hooks {
-			id := strings.TrimSpace(h.ID)
-			if id == "" {
-				continue
-			}
-			hooks[id] = hookEntry{ID: id, Stages: h.Stages}
-		}
-	}
-	return hooks, nil
-}
-
-// ─── check 1: hook → registry/hygiene ──────────────────────────────────────
-
-func checkHookRegistration(hooks map[string]hookEntry, reg *Registry) []error {
-	// Build lookup sets.
-	gateHookIDs := make(map[string]struct{}, len(reg.Gates))
-	for _, g := range reg.Gates {
-		if g.HookID != "" {
-			gateHookIDs[g.HookID] = struct{}{}
-		}
-	}
-	hygieneIDs := make(map[string]struct{}, len(reg.HygieneHooks))
-	for _, h := range reg.HygieneHooks {
-		hygieneIDs[h.ID] = struct{}{}
-	}
-
-	var errs []error
-	for id := range hooks {
-		_, isGate := gateHookIDs[id]
-		_, isHygiene := hygieneIDs[id]
-		if !isGate && !isHygiene {
-			errs = append(errs, fmt.Errorf(
-				"drift: hook %q is neither a registered gate (hook_id) nor a declared hygiene hook; "+
-					"add hook_id to a gate or add it to hygiene_hooks with a reason",
-				id,
-			))
-		}
-	}
-	return errs
-}
-
-// ─── check 2: gate hook_id → present + stage match ─────────────────────────
-
-// stageConsistentWithTier reports whether the hook's declared stages are
-// consistent with the gate's tier. A gate with no stages declared (pre-commit
-// default) is treated as running at the default stage, which is consistent with
-// TierPreCommit but not TierPrePush.
-func stageConsistentWithTier(stages []string, tier Tier) bool {
-	switch tier {
-	case TierPreCommit:
-		// Hook must be reachable at pre-commit time. An empty stages list means
-		// "default" (pre-commit), which is consistent. An explicit list must
-		// include "pre-commit" or "default".
-		if len(stages) == 0 {
-			return true
-		}
-		for _, s := range stages {
-			if s == "pre-commit" || s == "default" {
-				return true
-			}
-		}
-		return false
-	case TierPrePush:
-		// Hook must be reachable at pre-push time.
-		if len(stages) == 0 {
-			// Default stage is pre-commit only; not consistent with pre-push.
-			return false
-		}
-		for _, s := range stages {
-			if s == "pre-push" {
-				return true
-			}
-		}
-		return false
-	default:
-		// For pre-pr / ci-heavy / manual, hook_id should generally not be set;
-		// if it is, we accept any stage rather than false-erroring.
-		return true
-	}
-}
-
-func checkGateHookIDs(hooks map[string]hookEntry, reg *Registry) []error {
-	var errs []error
-	for _, g := range reg.Gates {
-		if g.HookID == "" {
-			continue
-		}
-		he, ok := hooks[g.HookID]
-		if !ok {
-			errs = append(errs, fmt.Errorf(
-				"drift: gate %q declares hook_id %q but that hook is not present in .pre-commit-config.yaml",
-				g.ID, g.HookID,
-			))
-			continue
-		}
-		if !stageConsistentWithTier(he.Stages, g.Tier) {
-			errs = append(errs, fmt.Errorf(
-				"drift: gate %q (tier %s) hook_id %q has stages %v — inconsistent with gate tier "+
-					"(pre-commit gate requires stage pre-commit/default; pre-push gate requires stage pre-push)",
-				g.ID, g.Tier, g.HookID, he.Stages,
-			))
-		}
-	}
-	return errs
-}
+// Checks 1 and 2 (pre-commit hook parsing, hook-registration, and
+// hook-stage-consistency: hookEntry, preCommitFile, parsePreCommitHooks,
+// checkHookRegistration, stageConsistentWithTier, checkGateHookIDs) live in
+// drift_hooks.go, split out to keep this file under the repository's
+// 500-line cap. DriftCheck's doc comment above remains the single source of
+// truth for what those two checks assert.
 
 // ─── check 3: workflow ↔ registry completeness ─────────────────────────────
 

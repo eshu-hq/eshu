@@ -19,15 +19,6 @@
 # specifically -- the same #5555 gap the SQL cells closed for
 # sql_relationship_materialization.
 #
-#   - cell_killworker_documentation provably targets the documentation work
-#     item by scoping ifa_fault_wait_for_claimed to
-#     domain=documentation_materialization, holds a deterministic
-#     shared_projection_intents lock so the short handler cannot acknowledge
-#     between the claimed-row observation and the kill (the code_calls #5991
-#     pattern, cell_killworker_code_calls -- the newer and stronger proof
-#     shape than the plain cell_killworker_sql one, adopted here on review),
-#     and asserts a post-recovery attempt_count > fault-free-baseline delta,
-#     not just a digest match.
 #   - cell_failgraphwrite_documentation anchors the graph-write fault to the
 #     DOCUMENTS edge MERGE and proves the fault fired via
 #     ifa_fault_assert_once_fault_marker, reading the durable marker the fault
@@ -35,147 +26,208 @@
 #     grep shelled out to `rg`, which the runner lacks, and its "command not
 #     found" read as "no fault" for months).
 #
+# THIS FAMILY HAS NO DETERMINISTIC MID-HANDLER FAULT CELL (#6149 follow-up
+# item 8, both a ruling and its correction). Every sibling family with a
+# kill-worker cell (code_calls, deployable_unit_correlation) has a Postgres
+# write in Handle to hold a real ACCESS EXCLUSIVE lock on, which blocks the
+# handler from acknowledging before a kill -9 lands. #6149 follow-up item 8
+# first found that DocumentationEdgeMaterializationHandler.Handle performs no
+# Postgres write at all (only two graph writes through the same EdgeWriter,
+# confirmed at the interface, handler-struct-wiring, and concrete-writer-
+# construction level in go/cmd/reducer/main.go) and, on that basis, replaced
+# the wrong-table kill-worker lock with a domain-scoped expire-lease cell
+# (forcing `claim_until = now()` on the claimed row, mirroring the generic
+# cell_expirelease in ifa_fault_injection_cells.sh:115-141) instead of a held
+# lock. That ALSO failed on the live matrix: the handler completed in
+# `duration_seconds: 0.0073` (7ms) end to end, so by the time the forced-
+# expiry UPDATE ran as its own separate step the row had already reached
+# 'succeeded' and `WHERE status IN ('claimed', 'running')` matched zero rows.
+# Nothing was expired, nothing was reclaimed, attempt_count never moved above
+# baseline. Domain-scoping cell_expirelease reintroduced exactly the race the
+# original lock was supposed to remove, just moved from "the lock blocks
+# nothing" to "the trigger never lands" -- a different vacuous shape, not a
+# fix.
+#
+# There is no existing mechanism in this harness that can hold a 7ms handler
+# open long enough for either trigger (kill -9 or a forced-expiry UPDATE
+# issued as a separate SQL round-trip) to land deterministically, because
+# neither trigger blocks the handler itself -- they both race it. What WOULD
+# close this: a hang/block fault mode in the in-binary decorator
+# (go/internal/storage/cypher/fault_executor.go), which could pause the
+# DOCUMENTS edge MERGE mid-transaction the same way
+# fail-graph-write-once-then-succeed already intercepts it to fail it once --
+# giving kill-worker or expire-lease a real window without needing a Postgres
+# write to lock. That is new decorator capability, not a bash-harness change,
+# and it is out of scope here; a future family whose handler is provably slow
+# enough (or whose handler gains a real Postgres write) should re-evaluate
+# before copying this family's gap forward.
+#
+# The loss this leaves is bounded and stated precisely, not implied: mid-
+# handler interruption (a worker process dying, or a lease expiring, while
+# this domain's row is claimed) is UNPROVEN for documentation_materialization.
+# Injected graph-write failure is NOT unproven -- cell_failgraphwrite_documentation
+# below exercises the family's real write path through the fault decorator's
+# genuine fail-graph-write-once-then-succeed mode and remains full coverage
+# for that fault class.
+#
+# The removal is safe, not just asserted -- two runs prove two different
+# claims, and citing only one would conflate them. Cell counts below are
+# DISPATCHED cells; derive them rather than trusting a number here, with
+# `rg -c '^cell_[a-z_]+$' scripts/verify-ifa-fault-injection.sh` at either
+# commit. The runs themselves are reproduced by `make ifa-fault-injection`
+# at that commit; their logs are not committed (they carry local paths), so
+# every line below is quoted verbatim AND cited by file:line against
+# live_fi_cf2d033b1.log (the RED run) or live_fi_1f85dad68.log (the GREEN
+# run) -- the quote is checkable without opening either file, the citation
+# is only where it came from. Re-running reproduces the semantic lines and
+# the digest; it will NOT reproduce the timings (8s, 69s, the handler
+# durations), so a mismatch there is expected, not a discrepancy.
+#
+# The RED run at cf2d033b1 -- whose driver still dispatched
+# cell_expirelease_documentation, one more than here -- established the cell
+# could never fire. Same run, same mechanism, opposite outcomes. The generic
+# cell_expirelease observed its row, forced expiry, and PASSED
+# (live_fi_cf2d033b1.log:595,614):
+#
+#   expire-lease-mid-handler: non-vacuous: 1 claimed/running row(s) observed
+#     before forced expiry
+#   expire-lease-mid-handler: cell wall time: 8s
+#
+# while the documentation-scoped copy observed its row and FAILED
+# (live_fi_cf2d033b1.log:1596):
+#
+#   verify-ifa-fault-injection: expire-lease-mid-handler-documentation:
+#     documentation_materialization did not re-execute above its fault-free
+#     retry baseline -- evidence of reclaim after the forced expiry
+#
+# The reason is handler width. BOTH documentation_materialization executions
+# observed in that run were milliseconds wide, each at the end of a queue
+# wait an order of magnitude longer (live_fi_cf2d033b1.log:3970 and :4048):
+#
+#   handler_duration_seconds 0.022566833  queue_wait_seconds 0.969149  (43x)
+#   handler_duration_seconds 0.007342625  queue_wait_seconds 0.09283   (13x)
+#
+# Even the slower one leaves a ~23ms window for a forced expiry issued as a
+# separate step after a two-stage observation -- see the mechanism above.
+# Scoping the fault to a family whose handler is milliseconds wide
+# reintroduces the race the lock was meant to remove. That is what justifies
+# removal -- a green run afterward cannot show the removal was CORRECT, only
+# that it was HARMLESS.
+#
+# The GREEN run at 1f85dad68 is the harmless-removal proof: FI_EXIT=0 --
+# carrying, on its own, the fact that every dispatched cell completed -- and
+# fail-graph-write-once-then-succeed-documentation stayed green
+# (live_fi_1f85dad68.log:3371):
+#
+#   failgraphwritedocumentation: digest=63558e351f32ae028abd31f18258d64d851af12d6c85b65286982d1e214f5cd0 wall=69s
+#
+# at the same digest value the family's other unscoped cells produce, so
+# removing the racy reclaim cell did not perturb what the surviving cell
+# proves. The #6149 deployable-unit trio (baseline,
+# kill-worker, fail-graph-write) also stayed green in that same run,
+# confirming this branch did not regress the family merged the day before.
+#
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
 # function here reads driver-owned globals (bin_dir, tagged_bin_dir, log_dir,
 # work_dir, wall_times, use_compose, compose_file, documentation_edge_operation_match,
-# documentation_expected_edges, baseline_documentation_retried,
-# CLAIMED_ROW_WAIT_TIMEOUT, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, bg_pids,
-# log, die, plus the fresh_stack / drive_all_cassettes / run_drain_gate /
-# assert_no_dead_letters / capture_digest / assert_matches_baseline /
-# teardown_cell helpers) rather than taking them as arguments. Sources
-# scripts/lib/ifa_documentation_live.sh for ifa_documentation_assert.
+# documentation_expected_edges, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN,
+# bg_pids, log, die, plus the fresh_stack / drive_all_cassettes /
+# run_drain_gate / assert_no_dead_letters / capture_digest /
+# assert_matches_baseline / teardown_cell helpers) rather than taking them as
+# arguments. Sources scripts/lib/ifa_documentation_live.sh for
+# ifa_documentation_assert. baseline_documentation_retried and
+# CLAIMED_ROW_WAIT_TIMEOUT are cell_baseline/reclaim-cell globals this file no
+# longer reads now that the family has no reclaim cell -- see the gap note
+# above.
+
+# ifa_documentation_require_fresh_documents_edges fails closed unless a fresh
+# stack has a numeric zero count of DOCUMENTS edges in the live graph. This
+# USED to be ifa_documentation_require_fresh_intents, querying
+# shared_projection_intents WHERE projection_domain = 'documentation_edges',
+# mirroring ifa_code_call_require_fresh_intents -- vacuous for this family:
+# documentationEdgeMaterializationHandler (documentation_edge_materialization.go)
+# calls only h.EdgeWriter.WriteEdges (:90); unlike code_call_materialization's
+# handler, it has no IntentWriter field and never calls UpsertIntents. The
+# only INSERT INTO shared_projection_intents in the repo is reachable solely
+# through UpsertIntents (shared_intents_upsert.go), so this count was always 0
+# whether the stack was genuinely fresh or not -- the same vacuous-check class
+# #6149 found and fixed for ifa_deployable_unit_require_fresh_intents
+# (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh), for the same
+# reason: the handler this precondition is meant to guard never writes the
+# table it queried.
 #
-# baseline_documentation_retried is NOT set by this file -- it must be
-# captured against a genuinely fault-free drive, the same way
-# baseline_code_call_retried is captured inside cell_baseline
-# (ifa_fault_injection_cells.sh:74-76, a shared file this worktree does not
-# own). Until that splice lands, cell_killworker_documentation's retry-delta
-# assertion below reads an unset global and fails closed rather than silently
-# comparing against zero.
-
-# ifa_documentation_require_fresh_intents fails closed unless a fresh compose
-# stack has a numeric zero count for the documentation_edges intent domain.
-# Mirrors ifa_code_call_require_fresh_intents exactly, scoped to
-# projection_domain = 'documentation_edges' -- the shared-projection domain
-# buildDocumentationIntentRows (documentation_edge_materialization.go:264-275)
-# writes, not documentation_materialization (the queue-intent domain the
-# extraction handler itself runs under).
-ifa_documentation_require_fresh_intents() {
-	local cell="$1" compose_project="$2" use_compose_arg="$3" postgres_dsn="$4" compose_file_arg="$5"
-	local pre_intents pre_intents_rc
-	if pre_intents="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${postgres_dsn}" \
-		"SELECT count(*) FROM shared_projection_intents WHERE projection_domain = 'documentation_edges';" \
-		"${compose_file_arg}")"; then
-		pre_intents_rc=0
+# Repointed to the graph, the only place DOCUMENTS edges exist, mirroring
+# ifa_deployable_unit_require_fresh_intents's graph-dump-plus-jq shape --
+# same four fail-closed properties (dump/count failed, empty, non-numeric,
+# non-zero), each rejected distinctly; empty and non-numeric read as unknown,
+# never as a legitimate zero. Unlike that sibling, this function still
+# captures and returns the exact dump/count exit code on failure (an
+# explicit `if out="$(...)"; then rc=0; else rc=$?; fi`, not a bare
+# assignment or a plain `if ! ...; then return 1; fi`), matching this
+# family's own idiom elsewhere in this file, and the mirror test pins the
+# exact returned code.
+#
+# Renamed from ifa_documentation_require_fresh_intents: the old name asserted
+# a claim about intents that was never true for this family, and a
+# vacuous-but-plausible name is exactly the trap #6149 tripped on for its
+# deployable-unit sibling.
+#
+# ifa_documentation_fresh_stack_dump_path is deliberately NOT `local`: a
+# `RETURN` trap referencing a `local` variable can fire after this function's
+# own return, on the NEXT function to return anywhere in this shell, once its
+# local binding is already gone -- confirmed live on the deployable-unit
+# sibling ("dump_path: unbound variable" aborted that fault-injection matrix,
+# ifa_deployable_unit_fresh_stack_dump_path's own header). Named distinctly
+# from every sibling family's global to avoid any doubt about which dump each
+# one is using.
+#
+# Args: cell bin_dir
+ifa_documentation_require_fresh_documents_edges() {
+	local cell="$1" bin_dir="$2"
+	local count count_rc dump_rc
+	if ! command -v jq >/dev/null 2>&1; then
+		printf '%s: fresh-stack precondition requires jq, which is not on PATH; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	fi
+	ifa_documentation_fresh_stack_dump_path="$(mktemp)" || {
+		printf '%s: fresh-stack precondition could not create a scratch file for the graph dump; treat this as unknown, not as a verdict\n' "${cell}" >&2
+		return 1
+	}
+	trap 'rm -f "${ifa_documentation_fresh_stack_dump_path}"' RETURN
+	if "${bin_dir}/eshu-ifa" graph-dump -out "${ifa_documentation_fresh_stack_dump_path}"; then
+		dump_rc=0
 	else
-		pre_intents_rc=$?
+		dump_rc=$?
 	fi
-	if [[ "${pre_intents_rc}" -ne 0 ]]; then
-		printf '%s: fresh-stack precondition query FAILED (exit %s)\n' "${cell}" "${pre_intents_rc}" >&2
-		return "${pre_intents_rc}"
+	if [[ "${dump_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition graph-dump FAILED (exit %s); treat this as unknown, not as a verdict\n' "${cell}" "${dump_rc}" >&2
+		return "${dump_rc}"
 	fi
-	pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
-	if [[ -z "${pre_intents}" ]]; then
-		printf '%s: fresh-stack precondition query returned empty output; treat that as unknown, not as zero\n' "${cell}" >&2
-		return 1
-	fi
-	if [[ ! "${pre_intents}" =~ ^[0-9]+$ ]]; then
-		printf '%s: fresh-stack precondition query returned non-numeric output %q; treat that as unknown, not as zero\n' \
-			"${cell}" "${pre_intents}" >&2
-		return 1
-	fi
-	if [[ "${pre_intents}" != "0" ]]; then
-		printf '%s: %s documentation_edges intent row(s) survived fresh_stack\n' "${cell}" "${pre_intents}" >&2
-		return 1
-	fi
-	printf '%s: fresh-stack precondition: 0 documentation_edges shared_projection_intents\n' "${cell}"
-}
-
-# ifa_documentation_start_intent_lock holds the first durable write used by
-# documentation_materialization. This makes the claimed-row observation and
-# kill deterministic: the handler cannot acknowledge between the observation
-# and kill, and the post-restart attempt_count proof identifies the same
-# domain. Mirrors ifa_code_call_start_intent_lock exactly.
-ifa_documentation_start_intent_lock() {
-	local cell="$1" pid_var="$2"
-	local app_name="ifa_documentation_lock_${cell}"
-	local lock_sql="SET application_name = '${app_name}'; BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(180); ROLLBACK;"
-	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" exec -T postgres \
-			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -c "${lock_sql}" \
-			>"${log_dir}/documentation-lock-${cell}.log" 2>&1 &
+	if count="$(jq '[.edges[] | select(.type == "DOCUMENTS")] | length' "${ifa_documentation_fresh_stack_dump_path}")"; then
+		count_rc=0
 	else
-		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -c "${lock_sql}" \
-			>"${log_dir}/documentation-lock-${cell}.log" 2>&1 &
+		count_rc=$?
 	fi
-	local holder_pid=$!
-	bg_pids+=("${holder_pid}")
-	printf -v "${pid_var}" '%s' "${holder_pid}"
-
-	local i lock_count
-	for i in $(seq 1 60); do
-		lock_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			"SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE a.application_name = '${app_name}' AND l.relation = 'shared_projection_intents'::regclass AND l.mode = 'AccessExclusiveLock' AND l.granted;" \
-			"${compose_file}" | tr -d '[:space:]')"
-		if [[ "${lock_count}" == "1" ]]; then
-			return 0
-		fi
-		sleep 0.25
-	done
-	return 1
-}
-
-# ifa_documentation_release_intent_lock terminates the named lock-holder
-# backend, then joins its local psql/docker process before the replacement
-# reducer starts. Mirrors ifa_code_call_release_intent_lock exactly.
-ifa_documentation_release_intent_lock() {
-	local cell="$1" holder_pid="$2"
-	local app_name="ifa_documentation_lock_${cell}"
-	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = '${app_name}';" \
-		"${compose_file}" >/dev/null
-	wait "${holder_pid}" 2>/dev/null || true
-	ifa_det_untrack_bg_pid "${holder_pid}"
-}
-
-# cell_killworker_documentation proves a genuinely in-flight documentation
-# handler is reclaimed after process death. The table lock prevents the short
-# handler from acknowledging before kill; attempt_count > the clean baseline
-# proves the replacement reducer re-executed that domain, not merely another
-# queued row. Mirrors cell_killworker_code_calls (#5991) -- adopted over the
-# simpler cell_killworker_sql shape on review because a marker/digest match
-# alone does not prove the kill landed mid-handler, only that recovery
-# reached the same end state; the retry-count delta closes that gap.
-cell_killworker_documentation() {
-	local cell_start
-	cell_start=$(date +%s)
-	log "cell kill-worker-after-claim-documentation: fresh stack"
-	fresh_stack killworkerdocumentation
-	drive_all_cassettes killworkerdocumentation
-	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
-	ifa_det_start_bg "${log_dir}" "projector-killworkerdocumentation" projector_pid "${bin_dir}/eshu-projector"
-	ifa_documentation_start_intent_lock "killworkerdocumentation" lock_holder_pid \
-		|| die "kill-worker-after-claim-documentation: could not acquire the deterministic shared_projection_intents blocker"
-	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-before" reducer_pid_before "${bin_dir}/eshu-reducer"
-	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "documentation_materialization")" \
-		|| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed while its durable write was blocked"
-	printf 'kill-worker-after-claim-documentation: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
-	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
-	ifa_documentation_release_intent_lock "killworkerdocumentation" "${lock_holder_pid}"
-	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-after" reducer_pid_after "${bin_dir}/eshu-reducer"
-	run_drain_gate killworkerdocumentation
-	assert_no_dead_letters killworkerdocumentation
-	ifa_documentation_assert "killworkerdocumentation" "${bin_dir}" "${documentation_expected_edges}" \
-		|| die "kill-worker-after-claim-documentation: recovered graph does not match the three-edge exact set"
-	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${baseline_documentation_retried}" 15 "documentation_materialization" \
-		|| die "kill-worker-after-claim-documentation: documentation_materialization did not re-execute above its fault-free retry baseline"
-	capture_digest killworkerdocumentation
-	assert_matches_baseline killworkerdocumentation
-	teardown_cell killworkerdocumentation
-	wall_times[killworkerdocumentation]=$(( $(date +%s) - cell_start ))
-	printf 'kill-worker-after-claim-documentation: cell wall time: %ss\n' "${wall_times[killworkerdocumentation]}"
+	if [[ "${count_rc}" -ne 0 ]]; then
+		printf '%s: fresh-stack precondition could not count DOCUMENTS edges in the graph dump (exit %s); treat this as unknown, not as a verdict\n' "${cell}" "${count_rc}" >&2
+		return "${count_rc}"
+	fi
+	count="$(printf '%s' "${count}" | tr -d '[:space:]')"
+	if [[ -z "${count}" ]]; then
+		printf '%s: fresh-stack precondition edge count came back empty; treat that as unknown, not as zero\n' "${cell}" >&2
+		return 1
+	fi
+	if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+		printf '%s: fresh-stack precondition edge count %q is non-numeric; treat that as unknown, not as zero\n' \
+			"${cell}" "${count}" >&2
+		return 1
+	fi
+	if [[ "${count}" != "0" ]]; then
+		printf '%s: %s DOCUMENTS edge(s) survived fresh_stack\n' "${cell}" "${count}" >&2
+		return 1
+	fi
+	printf '%s: fresh-stack precondition: 0 DOCUMENTS edges in the graph\n' "${cell}"
 }
 
 # cell_failgraphwrite_documentation: the tagged (-tags ifafaultinjection)
@@ -189,20 +241,21 @@ cell_failgraphwrite_documentation() {
 	log "cell fail-graph-write-once-then-succeed-documentation: fresh stack"
 	fresh_stack failgraphwritedocumentation
 
-	# Probe 1 (#5974): a genuinely fresh stack has no documentation_edges
-	# shared-projection intents. Survivors mean this cell is replaying an
-	# earlier cell's completed work -- intent IDs are deterministic and
-	# completed rows are never reopened, so the drive produces no new graph
-	# writes, nothing reaches the fault decorator, and every later assertion
-	# still passes on edges that are already there. Only meaningful when this
-	# script owns the stack; --no-compose skips it (see
-	# ifa_documentation_require_fresh_intents).
+	# Probe 1 (#5974): a genuinely fresh stack has no DOCUMENTS edges in the
+	# live graph (see ifa_documentation_require_fresh_documents_edges's own
+	# header for why this no longer queries shared_projection_intents).
+	# Survivors mean this cell is replaying an earlier cell's completed work
+	# -- intent IDs are deterministic and completed rows are never reopened,
+	# so the drive produces no new graph writes, nothing reaches the fault
+	# decorator, and every later assertion still passes on edges that are
+	# already there. Only meaningful when this script owns the stack;
+	# --no-compose skips it (see ifa_documentation_require_fresh_documents_edges).
 	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_documentation_require_fresh_intents "fail-graph-write-once-then-succeed-documentation" \
-			"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation" \
+			"${bin_dir}" \
 			|| die "fail-graph-write-once-then-succeed-documentation: fresh-stack precondition failed"
 	else
-		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n'
+		printf 'fail-graph-write-once-then-succeed-documentation: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving DOCUMENTS edges are not a leak)\n'
 	fi
 
 	drive_all_cassettes failgraphwritedocumentation
@@ -219,12 +272,24 @@ cell_failgraphwrite_documentation() {
 	# cell" from "it was written here and the fault missed it". Without this, a
 	# missing marker has two explanations and the failure message has to guess
 	# between them.
-	log "fail-graph-write-once-then-succeed-documentation: probe documentation edges and this cell's intent window"
+	#
+	# This used to also print a documentation_edges shared_projection_intents
+	# "intent window" (total/pending/first_created/last_completed) right below
+	# the assert. It always printed total=0, pending=0, and two NULLs, for the
+	# same structural reason ifa_documentation_require_fresh_documents_edges's
+	# own header explains: documentationEdgeMaterializationHandler has no
+	# IntentWriter and never writes that table, so the query could not report
+	# anything else regardless of whether this cell was healthy or broken
+	# (#6149 follow-up item 9). During a failure investigation an
+	# unconditional zero reads as a finding ("nothing landed"), not as the
+	# structural non-signal it actually was -- removed rather than repointed
+	# at the graph, since ifa_documentation_assert immediately above already
+	# is a fail-closed, graph-based, exact-set check with its own diff on
+	# failure; a second graph-based count here would report strictly less
+	# than that diff already does.
+	log "fail-graph-write-once-then-succeed-documentation: probe documentation edges"
 	ifa_documentation_assert "failgraphwritedocumentation" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "fail-graph-write-once-then-succeed-documentation: the documentation edge set does not match the expected set after the drain. assert-edges is set-exact, so this covers a MISSING DOCUMENTS edge (the MERGE never ran here, and the fault had nothing to intercept) AND an extra, duplicated, or wrong-typed edge (a write ran and produced something else). Read the assert-edges diff above before deciding which -- they point at different code (#5974)."
-	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT count(*) AS total, count(*) FILTER (WHERE completed_at IS NULL) AS pending, min(created_at) AS first_created, max(completed_at) AS last_completed FROM shared_projection_intents WHERE projection_domain = 'documentation_edges';" \
-		"${compose_file}" | sed 's/^/  documentation_edges intent window: /'
 	capture_digest failgraphwritedocumentation
 	assert_matches_baseline failgraphwritedocumentation
 	# #5974: assert on the durable marker the fault decorator writes, not the

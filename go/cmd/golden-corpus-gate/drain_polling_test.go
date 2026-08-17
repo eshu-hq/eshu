@@ -4,8 +4,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -50,7 +52,7 @@ func TestPollUntilDrainedConvergesAfterRetries(t *testing.T) {
 		{FactWorkItemsResidual: 1, SharedIntentsNonterminal: 1},
 		{}, // drained
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -68,7 +70,7 @@ func TestPollUntilDrainedWaitsForPopulation(t *testing.T) {
 		{PopulatedDomainsPresent: 0},
 		{PopulatedDomainsPresent: 1}, // reducer emitted; empty + populated — converge
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, time.Second, time.Millisecond)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, time.Second, time.Millisecond, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -85,7 +87,7 @@ func TestPollUntilDrainedWaitsForCrossScopeCompletionEvents(t *testing.T) {
 		{CrossScopeCompletionEventsNonterminal: 1},
 		{},
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -101,7 +103,7 @@ func TestPollUntilDrainedTimesOutWhenNeverPopulated(t *testing.T) {
 	// Queues are empty but the reducer never emits the required domain, so the
 	// gate must not report drained on an unreduced pipeline.
 	q := &fakeDrainQuerier{seq: []DrainCounts{{PopulatedDomainsPresent: 0}}}
-	_, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, 5*time.Millisecond, time.Millisecond)
+	_, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, 5*time.Millisecond, time.Millisecond, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -112,7 +114,7 @@ func TestPollUntilDrainedTimesOutWhenNeverPopulated(t *testing.T) {
 
 func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{FactWorkItemsResidual: 9}}}
-	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond)
+	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -126,7 +128,61 @@ func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 
 func TestPollUntilDrainedPropagatesQueryError(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{}}, errOn: 1}
-	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond); err == nil {
+	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0); err == nil {
 		t.Fatal("expected query error to propagate")
+	}
+}
+
+// Before this item, pollUntilDrained reported its residual only at the
+// bound (via the caller's own post-return diagnostic) — nothing distinguished
+// "still draining" from "wedged" while it was actually running, which cost
+// real time diagnosing a flake (#6149 follow-up item 7). A stuck querier
+// (the same non-empty count on every poll, never converging) run long enough
+// to cross several progressEvery boundaries must produce more than one
+// progress line, and each line must name the still-outstanding residual so a
+// reader tailing output mid-run sees the same trend the final message would
+// only report after the fact.
+func TestPollUntilDrainedEmitsPeriodicProgress(t *testing.T) {
+	q := &fakeDrainQuerier{seq: []DrainCounts{{FactWorkItemsResidual: 7}}} // never drains
+	var out bytes.Buffer
+	_, ok, err := pollUntilDrained(
+		context.Background(), q, strictDrainAssertions(), 0,
+		40*time.Millisecond, time.Millisecond, // timeout, poll
+		&out, 5*time.Millisecond, // progress, progressEvery
+	)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if ok {
+		t.Fatal("a stuck querier must not report drained")
+	}
+
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 progress lines over a 40ms window with a 5ms cadence, got %d:\n%s", len(lines), out.String())
+	}
+	for _, line := range lines {
+		if !strings.Contains(line, "fact residual=7") {
+			t.Errorf("progress line missing the outstanding residual count: %q", line)
+		}
+	}
+}
+
+// progressEvery <= 0 disables periodic progress entirely, even with a
+// non-nil writer -- the zero value from every pre-existing call site above
+// must stay silent, not panic or default to some implicit cadence.
+func TestPollUntilDrainedProgressDisabledByZeroInterval(t *testing.T) {
+	q := &fakeDrainQuerier{seq: []DrainCounts{{FactWorkItemsResidual: 3}}}
+	var out bytes.Buffer
+	_, _, err := pollUntilDrained(
+		context.Background(), q, strictDrainAssertions(), 0,
+		20*time.Millisecond, time.Millisecond,
+		&out, 0,
+	)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("expected no progress output with progressEvery=0, got:\n%s", out.String())
 	}
 }

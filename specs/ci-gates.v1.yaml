@@ -2899,8 +2899,8 @@ gates:
       command: "bash scripts/verify-root-cause-evidence.sh"
       test_command: "bash scripts/test-verify-root-cause-evidence.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: static-contract-gates.yml
+      job: "Verify root-cause-evidence gate"
     requirements: []
     ci_only_reason: ""
     hook_id: ""
@@ -3058,6 +3058,38 @@ gates:
       - go
     ci_only_reason: ""
     hook_id: gate-registry-drift
+
+  - id: prepr-stamp-verify-selftest
+    name: pre-pr stamp verify guard self-test
+    category: hygiene
+    tier: pre-pr
+    # Advisory, not blocking (mirrors docs-prose-quality/docs-contradiction):
+    # a blocking gate with no CI backstop fails ValidateRequiredStatusChecks
+    # (TestValidateRequiredStatusChecks_RejectsBlockingGateWithoutCIReachability),
+    # because nothing in CI could ever satisfy it. This gate has no CI
+    # counterpart by design -- see local_only_reason below -- so it stays
+    # advisory the same way those two do.
+    blocking: false
+    triggers:
+      - "scripts/dev/prepr-stamp-verify.sh"
+      - "scripts/dev/test-prepr-stamp-verify.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      # command is deliberately empty, not a no-op filler: prepr-stamp-verify.sh
+      # reads the stamp of the commit about to be pushed, so running the real
+      # guard as this gate's own local.command inside `make pre-pr` would fail
+      # every time -- that stamp does not exist until `make pre-pr` finishes.
+      # Only the hermetic self-test is meaningful to run from this registry
+      # path; the real guard's enforcement stays the pre-commit pre-push stage
+      # (hygiene_hooks entry below), which this gate does not duplicate.
+      command: ""
+      test_command: "bash scripts/dev/test-prepr-stamp-verify.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "prepr-stamp-verify.sh is a git pre-push hook (stages: [pre-push] in .pre-commit-config.yaml); CI never runs git push, so it has no CI job to point at, and the chicken-and-egg problem above rules out a meaningful local.command too. Before this gate existed, test-prepr-stamp-verify.sh (148 lines, added as \"the first behavioural test for prepr-stamp-verify.sh\") was reachable from nothing -- not pre-pr.sh, not a gate, not a workflow, not a Makefile target -- and never ran (#6149 follow-up item 8 review, P1). This gate closes that: `make pre-pr` now runs the self-test whenever the guard or its test changes. Unlike docs-prose-quality/docs-contradiction, this is a permanent local-only shape, not a staging one waiting on a CI job -- CI cannot exercise a pre-push hook, ever, so there is nothing here that would close by adding one."
 
 # ─── HYGIENE HOOKS ───────────────────────────────────────────────────────────
 # Local pre-commit hook ids that are basic hygiene or self-tests, intentionally

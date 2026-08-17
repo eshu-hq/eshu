@@ -50,6 +50,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 			return nil, nil, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
 		}
 		candidates = applyResolvedDeploymentSources(candidates, resolved)
+		logDeploymentSourceGuardStats(ctx, string(intent.Domain), intent.ScopeID, intent.GenerationID, resolved)
 		candidates = applyResolvedProvisioningSources(candidates, resolved)
 	}
 

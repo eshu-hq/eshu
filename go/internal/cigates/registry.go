@@ -296,8 +296,11 @@ var validRequirements = map[Requirement]struct{}{
 }
 
 // Load reads and structurally validates the ci-gates registry at path.
-// Validation checks: unique IDs, non-empty triggers, valid category/tier/requirement
-// enum values, and that local==null gates have a non-empty ci_only_reason.
+// Validation checks: unique IDs, non-empty triggers with no duplicate entry
+// within one gate's own triggers: list, valid category/tier/requirement
+// enum values, that local==null gates have a non-empty ci_only_reason, and
+// that a blocking:false gate with no CI backstop (ci.workflow and ci.job
+// both empty) has a non-empty local_only_reason.
 func Load(path string) (*Registry, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is the operator-configured gate registry under specs/, not external input
 	if err != nil {
@@ -334,6 +337,20 @@ func Load(path string) (*Registry, error) {
 		if len(gf.Triggers) == 0 {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has empty triggers (must be non-empty)", path, id)
 		}
+		// triggers: is meant to be a SET of path globs, but YAML has no set
+		// type: nothing before this rejected a LIST that carries the same
+		// entry twice. A copy-paste of one trigger line, or a near-miss merge
+		// of two sibling families' trigger blocks, silently doubled an entry
+		// with no error and no functional effect on matching -- MatchGlob
+		// against a duplicated glob behaves identically to matching it once
+		// -- so it could go unnoticed indefinitely.
+		seenTriggers := make(map[string]struct{}, len(gf.Triggers))
+		for _, trig := range gf.Triggers {
+			if _, dup := seenTriggers[trig]; dup {
+				return nil, fmt.Errorf("ci-gates registry %s: gate %q has duplicate trigger %q (triggers: must be a set, not a list)", path, id, trig)
+			}
+			seenTriggers[trig] = struct{}{}
+		}
 
 		reqs := make([]Requirement, 0, len(gf.Requirements))
 		for _, r := range gf.Requirements {
@@ -356,7 +373,46 @@ func Load(path string) (*Registry, error) {
 		if local == nil && ciOnlyReason == "" {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has local==null but empty ci_only_reason (required when local is absent)", path, id)
 		}
+		// A local block with neither field is representable but meaningless:
+		// executeGates (go/cmd/ci-gates/execute.go) runs zero steps for it and
+		// still prints "PASS <gate>", indistinguishable from a gate that
+		// actually ran and passed. A gate with nothing to run locally should
+		// declare local==null (and a ci_only_reason) instead -- this is not
+		// that shape, since local is non-nil, just empty inside. Reject at
+		// load time so the shape is unrepresentable rather than merely
+		// unreachable from the current registry (#6149 follow-up item 8
+		// review, P1).
+		if local != nil && local.Command == "" && local.TestCommand == "" {
+			return nil, fmt.Errorf(
+				"ci-gates registry %s: gate %q declares a local block with neither command nor test_command -- either give it one, or declare local==null with a ci_only_reason instead",
+				path, id,
+			)
+		}
 		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
+		ciWorkflow := strings.TrimSpace(gf.CI.Workflow)
+		ciJob := strings.TrimSpace(gf.CI.Job)
+		// A blocking:false gate with no CI backstop at all (ci.workflow AND
+		// ci.job both empty) runs ONLY through a developer's local
+		// `make pre-pr` -- unlike every other gate, a skip here is not
+		// harmless, because nothing else ever runs the check. That gap is
+		// fine as a deliberate, temporary staging decision (three real gates
+		// use exactly this shape while a burn-down baseline goes clean
+		// before CI enforcement), but it must be DECLARED, not merely
+		// possible: root-cause-evidence carried this exact shape with no
+		// declaration and had never run against any evidence doc until it
+		// was run by hand (#6149 follow-up item 5). Mirrors the
+		// ci_only_reason-required-when-local-is-nil rule above exactly. A
+		// blocking gate is exempt: blocking:true with no CI backstop is a
+		// different, likely-worse defect this rule does not attempt to
+		// characterize -- it would fail CI itself with an empty ci.workflow
+		// wherever the required-status manifest expects one, which is a
+		// different check's signal, not this one's.
+		if !gf.Blocking && ciWorkflow == "" && ciJob == "" && localOnlyReason == "" {
+			return nil, fmt.Errorf(
+				"ci-gates registry %s: gate %q is blocking:false with no CI backstop (ci.workflow and ci.job both empty) but has empty local_only_reason (required when a gate has no CI backstop at all -- state why, and what would close the gap)",
+				path, id,
+			)
+		}
 
 		reg.Gates = append(reg.Gates, Gate{
 			ID:       id,

@@ -359,35 +359,15 @@ require_code_call_cells "code-call precondition rejects non-numeric output" "ret
 require_code_call_cells "code-call precondition reports stale intents" "survived fresh_stack"
 require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
 
-# documentation_edges (#5994): every cell drives the family via cell_baseline's
-# drive_all_cassettes, baseline exact-asserts it, and two dedicated cells prove
-# queue reclaim and graph-write retry against the documentation_materialization
-# domain rather than an unrelated row that happened to run first. The family
-# also proves the SqlTable target case (batchCanonicalDocumentationEntityEdgeCypher's
-# MATCH label alternation, TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel).
-require "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
-require "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-require "documentation cassette existence guard" "documentation cassette not found"
-require "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
-require_driver "documentation drive in every cell" "ifa_documentation_drive"
-require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
-require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-require "documentation kill-reclaim cell invocation" "cell_killworker_documentation"
-require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
-require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
-require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
-require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
-require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
-require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
-require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
-require_documentation_cells "graph-write cell probes documentation intents" "projection_domain = 'documentation_edges'"
-require_documentation_cells "documentation precondition preserves query failure" "precondition query FAILED (exit"
-require_documentation_cells "documentation precondition distinguishes empty output" "returned empty output"
-require_documentation_cells "documentation precondition rejects non-numeric output" "returned non-numeric output"
-require_documentation_cells "documentation precondition reports stale intents" "survived fresh_stack"
-require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+# documentation_edges (#5994) cases live in a sourced case module so this
+# structural verifier stays below 500 lines (mirroring the deployable-unit
+# split just below); run_ifa_fault_injection_documentation_registry_cases
+# holds the static require()/rg pins, alongside the hermetic behavioral
+# cases the same sourced file already carried.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-cases.sh
+source "${documentation_cases_lib}"
+run_ifa_fault_injection_documentation_registry_cases
+
 # deployable_unit_edges (#5993) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the review-cases
 # split just below).
@@ -399,10 +379,9 @@ run_ifa_fault_injection_deployable_unit_cases
 # in a sourced case module so this structural verifier stays below 500 lines.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-review-cases.sh
 source "${review_cases_lib}"
-# documentation_edges (#5994) hermetic cases live in their own sibling module,
-# same 500-line-cap reason as review_cases_lib above.
-# shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-cases.sh
-source "${documentation_cases_lib}"
+# documentation_edges (#5994) hermetic behavioral cases were already sourced
+# (and their registry-pin sibling function called) above, alongside this
+# family's static require()/rg pins -- not re-sourced here.
 # codeowners_ownership_edges (#5992) hermetic cases, same split, and they own
 # their own existence/syntax checks for the cells library they exercise.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
