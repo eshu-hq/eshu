@@ -70,18 +70,45 @@
 # genuine fail-graph-write-once-then-succeed mode and remains full coverage
 # for that fault class.
 #
-# The removal is safe, not just asserted -- two different runs prove two
-# different claims, and citing only one would conflate them, or muddling
-# dispatched against completed within either one would. The RED run at
-# cf2d033b1 -- whose driver still dispatched cell_expirelease_documentation,
-# 16 cells to the 15 dispatched here -- established the cell could never
-# fire: FI_EXIT=1 after 7 completed cells, the handler's
-# duration_seconds: 0.0073, the forced-expiry UPDATE matching zero rows. That
-# is what justifies removal -- a green run afterward cannot show the removal
-# was CORRECT, only that it was HARMLESS. The GREEN run at 1f85dad68 (15
-# cells dispatched, matching the driver here now that the racy cell is gone)
-# is the harmless-removal proof: FI_EXIT=0 -- carrying, on its own, the fact
-# that all 15 dispatched cells completed -- and
+# The removal is safe, not just asserted -- two runs prove two different
+# claims, and citing only one would conflate them. Cell counts below are
+# DISPATCHED cells; derive them rather than trusting a number here, with
+# `rg -c '^cell_[a-z_]+$' scripts/verify-ifa-fault-injection.sh` at either
+# commit. The runs themselves are reproduced by `make ifa-fault-injection`
+# at that commit; their logs are not committed (they carry local paths), so
+# every line quoted below is quoted verbatim, not referenced by path.
+#
+# The RED run at cf2d033b1 -- whose driver still dispatched
+# cell_expirelease_documentation, one more than here -- established the cell
+# could never fire. Same run, same mechanism, opposite outcomes. The generic
+# cell_expirelease observed its row, forced expiry, and PASSED:
+#
+#   expire-lease-mid-handler: non-vacuous: 1 claimed/running row(s) observed
+#     before forced expiry
+#   expire-lease-mid-handler: cell wall time: 8s
+#
+# while the documentation-scoped copy observed its row and FAILED:
+#
+#   verify-ifa-fault-injection: expire-lease-mid-handler-documentation:
+#     documentation_materialization did not re-execute above its fault-free
+#     retry baseline -- evidence of reclaim after the forced expiry
+#
+# The reason is handler width. BOTH documentation_materialization executions
+# observed in that run were milliseconds wide, each at the end of a queue
+# wait an order of magnitude longer:
+#
+#   handler_duration_seconds 0.022566833  queue_wait_seconds 0.969149  (43x)
+#   handler_duration_seconds 0.007342625  queue_wait_seconds 0.09283   (13x)
+#
+# Even the slower one leaves a ~23ms window for a forced expiry issued as a
+# separate step after a two-stage observation -- see the mechanism above.
+# Scoping the fault to a family whose handler is milliseconds wide
+# reintroduces the race the lock was meant to remove. That is what justifies
+# removal -- a green run afterward cannot show the removal was CORRECT, only
+# that it was HARMLESS.
+#
+# The GREEN run at 1f85dad68 is the harmless-removal proof: FI_EXIT=0 --
+# carrying, on its own, the fact that every dispatched cell completed -- and
 # fail-graph-write-once-then-succeed-documentation stayed green (69s, digest
 # 63558e35...) at the same digest value the family's other unscoped cells
 # produce, so removing the racy reclaim cell did not perturb what the
