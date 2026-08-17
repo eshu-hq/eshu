@@ -373,6 +373,21 @@ func Load(path string) (*Registry, error) {
 		if local == nil && ciOnlyReason == "" {
 			return nil, fmt.Errorf("ci-gates registry %s: gate %q has local==null but empty ci_only_reason (required when local is absent)", path, id)
 		}
+		// A local block with neither field is representable but meaningless:
+		// executeGates (go/cmd/ci-gates/execute.go) runs zero steps for it and
+		// still prints "PASS <gate>", indistinguishable from a gate that
+		// actually ran and passed. A gate with nothing to run locally should
+		// declare local==null (and a ci_only_reason) instead -- this is not
+		// that shape, since local is non-nil, just empty inside. Reject at
+		// load time so the shape is unrepresentable rather than merely
+		// unreachable from the current registry (#6149 follow-up item 8
+		// review, P1).
+		if local != nil && local.Command == "" && local.TestCommand == "" {
+			return nil, fmt.Errorf(
+				"ci-gates registry %s: gate %q declares a local block with neither command nor test_command -- either give it one, or declare local==null with a ci_only_reason instead",
+				path, id,
+			)
+		}
 		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
 		ciWorkflow := strings.TrimSpace(gf.CI.Workflow)
 		ciJob := strings.TrimSpace(gf.CI.Job)
