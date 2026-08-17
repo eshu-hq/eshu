@@ -32,8 +32,23 @@ func executeGates(w io.Writer, sels []cigates.Selection, repoRoot string) error 
 			continue
 		}
 
+		commands := localGateCommands(selection.Gate.Local)
+		if len(commands) == 0 {
+			// Load (go/internal/cigates/registry.go) now rejects this shape
+			// at registry-load time -- a local block with neither command
+			// nor test_command. This guards the other entry point: a Gate
+			// constructed directly (a future caller, a test double) skips
+			// Load's validation entirely. Without this, the loop below runs
+			// zero times, gateFailed never becomes true by initialization,
+			// and "PASS <gate>" prints for a gate that executed nothing --
+			// indistinguishable from one that genuinely ran and passed
+			// (#6149 follow-up item 8 review, P1).
+			_, _ = fmt.Fprintf(w, "SKIP     %s: gate declares no runnable local command\n", selection.Gate.ID)
+			continue
+		}
+
 		gateFailed := false
-		for _, localCommand := range localGateCommands(selection.Gate.Local) {
+		for _, localCommand := range commands {
 			action := "RUN"
 			if localCommand.label == "test_command" {
 				action = "TEST"

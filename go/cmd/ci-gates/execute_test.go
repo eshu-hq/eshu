@@ -137,6 +137,46 @@ func TestExecuteGatesEmptyCommandNotReportedAsRun(t *testing.T) {
 	assertTrace(t, repoRoot, "test\n")
 }
 
+// TestExecuteGatesZeroRunnableCommandsDoesNotPass proves a gate whose local
+// block has NEITHER a command nor a test_command -- a shape Load now rejects
+// (registry_test.go / load_test.go's TestLoad_LocalBlockWithNeitherCommandRejected)
+// but that a caller could still construct programmatically, bypassing the
+// registry file entirely -- never prints PASS. Before this test, the loop
+// over localGateCommands ran zero times, gateFailed stayed false by
+// initialization, and the gate printed "PASS <gate>" having executed
+// nothing: indistinguishable from a gate that ran and genuinely passed. The
+// registry-side fix (Load's new rule) guards the registry-authored path;
+// this guards any other path that constructs a Gate directly, which is why
+// this test constructs the Selection by hand rather than through an invalid
+// registry file (#6149 follow-up item 8 review, P1).
+func TestExecuteGatesZeroRunnableCommandsDoesNotPass(t *testing.T) {
+	t.Parallel()
+	repoRoot := t.TempDir()
+	selection := cigates.Selection{
+		Selected: true,
+		Gate: cigates.Gate{
+			ID:       "empty-local-gate",
+			Blocking: false,
+			Local: &cigates.Local{
+				Command:     "",
+				TestCommand: "",
+			},
+		},
+	}
+
+	var output bytes.Buffer
+	if err := executeGates(&output, []cigates.Selection{selection}, repoRoot); err != nil {
+		t.Fatalf("executeGates() error = %v, want nil (advisory, not blocking)", err)
+	}
+
+	if strings.Contains(output.String(), "PASS     empty-local-gate") {
+		t.Fatalf("executeGates() reported PASS for a gate that ran zero commands:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "SKIP     empty-local-gate: gate declares no runnable local command") {
+		t.Fatalf("executeGates() did not report the zero-command gate as skipped:\n%s", output.String())
+	}
+}
+
 func TestRunSubcommandExecutesTestCommand(t *testing.T) {
 	t.Parallel()
 	bin := buildBinary(t)
