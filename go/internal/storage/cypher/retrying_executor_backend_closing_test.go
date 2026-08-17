@@ -31,15 +31,21 @@ import (
 //	  write canonical gcp relationship edges: … Neo.ClientError.Statement.SyntaxError
 //	  (UNWIND MERGE chain relationship create failed: start node nornic:565f703f-… does not exist)
 //
-// The relationship one is the consequential half. GCPCloudResourceEdgeWriter
-// emits one statement per relationship type in sort.Strings(cypherTypes) order,
-// so a failure partway through leaves the alphabetical PREFIX of that scope's
-// types written and the SUFFIX missing. Nothing repairs that except a replay:
-// the handler's shouldSkipRetract stops skipping the prior-generation retract
-// once AttemptCount > 1, so attempt 2 sweeps the partial write and rewrites the
-// scope whole. Classified terminal, there is no attempt 2, and the scope keeps
-// a permanently truncated edge set while the drain reports the rest of the
-// graph healthy.
+// Classified terminal, each of these dead-lettered at attempt 1, and because
+// gcp_resource_materialization publishes the canonical-nodes-committed phase,
+// the relationship intents behind it then waited on a readiness gate that could
+// never open. The drain never reached residual=0.
+//
+// Replay is safe here for a measured reason, not an assumed one. An earlier
+// version of this comment argued that these statements go out one per
+// relationship type in sort.Strings(cypherTypes) order, so an interrupted write
+// leaves an alphabetical prefix that only a replay can sweep. Probed against
+// the pinned image, that is not what happens: restarting the backend under a
+// 20,000-statement transaction rolled every one of the 4,597 already-executed
+// statements back (survived=0) and failed loudly. The group is atomic on this
+// path, so a replay has nothing partial to double-apply — a weaker premise than
+// the original, and the correct one. See
+// evidence-6142-backend-restart-transient-classification.md.
 
 // TestBackendClosedDuringMergeChainRemainsQueueRetryable covers the
 // unambiguous half: the store answered "DB Closed". No statement-shape guard

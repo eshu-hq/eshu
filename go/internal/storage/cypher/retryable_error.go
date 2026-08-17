@@ -165,10 +165,13 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 // that file already excludes the driver's own CommitFailedDeadError for
 // exactly that reason. Queue replay needs no such observation: it re-runs the
 // whole handler, and the canonical writers it drives are MERGE-shaped upserts
-// that converge on the same node or edge however many times they run. The
-// relationship handlers go further -- shouldSkipRetract stops skipping the
-// prior-generation retract once AttemptCount exceeds 1 -- so a partially
-// applied attempt is swept before the replay rewrites it rather than doubled.
+// that converge on the same node or edge however many times they run. Measured
+// against the pinned image, a restart under a long grouped transaction rolls
+// every executed statement back rather than tearing, so a replay finds nothing
+// half-applied to begin with; and the relationship handlers keep a second
+// guarantee anyway -- shouldSkipRetract stops skipping the prior-generation
+// retract once AttemptCount exceeds 1, which would sweep a partial from any
+// other source before the replay rewrites the scope.
 //
 // Both the code and the message are required, matching the start-failure guard
 // beside it: NornicDB reports this backend-unavailable condition under a

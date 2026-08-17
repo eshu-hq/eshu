@@ -82,19 +82,16 @@ points the dead-letter follows every time; only *whether* it lands there is
 timing-dependent, which is why the gate is intermittent and why a larger, faster
 reference host does not expose it.
 
-### Why this also explains a silent digest divergence
+### What this does NOT explain: CI's truncated edge set
 
-`GCPCloudResourceEdgeWriter.WriteCloudResourceEdges` sorts relationship types
-(`sort.Strings(cypherTypes)`) and emits one statement per type in that order, so
-a failure partway through leaves the alphabetical PREFIX of a scope's types
-written and the SUFFIX missing. The only thing that repairs a partial write is a
-replay: `shouldSkipRetract` stops skipping the prior-generation retract once
-`AttemptCount > 1`, so attempt 2 sweeps the partial write and rewrites the scope
-whole. Classified terminal, there is no attempt 2.
+CI's failing cell had `dead_letter=0` and a converged drain. Every shape fixed
+here dead-letters. So none of them produces CI's signature, and this section
+records what was measured about the leading alternative rather than leaving a
+plausible story standing.
 
-That signature matches CI's failing artifact exactly. Measured against the
-locally reproduced baseline (which carries CI's baseline digest), of the 114
-distinct GCP relationship types `supply-chain-demo-project` holds:
+**The observation stands.** Measured against the locally reproduced baseline
+(which carries CI's baseline digest), of the 114 distinct GCP relationship types
+`supply-chain-demo-project` holds:
 
 ```
 cut = GCP_route_next_hop_vpn_tunnel
@@ -103,11 +100,62 @@ cut = GCP_route_next_hop_vpn_tunnel
   exceptions in either direction: 0
 ```
 
-A strict contiguous suffix. The canonical dump sorts by node content digest, not
-by relationship type (`graphdump.byCanonicalBytes`, `from` first), so clustering
-in type space cannot be a `diff -u` alignment artifact — unlike the artifact's
-"51 removed / 50 added" record framing, which is only the cheapest line
-alignment and should not be read at record level.
+A strict contiguous suffix, and a real one: the canonical dump sorts by node
+content digest, not by relationship type (`graphdump.byCanonicalBytes`, `from`
+first), so clustering in type space cannot be a `diff -u` alignment artifact —
+unlike the artifact's "51 removed / 50 added" record framing, which is only the
+cheapest line alignment and must not be read at record level.
+
+**The reading it suggested is rejected by measurement.** Because
+`GCPCloudResourceEdgeWriter.WriteCloudResourceEdges` emits one statement per
+type in `sort.Strings(cypherTypes)` order, a suffix-shaped loss looks exactly
+like a statement group that applied a PREFIX and still reported success. It is
+not what this backend does. Probed against the pinned image by restarting the
+backend under a long transaction built from the real upsert constant:
+
+```
+reached=4597/20000 statements executed before the restart landed
+driverError=Neo4jError: Neo.ClientError.Statement.SyntaxError
+            (DB::Get key: "\x01system:migration:legacy_data" err: DB Closed)
+survived=0/20000
+```
+
+Full rollback, loud failure. Nothing was left behind. A companion probe ran 60
+per-type statements in one transaction on a healthy backend: 60/60 applied. And
+the reducer genuinely takes that grouped single-transaction path —
+`reducerNeo4jExecutor` defines `ExecuteGroup` unconditionally so the
+`GroupExecutor` assertion in `dispatch` succeeds, and
+`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` gates only *semantic* writes
+(`cmd/reducer/multi_cloud_runtime_drift_wiring.go`), not this writer.
+
+**So the cause of CI's truncated edge set is unidentified.** Not the three
+shapes fixed here (all dead-letter; CI had none). Not a torn group (measured,
+rejected). Not supersession — that requires a newer active generation for the
+same scope (`supersedeInactiveReducerGenerationsCTE`, which does sweep
+`dead_letter`), and this cell drives exactly one generation per scope, which the
+run's own `skip_retract=true` lines assert. Anyone picking this up next should
+start from that unexplained signature, not from the prefix story.
+
+### Measured backend behaviour (pinned image, throwaway probe)
+
+Run against `eshu-nornicdb-pr290:3722b483c02c` using the real
+`canonicalGCPCloudResourceEdgeUpsertCypherFormat` constant, reading
+`ResultSummary.Counters()`:
+
+| case | ContainsUpdates | RelationshipsCreated | PropertiesSet | edges in graph |
+|---|---|---|---|---|
+| A both endpoints present | true | 1 | 0 | 1 (correct) |
+| B target endpoint absent | false | 0 | 0 | 0 (correct, by design) |
+| C idempotent rewrite of A | false | 0 | 0 | 1 (correct) |
+| D 1 valid + 1 missing endpoint | true | 1 | 0 | 1 of 2 rows |
+
+Two things worth keeping. First, case A writes: there is no #5652-style silent
+drop on this statement. Second, and more reusable — **B and C are byte-identical
+on every counter** while B wrote nothing and C correctly rewrote an existing
+edge. NornicDB reports `PropertiesSet=0` even when the `SET` ran against an
+existing relationship. So counter-based write-accounting cannot distinguish
+"wrote nothing" from "nothing needed writing" on this backend; detecting a lost
+write needs a read-back or a returned row count, not `Counters()`.
 
 ## Fix
 
@@ -191,13 +239,20 @@ wrong answer recorded in `fact_work_items.failure_class`.
 
 ## Known gaps
 
-Two, named rather than left implied.
+Two, named rather than left implied. An earlier revision of this file listed a
+third — "the write is still not atomic", asserting that an interrupted GCP
+relationship edge write leaves a partial scope until a replay repairs it. That
+was written before the backend was probed and is **false on this path**: the
+statements go out as one grouped transaction and a restart rolls the whole thing
+back (`survived=0/20000` above). It is recorded here rather than silently
+deleted because it was the reasoning the fix was originally justified by, and
+the justification that survives is the weaker, correct one — replay is safe
+because the backend discards everything, not because a replay sweeps a partial.
 
-**The write is still not atomic.** A GCP relationship edge write is a sequence
-of per-type statements, so an interrupted one is partial until a replay repairs
-it. This change guarantees the replay happens; it does not make the write
-atomic, and a partially written scope is briefly visible to a reader between the
-failure and the replay.
+**CI's truncated edge set is still unexplained.** See the section above. The
+three shapes fixed here all dead-letter; CI's failing cell had `dead_letter=0`
+and a converged drain. This change removes three real ways the restart cell
+fails. It is not known to be the change that makes CI's specific failure stop.
 
 **A genuine missing-endpoint bug now reports a different class.** If a start
 node is absent for a real reason — a projection ordering defect rather than a

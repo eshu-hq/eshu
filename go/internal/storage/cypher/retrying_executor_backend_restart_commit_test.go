@@ -72,9 +72,12 @@ func TestBackendRestartCommitBlockedWritesRemainsQueueRetryable(t *testing.T) {
 // classifyTransientNeo4jError already excludes the driver's own
 // CommitFailedDeadError for exactly that reason. Recovery therefore belongs to
 // the durable queue, which replays the whole handler -- idempotent by
-// construction, because the canonical writers are MERGE-shaped and
-// shouldSkipRetract forces a full prior-edge retract once AttemptCount > 1, so
-// a partially-applied prior attempt is cleaned up rather than doubled. Retrying
+// construction, because the canonical writers are MERGE-shaped, and safe
+// besides because a restart under a grouped transaction was measured to roll
+// every executed statement back rather than tear (see
+// evidence-6142-backend-restart-transient-classification.md). shouldSkipRetract
+// forcing a full prior-edge retract once AttemptCount > 1 is a second guarantee
+// on top of that, not the load-bearing one. Retrying
 // the transaction body in place carries no such guarantee, and during a real
 // restart it would burn the whole in-place budget inside the first second of a
 // multi-second outage anyway.
