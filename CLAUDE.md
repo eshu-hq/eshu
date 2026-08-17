@@ -431,6 +431,20 @@ git diff --check
 Docs, root agent files, and README changes require the docs build plus
 `git diff --check`.
 
+The bare `golangci-lint run ./...` above needs the repo's custom `filelength`
+and `dirgate` linter plugins built first in a fresh clone or worktree --
+otherwise it fails with `plugin.Open` / "unable to load custom analyzer"
+naming `tools/golangci-lint-filelength/filelength.so` or
+`tools/golangci-lint-dirgate/dirgate.so`. Build both once per clone/worktree
+with `cd tools/golangci-lint-filelength && make build` and
+`cd tools/golangci-lint-dirgate && make build` (the `.so` files are
+gitignored, so this is a per-checkout step, not a one-time repo action).
+`scripts/dev/precommit-go.sh lint`/`lint-all` (what `make pre-pr` actually
+runs) avoid this entirely by running against a config copy with both plugins
+stripped -- see that script's own header for why, and prefer it over the bare
+command when you only need the day-to-day check, not a `plugin.Open`
+diagnosis.
+
 ## Orchestration, PR, And CI Discipline
 
 - For substantive implementation, review, and research, the orchestrator MUST
