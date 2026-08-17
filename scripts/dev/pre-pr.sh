@@ -305,6 +305,22 @@ step_race() {
 # it can reach (golden-corpus is the common one). Force-defer everything with
 # ESHU_PREPR_SKIP_LIVE=1 (records the deferral; CI stays the backstop for the
 # deferred gates only).
+#
+# live_deferred only ever recorded ONE of the ways a stamped run can validate
+# less than "everything": a triggered live gate whose prerequisite was
+# missing, or a forced ESHU_PREPR_SKIP_LIVE=1. It said nothing about the
+# documentation-only fast path (below, pre_pr_decide_lane) skipping the whole
+# static Go lane and the race lane — those were only ever printed to the
+# terminal's own summary (results+=("SKIP ...")), never persisted to the
+# stamp file a later reader consults without having seen that terminal
+# output. An empty stamp `deferred=` field was cited as "everything ran" on a
+# run where the fast path had in fact skipped several steps — the field
+# NAME, not just its emptiness, was the trap: it only ever tracked the live
+# lane, so its being empty proved nothing about the fast-path lane. Recorded
+# separately below as fast_path_skipped, and the stamp field itself renamed
+# from the ambiguous "deferred=" to "live_lane_deferred=" so neither an empty
+# value nor the bare key name can be misread as "nothing was skipped".
+fast_path_skipped=()
 live_deferred=()
 
 # changed_paths was a byte-identical second copy of changed_all_files. Two
@@ -413,6 +429,7 @@ if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 else
 	while IFS= read -r pre_pr_skip_name; do
 		results+=("SKIP  ${pre_pr_skip_name} (documentation-only fast path)")
+		fast_path_skipped+=("${pre_pr_skip_name}")
 	done < <(pre_pr_fast_lane_skip_steps)
 fi
 # go test runs on BOTH lanes, always. Its own scope (changed-Go-package dirs
@@ -432,6 +449,7 @@ if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_step "race lane (Go changes)" step_race
 else
 	results+=("SKIP  race lane (Go changes) (documentation-only fast path)")
+	fast_path_skipped+=("race lane (Go changes)")
 fi
 run_step "path-triggered live lane" step_live
 
@@ -443,16 +461,26 @@ else
 	# Stamp this exact HEAD so the pre-push hook can prove `make pre-pr` passed
 	# on the commit being pushed (scripts/dev/prepr-stamp-verify.sh). The stamp
 	# lives under the shared git common dir, keyed per-SHA so concurrent
-	# worktrees never clobber each other, and records any live gates deferred to
-	# CI so the push is honest about what was validated locally.
+	# worktrees never clobber each other, and records BOTH skip classes so the
+	# push is honest about what was validated locally: live_lane_deferred (a
+	# path-triggered live gate whose prerequisite was missing, or a forced
+	# ESHU_PREPR_SKIP_LIVE=1) and fast_path_skipped (the whole static Go lane
+	# or the race lane, skipped because the diff classified as
+	# documentation-only). Neither field's key is the ambiguous "deferred="
+	# this stamp used to write — a reader consulting only the stamp, without
+	# having seen the run's own terminal summary, could not tell "nothing was
+	# skipped" from "the field that would have said so didn't track this skip
+	# class" (see the fast_path_skipped declaration above for the incident).
 	head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
 	common_dir="$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 	if [[ -n "${head_sha}" && -n "${common_dir}" ]]; then
 		stamp_dir="${common_dir}/eshu-prepr-stamp"
 		mkdir -p "${stamp_dir}"
-		printf 'sha=%s\ndeferred=%s\n' "${head_sha}" "${live_deferred[*]:-}" > "${stamp_dir}/${head_sha}"
+		printf 'sha=%s\nlive_lane_deferred=%s\nfast_path_skipped=%s\n' \
+			"${head_sha}" "${live_deferred[*]:-}" "${fast_path_skipped[*]:-}" > "${stamp_dir}/${head_sha}"
 		printf '\n\033[32mpre-pr: all local gates passed — stamped %s' "${head_sha:0:12}"
 		[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
+		[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"
 		printf '.\033[0m\n'
 	else
 		printf '\n\033[32mpre-pr: all local gates passed.\033[0m\n'

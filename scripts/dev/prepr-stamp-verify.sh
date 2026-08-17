@@ -64,9 +64,21 @@ for sha in "${shas[@]}"; do
 		blocked=1
 		continue
 	fi
-	deferred="$(sed -n 's/^deferred=//p' "${stamp_dir}/${sha}" 2>/dev/null)"
-	if [[ -n "${deferred}" ]]; then
-		printf 'prepr-stamp-verify: %s stamped; live gates deferred to CI: %s\n' "${sha:0:12}" "${deferred}" >&2
+	# Two distinct skip classes, two distinct stamp fields (renamed from the
+	# single ambiguous "deferred=" this stamp used to write -- see
+	# fast_path_skipped's declaration in pre-pr.sh for why): live_lane_deferred
+	# is a path-triggered live gate whose prerequisite was missing or a forced
+	# ESHU_PREPR_SKIP_LIVE=1; fast_path_skipped is the whole static Go lane or
+	# the race lane, skipped because the diff classified as documentation-only.
+	# Report both, so a reader here sees the same honesty the stamp file itself
+	# now carries instead of only the live-lane half of it.
+	live_lane_deferred="$(sed -n 's/^live_lane_deferred=//p' "${stamp_dir}/${sha}" 2>/dev/null)"
+	if [[ -n "${live_lane_deferred}" ]]; then
+		printf 'prepr-stamp-verify: %s stamped; live gates deferred to CI: %s\n' "${sha:0:12}" "${live_lane_deferred}" >&2
+	fi
+	fast_path_skipped="$(sed -n 's/^fast_path_skipped=//p' "${stamp_dir}/${sha}" 2>/dev/null)"
+	if [[ -n "${fast_path_skipped}" ]]; then
+		printf 'prepr-stamp-verify: %s stamped; fast-path skipped locally: %s\n' "${sha:0:12}" "${fast_path_skipped}" >&2
 	fi
 done
 
