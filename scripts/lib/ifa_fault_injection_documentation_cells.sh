@@ -19,21 +19,6 @@
 # specifically -- the same #5555 gap the SQL cells closed for
 # sql_relationship_materialization.
 #
-#   - cell_expirelease_documentation provably targets the documentation work
-#     item by scoping both ifa_fault_wait_for_claimed and the forced-expiry
-#     UPDATE to domain=documentation_materialization. It proves
-#     lease-expiry-mid-handler reclaim (KindExpireLeaseMidHandler), NOT
-#     killed-process reclaim (KindKillWorkerAfterClaim) -- deliberately, not
-#     as a downgrade. #6149 follow-up item 8 found that
-#     DocumentationEdgeMaterializationHandler.Handle performs no Postgres
-#     write at all (only two graph writes through the same EdgeWriter,
-#     confirmed at the interface, handler-struct-wiring, and concrete-writer-
-#     construction level in go/cmd/reducer/main.go); every sibling family
-#     that has a kill-worker cell (code_calls, deployable_unit_correlation)
-#     does have a Postgres write in Handle to lock as the deterministic
-#     blocker, so this family cannot make the kill-worker trigger
-#     deterministic the way its siblings do. See the cell's own header for
-#     the full reasoning and what it does and does not prove.
 #   - cell_failgraphwrite_documentation anchors the graph-write fault to the
 #     DOCUMENTS edge MERGE and proves the fault fired via
 #     ifa_fault_assert_once_fault_marker, reading the durable marker the fault
@@ -41,23 +26,63 @@
 #     grep shelled out to `rg`, which the runner lacks, and its "command not
 #     found" read as "no fault" for months).
 #
+# THIS FAMILY HAS NO DETERMINISTIC MID-HANDLER FAULT CELL (#6149 follow-up
+# item 8, both a ruling and its correction). Every sibling family with a
+# kill-worker cell (code_calls, deployable_unit_correlation) has a Postgres
+# write in Handle to hold a real ACCESS EXCLUSIVE lock on, which blocks the
+# handler from acknowledging before a kill -9 lands. #6149 follow-up item 8
+# first found that DocumentationEdgeMaterializationHandler.Handle performs no
+# Postgres write at all (only two graph writes through the same EdgeWriter,
+# confirmed at the interface, handler-struct-wiring, and concrete-writer-
+# construction level in go/cmd/reducer/main.go) and, on that basis, replaced
+# the wrong-table kill-worker lock with a domain-scoped expire-lease cell
+# (forcing `claim_until = now()` on the claimed row, mirroring the generic
+# cell_expirelease in ifa_fault_injection_cells.sh:115-141) instead of a held
+# lock. That ALSO failed on the live matrix: the handler completed in
+# `duration_seconds: 0.0073` (7ms) end to end, so by the time the forced-
+# expiry UPDATE ran as its own separate step the row had already reached
+# 'succeeded' and `WHERE status IN ('claimed', 'running')` matched zero rows.
+# Nothing was expired, nothing was reclaimed, attempt_count never moved above
+# baseline. Domain-scoping cell_expirelease reintroduced exactly the race the
+# original lock was supposed to remove, just moved from "the lock blocks
+# nothing" to "the trigger never lands" -- a different vacuous shape, not a
+# fix.
+#
+# There is no existing mechanism in this harness that can hold a 7ms handler
+# open long enough for either trigger (kill -9 or a forced-expiry UPDATE
+# issued as a separate SQL round-trip) to land deterministically, because
+# neither trigger blocks the handler itself -- they both race it. What WOULD
+# close this: a hang/block fault mode in the in-binary decorator
+# (go/internal/storage/cypher/fault_executor.go), which could pause the
+# DOCUMENTS edge MERGE mid-transaction the same way
+# fail-graph-write-once-then-succeed already intercepts it to fail it once --
+# giving kill-worker or expire-lease a real window without needing a Postgres
+# write to lock. That is new decorator capability, not a bash-harness change,
+# and it is out of scope here; a future family whose handler is provably slow
+# enough (or whose handler gains a real Postgres write) should re-evaluate
+# before copying this family's gap forward.
+#
+# The loss this leaves is bounded and stated precisely, not implied: mid-
+# handler interruption (a worker process dying, or a lease expiring, while
+# this domain's row is claimed) is UNPROVEN for documentation_materialization.
+# Injected graph-write failure is NOT unproven -- cell_failgraphwrite_documentation
+# below exercises the family's real write path through the fault decorator's
+# genuine fail-graph-write-once-then-succeed mode and remains full coverage
+# for that fault class.
+#
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
 # function here reads driver-owned globals (bin_dir, tagged_bin_dir, log_dir,
 # work_dir, wall_times, use_compose, compose_file, documentation_edge_operation_match,
-# documentation_expected_edges, baseline_documentation_retried,
-# CLAIMED_ROW_WAIT_TIMEOUT, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, bg_pids,
-# log, die, plus the fresh_stack / drive_all_cassettes / run_drain_gate /
-# assert_no_dead_letters / capture_digest / assert_matches_baseline /
-# teardown_cell helpers) rather than taking them as arguments. Sources
-# scripts/lib/ifa_documentation_live.sh for ifa_documentation_assert.
-#
-# baseline_documentation_retried IS set by this file's caller: cell_baseline
-# (ifa_fault_injection_cells.sh, a shared file this worktree does not own)
-# captures it the same way it captures baseline_code_call_retried, against a
-# genuinely fault-free drive. (An earlier version of this comment claimed the
-# splice had not landed yet; it had, and the comment had gone stale -- fixed
-# here rather than left to mislead the next reader.)
+# documentation_expected_edges, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN,
+# bg_pids, log, die, plus the fresh_stack / drive_all_cassettes /
+# run_drain_gate / assert_no_dead_letters / capture_digest /
+# assert_matches_baseline / teardown_cell helpers) rather than taking them as
+# arguments. Sources scripts/lib/ifa_documentation_live.sh for
+# ifa_documentation_assert. baseline_documentation_retried and
+# CLAIMED_ROW_WAIT_TIMEOUT are cell_baseline/reclaim-cell globals this file no
+# longer reads now that the family has no reclaim cell -- see the gap note
+# above.
 
 # ifa_documentation_require_fresh_documents_edges fails closed unless a fresh
 # stack has a numeric zero count of DOCUMENTS edges in the live graph. This
@@ -146,72 +171,6 @@ ifa_documentation_require_fresh_documents_edges() {
 		return 1
 	fi
 	printf '%s: fresh-stack precondition: 0 DOCUMENTS edges in the graph\n' "${cell}"
-}
-
-# cell_expirelease_documentation proves documentation_materialization's
-# reclaim path recovers a lease that expires while the handler may still be
-# running, WITHOUT holding any lock -- there is no Postgres write in
-# DocumentationEdgeMaterializationHandler.Handle to block on (#6149 follow-up
-# item 8; see this file's own header for the full trace). This is a
-# DIFFERENT guarantee than a kill-worker cell proves, not a weaker
-# implementation of the same one:
-#
-#   - code_calls and deployable_unit_correlation each hold a genuine
-#     ACCESS EXCLUSIVE lock on a Postgres table their own Handle writes,
-#     which blocks the handler from acknowledging BEFORE a kill -9 lands --
-#     that proves recovery from a worker PROCESS DYING mid-handler
-#     (KindKillWorkerAfterClaim).
-#   - This cell forces `claim_until = now()` on the genuinely claimed row
-#     (mirroring cell_expirelease, the generic/unscoped sibling in
-#     ifa_fault_injection_cells.sh:115-141, domain-scoped here the same way
-#     the kill-worker cells already domain-scope their claimed-row wait) --
-#     no process is killed, and the original handler goroutine may still be
-#     running concurrently with the reclaim. That proves recovery from a
-#     LEASE EXPIRING WHILE THE HANDLER MAY STILL BE ALIVE
-#     (KindExpireLeaseMidHandler, the design doc's "opposite trigger" sibling
-#     of kill-worker -- docs/internal/design/4389-ifa-conformance-platform.md,
-#     Layer 4; faultreplay/script.go's KindExpireLeaseMidHandler doc comment).
-#
-# Do NOT read this cell as proving "a killed reducer process's claim on this
-# domain gets reclaimed" -- it does not, and cannot, until this family gains
-# some other durable write a lock could target. If Handle ever gains a
-# Postgres write (an IntentWriter, an admission-decision write, anything),
-# revisit whether a real kill-worker cell becomes possible here.
-#
-# UNPROVEN as committed: this needs a live fault-injection matrix run
-# (Docker + NornicDB + Postgres) to confirm the forced expiry actually lands
-# while a row is claimed and that the reclaim converges to the same
-# three-edge exact set with attempt_count above baseline. Static gates below
-# (syntax, structural pins, mirror tests) are green; the live behavior is
-# not proven by this commit.
-cell_expirelease_documentation() {
-	local cell_start
-	cell_start=$(date +%s)
-	log "cell expire-lease-mid-handler-documentation: fresh stack"
-	fresh_stack expireleasedocumentation
-	drive_all_cassettes expireleasedocumentation
-	local projector_pid reducer_pid claimed_before
-	ifa_det_start_bg "${log_dir}" "projector-expireleasedocumentation" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-expireleasedocumentation" reducer_pid "${bin_dir}/eshu-reducer"
-	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "documentation_materialization")" \
-		|| die "expire-lease-mid-handler-documentation: no documentation_materialization row was ever claimed -- non-vacuous precondition failed"
-	printf 'expire-lease-mid-handler-documentation: non-vacuous: %s claimed/running documentation_materialization row(s) observed before forced expiry\n' "${claimed_before}"
-	log "expire-lease-mid-handler-documentation: force claim_until = now() on documentation_materialization's claimed/running rows only (SQL, no kill, no lock)"
-	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"UPDATE fact_work_items SET claim_until = now() WHERE stage = 'reducer' AND status IN ('claimed', 'running') AND domain = 'documentation_materialization';" \
-		"${compose_file}" >/dev/null
-	run_drain_gate expireleasedocumentation
-	assert_no_dead_letters expireleasedocumentation
-	ifa_documentation_assert "expireleasedocumentation" "${bin_dir}" "${documentation_expected_edges}" \
-		|| die "expire-lease-mid-handler-documentation: recovered graph does not match the three-edge exact set"
-	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${baseline_documentation_retried}" 15 "documentation_materialization" \
-		|| die "expire-lease-mid-handler-documentation: documentation_materialization did not re-execute above its fault-free retry baseline -- evidence of reclaim after the forced expiry"
-	capture_digest expireleasedocumentation
-	assert_matches_baseline expireleasedocumentation
-	teardown_cell expireleasedocumentation
-	wall_times[expireleasedocumentation]=$(( $(date +%s) - cell_start ))
-	printf 'expire-lease-mid-handler-documentation: cell wall time: %ss\n' "${wall_times[expireleasedocumentation]}"
 }
 
 # cell_failgraphwrite_documentation: the tagged (-tags ifafaultinjection)

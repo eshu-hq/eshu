@@ -7,13 +7,16 @@
 # test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed case
 # for the fresh-stack guard shape.
 #
-# This family no longer holds an intent lock at all (#6149 follow-up item 8):
-# DocumentationEdgeMaterializationHandler.Handle performs no Postgres write,
-# so cell_expirelease_documentation (ifa_fault_injection_documentation_cells.sh)
-# proves reclaim via forced lease expiry, not via a held lock plus kill -9 --
-# see that cell's own header. There is accordingly no lock-holder-teardown
-# case here any more; that coverage applied to a mechanism this family no
-# longer has.
+# This family no longer holds an intent lock at all, and no longer has any
+# mid-handler-interruption fault cell (#6149 follow-up item 8, both a ruling
+# and its correction). DocumentationEdgeMaterializationHandler.Handle
+# performs no Postgres write, so there is nothing a kill-worker cell can
+# lock; an attempted domain-scoped expire-lease replacement also failed on
+# the live matrix because the handler's ~7ms duration races the forced-expiry
+# UPDATE. See ifa_fault_injection_documentation_cells.sh's own header for the
+# full trace. There is accordingly no lock-holder-teardown case, and no
+# reclaim-cell case, here any more; that coverage applied to mechanisms this
+# family no longer has.
 #
 # Sourced by scripts/test-verify-ifa-fault-injection.sh alongside
 # test-ifa-fault-injection-review-cases.sh, so the top-level static verifier
@@ -130,8 +133,8 @@ STUB
 # parent's scope, not at source time.
 run_ifa_fault_injection_documentation_registry_cases() {
 	# documentation_edges (#5994): every cell drives the family via
-	# cell_baseline's drive_all_cassettes, baseline exact-asserts it, and two
-	# dedicated cells prove queue reclaim and graph-write retry against the
+	# cell_baseline's drive_all_cassettes, baseline exact-asserts it, and one
+	# dedicated cell proves graph-write retry against the
 	# documentation_materialization domain rather than an unrelated row that
 	# happened to run first. The family also proves the SqlTable target case
 	# (batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation,
@@ -144,49 +147,40 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	require "documentation reclaim cell invocation" "cell_expirelease_documentation"
 	require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
 	# #6149 follow-up item 8: DocumentationEdgeMaterializationHandler.Handle
 	# has no Postgres write to lock (only two graph writes through the same
 	# EdgeWriter), so this family cannot make a kill-worker cell deterministic
-	# the way code_calls/deployable_unit_correlation can.
-	# cell_expirelease_documentation proves the "opposite trigger" guarantee
-	# (KindExpireLeaseMidHandler) instead of kill-worker
-	# (KindKillWorkerAfterClaim) -- a different, real guarantee, not a
-	# downgrade pretending to be the same one. Pin that the old kill-worker
-	# mechanism (name, lock helpers, and the lock table it targeted) is
-	# genuinely gone, not merely renamed.
+	# the way code_calls/deployable_unit_correlation can. A domain-scoped
+	# expire-lease cell was tried as a replacement and also failed live: the
+	# handler's ~7ms duration races the forced-expiry UPDATE, so the trigger
+	# never lands. Both mechanisms (name, lock helpers, the lock table they
+	# targeted, and the reclaim cell itself) must be genuinely gone, not
+	# merely renamed or swapped for an equally-vacuous sibling.
 	rg --quiet --fixed-strings -- 'cell_killworker_documentation() {' "${documentation_cells_lib}" \
 		&& fail "the old cell_killworker_documentation name must not survive as a callable function definition in ${documentation_cells_lib}"
+	rg --quiet --fixed-strings -- 'cell_expirelease_documentation() {' "${documentation_cells_lib}" \
+		&& fail "cell_expirelease_documentation must not survive as a callable function definition in ${documentation_cells_lib} -- it does not fire the fault live (#6149 follow-up item 8 correction)"
 	rg --quiet --fixed-strings -- 'ifa_documentation_start_intent_lock' "${documentation_cells_lib}" \
 		&& fail "ifa_documentation_start_intent_lock must not survive in ${documentation_cells_lib} -- this family holds no lock any more (#6149 follow-up item 8)"
 	rg --quiet --fixed-strings -- 'ifa_documentation_release_intent_lock' "${documentation_cells_lib}" \
 		&& fail "ifa_documentation_release_intent_lock must not survive in ${documentation_cells_lib} -- this family holds no lock any more (#6149 follow-up item 8)"
 	rg --quiet --fixed-strings -- 'LOCK TABLE shared_projection_intents' "${documentation_cells_lib}" \
 		&& fail "no cell in ${documentation_cells_lib} may lock shared_projection_intents any more -- the handler never writes it (#6149 follow-up item 8)"
-	# The header must state plainly which recovery is proven and which is
-	# not, and why -- the exact honesty requirement this item exists to
-	# enforce (a copied header asserting something true of a sibling and
-	# false of this family was the single most repeated defect in this
-	# epic).
-	require_documentation_cells "cell_expirelease_documentation header names the guarantee it proves" "KindExpireLeaseMidHandler"
-	require_documentation_cells "cell_expirelease_documentation header names the guarantee it does NOT prove" "KindKillWorkerAfterClaim"
-	require_documentation_cells "cell_expirelease_documentation header states the architectural reason (no Postgres write)" "there is no Postgres write in"
-	require_documentation_cells "cell_expirelease_documentation header states it is unproven pending a live matrix" "UNPROVEN as committed"
-	# Per-domain non-vacuity: a claimed row scoped to
-	# documentation_materialization observed before the forced expiry, and
-	# the forced expiry itself scoped to that domain only (not every
-	# claimed/running row in the reducer, which would collaterally expire
-	# every other concurrently-running family's lease too).
-	require_documentation_cells "expire-lease cell scopes the claimed-row wait to documentation_materialization" '"documentation_materialization")"'
-	require_documentation_cells "expire-lease cell scopes the forced-expiry UPDATE to documentation_materialization" "AND domain = 'documentation_materialization'"
-	require_documentation_cells "expire-lease cell reports non-vacuous evidence before forcing expiry" "non-vacuous:"
-	require_documentation_cells "expire-lease cell proves reclaim after via the retry-baseline delta" "evidence of reclaim after the forced expiry"
+	rg --quiet --fixed-strings -- 'ifa_fault_wait_for_claimed' "${documentation_cells_lib}" \
+		&& fail "ifa_fault_wait_for_claimed must not survive in ${documentation_cells_lib} -- it belonged only to the removed expire-lease cell (#6149 follow-up item 8 correction)"
+	# The header must state plainly that this family has no deterministic
+	# mid-handler fault cell, why, and what would close the gap -- the exact
+	# honesty requirement this item exists to enforce (a cell that could not
+	# be made deterministic was the single most repeated defect in this
+	# epic, first as a wrong-table lock, then as a raced expire-lease UPDATE).
+	require_documentation_cells "documentation cells header states the family has no deterministic mid-handler fault cell" "NO DETERMINISTIC MID-HANDLER FAULT CELL"
+	require_documentation_cells "documentation cells header states the measured handler duration that defeats both triggers" "duration_seconds: 0.0073"
+	require_documentation_cells "documentation cells header names what would close the gap" "fault_executor.go"
+	require_documentation_cells "documentation cells header states the precise, bounded loss" "UNPROVEN for documentation_materialization"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-	require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
-	require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
 	# #6149 precedent (deployable_unit_edges): documentationEdgeMaterializationHandler
@@ -211,7 +205,7 @@ run_ifa_fault_injection_documentation_registry_cases() {
 		&& fail "ifa_documentation_require_fresh_documents_edges must not query shared_projection_intents any more (vacuous for this family -- documentationEdgeMaterializationHandler never writes it) in ${documentation_cells_lib}"
 	rg --quiet --fixed-strings -- 'ifa_documentation_require_fresh_intents() {' "${documentation_cells_lib}" \
 		&& fail "the old ifa_documentation_require_fresh_intents name must not survive as a callable function definition in ${documentation_cells_lib} (the name may still appear in prose explaining the rename)"
-	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+	require_documentation_cells "graph-write cell exact-asserts three edges" "ifa_documentation_assert"
 	# #6149 follow-up item 9: the fail-graph-write cell used to also print a
 	# documentation_edges shared_projection_intents "intent window" that
 	# always read total=0 (the same vacuous table this family never writes --

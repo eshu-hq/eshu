@@ -85,8 +85,15 @@
 # its fired-fault marker called a binary the runner does not have (#5974), and
 # is green live now that the assertion matches in bash. #5994 added the
 # documentation cassette, its per-cell absolute DOCUMENTS assertion, the static
-# gate mirrors, and two domain-scoped fault cells, retiring both of that
-# family's waivers. Every remaining
+# gate mirrors, and one domain-scoped fault cell (graph-write failure),
+# retiring both of that family's waivers. #6149 follow-up item 8 later found
+# and removed a second, dedicated reclaim cell for that family: neither a
+# kill-worker lock (wrong table, blocked nothing) nor a domain-scoped
+# expire-lease UPDATE (raced the handler's ~7ms completion, never landed)
+# could be made deterministic, so mid-handler-interruption coverage for
+# documentation_edges is a named, documented gap rather than a proven cell --
+# see scripts/lib/ifa_fault_injection_documentation_cells.sh's header. Every
+# remaining
 # allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
 # `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
 # #5543, which is now decomposed into per-domain child issues #5991-#6003;
@@ -167,12 +174,17 @@ coverage:
   # which could not materialize at all until this change added SqlTable to
   # batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation; the
   # extractor already emitted the row, so the edge was lost at the writer.
-  # The fault matrix drives the same cassette in every cell; its kill-worker cell
-  # proves a claimed documentation_materialization row is reclaimed, and its
-  # one-shot graph-write cell proves the DOCUMENTS write retries through a
-  # durable marker written by the fault decorator at injection time -- not read
-  # from the reducer log, the #5974 failure mode -- before both cells re-assert
-  # the same exact set.
+  # The fault matrix drives the same cassette in every cell; its one-shot
+  # graph-write cell proves the DOCUMENTS write retries through a durable
+  # marker written by the fault decorator at injection time -- not read from
+  # the reducer log, the #5974 failure mode -- before re-asserting the exact
+  # set. This family has no reclaim cell: DocumentationEdgeMaterializationHandler.Handle
+  # has no Postgres write for a kill-worker lock to target, and its ~7ms
+  # completion races a domain-scoped expire-lease UPDATE before it can land
+  # (#6149 follow-up item 8, both attempts and why neither survived). The
+  # fault dimension below is real, unwaived coverage for injected graph-write
+  # failure; mid-handler interruption for this family remains a named,
+  # documented gap, not silent absence.
   - surface: "materialized_edges:documentation_edges"
     scenario: odu
     scenario_type: baseline
@@ -245,10 +257,17 @@ waivers:
   # withdrawn claim was missing (commit 42e188ba1 added a coverage row on the
   # extractor proof alone and had to withdraw it): a live cassette in the
   # determinism matrix, a per-cell absolute DOCUMENTS assertion, the static gate
-  # mirrors, and domain-scoped fault cells. The MaterializedEdgeDomainEdgeTypes
+  # mirrors, and domain-scoped fault cells (a kill-worker cell and a
+  # graph-write cell, at that time). The MaterializedEdgeDomainEdgeTypes
   # half of that old reason went stale the day after it was written, when
   # a9326630a registered the family -- the single-type registry resolves
-  # documentation_edges to DOCUMENTS.
+  # documentation_edges to DOCUMENTS. #6149 follow-up item 8 later removed the
+  # reclaim cell (first a wrong-table kill-worker lock, then a domain-scoped
+  # expire-lease attempt that raced the ~7ms handler and never landed): the
+  # family now has one live fault cell (graph-write failure), and this waiver
+  # exclusion still holds because that cell is genuine, unwaived coverage --
+  # mid-handler-interruption coverage is a documented gap, not a silently
+  # dropped claim.
   - surface: "materialized_edges:codeowners_ownership_edges"
     proof_gate: ifa-determinism
     issue: "#5992"
