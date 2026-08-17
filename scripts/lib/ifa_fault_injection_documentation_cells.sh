@@ -70,6 +70,16 @@
 # genuine fail-graph-write-once-then-succeed mode and remains full coverage
 # for that fault class.
 #
+# The removal itself is proven, not asserted: the live fault-injection matrix
+# at commit 1f85dad68 (the commit that deleted cell_expirelease_documentation)
+# ran FI_EXIT=0 across all 16 cells, including
+# fail-graph-write-once-then-succeed-documentation (69s, digest 63558e35...) --
+# the same digest value the family's other unscoped cells produce, so removing
+# the racy reclaim cell did not perturb what the surviving cell proves. The
+# #6149 deployable-unit trio (baseline, kill-worker, fail-graph-write) also
+# stayed green in that same run, confirming this branch did not regress the
+# family merged the day before.
+#
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
 # function here reads driver-owned globals (bin_dir, tagged_bin_dir, log_dir,
