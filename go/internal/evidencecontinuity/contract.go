@@ -97,6 +97,17 @@ const (
 	FindingMissingProperty       FindingKind = "missing_property"
 	FindingInvalidProperty       FindingKind = "invalid_property"
 	FindingInvalidProofRef       FindingKind = "invalid_proof_ref"
+	// FindingGateTriggerGap reports something the evidence-continuity CI gate
+	// cannot see, meaning neither the registry triggers
+	// (specs/ci-gates.v1.yaml) nor the workflow path filter
+	// (static-contract-gates.yml) spans it. Three things must stay in reach:
+	// a Go package named by a `go test` proof ref, whose referenced test
+	// could then be renamed without selecting this gate, leaving unrelated
+	// PRs to fail on the stale ref (#6131); a file ValidateRepository reads,
+	// whose edit changes what this gate reports; and a Go package the
+	// validator is built from, whose code decides that report. The message
+	// names which one and the glob that would close it.
+	FindingGateTriggerGap FindingKind = "gate_trigger_gap"
 )
 
 // Finding is one validation error in the evidence-continuity contract.
@@ -125,6 +136,12 @@ func FormatFindings(findings []Finding) string {
 	sortFindings(findings)
 	lines := make([]string, 0, len(findings))
 	for _, finding := range findings {
+		// Gate-scope findings (e.g. gate_trigger_gap) carry no row id;
+		// render them without the empty segment.
+		if finding.RowID == "" {
+			lines = append(lines, fmt.Sprintf("%s: %s", finding.Kind, finding.Message))
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("%s %s: %s", finding.Kind, finding.RowID, finding.Message))
 	}
 	return strings.Join(lines, "\n")

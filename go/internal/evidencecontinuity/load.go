@@ -33,7 +33,7 @@ type surfaceInventoryFile struct {
 // ValidateRepository loads repository-local specs and generated surface truth,
 // then validates the evidence-continuity matrix against them.
 func ValidateRepository(repoRoot string) ([]Finding, error) {
-	contract, err := LoadContract(filepath.Join(repoRoot, "specs", "evidence-continuity.v1.yaml"))
+	contract, err := LoadContract(filepath.Join(repoRoot, filepath.FromSlash(contractSpecPath)))
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +43,11 @@ func ValidateRepository(repoRoot string) ([]Finding, error) {
 	}
 	findings := Validate(contract, surfaces)
 	findings = append(findings, validateReferencedTests(repoRoot, contract)...)
+	gateFindings, err := validateGateTriggerCoverage(repoRoot, contract)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, gateFindings...)
 	sortFindings(findings)
 	return findings, nil
 }

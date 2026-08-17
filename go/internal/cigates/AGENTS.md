@@ -44,6 +44,13 @@ and `eshu-diagnostic-rigor`.
   `append_gate` display (#5546 review). Do not extend it to compare a
   glob-form trigger against a glob-form filter pattern — that equivalence is
   out of scope, not merely unimplemented.
+- **`dornyFilters` walks jobs in sorted key order.** Every workflow here hosts
+  exactly one dorny step, so the order cannot change today's answer — but Go
+  randomises map iteration, so a second step would make "the first one" resolve
+  differently run to run and silently flake any caller's verdict, including
+  `internal/evidencecontinuity`'s trigger self-check. Keep the sort. This is the
+  same randomised-iteration hazard `ifGatedFilterKeys` reports as ambiguous
+  rather than guessing at.
 - **Filter matching mirrors dorny's real semantics, not the intuitive ones.**
   `matchesDornyFilter` compiles each pattern separately and honours the
   `predicate-quantifier`: the default `some` includes a file when ANY pattern

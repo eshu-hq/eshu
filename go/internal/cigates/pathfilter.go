@@ -37,16 +37,52 @@ type pathFilterWorkflowFile struct {
 	Jobs map[string]pathFilterJob `yaml:"jobs"`
 }
 
+// DornyFilters returns the parsed "filter key -> path glob list" map from the
+// first dorny/paths-filter step in the raw workflow file bytes, taking the jobs
+// in sorted key order, plus whether that step sets
+// `predicate-quantifier: every`. The map is nil when
+// no such step is present or its filters block does not parse. It is the
+// exported face of dornyFilters for gates that must assert their own workflow
+// filter covers the files their verdict depends on; the evidence-continuity
+// trigger-coverage self-check (go/internal/evidencecontinuity) is the
+// consumer. Callers that need to distinguish "no dorny step" from "empty
+// filters" must treat nil as absent and fail loudly rather than skip.
+//
+// The quantifier flag is part of the contract, not a detail: under dorny's
+// default ("some") a file is selected when ANY pattern matches, but under
+// `every` it is selected only when ALL patterns match. A coverage proof built
+// on the ANY reading is unsound for an `every` filter, so callers proving
+// coverage with single-glob matching must fail loudly when every is true
+// rather than report coverage they did not prove.
+func DornyFilters(raw []byte) (filters map[string][]string, every bool) {
+	filters, every, _ = dornyFilters(raw)
+	return filters, every
+}
+
 // dornyFilters returns the parsed "key -> path glob list" map from the first
 // dorny/paths-filter step found in raw, or nil if no such step is present or
 // its filters block does not parse. A workflow with no such step (true for
 // most workflows) returns nil so callers skip it rather than false-erroring.
+//
+// Jobs are visited in sorted key order. Every workflow in this repo hosts
+// exactly one dorny step, so today the order cannot change the answer -- but Go
+// randomises map iteration, so a second dorny step would otherwise make "the
+// first" mean a different step run to run, and the result would silently vary.
+// That is the same randomised-iteration hazard ifGatedFilterKeys reports as
+// ambiguous rather than guessing at; deterministic order keeps a caller's
+// verdict reproducible instead of flaky (#6145 review).
 func dornyFilters(raw []byte) (map[string][]string, bool, string) {
 	var wf pathFilterWorkflowFile
 	if err := yaml.Unmarshal(raw, &wf); err != nil {
 		return nil, false, ""
 	}
-	for jobKey, job := range wf.Jobs {
+	jobKeys := make([]string, 0, len(wf.Jobs))
+	for jobKey := range wf.Jobs {
+		jobKeys = append(jobKeys, jobKey)
+	}
+	sort.Strings(jobKeys)
+	for _, jobKey := range jobKeys {
+		job := wf.Jobs[jobKey]
 		for _, step := range job.Steps {
 			if !strings.Contains(step.Uses, "dorny/paths-filter") {
 				continue

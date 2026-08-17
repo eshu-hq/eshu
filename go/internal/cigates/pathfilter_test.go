@@ -218,6 +218,49 @@ func TestDriftCheck_PathFilterCoverage_DuplicateDisplayNameAmbiguous(t *testing.
 	}
 }
 
+// TestDornyFilters_ReportsEveryQuantifier pins the exported DornyFilters
+// contract: the `predicate-quantifier: every` flag must surface to callers,
+// because a coverage proof built on the default ANY-pattern semantics is
+// unsound under `every` and the caller must be able to refuse it. Dropping
+// the flag was the #6145 P1: the evidence-continuity self-check would have
+// stayed green while an `every` filter stopped selecting its gate.
+func TestDornyFilters_ReportsEveryQuantifier(t *testing.T) {
+	t.Parallel()
+
+	some := []byte("jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            evidence:\n              - 'go/**'\n")
+	filters, every := cigates.DornyFilters(some)
+	if filters == nil || every {
+		t.Fatalf("default quantifier: filters=%v every=%v, want non-nil filters and every=false", filters, every)
+	}
+
+	everyRaw := []byte("jobs:\n  changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          predicate-quantifier: 'every'\n          filters: |\n            evidence:\n              - 'go/**'\n")
+	filters, every = cigates.DornyFilters(everyRaw)
+	if filters == nil || !every {
+		t.Fatalf("every quantifier: filters=%v every=%v, want non-nil filters and every=true", filters, every)
+	}
+}
+
+// TestDornyFilters_PicksFirstJobDeterministically pins the iteration order.
+// dornyFilters walks the workflow's jobs, which yaml decodes into a map, and Go
+// randomises map iteration -- so with two dorny steps "the first" would resolve
+// to a different step run to run and a caller's verdict would flake. Sorted job
+// order makes the lowest job key win every time. Repeated because a randomised
+// walk passes roughly half the time on a single attempt.
+func TestDornyFilters_PicksFirstJobDeterministically(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte("jobs:\n" +
+		"  zzz-changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            late:\n              - 'z/**'\n" +
+		"  aaa-changes:\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            early:\n              - 'a/**'\n")
+
+	for i := 0; i < 50; i++ {
+		filters, _ := cigates.DornyFilters(raw)
+		if _, ok := filters["early"]; !ok {
+			t.Fatalf("attempt %d: want the sorted-first job's filters (key %q), got %v", i, "early", filters)
+		}
+	}
+}
+
 // containsAll reports whether s contains every one of substrs.
 func containsAll(s string, substrs ...string) bool {
 	for _, sub := range substrs {
