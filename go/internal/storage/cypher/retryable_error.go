@@ -23,6 +23,13 @@ const (
 	// is stable across NornicDB builds; the code is checked alongside it so an
 	// unrelated commit failure stays terminal.
 	nornicDBStoreClosingCommitMsg = "Writes are blocked, possibly due to DropAll or Close"
+	// nornicDBStoreClosedMsg is what NornicDB's UNWIND MERGE chain fast path
+	// reports once the store is closed rather than merely closing, e.g.
+	// "UNWIND MERGE chain create failed: checking node existence: reading node:
+	// DB Closed". It arrives under nornicDBStatementSyntaxErrorCode -- the same
+	// code a genuinely malformed query uses -- so the message, not the code, is
+	// what separates a backend teardown from a Cypher bug here.
+	nornicDBStoreClosedMsg = "DB Closed"
 )
 
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
@@ -111,6 +118,9 @@ func WrapRetryableNeo4jError(err error) error {
 	if isNornicDBStoreClosingCommitFailure(err) {
 		return &neo4jRetryableError{inner: err, code: nornicDBTransactionCommitFailedCode}
 	}
+	if isNornicDBStoreClosedStatementFailure(err) {
+		return &neo4jRetryableError{inner: err, code: nornicDBStatementSyntaxErrorCode}
+	}
 	var neo4jErr *neo4jdriver.Neo4jError
 	if !errors.As(err, &neo4jErr) {
 		return err
@@ -169,4 +179,18 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
 		strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg)
+}
+
+// isNornicDBStoreClosedStatementFailure recognizes a statement that failed
+// because the store was already closed under it. NornicDB's UNWIND MERGE chain
+// fast path reports this as nornicDBStatementSyntaxErrorCode, so the code alone
+// cannot be trusted -- a genuinely malformed query carries the same one. The
+// "DB Closed" body is what makes it unambiguous, and it needs no
+// statement-shape guard: a closed store answered a read, so nothing was
+// written and replay cannot double-apply anything.
+func isNornicDBStoreClosedStatementFailure(err error) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	return errors.As(err, &neo4jErr) &&
+		neo4jErr.Code == nornicDBStatementSyntaxErrorCode &&
+		strings.Contains(neo4jErr.Msg, nornicDBStoreClosedMsg)
 }

@@ -488,12 +488,12 @@ operationally noisy in practice (repeated retract-then-reappear on the SAME
 backend across many cycles), that is a signal for a follow-up, not evidence
 this fix is wrong.
 
-## #6142 — a backend restart's refused commit was terminal
+## #6142 — three of a backend restart's transients were terminal
 
-`WrapRetryableNeo4jError` classified `TransactionCommitFailed` /
-`...badger commit failed: Writes are blocked, possibly due to DropAll or Close`
-as terminal, so a restart landing on the commit dead-lettered
-`gcp_resource_materialization` as `projection_bug` and stranded every intent
-behind the phase it publishes. It is the commit-side twin of the #5989
-transaction-start guard and is now retryable on the durable queue only, never
-in place. Full record: [evidence-6142-backend-restart-commit-retryable.md](evidence-6142-backend-restart-commit-retryable.md).
+A restart's refused commit (`TransactionCommitFailed` / `...Writes are blocked,
+possibly due to DropAll or Close`) and its two `Statement.SyntaxError` shapes
+(`...reading node: DB Closed`, `UNWIND MERGE chain relationship create failed:
+start node ... does not exist`) were all terminal, so one restart dead-lettered
+three intents as `projection_bug` at attempt 1. Both `SyntaxError` shapes share
+a code with a malformed query, so each guard takes code AND message. Record:
+[evidence-6142-backend-restart-transient-classification.md](evidence-6142-backend-restart-transient-classification.md).
