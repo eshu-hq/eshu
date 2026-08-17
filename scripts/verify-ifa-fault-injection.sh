@@ -242,9 +242,13 @@ code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-co
 # documentation_edges family cassette (#5994): driven into every cell
 # alongside the SQL and code-call families, including the SqlTable-target
 # DOCUMENTS edge (batchCanonicalDocumentationEntityEdgeCypher's MATCH label
-# alternation). cell_killworker_documentation / cell_failgraphwrite_documentation
+# alternation). cell_expirelease_documentation / cell_failgraphwrite_documentation
 # below back the materialized_edges:documentation_edges manifest row's
-# proof_gate: ifa-fault-injection claim.
+# proof_gate: ifa-fault-injection claim. cell_expirelease_documentation
+# proves lease-expiry-mid-handler reclaim, not killed-process reclaim -- see
+# its own header in ifa_fault_injection_documentation_cells.sh for why this
+# family cannot make the kill-worker trigger deterministic (#6149 follow-up
+# item 8).
 documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
 documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 
@@ -417,7 +421,7 @@ cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
 cell_killworker_code_calls
-cell_killworker_documentation
+cell_expirelease_documentation
 cell_duplicatedelivery
 cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.

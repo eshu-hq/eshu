@@ -3,16 +3,23 @@
 # Dynamic sources and indirect stub calls are the subject of these cases.
 # Focused behavioral regressions for the documentation_edges fault-injection
 # cells (#5994). Split from test-ifa-fault-injection-review-cases.sh to stay
-# under the repository's 500-line cap; mirrors that file's two code_calls
-# cases (test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed,
-# test_ifa_fault_released_lock_holder_is_not_torn_down_twice) exactly, one
-# family later, because documentation_edges adopted the same
-# fresh-intents-guard / intent-lock shape cell_killworker_code_calls
-# established. Sourced by scripts/test-verify-ifa-fault-injection.sh
-# alongside test-ifa-fault-injection-review-cases.sh, so the top-level static
-# verifier stays below the repository's 500-line cap; both files share that
-# script's ${documentation_cells_lib}/${det_lib}/${driver_lib} globals and
-# `fail` helper.
+# under the repository's 500-line cap; mirrors that file's
+# test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed case
+# for the fresh-stack guard shape.
+#
+# This family no longer holds an intent lock at all (#6149 follow-up item 8):
+# DocumentationEdgeMaterializationHandler.Handle performs no Postgres write,
+# so cell_expirelease_documentation (ifa_fault_injection_documentation_cells.sh)
+# proves reclaim via forced lease expiry, not via a held lock plus kill -9 --
+# see that cell's own header. There is accordingly no lock-holder-teardown
+# case here any more; that coverage applied to a mechanism this family no
+# longer has.
+#
+# Sourced by scripts/test-verify-ifa-fault-injection.sh alongside
+# test-ifa-fault-injection-review-cases.sh, so the top-level static verifier
+# stays below the repository's 500-line cap; both files share that script's
+# ${documentation_cells_lib}/${det_lib}/${driver_lib} globals and `fail`
+# helper.
 
 test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed() (
 	source "${documentation_cells_lib}"
@@ -54,9 +61,8 @@ STUB
 
 	# graph-dump FAILED: exact exit code preserved, not collapsed to a bare 1
 	# -- the family idiom (an explicit rc capture: `if out="$(...)"; then
-	# rc=0; else rc=$?; fi`, matching ifa_documentation_release_intent_lock
-	# and the retry-count snapshot in cell_killworker_documentation) applies
-	# to the dump step exactly as it applied to the old Postgres query.
+	# rc=0; else rc=$?; fi`) applies to the dump step exactly as it applied
+	# to the old Postgres query.
 	write_dump_stub 9
 	rc=0
 	output="$(ifa_documentation_require_fresh_documents_edges test "${case_dir}/bin" 2>&1)" || rc=$?
@@ -111,40 +117,6 @@ STUB
 		|| fail "zero DOCUMENTS edges did not continue"
 )
 
-test_ifa_documentation_released_lock_holder_is_not_torn_down_twice() (
-	source "${det_lib}"
-	source "${driver_lib}"
-	source "${documentation_cells_lib}"
-	declare -F ifa_det_untrack_bg_pid >/dev/null \
-		|| fail "determinism helpers do not expose ifa_det_untrack_bg_pid"
-
-	local case_dir holder_pid survivor_pid
-	case_dir="$(mktemp -d -t ifa-fault-lock-owner.XXXXXX)"
-	trap 'rm -rf "${case_dir}"' EXIT
-	holder_pid=41003
-	survivor_pid=41004
-	bg_pids=("${holder_pid}" "${survivor_pid}")
-	use_compose=0
-	FAULT_COMPOSE_PROJECT="test"
-	ESHU_POSTGRES_DSN="postgresql://unused"
-	compose_file="docker-compose.yaml"
-
-	ifa_det_pg() { return 0; }
-	wait() { return 0; }
-	kill() { printf '%s\n' "$@" >>"${case_dir}/kill.log"; }
-	log() { :; }
-
-	ifa_documentation_release_intent_lock test "${holder_pid}"
-	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
-		|| fail "joined documentation lock-holder PID remained in tracked ownership"
-	teardown_cell test
-	if rg --line-regexp --quiet -- "${holder_pid}" "${case_dir}/kill.log"; then
-		fail "teardown signaled the joined documentation lock-holder PID; PID reuse could target an unrelated process"
-	fi
-	rg --line-regexp --quiet -- "${survivor_pid}" "${case_dir}/kill.log" \
-		|| fail "teardown stopped tracking the still-owned background PID"
-)
-
 # run_ifa_fault_injection_documentation_registry_cases holds the
 # documentation_edges (#5994) static require()/rg pins against
 # ${documentation_lib} and ${documentation_cells_lib}, moved out of the
@@ -172,8 +144,44 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	require "documentation kill-reclaim cell invocation" "cell_killworker_documentation"
+	require "documentation reclaim cell invocation" "cell_expirelease_documentation"
 	require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
+	# #6149 follow-up item 8: DocumentationEdgeMaterializationHandler.Handle
+	# has no Postgres write to lock (only two graph writes through the same
+	# EdgeWriter), so this family cannot make a kill-worker cell deterministic
+	# the way code_calls/deployable_unit_correlation can.
+	# cell_expirelease_documentation proves the "opposite trigger" guarantee
+	# (KindExpireLeaseMidHandler) instead of kill-worker
+	# (KindKillWorkerAfterClaim) -- a different, real guarantee, not a
+	# downgrade pretending to be the same one. Pin that the old kill-worker
+	# mechanism (name, lock helpers, and the lock table it targeted) is
+	# genuinely gone, not merely renamed.
+	rg --quiet --fixed-strings -- 'cell_killworker_documentation() {' "${documentation_cells_lib}" \
+		&& fail "the old cell_killworker_documentation name must not survive as a callable function definition in ${documentation_cells_lib}"
+	rg --quiet --fixed-strings -- 'ifa_documentation_start_intent_lock' "${documentation_cells_lib}" \
+		&& fail "ifa_documentation_start_intent_lock must not survive in ${documentation_cells_lib} -- this family holds no lock any more (#6149 follow-up item 8)"
+	rg --quiet --fixed-strings -- 'ifa_documentation_release_intent_lock' "${documentation_cells_lib}" \
+		&& fail "ifa_documentation_release_intent_lock must not survive in ${documentation_cells_lib} -- this family holds no lock any more (#6149 follow-up item 8)"
+	rg --quiet --fixed-strings -- 'LOCK TABLE shared_projection_intents' "${documentation_cells_lib}" \
+		&& fail "no cell in ${documentation_cells_lib} may lock shared_projection_intents any more -- the handler never writes it (#6149 follow-up item 8)"
+	# The header must state plainly which recovery is proven and which is
+	# not, and why -- the exact honesty requirement this item exists to
+	# enforce (a copied header asserting something true of a sibling and
+	# false of this family was the single most repeated defect in this
+	# epic).
+	require_documentation_cells "cell_expirelease_documentation header names the guarantee it proves" "KindExpireLeaseMidHandler"
+	require_documentation_cells "cell_expirelease_documentation header names the guarantee it does NOT prove" "KindKillWorkerAfterClaim"
+	require_documentation_cells "cell_expirelease_documentation header states the architectural reason (no Postgres write)" "there is no Postgres write in"
+	require_documentation_cells "cell_expirelease_documentation header states it is unproven pending a live matrix" "UNPROVEN as committed"
+	# Per-domain non-vacuity: a claimed row scoped to
+	# documentation_materialization observed before the forced expiry, and
+	# the forced expiry itself scoped to that domain only (not every
+	# claimed/running row in the reducer, which would collaterally expire
+	# every other concurrently-running family's lease too).
+	require_documentation_cells "expire-lease cell scopes the claimed-row wait to documentation_materialization" '"documentation_materialization")"'
+	require_documentation_cells "expire-lease cell scopes the forced-expiry UPDATE to documentation_materialization" "AND domain = 'documentation_materialization'"
+	require_documentation_cells "expire-lease cell reports non-vacuous evidence before forcing expiry" "non-vacuous:"
+	require_documentation_cells "expire-lease cell proves reclaim after via the retry-baseline delta" "evidence of reclaim after the forced expiry"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
