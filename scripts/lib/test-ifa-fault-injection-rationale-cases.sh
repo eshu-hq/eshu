@@ -405,16 +405,22 @@ run_ifa_rationale_live_static_cases() {
 			|| fail "rationale fault cells missing targeted recovery proof: ${needle}"
 	done
 
+	# Needles carry the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh):
+	# every dispatch line routes through that wrapper for --shard skip support,
+	# and the check is strictly stronger for it -- an unwrapped cell would
+	# silently ignore --shard and run in every shard instead of just its own.
 	for needle in cell_killworker_rationale cell_failgraphwrite_rationale; do
-		rg --line-regexp --quiet -- "${needle}" "${script}" \
-			|| fail "fault verifier does not invoke ${needle} on its own line"
+		rg --line-regexp --quiet -- "ifa_fault_shard_run ${needle}" "${script}" \
+			|| fail "fault verifier does not invoke ${needle} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
 	done
-	# 21 = the 15 cells this family's gate defined, plus the three
-	# deployable_unit-targeted cells (#5993) that landed alongside it, plus the
-	# three codeowners-targeted cells (#5992).
-	invocation_count="$(rg --count --line-regexp -- 'cell_[a-z_]+' "${script}")"
-	[[ "${invocation_count}" == "21" ]] \
-		|| fail "fault verifier invokes ${invocation_count} cells, want 21"
+	# 18 = the 15 cells this family's gate defined plus the three
+	# deployable_unit-targeted cells (#5993) that landed alongside it. Still a
+	# COUNT pin, not weakened to an existence check: the needle now counts
+	# ifa_fault_shard_run-wrapped dispatch lines, since every one of the
+	# eighteen carries that prefix.
+	invocation_count="$(rg --count --line-regexp -- 'ifa_fault_shard_run cell_[a-z_]+' "${script}")"
+	[[ "${invocation_count}" == "18" ]] \
+		|| fail "fault verifier invokes ${invocation_count} cells via ifa_fault_shard_run, want 18"
 	rg --fixed-strings --quiet -- 'assert_rationale_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \
 		&& fail "delta-retract incorrectly demands baseline rationale truth after driving its delta generation"
 	rg --fixed-strings --quiet -- 'assert_rationale_delta_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \

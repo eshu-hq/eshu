@@ -26,10 +26,14 @@ run_ifa_documentation_live_static_cases() {
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	rg --quiet --line-regexp -- 'cell_killworker_documentation' "${script}" \
-		|| fail "verifier does not invoke cell_killworker_documentation on its own line"
-	rg --quiet --line-regexp -- 'cell_failgraphwrite_documentation' "${script}" \
-		|| fail "verifier does not invoke cell_failgraphwrite_documentation on its own line"
+	# Needles carry the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh):
+	# every dispatch line routes through that wrapper for --shard skip support,
+	# and the check is strictly stronger for it -- an unwrapped cell would
+	# silently ignore --shard and run in every shard instead of just its own.
+	rg --quiet --line-regexp -- 'ifa_fault_shard_run cell_killworker_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_killworker_documentation via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
+	rg --quiet --line-regexp -- 'ifa_fault_shard_run cell_failgraphwrite_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_failgraphwrite_documentation via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
@@ -145,9 +149,15 @@ run_ifa_documentation_live_static_cases() {
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
 	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound"
-	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (21 cells, fresh stack per cell)" \
-		"${repo_root}/.github/workflows/ifa-determinism-gate.yml" \
-		|| fail "fault workflow job label does not name all twenty-one cells"
+	# The literal-label pin that used to live here ("Run Ifa fault-injection
+	# matrix (18 cells, fresh stack per cell)") was migrated to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh once the
+	# fault-injection job was sharded across parallel runners and that step
+	# label no longer exists. The replacement proves the same
+	# "coverage cannot silently drop" intent behaviorally (IFA_FAULT_SHARD is
+	# wired from matrix.shard into the gate's --shard flag) and adds a
+	# matrix-cardinality cross-check (workflow shard count vs.
+	# IFA_FAULT_SHARD_DEFAULT_N) that a single label string never could.
 	local private_scan_block static_test
 	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
 	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"

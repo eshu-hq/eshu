@@ -19,6 +19,25 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/lib/ifa_live_gate_selector_cases.sh'
+      # The family registry and the libraries that consume it. The registry
+      # decides which families each gate drives and which blocker every kill
+      # cell takes, so a wrong edit here changes what both live gates actually
+      # prove -- and until these globs existed, editing any of them re-ran
+      # nothing at all. A gate that never runs is worse than one that cannot
+      # fail: it does not even look like a check.
+      - 'scripts/lib/ifa_family_registry.sh'
+      # The per-family row files, not just the orchestrator. The orchestrator
+      # holds no family data at all -- every blocker_kind, wait_key and anchor
+      # lives under rows/. Naming only the parent file would leave the exact
+      # edit we make most often (correcting one family's row) triggering
+      # nothing.
+      - 'scripts/lib/ifa_family_registry/**'
+      - 'scripts/lib/test-ifa-determinism-family-cases.sh'
+      - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
+      - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
+      - 'scripts/lib/ifa_fault_shard.sh'
+      - 'scripts/lib/ifa_fault_generic_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-shard-cases.sh'
       - 'go/internal/storage/postgres/migrations/**'
       - 'go/internal/graphschemacompat/**'
       - 'go/internal/projector/retry.go'
@@ -432,10 +451,42 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yaml down -v || true
 
+  # Sharded across four parallel runners. The matrix ran serially until the
+  # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
+  # (~1.17 min/cell) left room for roughly seven more cells, and the
+  # materialized-edge exhaustiveness program adds two per family for eight
+  # remaining families. Raising timeout-minutes would have bought time without
+  # removing cost; sharding is the only lever that takes the per-cell fixed
+  # waits -- the 1-minute reducer lease reclaim and the 30s queue-retry delay,
+  # both production constants the gate exists to prove, so neither may be
+  # shortened for the gate's convenience -- off the critical path, because
+  # parallel runners absorb them concurrently.
+  #
+  # Shard membership comes from scripts/lib/ifa_fault_shard.sh, which
+  # partitions over atomic cell GROUPS (a family-scoped baseline always
+  # travels with its own recovery cells) and runs cell_baseline first in
+  # EVERY shard -- it is the sole writer of digests[baseline], which every
+  # other cell compares against in-shell, so re-running it per shard is
+  # deliberate rather than plumbing that digest between runners.
+  #
+  # The matrix.shard list below must stay in lockstep with
+  # IFA_FAULT_SHARD_DEFAULT_N in that library;
+  # scripts/test-verify-ifa-fault-injection.sh asserts the matrix cardinality
+  # matches, so deleting a shard here reds the mirror rather than silently
+  # dropping that shard's cells from every run. Deliberately phrased without
+  # reproducing the literal list: an earlier version of this comment spelled
+  # it out, and the cardinality pin's first draft matched THIS PROSE instead
+  # of the real declaration below -- a pin reading its expected value out of a
+  # comment passes no matter what the matrix says. Keep the literal in one
+  # place only, the declaration itself.
   fault-injection:
-    name: fault-injection
+    name: fault-injection (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -458,11 +509,12 @@ jobs:
       # No retry-to-green: a non-zero dead_letter count or a canonical graph
       # digest that diverges from the fault-free baseline is a real recovery
       # defect, never normalized away by retrying or lowering worker count.
-      - name: Run Ifa fault-injection matrix (21 cells, fresh stack per cell)
+      - name: Run Ifa fault-injection matrix shard (fresh stack per cell)
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
-        run: bash scripts/verify-ifa-fault-injection.sh
+          IFA_FAULT_SHARD: ${{ matrix.shard }}
+        run: bash scripts/verify-ifa-fault-injection.sh --shard "${IFA_FAULT_SHARD}/4"
 
       - name: Dump service logs on failure
         if: failure()

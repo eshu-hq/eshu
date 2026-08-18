@@ -382,17 +382,14 @@ run_ifa_fault_injection_deployable_unit_cases() {
 		[[ "${du_fn_at_line[${du_reopen_line}]:-}" == "${du_cell}" ]] \
 			|| fail "${du_cell}'s correlation-reopen call (line ${du_reopen_line}) is not inside ${du_cell} in ${deployable_unit_cells_lib}"
 	done
-	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
-		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
-	done
-	# The baseline cell must dispatch before both fault cells.
-	local baseline_du_line killworker_du_line failgraphwrite_du_line
-	baseline_du_line="$(rg -n --line-regexp -- 'cell_baseline_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	killworker_du_line="$(rg -n --line-regexp -- 'cell_killworker_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	failgraphwrite_du_line="$(rg -n --line-regexp -- 'cell_failgraphwrite_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	[[ "${baseline_du_line}" =~ ^[0-9]+$ && "${killworker_du_line}" =~ ^[0-9]+$ && "${failgraphwrite_du_line}" =~ ^[0-9]+$ \
-		&& "${baseline_du_line}" -lt "${killworker_du_line}" && "${baseline_du_line}" -lt "${failgraphwrite_du_line}" ]] \
-		|| fail "cell_baseline_deployable_unit must be dispatched before both deployable-unit fault cells"
+	# The dispatch-anchor loop (ifa_fault_shard_run-wrapped invocation of the
+	# trio) and the baseline-dispatches-first ordering check moved to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh
+	# (run_ifa_fault_injection_deployable_unit_ordering_cases) to keep this
+	# file under the line cap -- extraction, not deletion; every comment
+	# there is the full, unabridged rationale, including why the ordering
+	# check matters to the shard partitioner's one atomic group.
+	run_ifa_fault_injection_deployable_unit_ordering_cases "${script}"
 	require_deployable_unit_cells "baseline cell captures digests[baseline_deployable_unit]" "capture_digest baseline_deployable_unit"
 	require_deployable_unit_cells "baseline cell captures the retry baseline" "baseline_deployable_unit_retried="
 	require_deployable_unit_cells "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_assert_empty_before_maintenance"

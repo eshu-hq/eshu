@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034  # drive_workers and the *_operation_match
+# shellcheck disable=SC2034,SC2154  # drive_workers and the *_operation_match
 # anchors are assigned here and read by the cell functions in
 # scripts/lib/ifa_fault_injection_*.sh, which shellcheck cannot see from
-# this file. The mirror of the SC2154 case the libraries disable.
+# this file. The mirror of the SC2154 case the libraries disable. SC2154
+# added for use_compose/keep/list_cells/shard_spec/shard_k/shard_n: they are
+# assigned by scripts/lib/ifa_fault_shard.sh's ifa_fault_shard_parse_args and
+# read here, a cross-file assignment shellcheck likewise cannot see from
+# this file alone.
 # Ifá P6 part 2 (#4580) deterministic fault-injection Docker gate (design doc
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
@@ -152,7 +156,7 @@
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
-#   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep]
+#   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep] [--list-cells] [--shard k/n]
 #     --no-compose  assume Postgres + NornicDB are already running on the
 #                   configured ports; skip compose up/down here. Cell 5
 #                   (restart-backend-between-phase-groups) needs this script
@@ -161,6 +165,13 @@
 #                   than silently no-op'ing the restart.
 #     --keep        leave the last cell's work dir (every digest + full
 #                   canonical dump + logs, for a mismatch diff) in place.
+#     --list-cells  print the ordered cell list (or, combined with --shard,
+#                   just that shard's cells) and exit 0. Fully hermetic: no
+#                   Docker, compose, build, or Postgres step runs first.
+#     --shard k/n   run only the atomic cell groups assigned to shard k of n
+#                   (default n=4, scripts/lib/ifa_fault_shard.sh's
+#                   IFA_FAULT_SHARD_DEFAULT_N); cell_baseline still runs in
+#                   every shard. See that file for the partition table.
 
 # Refuse to run under bash < 4.4 (or a non-bash shell): see
 # scripts/verify-ifa-determinism.sh's identical guard for the false-pass
@@ -185,6 +196,8 @@ source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_driver.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
+# shellcheck source=scripts/lib/ifa_fault_shard.sh
+source "${repo_root}/scripts/lib/ifa_fault_shard.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sql_cells.sh
@@ -299,22 +312,7 @@ documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
 # cloud_resource_operation_match above. Byte-exact copy of that file's line 9.
 deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"
 
-use_compose=1
-keep=0
-for arg in "$@"; do
-	case "${arg}" in
-	--no-compose) use_compose=0 ;;
-	--keep) keep=1 ;;
-	-h | --help)
-		sed -n '2,91p' "${BASH_SOURCE[0]}"
-		exit 0
-		;;
-	*)
-		echo "verify-ifa-fault-injection: unknown argument: ${arg}" >&2
-		exit 2
-		;;
-	esac
-done
+ifa_fault_shard_parse_args "${BASH_SOURCE[0]}" "$@"
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-fault-injection: cassette not found: ${cassette}" >&2; exit 1; }
 ifa_family_fixtures_require verify-ifa-fault-injection
@@ -441,17 +439,17 @@ synth_cassette="${work_dir}/synth-multiscope.json"
 declare -A digests
 declare -A wall_times
 
-cell_baseline
-cell_killworker
-cell_expirelease
-cell_failgraphwrite
-cell_restartbackend
-cell_killworker_sql
-cell_killworker_code_calls
-cell_killworker_documentation
-cell_killworker_rationale
-cell_duplicatedelivery
-cell_deltaretract
+ifa_fault_shard_run cell_baseline
+ifa_fault_shard_run cell_killworker
+ifa_fault_shard_run cell_expirelease
+ifa_fault_shard_run cell_failgraphwrite
+ifa_fault_shard_run cell_restartbackend
+ifa_fault_shard_run cell_killworker_sql
+ifa_fault_shard_run cell_killworker_code_calls
+ifa_fault_shard_run cell_killworker_documentation
+ifa_fault_shard_run cell_killworker_rationale
+ifa_fault_shard_run cell_duplicatedelivery
+ifa_fault_shard_run cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
 #
 # It spent months held out under three successive diagnoses -- a stderr-flush
@@ -470,10 +468,10 @@ cell_deltaretract
 #
 # Do not hold this cell out again on a red run without first proving the
 # assertion itself can execute.
-cell_failgraphwrite_sql
-cell_failgraphwrite_code_calls
-cell_failgraphwrite_documentation
-cell_failgraphwrite_rationale
+ifa_fault_shard_run cell_failgraphwrite_sql
+ifa_fault_shard_run cell_failgraphwrite_code_calls
+ifa_fault_shard_run cell_failgraphwrite_documentation
+ifa_fault_shard_run cell_failgraphwrite_rationale
 
 # deployable_unit_edges cells (#5993). cell_baseline_deployable_unit MUST run
 # before the two fault cells below: it populates digests[baseline_deployable_unit]
@@ -484,9 +482,9 @@ cell_failgraphwrite_rationale
 # deployable_unit_edges materialization by construction and would never match
 # a cell that does run the pass -- see scripts/lib/
 # ifa_fault_injection_deployable_unit_cells.sh's header for the full ruling.
-cell_baseline_deployable_unit
-cell_killworker_deployable_unit
-cell_failgraphwrite_deployable_unit
+ifa_fault_shard_run cell_baseline_deployable_unit
+ifa_fault_shard_run cell_killworker_deployable_unit
+ifa_fault_shard_run cell_failgraphwrite_deployable_unit
 
 # codeowners_ownership_edges (#5992), cells 19-21; baseline first (it sets digests[baseline_codeowners] + baseline_codeowners_retried).
 cell_baseline_codeowners

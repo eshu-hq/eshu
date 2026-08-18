@@ -2404,6 +2404,19 @@ gates:
       - "scripts/lib/ifa_deployable_unit_live.sh"
       - "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
       - "scripts/lib/ifa_deployable_unit_live_converge.sh"
+      # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection
+      # below (sourced directly by verify-ifa-determinism.sh, transitively by
+      # verify-ifa-fault-injection.sh), plus this mirror's own three sourced
+      # case modules -- determinism-only, since none of them execute inside
+      # the fault-injection gate.
+      - "scripts/lib/ifa_family_registry.sh"
+      # The row files carry every family's data; the orchestrator carries
+      # none. Triggering only on the parent would leave a row correction
+      # -- the most common edit -- selecting no gate at all.
+      - "scripts/lib/ifa_family_registry/**"
+      - "scripts/lib/test-ifa-determinism-family-cases.sh"
+      - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
+      - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -2715,6 +2728,20 @@ gates:
       # shared helper has to select BOTH gates, not just determinism.
       - "scripts/lib/ifa_sql_delta_live.sh"
       - "scripts/lib/ifa_determinism_common.sh"
+      # #6147 PR-0 family-registry extraction: shared with ifa-determinism
+      # above (sourced directly by verify-ifa-determinism.sh, transitively by
+      # verify-ifa-fault-injection.sh via ifa_fault_generic_cells.sh), plus
+      # the generic per-family fault cells, the shard-dispatch mechanism, and
+      # that mechanism's own static mirror module -- fault-only, since none
+      # of the latter three execute inside the determinism gate.
+      - "scripts/lib/ifa_family_registry.sh"
+      # The row files carry every family's data; the orchestrator carries
+      # none. Triggering only on the parent would leave a row correction
+      # -- the most common edit -- selecting no gate at all.
+      - "scripts/lib/ifa_family_registry/**"
+      - "scripts/lib/ifa_fault_shard.sh"
+      - "scripts/lib/ifa_fault_generic_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-shard-cases.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # consumed by test-ifa-family-registry-derived-pins-cases.sh after sourcing this file
+# sql_relationships hand-derived pin (#6147 PR-0 family registry). Sourced by
+# scripts/lib/test-ifa-family-registry-derived-pins-cases.sh, which owns the
+# hand-authored-literal rule, the totality diff, and the comparison against
+# scripts/lib/ifa_family_registry.sh -- read that file's header before
+# touching this one. Every value below is HAND-TYPED literal text, derived by
+# reading the citations inline; it is never sourced, generated, or read back
+# out of the registry.
+
+# go/internal/reducer/sql_relationship_materialization.go:48 declares
+# SQLRelationshipIntentWriter; :60 embeds it as the handler's IntentWriter
+# field; :113 calls h.IntentWriter.UpsertIntents(...) inside Handle(). The
+# handler is architecturally CAPABLE of a shared_intent_lock the same way
+# code_calls/rationale_edges are -- but the family's actual fault-injection
+# kill cell does not use that mechanism. Read directly (not taken from the
+# registry): scripts/lib/ifa_fault_injection_sql_cells.sh:44-80
+# (cell_killworker_sql) calls ifa_fault_wait_for_claimed against fact_work_items
+# domain "sql_relationship_materialization"
+# (go/internal/reducer/intent.go:55 DomainSQLRelationshipMaterialization
+# Domain = "sql_relationship_materialization" -- handler stage), then kills
+# the reducer directly with NO lock acquisition anywhere in the function --
+# no call to ifa_fault_start_shared_intent_lock or any other blocker helper
+# appears in that file. The function's own header comment (lines 56-63)
+# states this plainly: "What it does NOT prove: that the kill landed
+# mid-handler, [...] the restart exercises an already-finished unit;" a
+# SEPARATE cell, cell_failgraphwrite_sql (anchored to the QUERIES_TABLE
+# MERGE, a once-fault marker, not a queue lock), is what actually backs this
+# family's fault-coverage claim. => blocker_kind=none. (This corrected an
+# earlier draft of this file's predecessor, which assumed shared_intent_lock
+# by analogy to code_calls/rationale_edges without checking this family's
+# cell file directly.)
+IFA_FAMILY_PIN_BLOCKER_KIND="none"
+IFA_FAMILY_PIN_WAIT_STAGE="handler"
+IFA_FAMILY_PIN_WAIT_KEY="sql_relationship_materialization"
+
+# go/internal/storage/cypher/canonical.go:159-167
+# (batchCanonicalSQLQueriesTableUpsertCypher) is the SQL-relationship
+# family's QUERIES_TABLE write template (one of nine edge types the family
+# materializes, per ifa_family_fixtures.sh's header comment, but the one
+# this family's fail-graph-write cell targets -- scripts/verify-ifa-fault-injection.sh:292
+# sql_edge_operation_match agrees byte-for-byte). shared_cell: driven every N
+# cell -- scripts/verify-ifa-determinism.sh:310-315 drives the SQL cassette
+# unconditionally before the registry-driven shared_cell loop even starts
+# (this family predates the registry loop and is still driven by its own
+# inline call, not through the loop, but into the SAME per-N cell every
+# other shared family uses). cell_kind: blocker_kind=none is one of the
+# three generic-dispatcher shapes
+# (scripts/lib/ifa_fault_generic_cells.sh:16-17,469-473) => generic.
+IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
+IFA_FAMILY_PIN_SHARED_CELL=1
+IFA_FAMILY_PIN_CELL_KIND="generic"

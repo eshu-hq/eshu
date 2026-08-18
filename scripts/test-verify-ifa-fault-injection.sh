@@ -59,10 +59,12 @@ rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale
 entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
+shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
+shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -101,6 +103,8 @@ bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
 bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
 bash -n "${entrypoint_cases_lib}" || fail "test-ifa-fault-injection-entrypoint-cases.sh has a syntax error"
 bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
+bash -n "${shard_lib}" || fail "ifa_fault_shard.sh has a syntax error"
+bash -n "${shard_cases_lib}" || fail "test-ifa-fault-injection-shard-cases.sh has a syntax error"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
 # The GATE script needs the same guard as this mirror. Its determinism sibling
@@ -160,31 +164,10 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The twenty-one-cell shape: baseline plus twenty cells with a live seam --
-# four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
-# (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
-# two rationale-targeted (#5998), and a family-scoped baseline plus two
-# recovery cells for deployable_unit_edges (#5993). All twenty-one run by
-# default.
-# Every cell is anchored to its own invocation line, never matched by bare name.
-# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
-# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
-# the cell_baseline dispatch line left the mirror green -- and cell_baseline is
-# the sole writer of digests[baseline], so all sixteen assert_matches_baseline
-# calls would then compare against an unset key. The anchored form was
-# previously applied to only five of the twenty-one; it now covers all of them.
-# rg without --fixed-strings so ^...$ binds.
-for cell in \
-	cell_baseline cell_killworker cell_expirelease cell_failgraphwrite cell_restartbackend \
-	cell_killworker_sql cell_killworker_code_calls cell_killworker_documentation \
-	cell_killworker_rationale cell_duplicatedelivery cell_deltaretract \
-	cell_failgraphwrite_sql cell_failgraphwrite_code_calls \
-	cell_failgraphwrite_documentation cell_failgraphwrite_rationale \
-	cell_baseline_deployable_unit cell_killworker_deployable_unit \
-	cell_failgraphwrite_deployable_unit cell_baseline_codeowners \
-	cell_killworker_codeowners cell_failgraphwrite_codeowners; do
-	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
-done
+# The eighteen-cell-shape anchored-invocation check and the SQL permanent-
+# member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
+# the sourced shard-cases module below, extracted to buy this file real
+# line-count headroom rather than trimming their comments in place.
 # #5974 probes. A missing marker had two explanations and the gate had to guess
 # between them, which is how this issue stayed open on a wrong root cause. These
 # three close the gap: the stack is provably fresh, the edge provably exists,
@@ -233,11 +216,8 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
-# The SQL cell is a permanent matrix member, not a temporary experiment. Pin
-# both the invocation and the reason, so re-holding it out is a deliberate edit
-# to a stated rule rather than a quiet deletion on a red run (#5974).
-rg --quiet --line-regexp -- 'cell_failgraphwrite_sql' "${script}" \
-	|| fail "cell_failgraphwrite_sql is no longer invoked in the default matrix; it fires correctly and holding it out again needs a stated reason (#5974)"
+# The SQL permanent-member invocation pin also moved to the shard-cases
+# module (see the note above the eighteen-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
@@ -391,6 +371,12 @@ require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_asse
 source "${documentation_cases_lib}"
 run_ifa_fault_injection_documentation_registry_cases
 
+# Sourced ahead of deployable_unit_cases_lib below: that module calls
+# run_ifa_fault_injection_deployable_unit_ordering_cases (defined here),
+# so this file's function definitions must exist before that call runs.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-shard-cases.sh
+source "${shard_cases_lib}"
+
 # deployable_unit_edges (#5993) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the review-cases
 # split just below).
@@ -462,7 +448,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
@@ -476,5 +462,10 @@ done
 # shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
 run_ifa_fault_injection_marker_cases
+
+# Shard selector: exact-cover proof, invalid-input rejection, and the
+# CI-wiring/matrix-cardinality cross-checks against the workflow -- module
+# already sourced above (deployable_unit_cases_lib needs it earlier).
+run_ifa_fault_injection_shard_cases
 
 printf 'test-verify-ifa-fault-injection: pass\n'

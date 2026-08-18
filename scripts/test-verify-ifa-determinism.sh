@@ -26,6 +26,15 @@ deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_li
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
+family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
+registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
+family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
+# registry_family_lib (ifa_family_registry.sh) is used by both
+# test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
+# totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
+# internal source + totality check), so it is declared once here at
+# top level rather than locally in either consumer.
+registry_family_lib="${repo_root}/scripts/lib/ifa_family_registry.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
@@ -43,6 +52,10 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${deployable_unit_converge_lib}" ]] || fail "missing ${deployable_unit_converge_lib}"
 [[ -f "${rationale_lib}" ]] || fail "missing ${rationale_lib}"
 [[ -f "${fixtures_lib}" ]] || fail "missing ${fixtures_lib}"
+[[ -f "${family_cases_lib}" ]] || fail "missing ${family_cases_lib}"
+[[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
+[[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
+[[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
 
@@ -58,6 +71,20 @@ bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_d
 bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
 bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
 bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
+bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has a syntax error"
+bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
+bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
+bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
+# This mirror needs the same guard as its fault-injection sibling. The fault
+# side has always asserted on both itself (test-verify-ifa-fault-injection.sh
+# BASH_SOURCE[0]) and the gate script under test (verify-ifa-fault-injection.sh
+# ${script}); this determinism mirror asserted only on the gate script below,
+# so test-verify-ifa-determinism.sh itself could drift over the cap with
+# nothing to catch it -- which is exactly how it reached 508 lines before this
+# split. `filecap-all` does not close the hole either -- it walks
+# `git ls-files 'go/*.go'` and never sees shell.
+[[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "test-verify-ifa-determinism.sh must stay under 500 lines"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
@@ -180,217 +207,37 @@ require "synth-cassette generated before the cell loop" "synth_cassette=\"\${wor
 require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
 require "combined-graph digest framing" "demo-org + synth-multiscope + SQL family + code-call family"
 
-# SQL relationship family cassette (#5351): the committed cassette driven into
-# every cell so the ifa-determinism lane actually replays the SQL relationship
-# materialization family (backing the materialized_edges:sql_relationships
-# manifest row's proof_gate: ifa-determinism claim), plus the per-cell
-# absolute-set assertion (`ifa assert-edges`) that the P2 digest cannot make: a
-# family silently empty in ALL cells has an identical digest in every cell and
-# passes the digest comparison vacuously; the absolute expected set catches it.
-require_fixture "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require_fixture "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-require_fixture "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
-require_fixture "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
-require_fixture "SQL cassette existence guard" 'SQL cassette not found'
-require_fixture "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
-require_fixture "SQL delta cassette existence guard" 'SQL delta cassette not found'
-require_fixture "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
-require "SQL baseline helper invocation in every cell" "ifa_det_drive_sql_baseline"
-require_delta_lib "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
-require "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
-require_delta_lib "SQL delta cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_delta_cassette}" -workers "${n}"'
-require_delta_lib "SQL delta populated guard" "SQL delta drive enqueued 0 new fact_work_items rows"
-require_delta_lib "rationale delta populated guard" "rationale delta drive enqueued 0 new fact_work_items rows"
-require "SQL baseline assertion helper invocation in every cell" "ifa_det_assert_sql_baseline"
-require_delta_lib "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
-require_delta_lib "assert-edges domain flag" "-domain sql_relationships"
-require_delta_lib "assert-edges expected flag" '-expected "${sql_expected_edges}"'
-require_delta_lib "assert-edges non-vacuity framing" "non-vacuity"
-require_delta_lib "assert-edges no-normalize-away directive" "do NOT normalize this away"
-require_delta_lib "delta assert-edges expected flag" '-expected "${sql_delta_expected_edges}"'
-require_delta_lib "delta assert-edges exactness framing" "SQL delta-live materialized edge set did not match the expected accumulated set"
+# Per-family static structural cases (SQL relationship, code_calls,
+# deployable_unit_edges, rationale_edges, documentation_edges) live in a
+# sourced case module so this structural verifier stays below 500 lines
+# (mirroring the fault-injection sibling's per-family case-module split).
+# shellcheck source=scripts/lib/test-ifa-determinism-family-cases.sh
+source "${family_cases_lib}"
+run_ifa_determinism_family_cases
 
-# code_calls (#5991): every N cell must drive the committed cassette and assert
-# its hand-derived five-edge set. Digest equality cannot detect empty == empty.
-require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
-require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-require_fixture "code-call cassette existence guard" "code-call cassette not found"
-require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
-require "code-call drive helper invocation in every cell" "ifa_code_call_drive"
-require "code-call assertion helper invocation in every cell" "ifa_code_call_assert"
-require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
-require_code_call_lib "code-call assert-edges domain" "-domain code_calls"
-require_code_call_lib "code-call expected-set argument" '-expected "${expected_edges}"'
-require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
+# CI-gate registry/workflow lockstep cases (the real ci-gates registry
+# matcher, not a text grep) live in a sourced case module so this structural
+# verifier stays below 500 lines (mirroring the fault-injection sibling's
+# per-mechanism case-module split).
+# shellcheck source=scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh
+source "${registry_lockstep_cases_lib}"
+run_ifa_determinism_registry_lockstep_cases
 
-# deployable_unit_edges (#5993): a STANDALONE cell, run once after the N-loop,
-# not one of the N={1,2,4} cells and not folded into any of them -- unlike
-# sql_relationships/code_calls, this family needs a bootstrap-index
-# maintenance pass to materialize anything, so its live proof is not a
-# worker-count invariance test.
-require_fixture "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
-require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
-require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
-require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
-require "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
-require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
-require_deployable_unit_lib "drive helper invocation inside the standalone cell" "ifa_deployable_unit_live_drive"
-require_deployable_unit_lib "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_drain pre"
-require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" "ifa_deployable_unit_live_assert_empty_before_maintenance"
-require_deployable_unit_lib "bootstrap-index maintenance pass invocation" "eshu-bootstrap-index"
-require_deployable_unit_lib "post-maintenance drain" "ifa_deployable_unit_live_drain post"
-require_deployable_unit_lib "exact-set assert-edges domain" "-domain deployable_unit_edges"
-require_deployable_unit_lib "exact-set assert-edges expected flag" '-expected "${expected_edges}"'
-# The standalone cell must run strictly AFTER the N-loop (the "done" closing
-# it) and BEFORE the digest comparison -- it must never land inside the loop,
-# which would fold its bootstrap-index maintenance pass into every N cell's
-# digest terminal for a reason unrelated to what that loop tests. The N-loop's
-# own "done" is the first bare `done` line AFTER the loop's `for n in
-# "${worker_counts[@]}"; do` header (the script also has bare `done` lines
-# closing the argument-parsing and --contention/--teeth loops).
-n_loop_for_line="$(rg -n --fixed-strings -- 'for n in "${worker_counts[@]}"; do' "${script}" | head -1 | cut -d: -f1 || true)"
-n_loop_done_line="$(awk -v start="${n_loop_for_line:-0}" 'NR > start && $0 == "done" { print NR; exit }' "${script}")"
-standalone_cell_line="$(rg -n --fixed-strings -- '"${bin_dir}" "${deployable_unit_cassette}" "${deployable_unit_expected_edges}"' "${script}" | cut -d: -f1 || true)"
-compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=${worker_counts[*]}"' "${script}" | cut -d: -f1 || true)"
-[[ "${n_loop_done_line}" =~ ^[0-9]+$ && "${standalone_cell_line}" =~ ^[0-9]+$ && "${compare_digests_line}" =~ ^[0-9]+$ \
-	&& "${n_loop_done_line}" -lt "${standalone_cell_line}" && "${standalone_cell_line}" -lt "${compare_digests_line}" ]] \
-	|| fail "the deployable_unit_edges standalone cell must run after the N-loop closes and before the digest comparison"
-
-# rationale_edges (#5998): every worker-count cell drives the production-shaped
-# cassette, exact-asserts all three EXPLAINS records, and fails closed unless
-# the durable queue/intent lifecycle is exactly 1|1|0|4|3|1|4|0 with one
-# accepted generation. The shared SQL and rationale delta replay must then
-# converge to exact-one EXPLAINS plus the exact Charge node before graph dump.
-require_fixture "rationale cassette path" "testdata/cassettes/rationale/ifa-rationale-family.json"
-require_fixture "rationale expected-edge set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json"
-require_fixture "rationale delta cassette path" "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
-require_fixture "rationale delta expected-record set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json"
-require_fixture "rationale cassette existence guard" "rationale cassette not found"
-require_fixture "rationale expected-edge set existence guard" "rationale expected-edge set not found"
-require_fixture "rationale delta cassette existence guard" "rationale delta cassette not found"
-require_fixture "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
-require "rationale drive helper invocation in every cell" "ifa_rationale_drive"
-require "rationale assertion helper invocation in every cell" "ifa_rationale_assert"
-require "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"
-require_rationale_lib "rationale cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
-require_rationale_lib "rationale assert-edges domain" "-domain rationale_edges"
-require_rationale_lib "rationale expected-set argument" '-expected "${expected_edges}"'
-# Pinned to the ASSIGNMENT, not the bare tuple. The header comment a hundred
-# lines below quotes both tuples verbatim, so a bare-value needle stayed
-# green with the real oracles set to garbage -- the durable-lifecycle oracle
-# for this family could be replaced wholesale and no gate would notice.
-require_rationale_lib "exact durable tuple" 'ifa_rationale_expected_tuple="1|1|0|4|3|1|4|0"'
-require_rationale_lib "exact delta-generation durable tuple" 'ifa_rationale_delta_expected_tuple="1|1|0|1|0|1|1|0"'
-require_rationale_lib "accepted generation exact count" "shared_projection_acceptance"
-require_delta_lib "rationale delta is driven before the shared drain" 'ifa_rationale_drive "delta-n${n}"'
-sql_delta_drive_line="$(rg -n --fixed-strings -- 'eshu-ifa" drive -cassette "${sql_delta_cassette}"' "${delta_lib}" | cut -d: -f1 || true)"
-rationale_delta_drive_line="$(rg -n --fixed-strings -- 'ifa_rationale_drive "delta-n${n}"' "${delta_lib}" | cut -d: -f1 || true)"
-shared_delta_drain_line="$(rg -n --fixed-strings -- 'drain SQL + rationale delta through caller-owned running projector + reducer' "${delta_lib}" | cut -d: -f1 || true)"
-[[ "${sql_delta_drive_line}" =~ ^[0-9]+$ && "${rationale_delta_drive_line}" =~ ^[0-9]+$ && "${shared_delta_drain_line}" =~ ^[0-9]+$ \
-	&& "${sql_delta_drive_line}" -lt "${rationale_delta_drive_line}" \
-	&& "${rationale_delta_drive_line}" -lt "${shared_delta_drain_line}" ]] \
-	|| fail "SQL and rationale delta cassettes must both be driven before their shared drain"
-delta_call_line="$(rg -n -- '^[[:space:]]*ifa_det_run_sql_delta_live' "${script}" | cut -d: -f1 || true)"
-post_delta_code_call_line="$(rg -n --fixed-strings -- 'ifa_code_call_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-post_delta_documentation_line="$(rg -n --fixed-strings -- 'ifa_documentation_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-post_delta_rationale_line="$(rg -n --fixed-strings -- 'ifa_rationale_assert_delta_truth "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"' "${script}" | cut -d: -f1 || true)"
-[[ "${delta_call_line}" =~ ^[0-9]+$ && "${post_delta_code_call_line}" =~ ^[0-9]+$ \
-	&& "${post_delta_documentation_line}" =~ ^[0-9]+$ && "${post_delta_rationale_line}" =~ ^[0-9]+$ \
-	&& "${post_delta_dump_line}" =~ ^[0-9]+$ \
-	&& "${delta_call_line}" -lt "${post_delta_code_call_line}" \
-	&& "${post_delta_code_call_line}" -lt "${post_delta_documentation_line}" \
-	&& "${post_delta_documentation_line}" -lt "${post_delta_rationale_line}" \
-	&& "${post_delta_rationale_line}" -lt "${post_delta_dump_line}" ]] \
-	|| fail "every N cell must exact-assert code_calls, documentation, rationale exact-one, and the delta-generation Charge survivor after the shared delta drain and before its graph dump"
-
-# documentation_edges (#5994): every N cell must drive the committed cassette
-# and assert its hand-derived three-edge set (Function, Class, and the
-# SqlTable-target case, batchCanonicalDocumentationEntityEdgeCypher's MATCH
-# label alternation). Digest equality cannot detect empty == empty.
-require "documentation drive helper invocation in every cell" "ifa_documentation_drive"
-require "documentation assertion helper invocation in every cell" "ifa_documentation_assert"
-require_documentation_lib "documentation cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
-require_documentation_lib "documentation assert-edges domain" "-domain documentation_edges"
-require_documentation_lib "documentation expected-set argument" '-expected "${expected_edges}"'
-require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-require "post-delta rationale durable generation" '"${ifa_rationale_delta_generation_id}"'
-require "post-delta rationale durable tuple" '"${ifa_rationale_delta_expected_tuple}"'
-delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_live\(\) \{.*?^\}' "${delta_lib}")"
-[[ "${delta_function}" != *"ifa_det_start_bg"* ]] \
-	|| fail "SQL+rationale delta helper must reuse the caller-owned projector/reducer lifecycle"
-[[ "${delta_function}" == *"caller-owned running projector + reducer"* ]] \
-	|| fail "SQL+rationale delta helper must document its one-lifecycle worker ownership"
-determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
-fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
-selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
-rg --quiet --fixed-strings --line-regexp -- 'source "${selector_cases_lib}"' "${BASH_SOURCE[0]}" \
-	|| fail "selector cases must be sourced from scripts/lib/ifa_live_gate_selector_cases.sh"
-# shellcheck source=scripts/lib/ifa_live_gate_selector_cases.sh
-source "${selector_cases_lib}"
-for seam in "${ifa_live_gate_common_seams[@]}"; do
-	trigger="${seam%%|*}"
-	concrete_path="${seam#*|}"
-	rg --fixed-strings --quiet -- "- '${trigger}'" "${workflow}" \
-		|| fail "workflow does not retrigger the live matrices for IFA proof input: ${trigger}"
-	printf '%s\n' "${determinism_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
-		|| fail "ifa-determinism registry entry omits IFA proof input: ${trigger}"
-	printf '%s\n' "${fault_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
-		|| fail "ifa-fault-injection registry entry omits IFA proof input: ${trigger}"
-	selection="$(printf '%s\n' "${concrete_path}" | (
-		cd "${repo_root}/go"
-		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
-	))"
-	for gate in ifa-determinism ifa-fault-injection; do
-		printf '%s\n' "${selection}" | rg --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]" \
-			|| fail "${concrete_path} does not select ${gate} through the real registry matcher"
-	done
-done
-
-# The loop above validates workflow ⊇ selector-cases: every seam in the
-# hand-maintained table must appear in the workflow. It cannot see a registry
-# trigger that was never added to the table, so a family could add triggers to
-# specs/ci-gates.v1.yaml, omit them here, and stay green while the workflow
-# never starts for those paths -- the registry marks both gates BLOCKING, GitHub
-# never runs them, and the required-gates publisher waits forever on checks that
-# never arrive. #5994 landed 3 of its 10 triggers that way and this loop is what
-# caught the other 7 (plus a pre-existing gap on go/cmd/ifa/assert_edges.go).
-#
-# This second loop closes the other direction: registry ⊆ workflow, derived from
-# the committed registry rather than from any hand-maintained list, so it cannot
-# drift out of date the way the table can.
-for gate_id in ifa-determinism ifa-fault-injection; do
-	case "${gate_id}" in
-	ifa-determinism) gate_block="${determinism_registry}" ;;
-	*) gate_block="${fault_registry}" ;;
-	esac
-	while IFS= read -r registry_trigger; do
-		[[ -n "${registry_trigger}" ]] || continue
-		rg --fixed-strings --quiet -- "- '${registry_trigger}'" "${workflow}" \
-			|| fail "${gate_id} registry triggers on ${registry_trigger} but ${workflow##*/} never lists it; the gate is selected as blocking and then never starts"
-	done < <(printf '%s\n' "${gate_block}" | rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
-done
-
-# Fault-only case data stays separate so the matcher proves these inputs do
-# not accidentally broaden the determinism registry.
-for seam in "${ifa_live_gate_fault_only_seams[@]}"; do
-	trigger="${seam%%|*}"
-	concrete_path="${seam#*|}"
-	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
-		|| fail "workflow does not retrigger fault injection for fault-only input: ${trigger}"
-	printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
-		|| fail "ifa-fault-injection registry entry omits fault-only input: ${trigger}"
-	selection="$(printf '%s\n' "${concrete_path}" | (
-		cd "${repo_root}/go"
-		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
-	))"
-	printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
-		|| fail "${concrete_path} does not select ifa-fault-injection through the real registry matcher"
-	if printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
-		fail "fault-only input must not select ifa-determinism: ${concrete_path}"
-	fi
-done
+# Family-registry derived-pins cases (#6147 PR-0): independent, hand-derived
+# blocker_kind/wait_stage/wait_key pins for every family scripts/lib/ifa_family_registry.sh
+# declares, proven against the reducer handler source rather than copied back
+# out of the registry -- so a wrong registry declaration is actually caught,
+# not vacuously restated. Lives in its own module (owned separately from this
+# split) so its expected-value derivation stays independent of whoever writes
+# the registry; wired here the same way as the two case modules above.
+# registry_family_lib is a top-level path variable (declared above, shared
+# with test-ifa-determinism-family-cases.sh's own registry totality check);
+# this module still validates it itself before sourcing it (see
+# run_ifa_family_registry_pins_cases's own ${registry_family_lib} guard
+# below) rather than trusting the caller silently.
+# shellcheck source=scripts/lib/test-ifa-family-registry-derived-pins-cases.sh
+source "${family_registry_pins_lib}"
+run_ifa_family_registry_pins_cases
 
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
