@@ -12,6 +12,7 @@ import (
 	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/spf13/cobra"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/cli/vulnscan"
 )
@@ -123,7 +124,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 
-	repositoryID, err := resolveVulnScanRepoID(cmd, client, opts)
+	repositoryID, err := resolveVulnScanRepoID(client, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
 		vulnscan.RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
@@ -222,11 +223,19 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	}, nil
 }
 
-func resolveVulnScanRepoID(cmd *cobra.Command, client *APIClient, opts vulnScanRepoOptions) (string, error) {
+// resolveVulnScanRepoID returns the canonical repository ID the scan reports
+// against. An explicit --repo-id wins outright; otherwise the scanned root
+// path is resolved as a repository selector, so `eshu vuln-scan repo .` names
+// the repository the operator is standing in.
+func resolveVulnScanRepoID(client *APIClient, opts vulnScanRepoOptions) (string, error) {
 	if opts.RepoID != "" {
 		return opts.RepoID, nil
 	}
-	repositoryID, err := resolveRepositorySelector(cmd, client, opts.Scan.Target.Root)
+	if client == nil {
+		return "", fmt.Errorf("resolve scanned repository: %w",
+			missingAPIClientError(opts.Scan.Target.Root))
+	}
+	repositoryID, err := reposelector.Resolve(client, opts.Scan.Target.Root)
 	if err != nil {
 		return "", fmt.Errorf("resolve scanned repository: %w", err)
 	}

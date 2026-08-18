@@ -37,8 +37,10 @@
    because this directory is `package main`. `eshu report`'s digest and
    artifact logic is in `go/internal/cli/opdigest`; the local Eshu service and
    every `eshu graph` subcommand's logic is in
-   `go/internal/cli/localsupervisor`. Read the target package's `AGENTS.md`
-   before changing the wrapper that calls it.
+   `go/internal/cli/localsupervisor`; the repository-selector matching rules
+   behind the `analyze` family's `--repo` and `vuln-scan repo`'s scanned root
+   are in `go/internal/cli/reposelector`. Read the target package's
+   `AGENTS.md` before changing the wrapper that calls it.
 
 ## Invariants this package enforces
 
@@ -67,6 +69,23 @@
   package outside this binary prints, stay in the `const` block in
   `component.go`. Re-adding a local constant for one of the five puts the same
   string under two owners again, which is what the extraction review caught.
+- **Selector flags are declared per command, read centrally, matched
+  elsewhere** — each command file declares its own `--repo` / `--repo-id`
+  (`analyze.go:96`, `analyze.go:315`). `repository_selector.go` owns only the
+  reading: `readRepositorySelectorFlag` plus the `--repo-id` short-circuit
+  that skips resolution when the caller already holds an exact ID. What a
+  selector actually matches — exact on ID/name/slug, canonicalized and
+  symlink-resolved on the path fields — belongs to
+  `go/internal/cli/reposelector`, which holds no cobra. So a new selector form
+  goes in that package, a new selector flag goes in the command's own file,
+  and neither goes in `repository_selector.go`.
+
+  Not every `--repo` in this binary is that flag. `map.go:33`, `trace.go:43`
+  and `docs.go:65` declare a `--repo` they hand to the API unresolved, and
+  `hosted_onboard_cmd.go:40` takes exact `owner/name` values. Those never
+  reach `reposelector`; do not "fix" them to route through it without deciding
+  that server-side resolution should move client-side.
+
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
   `removedCommandError` in `contract.go` instead of silently succeeding or

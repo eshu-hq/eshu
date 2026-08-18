@@ -5,29 +5,21 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
 )
 
-type repositoryListResponse struct {
-	Repositories []repositorySelectorEntry `json:"repositories"`
-	// Total is the true repository count independent of page size, added in
-	// issue #3392 so callers can display the accurate total without paging
-	// through the entire dataset.
-	Total int `json:"total"`
-}
-
-type repositorySelectorEntry struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	LocalPath string `json:"local_path"`
-	RepoSlug  string `json:"repo_slug"`
-}
-
+// resolveRepositorySelectorFromFlags reads whichever repository selector flag
+// the command declares and resolves it to a canonical repository ID. An empty
+// result means the command was given no selector, which every caller treats as
+// "not scoped to a repository" rather than as an error.
+//
+// The flag reading stays here because cobra flags are process state; the
+// matching and the API listing behind it live in
+// go/internal/cli/reposelector.
 func resolveRepositorySelectorFromFlags(cmd *cobra.Command, client *APIClient) (string, error) {
 	selector, exact, err := readRepositorySelectorFlag(cmd)
 	if err != nil {
@@ -39,9 +31,29 @@ func resolveRepositorySelectorFromFlags(cmd *cobra.Command, client *APIClient) (
 	if exact {
 		return selector, nil
 	}
-	return resolveRepositorySelector(cmd, client, selector)
+	if client == nil {
+		return "", missingAPIClientError(selector)
+	}
+	return reposelector.Resolve(client, selector)
 }
 
+// missingAPIClientError reproduces the error a nil client produced before the
+// selector logic moved to go/internal/cli/reposelector. The check has to
+// happen here, on the concrete pointer: a nil *APIClient boxed into
+// reposelector.Getter is a non-nil interface, so it slips that package's own
+// nil guard and panics inside APIClient.do instead. Callers build the client
+// with apiClientFromCmd, which never returns nil, so this is defensive -- but
+// preserving it keeps the extraction behaviour-preserving rather than
+// behaviour-preserving-for-today's-callers.
+func missingAPIClientError(selector string) error {
+	return fmt.Errorf("resolve repo selector %q: missing API client", selector)
+}
+
+// readRepositorySelectorFlag returns the selector value, whether it is already
+// an exact repository ID, and any flag-read error. --repo is a fuzzy selector
+// that needs resolving; --repo-id is exact and bypasses resolution entirely,
+// which is what lets an operator skip the repository listing when they already
+// hold the canonical ID.
 func readRepositorySelectorFlag(cmd *cobra.Command) (string, bool, error) {
 	if cmd == nil {
 		return "", false, nil
@@ -63,95 +75,4 @@ func readRepositorySelectorFlag(cmd *cobra.Command) (string, bool, error) {
 		return strings.TrimSpace(value), true, nil
 	}
 	return "", false, nil
-}
-
-func resolveRepositorySelector(_ *cobra.Command, client *APIClient, selector string) (string, error) {
-	if client == nil {
-		return "", fmt.Errorf("resolve repo selector %q: missing API client", selector)
-	}
-
-	var response repositoryListResponse
-	if err := client.Get("/api/v0/repositories", &response); err != nil {
-		return "", fmt.Errorf("resolve repo selector %q: %w", selector, err)
-	}
-
-	matches := make([]string, 0, 1)
-	seen := make(map[string]struct{})
-	matcher := newRepositorySelectorMatcher(selector)
-	for _, repo := range response.Repositories {
-		if !matcher.matches(repo) {
-			continue
-		}
-		if _, ok := seen[repo.ID]; ok {
-			continue
-		}
-		seen[repo.ID] = struct{}{}
-		matches = append(matches, repo.ID)
-	}
-
-	switch len(matches) {
-	case 0:
-		return "", fmt.Errorf("resolve repo selector %q: no matching repository", selector)
-	case 1:
-		return matches[0], nil
-	default:
-		slices.Sort(matches)
-		return "", fmt.Errorf("resolve repo selector %q: multiple repositories match: %s", selector, strings.Join(matches, ", "))
-	}
-}
-
-func repositorySelectorMatches(repo repositorySelectorEntry, selector string) bool {
-	return newRepositorySelectorMatcher(selector).matches(repo)
-}
-
-type repositorySelectorMatcher struct {
-	selector        string
-	cleanSelector   string
-	realSelector    string
-	hasRealSelector bool
-}
-
-func newRepositorySelectorMatcher(selector string) repositorySelectorMatcher {
-	selector = strings.TrimSpace(selector)
-	matcher := repositorySelectorMatcher{
-		selector:      selector,
-		cleanSelector: filepath.Clean(selector),
-	}
-	if selector == "" {
-		return matcher
-	}
-	if realSelector, err := filepath.EvalSymlinks(selector); err == nil {
-		matcher.realSelector = realSelector
-		matcher.hasRealSelector = true
-	}
-	return matcher
-}
-
-func (m repositorySelectorMatcher) matches(repo repositorySelectorEntry) bool {
-	if m.selector == "" {
-		return false
-	}
-	if repo.ID == m.selector || repo.Name == m.selector || repo.RepoSlug == m.selector {
-		return true
-	}
-	if repo.Path == m.selector || repo.LocalPath == m.selector {
-		return true
-	}
-	return repositoryPathSelectorMatches(repo.Path, m) ||
-		repositoryPathSelectorMatches(repo.LocalPath, m)
-}
-
-func repositoryPathSelectorMatches(candidate string, matcher repositorySelectorMatcher) bool {
-	candidate = strings.TrimSpace(candidate)
-	if candidate == "" || matcher.selector == "" {
-		return false
-	}
-	if filepath.Clean(candidate) == matcher.cleanSelector {
-		return true
-	}
-	if !matcher.hasRealSelector {
-		return false
-	}
-	candidateReal, err := filepath.EvalSymlinks(candidate)
-	return err == nil && candidateReal == matcher.realSelector
 }
