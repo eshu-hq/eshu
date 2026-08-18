@@ -53,6 +53,10 @@ See [`doc.go`](doc.go) for the godoc contract. In outline:
 - **Repo run** — `RunRepo`, `RepoDeps`, `RepoOptions`, `RepoClient`. The
   wrapper builds the deps and options and maps the returned `*Failure` onto
   its exit-error type; every other error is returned to the operator as is.
+  `RepoClient` is exported because it is the declared type of
+  `RepoDeps.Client`, not because a caller names it: the wrapper assigns its
+  concrete `*APIClient` there, and the interface exists so the field's contract
+  (a plain GET plus the envelope GET) can be read from godoc.
 - **Result path** — `Result`, `Target`, `NewResult`, `FetchImpactFindings`,
   `ReadinessState`, `ApplyScope`, `RecordPerformance`, `EnvelopeFetcher`. These
   are the steps `RunRepo` composes.
