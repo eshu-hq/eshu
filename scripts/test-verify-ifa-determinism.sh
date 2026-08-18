@@ -25,6 +25,7 @@ deployable_unit_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
+codeowners_lib="${repo_root}/scripts/lib/ifa_codeowners_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
@@ -136,6 +137,11 @@ require_deployable_unit_lib() {
 require_rationale_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${rationale_lib}" || fail "missing ${label} (rationale lib): ${needle}"
+}
+
+require_codeowners_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${codeowners_lib}" || fail "missing ${label} (codeowners lib): ${needle}"
 }
 
 # Strict mode and self-cleanup.

@@ -209,11 +209,22 @@ loop_header_count="$(rg --count --fixed-strings -- 'for family in $(ifa_family_r
 # the real expected needle as the value lets the loop right after this map
 # verify it actually appears in one of this module's own target lib files,
 # so a bare entry can no longer pass.
+# codeowners_ownership_edges (#5992, wired into the shared determinism cell by
+# #6160). Its drive/assert helpers live in scripts/lib/ifa_codeowners_live.sh
+# and follow the majority labeled signature, so the registry loop dispatches
+# them with no shim. The exact-set assert is what makes the coverage real: the
+# MERGE key for this family deliberately includes pattern and source_path, so
+# distinct CODEOWNERS rules must not collapse onto one edge.
+require_codeowners_lib "codeowners assert-edges domain" "-domain codeowners_ownership_edges"
+require_codeowners_lib "codeowners drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_codeowners_lib "codeowners assert is exact-set, not a digest" '-expected "${expected_edges}"'
+
 declare -A ifa_det_family_cases_hand_authored=(
 	[sql_relationships]="-domain sql_relationships"
 	[code_calls]="-domain code_calls"
 	[documentation_edges]="-domain documentation_edges"
 	[rationale_edges]="-domain rationale_edges"
+	[codeowners_ownership_edges]="-domain codeowners_ownership_edges"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -237,7 +248,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	[[ "${domain_needle}" == "${expected_needle}" ]] \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with value '${domain_needle}', which is not this family's own '${expected_needle}' assert-edges flag -- the value must be the family's real domain needle, never a bare acknowledgement or a value copied from another family"
 	rg --fixed-strings --quiet -- "${domain_needle}" \
-		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" \
+		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

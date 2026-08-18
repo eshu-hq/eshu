@@ -58,5 +58,17 @@ IFA_FAMILY_PIN_WAIT_KEY="codeowners_ownership"
 # same shape documentation_edges' custom cell takes, though (per the KNOWN
 # DISCREPANCY note above) built on the wrong lock target today.
 IFA_FAMILY_PIN_ANCHOR="MERGE (repo)-[rel:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)"
-IFA_FAMILY_PIN_SHARED_CELL=0
+# shared_cell: 1, re-derived after #6160 merged. That PR added this family's
+# cassette and expected-edge entries to scripts/lib/ifa_family_fixtures.sh and
+# its drive/assert helpers to scripts/lib/ifa_codeowners_live.sh, and drove it
+# in the determinism gate's shared N={1,2,4} cell. This pin read 0 before that,
+# which was correct then: the family had no shared-cell drive at all.
+# Derived from the gate, not from the registry row: verify-ifa-determinism.sh
+# drives every registered shared_cell family through ifa_family_registry_drive
+# in the shared N-loop, and this family is registered there now.
+# Note the FAULT side is not shared: #6160 gave it a scoped baseline plus two
+# recovery cells (the deployable_unit shape), because its edges need a
+# maintenance pass the shared cells do not run. shared_cell describes the
+# determinism shared cell only.
+IFA_FAMILY_PIN_SHARED_CELL=1
 IFA_FAMILY_PIN_CELL_KIND="custom"

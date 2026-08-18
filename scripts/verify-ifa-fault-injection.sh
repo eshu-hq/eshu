@@ -458,23 +458,9 @@ ifa_fault_shard_run cell_killworker_rationale
 ifa_fault_shard_run cell_duplicatedelivery
 ifa_fault_shard_run cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
-#
-# It spent months held out under three successive diagnoses -- a stderr-flush
-# race, then "the fault does not fire in CI", then "the emitted Cypher does not
-# contain the anchor" -- and all three were wrong. When the marker was finally
-# read correctly it was present, naming the anchored statement: the injection
-# worked and the reading of it did not. What failed was the assertion:
-# it matched the marker with `rg`, which is not installed on this runner, so
-# "command not found" was read as "the marker does not name the operation".
-# The fix lives in ifa_fault_injection_common.sh.
-#
-# The lesson outlives the cell: a checker that cannot run must never look like a
-# checker that ran and said no. The assertion now matches in bash and returns
-# three distinct verdicts -- 0 the targeted write, 2 a different write, 1 no
-# marker -- so no single exit code carries two meanings.
-#
-# Do not hold this cell out again on a red run without first proving the
-# assertion itself can execute.
+# The full account of why it was held out for months on three successive wrong
+# diagnoses -- and the lesson that outlives the cell -- now lives beside the
+# cell itself, in scripts/lib/ifa_fault_injection_sql_cells.sh's header.
 ifa_fault_shard_run cell_failgraphwrite_sql
 ifa_fault_shard_run cell_failgraphwrite_code_calls
 ifa_fault_shard_run cell_failgraphwrite_documentation
@@ -494,9 +480,14 @@ ifa_fault_shard_run cell_killworker_deployable_unit
 ifa_fault_shard_run cell_failgraphwrite_deployable_unit
 
 # codeowners_ownership_edges (#5992), cells 19-21; baseline first (it sets digests[baseline_codeowners] + baseline_codeowners_retried).
-cell_baseline_codeowners
-cell_killworker_codeowners
-cell_failgraphwrite_codeowners
+# Wrapped, like every other cell: #6160 landed these three before this gate
+# was sharded, so they dispatched bare and would have run in ALL FOUR shards
+# instead of just their own -- four times the work, and a partition the
+# mirror's exact-cover proof no longer described. The shard-cases count pin
+# caught it on the merge.
+ifa_fault_shard_run cell_baseline_codeowners
+ifa_fault_shard_run cell_killworker_codeowners
+ifa_fault_shard_run cell_failgraphwrite_codeowners
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do
