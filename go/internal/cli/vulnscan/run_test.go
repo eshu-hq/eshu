@@ -320,4 +320,15 @@ func TestRunRepoRejectsMissingStreams(t *testing.T) {
 	if closed != 1 {
 		t.Fatalf("CloseLocalRuntime calls = %d, want 1 even when the wiring check fails", closed)
 	}
+
+	// A close failure in that arm is folded into the returned error, after
+	// the wiring error, so neither is lost.
+	deps.CloseLocalRuntime = func() error { return errors.New("close boom") }
+	err = RunRepo(context.Background(), deps, repoRunOptions(true))
+	if err == nil {
+		t.Fatal("RunRepo() error = nil, want the wiring error carrying the close failure")
+	}
+	if got, want := err.Error(), "vulnscan: RunRepo requires Stdout and Stderr; local runtime cleanup failed: close boom"; got != want {
+		t.Fatalf("RunRepo() error = %q, want %q", got, want)
+	}
 }
