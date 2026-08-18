@@ -3,26 +3,159 @@
 # Dynamic sources and indirect stub calls are the subject of these cases.
 # Focused behavioral regressions for the documentation_edges fault-injection
 # cells (#5994). Split from test-ifa-fault-injection-review-cases.sh to stay
-# under the repository's 500-line cap; mirrors that file's
-# test_ifa_code_call_fresh_stack_intent_guard_is_typed_and_fail_closed case
-# for the fresh-stack guard shape.
-#
-# This family no longer holds an intent lock at all, and no longer has any
-# mid-handler-interruption fault cell (#6149 follow-up item 8, both a ruling
-# and its correction). DocumentationEdgeMaterializationHandler.Handle
-# performs no Postgres write, so there is nothing a kill-worker cell can
-# lock; an attempted domain-scoped expire-lease replacement also failed on
-# the live matrix because the handler's ~7ms duration races the forced-expiry
-# UPDATE. See ifa_fault_injection_documentation_cells.sh's own header for the
-# full trace. There is accordingly no lock-holder-teardown case, and no
-# reclaim-cell case, here any more; that coverage applied to mechanisms this
-# family no longer has.
-#
-# Sourced by scripts/test-verify-ifa-fault-injection.sh alongside
+# under the repository's 500-line cap. The documentation handler writes its
+# graph records directly and holds no shared-projection intent, so these cases
+# exercise its family-specific fresh-stack guard -- repointed at the graph by
+# #6157, since the old intents query was vacuous for this family -- and the
+# exact fact_work_items ACK-transition barrier that gives the family its
+# mid-handler-interruption cell (#5998). Sourced by
+# scripts/test-verify-ifa-fault-injection.sh alongside
 # test-ifa-fault-injection-review-cases.sh, so the top-level static verifier
 # stays below the repository's 500-line cap; both files share that script's
 # ${documentation_cells_lib}/${det_lib}/${driver_lib} globals and `fail`
 # helper.
+
+run_ifa_documentation_live_static_cases() {
+	# Every cell drives the family via drive_all_cassettes, baseline exact-asserts
+	# it, and two dedicated cells prove queue reclaim and graph-write retry.
+	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
+	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+	require_fixture "documentation cassette existence guard" "documentation cassette not found"
+	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
+	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_driver "documentation drive in every cell" "ifa_documentation_drive"
+	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
+	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
+	rg --quiet --line-regexp -- 'cell_killworker_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_killworker_documentation on its own line"
+	rg --quiet --line-regexp -- 'cell_failgraphwrite_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_failgraphwrite_documentation on its own line"
+	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
+	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
+	require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
+	require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
+	require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
+	# Pinned against the real precondition CALL, not against prose. The previous
+	# literal here ("projection_domain = 'documentation_edges'") was satisfied
+	# only by a COMMENT explaining that this probe had been deleted as vacuous,
+	# so rewording that comment turned the mirror red while deleting the actual
+	# precondition below left it green -- a guard pinned to the explanation of a
+	# thing rather than the thing.
+	require_documentation_cells "graph-write cell probes fresh DOCUMENTS edges" 'ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation"'
+	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+	require_documentation_cells "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline"
+	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
+	require_documentation_cells "documentation kill cell installs its ACK barrier" "ifa_documentation_start_ack_barrier"
+	require_documentation_barrier_setup "documentation ACK barrier is a before-update trigger" "BEFORE UPDATE ON public.fact_work_items"
+	require_documentation_barrier_setup "documentation ACK barrier preflight requires absent artifacts" "documentation ACK barrier preflight expected 0 artifacts"
+	rg -U --fixed-strings --quiet -- $'local setup_sql="BEGIN;\nCREATE FUNCTION' "${documentation_barrier_setup_lib}" \
+		|| fail "documentation ACK barrier DDL does not begin an explicit transaction"
+	rg -U --fixed-strings --quiet -- $'EXECUTE FUNCTION public.ifa_documentation_block_ack();\nCOMMIT;' "${documentation_barrier_setup_lib}" \
+		|| fail "documentation ACK barrier DDL does not commit after trigger creation"
+	require_documentation_barrier_setup "documentation ACK barrier is domain-specific" "NEW.domain = 'documentation_materialization'"
+	require_documentation_barrier_setup "documentation ACK barrier blocks only success ACKs" "NEW.status = 'succeeded'"
+	require_documentation_barrier_setup "documentation ACK barrier checks the prior reducer stage" "OLD.stage = 'reducer'"
+	require_documentation_barrier_setup "documentation ACK barrier checks the new reducer stage" "NEW.stage = 'reducer'"
+	require_documentation_barrier_setup "documentation ACK barrier checks the prior domain" "OLD.domain = 'documentation_materialization'"
+	require_documentation_barrier_setup "documentation ACK barrier checks the fixture scope" "NEW.scope_id = 'scope-ifa-documentation-family'"
+	require_documentation_barrier_setup "documentation ACK barrier checks the fixture generation" "NEW.generation_id = 'gen-ifa-documentation-family-1'"
+	require_documentation_barrier_setup "documentation ACK barrier starts from a live lease" "OLD.lease_owner IS NOT NULL"
+	require_documentation_barrier_setup "documentation ACK barrier sees ACK clear the lease" "NEW.lease_owner IS NULL"
+	require_documentation_barrier_setup "documentation ACK barrier tags the waiting backend locally" "pg_catalog.set_config('application_name', '\${waiter_app_name}', true)"
+	require_documentation_barrier_setup "documentation ACK barrier uses a transaction advisory lock" "pg_advisory_xact_lock(5998, 5994)"
+	require_documentation_barrier_setup "documentation ACK barrier holder uses the matching session lock" "pg_advisory_lock(5998, 5994)"
+	require_documentation_barrier_setup "documentation ACK barrier contention is nonblocking" "pg_try_advisory_lock(5998, 5994)"
+	require_documentation_barrier_setup "documentation ACK cleanup tracks holder ownership separately" "ifa_documentation_ack_holder_owned"
+	require_documentation_barrier_setup "documentation ACK cleanup tracks DDL ownership separately" "ifa_documentation_ack_ddl_owned"
+	rg -U --pcre2 --quiet -- 'ifa_documentation_start_ack_holder[\s\S]*ifa_documentation_install_ack_barrier' "${documentation_barrier_setup_lib}" \
+		|| fail "documentation ACK startup does not acquire its session holder before DDL preflight/setup"
+	rg -U --pcre2 --quiet -- 'ifa_documentation_start_ack_holder[^\n]*\|\| return \$\?[\s\S]*ifa_documentation_install_ack_barrier' "${documentation_barrier_setup_lib}" \
+		|| fail "documentation ACK startup does not short-circuit before installer DDL when holder acquisition fails"
+	require_documentation_cells "documentation kill cell proves the ACK connection is blocked" "ifa_documentation_wait_for_blocked_ack"
+	require_documentation_barrier "documentation ACK proof inspects an ungranted advisory lock" "NOT barrier.granted"
+	require_documentation_barrier "documentation ACK proof verifies the exact two-key lock kind" "barrier.objsubid = 2"
+	require_documentation_barrier "documentation ACK proof binds the waiter lock to this database" "barrier.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())"
+	require_documentation_barrier "documentation ACK proof binds the holder lock to this database" "held.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())"
+	require_documentation_barrier "documentation ACK proof verifies its blocker PID" "pg_catalog.pg_blocking_pids(waiter.pid)"
+	require_documentation_cells "documentation kill cell terminates the exact blocked ACK backend" "ifa_documentation_terminate_blocked_ack"
+	require_documentation_cells "documentation kill cell proves the waiter and lock are gone" "ifa_documentation_wait_for_ack_backend_gone"
+	require_documentation_cells "documentation kill cell snapshots the claimed row" "ifa_documentation_claim_snapshot"
+	require_documentation_barrier "documentation ACK barrier cleanup drops its trigger" "DROP TRIGGER IF EXISTS ifa_documentation_ack_barrier ON public.fact_work_items"
+	require_documentation_barrier "documentation ACK barrier cleanup drops its function" "DROP FUNCTION IF EXISTS public.ifa_documentation_block_ack()"
+	require_documentation_barrier "documentation backend termination proves one PostgreSQL true result" '"1|true"'
+	require_documentation_barrier_setup "documentation ACK barrier uses a validated run identity" "ifa_documentation_validate_ack_identity"
+	require_documentation_barrier "documentation ACK cleanup always censuses tagged waiters" "ifa_documentation_census_ack_waiter"
+	require_documentation_barrier "documentation ACK cleanup censuses uncaptured holders" "ifa_documentation_census_ack_holder"
+	require_documentation_barrier_setup "documentation ACK preflight rejects an occupied advisory key" "documentation ACK barrier key is already in use"
+	if rg --fixed-strings --quiet -- "pg_catalog.extract(" "${documentation_barrier_lib}"; then
+		fail "documentation ACK barrier schema-qualifies EXTRACT special syntax"
+	fi
+	require_documentation_barrier "documentation claim snapshot extracts claim_until epoch" "EXTRACT(epoch FROM claim_until)"
+	require_documentation_barrier "documentation claim snapshot extracts updated_at epoch" "EXTRACT(epoch FROM updated_at)"
+	rg --fixed-strings --quiet -- "ifa_documentation_probe_cleanup" "${documentation_barrier_cases_lib}" \
+		|| fail "documentation ACK Postgres probe has no fail-safe cleanup trap"
+	rg --fixed-strings --quiet -- "trap ifa_documentation_probe_cleanup EXIT" "${documentation_barrier_cases_lib}" \
+		|| fail "documentation ACK Postgres probe does not install its fail-safe cleanup trap"
+	rg --fixed-strings --quiet -- "ifa_documentation_cleanup_ack_barrier probe" "${documentation_barrier_cases_lib}" \
+		|| fail "documentation ACK Postgres probe cleanup does not use the production lifecycle"
+	rg --fixed-strings --quiet -- "exit 97" "${documentation_barrier_cases_lib}" \
+		|| fail "documentation ACK Postgres probe does not surface cleanup failure"
+	rg --fixed-strings --quiet -- "ACK_POSTGRES_PROBE_PASS" "${documentation_barrier_cases_lib}" \
+		|| fail "documentation ACK Postgres probe has no terminal non-vacuity marker"
+	require_documentation_barrier "documentation producer shutdown signals before joining" "ifa_documentation_signal_ack_producers"
+	require_documentation_barrier "documentation producer shutdown joins after signaling" "ifa_documentation_join_ack_producers"
+	require_documentation_barrier "documentation ACK trigger cleanup is bounded" "SET LOCAL lock_timeout = '2s'"
+	require_documentation_barrier "documentation ACK function cleanup is independently bounded" "SET LOCAL statement_timeout = '5s'"
+	require "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
+	require "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
+	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
+	require_driver "per-cell teardown joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
+	rg -U --pcre2 --quiet -- 'ifa_documentation_stop_ack_producers \|\| \{ failed=1; holder_safe=0; \}[\s\S]*ifa_documentation_census_ack_waiter[\s\S]*ifa_documentation_census_ack_holder[\s\S]*ifa_documentation_drop_ack_trigger[\s\S]*ifa_documentation_drop_ack_function' \
+		"${documentation_barrier_lib}" \
+		|| fail "ACK failure cleanup does not join producers, fence waiter, stop holder, then attempt both DDL drops"
+	if rg --fixed-strings --quiet -- "LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE" "${documentation_cells_lib}"; then
+		fail "documentation kill cell still blocks shared_projection_intents, which its handler never writes"
+	fi
+	# Cleanup owns the only IF EXISTS drop; installation must not erase leaked
+	# artifacts before checking them. This count is unconditional: `rg --quiet`
+	# emits no bytes and must never guard the assertion.
+	[[ "$(rg --fixed-strings --count -- "DROP TRIGGER IF EXISTS ifa_documentation_ack_barrier" "${documentation_barrier_lib}")" == "1" ]] \
+		|| fail "documentation ACK barrier must contain exactly one cleanup DROP TRIGGER"
+	if rg --fixed-strings --quiet -- 'kill -9 "${reducer_pid_before}"' "${documentation_cells_lib}"; then
+		fail "documentation kill cell bypasses the shared join/untrack ownership helper"
+	fi
+	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[\s\S]*ifa_documentation_wait_for_blocked_ack[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_assert[\s\S]*ifa_det_stop_join_untrack_bg_pid[\s\S]*ifa_documentation_terminate_blocked_ack[\s\S]*ifa_documentation_wait_for_ack_backend_gone[\s\S]*ifa_documentation_claim_snapshot[\s\S]*ifa_documentation_release_ack_barrier[\s\S]*reducer-killworkerdocumentation-after' "${documentation_cells_lib}" \
+		|| fail "documentation kill cell does not prove graph+claim+blocked ACK before KILL and clean exact backends before replacement"
+	# The sequence pin above proves the guards are CALLED. These two prove the
+	# claimed-row guard also FAILS CLOSED, which the sequence cannot see: a
+	# `|| die` softened to `|| true` would leave the call site intact and the
+	# cell would then "pass" against a queue that never claimed the row at all.
+	# That inert-fixture shape is not hypothetical -- the #5998 pre-adoption
+	# probe hit exactly it (a fixture INSERT rejected on a NOT NULL column left
+	# every observation running against an empty table while still printing
+	# plausible output), and it is the same class as #5974 and the vacuous
+	# intents guard #6157 repointed.
+	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[^\n]*\\\n\s*\|\| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed"' "${documentation_cells_lib}" \
+		|| fail "documentation kill cell's claimed-row guard must die when no documentation_materialization row was claimed -- otherwise the cell passes against an empty queue"
+	require_documentation_cells "documentation kill cell reports its non-vacuity evidence" "non-vacuous: %s claimed row; ACK backend %s blocked by holder %s after exact graph write"
+	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17"
+	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
+	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
+	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
+	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other seventeen cells remain bound"
+	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (18 cells, fresh stack per cell)" \
+		"${repo_root}/.github/workflows/ifa-determinism-gate.yml" \
+		|| fail "fault workflow job label does not name all eighteen cells"
+	local private_scan_block static_test
+	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
+	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"
+	for target in '"${documentation_lib}"' '"${documentation_cells_lib}"' '"${documentation_barrier_lib}"' '"${documentation_cases_lib}"' '"${documentation_barrier_cases_lib}"' '"${documentation_barrier_cleanup_cases_lib}"'; do
+		[[ "${private_scan_block}" == *"${target}"* ]] \
+			|| fail "fault verifier private-data scan omits ${target}"
+	done
+}
 
 test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed() (
 	source "${documentation_cells_lib}"
@@ -139,10 +272,10 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	# happened to run first. The family also proves the SqlTable target case
 	# (batchCanonicalDocumentationEntityEdgeCypher's MATCH label alternation,
 	# TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel).
-	require "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
-	require "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-	require "documentation cassette existence guard" "documentation cassette not found"
-	require "documentation expected-edge set existence guard" "documentation expected-edge set not found"
+	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
+	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
+	require_fixture "documentation cassette existence guard" "documentation cassette not found"
+	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
 	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
@@ -154,11 +287,16 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	# the way code_calls/deployable_unit_correlation can. A domain-scoped
 	# expire-lease cell was tried as a replacement and also failed live: the
 	# handler's ~7ms duration races the forced-expiry UPDATE, so the trigger
-	# never lands. Both mechanisms (name, lock helpers, the lock table they
-	# targeted, and the reclaim cell itself) must be genuinely gone, not
-	# merely renamed or swapped for an equally-vacuous sibling.
-	rg --quiet --fixed-strings -- 'cell_killworker_documentation() {' "${documentation_cells_lib}" \
-		&& fail "the old cell_killworker_documentation name must not survive as a callable function definition in ${documentation_cells_lib}"
+	# never lands. Both of those mechanisms (the lock helpers and the lock
+	# table they targeted) must be genuinely gone, not merely renamed or
+	# swapped for an equally-vacuous sibling.
+	#
+	# The kill-worker CELL is a different matter and is deliberately NOT
+	# asserted absent here any more: #5998 reinstated it on a mechanism that
+	# does not race the handler at all -- it blocks the queue ACK through a
+	# BEFORE UPDATE trigger on fact_work_items held by a separate advisory-lock
+	# session. What must stay gone is the intent-lock machinery below, which is
+	# what was actually vacuous.
 	rg --quiet --fixed-strings -- 'cell_expirelease_documentation() {' "${documentation_cells_lib}" \
 		&& fail "cell_expirelease_documentation must not survive as a callable function definition in ${documentation_cells_lib} -- it does not fire the fault live (#6149 follow-up item 8 correction)"
 	rg --quiet --fixed-strings -- 'ifa_documentation_start_intent_lock' "${documentation_cells_lib}" \
@@ -167,17 +305,23 @@ run_ifa_fault_injection_documentation_registry_cases() {
 		&& fail "ifa_documentation_release_intent_lock must not survive in ${documentation_cells_lib} -- this family holds no lock any more (#6149 follow-up item 8)"
 	rg --quiet --fixed-strings -- 'LOCK TABLE shared_projection_intents' "${documentation_cells_lib}" \
 		&& fail "no cell in ${documentation_cells_lib} may lock shared_projection_intents any more -- the handler never writes it (#6149 follow-up item 8)"
-	rg --quiet --fixed-strings -- 'ifa_fault_wait_for_claimed' "${documentation_cells_lib}" \
-		&& fail "ifa_fault_wait_for_claimed must not survive in ${documentation_cells_lib} -- it belonged only to the removed expire-lease cell (#6149 follow-up item 8 correction)"
-	# The header must state plainly that this family has no deterministic
-	# mid-handler fault cell, why, and what would close the gap -- the exact
-	# honesty requirement this item exists to enforce (a cell that could not
-	# be made deterministic was the single most repeated defect in this
-	# epic, first as a wrong-table lock, then as a raced expire-lease UPDATE).
-	require_documentation_cells "documentation cells header states the family has no deterministic mid-handler fault cell" "NO DETERMINISTIC MID-HANDLER FAULT CELL"
-	require_documentation_cells "documentation cells header states the measured handler duration that defeats both triggers" "duration_seconds: 0.0073"
-	require_documentation_cells "documentation cells header names what would close the gap" "fault_executor.go"
-	require_documentation_cells "documentation cells header states the precise, bounded loss" "UNPROVEN for documentation_materialization"
+	# ifa_fault_wait_for_claimed is expected here again: cell_killworker_
+	# documentation uses it to prove a genuinely claimed row before the ACK
+	# barrier blocks that row's acknowledgement (#5998). It is asserted
+	# PRESENT by the kill-cell sequence pin in
+	# run_ifa_documentation_live_static_cases, not absent.
+	# The header must state plainly HOW this family regained a deterministic
+	# mid-handler fault cell, and must keep the measured fact that defeated the
+	# two earlier mechanisms -- the same honesty requirement, now discharged by
+	# explaining the mechanism instead of recording a gap. It must also keep
+	# the scope of the pre-adoption probe, so a reader cannot mistake a
+	# mechanism proof for the live-matrix proof.
+	require_documentation_cells "documentation cells header states the family regained a mid-handler cell" "MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER"
+	require_documentation_cells "documentation cells header names the superseded gap ruling" "superseding the gap #6149 follow-up item 8 recorded here"
+	require_documentation_cells "documentation cells header keeps the measured handler duration that defeated both earlier triggers" "duration_seconds 0.0073"
+	require_documentation_cells "documentation cells header names the ACK-barrier mechanism" "pg_advisory_xact_lock(5998, 5994)"
+	require_documentation_cells "documentation cells header explains why handler width no longer matters" "handler width is irrelevant"
+	require_documentation_cells "documentation cells header bounds what the pre-adoption probe did not cover" "not the real"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"

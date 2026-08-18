@@ -29,6 +29,18 @@ const (
 	graphWriteRetryReasonUniqueConflict = "commit_unique_conflict"
 
 	nornicDBRelationshipSnapshotConflictMessage = "UNWIND MERGE chain relationship update failed: not found"
+	// nornicDBRelationshipCreateMissingEndpointPrefix and
+	// ...Suffix bracket the create-side sibling of the message above:
+	// "UNWIND MERGE chain relationship create failed: start node
+	// nornic:<uuid> does not exist", reported when the endpoint the statement
+	// just resolved is no longer readable -- observed live while a backend
+	// restart tore the store down mid-write. BOTH fragments are required
+	// because the uuid between them is per-node, and because matching the
+	// "create failed" prefix alone would also swallow "create failed: not
+	// found", which TestRetryingExecutorDoesNotBroadenRelationshipSnapshotRetry
+	// deliberately keeps terminal.
+	nornicDBRelationshipCreateMissingEndpointPrefix = "UNWIND MERGE chain relationship create failed: start node "
+	nornicDBRelationshipCreateMissingEndpointSuffix = " does not exist"
 )
 
 // RetryingExecutor wraps an Executor with retry logic for transient Neo4j
@@ -314,11 +326,21 @@ func isNornicDBMergeRelationshipSnapshotConflict(err error, cypher string) bool 
 	return isNornicDBRelationshipSnapshotConflict(err)
 }
 
-// isNornicDBRelationshipSnapshotConflict matches the exact typed wire error
-// emitted when NornicDB's relationship lookup observes a concurrently
-// committed edge that the current transaction snapshot cannot update. Keep
-// the code and message checks narrow so unrelated syntax and missing-entity
-// errors remain terminal.
+// isNornicDBRelationshipSnapshotConflict matches the typed wire errors emitted
+// when NornicDB's relationship lookup cannot act on an endpoint the current
+// transaction snapshot resolved: the update-side conflict, where a
+// concurrently committed edge is no longer updatable, and the create-side
+// failure, where a just-resolved start node is no longer readable (seen while
+// a backend restart tore the store down mid-write). Both surface under
+// nornicDBStatementSyntaxErrorCode, which a genuinely malformed query also
+// uses, so the message carries the discrimination and every caller gates on a
+// MERGE-shaped statement before acting on the result.
+//
+// Replay is safe on the create-side shape for its own reasons, not only by
+// analogy: a MERGE-shaped statement converges on re-execution, and a start node
+// that genuinely does not exist fails again and dead-letters once the retry
+// budget is spent — the same terminal outcome as classifying it terminal up
+// front, reached only after recovery was actually attempted.
 func isNornicDBRelationshipSnapshotConflict(err error) bool {
 	if err == nil {
 		return false
@@ -327,8 +349,27 @@ func isNornicDBRelationshipSnapshotConflict(err error) bool {
 	if !errors.As(err, &neo4jErr) {
 		return false
 	}
-	return neo4jErr.Code == nornicDBStatementSyntaxErrorCode &&
-		strings.Contains(neo4jErr.Msg, nornicDBRelationshipSnapshotConflictMessage)
+	if neo4jErr.Code != nornicDBStatementSyntaxErrorCode {
+		return false
+	}
+	return strings.Contains(neo4jErr.Msg, nornicDBRelationshipSnapshotConflictMessage) ||
+		isNornicDBRelationshipCreateMissingEndpoint(neo4jErr.Msg)
+}
+
+// isNornicDBRelationshipCreateMissingEndpoint reports whether msg is the
+// create-side missing-endpoint failure. The two fragments must genuinely
+// BRACKET the node id -- suffix after prefix -- which is the narrowness the
+// guard's justification rests on. Two unordered Contains calls would also
+// accept a message carrying the fragments in the wrong order or in unrelated
+// clauses, which is a wider match than the comment claims and than the
+// neighbouring terminal bodies deserve.
+func isNornicDBRelationshipCreateMissingEndpoint(msg string) bool {
+	start := strings.Index(msg, nornicDBRelationshipCreateMissingEndpointPrefix)
+	if start < 0 {
+		return false
+	}
+	rest := msg[start+len(nornicDBRelationshipCreateMissingEndpointPrefix):]
+	return strings.Contains(rest, nornicDBRelationshipCreateMissingEndpointSuffix)
 }
 
 // isNornicDBMergeUniqueConflict treats commit-time unique conflicts from

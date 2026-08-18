@@ -42,7 +42,11 @@
 // assertion. Over the same read-only Bolt connection graph-dump uses, it reads
 // every edge of the named family's registry edge types and asserts the
 // family's materialized edges are exactly the hand-derived expected set in
-// -expected. It backs the materialized_edges:<domain> coverage manifest rows'
+// -expected. Generic families compare edge identity triples; rationale_edges
+// compares complete source, relationship, and target graph records for one
+// repository and retains cross-repository attachments or expected identities
+// with drifted repository properties as mismatches. It backs
+// the materialized_edges:<domain> coverage manifest rows'
 // proof_gate claims from inside the ifa-determinism (per cell) and
 // ifa-fault-injection (baseline) live gates: digest equality alone cannot
 // catch a family silently empty in every cell, an absolute expected set can.

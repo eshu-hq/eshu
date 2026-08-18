@@ -8,9 +8,9 @@
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`,
 # same non-inert rationale as scripts/verify-ifa-determinism.sh) PLUS the SQL
-# relationship and code-call family cassettes through a FRESH Postgres + NornicDB Compose
-# stack per cell (`down -v` between every cell, mirroring every sibling
-# verify-ifa-*.sh script), then injects one scripted fault per cell into the
+# relationship, code-call, documentation, and rationale family cassettes through a FRESH
+# Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
+# mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
 # drain, the canonicalized graph (`ifa graph-dump -digest`) is
 # BYTE-IDENTICAL to the fault-free baseline and fact_work_items carries ZERO
@@ -18,18 +18,21 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Fourteen cells, each hitting a genuinely different recovery or delivery
-# seam. All fourteen run by default. Cell
+# Eighteen cells, each hitting a genuinely different recovery or delivery
+# seam. All eighteen run by default. Cell
 # functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
-# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 10, issue #5555),
-# scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 11, issue
-# #5991), scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 8-9, issue
-# #5544), and scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
-# (cells 12-14, issue #5993). The delta cell's full-node collateral comparator
-# is split into scripts/lib/ifa_fault_injection_collateral_nodes.sh:
+# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
+# scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
+# #5991), scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and
+# 14, issue #5994), scripts/lib/ifa_fault_injection_rationale_cells.sh (cells 9
+# and 15, issue #5998), scripts/lib/ifa_fault_injection_delivery_cells.sh
+# (cells 10-11, issue #5544), and
+# scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue
+# #5993). The delta cell's full-node collateral comparator is split into
+# scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
 #   1. baseline                              -- fault-free; establishes the
-#      digest every non-delta recovery cell is compared against. Cell 9
+#      digest every non-delta recovery cell is compared against. Cell 11
 #      deliberately does not compare against it; see that entry.
 #   2. kill-worker-after-claim                -- `kill -9` the live host
 #      eshu-reducer process after a row is genuinely claimed, then start a
@@ -56,25 +59,34 @@
 #   7. kill-worker-after-claim-code-calls (#5991) -- mirrors cells 2 and 6,
 #      but waits specifically for a claimed code_call_materialization row and
 #      exact-asserts the five code-call edges after reclaim.
-#   8. duplicate-delivery (#5544)             -- drain once cleanly, then force
+#   8. kill-worker-after-claim-documentation (#5994) -- waits for a claimed
+#      documentation_materialization row, then proves lease reclaim and the
+#      exact three-edge DOCUMENTS set.
+#   9. kill-worker-after-claim-rationale (#5998) -- holds the rationale
+#      handler's shared-intent write, kills the exact reducer process after a
+#      rationale_materialization claim, and proves reclaim above baseline.
+#  10. duplicate-delivery (#5544)             -- drain once cleanly, then force
 #      every succeeded reducer row back to a claimable pending state in SQL and
 #      drain again. Proves the write path is idempotent under at-least-once
 #      redelivery: the graph after the second drain must equal the fault-free
 #      baseline exactly. The redelivery count is asserted > 0, so an UPDATE
 #      that stops matching fails loudly instead of making the second drain a
 #      no-op that passes vacuously.
-#   9. delta-retract (#5544)                  -- drive the committed
-#      generation-2 SQL cassette through ifa_det_run_sql_delta_live, the same
+#  11. delta-retract (#5544)                  -- drive the committed
+#      generation-2 SQL and rationale cassettes through
+#      ifa_det_run_sql_delta_live, the same
 #      helper scripts/verify-ifa-determinism.sh calls, so the two gates cannot
-#      drift on what a correctly-landed delta means. Generation 1 is asserted
-#      to have materialized BEFORE generation 2 is driven, otherwise "the
-#      retract removed it" and "it never arrived" are indistinguishable.
+#      drift on what a correctly-landed delta means. SQL and rationale
+#      generation 1 are asserted to have materialized BEFORE generation 2 is
+#      driven, otherwise "the retract removed it" and "it never arrived" are
+#      indistinguishable.
 #      This is the ONE cell that does not compare to the baseline digest:
 #      generation 2 changes the graph on purpose (it retracts one INDEXES edge
 #      and adds another), so that comparison would fail correctly and invite
-#      the wrong fix. Its proof is the exact expected-v2 edge set, which is
-#      stronger than digest equality because it names the edges.
-#  10. fail-graph-write-once-then-succeed-sql (#5555) -- mirrors cell 4, but
+#      the wrong fix. Its proof is the SQL exact expected-v2 edge set plus the
+#      rationale exact-one edge record, Charge survivor, and durable lifecycle
+#      counts.
+#  12. fail-graph-write-once-then-succeed-sql (#5555) -- mirrors cell 4, but
 #      the fault is anchored to a SQL edge MERGE (QUERIES_TABLE) instead of
 #      CloudResource. Fired-fault proof is the once-fired marker the fault
 #      decorator writes at injection time, not a log
@@ -86,25 +98,31 @@
 #      Runs by default since #5974. It was held out for months on the belief
 #      that the fault did not fire in CI; it always did, and the assertion was
 #      calling a binary the runner lacks. See the call site below.
-#  11. fail-graph-write-once-then-succeed-code-calls (#5991) -- mirrors cells
-#      4 and 10, but anchors the one-shot queue-retry fault to the code-call
+#  13. fail-graph-write-once-then-succeed-code-calls (#5991) -- mirrors cells
+#      4 and 12, but anchors the one-shot queue-retry fault to the code-call
 #      CALLS MERGE, proves the durable marker names that operation, and
 #      exact-asserts the five code-call edges after recovery.
-#  12. baseline-deployable-unit (#5993) -- a FAMILY-SCOPED fault-free
+#  14. fail-graph-write-once-then-succeed-documentation (#5994) -- anchors the
+#      one-shot queue-retry fault to the DOCUMENTS MERGE and reasserts the exact
+#      three-edge set after recovery.
+#  15. fail-graph-write-once-then-succeed-rationale (#5998) -- anchors the
+#      one-shot queue-retry fault to the production EXPLAINS MERGE and requires
+#      its marker, exact three-record graph truth, and exact durable counts.
+#  16. baseline-deployable-unit (#5993) -- a FAMILY-SCOPED fault-free
 #      baseline, not a recovery cell: deployable_unit_edges materializes
 #      nothing without a bootstrap-index maintenance pass this gate's other
 #      cells never run (see scripts/lib/ifa_deployable_unit_live.sh's header),
 #      so the shared cell 1 baseline's digest has zero deployable_unit_edges
-#      materialization by construction and cannot serve cells 13-14 below.
-#  13. kill-worker-after-claim-deployable-unit (#5993) -- mirrors cells 6-7,
+#      materialization by construction and cannot serve cells 17-18 below.
+#  17. kill-worker-after-claim-deployable-unit (#5993) -- mirrors cells 6-7,
 #      scoped to domain=deployable_unit_correlation, run AFTER a maintenance
 #      pass opens the readiness gate CrossRepoRelationshipHandler.Resolve
 #      checks.
-#  14. fail-graph-write-once-then-succeed-deployable-unit (#5993) -- mirrors
-#      cells 10-11, anchored to the CORRELATES_DEPLOYABLE_UNIT MERGE, also
+#  18. fail-graph-write-once-then-succeed-deployable-unit (#5993) -- mirrors
+#      cells 12-13, anchored to the CORRELATES_DEPLOYABLE_UNIT MERGE, also
 #      run after the same maintenance pass.
 #
-# Cells 2, 3, 6, and 7 do NOT go through faultreplay's kill-worker-after-claim /
+# Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
 # in-process WorkSource decorator (go/internal/replay/faultreplay's
 # FaultingWorkSource, consumed by faultreplay.RunFault) -- there is no
@@ -116,21 +134,22 @@
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (a twelfth possible cell) is deliberately NOT included: it
+# fail-terminal (a nineteenth possible cell) is deliberately NOT included: it
 # has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3/6/7 already can't use live.
+# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17 already can't use live.
 # Building a live fail-terminal seam is out of scope; this is reported as an
 # explicit, honest gap, not silently dropped.
 #
 # Flake policy: NO retry-to-green, ever. A digest mismatch or a non-zero
 # dead_letter count after a cell's drain is a real concurrency/recovery
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
-# it away (Serialization-Is-Not-A-Fix). A fault that never fires (checked
-# per-cell: a claimed-row proof for cells 2/3/6/7, a once-fired marker for
-# cells 4/10/11, a sentinel-fired proof for cell 5) is an inert script, not a
-# pass.
+# it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
+# script, not a pass, so every cell checks that its own fault actually fired:
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17
+#   - a once-fired marker for cells 4/12/13/14/15/18
+#   - a sentinel-fired proof for cell 5
 #
 # Usage:
 #   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep]
@@ -172,6 +191,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_call_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_rationale_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_collateral_nodes.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_collateral_nodes.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_delivery_cells.sh
@@ -184,6 +205,8 @@ source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 # shellcheck source=scripts/lib/ifa_documentation_live.sh
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_documentation_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
 # shellcheck source=scripts/lib/ifa_deployable_unit_live.sh
@@ -196,6 +219,8 @@ source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+# shellcheck source=scripts/lib/ifa_rationale_live.sh
+source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -211,8 +236,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7) and the default 30s (+jitter) reducer
-# retry delay (cells 4/10/11's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 : "${CLAIMED_ROW_WAIT_TIMEOUT:=60}"
@@ -222,44 +247,15 @@ compose_file="docker-compose.yaml"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 drive_workers=4
 
-# SQL relationship family cassette (#5351): driven into every cell alongside
-# the demo-org + synth-multiscope cassettes, so cells 2/3/6 (lease-expiry /
-# kill-worker) exercise the SQL relationship materialization handler's
-# replay through the REAL durable fault path, and the fault-free baseline's
-# own graph is asserted to carry exactly the nine expected SQL edges (the
-# non-vacuity check backing the materialized_edges:sql_relationships
-# manifest row's proof_gate: ifa-fault-injection claim). Every cell's
-# post-recovery graph is then compared byte-identical to that baseline, so a
-# fault that silently dropped a SQL edge on recovery diverges the digest and
-# fails.
-sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
-sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
-code_call_cassette="${repo_root}/testdata/cassettes/codecalls/ifa-code-call-family.json"
-code_call_expected_edges="${repo_root}/go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-
-# documentation_edges family cassette (#5994): driven into every cell
-# alongside the SQL and code-call families, including the SqlTable-target
-# DOCUMENTS edge (batchCanonicalDocumentationEntityEdgeCypher's MATCH label
-# alternation). cell_failgraphwrite_documentation below backs the
-# materialized_edges:documentation_edges manifest row's proof_gate:
-# ifa-fault-injection claim for injected graph-write failure. This family has
-# no mid-handler-interruption cell (no kill-worker, no expire-lease): its
-# handler has no Postgres write to lock and completes in single-digit
-# milliseconds, so neither trigger can land deterministically with existing
-# infrastructure -- see the gap note at the top of
-# ifa_fault_injection_documentation_cells.sh (#6149 follow-up item 8) for the
-# full trace and what would close it.
-documentation_cassette="${repo_root}/testdata/cassettes/documentation/ifa-documentation-family.json"
-documentation_expected_edges="${repo_root}/go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
-
-# deployable_unit_edges family cassette (#5993), driven by
-# cell_baseline_deployable_unit/cell_killworker_deployable_unit/
-# cell_failgraphwrite_deployable_unit (scripts/lib/
-# ifa_fault_injection_deployable_unit_cells.sh) via drive_all_cassettes.
-deployable_unit_cassette="${repo_root}/testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+# Committed materialized-edge family cassettes and their expected-set files,
+# shared verbatim with scripts/verify-ifa-determinism.sh. Every family below
+# is driven into every cell alongside the demo-org + synth-multiscope
+# cassettes (the deployable-unit family excepted -- see drive_all_cassettes'
+# header), and the fault-free baseline's own graph is exact-set asserted, so a
+# fault that silently dropped an edge on recovery diverges the digest and
+# fails instead of passing vacuously.
+# shellcheck source=scripts/lib/ifa_family_fixtures.sh
+source "${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
@@ -271,7 +267,7 @@ deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployable
 # this run's own call interleaving, unlike a statement_ordinal.
 cloud_resource_operation_match="MERGE (r:CloudResource"
 
-# The SQL edge MERGE anchor cell_failgraphwrite_sql (cell 10, #5555) targets:
+# The SQL edge MERGE anchor cell_failgraphwrite_sql (cell 12, #5555) targets:
 # go/internal/storage/cypher/canonical.go's batchCanonicalSQLQueriesTableUpsertCypher
 # and edge_writer_sql.go's buildLabelScopedSQLRelationshipCypher both emit
 # this exact MERGE clause text for a QUERIES_TABLE edge regardless of which
@@ -282,6 +278,7 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 # committed sql_cassette, so this fault genuinely fires during that drive.
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
+rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -316,16 +313,7 @@ for arg in "$@"; do
 done
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-fault-injection: cassette not found: ${cassette}" >&2; exit 1; }
-[[ -f "${sql_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
-[[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
-[[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
-[[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
-[[ -f "${code_call_cassette}" ]] || { echo "verify-ifa-fault-injection: code-call cassette not found: ${code_call_cassette}" >&2; exit 1; }
-[[ -f "${code_call_expected_edges}" ]] || { echo "verify-ifa-fault-injection: code-call expected-edge set not found: ${code_call_expected_edges}" >&2; exit 1; }
-[[ -f "${documentation_cassette}" ]] || { echo "verify-ifa-fault-injection: documentation cassette not found: ${documentation_cassette}" >&2; exit 1; }
-[[ -f "${documentation_expected_edges}" ]] || { echo "verify-ifa-fault-injection: documentation expected-edge set not found: ${documentation_expected_edges}" >&2; exit 1; }
-[[ -f "${deployable_unit_cassette}" ]] || { echo "verify-ifa-fault-injection: deployable-unit cassette not found: ${deployable_unit_cassette}" >&2; exit 1; }
-[[ -f "${deployable_unit_expected_edges}" ]] || { echo "verify-ifa-fault-injection: deployable-unit expected-edge set not found: ${deployable_unit_expected_edges}" >&2; exit 1; }
+ifa_family_fixtures_require verify-ifa-fault-injection
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -335,13 +323,34 @@ mkdir -p "${bin_dir}" "${tagged_bin_dir}" "${log_dir}"
 ifa_deployable_unit_live_init_maintenance_scratch "${work_dir}"
 
 bg_pids=()
+ifa_documentation_ack_barrier_active=0
+ifa_documentation_ack_holder_owned=0
+ifa_documentation_ack_ddl_owned=0
+ifa_documentation_ack_barrier_cell=""
+ifa_documentation_ack_holder_pid=""
+ifa_documentation_ack_holder_backend_pid=""
+ifa_documentation_ack_waiter_pid=""
+ifa_documentation_ack_run_id=""
+ifa_documentation_ack_producers_safe=1
+ifa_documentation_ack_producer_pids=()
 
 log() { printf '\n=== %s ===\n' "$*"; }
 die() { printf 'verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
 	local status=$?
+	local barrier_cleanup_rc=0
 	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
+		# A dead-lettered row's failure_message exists ONLY in Postgres, and the
+		# tail below is routinely flooded by INFO chatter (one real CI failure
+		# spent all 60 of its lines on "drift finding admitted"), so a red cell
+		# could name its own cause nowhere. Print the durable rows first and
+		# unelided. Never allowed to change the exit status: status was captured
+		# above, and the dump cannot fail the trap.
+		printf '\n=== durable work-item failures (Postgres) ===\n' >&2
+		ifa_det_pg "${FAULT_COMPOSE_PROJECT:-}" "${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" \
+			"SELECT stage, domain, scope_id, status, attempt_count, failure_class, failure_message FROM fact_work_items WHERE status NOT IN ('succeeded', 'superseded') ORDER BY status, domain;" \
+			"${compose_file:-}" >&2 || printf '(durable work-item dump unavailable)\n' >&2
 		printf '\n=== host binary logs (failure) ===\n' >&2
 		for logf in "${log_dir}"/*.log; do
 			[[ -f "${logf}" ]] || continue
@@ -349,9 +358,21 @@ cleanup() {
 			tail -60 "${logf}" >&2 || true
 		done
 	fi
-	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
-	done
+	if declare -F ifa_documentation_stop_ack_producers >/dev/null; then
+		ifa_documentation_stop_ack_producers || barrier_cleanup_rc=$?
+	else
+		for pid in "${bg_pids[@]:-}"; do
+			[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
+		done
+	fi
+	if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then
+		ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-killworkerdocumentation}" \
+			|| { local cleanup_rc=$?; [[ "${barrier_cleanup_rc}" -ne 0 ]] || barrier_cleanup_rc="${cleanup_rc}"; }
+	fi
+	if [[ "${barrier_cleanup_rc}" -ne 0 ]]; then
+		printf 'verify-ifa-fault-injection: documentation ACK barrier EXIT cleanup failed\n' >&2
+		[[ "${status}" -ne 0 ]] || status="${barrier_cleanup_rc}"
+	fi
 	if [[ "${keep}" -eq 1 ]]; then
 		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
 	else
@@ -423,6 +444,8 @@ cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
 cell_killworker_code_calls
+cell_killworker_documentation
+cell_killworker_rationale
 cell_duplicatedelivery
 cell_deltaretract
 # cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
@@ -446,6 +469,7 @@ cell_deltaretract
 cell_failgraphwrite_sql
 cell_failgraphwrite_code_calls
 cell_failgraphwrite_documentation
+cell_failgraphwrite_rationale
 
 # deployable_unit_edges cells (#5993). cell_baseline_deployable_unit MUST run
 # before the two fault cells below: it populates digests[baseline_deployable_unit]

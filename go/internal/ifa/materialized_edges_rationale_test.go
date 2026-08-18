@@ -4,12 +4,17 @@
 package ifa
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -17,12 +22,12 @@ import (
 // ExtractRationaleEdgeRows, over the cataloged Odù, reproduces the hand-derived
 // edge set exactly.
 //
-// Deliberately not called coverage. A manifest coverage row names a proof GATE,
-// and neither gate executes this family: verify-ifa-determinism.sh asserts
-// expected edges for sql_relationships and code_calls only, and
-// MaterializedEdgeDomainEdgeTypes rejects rationale_edges. Breaking the live
-// writer would leave this green,
-// so the family stays waived with what is and is not proven on the waiver.
+// Deliberately not called coverage.
+// MaterializedEdgeDomainEdgeTypes recognizes rationale_edges as EXPLAINS.
+// Both live gates drive the rationale cassette and exact-assert its full EXPLAINS records.
+// This test remains the extractor half of that proof: it cannot catch a live
+// writer break by itself, while the manifest's live rows bind the same fixture
+// to the backend assertions.
 func TestRationaleFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -39,6 +44,79 @@ func TestRationaleFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 		t.Errorf("detail = %q, want it to name the exact edge count it proved", detail)
 	}
 	t.Logf("%s", detail)
+}
+
+// TestRationaleExpectedSetFeedsLiveAssertEdges links the extractor-validated
+// rationale fixture to the complete records consumed by `ifa assert-edges`'s
+// rationale branch. The offline guard alone cannot prove the live loader sees
+// an EXPLAINS type or its Rationale source uid.
+func TestRationaleExpectedSetFeedsLiveAssertEdges(t *testing.T) {
+	t.Parallel()
+	path := rationaleFamilyExpectedEdgesPath(repoRootDir(t))
+	rationaleEdges, err := loadRationaleExpectedEdges(path)
+	if err != nil {
+		t.Fatalf("loadRationaleExpectedEdges: %v", err)
+	}
+	_, liveEdges, err := LoadRationaleExpectedEdgeRecords(path)
+	if err != nil {
+		t.Fatalf("LoadRationaleExpectedEdgeRecords: %v", err)
+	}
+	if len(liveEdges) != len(rationaleEdges) {
+		t.Fatalf("LoadRationaleExpectedEdgeRecords returned %d edges, want %d extractor-validated rationale edges", len(liveEdges), len(rationaleEdges))
+	}
+	for i, rationaleEdge := range rationaleEdges {
+		if rationaleEdge.RelationshipType != "EXPLAINS" || rationaleEdge.SourceEntityID != rationaleEdge.RationaleUID {
+			t.Fatalf("rationale edge %d live identity = %#v, want EXPLAINS sourced from rationale uid %q", i, liveEdges[i], rationaleEdge.RationaleUID)
+		}
+		if !reflect.DeepEqual(liveEdges[i], rationaleEdge) {
+			t.Errorf("live assertion edge %d = %#v, want %#v", i, liveEdges[i], rationaleEdge)
+		}
+	}
+}
+
+// TestRationaleCatalogMatchesReplayCassette keeps the compiled catalog Odù and
+// live replay input structurally equal at the facts.Envelope boundary after
+// normalizing transport fields that replay derives: FactID, fencing,
+// observation time, and SourceRef.
+func TestRationaleCatalogMatchesReplayCassette(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(repoRootDir(t), rationaleFamilyCassetteRelPath)
+	source, err := cassette.NewSource(path)
+	if err != nil {
+		t.Fatalf("cassette.NewSource: %v", err)
+	}
+	generation, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("cassette source Next: %v", err)
+	}
+	if !ok {
+		t.Fatal("cassette source returned no generation")
+	}
+
+	cassetteFacts := make([]facts.Envelope, 0, generation.FactCount())
+	for envelope := range generation.Facts {
+		cassetteFacts = append(cassetteFacts, envelope)
+	}
+	compiled := CatalogByName()[rationaleFamilyOduName]
+	if compiled.Name == "" {
+		t.Fatalf("CatalogByName omits %q", rationaleFamilyOduName)
+	}
+	if len(cassetteFacts) != len(compiled.Facts) {
+		t.Fatalf("cassette has %d facts, compiled catalog Odù has %d", len(cassetteFacts), len(compiled.Facts))
+	}
+	for i := range cassetteFacts {
+		got := cassetteFacts[i]
+		got.FactID = ""
+		got.FencingToken = 0
+		got.ObservedAt = time.Time{}
+		got.SourceRef = facts.Ref{}
+		if !reflect.DeepEqual(got, compiled.Facts[i]) {
+			t.Errorf("fact %d drifted between replay cassette and catalog\ncassette: %#v\ncatalog: %#v", i, got, compiled.Facts[i])
+		}
+	}
+	if _, ok, err := source.Next(context.Background()); err != nil || ok {
+		t.Fatalf("cassette declares more than one generation: ok=%v err=%v", ok, err)
+	}
 }
 
 // TestRationaleFamilyResolvesThroughTheManifestResolver proves the family is
@@ -159,78 +237,59 @@ func TestRationaleFamilyKindIsPartOfTheNodeIdentity(t *testing.T) {
 	}
 }
 
-// TestRationaleFamilyOduExercisesEveryExclusion pins the fixture's negative
-// cases.
-//
-// The Odù's value is that its inputs derive exactly three edges. Trimmed to the
-// well-formed comments, every other test here still passes while the fixture
-// stops proving the extractor EXCLUDES anything — and exclusions are what
-// regress silently.
-func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
+// TestRationaleFamilyOduPinsParserReachableExclusions pins the live fixture's
+// parser-reachable negative cases without injecting malformed fact envelopes.
+func TestRationaleFamilyOduPinsParserReachableExclusions(t *testing.T) {
 	t.Parallel()
 	odu := CatalogByName()[rationaleFamilyOduName]
+	if got, want := len(odu.Facts), 12; got != want {
+		t.Fatalf("rationale Odù fact count = %d, want %d", got, want)
+	}
 
-	var tombstones, wrongKind, missingRepo, blankEntity int
-	var blankKind, blankText, duplicates int
+	var contentEntities, duplicateComments, emptyTODO int
+	pathsWithoutComments := map[string]bool{
+		rationaleFamilyRefundPath:      false,
+		rationaleFamilyReconcilePath:   false,
+		rationaleFamilyHealthcheckPath: false,
+	}
 	seen := map[string]int{}
-
 	for _, env := range odu.Facts {
 		if env.FactKind != "content_entity" {
-			wrongKind++
 			continue
 		}
-		if env.IsTombstone {
-			tombstones++
-			continue
-		}
+		contentEntities++
 		entityID := strings.TrimSpace(anyToStringValue(env.Payload["entity_id"]))
-		if _, ok := env.Payload["repo_id"].(string); !ok {
-			missingRepo++
-			continue
+		if env.IsTombstone || entityID == "" || anyToStringValue(env.Payload["repo_id"]) != rationaleFamilyRepoID {
+			t.Errorf("live content entity %q is malformed or tombstoned", env.StableFactKey)
 		}
-		if entityID == "" {
-			blankEntity++
-			continue
-		}
-		comments, _ := env.Payload["rationale_comments"].([]map[string]any)
+		comments := []map[string]any(nil)
 		if meta, ok := env.Payload["entity_metadata"].(map[string]any); ok {
-			if nested, ok := meta["rationale_comments"].([]map[string]any); ok {
-				comments = append(comments, nested...)
-			}
+			comments = rationaleFixtureComments(meta["rationale_comments"])
+		}
+		path := anyToStringValue(env.Payload["relative_path"])
+		if _, tracked := pathsWithoutComments[path]; tracked {
+			pathsWithoutComments[path] = len(comments) == 0
 		}
 		for _, c := range comments {
-			// anyToStringValue rather than a direct type assertion: a fixture
-			// edited with a missing key or a non-string value should fail this
-			// test as an assertion, not panic the package's whole test binary.
 			kind := strings.TrimSpace(anyToStringValue(c["kind"]))
 			text := strings.TrimSpace(anyToStringValue(c["text"]))
-			if kind == "" {
-				blankKind++
-				continue
-			}
-			if text == "" {
-				blankText++
+			if kind == "TODO" && text == "" {
+				emptyTODO++
 				continue
 			}
 			key := entityID + "\x00" + kind + "\x00" + text
 			seen[key]++
 			if seen[key] > 1 {
-				duplicates++
+				duplicateComments++
 			}
 		}
 	}
-
-	for name, got := range map[string]int{
-		"tombstoned content entity": tombstones,
-		"non-content_entity kind":   wrongKind,
-		"missing repo_id":           missingRepo,
-		"blank entity_id":           blankEntity,
-		"blank comment kind":        blankKind,
-		"whitespace-only text":      blankText,
-		"duplicate comment":         duplicates,
-	} {
-		if got != 1 {
-			t.Errorf("fixture exercises the %q exclusion %d time(s), want exactly 1", name, got)
+	if contentEntities != 5 || duplicateComments != 1 || emptyTODO != 1 {
+		t.Errorf("fixture guards = entities:%d duplicate:%d empty TODO:%d, want 5/1/1", contentEntities, duplicateComments, emptyTODO)
+	}
+	for path, noComments := range pathsWithoutComments {
+		if !noComments {
+			t.Errorf("parser-negative fixture %q unexpectedly carries rationale comments", path)
 		}
 	}
 }
@@ -290,13 +349,13 @@ func TestLoadRationaleExpectedEdgesRejectsTrailingJSON(t *testing.T) {
 }
 
 // TestRationaleEdgeKeyIsInjective is the regression test for
-// rationaleEdgeKey's join delimiter. It joins five fields with a raw "\x00",
+// rationaleEdgeKey's join delimiter. It joined seven fields with a raw "\x00",
 // so a value that itself contains "\x00" shifts the field boundary: two
 // structurally distinct edges can render the identical key.
 //
 // Unlike codeCallEdgeKey's "|" (a legal, plausible POSIX path byte), a raw
 // NUL cannot appear in TargetPath -- POSIX path syscalls reject it outright
-// -- and is not a realistic byte for the other four fields as this extractor
+// -- and is not a realistic byte for the other six fields as this extractor
 // currently produces them. This test constructs the collision directly
 // rather than pointing to a live input that produces one, because none does
 // today. The fix (writeLengthPrefixedField, shared with Key(),
@@ -316,6 +375,17 @@ func TestRationaleEdgeKeyIsInjective(t *testing.T) {
 	if keyA == keyB {
 		t.Fatalf("distinct rationale edges collided onto one key %q; a boundary-shifting value would silently merge them in compareRationaleExpectedSets", keyA)
 	}
+}
+
+func rationaleFixtureComments(value any) []map[string]any {
+	items, _ := value.([]any)
+	comments := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if comment, ok := item.(map[string]any); ok {
+			comments = append(comments, comment)
+		}
+	}
+	return comments
 }
 
 func writeRationaleExpectedEdges(t *testing.T, file rationaleExpectedEdgesFile) string {

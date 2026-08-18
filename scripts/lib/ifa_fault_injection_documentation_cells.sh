@@ -19,6 +19,13 @@
 # specifically -- the same #5555 gap the SQL cells closed for
 # sql_relationship_materialization.
 #
+#   - cell_killworker_documentation provably targets the exact documentation
+#     fixture work item and blocks its Postgres ACK on a scoped advisory-lock
+#     trigger after the graph write. It proves that exact ACK backend is
+#     blocked, kills the host reducer, terminates the orphaned backend, and
+#     verifies the attempt-1 lease tuple survived before releasing the barrier
+#     for replacement-process reclaim. The post-recovery attempt_count must
+#     exceed the fault-free baseline; a digest match alone is insufficient.
 #   - cell_failgraphwrite_documentation anchors the graph-write fault to the
 #     DOCUMENTS edge MERGE and proves the fault fired via
 #     ifa_fault_assert_once_fault_marker, reading the durable marker the fault
@@ -26,106 +33,77 @@
 #     grep shelled out to `rg`, which the runner lacks, and its "command not
 #     found" read as "no fault" for months).
 #
-# THIS FAMILY HAS NO DETERMINISTIC MID-HANDLER FAULT CELL (#6149 follow-up
-# item 8, both a ruling and its correction). Every sibling family with a
-# kill-worker cell (code_calls, deployable_unit_correlation) has a Postgres
-# write in Handle to hold a real ACCESS EXCLUSIVE lock on, which blocks the
-# handler from acknowledging before a kill -9 lands. #6149 follow-up item 8
-# first found that DocumentationEdgeMaterializationHandler.Handle performs no
-# Postgres write at all (only two graph writes through the same EdgeWriter,
-# confirmed at the interface, handler-struct-wiring, and concrete-writer-
-# construction level in go/cmd/reducer/main.go) and, on that basis, replaced
-# the wrong-table kill-worker lock with a domain-scoped expire-lease cell
-# (forcing `claim_until = now()` on the claimed row, mirroring the generic
-# cell_expirelease in ifa_fault_injection_cells.sh:115-141) instead of a held
-# lock. That ALSO failed on the live matrix: the handler completed in
-# `duration_seconds: 0.0073` (7ms) end to end, so by the time the forced-
-# expiry UPDATE ran as its own separate step the row had already reached
-# 'succeeded' and `WHERE status IN ('claimed', 'running')` matched zero rows.
-# Nothing was expired, nothing was reclaimed, attempt_count never moved above
-# baseline. Domain-scoping cell_expirelease reintroduced exactly the race the
-# original lock was supposed to remove, just moved from "the lock blocks
-# nothing" to "the trigger never lands" -- a different vacuous shape, not a
-# fix.
+# MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER
+# (#5998, superseding the gap #6149 follow-up item 8 recorded here).
 #
-# There is no existing mechanism in this harness that can hold a 7ms handler
-# open long enough for either trigger (kill -9 or a forced-expiry UPDATE
-# issued as a separate SQL round-trip) to land deterministically, because
-# neither trigger blocks the handler itself -- they both race it. What WOULD
-# close this: a hang/block fault mode in the in-binary decorator
-# (go/internal/storage/cypher/fault_executor.go), which could pause the
-# DOCUMENTS edge MERGE mid-transaction the same way
-# fail-graph-write-once-then-succeed already intercepts it to fail it once --
-# giving kill-worker or expire-lease a real window without needing a Postgres
-# write to lock. That is new decorator capability, not a bash-harness change,
-# and it is out of scope here; a future family whose handler is provably slow
-# enough (or whose handler gains a real Postgres write) should re-evaluate
-# before copying this family's gap forward.
+# The obstacle that ruling identified is real. DocumentationEdgeMaterialization
+# Handler.Handle performs no Postgres write at all (only two graph writes
+# through the same EdgeWriter), so there is no row a kill-worker cell can lock,
+# and the handler finishes in single-digit milliseconds -- measured at
+# duration_seconds 0.0073 -- so a forced-expiry UPDATE issued as its own
+# round-trip races it and matches zero rows. Both mechanisms tried there, a
+# wrong-table kill-worker lock and then a domain-scoped expire-lease, failed
+# for that reason. The conclusion drawn was that only a hang/block fault mode
+# in the in-binary decorator could close it.
 #
-# The loss this leaves is bounded and stated precisely, not implied: mid-
-# handler interruption (a worker process dying, or a lease expiring, while
-# this domain's row is claimed) is UNPROVEN for documentation_materialization.
-# Injected graph-write failure is NOT unproven -- cell_failgraphwrite_documentation
-# below exercises the family's real write path through the fault decorator's
-# genuine fail-graph-write-once-then-succeed mode and remains full coverage
-# for that fault class.
+# cell_killworker_documentation closes it without new decorator capability, by
+# not racing the handler at all. Instead of blocking Handle, it blocks the
+# QUEUE ACK that always follows it:
 #
-# The removal is safe, not just asserted -- two runs prove two different
-# claims, and citing only one would conflate them. Cell counts below are
-# DISPATCHED cells; derive them rather than trusting a number here, with
-# `rg -c '^cell_[a-z_]+$' scripts/verify-ifa-fault-injection.sh` at either
-# commit. The runs themselves are reproduced by `make ifa-fault-injection`
-# at that commit; their logs are not committed (they carry local paths), so
-# every line below is quoted verbatim AND cited by file:line against
-# live_fi_cf2d033b1.log (the RED run) or live_fi_1f85dad68.log (the GREEN
-# run) -- the quote is checkable without opening either file, the citation
-# is only where it came from. Re-running reproduces the semantic lines and
-# the digest; it will NOT reproduce the timings (8s, 69s, the handler
-# durations), so a mismatch there is expected, not a discrepancy.
+#   - a BEFORE UPDATE trigger on public.fact_work_items whose WHEN clause is
+#     scoped to this family's exact stage, domain, scope and generation, and to
+#     the claimed-or-running -> succeeded, lease-cleared transition;
+#   - the trigger takes pg_advisory_xact_lock(5998, 5994);
+#   - a SEPARATE session holds that advisory lock, so killing the host reducer
+#     cannot release it and the orphaned backend can be fenced first.
 #
-# The RED run at cf2d033b1 -- whose driver still dispatched
-# cell_expirelease_documentation, one more than here -- established the cell
-# could never fire. Same run, same mechanism, opposite outcomes. The generic
-# cell_expirelease observed its row, forced expiry, and PASSED
-# (live_fi_cf2d033b1.log:595,614):
+# Because the trigger fires synchronously inside the ACK UPDATE, there is no
+# window to miss and handler width is irrelevant. That is the specific reason
+# this is not a third variant of the two mechanisms that failed.
 #
-#   expire-lease-mid-handler: non-vacuous: 1 claimed/running row(s) observed
-#     before forced expiry
-#   expire-lease-mid-handler: cell wall time: 8s
+# Probed before adoption on the reference validation host (16 vCPU, 123 GiB,
+# Linux x86_64, Docker 29.3.1, postgres:18-alpine) on 2026-08-17, driving the
+# committed helpers in this family rather than a transcription of them, three
+# runs of three:
 #
-# while the documentation-scoped copy observed its row and FAILED
-# (live_fi_cf2d033b1.log:1596):
+#   - the ACK session sits in wait_event_type=Lock while the work item stays
+#     claimed with its lease owner intact;
+#   - a control row in a different domain, same scope, updates freely, so the
+#     WHEN clause is scoped and not a blanket block on a hot table;
+#   - killing the acking session leaves the item un-acked and the advisory lock
+#     still granted to the holder pid, not to the dead session;
+#   - releasing the holder completes the item exactly once;
+#   - the drop leaves zero triggers and zero functions behind.
 #
-#   verify-ifa-fault-injection: expire-lease-mid-handler-documentation:
-#     documentation_materialization did not re-execute above its fault-free
-#     retry baseline -- evidence of reclaim after the forced expiry
+# What that probe did NOT cover: it drove a psql session issuing the same ACK
+# UPDATE, not the real eshu-reducer, and ended that session with
+# pg_terminate_backend rather than a SIGKILL of a reducer process. So the half
+# that actually answers the #6149 item 8 objection -- that the ACK window opens
+# AFTER Handle returns and therefore cannot be raced by a ~7ms handler -- was
+# structural at adoption time, argued from where the ACK UPDATE sits in the
+# reducer rather than observed.
 #
-# The reason is handler width. BOTH documentation_materialization executions
-# observed in that run were milliseconds wide, each at the end of a queue
-# wait an order of magnitude longer (live_fi_cf2d033b1.log:3970 and :4048):
+# THE LIVE MATRIX HAS SINCE MEASURED IT. On the reviewed head, this cell
+# reported:
 #
-#   handler_duration_seconds 0.022566833  queue_wait_seconds 0.969149  (43x)
-#   handler_duration_seconds 0.007342625  queue_wait_seconds 0.09283   (13x)
+#   kill-worker-after-claim-documentation: non-vacuous: 1 claimed row;
+#   ACK backend 188 blocked by holder 140 after exact graph write
 #
-# Even the slower one leaves a ~23ms window for a forced expiry issued as a
-# separate step after a two-stage observation -- see the mechanism above.
-# Scoping the fault to a family whose handler is milliseconds wide
-# reintroduces the race the lock was meant to remove. That is what justifies
-# removal -- a green run afterward cannot show the removal was CORRECT, only
-# that it was HARMLESS.
+# `ACK backend ... blocked by holder ...` is the real eshu-reducer blocked at
+# the ACK by the holder specifically (the blocked_holder_pid ==
+# holder_backend_pid assertion below, so an incidental block by any other
+# backend fails), and `after exact graph write` is the ordering itself. The
+# structural argument is now a measurement; see
+# docs/internal/evidence/5998-rationale-relative-path.md.
 #
-# The GREEN run at 1f85dad68 is the harmless-removal proof: FI_EXIT=0 --
-# carrying, on its own, the fact that every dispatched cell completed -- and
-# fail-graph-write-once-then-succeed-documentation stayed green
-# (live_fi_1f85dad68.log:3371):
-#
-#   failgraphwritedocumentation: digest=63558e351f32ae028abd31f18258d64d851af12d6c85b65286982d1e214f5cd0 wall=69s
-#
-# at the same digest value the family's other unscoped cells produce, so
-# removing the racy reclaim cell did not perturb what the surviving cell
-# proves. The #6149 deployable-unit trio (baseline,
-# kill-worker, fail-graph-write) also stayed green in that same run,
-# confirming this branch did not regress the family merged the day before.
+# The psql-stand-in history above is kept deliberately rather than deleted now
+# that the stronger evidence exists. It records what was and was not proven at
+# the moment this cell was adopted, which is why the claim is checkable instead
+# of merely asserted. If a future change to the ACK path invalidates the live
+# result, the honest outcome is still to remove this cell and record the
+# ACK-transition trigger as a THIRD rejected mechanism alongside the
+# wrong-table lock and the raced expire-lease -- not to weaken the assertion
+# until it passes.
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
@@ -137,9 +115,10 @@
 # assert_matches_baseline / teardown_cell helpers) rather than taking them as
 # arguments. Sources scripts/lib/ifa_documentation_live.sh for
 # ifa_documentation_assert. baseline_documentation_retried and
-# CLAIMED_ROW_WAIT_TIMEOUT are cell_baseline/reclaim-cell globals this file no
-# longer reads now that the family has no reclaim cell -- see the gap note
-# above.
+# CLAIMED_ROW_WAIT_TIMEOUT are cell_baseline/reclaim-cell globals that
+# cell_killworker_documentation reads: the first is the fault-free retry
+# baseline its post-recovery attempt_count must exceed, the second bounds the
+# wait for the blocked ACK backend to appear.
 
 # ifa_documentation_require_fresh_documents_edges fails closed unless a fresh
 # stack has a numeric zero count of DOCUMENTS edges in the live graph. This
@@ -156,6 +135,10 @@
 # (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh), for the same
 # reason: the handler this precondition is meant to guard never writes the
 # table it queried.
+#
+# baseline_documentation_retried is captured by cell_baseline against the
+# genuinely fault-free drive, alongside the other family-specific retry
+# baselines, before any recovery cell runs; this file only consumes it.
 #
 # Repointed to the graph, the only place DOCUMENTS edges exist, mirroring
 # ifa_deployable_unit_require_fresh_intents's graph-dump-plus-jq shape --
@@ -228,6 +211,63 @@ ifa_documentation_require_fresh_documents_edges() {
 		return 1
 	fi
 	printf '%s: fresh-stack precondition: 0 DOCUMENTS edges in the graph\n' "${cell}"
+}
+
+# cell_killworker_documentation proves a genuinely in-flight documentation
+# handler is reclaimed after process death. The scoped ACK barrier proves the
+# graph write completed while the queue row stayed on its attempt-1 lease; the
+# retry-count delta proves the replacement reducer later reclaimed that row.
+cell_killworker_documentation() {
+	local cell_start
+	cell_start=$(date +%s)
+	log "cell kill-worker-after-claim-documentation: fresh stack"
+	fresh_stack killworkerdocumentation
+	drive_all_cassettes killworkerdocumentation
+	local projector_pid reducer_pid_before reducer_pid_after holder_pid holder_backend_pid
+	local claimed_before blocked_pair waiter_pid blocked_holder_pid claim_before claim_after
+	ifa_det_start_bg "${log_dir}" "projector-killworkerdocumentation" projector_pid "${bin_dir}/eshu-projector"
+	ifa_documentation_start_ack_barrier "killworkerdocumentation" holder_pid holder_backend_pid \
+		|| die "kill-worker-after-claim-documentation: could not install and acquire the deterministic fact_work_items ACK barrier"
+	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-before" reducer_pid_before "${bin_dir}/eshu-reducer"
+	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "documentation_materialization")" \
+		|| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed"
+	blocked_pair="$(ifa_documentation_wait_for_blocked_ack "killworkerdocumentation" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
+		|| die "kill-worker-after-claim-documentation: exact documentation ACK did not block on its advisory holder"
+	IFS='|' read -r waiter_pid blocked_holder_pid <<<"${blocked_pair}"
+	[[ "${blocked_holder_pid}" == "${holder_backend_pid}" ]] \
+		|| die "kill-worker-after-claim-documentation: ACK waiter was blocked by backend ${blocked_holder_pid}, want holder ${holder_backend_pid}"
+	ifa_documentation_ack_waiter_pid="${waiter_pid}"
+	claim_before="$(ifa_documentation_claim_snapshot "killworkerdocumentation")" \
+		|| die "kill-worker-after-claim-documentation: exact attempt-1 documentation claim was not retained"
+	ifa_documentation_assert "killworkerdocumentation-blocked" "${bin_dir}" "${documentation_expected_edges}" \
+		|| die "kill-worker-after-claim-documentation: graph did not reach the exact three-edge set before ACK blocking"
+	printf 'kill-worker-after-claim-documentation: non-vacuous: %s claimed row; ACK backend %s blocked by holder %s after exact graph write\n' \
+		"${claimed_before}" "${waiter_pid}" "${holder_backend_pid}"
+	ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL \
+		|| die "kill-worker-after-claim-documentation: failed to stop, join, and untrack the owned reducer"
+	ifa_documentation_terminate_blocked_ack "killworkerdocumentation" "${waiter_pid}" \
+		|| die "kill-worker-after-claim-documentation: failed to terminate the exact orphaned ACK backend"
+	ifa_documentation_wait_for_ack_backend_gone "killworkerdocumentation" "${waiter_pid}" 15 \
+		|| die "kill-worker-after-claim-documentation: orphaned ACK backend or advisory wait survived termination"
+	claim_after="$(ifa_documentation_claim_snapshot "killworkerdocumentation")" \
+		|| die "kill-worker-after-claim-documentation: documentation claim was not retained after ACK backend termination"
+	[[ "${claim_after}" == "${claim_before}" ]] \
+		|| die "kill-worker-after-claim-documentation: attempt/lease tuple changed while fencing the orphaned ACK backend"
+	ifa_documentation_release_ack_barrier "killworkerdocumentation" "${holder_pid}" "${holder_backend_pid}" \
+		|| die "kill-worker-after-claim-documentation: failed to release and remove the documentation ACK barrier"
+	ifa_det_start_bg "${log_dir}" "reducer-killworkerdocumentation-after" reducer_pid_after "${bin_dir}/eshu-reducer"
+	run_drain_gate killworkerdocumentation
+	assert_no_dead_letters killworkerdocumentation
+	ifa_documentation_assert "killworkerdocumentation" "${bin_dir}" "${documentation_expected_edges}" \
+		|| die "kill-worker-after-claim-documentation: recovered graph does not match the three-edge exact set"
+	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${baseline_documentation_retried}" 15 "documentation_materialization" \
+		|| die "kill-worker-after-claim-documentation: documentation_materialization did not re-execute above its fault-free retry baseline"
+	capture_digest killworkerdocumentation
+	assert_matches_baseline killworkerdocumentation
+	teardown_cell killworkerdocumentation
+	wall_times[killworkerdocumentation]=$(( $(date +%s) - cell_start ))
+	printf 'kill-worker-after-claim-documentation: cell wall time: %ss\n' "${wall_times[killworkerdocumentation]}"
 }
 
 # cell_failgraphwrite_documentation: the tagged (-tags ifafaultinjection)

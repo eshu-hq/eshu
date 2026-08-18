@@ -487,3 +487,13 @@ already relies on. No code change is warranted for this alone -- if it proves
 operationally noisy in practice (repeated retract-then-reappear on the SAME
 backend across many cycles), that is a signal for a follow-up, not evidence
 this fix is wrong.
+
+## #6142 — three of a backend restart's transients were terminal
+
+A restart's refused commit (`TransactionCommitFailed` / `...Writes are blocked,
+possibly due to DropAll or Close`) and its two `Statement.SyntaxError` shapes
+(`...reading node: DB Closed`, `UNWIND MERGE chain relationship create failed:
+start node ... does not exist`) were all terminal, so one restart dead-lettered
+three intents as `projection_bug` at attempt 1. Both `SyntaxError` shapes share
+a code with a malformed query, so each guard takes code AND message. Record:
+[evidence-6142-backend-restart-transient-classification.md](evidence-6142-backend-restart-transient-classification.md).

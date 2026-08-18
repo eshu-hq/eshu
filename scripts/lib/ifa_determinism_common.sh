@@ -86,6 +86,54 @@ ifa_det_untrack_bg_pid() {
 	fi
 }
 
+# ifa_det_stop_join_untrack_bg_pid stops one caller-owned child, waits until
+# the shell has reaped it, then removes its numeric PID from bg_pids before a
+# replacement process can be started. Joining before untracking prevents a
+# reused PID from being signaled by later teardown. The signal defaults to TERM;
+# kill/reclaim fault cells pass KILL because abrupt death is their test seam.
+ifa_det_stop_join_untrack_bg_pid() {
+	local pid="$1" signal="${2:-TERM}" tracked_pid owned=0 wait_rc=0
+	[[ "${pid}" =~ ^[1-9][0-9]*$ ]] || {
+		printf 'ifa_det_stop_join_untrack_bg_pid: invalid PID %q\n' "${pid}" >&2
+		return 1
+	}
+	case "${signal}" in
+	TERM | KILL) ;;
+	*)
+		printf 'ifa_det_stop_join_untrack_bg_pid: unsupported signal %q\n' "${signal}" >&2
+		return 1
+		;;
+	esac
+	for tracked_pid in "${bg_pids[@]:-}"; do
+		[[ "${tracked_pid}" != "${pid}" ]] || owned=1
+	done
+	if [[ "${owned}" -ne 1 ]]; then
+		printf 'ifa_det_stop_join_untrack_bg_pid: PID %s is not in the caller ownership set\n' "${pid}" >&2
+		return 1
+	fi
+	if kill -0 "${pid}" >/dev/null 2>&1; then
+		kill -s "${signal}" "${pid}" >/dev/null 2>&1 || {
+			printf 'ifa_det_stop_join_untrack_bg_pid: failed to deliver %s to owned PID %s\n' \
+				"${signal}" "${pid}" >&2
+			return 1
+		}
+	elif [[ "${signal}" == "KILL" ]]; then
+		printf 'ifa_det_stop_join_untrack_bg_pid: owned PID %s was not live for required KILL injection\n' \
+			"${pid}" >&2
+		return 1
+	fi
+	wait "${pid}" 2>/dev/null || wait_rc=$?
+	if [[ "${wait_rc}" -eq 127 ]]; then
+		printf 'ifa_det_stop_join_untrack_bg_pid: PID %s is not a joinable child\n' "${pid}" >&2
+		return 1
+	fi
+	# A signal-terminated child makes wait non-zero; it is still conclusively
+	# joined. TERM cleanup may also join an already-exited owned child without a
+	# new signal; KILL fault injection requires a live target above. Only a
+	# conclusive join permits ownership cleanup.
+	ifa_det_untrack_bg_pid "${pid}"
+}
+
 # ifa_det_pg runs a single-value SQL query against the stack's Postgres,
 # working in both compose mode (via the postgres container) and --no-compose
 # mode (via a local psql client against dsn).

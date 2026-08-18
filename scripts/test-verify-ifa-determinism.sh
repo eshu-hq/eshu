@@ -24,6 +24,8 @@ documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 deployable_unit_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
+rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
+fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 registry="${repo_root}/specs/ci-gates.v1.yaml"
 
@@ -39,6 +41,8 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${deployable_unit_lib}" ]] || fail "missing ${deployable_unit_lib}"
 [[ -f "${deployable_unit_diagnostics_lib}" ]] || fail "missing ${deployable_unit_diagnostics_lib}"
 [[ -f "${deployable_unit_converge_lib}" ]] || fail "missing ${deployable_unit_converge_lib}"
+[[ -f "${rationale_lib}" ]] || fail "missing ${rationale_lib}"
+[[ -f "${fixtures_lib}" ]] || fail "missing ${fixtures_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
 
@@ -52,12 +56,30 @@ bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax e
 bash -n "${deployable_unit_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
 bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
 bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
+bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
+bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
 require() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+# require_fixture asserts a needle that lives in the shared family-fixtures lib
+# the gate sources, not in the gate script: the committed cassette and
+# expected-set paths plus their fail-fast existence guards. Kept separate from
+# require() so moving anything ELSE out of the gate script still fails.
+# require_line pins a WHOLE line, so a needle that also appears inside a comment
+# cannot satisfy it. Strict mode needs this: the gate script names
+# `set -euo pipefail` in its bash>=4.4 header comment as well as running it, so
+# the fixed-strings form still passed with the real line deleted.
+require_line() {
+	local label="$1" needle="$2"
+	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_fixture() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
 }
 require_lib() {
 	local label="$1" needle="$2"
@@ -84,8 +106,13 @@ require_deployable_unit_lib() {
 	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lib}" || fail "missing ${label} (deployable-unit lib): ${needle}"
 }
 
+require_rationale_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${rationale_lib}" || fail "missing ${label} (rationale lib): ${needle}"
+}
+
 # Strict mode and self-cleanup.
-require "strict mode" "set -euo pipefail"
+require_line "strict mode" "set -euo pipefail"
 require "exit trap" "trap ifa_det_cleanup EXIT"
 # The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
 # masked by the exit trap above as a false PASS. Pin the exact check so a
@@ -99,6 +126,7 @@ require "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
 require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
 require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+require "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
@@ -159,19 +187,20 @@ require "combined-graph digest framing" "demo-org + synth-multiscope + SQL famil
 # absolute-set assertion (`ifa assert-edges`) that the P2 digest cannot make: a
 # family silently empty in ALL cells has an identical digest in every cell and
 # passes the digest comparison vacuously; the absolute expected set catches it.
-require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-require "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
-require "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
-require "SQL cassette existence guard" 'SQL cassette not found'
-require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
-require "SQL delta cassette existence guard" 'SQL delta cassette not found'
-require "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
+require_fixture "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+require_fixture "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+require_fixture "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+require_fixture "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
+require_fixture "SQL cassette existence guard" 'SQL cassette not found'
+require_fixture "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
+require_fixture "SQL delta cassette existence guard" 'SQL delta cassette not found'
+require_fixture "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
 require "SQL baseline helper invocation in every cell" "ifa_det_drive_sql_baseline"
 require_delta_lib "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
 require "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
 require_delta_lib "SQL delta cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_delta_cassette}" -workers "${n}"'
 require_delta_lib "SQL delta populated guard" "SQL delta drive enqueued 0 new fact_work_items rows"
+require_delta_lib "rationale delta populated guard" "rationale delta drive enqueued 0 new fact_work_items rows"
 require "SQL baseline assertion helper invocation in every cell" "ifa_det_assert_sql_baseline"
 require_delta_lib "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
 require_delta_lib "assert-edges domain flag" "-domain sql_relationships"
@@ -183,10 +212,10 @@ require_delta_lib "delta assert-edges exactness framing" "SQL delta-live materia
 
 # code_calls (#5991): every N cell must drive the committed cassette and assert
 # its hand-derived five-edge set. Digest equality cannot detect empty == empty.
-require "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
-require "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
-require "code-call cassette existence guard" "code-call cassette not found"
-require "code-call expected-edge set existence guard" "code-call expected-edge set not found"
+require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code-call-family.json"
+require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+require_fixture "code-call cassette existence guard" "code-call cassette not found"
+require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
 require "code-call drive helper invocation in every cell" "ifa_code_call_drive"
 require "code-call assertion helper invocation in every cell" "ifa_code_call_assert"
 require_code_call_lib "code-call cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
@@ -199,10 +228,10 @@ require_code_call_lib "code-call non-vacuity framing" "five-edge exact set"
 # sql_relationships/code_calls, this family needs a bootstrap-index
 # maintenance pass to materialize anything, so its live proof is not a
 # worker-count invariance test.
-require "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
-require "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
-require "deployable-unit cassette existence guard" "deployable-unit cassette not found"
-require "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
+require_fixture "deployable-unit cassette path" "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
+require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
+require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
 require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 require "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
 require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
@@ -228,12 +257,53 @@ compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=
 	&& "${n_loop_done_line}" -lt "${standalone_cell_line}" && "${standalone_cell_line}" -lt "${compare_digests_line}" ]] \
 	|| fail "the deployable_unit_edges standalone cell must run after the N-loop closes and before the digest comparison"
 
+# rationale_edges (#5998): every worker-count cell drives the production-shaped
+# cassette, exact-asserts all three EXPLAINS records, and fails closed unless
+# the durable queue/intent lifecycle is exactly 1|1|0|4|3|1|4|0 with one
+# accepted generation. The shared SQL and rationale delta replay must then
+# converge to exact-one EXPLAINS plus the exact Charge node before graph dump.
+require_fixture "rationale cassette path" "testdata/cassettes/rationale/ifa-rationale-family.json"
+require_fixture "rationale expected-edge set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json"
+require_fixture "rationale delta cassette path" "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
+require_fixture "rationale delta expected-record set path" "go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json"
+require_fixture "rationale cassette existence guard" "rationale cassette not found"
+require_fixture "rationale expected-edge set existence guard" "rationale expected-edge set not found"
+require_fixture "rationale delta cassette existence guard" "rationale delta cassette not found"
+require_fixture "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
+require "rationale drive helper invocation in every cell" "ifa_rationale_drive"
+require "rationale assertion helper invocation in every cell" "ifa_rationale_assert"
+require "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"
+require_rationale_lib "rationale cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
+require_rationale_lib "rationale assert-edges domain" "-domain rationale_edges"
+require_rationale_lib "rationale expected-set argument" '-expected "${expected_edges}"'
+# Pinned to the ASSIGNMENT, not the bare tuple. The header comment a hundred
+# lines below quotes both tuples verbatim, so a bare-value needle stayed
+# green with the real oracles set to garbage -- the durable-lifecycle oracle
+# for this family could be replaced wholesale and no gate would notice.
+require_rationale_lib "exact durable tuple" 'ifa_rationale_expected_tuple="1|1|0|4|3|1|4|0"'
+require_rationale_lib "exact delta-generation durable tuple" 'ifa_rationale_delta_expected_tuple="1|1|0|1|0|1|1|0"'
+require_rationale_lib "accepted generation exact count" "shared_projection_acceptance"
+require_delta_lib "rationale delta is driven before the shared drain" 'ifa_rationale_drive "delta-n${n}"'
+sql_delta_drive_line="$(rg -n --fixed-strings -- 'eshu-ifa" drive -cassette "${sql_delta_cassette}"' "${delta_lib}" | cut -d: -f1 || true)"
+rationale_delta_drive_line="$(rg -n --fixed-strings -- 'ifa_rationale_drive "delta-n${n}"' "${delta_lib}" | cut -d: -f1 || true)"
+shared_delta_drain_line="$(rg -n --fixed-strings -- 'drain SQL + rationale delta through caller-owned running projector + reducer' "${delta_lib}" | cut -d: -f1 || true)"
+[[ "${sql_delta_drive_line}" =~ ^[0-9]+$ && "${rationale_delta_drive_line}" =~ ^[0-9]+$ && "${shared_delta_drain_line}" =~ ^[0-9]+$ \
+	&& "${sql_delta_drive_line}" -lt "${rationale_delta_drive_line}" \
+	&& "${rationale_delta_drive_line}" -lt "${shared_delta_drain_line}" ]] \
+	|| fail "SQL and rationale delta cassettes must both be driven before their shared drain"
 delta_call_line="$(rg -n -- '^[[:space:]]*ifa_det_run_sql_delta_live' "${script}" | cut -d: -f1 || true)"
 post_delta_code_call_line="$(rg -n --fixed-strings -- 'ifa_code_call_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+post_delta_documentation_line="$(rg -n --fixed-strings -- 'ifa_documentation_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+post_delta_rationale_line="$(rg -n --fixed-strings -- 'ifa_rationale_assert_delta_truth "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 post_delta_dump_line="$(rg -n --fixed-strings -- 'log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"' "${script}" | cut -d: -f1 || true)"
-[[ "${delta_call_line}" =~ ^[0-9]+$ && "${post_delta_code_call_line}" =~ ^[0-9]+$ && "${post_delta_dump_line}" =~ ^[0-9]+$ \
-	&& "${delta_call_line}" -lt "${post_delta_code_call_line}" && "${post_delta_code_call_line}" -lt "${post_delta_dump_line}" ]] \
-	|| fail "every N cell must exact-assert code_calls after the SQL gen-2 drain and before its post-delta graph dump"
+[[ "${delta_call_line}" =~ ^[0-9]+$ && "${post_delta_code_call_line}" =~ ^[0-9]+$ \
+	&& "${post_delta_documentation_line}" =~ ^[0-9]+$ && "${post_delta_rationale_line}" =~ ^[0-9]+$ \
+	&& "${post_delta_dump_line}" =~ ^[0-9]+$ \
+	&& "${delta_call_line}" -lt "${post_delta_code_call_line}" \
+	&& "${post_delta_code_call_line}" -lt "${post_delta_documentation_line}" \
+	&& "${post_delta_documentation_line}" -lt "${post_delta_rationale_line}" \
+	&& "${post_delta_rationale_line}" -lt "${post_delta_dump_line}" ]] \
+	|| fail "every N cell must exact-assert code_calls, documentation, rationale exact-one, and the delta-generation Charge survivor after the shared delta drain and before its graph dump"
 
 # documentation_edges (#5994): every N cell must drive the committed cassette
 # and assert its hand-derived three-edge set (Function, Class, and the
@@ -245,7 +315,13 @@ require_documentation_lib "documentation cassette drive" 'eshu-ifa" drive -casse
 require_documentation_lib "documentation assert-edges domain" "-domain documentation_edges"
 require_documentation_lib "documentation expected-set argument" '-expected "${expected_edges}"'
 require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-
+require "post-delta rationale durable generation" '"${ifa_rationale_delta_generation_id}"'
+require "post-delta rationale durable tuple" '"${ifa_rationale_delta_expected_tuple}"'
+delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_live\(\) \{.*?^\}' "${delta_lib}")"
+[[ "${delta_function}" != *"ifa_det_start_bg"* ]] \
+	|| fail "SQL+rationale delta helper must reuse the caller-owned projector/reducer lifecycle"
+[[ "${delta_function}" == *"caller-owned running projector + reducer"* ]] \
+	|| fail "SQL+rationale delta helper must document its one-lifecycle worker ownership"
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
@@ -320,18 +396,29 @@ done
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
 # writers contend and the owner ledger must keep the digest identical across
 # N=1/2/4. Generated via `ifa synth-cassette -overlap -divergent` and driven as
-# a THIRD drive, behind --contention so it can never break the default matrix.
+# an optional seventh drive, behind --contention so it cannot alter the default matrix.
 require "--contention flag" "--contention"
 require "contention overlap generation" '-overlap -divergent'
 require "contention seed flag" "-seed \"\${SYNTH_CONTENTION_SEED}\""
 require "contention projects flag" "-projects \"\${SYNTH_CONTENTION_PROJECTS}\""
 require "contention cassette generated once" 'contention_cassette="${work_dir}/contention.json"'
-require "third drive of the contention cassette" 'eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}"'
+require "optional seventh drive of the contention cassette" 'eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}"'
 require "contention ledger-regression framing" "graph-level contention"
+contention_contract="$(rg -U --pcre2 --only-matching '(?ms)^# #5007 contention cassette.*?^require "contention ledger-regression framing"[^\n]*$' "${BASH_SOURCE[0]}")"
+if [[ "${contention_contract}" == *"THIRD drive"* \
+	|| "${contention_contract}" == *"third drive"* ]]; then
+	fail "contention contract still describes the pre-family third-drive position"
+fi
 
 # Populated-then-drained guard per cell: a 0/0 reading before anything was
 # ever enqueued would pass on a vacuous drain.
 require "drive-populated guard" "vacuous drain proof"
+require "combined baseline drive inventory" "After the six baseline drives"
+require "optional contention drive inventory" "the optional seventh contention drive"
+if rg --fixed-strings --quiet -- "Fourth drive" "${script}" \
+	|| rg --fixed-strings --quiet -- "Prove both drives" "${script}"; then
+	fail "determinism verifier still describes the pre-family drive count"
+fi
 require "fact_work_items populated check" "SELECT count(*) FROM fact_work_items;"
 
 # Fresh-DB-per-cell: every cell must tear its OWN stack down before the next
@@ -348,7 +435,13 @@ require "digest storage per N" "digests[\${n}]="
 require "digest mismatch detection" "MISMATCH:"
 require "full-bytes diff on divergence" "diff -u"
 require "failure-artifact framing" "failure artifact"
-require "hard failure on divergence" "graph-determinism matrix FAILED"
+# Pinned to the DIE plus the divergence-specific text, not the bare phrase.
+# "graph-determinism matrix FAILED" alone matches three places -- a comment,
+# the --teeth branch, and the real assertion -- so any two of them satisfied
+# it and downgrading the real `die` to `log`, message unchanged, kept the
+# mirror green. That is precisely the "do NOT normalize this away" drift the
+# asserted line itself warns against.
+require "hard failure on divergence" '|| die "graph-determinism matrix FAILED: digests diverged across worker counts'
 require "no-normalize-away directive" "do NOT lower N, retry, or otherwise normalize this away"
 
 # Per-cell wall time is reported.
@@ -390,6 +483,10 @@ rg --fixed-strings --quiet -- '//go:build ifadeterminismteeth' "${teeth_cypher_o
 rg --fixed-strings --quiet -- '//go:build !ifadeterminismteeth' "${teeth_cypher_off}" \
 	|| fail "${teeth_cypher_off} must carry the !ifadeterminismteeth build tag"
 
+private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^printf .*test-verify-ifa-determinism: pass.*$' "${BASH_SOURCE[0]}")"
+[[ "${private_scan_block}" == *'"${documentation_lib}"'* ]] \
+	|| fail "private-data scan does not cover ifa_documentation_live.sh"
+
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
 if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
@@ -400,6 +497,12 @@ if rg --pcre2 --quiet -- "${private_pattern}" "${lib}"; then
 fi
 if rg --pcre2 --quiet -- "${private_pattern}" "${lifecycle_lib}"; then
 	fail "ifa_determinism_lifecycle.sh looks like it contains private data"
+fi
+if rg --pcre2 --quiet -- "${private_pattern}" "${documentation_lib}"; then
+	fail "ifa_documentation_live.sh looks like it contains private data"
+fi
+if rg --pcre2 --quiet -- "${private_pattern}" "${rationale_lib}"; then
+	fail "ifa_rationale_live.sh looks like it contains private data"
 fi
 
 printf 'test-verify-ifa-determinism: pass\n'

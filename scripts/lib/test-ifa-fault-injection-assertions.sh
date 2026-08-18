@@ -7,6 +7,22 @@ require() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
 }
+# require_fixture asserts a needle that lives in the shared family-fixtures lib
+# the gate sources, not in the gate script: the committed cassette and
+# expected-set paths plus their fail-fast existence guards. Kept separate from
+# require() so moving anything ELSE out of the gate script still fails.
+# require_line pins a WHOLE line, so a needle that also appears inside a comment
+# cannot satisfy it. Strict mode needs this: the gate script names
+# `set -euo pipefail` in its bash>=4.4 header comment as well as running it, so
+# the fixed-strings form still passed with the real line deleted.
+require_line() {
+	local label="$1" needle="$2"
+	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_fixture() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
+}
 require_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${fault_lib}" || fail "missing ${label} (lib): ${needle}"
@@ -42,6 +58,14 @@ require_documentation_lib() {
 require_documentation_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${documentation_cells_lib}" || fail "missing ${label} (documentation cells lib): ${needle}"
+}
+require_documentation_barrier() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_lib}" || fail "missing ${label} (documentation ACK barrier lib): ${needle}"
+}
+require_documentation_barrier_setup() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_setup_lib}" || fail "missing ${label} (documentation ACK barrier setup lib): ${needle}"
 }
 
 # Deleting only the function name from a continued call leaves its arguments

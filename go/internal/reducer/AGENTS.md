@@ -48,7 +48,7 @@ before touching any file in this directory.
 - **Promoted edge domains keep their handler's evidence source** — a domain moved
   onto the shared-projection runner must keep its original `evidence_source`, not
   the runner's global source: inheritance, SQL, and rationale keep
-  `reducer/inheritance`, `reducer/sql-relationship`, and `reducer/rationale-edge`.
+  `reducer/inheritance`, `reducer/sql-relationship`, and `reducer/rationale`.
 - **SQL trigger functions materialize as `EXECUTES` edges** —
   `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows

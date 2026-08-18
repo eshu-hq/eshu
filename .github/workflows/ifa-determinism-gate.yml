@@ -132,6 +132,7 @@ on:
       # family's edge re-runs when the decoder feeding it is edited.
       - 'go/internal/reducer/factschema_decode_*.go'
       - 'go/internal/reducer/fact_kind_loader.go'
+      - 'go/internal/reducer/graph_projection_phase.go'
       - 'sdk/go/factschema/decode_codegraph.go'
       - 'sdk/go/factschema/codegraph/v1/file.go'
       - 'sdk/go/factschema/codegraph/v1/repository.go'
@@ -270,6 +271,8 @@ on:
       - 'go/internal/storage/cypher/*documentation*.go'
       - 'scripts/lib/ifa_documentation_live.sh'
       - 'scripts/lib/ifa_fault_injection_documentation_cells.sh'
+      - 'scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh'
+      - 'scripts/lib/ifa_fault_injection_documentation_ack_setup.sh'
       - 'scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
       # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
       # set, reducer stage, writer, and live/fault helpers are all inputs to
@@ -309,10 +312,37 @@ on:
       - 'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
       - 'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
       - 'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-code-call-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh'
       # Pre-existing gap surfaced by the registry-derived check below: the fault
       # gate triggers on this in the registry and the selector table, but the
       # workflow never listed it.
       - 'go/cmd/ifa/assert_edges.go'
+      # rationale_edges (#5998) is replayed and full-record asserted by both
+      # live lanes. Keep the handler, its directly used helpers, graph writer,
+      # replay canonicalizer, fixtures, and shared assertion helper in the
+      # workflow union. The fault-cell files still select only the fault
+      # registry gate during local path selection.
+      - 'go/internal/reducer/rationale_edge_materialization.go'
+      - 'go/internal/reducer/rationale_delta_scope.go'
+      - 'go/internal/reducer/rationale_edge_intents.go'
+      - 'go/internal/reducer/semantic_entity_delta_scope.go'
+      - 'go/internal/reducer/semantic_entity_materialization_helpers.go'
+      - 'go/internal/reducer/intent_emission.go'
+      - 'go/internal/reducer/dependency_domain.go'
+      - 'go/internal/replay/canonical.go'
+      - 'go/internal/storage/cypher/canonical_rationale_edges.go'
+      - 'go/internal/storage/cypher/edge_writer_rationale_labels.go'
+      - 'testdata/cassettes/rationale/**'
+      - 'go/internal/ifa/testdata/rationale/**'
+      - 'scripts/lib/ifa_rationale_live.sh'
+      # Shared committed family fixture paths + existence guards, sourced by
+      # BOTH live gates: a change here changes what every cell drives.
+      - 'scripts/lib/ifa_family_fixtures.sh'
+      - 'scripts/lib/ifa_fault_injection_rationale_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-rationale-cases.sh'
       - 'go/internal/storage/cypher/materialized_edge_*.go'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
@@ -426,7 +456,7 @@ jobs:
       # No retry-to-green: a non-zero dead_letter count or a canonical graph
       # digest that diverges from the fault-free baseline is a real recovery
       # defect, never normalized away by retrying or lowering worker count.
-      - name: Run Ifa fault-injection matrix (11 cells, fresh stack per cell)
+      - name: Run Ifa fault-injection matrix (18 cells, fresh stack per cell)
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
