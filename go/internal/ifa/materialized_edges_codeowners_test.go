@@ -227,9 +227,16 @@ func TestCodeownersFamilyOduBuildsFiveRuleFacts(t *testing.T) {
 	if catalogOdu.Odu.Name != codeownersFamilyOduName {
 		t.Fatalf("codeownersFamilyOdu().Odu.Name = %q, want %q", catalogOdu.Odu.Name, codeownersFamilyOduName)
 	}
-	// 1 repository fact + 5 codeowners.ownership rule facts (RULE A-E).
-	if len(catalogOdu.Odu.Facts) != 6 {
-		t.Fatalf("codeownersFamilyOdu() carries %d facts, want 6 (1 repository + 5 rules)", len(catalogOdu.Odu.Facts))
+	// 1 repository fact + 5 codeowners.ownership rule facts (RULE A-E) + the
+	// shared_followup fact that enqueues this family's reducer work item. The
+	// follow-up is not decoration: without it the projector reports
+	// reducer_intent_count:0 for this cassette and no
+	// domain='codeowners_ownership' fact_work_items row is ever created, so the
+	// live gates cannot drive the handler at all (#5992, measured against a live
+	// stack). See codeownersFamilySharedFollowupFact's doc comment for why the
+	// registry's ReducerDomain field does not supply this.
+	if len(catalogOdu.Odu.Facts) != 7 {
+		t.Fatalf("codeownersFamilyOdu() carries %d facts, want 7 (1 repository + 5 rules + 1 shared_followup)", len(catalogOdu.Odu.Facts))
 	}
 }
 

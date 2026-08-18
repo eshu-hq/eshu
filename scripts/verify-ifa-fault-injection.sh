@@ -221,6 +221,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 # shellcheck source=scripts/lib/ifa_rationale_live.sh
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
+# shellcheck source=scripts/lib/ifa_codeowners_live.sh
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"  # two sources, one line: this file is at the 500-line cap
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -279,6 +281,7 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
 rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"
+codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -483,6 +486,11 @@ cell_failgraphwrite_rationale
 cell_baseline_deployable_unit
 cell_killworker_deployable_unit
 cell_failgraphwrite_deployable_unit
+
+# codeowners_ownership_edges (#5992), cells 19-21; baseline first (it sets digests[baseline_codeowners] + baseline_codeowners_retried).
+cell_baseline_codeowners
+cell_killworker_codeowners
+cell_failgraphwrite_codeowners
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

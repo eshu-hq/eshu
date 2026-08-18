@@ -239,7 +239,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 18-cell fault
+  # the exact one-edge survivor. The 21-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.
@@ -254,6 +254,27 @@ coverage:
     ref: "odu:ifa-rationale-family"
     proof_gate: ifa-fault-injection
 
+  # codeowners_ownership_edges (#5992). Both live gates now drive the family
+  # cassette and assert its five-edge exact set: ifa-determinism uniformly in
+  # every N-cell (drive, baseline assert, post-delta re-assert),
+  # ifa-fault-injection through cells 19-21. The kill-worker cell holds the
+  # handler open by locking fact_records -- its FIRST synchronous read, since
+  # this handler has no IntentWriter and writes no Postgres row a lock could
+  # target -- which was measured on a live stack before the cell was written:
+  # the claimed row stayed claimed for 14 consecutive samples with the reducer
+  # backends visibly waiting on that relation in pg_locks. That makes the fault
+  # row real coverage rather than an aspirational one.
+  - surface: "materialized_edges:codeowners_ownership_edges"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-codeowners-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:codeowners_ownership_edges"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-codeowners-family"
+    proof_gate: ifa-fault-injection
+
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
   # 2026-08-08 until #5974, on the belief that cell_failgraphwrite_sql did not
@@ -262,7 +283,7 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 9 other allProjectionDomains families: both live gates unproven. ---
+  # --- The 8 other allProjectionDomains families: both live gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver. Most still lack an Odù + expected-edge-set fixture; family-specific
   # comments below name any stronger offline proof that still lacks a live gate.
@@ -327,16 +348,6 @@ waivers:
   # exclusion still holds because that cell is genuine, unwaived coverage --
   # mid-handler-interruption coverage is a documented gap, not a silently
   # dropped claim.
-  - surface: "materialized_edges:codeowners_ownership_edges"
-    proof_gate: ifa-determinism
-    issue: "#5992"
-    waived: "2026-07-21"
-    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending #5992 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:codeowners_ownership_edges"
-    proof_gate: ifa-fault-injection
-    issue: "#5992"
-    waived: "2026-07-21"
-    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending #5992 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:submodule_pin_edges"
     proof_gate: ifa-determinism
     issue: "#6002"
@@ -403,7 +414,7 @@ waivers:
 #     exact-one survivor; that delta behavior is not a separate required row.
 #   - deployable_unit_edges BASELINE and FAULT are covered once its vacuity
 #     guard is dispatched and its Odù cataloged (#5993/#6158).
-#   - The 9 other allProjectionDomains families are blocked on the epic #5344
+#   - The 8 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------

@@ -450,7 +450,15 @@ ifa_fault_redeliver_succeeded() {
 		fi
 		domain_clause=" AND domain = '${domain}'"
 	fi
-	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+	# Captured before the pipe, deliberately. Piping ifa_det_pg straight into
+	# `tr` made this helper's exit status depend on pipefail being set by the
+	# caller, and discarded the reason on the way: a failed redelivery UPDATE
+	# surfaced only as the calling cell dying with the step name and nothing
+	# else. That is what made #6149's duplicate-delivery failure undiagnosable
+	# (#5992). ifa_det_pg already prints psql's stderr with its exit code; the
+	# gap was this pipeline swallowing the status.
+	local redelivered_raw redelivered_rc=0
+	redelivered_raw="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"WITH redelivered AS (
 		   UPDATE fact_work_items
 		      SET status = 'pending',
@@ -463,5 +471,10 @@ ifa_fault_redeliver_succeeded() {
 		RETURNING 1
 		 )
 		 SELECT count(*) FROM redelivered;" \
-		"${compose_file}" | tr -d '[:space:]'
+		"${compose_file}")" || redelivered_rc=$?
+	if [[ "${redelivered_rc}" -ne 0 ]]; then
+		echo "ifa_fault_redeliver_succeeded: redelivery UPDATE failed (psql exit ${redelivered_rc}); ifa_det_pg's error above carries the reason" >&2
+		return "${redelivered_rc}"
+	fi
+	printf '%s' "${redelivered_raw}" | tr -d '[:space:]'
 }

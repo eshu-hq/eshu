@@ -83,6 +83,7 @@ func codeownersFamilyOdu() CatalogOdu {
 			RepoID: codeownersFamilyRepoID, SourcePath: "docs/CODEOWNERS", Pattern: "*.py",
 			Owners: []string{"@org/infra"}, OrderIndex: 0,
 		}, "rule-e"),
+		codeownersFamilySharedFollowupFact(),
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: codeownersFamilyOduName, Facts: factsForOdu},
@@ -90,6 +91,48 @@ func codeownersFamilyOdu() CatalogOdu {
 			"collision (RULE A/B), a multi-owner rule adding a third edge to that same " +
 			"team (RULE C), a last-match-wins duplicate rule (RULE D), and a " +
 			"second-file distinct-team rule (RULE E) -- five DECLARES_CODEOWNER edges total",
+	}
+}
+
+// codeownersFamilySharedFollowupFact builds the shared_followup envelope that
+// enqueues this family's reducer work item. WITHOUT IT THE LIVE GATES CANNOT
+// DRIVE THIS HANDLER AT ALL, and that was measured, not reasoned (#5992):
+// driving the committed cassette against a live stack logged
+// `"stage":"build_projection","fact_count":6,"reducer_intent_count":0` and left
+// fact_work_items holding only a projector-stage row, so no
+// `domain='codeowners_ownership'` row ever existed to claim, kill, or assert on.
+//
+// The enqueue path is this fact, not the registry metadata. `codeowners.ownership`
+// does declare `ReducerDomain: "codeowners_ownership"` in
+// go/internal/facts/fact_kind_registry.generated.go, but that field is read only
+// by the registry generator/validator, the MCP disclosure ledger, and
+// replaycoverage's depth requirements -- never by the projector. The projector's
+// own fan-out (appendScopeGenerationReducerIntents,
+// go/internal/projector/scope_generation_intents.go) has 36 build*ReducerIntent
+// probes and no codeowners one; neither does documentation, which is the point:
+// both families are enqueued by a shared_followup fact instead.
+//
+// In production that fact comes from the git collector
+// (go/internal/collector/git_followup_facts.go), which emits one per follow-up
+// domain and DOES include codeowners_ownership -- so this is a fixture gap, not
+// a production defect. The committed Odù simply omitted the fact its own live
+// proof depends on, which is why every cell built on the old two-stage reading
+// of this pipeline was unpassable regardless of what it locked.
+func codeownersFamilySharedFollowupFact() facts.Envelope {
+	return facts.Envelope{
+		ScopeID:          "scope-ifa-codeowners-family",
+		GenerationID:     codeownersFamilyGenerationID,
+		FactKind:         "shared_followup",
+		StableFactKey:    "shared_followup:" + codeownersFamilyRepoID + ":codeowners_ownership",
+		SchemaVersion:    "1.0.0",
+		CollectorKind:    "git",
+		SourceConfidence: "observed",
+		Payload: map[string]any{
+			"reducer_domain": "codeowners_ownership",
+			"entity_key":     "repo:" + codeownersFamilyRepoID,
+			"reason":         "codeowners source emitted codeowners ownership follow-up",
+			"repo_id":        codeownersFamilyRepoID,
+		},
 	}
 }
 

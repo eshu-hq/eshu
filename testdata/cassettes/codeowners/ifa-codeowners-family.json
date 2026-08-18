@@ -103,6 +103,20 @@
             "repo_id": "repo-ifa-codeowners-family",
             "source_path": "docs/CODEOWNERS"
           }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-codeowners-family:codeowners_ownership",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "entity_key": "repo:repo-ifa-codeowners-family",
+            "reason": "codeowners source emitted codeowners ownership follow-up",
+            "reducer_domain": "codeowners_ownership",
+            "repo_id": "repo-ifa-codeowners-family"
+          }
         }
       ],
       "generation_id": "gen-ifa-codeowners-family-1",
