@@ -114,7 +114,7 @@ func RunRepo(ctx context.Context, deps RepoDeps, opts RepoOptions) error {
 		err := errors.New("vulnscan: RunRepo requires Stdout and Stderr")
 		if deps.CloseLocalRuntime != nil {
 			if closeErr := deps.CloseLocalRuntime(); closeErr != nil {
-				return fmt.Errorf("%w; local runtime cleanup failed: %v", err, closeErr)
+				return fmt.Errorf("%w; local runtime cleanup failed: %w", err, closeErr)
 			}
 		}
 		return err

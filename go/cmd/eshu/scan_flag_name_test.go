@@ -37,7 +37,7 @@ func TestScanWaitFlagIsRegisteredWhereItIsPrinted(t *testing.T) {
 		{name: "scan owns the flag", path: []string{"scan"}},
 	}
 	if len(cases) != 2 {
-		t.Fatalf("parity covers %d subcommands, want 2; move this number only alongside the registration you added or removed", len(cases))
+		t.Fatalf("registration coverage names %d subcommands, want 2; move this number only alongside the registration you added or removed", len(cases))
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
