@@ -438,6 +438,13 @@ func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []a
 		filter.IncludeSuppressed,
 		pgarray.Array(filter.AllowedRepositoryIDs),
 		pgarray.Array(filter.AllowedScopeIDs),
+		// $24::timestamptz -- the suppression-expiry evaluation time. Production
+		// passes supplyChainImpactSuppressionReadAt(s.Now) as the 24th argument in
+		// ListSupplyChainImpactFindings, and this list is bound against that same
+		// query, so a placeholder added there must be added here too. Omitting it
+		// fails at bind time with "expected 24 arguments, got 23", before any plan
+		// is produced, so every plan assertion below is skipped rather than run.
+		supplyChainImpactSuppressionReadAt(nil),
 	}
 }
 
