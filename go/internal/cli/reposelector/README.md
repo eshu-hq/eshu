@@ -104,11 +104,18 @@ its returned error, which the wrapper maps to the operator's exit code.
   wrapper keeps its own `client == nil` check on the concrete pointer before
   calling in (`repository_selector.go`). That check predates the extraction
   and was deliberately preserved, so the "missing API client" error still
-  reaches the operator instead of a stack trace. `vuln-scan repo`'s equivalent
-  moved with its orchestration into `go/internal/cli/vulnscan` (`resolveRepoID`),
-  where it guards the `RepoClient` interface: it keeps the same message for a
-  nil interface, and the wrapper never hands it a typed nil because
-  `apiClientFromCmd` and `NewAPIClient` never return one.
+  reaches the operator instead of a stack trace. `vuln-scan repo` keeps the same
+  two-layer guard. `resolveRepoID` in `go/internal/cli/vulnscan` rejects a nil
+  `RepoClient` interface with the same message, and `vuln_scan.go` keeps its own
+  `client == nil` check on the concrete `*APIClient` before building
+  `RepoDeps`, mirroring `repository_selector.go`.
+
+  Both layers are needed, and the concrete one is the load-bearing half: a nil
+  `*APIClient` boxed into an interface is a *non-nil* interface value, so the
+  interface check cannot see it. Guarding only the interface would leave the
+  invariant resting on `apiClientFromCmd` and `NewAPIClient` never returning
+  nil -- true today, and one refactor away from a panic inside `APIClient.do`
+  instead of the operator-visible "missing API client".
 
 ## Related docs
 
