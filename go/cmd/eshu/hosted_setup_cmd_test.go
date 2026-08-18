@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 	"github.com/eshu-hq/eshu/go/internal/cli/hosted"
+	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
@@ -120,8 +121,8 @@ func TestHostedRepositoryListProjectsSelectorRules(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		response := repositoryListResponse{
-			Repositories: []repositorySelectorEntry{
+		response := reposelector.ListResponse{
+			Repositories: []reposelector.Entry{
 				{ID: "repo-1", Name: "acme/api", RepoSlug: "acme-api"},
 				{ID: "repo-2", Name: "acme/worker"},
 			},

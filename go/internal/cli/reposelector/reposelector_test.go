@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reposelector
 
 import (
 	"os"
@@ -15,30 +15,30 @@ func TestRepositorySelectorCanonicalizesOnlyPathFields(t *testing.T) {
 	cleanEquivalentPath := root + string(os.PathSeparator) + "nested" + //nolint:gocritic // preferFilepathJoin: the test deliberately constructs an un-cleaned path equivalent to filepath.Join, to assert the selector canonicalizes both forms.
 		string(os.PathSeparator) + ".." + string(os.PathSeparator) + "repo"
 
-	repo := repositorySelectorEntry{
+	repo := Entry{
 		ID:       "repo-id",
 		Name:     cleanEquivalentPath,
 		RepoSlug: cleanEquivalentPath,
 	}
-	if repositorySelectorMatches(repo, selector) {
-		t.Fatalf("repositorySelectorMatches() matched path-equivalent name/slug, want exact non-path matching only")
+	if Matches(repo, selector) {
+		t.Fatalf("Matches() matched path-equivalent name/slug, want exact non-path matching only")
 	}
 
 	repo.LocalPath = cleanEquivalentPath
-	if !repositorySelectorMatches(repo, selector) {
-		t.Fatalf("repositorySelectorMatches() = false, want canonical local_path match")
+	if !Matches(repo, selector) {
+		t.Fatalf("Matches() = false, want canonical local_path match")
 	}
 }
 
 func TestRepositorySelectorMatchesExactNonPathSelectors(t *testing.T) {
-	repo := repositorySelectorEntry{
+	repo := Entry{
 		ID:       "repo-id",
 		Name:     "repo-name",
 		RepoSlug: "org/repo-name",
 	}
 	for _, selector := range []string{repo.ID, repo.Name, repo.RepoSlug} {
-		if !repositorySelectorMatches(repo, selector) {
-			t.Fatalf("repositorySelectorMatches(%q) = false, want exact non-path match", selector)
+		if !Matches(repo, selector) {
+			t.Fatalf("Matches(%q) = false, want exact non-path match", selector)
 		}
 	}
 }

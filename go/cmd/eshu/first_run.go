@@ -13,6 +13,7 @@ import (
 
 	cliconfig "github.com/eshu-hq/eshu/go/internal/cli/config"
 	"github.com/eshu-hq/eshu/go/internal/cli/firstrun"
+	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 )
 
@@ -139,12 +140,12 @@ func defaultFirstRunRuntimeProbe() firstrun.RuntimeProbe {
 	}
 }
 
-// firstRunListRepositories is the default repositories query seam. It owns the
-// wire decode because the repository-list response type is shared by thirteen
-// command families in this package, and it copies the entries into the
-// firstrun package's plain-value model at the boundary.
+// firstRunListRepositories is the default repositories query seam. It decodes
+// into the shared reposelector.ListResponse wire shape and copies the entries
+// into the firstrun package's plain-value model at the boundary, so firstrun
+// never has to name the API payload.
 func firstRunListRepositories(client scan.Client) (firstrun.RepositoryList, error) {
-	var response repositoryListResponse
+	var response reposelector.ListResponse
 	if err := client.Get(firstrun.QueryEndpoint, &response); err != nil {
 		return firstrun.RepositoryList{}, err
 	}
@@ -161,10 +162,12 @@ func firstRunListRepositories(client scan.Client) (firstrun.RepositoryList, erro
 	return list, nil
 }
 
-// firstRunSelectorMatches adapts the shared repository selector matcher to the
-// firstrun package's plain-value repository model.
+// firstRunSelectorMatches adapts reposelector's matching rules to the firstrun
+// package's plain-value repository model, so a --repository scope check in
+// first-run resolves names, slugs, paths, and symlinks the same way every
+// other command does.
 func firstRunSelectorMatches(repo firstrun.Repository, selector string) bool {
-	return repositorySelectorMatches(repositorySelectorEntry{
+	return reposelector.Matches(reposelector.Entry{
 		ID:        repo.ID,
 		Name:      repo.Name,
 		Path:      repo.Path,

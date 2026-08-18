@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cli/hosted"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
+	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
 	"github.com/eshu-hq/eshu/go/internal/cli/scan"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/spf13/cobra"
@@ -97,12 +98,12 @@ func hostedReadinessVerdict(client *APIClient) (scan.ReadinessVerdict, error) {
 	return scan.EvaluateReadiness(status), nil
 }
 
-// hostedRepositoryList runs the bounded repositories query and projects it into
-// the minimal view the hosted checks read. Each entry keeps a selector predicate
-// bound to this CLI's repository-selector rules, so a --repository scope check
+// hostedRepositoryList runs the bounded repositories query and projects it
+// into the minimal view the hosted checks read. Each entry keeps a selector predicate
+// bound to reposelector's matching rules, so a --repository scope check
 // resolves paths and symlinks the same way every other command does.
 func hostedRepositoryList(client *APIClient) (hosted.RepositoryList, error) {
-	var response repositoryListResponse
+	var response reposelector.ListResponse
 	if err := client.Get(hosted.ReposPath, &response); err != nil {
 		return hosted.RepositoryList{}, err
 	}
@@ -111,7 +112,7 @@ func hostedRepositoryList(client *APIClient) (hosted.RepositoryList, error) {
 		list.Repositories = append(list.Repositories, hosted.Repository{
 			ID:         repo.ID,
 			Name:       repo.Name,
-			ScopeMatch: func(selector string) bool { return repositorySelectorMatches(repo, selector) },
+			ScopeMatch: func(selector string) bool { return reposelector.Matches(repo, selector) },
 		})
 	}
 	return list, nil
