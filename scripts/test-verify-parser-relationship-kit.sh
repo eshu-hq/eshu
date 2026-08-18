@@ -235,6 +235,19 @@ git -C "${language_inventory_repo}" add .
 git -C "${language_inventory_repo}" commit -q -m 'by-language inventory handler without dsl docs'
 expect_pass "${language_inventory_repo}"
 
+# content_reader_language.go is the same class as the inventory handlers:
+# ListRepoFilesByLanguage is a pushed-down files-by-language read for the
+# repository-tree endpoint, called only from repository_tree.go, and
+# execute_language_query never reaches it. It must NOT require a
+# language-query-dsl.md update either. Paired with query_missing_dsl_repo
+# above, which still expect_fails, so the carve-out is proven narrow rather
+# than proven absent.
+content_reader_language_repo="$(init_repo content-reader-language)"
+printf 'package query\nfunc listRepoFilesByLanguage() {}\n' >"${content_reader_language_repo}/go/internal/query/content_reader_language.go"
+git -C "${content_reader_language_repo}" add .
+git -C "${content_reader_language_repo}" commit -q -m 'repository-tree files-by-language read without dsl docs'
+expect_pass "${content_reader_language_repo}"
+
 unsupported_claim_repo="$(init_repo unsupported-claim)"
 cat >"${unsupported_claim_repo}/docs/public/languages/support-maturity.md" <<'MD'
 # Parser Support Matrix

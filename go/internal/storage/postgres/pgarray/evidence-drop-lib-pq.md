@@ -56,14 +56,34 @@ advisories before the change.
 ### What was not proven
 
 A live Postgres run (throwaway `postgres:18-alpine`) executed the storage, query
-and reducer suites: 9418 pass, 122 skip, 17 fail. Sixteen of those failures are
-in files containing no `pgarray` reference at all; the seventeenth,
-`TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive`, fails on a missing
-function inside its per-test schema — the server accepted the five array
-parameters as `text[]`, so the encoding path was exercised and accepted, and the
-gap is in schema setup. **These were not compared against `origin/main`, so no
-claim is made that they pass there.** The claim made here is narrower and
-checkable: none of the seventeen exercises the array-encoding path.
+and reducer suites on **both** this branch and `origin/main`, with the same
+image, the same bootstrap and the same command:
+
+```
+go test -p 1 ./internal/storage/postgres/... ./internal/query/... ./internal/reducer/... -count=1
+```
+
+**Head-only failures: zero.** Every failure on this branch also fails on
+`origin/main`.
+
+The most instructive one is `TestSupplyChainImpactRuntimeFilterPlansLive`, which
+fails on both sides with the same root cause and different wording — head says
+`expected 24 arguments, got 23`, main says
+`pq: got 23 parameters but the statement requires 24`. That is a pre-existing
+defect: `supplyChainRuntimeFilterListArgs` builds 23 arguments while the query
+carries a `$24::timestamptz`. It is not caused by this change, and it is
+unrelated to array encoding.
+
+An earlier version of this note claimed the failures were confined to files
+containing no `pgarray` reference. That was wrong, and it is recorded here
+rather than quietly corrected: the plan test above contains eleven, and
+`supply_chain_suppression_paths_performance_live_test.go` contains three. The
+head-vs-main differential above is the claim that actually holds, and it is
+stronger than the one it replaces — it does not depend on guessing which files
+matter.
+
+The two performance-ceiling tests failed on both sides under full-suite load,
+which the repo's own guidance says proves nothing about a ceiling.
 
 Not run: anything requiring NornicDB/Neo4j, compose e2e, the golden-corpus gate,
 the search-vector scale test, and the remote-validation drivers.

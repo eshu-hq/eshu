@@ -75,3 +75,15 @@ dependency out.
 ```bash
 cd go && go test ./internal/storage/postgres/pgarray -count=1
 ```
+
+## One deliberate divergence from lib/pq
+
+`Scan` rejects a nested-empty literal such as `{{}}` or `{{{}}}`, where `lib/pq`
+returned an empty slice. This is deliberate rather than an oversight: Postgres
+normalises an empty array to `{}`, so a server cannot emit the nested form, and
+nothing in this repository constructs it. Rejecting it keeps the parser's
+one-dimensional contract honest instead of silently flattening a shape it does
+not model.
+
+It is recorded here so the difference is a decision someone made, not a
+discovery someone repeats.
