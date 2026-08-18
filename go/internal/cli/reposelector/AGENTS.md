@@ -77,12 +77,14 @@ server-side against the graph. Same concept, different code, different owner.
 
 - The `resolve repo selector %q: ...` error prefixes. They are what an
   operator sees, and they are asserted verbatim from both sides, deliberately:
-  `resolve_test.go` pins all four message shapes at the source -- no match,
+  `resolve_test.go` pins all four message shapes at the source — no match,
   ambiguous match, a wrapped listing failure, and the missing client (the last
-  in `TestResolveRejectsNilClient`, the rest in `TestResolve`) -- and
+  in `TestResolveRejectsNilClient`, the rest in `TestResolve`) — and
   `TestRunAnalyzeDeadCodeFailsOnAmbiguousRepoSelector`
   (`go/cmd/eshu/analyze_test.go:287`) pins the ambiguous one end-to-end through
-  the wrapper. Changing the wording fails both, which is the intended cost.
+  the wrapper. Changing the shared prefix fails both; changing any single
+  message fails at least the source pin, because the cmd/eshu test only ever
+  sees the ambiguous one. That is the intended cost.
 - The exact-vs-canonicalized split between identity and path fields. Widening
   it changes which repository an existing selector resolves to, silently, for
   every operator script already using one.
