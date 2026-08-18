@@ -189,7 +189,17 @@ cell_killworker_codeowners() {
 		|| die "kill-worker-after-claim-codeowners: codeowners_ownership was never enqueued by the projector"
 	ifa_codeowners_start_fact_records_lock "killworkercodeowners" lock_holder_pid \
 		|| die "kill-worker-after-claim-codeowners: could not acquire the deterministic fact_records read blocker"
-	ifa_det_start_bg "${log_dir}" "reducer-killworkercodeowners-before" reducer_pid_before "${bin_dir}/eshu-reducer"
+	# Scoped to codeowners_ownership only: with the lock already held, an
+	# unscoped reducer's 4 workers can all grab OTHER pending domains that also
+	# read fact_records (cloud_inventory_admission, code_call_materialization,
+	# sql_relationship_materialization, documentation_materialization all do)
+	# and get stuck there for the lock's full duration, starving this domain of
+	# a worker even though its own row already exists -- proven live on CI
+	# after the enqueue-wait fix alone still left it unclaimed for 120s.
+	# ESHU_REDUCER_CLAIM_DOMAIN filters the claim SQL itself (domain = ANY(...)),
+	# so this instance never attempts another domain's row.
+	ifa_det_start_bg "${log_dir}" "reducer-killworkercodeowners-before" reducer_pid_before \
+		env "ESHU_REDUCER_CLAIM_DOMAIN=codeowners_ownership" "${bin_dir}/eshu-reducer"
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "codeowners_ownership")" \
 		|| die "kill-worker-after-claim-codeowners: no codeowners_ownership row was claimed while its fact load was blocked"
 	printf 'kill-worker-after-claim-codeowners: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
