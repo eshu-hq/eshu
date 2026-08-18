@@ -46,11 +46,15 @@ IFA_FAMILY_PIN_WAIT_KEY="documentation_materialization"
 # shared_cell: scripts/lib/ifa_fault_injection_driver.sh:99-100 drives it
 # unconditionally in drive_all_cassettes, and the registry-driven
 # determinism loop runs its drive/assert every N. cell_kind:
-# blocker_kind=ack_barrier is NOT one of the generic dispatcher's three
-# shapes (scripts/lib/ifa_fault_generic_cells.sh:473 dies on it) => custom,
-# independently confirmed live: ifa_fault_injection_documentation_cells.sh's
-# kill cell is the family's own hand-written function, dispatched to (not
-# built) by cell_killworker_family per that same file's header.
+# blocker_kind=ack_barrier is not a shape the generic dispatcher builds, so
+# cell_kind=custom. Re-derived from the gate rather than from the dispatcher's
+# header: ifa_fault_injection_documentation_cells.sh's kill cell is this
+# family's own hand-written function and the gate invokes it BY NAME
+# (ifa_fault_shard_run cell_killworker_documentation), never through
+# cell_killworker_family. An earlier version of this comment said the
+# dispatcher handed off to it, which was never true -- the pinned value was
+# right and the reason given for it was not, which is the failure mode a pin
+# file is least able to survive.
 IFA_FAMILY_PIN_ANCHOR="MERGE (section)-[rel:DOCUMENTS]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1
 IFA_FAMILY_PIN_CELL_KIND="custom"

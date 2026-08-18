@@ -105,14 +105,6 @@
 #                                 global variable (sourced from
 #                                 ifa_family_fixtures.sh) holding this
 #                                 family's cassette / expected-edge-set path.
-#   custom_killworker_fn /
-#   custom_failgraphwrite_fn      cell_kind=custom families only; the
-#                                 hand-written cell-fn names
-#                                 ifa_fault_generic_cells.sh's dispatcher
-#                                 hands off to. Left empty when no correctly-
-#                                 shaped cell exists yet for that family (see
-#                                 codeowners_ownership_edges) -- dispatching
-#                                 MUST then fail loudly, never silently no-op.
 #   handler_go_file               shared_intent_lock families only; the Go
 #                                 source path ifa_fault_generic_cells.sh's
 #                                 mandatory precondition assert greps for an
@@ -167,8 +159,6 @@ declare -gA IFA_FAMILY_ASSERT_FN=()
 declare -gA IFA_FAMILY_CASSETTE_VAR=()
 declare -gA IFA_FAMILY_EXPECTED_VAR=()
 declare -gA IFA_FAMILY_RETRY_BASELINE_VAR=()
-declare -gA IFA_FAMILY_CUSTOM_KILLWORKER_FN=()
-declare -gA IFA_FAMILY_CUSTOM_FAILGRAPHWRITE_FN=()
 declare -gA IFA_FAMILY_HANDLER_GO_FILE=()
 
 # ----------------------------------------------------------------------------
@@ -256,8 +246,6 @@ ifa_family_drive_fn()              { _ifa_family_registry_get IFA_FAMILY_DRIVE_F
 ifa_family_assert_fn()             { _ifa_family_registry_get IFA_FAMILY_ASSERT_FN             "$1" ifa_family_assert_fn; }
 ifa_family_cassette_var()          { _ifa_family_registry_get IFA_FAMILY_CASSETTE_VAR          "$1" ifa_family_cassette_var; }
 ifa_family_expected_var()          { _ifa_family_registry_get IFA_FAMILY_EXPECTED_VAR          "$1" ifa_family_expected_var; }
-ifa_family_custom_killworker_fn()  { _ifa_family_registry_get IFA_FAMILY_CUSTOM_KILLWORKER_FN  "$1" ifa_family_custom_killworker_fn; }
-ifa_family_custom_failgraphwrite_fn() { _ifa_family_registry_get IFA_FAMILY_CUSTOM_FAILGRAPHWRITE_FN "$1" ifa_family_custom_failgraphwrite_fn; }
 ifa_family_handler_go_file()       { _ifa_family_registry_get IFA_FAMILY_HANDLER_GO_FILE       "$1" ifa_family_handler_go_file; }
 ifa_family_retry_baseline_var()    { _ifa_family_registry_get IFA_FAMILY_RETRY_BASELINE_VAR    "$1" ifa_family_retry_baseline_var; }
 

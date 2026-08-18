@@ -314,17 +314,15 @@ _ifa_generic_cell_failgraphwrite() {
 cell_killworker_family() {
 	local family="$1" cell_kind blocker_kind
 	cell_kind="$(ifa_family_cell_kind "${family}")" || die "cell_killworker_family: unknown family ${family}"
-	if [[ "${cell_kind}" == "custom" ]]; then
-		local fn
-		fn="$(ifa_family_custom_killworker_fn "${family}")" \
-			|| die "cell_killworker_family: ${family} declares no custom_killworker_fn row"
-		[[ -n "${fn}" ]] \
-			|| die "cell_killworker_family: ${family} is cell_kind=custom but declares no kill-worker cell function yet (not implemented for this family; see its ifa_family_registry.sh row comment)"
-		declare -F "${fn}" >/dev/null \
-			|| die "cell_killworker_family: ${family}'s declared kill-worker function '${fn}' is not defined -- source its cell library before calling this dispatcher"
-		"${fn}"
-		return $?
-	fi
+	# cell_kind=custom families are dispatched BY NAME from the gate
+	# (ifa_fault_shard_run cell_killworker_documentation, and so on), never
+	# through this function -- so a custom branch here would be unreachable.
+	# It existed briefly and was removed: a guard whose only purpose is to
+	# catch a case that cannot arrive reads like protection and provides
+	# none. If a custom family ever needs registry dispatch, add the branch
+	# back together with the caller that exercises it.
+	[[ "${cell_kind}" == "generic" ]] \
+		|| die "${FUNCNAME[0]}: ${family} is cell_kind=${cell_kind}; only generic families dispatch through this function (custom families are invoked by name from the gate)"
 	blocker_kind="$(ifa_family_blocker_kind "${family}")" || die "cell_killworker_family: unknown family ${family}"
 	case "${blocker_kind}" in
 	none) _ifa_generic_cell_killworker_none "${family}" ;;
@@ -342,16 +340,14 @@ cell_killworker_family() {
 cell_failgraphwrite_family() {
 	local family="$1" cell_kind
 	cell_kind="$(ifa_family_cell_kind "${family}")" || die "cell_failgraphwrite_family: unknown family ${family}"
-	if [[ "${cell_kind}" == "custom" ]]; then
-		local fn
-		fn="$(ifa_family_custom_failgraphwrite_fn "${family}")" \
-			|| die "cell_failgraphwrite_family: ${family} declares no custom_failgraphwrite_fn row"
-		[[ -n "${fn}" ]] \
-			|| die "cell_failgraphwrite_family: ${family} is cell_kind=custom but declares no fail-graph-write cell function yet (not implemented for this family; see its ifa_family_registry.sh row comment)"
-		declare -F "${fn}" >/dev/null \
-			|| die "cell_failgraphwrite_family: ${family}'s declared fail-graph-write function '${fn}' is not defined -- source its cell library before calling this dispatcher"
-		"${fn}"
-		return $?
-	fi
+	# cell_kind=custom families are dispatched BY NAME from the gate
+	# (ifa_fault_shard_run cell_killworker_documentation, and so on), never
+	# through this function -- so a custom branch here would be unreachable.
+	# It existed briefly and was removed: a guard whose only purpose is to
+	# catch a case that cannot arrive reads like protection and provides
+	# none. If a custom family ever needs registry dispatch, add the branch
+	# back together with the caller that exercises it.
+	[[ "${cell_kind}" == "generic" ]] \
+		|| die "${FUNCNAME[0]}: ${family} is cell_kind=${cell_kind}; only generic families dispatch through this function (custom families are invoked by name from the gate)"
 	_ifa_generic_cell_failgraphwrite "${family}"
 }

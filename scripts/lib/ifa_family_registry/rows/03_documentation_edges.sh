@@ -27,7 +27,5 @@ IFA_FAMILY_EXPECTED_VAR[documentation_edges]="documentation_expected_edges"
 # ifa_family_fixtures.sh:51-52: "on the fault-injection gate
 # cell_killworker_documentation and cell_failgraphwrite_documentation back
 # its manifest row's proof_gate claim."
-IFA_FAMILY_CUSTOM_KILLWORKER_FN[documentation_edges]="cell_killworker_documentation"
-IFA_FAMILY_CUSTOM_FAILGRAPHWRITE_FN[documentation_edges]="cell_failgraphwrite_documentation"
 
 IFA_FAMILY_NAMES+=(documentation_edges)

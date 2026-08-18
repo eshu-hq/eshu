@@ -55,10 +55,10 @@ IFA_FAMILY_EXPECTED_VAR[codeowners_ownership_edges]="codeowners_expected_edges"
 # rules do not collapse onto one edge; a substring match on the bare
 # ]->(team) alone would not be anchored to a specific rule.
 IFA_FAMILY_ANCHOR[codeowners_ownership_edges]="MERGE (repo)-[rel:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)"
-# ack_barrier is not one of the two shapes ifa_fault_generic_cells.sh
-# supports, so custom -- even though, unlike documentation_edges, no
-# correctly-shaped cell function exists yet to dispatch to (tracked under
-# #5992, see custom_killworker_fn below).
+# ack_barrier is not one of the shapes ifa_fault_generic_cells.sh's generic
+# dispatcher builds, so custom. Custom families are dispatched by name from
+# the gate (ifa_fault_shard_run cell_killworker_codeowners), never through
+# that dispatcher -- #6160 wired this family's three cells that way.
 IFA_FAMILY_CELL_KIND[codeowners_ownership_edges]="custom"
 
 # Deliberately empty: no ack_barrier-shaped kill cell exists for this family
@@ -66,8 +66,6 @@ IFA_FAMILY_CELL_KIND[codeowners_ownership_edges]="custom"
 # shared_intent_lock shape this row's blocker_kind explicitly disagrees with
 # (see that field's comment above) and MUST NOT be dispatched to here as if
 # it satisfied this row's claim. Tracked under #5992.
-IFA_FAMILY_CUSTOM_KILLWORKER_FN[codeowners_ownership_edges]=""
-IFA_FAMILY_CUSTOM_FAILGRAPHWRITE_FN[codeowners_ownership_edges]=""
 
 IFA_FAMILY_HANDLER_GO_FILE[codeowners_ownership_edges]="go/internal/reducer/codeowners_ownership_materialization.go"
 

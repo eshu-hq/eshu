@@ -42,8 +42,6 @@ IFA_FAMILY_EXPECTED_VAR[deployable_unit_edges]="deployable_unit_expected_edges"
 
 # ifa_fault_injection_deployable_unit_cells.sh:261. Kept on its own
 # already-proven cell per the scoping call above.
-IFA_FAMILY_CUSTOM_KILLWORKER_FN[deployable_unit_edges]="cell_killworker_deployable_unit"
 # ifa_fault_injection_deployable_unit_cells.sh:374.
-IFA_FAMILY_CUSTOM_FAILGRAPHWRITE_FN[deployable_unit_edges]="cell_failgraphwrite_deployable_unit"
 
 IFA_FAMILY_NAMES+=(deployable_unit_edges)
