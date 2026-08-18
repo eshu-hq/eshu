@@ -76,9 +76,13 @@ server-side against the graph. Same concept, different code, different owner.
 ## What NOT to change without an ADR
 
 - The `resolve repo selector %q: ...` error prefixes. They are what an
-  operator sees, and `TestRunAnalyzeDeadCodeFailsOnAmbiguousRepoSelector`
-  (`go/cmd/eshu/analyze_test.go:287`) asserts the ambiguous-match string
-  verbatim, so changing the wording fails that test.
+  operator sees, and they are asserted verbatim from both sides, deliberately:
+  `resolve_test.go` pins all four message shapes at the source -- no match,
+  ambiguous match, a wrapped listing failure, and the missing client (the last
+  in `TestResolveRejectsNilClient`, the rest in `TestResolve`) -- and
+  `TestRunAnalyzeDeadCodeFailsOnAmbiguousRepoSelector`
+  (`go/cmd/eshu/analyze_test.go:287`) pins the ambiguous one end-to-end through
+  the wrapper. Changing the wording fails both, which is the intended cost.
 - The exact-vs-canonicalized split between identity and path fields. Widening
   it changes which repository an existing selector resolves to, silently, for
   every operator script already using one.

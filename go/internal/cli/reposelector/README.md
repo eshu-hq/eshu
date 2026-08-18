@@ -50,8 +50,8 @@ See `doc.go` for the godoc contract. The whole caller-facing surface is
 
 The matcher internals — `matcher`, `newMatcher`, its `matches` method, and
 `pathMatches` — stay unexported. Nothing outside this package calls them, and
-`reposelector_test.go` is an in-package test, so it reaches them without an
-export.
+the in-package tests — `reposelector_test.go` for the matcher rules and
+`resolve_test.go` for `Resolve`'s branches — reach them without an export.
 
 `Getter` is declared here, at the point of use, rather than shared from
 `go/cmd/eshu`: that package is `package main`, and its `*APIClient` resolves

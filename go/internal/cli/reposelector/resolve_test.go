@@ -138,7 +138,7 @@ func TestResolve(t *testing.T) {
 
 // TestResolveRejectsNilClient pins the guard that the cobra wrapper depends on.
 // A nil *APIClient boxed into a Getter is a non-nil interface and would slip
-// this check, which is why go/cmd/eshu keeps its own nil test on the concrete
+// this check, which is why go/cmd/eshu keeps its own nil check on the concrete
 // pointer before calling Resolve.
 func TestResolveRejectsNilClient(t *testing.T) {
 	got, err := Resolve(nil, "payments")
