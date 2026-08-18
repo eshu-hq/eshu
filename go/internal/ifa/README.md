@@ -361,3 +361,27 @@ in `AGENTS.md`.
 - `go/internal/replaycoverage/README.md`
 - `go/internal/relationships/README.md`
 - `go/internal/goldengate/README.md`
+
+## `--teeth`
+
+Relocated from `scripts/verify-ifa-determinism.sh`, which was at its
+500-line cap and needs the room for the families still landing.
+
+Slice scope (#4396 slice 6, "the teeth"): this file also owns --teeth, the
+acceptance clause's negative-path proof that the matrix actually catches "a
+deliberately non-idempotent write" instead of passing vacuously. --teeth
+builds every host binary with `-tags ifadeterminismteeth`, which links in
+exactly one build-tag-gated fault: go/internal/reducer/gcp_resource_
+materialization_teeth.go stamps TWO properties onto each CloudResource row —
+`ifa_teeth_seq` (a process-global monotonic sequence number, reintroduced in
+slice 6b now that the multi-scope cassette above makes it interleaving-
+sensitive again instead of inert) and `ifa_teeth_write_order` (wall-clock
+nanoseconds, the guaranteed-red floor) — and go/internal/storage/cypher/
+cloud_resource_node_writer_teeth.go appends the two matching SET clauses
+that persist them. At least one of those values depends on this run's own
+commit/processing order, so it genuinely differs across independent N=1/
+N=2/N=4 cells, changing `ifa graph-dump`'s canonical digest and failing the
+SAME comparison this script already runs unmodified. No normal, CI, or
+production build ever compiles that fault: cloud_resource_node_writer_
+teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
+!ifadeterminismteeth) are its zero-cost, zero-behavior default.

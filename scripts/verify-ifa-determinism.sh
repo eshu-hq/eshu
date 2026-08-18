@@ -48,24 +48,11 @@
 # synth scopes are not actually disjoint — fix the ProjectID derivation in
 # go/internal/synth/gcp, do not "fix" this script by normalizing the digest.
 #
-# Slice scope (#4396 slice 6, "the teeth"): this file also owns --teeth, the
-# acceptance clause's negative-path proof that the matrix actually catches "a
-# deliberately non-idempotent write" instead of passing vacuously. --teeth
-# builds every host binary with `-tags ifadeterminismteeth`, which links in
-# exactly one build-tag-gated fault: go/internal/reducer/gcp_resource_
-# materialization_teeth.go stamps TWO properties onto each CloudResource row —
-# `ifa_teeth_seq` (a process-global monotonic sequence number, reintroduced in
-# slice 6b now that the multi-scope cassette above makes it interleaving-
-# sensitive again instead of inert) and `ifa_teeth_write_order` (wall-clock
-# nanoseconds, the guaranteed-red floor) — and go/internal/storage/cypher/
-# cloud_resource_node_writer_teeth.go appends the two matching SET clauses
-# that persist them. At least one of those values depends on this run's own
-# commit/processing order, so it genuinely differs across independent N=1/
-# N=2/N=4 cells, changing `ifa graph-dump`'s canonical digest and failing the
-# SAME comparison this script already runs unmodified. No normal, CI, or
-# production build ever compiles that fault: cloud_resource_node_writer_
-# teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
-# !ifadeterminismteeth) are its zero-cost, zero-behavior default.
+# Slice scope (#4396 slice 6, "the teeth"): this file owns --teeth, the
+# acceptance clause's negative-path proof that the matrix catches a
+# deliberately non-idempotent write instead of passing vacuously. How the
+# build-tag-gated fault works, and why it is zero-cost in every normal
+# build, is in go/internal/ifa/README.md's "--teeth" section.
 #
 # --teeth reuses every other line of this script's matrix logic unchanged;
 # the only difference is the build tag and the final message. Per the
