@@ -129,8 +129,8 @@ func codeownersFamilySharedFollowupFact() facts.Envelope {
 		SourceConfidence: "observed",
 		Payload: map[string]any{
 			"reducer_domain": "codeowners_ownership",
-			"entity_key":     "repo:" + codeownersFamilyRepoID,
-			"reason":         "codeowners source emitted codeowners ownership follow-up",
+			"entity_key":     "codeowners:" + codeownersFamilyRepoID,
+			"reason":         "repository snapshot emitted codeowners ownership follow-up",
 			"repo_id":        codeownersFamilyRepoID,
 		},
 	}

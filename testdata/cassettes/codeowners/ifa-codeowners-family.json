@@ -112,8 +112,8 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
-            "entity_key": "repo:repo-ifa-codeowners-family",
-            "reason": "codeowners source emitted codeowners ownership follow-up",
+            "entity_key": "codeowners:repo-ifa-codeowners-family",
+            "reason": "repository snapshot emitted codeowners ownership follow-up",
             "reducer_domain": "codeowners_ownership",
             "repo_id": "repo-ifa-codeowners-family"
           }
