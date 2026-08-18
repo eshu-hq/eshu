@@ -3,12 +3,12 @@
 # slice S5, extended by #5555's SQL-targeted cells, #5991's code-call cells,
 # and #5998's rationale cells). The gate
 # itself needs Docker + a built toolchain and takes significantly longer
-# than the sibling determinism matrix (eighteen fresh Postgres + NornicDB
+# than the sibling determinism matrix (twenty-one fresh Postgres + NornicDB
 # stacks, six of them running a -tags ifafaultinjection
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# eighteen-cell shape (baseline + seventeen live cells; fail-terminal
+# twenty-one-cell shape (baseline + twenty live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -160,11 +160,11 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The eighteen-cell shape: baseline plus seventeen cells with a live seam --
+# The twenty-one-cell shape: baseline plus twenty cells with a live seam --
 # four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
 # (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
 # two rationale-targeted (#5998), and a family-scoped baseline plus two
-# recovery cells for deployable_unit_edges (#5993). All eighteen run by
+# recovery cells for deployable_unit_edges (#5993). All twenty-one run by
 # default.
 # Every cell is anchored to its own invocation line, never matched by bare name.
 # A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
@@ -172,7 +172,7 @@ fi
 # the cell_baseline dispatch line left the mirror green -- and cell_baseline is
 # the sole writer of digests[baseline], so all sixteen assert_matches_baseline
 # calls would then compare against an unset key. The anchored form was
-# previously applied to only five of the eighteen; it now covers all of them.
+# previously applied to only five of the twenty-one; it now covers all of them.
 # rg without --fixed-strings so ^...$ binds.
 for cell in \
 	cell_baseline cell_killworker cell_expirelease cell_failgraphwrite cell_restartbackend \
@@ -181,7 +181,8 @@ for cell in \
 	cell_failgraphwrite_sql cell_failgraphwrite_code_calls \
 	cell_failgraphwrite_documentation cell_failgraphwrite_rationale \
 	cell_baseline_deployable_unit cell_killworker_deployable_unit \
-	cell_failgraphwrite_deployable_unit; do
+	cell_failgraphwrite_deployable_unit cell_baseline_codeowners \
+	cell_killworker_codeowners cell_failgraphwrite_codeowners; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
 # #5974 probes. A missing marker had two explanations and the gate had to guess

@@ -18,9 +18,9 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Eighteen cells, each hitting a genuinely different recovery or delivery
-# seam. All eighteen run by default. Cell
-# functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
+# Twenty-one cells, each hitting a genuinely different recovery or delivery
+# seam. All twenty-one run by default. Cell functions live in
+# scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
 # #5991), scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and
