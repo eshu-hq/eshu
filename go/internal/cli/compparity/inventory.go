@@ -73,9 +73,9 @@ func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory,
 // per-ID strings — the underlying error may carry local paths, and the
 // artifact is share-safe output.
 //
-// Every exercise lives in exercises.go. Only repoRoot is a parameter: the two
-// exercises that read committed files join their paths onto it, and the rest
-// run entirely from embedded or in-memory data.
+// Every exercise lives in exercises.go. Only repoRoot is a parameter: the
+// dogfood exercise joins its fixture path onto it, and the rest run entirely
+// from embedded or in-memory data.
 func exerciseResults(repoRoot string) []competitiveparity.ExerciseResult {
 	checks := []struct {
 		id string

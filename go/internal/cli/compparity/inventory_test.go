@@ -72,7 +72,7 @@ func TestExerciseResultsRedactFailureDetails(t *testing.T) {
 // TestExerciseFailureDetailIsStaticPerID pins the share-safe detail strings
 // directly. Before the first-run exercise moved in here, the redaction test
 // above could force any exercise to fail by injecting a failing func; now
-// only the two repoRoot-reading exercises can be failed from a test, so the
+// only the one repoRoot-reading exercise can be failed from a test, so the
 // mapping is asserted head-on instead of through whichever exercise happens
 // to be breakable.
 func TestExerciseFailureDetailIsStaticPerID(t *testing.T) {
