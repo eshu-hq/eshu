@@ -666,6 +666,29 @@ linters:
       - path: 'internal/cli/localsupervisor/'
         linters:
           - wrapcheck
+      # internal/cli/compparity is the competitive-parity gate logic lifted
+      # out of cmd/eshu (#6059). It keeps only the wrapcheck half of the cmd/
+      # exemption; the one exhaustive finding was fixed in code with an
+      # explicit default case.
+      #
+      # Removing this block measures 10 wrapcheck findings, and they split
+      # two ways. Two are operator-visible and are the reason for the grant:
+      # Inventory's LoadSurfaceInventory error and Artifact's RenderJSON
+      # error travel unwrapped through the wrapper's RunE to the terminal, so
+      # wrapping would rewrite operator output during what is otherwise a
+      # move -- the same reasoning as localsupervisor above.
+      #
+      # The other eight are in exercises.go: seven in the exercise* helpers,
+      # and one in supportedSupplyChainPacket, whose only non-test caller is
+      # exerciseInvestigationEvidencePacketArtifact. Their errors never reach
+      # anyone: exerciseResults discards the error and records the static
+      # exerciseFailureDetail string instead, because the real text can carry
+      # local paths and the artifact is share-safe output. They are covered
+      # here so the package has one rule rather than a per-function split,
+      # not because their text is operator-visible.
+      - path: 'internal/cli/compparity/'
+        linters:
+          - wrapcheck
       # AWS SDK adapter packages sit at the boundary between the
       # Eshu runtime and the AWS SDK. They translate typed AWS
       # errors into scanner-owned errors; the audit confirms the

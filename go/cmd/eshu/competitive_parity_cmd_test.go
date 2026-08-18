@@ -92,19 +92,9 @@ func TestCompetitiveParityValidateReportsMissingDocs(t *testing.T) {
 	}
 }
 
-func TestCompetitiveParityInvestigationExerciseUsesSupportedPacket(t *testing.T) {
-	packet, err := buildCompetitiveParitySupportedSupplyChainPacket()
-	if err != nil {
-		t.Fatalf("build supported packet: %v", err)
-	}
-	if !packet.Answer.Supported || packet.Answer.Partial {
-		t.Fatalf("packet answer supported=%t partial=%t, want supported complete", packet.Answer.Supported, packet.Answer.Partial)
-	}
-	if len(packet.SourceFacts) == 0 || len(packet.ReducerDecisions) == 0 || len(packet.GraphAnswers) == 0 {
-		t.Fatalf("packet missing supported evidence layers: source=%d reducer=%d graph=%d",
-			len(packet.SourceFacts), len(packet.ReducerDecisions), len(packet.GraphAnswers))
-	}
-}
+// The supported supply-chain packet fixture moved to
+// internal/cli/compparity with the exercise logic; its regression test is
+// TestSupportedSupplyChainPacketIsSupportedComplete in that package.
 
 func TestRootCommandIncludesCompetitiveParityValidate(t *testing.T) {
 	if !commandPathExists("competitive-parity validate") {

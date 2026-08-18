@@ -63,15 +63,15 @@ See `doc.go` for the full godoc contract.
   `{{.TestImports}}` and `{{.XTestImports}}`. No third-party or intra-repo
   imports, so `go list -deps` on this package resolves to nothing outside the
   standard library and the package itself.
-- Imported by three files, all in `go/cmd/eshu`: the `report` command wrapper
-  (`operator_digest_cmd.go`); the `competitive-parity validate` exerciser
-  (`competitive_parity_cmd.go`'s `exerciseOperatorDigestArtifact`), which
-  reuses `OptionsFromFlags`, `DefaultProfile`, `BuildDigest`, and
-  `BuildArtifact` to prove the digest and artifact paths stay wired at
-  release-verification time; and the wrapper's own test
-  (`operator_digest_cmd_test.go`), which decodes the command's stdout into
-  `Digest` and `Artifact` and checks the result against `Schema`. That test
-  is the reason `Schema` stays exported.
+- Imported by three files: the `report` command wrapper
+  (`go/cmd/eshu/operator_digest_cmd.go`); the `competitive-parity validate`
+  exerciser (`go/internal/cli/compparity/exercises.go`'s
+  `exerciseOperatorDigestArtifact`), which reuses `OptionsFromFlags`,
+  `DefaultProfile`, `BuildDigest`, and `BuildArtifact` to prove the digest and
+  artifact paths stay wired at release-verification time; and the wrapper's
+  own test (`go/cmd/eshu/operator_digest_cmd_test.go`), which decodes the
+  command's stdout into `Digest` and `Artifact` and checks the result against
+  `Schema`. That test is the reason `Schema` stays exported.
 
 ## Telemetry
 
@@ -226,10 +226,12 @@ the union of the new imports, minus `opdigest` itself, is the old set exactly.
 Comments are excluded, which is the whole point of dropping them -- but it also
 means the three `//nolint:wrapcheck` directives are not covered. Those change
 what golangci-lint reports and nothing the compiler emits. Then the two files
-neither bullet names. `competitive_parity_cmd.go`: its five changed lines
-qualify four existing references in `exerciseOperatorDigestArtifact` with
-`opdigest.`, which the compiler resolves and
-`go test ./cmd/eshu/... -count=1` runs. And this package's `doc.go`, which the
+neither bullet names. `competitive_parity_cmd.go`, which at the time carried
+`exerciseOperatorDigestArtifact`: its five changed lines qualified that
+function's four existing references with `opdigest.`, which the compiler
+resolves and `go test ./cmd/eshu/... -count=1` runs. (The function has since
+moved to `go/internal/cli/compparity/exercises.go`; the qualified references
+moved with it.) And this package's `doc.go`, which the
 commit adds: it holds nothing but the package comment, and a method that drops
 comments has nothing in it to compare. The commit writes one more non-test
 `.go` file, `tools/golangci-lint-dirgate/grandfather.go`, but that one is

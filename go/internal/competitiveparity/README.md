@@ -25,9 +25,10 @@ types in `types.go`.
 
 ## Dependencies
 
-The package imports only the Go standard library. CLI integration in
-`go/cmd/eshu` supplies Cobra command paths, generated capability catalog
-surfaces, public documentation text, and local exercise results.
+The package imports only the Go standard library. `go/internal/cli/compparity`
+assembles the live inventory — generated capability catalog surfaces, public
+documentation text, and local exercise results — and the CLI wrapper in
+`go/cmd/eshu` supplies the Cobra command paths.
 
 ## Telemetry
 
