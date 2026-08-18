@@ -12,12 +12,30 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// repoRefreshIntentType marks a shared-projection intent whose only job is to
-// issue the single repo-wide retract for a repo-wide-retract domain
-// (handles_route, runs_in, invokes_cloud_action). It carries no edge of its own;
-// filterUpsertRows drops it from writes because its action is repoRefreshAction.
+// RepoRefreshIntentType marks a shared-projection intent whose only job is to
+// issue the single repo-wide retract for a repo-wide-retract domain. Five
+// emitters reference this constant: inheritance_intents.go,
+// rationale_edge_intents.go, shell_exec_intents.go,
+// sql_relationship_intents.go and symbol_runtime_refresh_intents.go. The
+// rationale one is what the graph-write side below keys on. It carries no edge
+// of its own; filterUpsertRows drops it from writes because its action is
+// repoRefreshAction.
+//
+// Two further production sites emit the same value as a hard-coded literal
+// rather than through this constant: code_call_materialization_intents.go and
+// code_call_projection_work.go. They are DomainCodeCalls rows and never reach
+// collectWholeScopeRefreshRepoIDs, so they are not a live drift hazard for the
+// rationale guard, but they are copies and should migrate to this constant.
+//
+// Exported because the graph-write side reads it back: storage/cypher's
+// rationale retract collects whole-scope repository ids by matching this
+// intent_type, and if the two sides drifted that predicate would match nothing,
+// the whole-scope retract would silently stop running, and stale EXPLAINS edges
+// would persist with no error and no dead letter. One definition shared by that
+// predicate and the five emitters above is what keeps that from being possible
+// (#5998); the two literals noted above are the remaining exception.
 const (
-	repoRefreshIntentType = "repo_refresh"
+	RepoRefreshIntentType = "repo_refresh"
 	repoRefreshAction     = "refresh"
 	// retractViaRefreshKey marks a per-edge row that was emitted WITH a paired
 	// repo refresh intent, so the worker may safely fence it behind that refresh.
@@ -66,7 +84,7 @@ func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
 
 // isRepoRefreshRow reports whether a row is a per-repo refresh intent.
 func isRepoRefreshRow(row SharedProjectionIntentRow) bool {
-	return payloadStr(row.Payload, "intent_type") == repoRefreshIntentType
+	return payloadStr(row.Payload, "intent_type") == RepoRefreshIntentType
 }
 
 // markRowsRetractViaRefresh stamps the retract_via_refresh marker on every

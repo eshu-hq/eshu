@@ -356,7 +356,7 @@ func TestAppendUnhashedSharedCandidatesRefreshFirstAcrossMerge(t *testing.T) {
 				IntentID:     "refresh-later",
 				PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "refresh-later"),
 				CreatedAt:    refreshTime,
-				Payload:      map[string]any{"action": repoRefreshAction, "intent_type": repoRefreshIntentType},
+				Payload:      map[string]any{"action": repoRefreshAction, "intent_type": RepoRefreshIntentType},
 			},
 		},
 	}

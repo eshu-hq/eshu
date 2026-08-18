@@ -358,8 +358,8 @@ func TestSQLRelationshipHandlerEmitsRefreshThatOwnsRetract(t *testing.T) {
 	if len(refresh) != 1 {
 		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if got := anyToString(refresh[0].Payload["intent_type"]); got != repoRefreshIntentType {
-		t.Fatalf("refresh intent_type = %q, want %q", got, repoRefreshIntentType)
+	if got := anyToString(refresh[0].Payload["intent_type"]); got != RepoRefreshIntentType {
+		t.Fatalf("refresh intent_type = %q, want %q", got, RepoRefreshIntentType)
 	}
 	if got := anyToString(refresh[0].Payload["action"]); got != repoRefreshAction {
 		t.Fatalf("refresh action = %q, want %q", got, repoRefreshAction)

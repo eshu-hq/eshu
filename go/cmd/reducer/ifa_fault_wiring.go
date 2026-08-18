@@ -156,6 +156,21 @@ func (a *ifaExecutorRetryArmedExecutor) ExecuteGroup(ctx context.Context, stmts 
 	return grouped.ExecuteGroup(ctx, stmts)
 }
 
+// ExecuteProbe forwards to inner unconditionally, consuming no fault token:
+// mirroring sourcecypher.FaultingExecutor.ExecuteProbe (#5998 review, same
+// wrapper-audit pass), no fault kind in the Layer 4 vocabulary targets a
+// read-only probe, only the mutating Execute/ExecuteGroup seams above. It
+// still fails closed via inner's own capability check rather than adding a
+// second one here, so a caller that already type-asserted ProbeExecutor at
+// this layer gets inner's real answer (found/error) instead of a silent skip.
+func (a *ifaExecutorRetryArmedExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
+	pe, ok := a.inner.(sourcecypher.ProbeExecutor)
+	if !ok {
+		return false, fmt.Errorf("ifa executor retry seam: inner executor does not support ExecuteProbe")
+	}
+	return pe.ExecuteProbe(ctx, stmt)
+}
+
 func consumeIfaExecutorRetryFault(ctx context.Context) bool {
 	token, ok := ctx.Value(ifaExecutorRetryFaultContextKey{}).(*ifaExecutorRetryFaultToken)
 	return ok && token != nil && token.armed.CompareAndSwap(true, false)

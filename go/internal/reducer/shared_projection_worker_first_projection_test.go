@@ -43,7 +43,7 @@ func firstProjectionRefreshRow(t *testing.T, repoID, scopeID, generationID strin
 		GenerationID:     generationID,
 		Payload: map[string]any{
 			"repo_id":     repoID,
-			"intent_type": repoRefreshIntentType,
+			"intent_type": RepoRefreshIntentType,
 			"action":      repoRefreshAction,
 		},
 		CreatedAt: created,

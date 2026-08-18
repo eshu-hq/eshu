@@ -12,7 +12,31 @@
 // BackpressureExecutor bounds concurrent writes to a configurable in-flight
 // ceiling so a slow backend slows intake instead of dead-lettering recoverable
 // work (issue #3560); it wraps the outermost retry/timeout layer so one permit
-// covers a whole write attempt. Dialect-specific behavior must stay
+// covers a whole write attempt.
+//
+// Executor carries one further optional extension besides GroupExecutor and
+// PhaseGroupExecutor: ProbeExecutor adds a read-only existence check
+// (ExecuteProbe) used to guard a retract whose cost is disproportionate to the
+// rows it removes. Every wrapper that forwards GroupExecutor MUST forward
+// ProbeExecutor identically, and the ExecuteOnly* wrappers MUST hide both:
+// forwarding one but not the other leaves callers' type assertions succeeding
+// against wrappers above the gap while every probe dead-ends inside it.
+// EdgeWriter's rationale EXPLAINS retract uses ProbeExecutor at two scopes
+// (retractRationaleEdgesWithProbe for a whole repository,
+// executeGuardedRationaleDeltaRetracts for a delta's per-target-label
+// statements): on the pinned NornicDB build, both DELETE shapes cost
+// proportional to store size even when they remove zero rows, so a
+// bounded read-only probe runs first and the DELETE only fires when the
+// probe finds something. The delta path pairs each of its seven per-label
+// statements with its own probe from the same label list in the same
+// order (BuildProbeRationaleEdgeStatementsByFilePath), because each
+// statement matches a different label and a single shared probe would
+// answer a narrower question than six of the seven deletes it guarded.
+// Both scopes share the fail-safe direction: no ProbeExecutor, or a probe
+// error, runs the DELETE unconditionally, and only a definitive zero
+// skips it.
+//
+// Dialect-specific behavior must stay
 // narrow and explicit: schema adapters, writer options, and the BuildCanonical*
 // statement builders own backend differences so callers do not need to branch
 // on ESHU_GRAPH_BACKEND. Writes must be idempotent and retry-safe; the

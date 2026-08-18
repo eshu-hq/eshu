@@ -281,6 +281,17 @@ func NewGate(maxInFlight int, instruments *telemetry.Instruments, gateName strin
 // ExecuteOnlyExecutor path), the returned value intentionally does not expose
 // ExecuteGroup so callers that type-assert GroupExecutor fall through to
 // sequential execution instead of hitting errInnerNoExecuteGroup.
+//
+// The branch keys on GroupExecutor alone, which is deliberate but relies on the
+// two optional capabilities travelling together. cypher.ProbeExecutor's contract
+// is that a wrapper forwards both or hides both, so an inner that offers
+// ExecuteProbe without ExecuteGroup is not a shape this package expects to see.
+// If one ever appeared, it would take the ExecuteOnly branch and lose probing:
+// fail-safe, because the rationale retract guard runs its DELETE unconditionally
+// on an unsupported probe, and visible, because that path increments
+// eshu_dp_rationale_retract_probe_outcomes_total with outcome="unsupported"
+// rather than passing silently. Widen this check if that assumption stops
+// holding.
 func WrapExecutorWithGate(inner cypher.Executor, gate *cypher.BackpressureGate) cypher.Executor {
 	if gate == nil {
 		return inner

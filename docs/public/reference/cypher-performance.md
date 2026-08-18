@@ -1165,32 +1165,89 @@ Issue #2257 also scopes rationale `EXPLAINS` cleanup for delta generations to
 changed or deleted source files. The rationale reducer now loads repository
 delta metadata beside `content_entity` facts that can carry
 `rationale_comments`. Deleted-only delta generations can therefore retract stale
-`EXPLAINS` edges without current rationale rows, while full refreshes keep the
-existing repository-wide `rationale.repo_id` retract path.
+`EXPLAINS` edges without current rationale rows.
+
+Issue #5998 changed what a full refresh does next: `RetractEdges` no longer
+issues the repository-wide `rationale.repo_id` DELETE unconditionally. It first
+runs `retractRationaleEdgesWithProbe`, a bounded `RETURN true LIMIT 1` read that
+mirrors the DELETE's MATCH/WHERE shape. A `skipped` outcome (no matching edges)
+lets the generation skip the DELETE entirely; a `deleted` outcome runs it as
+before. This also applies to the mixed-partition case: when a delta batch
+carries sibling rows for repositories on a full generation that share the same
+partition bucket, those whole-scope repositories are retracted through the same
+probe-guarded path rather than the plain repo-wide dispatch. See
+[NornicDB Pitfalls](nornicdb-pitfalls.md) for why the guard exists (store-size,
+not row-count, dominates the DELETE's cost) and the backend proof that probe and
+DELETE agree on the same rows. The guard mitigates a backend cost defect tracked
+upstream as [orneryd/NornicDB#296](https://github.com/orneryd/NornicDB/issues/296);
+it is not a shape to copy for its own sake.
+
+The per-label delta retract itself is guarded the same way. It carries the same
+store-size term: its seven statements cost 12.589s together on a
+190,000-relationship store while deleting zero rows, against 0.291s on an empty
+one, and the seven probes that guard them cost 0.31s without growing with the
+store (ledger:5998-delta-per-label-retract-seeded-rerun,
+ledger:5998-delta-per-label-retract-empty,
+ledger:5998-delta-per-label-probe-seeded,
+ledger:5998-delta-per-label-probe-empty in the repository's measurement ledger,
+`docs/internal/measurements.jsonl`). Each of those pairs ran on one host against
+one image, so this path is justified by its own same-store pair rather than by
+comparison against the whole-repository figures, which came from a different
+host. The empty-store half of the DELETE pair comes from an earlier session
+than the seeded figure, which `docs/internal/evidence/5998-rationale-retract-probe-guard.md`
+records explicitly. It runs on every incremental sync rather than once per generation, so it
+fires far more often than the whole-repository retract. `executeGuardedRationaleDeltaRetracts` pairs each
+per-label retract statement with its own `BuildProbeRationaleEdgeStatementsByFilePath`
+probe, built from the same label list in the same order, so `probes[i]` answers
+exactly the question `retracts[i]` would delete on -- a single shared probe
+would answer a narrower question than six of the seven deletes it guarded. Both
+paths share the same fail-safe direction: no `ProbeExecutor`, or a probe error,
+runs that statement's DELETE unconditionally rather than risking a silent skip.
 
 No-Regression Evidence: `go test ./internal/reducer -run
-'TestRationaleMaterializationHandler(ScopesDeltaRetractToFiles|DeletedOnlyDeltaRetractsWithoutWrites)|TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped|TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback'
--count=1` proves the reducer extracts repo-qualified delta file paths from the
-repository fact, carries them into rationale retract rows, handles deleted-only
-delta generations without writes, preserves one legacy fallback fact load, and
-keeps malformed delta scope scoped instead of silently downgrading to repo-wide
+'TestRationaleHandlerEmitsIntentsWithDeltaRefresh|TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped|TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback'
+-count=1` proves the reducer carries repo-qualified delta file paths into
+rationale refresh intents, preserves one legacy fallback fact load, and keeps
+malformed delta scope scoped instead of silently downgrading to repo-wide
 cleanup. `go test ./internal/storage/cypher -run
-'Test(BuildRetractRationaleEdgeStatementsByFilePath|RationaleRetractCoversEveryWriteTargetLabel|EdgeWriterRetractEdgesRationale(DeltaRunsPerLabelStatementsSequentially|RejectsDeltaWithoutFilePaths))'
+'Test(BuildRetractRationaleEdgeStatementsByFilePath|BuildProbeRationaleEdgesMirrorsRetractShape|BuildProbeRationaleEdgeStatementsByFilePathMirrorsRetract|RationaleRetractCoversEveryWriteTargetLabel|EdgeWriterRetractEdgesRationale(DeltaCleansCanonicalAndLegacySourcesSequentially|RejectsDeltaWithoutFilePaths|MixedBatchRetractsBothDeltaAndWholeScopeRepos|ProbeSkipsDeleteWhenProbeFindsNothing|ProbeRunsDeleteWhenProbeFindsRows|ProbeUnsupportedRunsDeleteUnconditionally|ProbeErrorRunsDeleteUnconditionally|ProbeUsesSameParametersAsDelete)|RetractEdgesRationaleDelta(SkipsDeletesWhenProbesFindNothing|RunsDeletesWhenProbesFindRows|ProbeErrorStillDeletes|WithoutProbeSupportDeletesEverything))'
 -count=1` proves valid delta rows dispatch one file-scoped rationale retract
 statement per target label with `target.path IN $file_paths` (a single
 target-label disjunction matches zero rows on NornicDB v1.1.11), malformed
-delta rows execute no Cypher, and non-delta rationale retracts keep the
-existing repo-wide dispatch.
-The input cardinality is the delta file-path count for one repository
-generation; the changed Cypher keeps static target labels and the `EXPLAINS`
-relationship token, binds only a positive `$file_paths` list, and does not add
-a traversal or backend-specific branch.
+delta rows execute no Cypher, a batch mixing delta-flagged rows with sibling
+rows carrying no `delta_projection` retracts both the delta paths and the
+whole-scope repositories rather than dropping the latter, the whole-scope probe
+statement mirrors the DELETE's parameters and target labels, the per-label
+delta probes mirror their paired per-label DELETEs the same way, a `skipped`
+probe outcome skips the matching DELETE, a `deleted` outcome runs it, and an
+unsupported executor or a probe error falls back to running the DELETE
+unconditionally on both paths rather than risking a silent skip. The input cardinality is the delta
+file-path count for one repository generation, or the whole-scope repo-id
+count for a full/non-delta generation; the changed Cypher keeps static target
+labels and the `EXPLAINS` relationship token, binds only a positive
+`$file_paths` or `$repo_ids` list, and does not add a traversal or
+backend-specific branch.
 
-No-Observability-Change: rationale delta retraction uses the existing
+Observability Evidence: rationale delta retraction uses the existing
 `EdgeWriter.RetractEdges` executor path, rationale materialization completion
 logs, graph query duration metrics, retry classification, and timeout handling.
-It adds no worker, queue domain, runtime knob, metric instrument, metric label,
-or backend-specific telemetry.
+Both the full/non-delta path and the per-label delta path now share one metric
+instrument, `eshu_dp_rationale_retract_probe_outcomes_total`, a counter with
+two bounded labels: `outcome` (`skipped`, `deleted`, `unsupported`,
+`probe_error`) and `scope` (`whole_scope`, `delta_by_file_path`) -- `scope`
+exists because the two guarded paths fire at very different rates (one
+statement per `RetractEdges` batch per generation, binding every repository in
+that batch, versus seven per batch, one per target label, on every incremental
+sync), so a collapsed `outcome` count could not show which guard is
+doing the work, and a delta guard that silently stopped engaging would hide
+behind the whole-scope path's counts. Both paths emit through the single
+`observeRationaleRetractProbe` dispatcher in
+`go/internal/storage/cypher/edge_writer_logging.go`, which also emits a
+matching `rationale_retract_probe` span event and structured log carrying the
+same `outcome`/`scope` pair. See
+[Telemetry Coverage](../observability/telemetry-coverage.md) for the dispatcher
+row this metric is registered under. It adds no worker, queue domain, or
+backend-specific telemetry beyond that one instrument.
 
 ### Documentation DOCUMENTS Delta Scoped Retraction
 

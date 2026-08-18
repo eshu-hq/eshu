@@ -16,6 +16,12 @@ import (
 // degrading a grouped write to per-statement execution.
 var errInnerNoExecuteGroup = errors.New("inner executor does not support ExecuteGroup")
 
+// errInnerNoExecuteProbe is returned by ExecuteProbe when the wrapped executor
+// does not implement ProbeExecutor, mirroring errInnerNoExecuteGroup so a
+// caller that already type-asserted ProbeExecutor at this layer still gets a
+// clear "unsupported" error to fail safe on, rather than a silent skip.
+var errInnerNoExecuteProbe = errors.New("inner executor does not support ExecuteProbe")
+
 // BackpressureObserver receives backpressure signals from a BackpressureExecutor
 // so a runtime can surface them as operator metrics without coupling this
 // package to a concrete meter. waited reports that a write blocked for a permit
@@ -209,10 +215,28 @@ func (e *BackpressureExecutor) ExecuteGroup(ctx context.Context, statements []St
 	return ge.ExecuteGroup(ctx, statements)
 }
 
+// ExecuteProbe runs a read-only probe under the same in-flight bound as
+// Execute and ExecuteGroup, so probing cannot bypass the backpressure ceiling.
+// It returns errInnerNoExecuteProbe if inner does not support ProbeExecutor.
+func (e *BackpressureExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
+	pe, ok := e.inner.(ProbeExecutor)
+	if !ok {
+		return false, errInnerNoExecuteProbe
+	}
+	release, err := e.gate.Acquire(ctx, string(stmt.Operation))
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return pe.ExecuteProbe(ctx, stmt)
+}
+
 // executeOnlyBackpressureWrapper wraps BackpressureExecutor but intentionally
-// does not implement GroupExecutor. Use it when the inner executor does not
-// support grouped writes so callers that type-assert GroupExecutor fall through
-// to sequential execution rather than receiving errInnerNoExecuteGroup.
+// does not implement GroupExecutor or ProbeExecutor. Use it when the inner
+// executor does not support grouped writes so callers that type-assert
+// GroupExecutor or ProbeExecutor fall through to sequential execution or an
+// unsupported-probe fallback rather than receiving errInnerNoExecuteGroup or
+// errInnerNoExecuteProbe.
 type executeOnlyBackpressureWrapper struct {
 	bp *BackpressureExecutor
 }
@@ -224,10 +248,12 @@ func (w executeOnlyBackpressureWrapper) Execute(ctx context.Context, stmt Statem
 }
 
 // ExecuteOnlyBackpressureExecutor returns an Executor backed by bp that does
-// not expose GroupExecutor. Use when the inner executor is an
+// not expose GroupExecutor or ProbeExecutor. Use when the inner executor is an
 // ExecuteOnlyExecutor (ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false) so
-// type assertions for GroupExecutor correctly fall through to sequential
-// execution rather than hitting errInnerNoExecuteGroup inside ExecuteGroup.
+// type assertions for GroupExecutor or ProbeExecutor correctly fall through to
+// sequential execution or an unsupported-probe fallback rather than hitting
+// errInnerNoExecuteGroup or errInnerNoExecuteProbe inside ExecuteGroup or
+// ExecuteProbe.
 func ExecuteOnlyBackpressureExecutor(bp *BackpressureExecutor) Executor {
 	return executeOnlyBackpressureWrapper{bp: bp}
 }

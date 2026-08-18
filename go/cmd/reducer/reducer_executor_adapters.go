@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -18,6 +19,19 @@ import (
 type cypherRunner interface {
 	RunCypher(ctx context.Context, cypher string, params map[string]any) error
 	RunCypherGroup(ctx context.Context, stmts []sourcecypher.Statement) error
+}
+
+// cypherProber is the narrow read-only capability
+// cypherRunnerStatementExecutor.ExecuteProbe needs from its wrapped runner
+// (#5998 rationale retract probe guard). It is intentionally NOT folded into
+// cypherRunner: widening cypherRunner would force every fake and adapter that
+// only ever writes (never probes) to implement a read primitive it has no use
+// for. neo4jSessionRunner (neo4j_wiring.go) already satisfies this interface
+// via QueryCypherExists, built for the pre-existing CanonicalNodeChecker
+// pre-flight check, so no new session-layer code is needed -- only the
+// adapter-layer forward below.
+type cypherProber interface {
+	QueryCypherExists(ctx context.Context, cypher string, params map[string]any) (bool, error)
 }
 
 // reducerNeo4jExecutor adapts a cypherRunner to the sourcecypher.Executor
@@ -62,6 +76,20 @@ func (e reducerNeo4jExecutor) Execute(ctx context.Context, stmt sourcecypher.Sta
 // UNIQUE retry is narrower and requires every statement to be MERGE-shaped.
 func (e reducerNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
 	return e.retry.ExecuteGroup(ctx, stmts)
+}
+
+// ExecuteProbe forwards to the same persistent RetryingExecutor object as
+// Execute and ExecuteGroup (#5998) -- the same object matters because the
+// ifafaultinjection build swaps retry.Inner, though that seam deliberately
+// does not retry probes (see RetryingExecutor.ExecuteProbe). Without this forward, the reducer's real executor
+// chain never satisfies sourcecypher.ProbeExecutor at this layer: every
+// wrapper above it (the backpressure gates, RetryingExecutor itself) already
+// forwards the capability when present, but reducerNeo4jExecutor is the
+// production Executor buildReducerService actually constructs, so a missing
+// forward here makes the whole probe guard permanently report "unsupported"
+// and silently fall back to the unconditional DELETE it exists to skip.
+func (e reducerNeo4jExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
+	return e.retry.ExecuteProbe(ctx, stmt)
 }
 
 // reducerCypherExecutor adapts a cypherRunner to the reducer.CypherExecutor
@@ -110,6 +138,22 @@ func (e cypherRunnerStatementExecutor) Execute(ctx context.Context, stmt sourcec
 
 func (e cypherRunnerStatementExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
 	return e.runner.RunCypherGroup(ctx, stmts)
+}
+
+// ExecuteProbe type-asserts the wrapped runner against cypherProber and, when
+// supported, delegates to QueryCypherExists (#5998). cypherRunner itself has
+// no read primitive (see cypherProber's doc comment for why it stays
+// separate), so this is the one seam that must type-assert rather than call
+// through an interface method directly. When the runner does not implement
+// cypherProber, this returns an error rather than a bare "not found" -- the
+// caller's fail-safe guard (RetractEdges' probe-then-delete guard) MUST run
+// the paired DELETE unconditionally on an unknown answer, never skip it.
+func (e cypherRunnerStatementExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
+	prober, ok := e.runner.(cypherProber)
+	if !ok {
+		return false, fmt.Errorf("cypher runner %T does not support ExecuteProbe (no QueryCypherExists)", e.runner)
+	}
+	return prober.QueryCypherExists(ctx, stmt.Cypher, stmt.Parameters)
 }
 
 type nornicDBSemanticObservedExecutor struct {

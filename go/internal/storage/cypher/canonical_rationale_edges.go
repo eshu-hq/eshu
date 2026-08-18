@@ -62,6 +62,39 @@ WHERE rationale.repo_id IN $repo_ids
   AND rel.evidence_source IN $evidence_sources
 DELETE rel`
 
+// probeRationaleEdgesCypher mirrors retractRationaleEdgesCypher's MATCH/WHERE
+// exactly, replacing DELETE rel with a bounded read, so RetractEdges can probe
+// whether the paired retract would remove anything before paying for it
+// (#5998: on the pinned NornicDB build the DELETE shape above costs ~18s per
+// STATEMENT regardless of rows deleted, because cost tracks store size, and one
+// statement binds every repository in the RetractEdges batch
+// (ledger:5998-zero-row-explains-delete-large-store) -- do not multiply that
+// figure by a repository count. The identical MATCH run as a read stays around
+// 21ms (ledger:5998-explains-existence-probe-read), though that row timed the
+// pre-change RETURN rel shape and bounds the shipped RETURN true LIMIT 1 from
+// above rather than measuring it). Any drift between this MATCH/WHERE and the retract's
+// makes the probe answer a different question than the delete it guards.
+//
+// RETURN true LIMIT 1, not RETURN rel LIMIT 1 (review F11): the probe only
+// needs to answer "does at least one row match", the same existence question
+// canonicalCodeTargetExistsCypher (canonical_check.go) already asks with this
+// exact shape. Returning the matched relationship would additionally depend
+// on Bolt's relationship-value serialization for a value the Go side (which
+// only inspects QueryCypherExists' bool) never reads, for no benefit.
+const probeRationaleEdgesCypher = `MATCH (rationale:Rationale)-[rel:EXPLAINS]->()
+WHERE rationale.repo_id IN $repo_ids
+  AND rel.evidence_source = $evidence_source
+RETURN true LIMIT 1`
+
+// probeCanonicalRationaleEdgesCypher mirrors retractCanonicalRationaleEdgesCypher's
+// MATCH/WHERE exactly (the combined canonical-plus-legacy-source shape); see
+// probeRationaleEdgesCypher for why the shapes and the RETURN true LIMIT 1
+// terminal clause must stay identical.
+const probeCanonicalRationaleEdgesCypher = `MATCH (rationale:Rationale)-[rel:EXPLAINS]->()
+WHERE rationale.repo_id IN $repo_ids
+  AND rel.evidence_source IN $evidence_sources
+RETURN true LIMIT 1`
+
 // The delta (by-file) EXPLAINS retract is built per target label by
 // buildRationaleDeltaRetractStatements in edge_writer_rationale_labels.go, not
 // as a single constant: on NornicDB v1.1.11 a bare MATCH whose target carries

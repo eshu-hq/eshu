@@ -172,6 +172,79 @@ func TestTimeoutExecutorExecuteGroupErrorsWithoutGroupExecutor(t *testing.T) {
 	}
 }
 
+func TestTimeoutExecutorExecuteProbePassesThrough(t *testing.T) {
+	t.Parallel()
+
+	inner := &timeoutProbeRecordingExecutor{found: true}
+	executor := TimeoutExecutor{Inner: inner}
+
+	found, err := executor.ExecuteProbe(context.Background(), Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if err != nil {
+		t.Fatalf("ExecuteProbe() error = %v, want nil", err)
+	}
+	if !found {
+		t.Fatal("ExecuteProbe() found = false, want true")
+	}
+	if inner.probeCalls != 1 {
+		t.Fatalf("inner ExecuteProbe calls = %d, want 1", inner.probeCalls)
+	}
+}
+
+func TestTimeoutExecutorExecuteProbeCancelsLongRunningProbe(t *testing.T) {
+	t.Parallel()
+
+	executor := TimeoutExecutor{
+		Inner:   contextBlockingProbeExecutor{},
+		Timeout: 10 * time.Millisecond,
+	}
+
+	found, err := executor.ExecuteProbe(context.Background(), Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ExecuteProbe() error = %v, want deadline exceeded", err)
+	}
+	if found {
+		t.Fatal("found = true on a timed-out probe, want false")
+	}
+}
+
+func TestTimeoutExecutorExecuteProbeErrorsWithoutProbeExecutor(t *testing.T) {
+	t.Parallel()
+
+	executor := TimeoutExecutor{Inner: &recordingExecutor{}}
+
+	found, err := executor.ExecuteProbe(context.Background(), Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if err == nil {
+		t.Fatal("ExecuteProbe() error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "inner executor does not support ExecuteProbe"; got != want {
+		t.Fatalf("ExecuteProbe() error = %q, want %q", got, want)
+	}
+	if found {
+		t.Fatal("found = true on an unsupported probe, want false")
+	}
+}
+
+func TestTimeoutExecutorExecuteProbePropagatesCancellationContext(t *testing.T) {
+	t.Parallel()
+
+	inner := cancellationRecordingProbeExecutor{}
+	executor := TimeoutExecutor{
+		Inner:   inner,
+		Timeout: time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := executor.ExecuteProbe(ctx, Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ExecuteProbe() error = %v, want context canceled", err)
+	}
+	if got, want := err.Error(), "neo4j execute probe canceled before completion: context canceled"; got != want {
+		t.Fatalf("ExecuteProbe() error = %q, want %q", got, want)
+	}
+}
+
 func TestTimeoutExecutorExecutePropagatesCancellationContext(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +294,21 @@ func (contextBlockingExecutor) Execute(ctx context.Context, _ Statement) error {
 	return ctx.Err()
 }
 
+// contextBlockingProbeExecutor implements Executor and ProbeExecutor, blocking
+// ExecuteProbe on ctx so tests can prove TimeoutExecutor.ExecuteProbe enforces
+// its deadline.
+type contextBlockingProbeExecutor struct{}
+
+func (contextBlockingProbeExecutor) Execute(ctx context.Context, _ Statement) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (contextBlockingProbeExecutor) ExecuteProbe(ctx context.Context, _ Statement) (bool, error) {
+	<-ctx.Done()
+	return false, ctx.Err()
+}
+
 type contextBlockingGroupExecutor struct{}
 
 func (contextBlockingGroupExecutor) Execute(ctx context.Context, _ Statement) error {
@@ -244,6 +332,38 @@ func (e *timeoutGroupRecordingExecutor) Execute(context.Context, Statement) erro
 func (e *timeoutGroupRecordingExecutor) ExecuteGroup(context.Context, []Statement) error {
 	e.groupCalls++
 	return nil
+}
+
+// timeoutProbeRecordingExecutor records ExecuteProbe calls and returns a
+// scripted found value, for testing TimeoutExecutor.ExecuteProbe's passthrough
+// path.
+type timeoutProbeRecordingExecutor struct {
+	probeCalls int
+	found      bool
+}
+
+func (e *timeoutProbeRecordingExecutor) Execute(context.Context, Statement) error {
+	return nil
+}
+
+func (e *timeoutProbeRecordingExecutor) ExecuteProbe(context.Context, Statement) (bool, error) {
+	e.probeCalls++
+	return e.found, nil
+}
+
+// cancellationRecordingProbeExecutor implements Executor and ProbeExecutor,
+// blocking on ctx so tests can assert TimeoutExecutor.ExecuteProbe propagates
+// caller cancellation distinctly from a deadline timeout.
+type cancellationRecordingProbeExecutor struct{}
+
+func (cancellationRecordingProbeExecutor) Execute(ctx context.Context, _ Statement) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (cancellationRecordingProbeExecutor) ExecuteProbe(ctx context.Context, _ Statement) (bool, error) {
+	<-ctx.Done()
+	return false, ctx.Err()
 }
 
 type cancellationRecordingExecutor struct{}

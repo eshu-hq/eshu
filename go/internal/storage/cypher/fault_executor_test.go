@@ -28,8 +28,11 @@ type faultRecordingExecutor struct {
 	mu          sync.Mutex
 	executes    []Statement
 	groups      [][]Statement
+	probes      []Statement
 	supportsGrp bool
 	failNext    error
+	probeFound  bool
+	probeErr    error
 }
 
 func (e *faultRecordingExecutor) Execute(_ context.Context, stmt Statement) error {

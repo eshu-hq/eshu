@@ -142,7 +142,7 @@ func buildSQLRelationshipRefreshIntents(
 		}
 		payload := map[string]any{
 			"repo_id":         repoID,
-			"intent_type":     repoRefreshIntentType,
+			"intent_type":     RepoRefreshIntentType,
 			"action":          repoRefreshAction,
 			"evidence_source": sqlRelationshipEvidenceSource,
 		}

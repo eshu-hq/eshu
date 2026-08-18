@@ -106,6 +106,27 @@
 - **OperationCanonicalUpsert vs. OperationUpsertNode** — canonical domain nodes
   use `OperationCanonicalUpsert`; source-local `SourceLocalRecord` writes use
   `OperationUpsertNode`/`OperationDeleteNode`. Do not mix them.
+- **Give a new statement class its own Operation.** `Operation` is the
+  backpressure wait label, the retry-counter key for statements that retry
+  (`OperationCanonicalProbe` does not -- `ExecuteProbe` returns straight
+  through), AND a graph-write routing discriminator — `go/internal/storage/nornicdb/phase_group_executor_retract.go`
+  (a different package) sets its flush boundary on
+  `OperationCanonicalRetract`, and `statement_chunk.go` only chunks statements
+  carrying that value. So reusing another class's operation blurs the metrics
+  and can also put the statement on the wrong write path. A read-only probe
+  issued once per `RetractEdges` batch that reused `OperationCanonicalRetract`
+  would make every probe indistinguishable from a real retract, hiding the
+  ratio of probes to actual deletes. `OperationCanonicalProbe` exists for that reason. Probes never
+  reach the grouping or chunking paths themselves — they dispatch only through
+  `ExecuteProbe` — but the vocabulary is shared, so treat a new value as a
+  routing change, not a label.
+- **Optional executor capabilities are all-or-nothing per wrapper.** A wrapper
+  that forwards `GroupExecutor` MUST forward `ProbeExecutor` the same way, and
+  the `ExecuteOnly*` wrappers MUST hide both. Forwarding one but not the other
+  is silently worse than forwarding neither: wrappers above the gap still
+  satisfy the interface, so callers' type assertions succeed and every call
+  dead-ends mid-chain with all tests green. `probe_follows_group_test.go`
+  enforces this; extend it when adding a wrapper or a capability.
 - **OCI tags are weak evidence** — `oci_registry_canonical_writer.go` writes
   manifests and indexes on `ContainerImage` labels keyed by digest-backed uid.
   Tag observations are separate `ContainerImageTagObservation` nodes; do not

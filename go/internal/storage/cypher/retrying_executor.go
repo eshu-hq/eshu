@@ -94,6 +94,32 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 	)
 }
 
+// ExecuteProbe delegates to Inner.ExecuteProbe when Inner implements
+// ProbeExecutor. It returns an error without retrying when Inner does not
+// support probing, mirroring ExecuteGroup's fail-closed capability check so
+// the caller's type assertion for ProbeExecutor at this layer succeeds while
+// the call itself still reports "unsupported" -- callers MUST treat that
+// error as "unknown", not "zero rows" (see ProbeExecutor's doc).
+//
+// Deliberately does NOT retry, unlike Execute and ExecuteGroup (#5998 review).
+// A probe is a latency optimisation whose fallback is both cheap and always
+// correct: every caller treats an error as "unknown" and runs the DELETE it
+// guards. Routing probes through runWithRetry would inherit the write budget
+// -- four attempts, each bounded by ESHU_CANONICAL_WRITE_TIMEOUT (30s by
+// default) -- so a backend sustaining TransientError could hold the partition
+// lease for roughly two minutes before the fail-safe DELETE even starts, to
+// avoid a single DELETE the guard exists to make cheaper. Failing straight
+// through bounds the worst case at that one DELETE instead. The DELETE that
+// follows still retries, so no transient-error resilience is lost on the write
+// path; only the read that decides whether to attempt it gives up early.
+func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
+	pe, ok := r.Inner.(ProbeExecutor)
+	if !ok {
+		return false, fmt.Errorf("inner executor does not support ExecuteProbe")
+	}
+	return pe.ExecuteProbe(ctx, stmt)
+}
+
 // runWithRetry centralizes the retry loop for both Execute and ExecuteGroup.
 // classify returns a bounded reason for errors that are safe to retry; do
 // performs the work. Both callers share the same exponential-backoff-with-

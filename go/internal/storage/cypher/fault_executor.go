@@ -34,6 +34,10 @@ var (
 	// errFaultingExecutorInnerNoPhaseGroup is the ExecutePhaseGroup
 	// counterpart of errFaultingExecutorInnerNoGroup.
 	errFaultingExecutorInnerNoPhaseGroup = errors.New("faulting executor: inner executor does not support ExecutePhaseGroup")
+	// errFaultingExecutorInnerNoProbe is the ExecuteProbe counterpart of
+	// errFaultingExecutorInnerNoGroup: fails closed rather than silently
+	// reporting probing unsupported through a different error shape.
+	errFaultingExecutorInnerNoProbe = errors.New("faulting executor: inner executor does not support ExecuteProbe")
 )
 
 // FaultingExecutor decorates a cypher Executor with the graph-executor-seam
@@ -87,17 +91,20 @@ var (
 //
 // # Capability passthrough
 //
-// Execute, ExecuteGroup, and ExecutePhaseGroup are all defined unconditionally
-// on *FaultingExecutor (mirroring BackpressureExecutor's ExecuteGroup, which
-// also always exists and fails closed via errInnerNoExecuteGroup when inner
-// does not support it, rather than a second execute-only wrapper type).
+// Execute, ExecuteGroup, ExecutePhaseGroup, and ExecuteProbe are all defined
+// unconditionally on *FaultingExecutor (mirroring BackpressureExecutor's
+// ExecuteGroup, which also always exists and fails closed via
+// errInnerNoExecuteGroup when inner does not support it, rather than a second
+// execute-only wrapper type).
 // go/cmd/reducer's canonical writer (canonical_node_writer.go) type-asserts
 // GroupExecutor BEFORE PhaseGroupExecutor and takes the first match, so for
 // the wiring this slice adds -- where inner always supports GroupExecutor --
 // the unconditionally-present ExecutePhaseGroup method is never reached; a
 // future caller wrapping a PhaseGroupExecutor-only inner would still fail
 // closed via errFaultingExecutorInnerNoPhaseGroup rather than silently
-// dropping the phase-group fault.
+// dropping the phase-group fault. ExecuteProbe (#5998) fails closed the same
+// way via errFaultingExecutorInnerNoProbe and, unlike the other three methods,
+// injects no scripted fault -- see its doc comment.
 type FaultingExecutor struct {
 	inner Executor
 
@@ -286,6 +293,22 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []State
 		return err
 	}
 	return fe.maybeRestartAfterGroup(ctx, int(fe.groupOrdinal.Add(1)))
+}
+
+// ExecuteProbe forwards a read-only probe to inner unconditionally: none of
+// the scripted fault kinds in the Layer 4 vocabulary target a read-only probe,
+// only the mutating Execute/ExecuteGroup/ExecutePhaseGroup seams (see the type
+// doc's "Capability passthrough" section), so this decorator has nothing to
+// inject here. It still fails closed with errFaultingExecutorInnerNoProbe when
+// inner does not implement ProbeExecutor, mirroring ExecuteGroup's guard, so a
+// caller that already type-asserted ProbeExecutor at this layer gets a clear
+// unsupported error instead of a silent skip.
+func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
+	pe, ok := fe.inner.(ProbeExecutor)
+	if !ok {
+		return false, errFaultingExecutorInnerNoProbe
+	}
+	return pe.ExecuteProbe(ctx, stmt)
 }
 
 // maybeFailOnce fires the scripted fail-graph-write-once-then-succeed fault

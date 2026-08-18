@@ -98,6 +98,7 @@ when the reducer has a graph orphan observer.
 | `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` |
 | `SharedEdgeRunsOnRetractOmissions` | `eshu_dp_shared_edge_runs_on_retract_omissions_total` (labels: bounded `domain`, `reason`) |
 | `SharedEdgeUnroutableRows` | `eshu_dp_shared_edge_unroutable_rows_total` (labels: bounded `domain`, `reason`; one count per rejected row) |
+| `RationaleRetractProbeOutcomes` | `eshu_dp_rationale_retract_probe_outcomes_total` (labels: bounded `outcome` — `skipped`, `deleted`, `unsupported`, `probe_error`; bounded `scope` — `whole_scope`, `delta_by_file_path`) |
 | `CodeCallEdgeBatches` | `eshu_dp_code_call_edge_batches_total` |
 | `Neo4jBatchesExecuted` | `eshu_dp_neo4j_batches_executed_total` |
 | `Neo4jDeadlockRetries` | `eshu_dp_neo4j_deadlock_retries_total` (labels: bounded `write_phase`, `reason`) |

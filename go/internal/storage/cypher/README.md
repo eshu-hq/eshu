@@ -764,11 +764,26 @@ write and retract templates actually do.
 - `Plan` — deterministic write plan for one source-local materialization; built
   by `BuildPlan`
 - `Operation` — string constant for write type; defined variants:
-  `OperationUpsertNode`, `OperationDeleteNode`, `OperationCanonicalUpsert`
+  `OperationUpsertNode`, `OperationDeleteNode`, `OperationCanonicalUpsert`,
+  `OperationCanonicalRetract`, `OperationCanonicalProbe`. The value is not
+  cosmetic: it is the backpressure wait label, the retry-counter key for the
+  statements that retry (`OperationCanonicalProbe` is the exception --
+  `ExecuteProbe` does not retry, so a probe never reaches that counter), and it
+  routes graph writes. `go/internal/storage/nornicdb/phase_group_executor_retract.go`
+  (a different package) flushes the pending
+  group and dispatches a statement standalone, never through `ExecuteGroup`,
+  the moment it sees `OperationCanonicalRetract`; `statement_chunk.go` only
+  chunks a statement carrying that same value. A statement that reuses another
+  operation's value blurs the metric and can also land on the wrong write
+  path.
 - `Executor` — the backend seam: `Execute(ctx, Statement) error`; every
   concrete backend implements this
 - `GroupExecutor` — extension of `Executor` for atomic multi-statement writes
 - `PhaseGroupExecutor` — extension for bounded phase-grouped writes
+- `ProbeExecutor` — extension for read-only existence probes:
+  `ExecuteProbe(ctx, Statement) (bool, error)`. Used to guard a retract whose
+  cost is disproportionate to the rows it removes (see the rationale retract
+  guard below).
 - `Adapter` — source-local record writer that builds and executes a `Plan`
 
 **Executor wrappers** (composable chain links)
@@ -779,8 +794,66 @@ write and retract templates actually do.
   transient Neo4j and NornicDB errors
 - `TimeoutExecutor` — bounds individual statements with a child context;
   returns `GraphWriteTimeoutError` on deadline
-- `ExecuteOnlyExecutor` — hides `GroupExecutor` from callers that must not use
-  large atomic groups
+- `BackpressureExecutor` — bounds in-flight statements against a shared permit
+  gate; also forwards `ExecuteProbe` so probing cannot bypass the ceiling
+- `ExecuteOnlyExecutor` — hides `GroupExecutor` and `ProbeExecutor` from callers
+  that must not use large atomic groups
+
+**Wrapper capability rule.** Every wrapper here that forwards `GroupExecutor` to
+its `Inner` MUST forward `ProbeExecutor` the same way, and the `ExecuteOnly*`
+wrappers MUST hide both. A wrapper that forwards one but not the other is the
+worst failure shape available: wrappers above it still satisfy `ProbeExecutor`,
+so a caller's type assertion succeeds and every probe dead-ends in the middle of
+the chain while all tests stay green. `probe_follows_group_test.go` enumerates
+the wrappers and asserts the rule rather than leaving it to review.
+
+**Rationale retract guard.** The whole-repository rationale `EXPLAINS` retract
+runs behind a `ProbeExecutor` existence check, because on the pinned NornicDB
+build that DELETE costs proportional to store size even when it removes zero
+rows (`ledger:5998-zero-row-explains-delete-large-store` versus
+`ledger:5998-zero-row-explains-delete-empty-store` in
+docs/internal/measurements.jsonl, same statement, same zero-row result), while
+the identical MATCH as a bounded read stays fast on both. The probe mirrors
+whichever retract shape
+`BuildRetractRationaleEdges` selects, so the two always ask the same question.
+The fail-safe direction is deliberate: no `ProbeExecutor`, or a probe error,
+runs the DELETE unconditionally. A redundant delete is only slow; a skipped one
+leaves stale edges.
+
+The delta path -- a repository's incremental sync, retracting only the
+`EXPLAINS` edges for files that changed -- gets the same guard, and it is the
+path that fires far more often: it runs on every incremental sync rather than
+once per generation. `ledger:5998-delta-per-label-retract-seeded-rerun` /
+`ledger:5998-delta-per-label-retract-empty` in docs/internal/measurements.jsonl
+show its seven per-label statements costing 12.589s together on a
+190,000-relationship store against 0.291s on an empty one, both measured on the
+same host -- the same store-size term the whole-repository shape carries, proven
+on its own pair rather than by comparison against figures from a different host.
+The empty-store half of that pair comes from an earlier session than the seeded
+figure; the evidence doc records which session each came from and why the
+direction is conservative.
+The seven probes guarding them cost 0.31s and do not grow with the store
+(`ledger:5998-delta-per-label-probe-seeded` /
+`ledger:5998-delta-per-label-probe-empty`). Each statement
+targets a different `EXPLAINS` target label, so `executeGuardedRationaleDeltaRetracts`
+pairs every retract with its own probe from the same label list in the same
+order (`BuildProbeRationaleEdgeStatementsByFilePath` mirrors
+`BuildRetractRationaleEdgeStatementsByFilePath`) -- a single shared probe would
+answer a narrower question than six of the seven deletes it guarded. The
+per-label statements already run sequentially, each in its own transaction,
+for the NornicDB managed-transaction reason `executeCodeCallRetractStatements`
+documents; edge writes carrying the `retract_via_refresh` marker are fenced
+behind the same refresh that owns the retract, so a marked writer cannot insert
+a matching `EXPLAINS` edge between a label's probe and that label's delete.
+Unmarked legacy rows bypass that fence
+(`shared_projection_worker_refresh_fence.go`); the residual is stated rather
+than denied on `executeGuardedRationaleDeltaRetracts`, which explains why an
+unmarked row landing inside that window is no worse under the guard than
+without it. Both scopes emit
+`eshu_dp_rationale_retract_probe_outcomes_total`, labeled `scope=whole_scope`
+or `scope=delta_by_file_path` so an operator can tell which path a spike in
+`probe_error` or `unsupported` outcomes came from -- collapsing the two into
+one label would make the delta path's much higher call volume invisible.
 
 **Canonical writers**
 
@@ -1180,7 +1253,8 @@ adapter seam.
 ## Telemetry
 
 - `eshu_dp_neo4j_query_duration_seconds` — histogram per statement;
-  `operation=write` or `operation=write_group`
+  `operation=write`, `operation=write_group`, or `operation=probe` (the #5998
+  guard's bounded existence read, recorded in `InstrumentedExecutor.ExecuteProbe`)
 - `eshu_dp_neo4j_batch_size` — batch row count per `UNWIND` statement; grouped
   Neo4j/Bolt execution records one point per statement with bounded
   `operation`, `write_phase`, and `node_type` labels when metadata is present

@@ -106,6 +106,31 @@ type PhaseGroupExecutor interface {
 	ExecutePhaseGroup(ctx context.Context, stmts []Statement) error
 }
 
+// ProbeExecutor is an optional capability an Executor implementation can add
+// to answer whether a read-only Cypher statement would match at least one row,
+// without mutating the graph. It exists so a caller planning an expensive
+// bounded-cost retract (a NornicDB DELETE whose cost tracks store size rather
+// than rows deleted -- see docs/public/reference/nornicdb-pitfalls.md) can
+// probe first with the identical MATCH/WHERE shape and skip the delete when it
+// would remove zero rows (#5998).
+//
+// Every wrapper in this package that forwards GroupExecutor to its Inner MUST
+// forward ProbeExecutor the same way, or the capability is silently swallowed
+// partway down the chain and the calling optimization becomes a permanent
+// no-op. A wrapper that deliberately hides GroupExecutor from its Inner (for
+// example ExecuteOnlyExecutor) MUST likewise not implement ProbeExecutor, so a
+// type assertion for either capability fails identically through that seam.
+//
+// Callers MUST treat the absence of this interface, and any error ExecuteProbe
+// returns, as "unknown" -- never as "zero rows" -- and fail safe by running the
+// paired mutating statement unconditionally. A skipped delete can leave stale
+// graph state; a redundant delete only costs time.
+type ProbeExecutor interface {
+	// ExecuteProbe runs stmt as a read-only query and reports whether it
+	// matched at least one row. found is meaningful only when err is nil.
+	ExecuteProbe(ctx context.Context, stmt Statement) (bool, error)
+}
+
 // Adapter writes source-local graph records through an Executor.
 type Adapter struct {
 	Executor  Executor

@@ -982,3 +982,111 @@ go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -c
 Re-run it when the pinned NornicDB version changes. The IMPORTS fold remains a
 valid narrowing even though the backend now supports parallel property-keyed
 relationships.
+
+## Pitfall: A Zero-Row Relationship `DELETE` Still Costs Proportional To Store Size
+
+A `DELETE rel` whose `MATCH` selects nothing is not free. Its cost tracks the
+size of the store, not the number of rows it removes, so a no-op retract that is
+instant in a test fixture becomes seconds on a production-sized graph.
+
+This is a backend defect, tracked upstream as
+[orneryd/NornicDB#296](https://github.com/orneryd/NornicDB/issues/296). What
+follows is how to work around it until that lands, not a shape to design
+toward.
+
+Measured on the pinned build, two stores, same image, same statement, same
+parameters, all deleting zero rows. Trials interleaved between the stores so
+cache warmth could not land entirely on one:
+
+| statement (all match zero rows) | 1,675,949 relationships | empty store | ledger |
+| --- | --- | --- | --- |
+| `MATCH (r:Rationale)-[rel:EXPLAINS]->() WHERE r.repo_id IN $ids AND rel.evidence_source IN $srcs DELETE rel` | 18.603s / 17.653s / 18.071s | 0.021s / 0.022s / 0.023s | `ledger:5998-zero-row-explains-delete-large-store`, `ledger:5998-zero-row-explains-delete-empty-store` |
+| `MATCH (r:Rationale)-[rel:EXPLAINS]->() DELETE rel` | 17.666s / 16.944s / 17.540s | 0.021s / 0.021s / 0.025s | `ledger:5998-zero-row-explains-delete-source-anchored` |
+| `MATCH ()-[rel:EXPLAINS]->() DELETE rel` | 173.185s / 177.124s / 182.249s | not recorded | `ledger:5998-zero-row-explains-delete-untyped-both-ends` |
+| `MATCH (r:Rationale)-[rel:EXPLAINS]->() WHERE ... RETURN rel LIMIT 1` (pre-change shape) | 0.021s (3 trials) | 0.021s (3 trials) | `ledger:5998-explains-existence-probe-read` |
+
+The per-label DELTA retract carries the same store-size term. Its seven
+statements, one per target label, cost 12.589s together on a
+190,000-relationship store while deleting zero rows, against 0.291s on an empty
+one (`ledger:5998-delta-per-label-retract-seeded-rerun`,
+`ledger:5998-delta-per-label-retract-empty`). Both halves of that pair ran on
+the same host against the same image, so the pair isolates store size on its own
+terms; the empty-store half is from an earlier session than the seeded figure,
+which the evidence doc records explicitly; it is not compared against the whole-repository rows above, which were
+measured on a different host and a different store. The seven probes that guard
+those deletes cost 0.31s and do not grow with the store
+(`ledger:5998-delta-per-label-probe-seeded`,
+`ledger:5998-delta-per-label-probe-empty`). This path runs on every incremental
+sync, not once per generation.
+
+An earlier row for the same shape, `ledger:5998-delta-per-label-retract-seeded`,
+recorded 48.223s / 45.526s and did not reproduce. It is superseded by the rerun
+above and kept only because the ledger is append-only. Do not cite it.
+
+The large store held zero `Rationale` nodes and zero `EXPLAINS` edges, so every
+`DELETE` above removed nothing. What the rows isolate:
+
+- **The `DELETE` clause, not the `MATCH`.** Row 4 is row 1's identical
+  `MATCH`/`WHERE` run as a bounded read, and stays cheap on the large store
+  (ledger:5998-explains-existence-probe-read) while row 1's `DELETE` on the same
+  selection does not (ledger:5998-zero-row-explains-delete-large-store). Row 4
+  was measured before the guard's projection changed from `RETURN rel` to
+  `RETURN true` (#5998 review F11); the shipped guard was not separately timed,
+  but `RETURN true LIMIT 1` returns a literal instead of serializing a
+  relationship over Bolt, so it is strictly cheaper than row 4 and row 4 bounds
+  it from above.
+- **Not the predicates.** Row 2 drops both property predicates and is marginally
+  faster. This is *not* the [#3624](https://github.com/eshu-hq/eshu/issues/3624)
+  index-defeat shape, where the predicates were the problem — here the worst
+  cell has none.
+- **Anchoring the source label is worth roughly 10x.** Row 3 leaves both
+  endpoints untyped and costs an order of magnitude more than the
+  label-anchored row 2 (ledger:5998-zero-row-explains-delete-untyped-both-ends).
+- **Store size is the variable.** Rows 1, 2 and 4 each collapse to the same
+  cheap cost on an empty store (`ledger:5998-zero-row-explains-delete-empty-store`,
+  the empty-store trials in `ledger:5998-zero-row-explains-delete-source-anchored`'s
+  note, and `ledger:5998-explains-existence-probe-read`, which measured both
+  stores). Row 3 has no empty-store control in the ledger, so it is not claimed
+  here: it establishes the source-anchoring cost against row 2 on the same
+  store, which is all it is cited for.
+
+### What to do
+
+Guard a routine retract behind a bounded existence read when it can legitimately
+match nothing. `ProbeExecutor` in `go/internal/storage/cypher` exists for this;
+the rationale `EXPLAINS` retract uses it. The probe must mirror the retract's
+`MATCH`/`WHERE` exactly, or it answers a different question than the delete it
+guards.
+
+Fail safe toward deleting. If the probe cannot run or errors, run the delete: a
+redundant delete is only slow, whereas a skipped one leaves stale edges behind
+permanently.
+
+Treat the guard as temporary. When
+[orneryd/NornicDB#296](https://github.com/orneryd/NornicDB/issues/296) is fixed
+and the pin moves past it, a probe in front of a retract becomes a redundant
+round trip rather than a saving, and the guards added for this reason can be
+removed together.
+
+This guard covers only the rationale `EXPLAINS` retract. `canonical_retract.go`'s
+code-call retracts, `edge_writer_sql.go`, `canonical_inheritance_retract.go`,
+`canonical_documentation_edges.go`, `canonical_codeowners_edges.go`,
+`canonical_submodule_edges.go`, and `canonical_deployable_unit_edges.go` build
+the same label-anchored `MATCH ... DELETE rel` shape and none of them probe
+before deleting. `edge_writer_shell_exec.go` belongs on the list too, and is
+worth a closer look if anyone guards these: its two retracts anchor the TARGET
+label but leave the source endpoint untyped (`MATCH ()-[rel:EXECUTES_SHELL]->(target)`),
+and the table above shows leaving an endpoint untyped costing an order of
+magnitude more than anchoring it.
+
+They are known-unguarded; guarding them was not in scope for the rationale
+change. None of them were measured — the numbers above cover the `EXPLAINS`
+shape only, and the closest ledger row for the generic shape is
+`ledger:5998-zero-row-explains-delete-source-anchored`. Measure before guarding
+rather than assuming the rationale numbers transfer.
+
+### Why a small corpus cannot catch this
+
+A 20-repo golden corpus is far too small for a store-size-proportional cost to
+appear, so this class of regression passes replay gates green. Cost that scales
+with the store needs a store-scale measurement, not a fixture.
