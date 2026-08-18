@@ -247,6 +247,7 @@ jobs:
               - 'specs/ci-gates.v1.yaml'
               - 'docs/public/**'
               - 'go/cmd/eshu/**'
+              - 'go/internal/cli/**'
               - 'go/internal/envregistry/**'
               - 'go/cmd/docs-cli-env-refs/**'
               - 'scripts/verify-docs-cli-env-refs.sh'
