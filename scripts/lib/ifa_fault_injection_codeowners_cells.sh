@@ -175,6 +175,18 @@ cell_killworker_codeowners() {
 		|| die "kill-worker-after-claim-codeowners: eshu-ifa drive (codeowners family) failed"
 	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-killworkercodeowners" projector_pid "${bin_dir}/eshu-projector"
+	# codeowners_ownership's reducer intent is created by the PROJECTOR, not
+	# ingestion, and this cell's demo-org/synth-multiscope/family fixture load
+	# gives the projector up to ~15 scopes to work through with 4 workers before
+	# it reaches this one. Locking fact_records before that intent exists risks
+	# starving the projector's OWN fact reads for this scope too (it is started
+	# moments earlier, not guaranteed to have reached it yet), so the row could
+	# never be created for as long as the lock is held -- not merely delayed.
+	# Waiting for the row to exist (any status) first removes that dependency
+	# before the lock -- and the tight claimed/running wait below -- begin.
+	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${CLAIMED_ROW_WAIT_TIMEOUT}" "codeowners_ownership" 1 >/dev/null \
+		|| die "kill-worker-after-claim-codeowners: codeowners_ownership was never enqueued by the projector"
 	ifa_codeowners_start_fact_records_lock "killworkercodeowners" lock_holder_pid \
 		|| die "kill-worker-after-claim-codeowners: could not acquire the deterministic fact_records read blocker"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkercodeowners-before" reducer_pid_before "${bin_dir}/eshu-reducer"
