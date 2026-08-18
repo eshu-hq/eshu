@@ -167,7 +167,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/indigo-net/Brf.it v0.21.0
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.21
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/orneryd/nornicdb v1.0.45
@@ -323,6 +322,7 @@ require (
 	github.com/jupiterrider/ffi v0.6.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
