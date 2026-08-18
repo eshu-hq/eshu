@@ -186,3 +186,48 @@ fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
 cd go && go test ./internal/ifa/... -count=1   # core + saturation + throughput
 make prove   # credential-free coverage + determinism mirror (Docker matrix when present)
 ```
+
+## Adding A Family To The Live Gates
+
+The coverage-row contract above is only half of what a new family needs. The
+live gates are driven by a shell family registry
+(`scripts/lib/ifa_family_registry.sh`, one row file per family under
+`ifa_family_registry/rows/`), and a family that skips any of the artifacts
+below is silently not proven rather than loudly missing. Work the list in
+order; the gate column tells you what catches a mistake and, more usefully,
+what does not.
+
+| Artifact | Where | Enforced by |
+|---|---|---|
+| Registry row file | `scripts/lib/ifa_family_registry/rows/NN_<family>.sh` | Loader fails closed on a missing/empty rows directory; the derived-pins module fails on a row with no pin |
+| Hand-derived pin file | `scripts/lib/ifa_family_registry_pins/<family>.sh` + an `IFA_FAMILY_PINS_NAMES` entry | `test-ifa-family-registry-derived-pins-cases.sh`, both directions |
+| Determinism hand-authored section | `scripts/lib/test-ifa-determinism-family-cases.sh` | Bidirectional totality against the registry |
+| Fault cells in the dispatch block | `scripts/verify-ifa-fault-injection.sh` | `test-ifa-fault-injection-shard-cases.sh` — set-equality against `--list-cells`, plus the cell-count pin |
+| Cell names in `IFA_FAULT_ALL_CELLS` | `scripts/lib/ifa_fault_shard.sh` | Same set-equality check; a dispatched-but-unlisted cell runs in NO shard |
+| Triggers in both gate blocks | `specs/ci-gates.v1.yaml` | `TestEveryCoveredFamilyTriggersBothLiveGates` |
+| Workflow `paths:` entries | `.github/workflows/ifa-determinism-gate.yml` | Registry-subset-of-workflow lockstep |
+| Blocker declaration vs handler shape | registry row `IFA_FAMILY_BLOCKER_KIND` | `TestMaterializedEdgeFamilyBlockerLockstep` — a family whose handler holds no `IntentWriter` may not declare `shared_intent_lock` |
+
+Not enforced by any gate — get these right by hand:
+
+- **`IFA_FAMILY_RETRY_BASELINE_VAR`.** A `shared_intent_lock` family without it
+  now dies rather than passing, but nothing tells you the row is missing until
+  the cell runs. It is not one of the pinned fields.
+- **Triggers for the family's own new lib files.** The sourced-to-triggered
+  drift walk only resolves a `source` line whose literal text contains
+  `scripts/`; anything sourced through a variable is invisible to it, so a new
+  mechanism file needs its trigger added by hand.
+- **Regenerating `docs/public/reference/ci-gates.md`** after any trigger change.
+  `verify-ci-gates-registry.sh` does not check that artifact;
+  `test-generate-ci-gates-doc.sh` does, and CI runs it.
+- **`ci.check_names`** if a job's shape changes. A matrix job emits
+  `<job> (shard N/4)`, never `<job>`, and the required-check resolver matches on
+  exact equality — so a renamed job with no `check_names` resolves to MISSING
+  forever and the checks that do run belong to no gate.
+
+The dangerous artifact is the expected-edge set. It is derived by hand from the
+family's materialization semantics and asserted exactly, so a wrong derivation
+does not fail loudly — it certifies the wrong graph truth, which is worse than
+the uncovered state it replaced. Derive it from the reducer's real extraction
+path and the writer's actual MERGE, and prove it against a live backend before
+seeding the coverage rows.

@@ -74,14 +74,41 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives nine cells — a fault-free
-baseline, a killed worker, a forced lease expiry, one failed graph write, a
-mid-drain backend restart, a SQL-scoped killed worker, a duplicate delivery, a
-generation-2 delta retract, and a SQL-anchored failed graph write — with zero
+(`bash scripts/verify-ifa-fault-injection.sh`) drives eighteen cells — a
+fault-free baseline, a killed worker, a forced lease expiry, one failed graph
+write, a mid-drain backend restart, a duplicate delivery, a generation-2 delta
+retract, and per-family killed-worker and failed-graph-write cells for
+sql_relationships, code_calls, documentation_edges and rationale_edges, plus a
+scoped baseline and two recovery cells for deployable_unit_edges — with zero
 durable dead letters throughout.
 
-The baseline cell establishes the canonical digest. Seven of the eight
-remaining cells assert recovery to that *identical* graph. The delta-retract
+### Reading a red check, and reproducing it
+
+CI runs this gate as **four parallel shards**, so a failure shows up as
+`fault-injection (shard N/4)` rather than a single `fault-injection` check. The
+shard number in the check name is the one you need:
+
+```bash
+# which cells does that shard own?
+bash scripts/verify-ifa-fault-injection.sh --list-cells --shard 3/4
+
+# reproduce just that shard locally
+bash scripts/verify-ifa-fault-injection.sh --shard 3/4
+
+# the full eighteen-cell list, unsharded
+bash scripts/verify-ifa-fault-injection.sh --list-cells
+```
+
+Both `--list-cells` forms are hermetic: no Docker, no compose, no build. Run
+them freely while something else holds the gate's ports.
+
+Note that `cell_baseline` runs in *every* shard — it writes the canonical
+digest each of the other cells in that shard compares against, so it is
+repeated per runner rather than plumbed between them. Both `k` and `n` are
+required; a bare `--shard 2` is rejected as malformed.
+
+The baseline cell establishes the canonical digest, and the recovery cells
+assert recovery to that *identical* graph. The delta-retract
 cell is the exception and asserts something
 different on purpose: generation 2 changes the graph, so its proof is the
 exact expected edge set rather than digest equality. If you are tempted to

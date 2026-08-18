@@ -485,6 +485,18 @@ jobs:
   # other cell compares against in-shell, so re-running it per shard is
   # deliberate rather than plumbing that digest between runners.
   #
+  # What that trade costs, stated plainly: there used to be ONE canonical
+  # baseline digest, written once and compared by all seventeen recovery cells
+  # in a single process. There are now four, one per runner, and nothing
+  # compares them to each other -- so a baseline that was nondeterministic
+  # ACROSS runs would produce four different reference digests and no cell
+  # would notice. That is acceptable here only because cross-run baseline
+  # determinism is the determinism-matrix job's whole purpose (it drives the
+  # same cassettes at N=1/2/4 and requires an identical digest); this job
+  # proves recovery converges to its own run's baseline, not that the baseline
+  # is stable run to run. If the determinism job is ever narrowed, this
+  # assumption has to be revisited.
+  #
   # What this drops, and why that is acceptable: before sharding, one process
   # computed digests[baseline] once and every one of the other 17 cells in
   # that SAME process compared against it. Now each of the four runners
