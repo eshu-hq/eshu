@@ -242,7 +242,7 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 # reducer retry delay (cells 4/12/13/14/15/18's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
-# 60s had no headroom over CI's measured reducer queue depth (up to 65s); 120s adds margin.
+# 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
 : "${CLAIMED_ROW_WAIT_TIMEOUT:=120}"
 : "${RESTART_SENTINEL_WAIT_TIMEOUT:=90}"
 
