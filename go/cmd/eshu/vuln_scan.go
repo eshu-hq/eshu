@@ -77,6 +77,17 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 		opts.Scan.RuntimeEnv = localRuntime.BootstrapEnv
 		closeLocalRuntime = localRuntime.Close
 	}
+	// Guard the CONCRETE pointer, not RepoDeps.Client. A nil *APIClient boxed
+	// into the RepoClient interface is a non-nil interface value, so vulnscan's
+	// own nil check cannot see it and reposelector.Resolve would panic inside
+	// APIClient.do -- the failure missingAPIClientError exists to prevent.
+	// Neither constructor above can return nil today, which is exactly why this
+	// belongs here: it keeps the invariant enforced by code rather than by the
+	// current behaviour of apiClientFromCmd and NewAPIClient. The analyze family
+	// keeps the same guard in repository_selector.go.
+	if client == nil {
+		return fmt.Errorf("vuln-scan repo: missing API client")
+	}
 	deps := vulnscan.RepoDeps{
 		Client:            client,
 		ServiceURL:        client.BaseURL,
