@@ -2169,8 +2169,15 @@ gates:
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run 'TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep' -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run 'TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep' -count=1"
+      # The reducer leg runs the WHOLE package rather than a -run filter.
+      # A hand-maintained test-name regex went stale twice here: it listed
+      # TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep,
+      # which silently did not select TestIfaFamilyRegistryWaitKeyIsKnownDomain
+      # when that landed -- a check present in the tree and never run by the
+      # gate meant to run it. The package takes ~5s; that buys a selection
+      # that cannot rot as tests are added.
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"

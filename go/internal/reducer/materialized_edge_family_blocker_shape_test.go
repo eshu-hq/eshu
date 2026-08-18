@@ -462,3 +462,33 @@ func TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration(t *te
 		t.Errorf("error %q does not explain the missing IntentWriter field", err.Error())
 	}
 }
+
+// TestIfaFamilyRegistryWaitKeyIsKnownDomain proves each family's
+// IFA_FAMILY_WAIT_KEY row -- parsed live from
+// scripts/lib/ifa_family_registry/rows/ by parseIfaFamilyRegistryWaitKeys,
+// never a Go-side copy of it -- names a real reducer Domain constant, checked
+// against knownDomains through the same Domain.Validate() production code
+// path ParseDomain uses, never a hand-copied constant list. Each row is
+// otherwise guarded only by a hand-typed pin in the fault-injection wait
+// helper comparing one hand-typed string to another: both sides can rename
+// together and still agree on a value neither of them is real. That drift
+// would surface only as a live Docker shard timing out in
+// ifa_fault_wait_for_claimed after tens of minutes -- loud, but enormously
+// expensive for something this test catches in milliseconds.
+func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
+	t.Parallel()
+
+	waitKeys := parseIfaFamilyRegistryWaitKeys(t, ifaFamilyRegistryRowsDir(t))
+	if len(waitKeys) == 0 {
+		t.Fatal("parsed zero IFA_FAMILY_WAIT_KEY rows -- registry format changed or the rows were emptied")
+	}
+	for family, raw := range waitKeys {
+		family, raw := family, raw
+		t.Run(family, func(t *testing.T) {
+			t.Parallel()
+			if err := Domain(raw).Validate(); err != nil {
+				t.Fatalf("family %q: IFA_FAMILY_WAIT_KEY=%q is not a real reducer Domain constant (%v) -- scripts/lib/ifa_family_registry.sh's row and the fault-injection wait helper's hand-typed pin could rename together and still agree on a dead string here", family, raw, err)
+			}
+		})
+	}
+}

@@ -200,12 +200,46 @@ loop_header_count="$(rg --count --fixed-strings -- 'for family in $(ifa_family_r
 # array literals -- a check that copies its expected values from the
 # artifact it is checking can never fail). This module's hand-authored list
 # below is independent of the registry file; only the comparison touches it.
+#
+# The map VALUE is each family's expected `-domain <family>` assert-edges
+# needle, not a bare `=1` acknowledgement. A bare acknowledgement is
+# satisfied by adding a key with zero real coverage anywhere in this module
+# -- `[handles_route_edges]=1` alone made the totality check below green
+# with that family having no fixture or assertion of any kind here. Storing
+# the real expected needle as the value lets the loop right after this map
+# verify it actually appears in one of this module's own target lib files,
+# so a bare entry can no longer pass.
 declare -A ifa_det_family_cases_hand_authored=(
-	[sql_relationships]=1
-	[code_calls]=1
-	[documentation_edges]=1
-	[rationale_edges]=1
+	[sql_relationships]="-domain sql_relationships"
+	[code_calls]="-domain code_calls"
+	[documentation_edges]="-domain documentation_edges"
+	[rationale_edges]="-domain rationale_edges"
 )
+# First, the map value must literally be this family's own `-domain
+# <family>` flag -- never a bare placeholder like `1` and never another
+# family's value copy-pasted in. A bare-string check alone (e.g. an
+# fixed-string rg search for whatever the value happens to be) is not
+# enough on its own: `1` is common enough to appear somewhere in these
+# multi-hundred-line lib files by accident, which would let a lazy `=1`
+# entry slide through a needle search that never verifies the needle looks
+# like a real domain flag in the first place.
+#
+# Second, with the shape confirmed, the needle must actually appear in one
+# of this module's own target lib files -- i.e. a real require_*_lib call
+# for it exists somewhere in this module, not merely a map entry. Each
+# needle is family-specific by construction (`-domain <family>` embeds the
+# family name), so searching the union of the target lib files is safe: two
+# different family keys can never produce the same needle, so this cannot
+# pass by matching a sibling family's real assertion.
+for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
+	domain_needle="${ifa_det_family_cases_hand_authored[${family}]}"
+	expected_needle="-domain ${family}"
+	[[ "${domain_needle}" == "${expected_needle}" ]] \
+		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with value '${domain_needle}', which is not this family's own '${expected_needle}' assert-edges flag -- the value must be the family's real domain needle, never a bare acknowledgement or a value copied from another family"
+	rg --fixed-strings --quiet -- "${domain_needle}" \
+		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" \
+		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
+done
 # shellcheck source=scripts/lib/ifa_family_registry.sh
 source "${registry_family_lib}"
 declare -F ifa_family_registry_names >/dev/null \

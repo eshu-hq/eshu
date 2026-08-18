@@ -12,17 +12,21 @@ import (
 	"testing"
 )
 
-// ifaFamilyRegistryRowRE pulls every `IFA_FAMILY_BLOCKER_KIND[<family>]="<value>"`
-// element assignment out of one row file under
-// scripts/lib/ifa_family_registry/rows/. It intentionally matches only this
-// one table's assignment syntax, not the several sibling tables
-// (IFA_FAMILY_WAIT_STAGE, IFA_FAMILY_ANCHOR, ...) every row file also
+// ifaFamilyRegistryBlockerKindRE and ifaFamilyRegistryWaitKeyRE each pull
+// every `IFA_FAMILY_BLOCKER_KIND[<family>]="<value>"` /
+// `IFA_FAMILY_WAIT_KEY[<family>]="<value>"` element assignment out of one row
+// file under scripts/lib/ifa_family_registry/rows/. Each regexp intentionally
+// matches only its own table's assignment syntax, not the several sibling
+// tables (IFA_FAMILY_WAIT_STAGE, IFA_FAMILY_ANCHOR, ...) every row file also
 // populates. This file is the live-parse counterpart to
-// materialized_edge_family_blocker_shape_test.go's checkFamilyBlockerLockstep:
-// it exists so that file reads the real declaration
-// scripts/lib/ifa_family_registry.sh's own accessor functions return, never
-// a Go-side copy of it.
-var ifaFamilyRegistryRowRE = regexp.MustCompile(`IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
+// materialized_edge_family_blocker_shape_test.go's checkFamilyBlockerLockstep
+// and its wait-key domain-membership check: both exist so that file reads
+// the real declarations scripts/lib/ifa_family_registry.sh's own accessor
+// functions return, never a Go-side copy of them.
+var (
+	ifaFamilyRegistryBlockerKindRE = regexp.MustCompile(`IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
+	ifaFamilyRegistryWaitKeyRE     = regexp.MustCompile(`IFA_FAMILY_WAIT_KEY\[(\w+)\]="([^"]*)"`)
+)
 
 // ifaFamilyRegistryRowsDir returns the absolute path to
 // scripts/lib/ifa_family_registry/rows/, the directory
@@ -42,30 +46,55 @@ func ifaFamilyRegistryRowsDir(t *testing.T) string {
 	return filepath.Join(repoRoot, "scripts", "lib", "ifa_family_registry", "rows")
 }
 
-// parseIfaFamilyRegistryBlockerKinds reads every *.sh file directly under
-// rowsDir -- the real scripts/lib/ifa_family_registry/rows/ in every
-// committed use of this function, a scratch copy only when proving this
-// parser is load-bearing -- and returns the family -> declared-blocker-kind
-// rows parsed from their IFA_FAMILY_BLOCKER_KIND[...]="..." assignments.
+// parseIfaFamilyRegistryBlockerKinds reads every family's declared
+// IFA_FAMILY_BLOCKER_KIND row from rowsDir. See parseIfaFamilyRegistryTable
+// for the shared fail-closed parsing contract this and
+// parseIfaFamilyRegistryWaitKeys both rely on.
+func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string]string {
+	t.Helper()
+	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryBlockerKindRE, "IFA_FAMILY_BLOCKER_KIND")
+}
+
+// parseIfaFamilyRegistryWaitKeys reads every family's declared
+// IFA_FAMILY_WAIT_KEY row from rowsDir -- the queue/domain-completion key the
+// shell fault-injection wait helper (ifa_fault_wait_for_claimed) polls on. It
+// exists so TestIfaFamilyRegistryWaitKeyIsKnownDomain in
+// materialized_edge_family_blocker_shape_test.go can bind each declared value
+// to a real reducer.Domain constant instead of trusting the registry row and
+// the wait helper's own hand-typed pin to keep agreeing with each other after
+// a Domain rename. See parseIfaFamilyRegistryTable for the shared parsing
+// contract.
+func parseIfaFamilyRegistryWaitKeys(t *testing.T, rowsDir string) map[string]string {
+	t.Helper()
+	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitKeyRE, "IFA_FAMILY_WAIT_KEY")
+}
+
+// parseIfaFamilyRegistryTable reads every *.sh file directly under rowsDir --
+// the real scripts/lib/ifa_family_registry/rows/ in every committed use of
+// this function, a scratch copy only when proving this parser is
+// load-bearing -- and returns the family -> declared-value rows parsed from
+// tableRE's `<table>[<family>]="<value>"` assignments. tableName names the
+// table in diagnostics only.
 //
 // Three distinct failure modes are each a named, loud test failure, never a
 // quietly empty map: the directory itself missing or unreadable, the
 // directory matching zero *.sh files, and any individual row file matching
-// zero recognized IFA_FAMILY_BLOCKER_KIND assignments. This mirrors
-// ifa_family_registry.sh's own fail-closed row-loading guard on the Go side
-// -- that shell file's own comment calls an empty result here "the single
-// most dangerous failure mode this file could ship": silent, total coverage
-// loss that looks exactly like success. An empty declared-set here would
-// make every covered family look "not declared" and pass vacuously through
-// TestMaterializedEdgeFamilyBlockerLockstep's not-yet-declared branch --
-// exactly the failure this test suite exists to prevent, just moved one
-// level down into how the declaration itself is read.
+// zero recognized tableRE assignments. This mirrors ifa_family_registry.sh's
+// own fail-closed row-loading guard on the Go side -- that shell file's own
+// comment calls an empty result here "the single most dangerous failure mode
+// this file could ship": silent, total coverage loss that looks exactly like
+// success. An empty declared-set here would make every covered family look
+// "not declared" and pass vacuously through whichever caller-side
+// not-yet-declared branch consumes it -- exactly the failure this test suite
+// exists to prevent, just moved one level down into how the declaration
+// itself is read.
 //
 // A family with no row anywhere under rowsDir is simply absent from the
 // returned map, the same as before the rows-directory split: callers must
-// treat that absence as "no blocker cell declared yet," not a parse
-// failure -- see materializedEdgeFamilyNotYetInRegistry.
-func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string]string {
+// treat that absence as "no row declared yet," not a parse failure -- see
+// materializedEdgeFamilyNotYetInRegistry for the blocker-kind table's
+// caller-side convention.
+func parseIfaFamilyRegistryTable(t *testing.T, rowsDir string, tableRE *regexp.Regexp, tableName string) map[string]string {
 	t.Helper()
 
 	entries, err := os.ReadDir(rowsDir)
@@ -91,9 +120,9 @@ func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
 		}
-		rows := ifaFamilyRegistryRowRE.FindAllSubmatch(raw, -1)
+		rows := tableRE.FindAllSubmatch(raw, -1)
 		if len(rows) == 0 {
-			t.Fatalf("%s: matched no IFA_FAMILY_BLOCKER_KIND[<family>]=\"<value>\" assignments -- registry row-file format changed, this parser is stale", path)
+			t.Fatalf("%s: matched no %s[<family>]=\"<value>\" assignments -- registry row-file format changed, this parser is stale", path, tableName)
 		}
 		for _, row := range rows {
 			declared[string(row[1])] = string(row[2])
