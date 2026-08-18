@@ -331,13 +331,7 @@ linters:
       - path: 'cmd/bootstrap-index/bootstrap_pipeline\.go'
         linters:
           - funlen
-      - path: 'cmd/eshu/diagnostics_classify\.go'
-        linters:
-          - funlen
       - path: 'internal/cli/localsupervisor/host\.go'
-        linters:
-          - funlen
-      - path: 'cmd/ingester/wiring_nornicdb_phase_group_streaming\.go'
         linters:
           - funlen
       - path: 'cmd/mcp-server/wiring\.go'
