@@ -19,9 +19,9 @@ exit-code classification testable without building the binary.
 This package owns request-path construction, envelope decoding, summary
 rendering, and error classification. It does not own process wiring: reading
 cobra flags, resolving the output stream, or converting an error into the
-CLI's exit-code type. Those stay in `go/cmd/eshu/freshness.go`,
-`freshness_changed_since.go`, and `freshness_service_changed_since.go`, because
-`go/cmd/eshu` is `package main` and nothing can import it.
+CLI's exit-code type. That stays in `go/cmd/eshu/freshness.go`, which wraps
+all three commands, because `go/cmd/eshu` is `package main` and nothing can
+import it.
 
 The wrapper reads flags into an options struct, hands it and
 `cmd.OutOrStdout()` to a `Run` function, and converts a returned `*Failure`
