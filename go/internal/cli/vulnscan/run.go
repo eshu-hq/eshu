@@ -57,10 +57,12 @@ type RepoDeps struct {
 	// ScanRuntime is the scan family's runtime for the same client.
 	ScanRuntime scan.Runtime
 	// Stdout receives the JSON envelope, the export document, or the human
-	// summary. The scan banner and bootstrap output also go here unless
+	// summary. The scan banner and bootstrap stdout also go here unless
 	// --json or --export claims stdout for the machine-readable document.
 	Stdout io.Writer
-	// Stderr receives the scan child's stderr and the cleanup warning.
+	// Stderr receives the scan child's stderr and the cleanup warning, and
+	// under --json or --export also the scan banner and the bootstrap child's
+	// stdout, which are redirected here so the document owns stdout.
 	Stderr io.Writer
 	// StartedAt is the instant the command began, taken by the wrapper before
 	// it started or attached to the local runtime, so the envelope's
@@ -68,9 +70,10 @@ type RepoDeps struct {
 	// zero value means "now", for a caller with no work before RunRepo.
 	StartedAt time.Time
 	// CloseLocalRuntime stops the one-shot local runtime the wrapper started,
-	// or is nil when a configured service URL was used. It runs once, before
-	// any output is written, so a shutdown failure reaches the envelope as a
-	// warning.
+	// or is nil when a configured service URL was used. It runs once, after
+	// the scan has finished and before the output document is written -- the
+	// scan banner and bootstrap output, when they go to Stdout, precede it --
+	// so a shutdown failure reaches the envelope as a warning.
 	CloseLocalRuntime func() error
 }
 
@@ -95,13 +98,26 @@ type repoEnvelope struct {
 // caller decides the process exit code; this function never exits and writes
 // only to the writers it is given.
 //
-// The output document is written for every path that reaches the scan, so an
-// early failure still produces a fail-closed envelope rather than an empty
-// stream. Which paths still write a report and which carry an error member is
-// finishRepo's contract.
+// Under --json the envelope is written for every path that reaches the scan,
+// so an early failure still produces a fail-closed envelope rather than an
+// empty stream; the export formats and the human summary are written only for
+// success and the scanner verdicts. Which paths write which document, and
+// which carry an error member, is finishRepo's contract.
+//
+// A missing stream is a wiring error and is rejected before the scan runs.
+// That arm still calls CloseLocalRuntime when one was supplied, so a caller
+// that started the local runtime and then mis-wired a stream does not leak
+// the child; the wrapper never does either, and the guard is not the reason
+// the runtime is stopped on the normal paths.
 func RunRepo(ctx context.Context, deps RepoDeps, opts RepoOptions) error {
 	if deps.Stdout == nil || deps.Stderr == nil {
-		return errors.New("vulnscan: RunRepo requires Stdout and Stderr")
+		err := errors.New("vulnscan: RunRepo requires Stdout and Stderr")
+		if deps.CloseLocalRuntime != nil {
+			if closeErr := deps.CloseLocalRuntime(); closeErr != nil {
+				return fmt.Errorf("%w; local runtime cleanup failed: %v", err, closeErr)
+			}
+		}
+		return err
 	}
 	startedAt := deps.StartedAt
 	if startedAt.IsZero() {
@@ -177,8 +193,10 @@ func RunRepo(ctx context.Context, deps RepoDeps, opts RepoOptions) error {
 }
 
 // failureError boxes a *Failure into error without producing a non-nil
-// interface around a nil pointer. Every scanner-verdict site returns through
-// here so a nil verdict stays a nil error.
+// interface around a nil pointer. The scope/exit site at the end of RunRepo is
+// the one that can carry a nil verdict, and it returns through here so a nil
+// verdict stays a nil error; the other verdict sites construct a non-nil
+// Failure inline.
 func failureError(failure *Failure) error {
 	if failure == nil {
 		return nil
@@ -192,8 +210,7 @@ func failureError(failure *Failure) error {
 // repository the operator is standing in.
 //
 // The nil-client arm keeps the message the wrapper produced before this logic
-// moved. It is defensive: the wrapper never hands RunRepo a nil client, and a
-// nil client would already have failed the scan preflight.
+// moved. It is unreachable from the wrapper, which always builds a client.
 func resolveRepoID(client RepoClient, opts RepoOptions) (string, error) {
 	if opts.RepoID != "" {
 		return opts.RepoID, nil

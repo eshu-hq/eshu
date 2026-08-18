@@ -5,8 +5,9 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
 
 ## Read first
 
-1. [`doc.go`](doc.go) — the package contract and the three seams that exist
-   because their concrete types live in package main.
+1. [`doc.go`](doc.go) — the package contract, the two seams that exist
+   because their concrete types live in package main, and the scan-runtime
+   seam that exists to keep process contact in the wrapper.
 2. [`README.md`](README.md) — ownership boundary, invariants, which document
    each outcome writes, and why `Result.Scan` is `any`.
 3. [`run.go`](run.go) and [`finish.go`](finish.go) — `RunRepo`, the repo
@@ -38,10 +39,13 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
   and `fmt` calls; widen its sets only alongside the docs.
 - **The exit codes 3/4/5 and their messages are the published contract, and
   the failure paths are the proof.** A change to `RunRepo` or `finishRepo` is
-  proven by `TestRunRepoOutcomeContract` and
-  `TestRunRepoOutputSelectionByOutcome`, which drive the real `RunRepo` through
-  every verdict, plus the wrapper's own tests in `go/cmd/eshu`. A happy-path
-  test proves almost nothing here.
+  proven by `TestRunRepoOutcomeContract`, which drives the real `RunRepo`
+  through every verdict and unclassified-error class and pins code, message,
+  readiness state and envelope error member, and by
+  `TestRunRepoOutputSelectionByOutcome`, which pins which document each output
+  mode writes for codes 3, 4 and 5 versus an unclassified error, plus the
+  wrapper's own tests in `go/cmd/eshu`. A happy-path test proves almost
+  nothing here.
 - **The JSON envelope and the report are a wire contract.** Field names, field
   order, and `omitempty` are what operators and their tooling parse. Changing
   the report shape needs a new `ReportSchemaVersion`, not an edit to the

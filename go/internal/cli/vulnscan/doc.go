@@ -12,7 +12,9 @@
 // findings read, the scope guards, the performance stamp, local runtime
 // shutdown, and the output document -- JSON envelope, SARIF, VEX, or the
 // human summary -- on the writer it is given. It is the only entry point
-// that runs the whole flow; provider-parity has its own, and the steps
+// in this package that runs a whole subcommand; provider-parity's
+// orchestration is still `runVulnScanProviderParity` in go/cmd/eshu, calling
+// the parity functions here one at a time. The steps
 // RunRepo composes -- [NewResult], [FetchImpactFindings], [ApplyScope],
 // [ExitFailure], [RecordPerformance], [BuildReport], the export writers and
 // [RenderSummary] -- remain callable one at a time.
@@ -29,13 +31,15 @@
 // [RepoDeps] and [RepoOptions]. Nothing here calls os.Exit or writes to
 // os.Stdout.
 //
-// Three seams exist because the concrete types they name live in package
-// main and cannot be imported. Transport is the [RepoClient] interface (a
-// plain GET plus the envelope GET, [EnvelopeFetcher]) rather than the CLI's
-// API client. [Result].Scan is typed any because the scan result belongs to
-// the `eshu scan` family; this package carries it into the JSON envelope
-// without reading it. And the scan itself arrives as a scan.Runtime the
-// wrapper wires, so this package starts no bootstrap child of its own.
+// Two seams exist because the concrete types they name live in package main
+// and cannot be imported. Transport is the [RepoClient] interface (a plain
+// GET plus the envelope GET, [EnvelopeFetcher]) rather than the CLI's API
+// client. [Result].Scan is typed any because the scan result belongs to the
+// `eshu scan` family; this package carries it into the JSON envelope without
+// reading it. A third seam exists for a different reason: the scan itself
+// arrives as a scan.Runtime -- an importable internal/cli/scan type -- that
+// the wrapper wires, because PATH lookup, the bootstrap child and the
+// inherited environment are process contact this package must not own.
 //
 // Fail-closed is the contract that matters here. A clean `ready_zero_findings`
 // answer is only reported when the readiness envelope proves advisory and

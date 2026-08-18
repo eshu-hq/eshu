@@ -108,15 +108,16 @@ and the process exit code.
 
 ## Gotchas / invariants
 
-- **`RunRepo` writes a document for every path that reaches the scan, and
-  which document depends on the outcome.** The JSON envelope is written for
-  every outcome, with its `error` member set for every failure except the
-  findings-present verdict (code 3), which is a successful scan that found
-  something. An export (`--export sarif|vex`) and the human summary are written
-  for success and for the three scanner verdicts (3, 4, 5) and skipped for any
-  other error, because the run never produced a report to render. A write
-  failure replaces the outcome. `finishRepo` holds those rules and
-  `TestRunRepoOutputSelectionByOutcome` pins them.
+- **Under `--json`, `RunRepo` writes the envelope for every path that reaches
+  the scan; the other outputs are written only for a verdict.** The JSON
+  envelope is written for every outcome, with its `error` member set for every
+  failure except the findings-present verdict (code 3), which is a successful
+  scan that found something. An export (`--export sarif|vex`) and the human
+  summary are written for success and for the three scanner verdicts (3, 4, 5)
+  and skipped for any other error, because the run never produced a report to
+  render. A write failure replaces the outcome. `finishRepo` holds those rules
+  and `TestRunRepoOutputSelectionByOutcome` pins them for each of 3, 4 and 5
+  against a preflight failure.
 - **Local runtime shutdown runs before the document is written and never
   changes the verdict.** A `CloseLocalRuntime` error is appended to
   `Result.Warnings` and printed as a `Warning:` line on the stderr writer; the

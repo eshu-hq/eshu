@@ -26,9 +26,9 @@ import (
 // the local runtime reaches it directly: it listens on a loopback port to
 // reserve one and polls /healthz over HTTP. It starts child processes
 // (os/exec, with the binary path from procexec.Executable), reads the
-// filesystem (os.Stat), reads exactly one
-// environment variable -- os.Getenv handed to localsupervisor.ChildOverrides
-// to compose a child's environment, not to decide anything -- and wires the
+// filesystem (os.Stat), has one os.Getenv reference -- handed to
+// localsupervisor.ChildOverrides as its getenv, which reads what it needs to
+// compose a child's environment, not to decide anything here -- and wires the
 // local owner child's stdout and stderr to the process's os.Stderr, which is
 // the one place this package touches a process stream. Every one of those is
 // the package's job, and each is named below so the next reader knows the
@@ -47,6 +47,11 @@ import (
 // `go list -deps ./internal/cli/vulnscan | rg spf13`, which this test cannot
 // run. What the pin guarantees is that a new dependency is a decision someone
 // makes on purpose, in the docs as well as the code.
+//
+// The selector sets key on the identifiers os and fmt, so an aliased import
+// (`import osx "os"`) would leave the import set identical while osx.Exit
+// escaped both sets. The walk therefore refuses an alias on either package
+// outright rather than trying to follow it.
 //
 // Only non-test sources are walked. The claim describes what the package
 // does; test files legitimately reach for os.ReadDir and t.TempDir, and
@@ -114,7 +119,11 @@ func TestPackageStaysCobraFreeAndDeclaresItsProcessContact(t *testing.T) {
 		}
 		scanned++
 		for _, imp := range file.Imports {
-			gotImports[strings.Trim(imp.Path.Value, `"`)] = true
+			path := strings.Trim(imp.Path.Value, `"`)
+			gotImports[path] = true
+			if (path == "os" || path == "fmt") && imp.Name != nil {
+				t.Fatalf("%s imports %q as %s; the os and fmt selector pins below key on the bare package name, so an alias would let a call escape them", name, path, imp.Name.Name)
+			}
 		}
 		// Matched against parsed selector expressions, not raw file text, so
 		// a doc comment naming os.Exit does not trip the guard while real

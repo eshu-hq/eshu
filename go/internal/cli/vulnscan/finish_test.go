@@ -13,9 +13,9 @@ import (
 
 // TestRunRepoOutputSelectionByOutcome pins which document each output mode
 // writes for a scanner verdict versus an unclassified error: an export and
-// the human summary are written for a verdict the run produced a report for,
-// and skipped for an error where it did not, while the JSON envelope is
-// written either way.
+// the human summary are written for each of the three verdict codes the run
+// produced a report for (3, 4 and 5 all appear below), and skipped for an
+// error where it did not, while the JSON envelope is written either way.
 func TestRunRepoOutputSelectionByOutcome(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -30,6 +30,9 @@ func TestRunRepoOutputSelectionByOutcome(t *testing.T) {
 		{name: "sarif skipped for preflight failure", export: ExportFormatSARIF, findings: repoRunFindings, statusErr: errors.New("down"), wantWritten: false},
 		{name: "vex written for not-configured verdict", export: ExportFormatVEX, findings: repoRunNotConfig, wantWritten: true, wantContains: `"statements"`},
 		{name: "vex skipped for preflight failure", export: ExportFormatVEX, findings: repoRunNotConfig, statusErr: errors.New("down"), wantWritten: false},
+		{name: "sarif written for unsupported verdict", export: ExportFormatSARIF, findings: repoRunUnsupported, wantWritten: true, wantContains: `"$schema"`},
+		{name: "vex written for unsupported verdict", export: ExportFormatVEX, findings: repoRunUnsupported, wantWritten: true, wantContains: `"statements"`},
+		{name: "summary rendered before unsupported exit", findings: repoRunUnsupported, wantWritten: true, wantContains: "Exit: code=5 reason=unsupported"},
 		{name: "summary rendered before findings exit", findings: repoRunFindings, wantWritten: true, wantContains: "Exit: code=3 reason=findings_present"},
 		{name: "summary skipped for preflight failure", findings: repoRunFindings, statusErr: errors.New("down"), wantWritten: false},
 		{name: "json envelope written for preflight failure", jsonOut: true, findings: repoRunFindings, statusErr: errors.New("down"), wantWritten: true, wantContains: `"error"`},

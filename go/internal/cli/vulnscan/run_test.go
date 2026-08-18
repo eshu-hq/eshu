@@ -299,14 +299,25 @@ func TestRunRepoOutcomeContract(t *testing.T) {
 }
 
 // TestRunRepoRejectsMissingStreams pins that a wiring gap fails before the
-// scan runs rather than as a nil-writer panic part way through.
+// scan runs rather than as a nil-writer panic part way through, and that a
+// local runtime supplied alongside the bad wiring is still stopped rather
+// than leaked.
 func TestRunRepoRejectsMissingStreams(t *testing.T) {
 	client := &fakeRepoClient{repositories: repoRunRepositories, findings: repoRunReadyZero}
-	err := RunRepo(context.Background(), RepoDeps{Client: client, ScanRuntime: fakeScanRuntime(client, nil)}, repoRunOptions(true))
+	closed := 0
+	deps := RepoDeps{
+		Client:            client,
+		ScanRuntime:       fakeScanRuntime(client, nil),
+		CloseLocalRuntime: func() error { closed++; return nil },
+	}
+	err := RunRepo(context.Background(), deps, repoRunOptions(true))
 	if err == nil || !strings.Contains(err.Error(), "requires Stdout and Stderr") {
 		t.Fatalf("RunRepo() error = %v, want the missing-stream error", err)
 	}
 	if len(client.requests) != 0 {
 		t.Fatalf("client requests = %v, want none before the wiring check", client.requests)
+	}
+	if closed != 1 {
+		t.Fatalf("CloseLocalRuntime calls = %d, want 1 even when the wiring check fails", closed)
 	}
 }
