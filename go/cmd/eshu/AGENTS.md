@@ -37,8 +37,9 @@
    because this directory is `package main`. `eshu report`'s digest and
    artifact logic is in `go/internal/cli/opdigest`; the local Eshu service and
    every `eshu graph` subcommand's logic is in
-   `go/internal/cli/localsupervisor`. Read the target package's `AGENTS.md`
-   before changing the wrapper that calls it.
+   `go/internal/cli/localsupervisor`; the repository-selector matching rules
+   behind every `--repo` flag are in `go/internal/cli/reposelector`. Read the
+   target package's `AGENTS.md` before changing the wrapper that calls it.
 
 ## Invariants this package enforces
 
@@ -67,6 +68,14 @@
   package outside this binary prints, stay in the `const` block in
   `component.go`. Re-adding a local constant for one of the five puts the same
   string under two owners again, which is what the extraction review caught.
+- **`--repo` and `--repo-id` are declared and read here, matched elsewhere** —
+  `repository_selector.go` owns the flag names, the flag reads, and the
+  `--repo-id` short-circuit that skips resolution when the caller already holds
+  an exact ID. What a selector actually matches — exact on ID/name/slug,
+  canonicalized and symlink-resolved on the path fields — belongs to
+  `go/internal/cli/reposelector`, which holds no cobra. Adding a selector form
+  here instead of there puts the rule under two owners.
+
 - **Removed commands use `removedCommandError`** — deprecated and removed
   commands (`delete`, `clean`, `unwatch`, `add-package`, `finalize`) call
   `removedCommandError` in `contract.go` instead of silently succeeding or
