@@ -335,7 +335,13 @@ require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code
 require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 require_fixture "code-call cassette existence guard" "code-call cassette not found"
 require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
-require "code-call MERGE operation_match anchor" 'code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"'
+# The anchor moved into the registry when code_calls migrated onto the generic
+# cell: the gate variable this used to pin had no readers left, so the pin was
+# guarding a dead string -- change the real anchor and it stayed green. Pin the
+# live source instead.
+rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[code_calls]="MERGE (source)-[rel:CALLS]->(target)"' \
+	"${repo_root}/scripts/lib/ifa_family_registry/rows/02_code_calls.sh" \
+	|| fail "code_calls registry row does not carry the CALLS MERGE anchor the fail-graph-write cell targets"
 require_driver "code-call drive in every cell" "ifa_code_call_drive"
 require_cells "code-call exact assertion in baseline" "ifa_code_call_assert"
 require_cells "code-call fault-free retry baseline" '"code_call_materialization"'

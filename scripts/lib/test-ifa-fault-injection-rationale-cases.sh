@@ -355,11 +355,16 @@ run_ifa_rationale_live_static_cases() {
 		'testdata/cassettes/rationale/ifa-rationale-family.json' \
 		'testdata/cassettes/rationale/ifa-rationale-family-delta.json' \
 		'go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json' \
-		'go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json' \
-		'rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"'; do
+		'go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'; do
 		rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" \
 			|| fail "fault verifier missing rationale wiring: ${needle}"
 	done
+	# The rationale anchor moved into the registry when this family migrated onto
+	# the generic cell. The gate variable this loop used to pin had no readers
+	# left, so that needle guarded a dead string.
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[rationale_edges]="MERGE (rationale)-[rel:EXPLAINS]->(target)"' \
+		"${repo_root}/scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh" \
+		|| fail "rationale_edges registry row does not carry the EXPLAINS MERGE anchor the fail-graph-write cell targets"
 
 	for needle in \
 		'ifa_rationale_drive "${cell}"' \

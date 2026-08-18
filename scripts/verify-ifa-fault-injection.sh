@@ -300,8 +300,6 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 # one of the SQL family's nine materialized edge types and is present in the
 # committed sql_cassette, so this fault genuinely fires during that drive.
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
-code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
-rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
