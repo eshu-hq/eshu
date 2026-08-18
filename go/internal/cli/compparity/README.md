@@ -19,8 +19,8 @@ and exit codes stay in `go/cmd/eshu/competitive_parity_cmd.go`, which is
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. Callers use `Inventory`,
-`ExerciseResults`, `Artifact`, and `DocPaths`.
+See `doc.go` for the godoc contract. Callers use `Inventory` and `Artifact`;
+that is the whole caller-facing surface.
 One input is injected by the wrapper because its source lives in
 `package main`: the CLI command paths, since walking the cobra tree needs
 `rootCmd`. The supply-chain fixture builder is unexported
@@ -47,7 +47,7 @@ its artifact and exit code.
 
 ## Gotchas / invariants
 
-- Filesystem access is read-only: the committed parity docs at `DocPaths`
+- Filesystem access is read-only: the committed parity docs at `docPaths`
   and the dogfood fixture benchmark, both joined onto the caller's repoRoot.
   No file is written, no environment variable is read, no subprocess or
   network call is made.

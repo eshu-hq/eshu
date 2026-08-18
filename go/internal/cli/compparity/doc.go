@@ -3,10 +3,9 @@
 
 // Package compparity holds the logic behind `eshu competitive-parity
 // validate`: assembling the live inventory of CLI commands, API routes, MCP
-// tools, console pages, and committed parity docs (Inventory, DocPaths),
-// running the offline exercises that prove sibling artifact paths stay wired
-// (ExerciseResults), and rendering the validated
-// report as JSON or Markdown (Artifact).
+// tools, console pages, and committed parity docs (Inventory), running the
+// offline exercises that prove sibling artifact paths stay wired, and
+// rendering the validated report as JSON or Markdown (Artifact).
 //
 // The scoring itself is not here. Expectations, validation, and rendering
 // belong to internal/competitiveparity; this package feeds it a live

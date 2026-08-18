@@ -31,7 +31,7 @@ func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory,
 	inv := competitiveparity.Inventory{
 		Commands:  commands,
 		Docs:      map[string]string{},
-		Exercises: ExerciseResults(repoRoot),
+		Exercises: exerciseResults(repoRoot),
 	}
 	for _, surface := range surfaces.Surfaces {
 		switch surface.Category {
@@ -55,8 +55,8 @@ func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory,
 	sort.Strings(inv.APIRoutes)
 	sort.Strings(inv.MCPTools)
 	sort.Strings(inv.ConsolePages)
-	for _, path := range DocPaths() {
-		raw, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- path is a static string from DocPaths(); repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
+	for _, path := range docPaths() {
+		raw, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- path is a static string from docPaths(); repoRoot is the operator-supplied repo root, not an HTTP request param //nolint:gosec
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -68,7 +68,7 @@ func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory,
 	return inv, nil
 }
 
-// ExerciseResults runs every parity exercise and returns one result per
+// exerciseResults runs every parity exercise and returns one result per
 // exercise ID, in a fixed order. Failure details are deliberately static
 // per-ID strings — the underlying error may carry local paths, and the
 // artifact is share-safe output.
@@ -76,7 +76,7 @@ func Inventory(repoRoot string, commands []string) (competitiveparity.Inventory,
 // Every exercise lives in exercises.go. Only repoRoot is a parameter: the two
 // exercises that read committed files join their paths onto it, and the rest
 // run entirely from embedded or in-memory data.
-func ExerciseResults(repoRoot string) []competitiveparity.ExerciseResult {
+func exerciseResults(repoRoot string) []competitiveparity.ExerciseResult {
 	checks := []struct {
 		id string
 		fn func() error
@@ -129,9 +129,9 @@ func Artifact(report competitiveparity.Report, jsonOut bool) ([]byte, error) {
 	return []byte(competitiveparity.RenderMarkdown(report)), nil
 }
 
-// DocPaths returns the sorted, de-duplicated set of repo-relative doc paths
+// docPaths returns the sorted, de-duplicated set of repo-relative doc paths
 // the default expectations reference. Inventory reads exactly these paths.
-func DocPaths() []string {
+func docPaths() []string {
 	seen := map[string]struct{}{}
 	for _, expectation := range competitiveparity.DefaultExpectations() {
 		for _, doc := range expectation.Docs {

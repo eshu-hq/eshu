@@ -17,11 +17,11 @@ import (
 
 // repoRoot is the repository root relative to this package directory
 // (go/internal/cli/compparity). The doc paths and the dogfood fixture path
-// inside Inventory and ExerciseResults are joined onto it.
+// inside Inventory and exerciseResults are joined onto it.
 const repoRoot = "../../../.."
 
 func TestExerciseResultsAllPassAgainstRealRepoRoot(t *testing.T) {
-	results := ExerciseResults(repoRoot)
+	results := exerciseResults(repoRoot)
 	wantIDs := []string{
 		"first_run_report_artifact",
 		"operator_digest_artifact",
@@ -47,7 +47,7 @@ func TestExerciseResultsAllPassAgainstRealRepoRoot(t *testing.T) {
 
 func TestExerciseResultsRedactFailureDetails(t *testing.T) {
 	dir := t.TempDir()
-	results := ExerciseResults(dir)
+	results := exerciseResults(dir)
 	byID := map[string]competitiveparity.ExerciseResult{}
 	for _, result := range results {
 		byID[result.ID] = result
@@ -83,7 +83,7 @@ func TestExerciseFailureDetailIsStaticPerID(t *testing.T) {
 		"evidence_packet_dogfood_fixture":        "dogfood fixture unavailable",
 		"capability_catalog_artifacts":           "capability catalog artifact exercise failed",
 	}
-	for _, result := range ExerciseResults(repoRoot) {
+	for _, result := range exerciseResults(repoRoot) {
 		detail, ok := want[result.ID]
 		if !ok {
 			t.Errorf("exercise %q has no pinned failure detail; add one to exerciseFailureDetail and to this table", result.ID)
@@ -95,7 +95,7 @@ func TestExerciseFailureDetailIsStaticPerID(t *testing.T) {
 		delete(want, result.ID)
 	}
 	for id := range want {
-		t.Errorf("pinned detail for %q has no exercise; ExerciseResults no longer runs it", id)
+		t.Errorf("pinned detail for %q has no exercise; exerciseResults no longer runs it", id)
 	}
 	if got := exerciseFailureDetail("not_an_exercise"); got != "exercise failed" {
 		t.Errorf("exerciseFailureDetail(unknown) = %q, want %q", got, "exercise failed")
@@ -146,9 +146,9 @@ func TestInventorySkipsMissingDocsWithoutError(t *testing.T) {
 }
 
 func TestInventoryReportsUnreadableDoc(t *testing.T) {
-	paths := DocPaths()
+	paths := docPaths()
 	if len(paths) == 0 {
-		t.Fatal("DocPaths() is empty")
+		t.Fatal("docPaths() is empty")
 	}
 	root := t.TempDir()
 	// A directory at a doc path makes os.ReadFile fail with a non-NotExist
@@ -166,17 +166,17 @@ func TestInventoryReportsUnreadableDoc(t *testing.T) {
 }
 
 func TestDocPathsSortedAndUnique(t *testing.T) {
-	paths := DocPaths()
+	paths := docPaths()
 	if len(paths) == 0 {
-		t.Fatal("DocPaths() is empty")
+		t.Fatal("docPaths() is empty")
 	}
 	if !sort.StringsAreSorted(paths) {
-		t.Fatalf("DocPaths() not sorted: %#v", paths)
+		t.Fatalf("docPaths() not sorted: %#v", paths)
 	}
 	seen := map[string]struct{}{}
 	for _, path := range paths {
 		if _, dup := seen[path]; dup {
-			t.Fatalf("DocPaths() has duplicate %q", path)
+			t.Fatalf("docPaths() has duplicate %q", path)
 		}
 		seen[path] = struct{}{}
 	}

@@ -19,7 +19,7 @@
   reaches an `ExerciseResult`. The cmd/eshu wrapper test
   `TestCompetitiveParityValidateReportsMissingDocs` asserts the temp repo
   root does not leak.
-- **Every exercise is wired here** — `ExerciseResults` takes only `repoRoot`,
+- **Every exercise is wired here** — `exerciseResults` takes only `repoRoot`,
   so no exercise can be left unsupplied by a caller.
   `TestExerciseResultsAllPassAgainstRealRepoRoot` runs all five for real
   against the repo, and `TestExerciseFailureDetailIsStaticPerID` fails if an
@@ -35,13 +35,13 @@
 ## Common changes and how to scope them
 
 - **Add an exercise** → add its entry to the `checks` slice in
-  `ExerciseResults`, a static detail in `exerciseFailureDetail`, and the
+  `exerciseResults`, a static detail in `exerciseFailureDetail`, and the
   exercise func in `exercises.go`, and its ID in the table in
   `TestExerciseFailureDetailIsStaticPerID`. If it needs anything from
   `package main`, inject it as a parameter the way the CLI command paths are
   injected into `Inventory`.
 - **Change what the gate reads from the repo** → the doc set comes from
-  `internal/competitiveparity.DefaultExpectations` via `DocPaths`; change the
+  `internal/competitiveparity.DefaultExpectations` via `docPaths`; change the
   expectations there rather than hard-coding paths here.
 
 ## Anti-patterns specific to this package
