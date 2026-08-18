@@ -456,7 +456,7 @@ jobs:
       # No retry-to-green: a non-zero dead_letter count or a canonical graph
       # digest that diverges from the fault-free baseline is a real recovery
       # defect, never normalized away by retrying or lowering worker count.
-      - name: Run Ifa fault-injection matrix (18 cells, fresh stack per cell)
+      - name: Run Ifa fault-injection matrix (21 cells, fresh stack per cell)
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
