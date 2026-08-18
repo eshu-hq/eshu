@@ -175,7 +175,17 @@ delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_
 # exists" alone is nearly vacuous (it passes whether or not the loop body
 # does anything useful); the totality check below is what gives it teeth.
 require "drive loop iterates the family registry, not a hardcoded list" 'for family in $(ifa_family_registry_names); do'
-require "drive/assert loop skips non-shared_cell families" '[[ "$(ifa_family_shared_cell "${family}")" == "1" ]] || continue'
+# The filter is two statements, not one, and that is the point: a bare
+# `[[ "$(accessor)" == "1" ]] || continue` cannot tell shared_cell=0 apart
+# from an accessor FAILURE on a row missing IFA_FAMILY_SHARED_CELL -- a
+# failed command substitution yields empty stdout and the comparison is
+# false either way, so a malformed row was silently treated as "not a
+# shared-cell family" and never driven or asserted while the gate stayed
+# green. Pin BOTH halves so the fail-closed check cannot be collapsed back
+# into the one-liner.
+require "drive/assert loop captures the accessor's exit status separately" 'family_shared_cell="$(ifa_family_shared_cell "${family}")"'
+require "drive/assert loop dies when the shared_cell accessor fails" 'refusing to silently skip this family'
+require "drive/assert loop skips non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue'
 require "drive loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}"'
 require "assert loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_assert "${family}" "${n}" "${bin_dir}"'
 # The loop header must appear exactly twice (drive, then assert) -- a gate

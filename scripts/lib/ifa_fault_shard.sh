@@ -124,10 +124,15 @@ IFA_FAULT_ALL_CELLS=(
 # which must also appear in IFA_FAULT_ALL_CELLS) that must never be split
 # across shards. A cell not named in any entry here is its own singleton
 # group.
+# Deliberately NOT readonly, same rationale as IFA_FAULT_ALL_CELLS above: a
+# caller (including a test) that wants to exercise the multi-group merge path
+# in ifa_fault_shard_build_groups with a synthetic second atomic group -- the
+# real matrix has only ever had one -- must be able to reassign this array in
+# a subshell. See scripts/lib/test-ifa-fault-injection-shard-cases.sh's
+# test_ifa_fault_shard_multi_group_colocation for that case (F-13).
 IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit"	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
 )
-readonly IFA_FAULT_ATOMIC_GROUPS
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges
 # in any IFA_FAULT_ATOMIC_GROUPS co-location constraint, populating the
@@ -283,7 +288,12 @@ ifa_fault_shard_parse_args() {
 			shard_spec="$1"
 			;;
 		-h | --help)
-			sed -n '2,91p' "${self_path}"
+			# Anchored on the "# Usage:" sentinel through the following blank
+			# line, not hardcoded line numbers (F-6): the Usage block in
+			# scripts/verify-ifa-fault-injection.sh moves as its own header
+			# grows, and a hardcoded range silently starts printing shellcheck
+			# directives and generic file header prose instead once it does.
+			sed -n '/^# Usage:$/,/^$/p' "${self_path}"
 			exit 0
 			;;
 		*)

@@ -168,9 +168,11 @@
 #     --list-cells  print the ordered cell list (or, combined with --shard,
 #                   just that shard's cells) and exit 0. Fully hermetic: no
 #                   Docker, compose, build, or Postgres step runs first.
-#     --shard k/n   run only the atomic cell groups assigned to shard k of n
-#                   (default n=4, scripts/lib/ifa_fault_shard.sh's
-#                   IFA_FAULT_SHARD_DEFAULT_N); cell_baseline still runs in
+#     --shard k/n   run only the atomic cell groups assigned to shard k of n.
+#                   Both k and n are required -- there is no default; a bare
+#                   "--shard 2" is rejected as malformed. CI drives this gate
+#                   with n=4, scripts/lib/ifa_fault_shard.sh's
+#                   IFA_FAULT_SHARD_DEFAULT_N. cell_baseline still runs in
 #                   every shard. See that file for the partition table.
 
 # Refuse to run under bash < 4.4 (or a non-bash shell): see

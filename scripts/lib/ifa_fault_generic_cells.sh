@@ -52,30 +52,41 @@
 # / capture_digest / assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
 #
-# WIRING, NOT YET DONE (coordinate with that file's owner; this file's own
-# author does not edit scripts/verify-ifa-fault-injection.sh or the two
-# per-family cell libraries below):
-#   1. Add `source ifa_fault_generic_cells.sh` to verify-ifa-fault-injection.sh's
-#      sourcing block (this file self-sources its own three mechanism files
-#      and ifa_family_registry.sh, so one new source line is enough).
-#   2. In scripts/lib/ifa_fault_injection_code_call_cells.sh, replace the
-#      bodies of cell_killworker_code_calls and cell_failgraphwrite_code_calls
-#      with one-line delegations: `cell_killworker_family code_calls` and
-#      `cell_failgraphwrite_family code_calls`, respectively. Do the same in
-#      scripts/lib/ifa_fault_injection_rationale_cells.sh for
-#      cell_killworker_rationale / cell_failgraphwrite_rationale ->
-#      `cell_killworker_family rationale_edges` / `cell_failgraphwrite_family
-#      rationale_edges`. The `ifa_fault_shard_run cell_killworker_code_calls`
-#      etc. call sites in verify-ifa-fault-injection.sh do NOT change.
-#      ifa_fault_shard_run ($1=cell, then `"${cell}"` with no further args) is
-#      a SHARD FILTER, not an argument forwarder: its whole job is deciding
-#      whether the named zero-arg cell function runs at all under --shard
-#      k/n, not passing data into it. It never took a family argument for any
-#      existing cell either, so it has no way to thread one through now. The
-#      family binding therefore has to live inside the cell function's own
-#      (now one-line) body, same as every other family's cell already does --
-#      NOT on the dispatch line. Do not try to pass the family as a second
-#      arg to ifa_fault_shard_run; it silently ignores anything past $1.
+# WIRED. scripts/verify-ifa-fault-injection.sh sources this file at line 209
+# (`source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"`; this file
+# self-sources its own three mechanism files and ifa_family_registry.sh, so
+# that one source line is enough). code_calls and rationale_edges are the two
+# families actually swapped onto this dispatcher:
+# scripts/lib/ifa_fault_injection_code_call_cells.sh's
+# cell_killworker_code_calls / cell_failgraphwrite_code_calls, and
+# scripts/lib/ifa_fault_injection_rationale_cells.sh's
+# cell_killworker_rationale / cell_failgraphwrite_rationale, are now one-line
+# delegations to cell_killworker_family / cell_failgraphwrite_family. The
+# `ifa_fault_shard_run cell_killworker_code_calls` etc. call sites in
+# verify-ifa-fault-injection.sh did not change and do not need to: that
+# wrapper ($1=cell, then `"${cell}"` with no further args) is a SHARD FILTER,
+# not an argument forwarder, so the family binding lives inside each
+# now-one-line cell function's own body, not on the dispatch line.
+#
+# ADDING THE NEXT FAMILY onto this dispatcher (rather than leaving it
+# cell_kind=custom) takes three steps once its blocker_kind is proven live:
+#   1. Add or correct its row in scripts/lib/ifa_family_registry/rows/ --
+#      blocker_kind, wait_stage/wait_key, and (for blocker_kind=
+#      shared_intent_lock) an IFA_FAMILY_RETRY_BASELINE_VAR entry so the kill
+#      cell can prove a durable retry above baseline instead of dying with
+#      "declares no IFA_FAMILY_RETRY_BASELINE_VAR row" (see
+#      _ifa_generic_require_retry_baseline below).
+#   2. Flip that row's cell_kind to generic only after proving the matching
+#      mechanism file's precondition (_ifa_generic_require_intent_writer for
+#      shared_intent_lock, _ifa_generic_require_table_domain_written for
+#      table_lock:<table>) against that family's live cell -- table_lock and
+#      wait_stage=runner are UNEXERCISED/UNPROVEN as of this file's own
+#      mechanism-file headers; do not flip cell_kind on an unproven mechanism.
+#   3. Replace that family's own cell_killworker_<family> /
+#      cell_failgraphwrite_<family> bodies with the same one-line delegation
+#      shape code_calls and rationale_edges use above. The
+#      ifa_fault_shard_run dispatch line in verify-ifa-fault-injection.sh
+#      does not change.
 _ifa_generic_cells_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! declare -F ifa_fault_require_fresh_domain_intents >/dev/null; then
 	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
@@ -191,17 +202,7 @@ _ifa_generic_cell_killworker_body() {
 	run_drain_gate "${cell}"
 	assert_no_dead_letters "${cell}"
 	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
-	if [[ "${blocker_kind}" == "shared_intent_lock" ]]; then
-		local retry_var
-		retry_var="$(ifa_family_retry_baseline_var "${family}" 2>/dev/null || true)"
-		if [[ -n "${retry_var}" ]]; then
-			ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-				"${!retry_var}" 15 "$(ifa_family_wait_key "${family}")" \
-				|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
-		else
-			printf '%s: no retry-baseline variable registered for %s -- this cell does NOT prove a durable retry above baseline (register one in IFA_FAMILY_RETRY_BASELINE_VAR to close that gap)\n' "${cell}" "${family}"
-		fi
-	fi
+	[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"
 	capture_digest "${cell}"
 	assert_matches_baseline "${cell}"
 	teardown_cell "${cell}"
@@ -212,6 +213,29 @@ _ifa_generic_cell_killworker_body() {
 # _ifa_generic_cell_killworker_none is blocker_kind=none's thin wrapper --
 # too small to earn its own mechanism file. No precondition: there is no
 # blocker to fail to engage.
+# _ifa_generic_require_retry_baseline proves a shared_intent_lock family's
+# kill cell genuinely re-executed the interrupted work ABOVE its fault-free
+# retry baseline. F-5(b): a missing IFA_FAMILY_RETRY_BASELINE_VAR row must
+# DIE here, not print a notice and pass. The old code printed
+# "no retry-baseline variable registered ... this cell does NOT prove a
+# durable retry above baseline" and returned success -- so a family that
+# forgot the row got a kill cell silently downgraded to ordinary baseline
+# recovery, which is exactly the vacuous-cell class the whole precondition
+# machinery exists to prevent, arriving through a different door. Only
+# shared_intent_lock families reach this (the sole caller guards on it);
+# blocker_kind=none has no retry to prove, and the bespoke/custom families
+# do not use this dispatcher.
+_ifa_generic_require_retry_baseline() {
+	local cell="$1" family="$2" retry_var
+	retry_var="$(ifa_family_retry_baseline_var "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_retry_baseline_var accessor failed -- refusing to silently skip the retry-above-baseline proof"
+	[[ -n "${retry_var}" ]] \
+		|| die "${cell}: ${family} is a shared_intent_lock family but declares no IFA_FAMILY_RETRY_BASELINE_VAR row -- its kill cell cannot prove a durable retry above baseline and must not pass claiming it did (register the row in ifa_family_registry/rows/)"
+	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${!retry_var}" 15 "$(ifa_family_wait_key "${family}")" \
+		|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
+}
+
 _ifa_generic_cell_killworker_none() {
 	local family="$1" cell="genkillworker${1//_/}"
 	_ifa_generic_cell_killworker_body "${family}" "${cell}" none ""

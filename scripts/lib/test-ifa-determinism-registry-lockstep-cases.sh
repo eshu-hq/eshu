@@ -73,7 +73,16 @@ for gate_id in ifa-determinism ifa-fault-injection; do
 		[[ -n "${registry_trigger}" ]] || continue
 		rg --fixed-strings --quiet -- "- '${registry_trigger}'" "${workflow}" \
 			|| fail "${gate_id} registry triggers on ${registry_trigger} but ${workflow##*/} never lists it; the gate is selected as blocking and then never starts"
-	done < <(printf '%s\n' "${gate_block}" | rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
+		# Slice the triggers: section before extracting, rather than taking
+		# every quoted list item in the gate block. A gate block also carries
+		# ci.check_names, whose entries are GitHub check names, not paths --
+		# "fault-injection (shard 1/4)" is not a file and must never be
+		# demanded of the workflow's paths: list. Extracting blockwide made
+		# the first gate to declare check_names fail with a nonsense message
+		# about a path the workflow "never lists".
+	done < <(printf '%s\n' "${gate_block}" \
+		| sed -n '/^    triggers:$/,/^    [a-z_]*:$/p' \
+		| rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
 done
 
 # Fault-only case data stays separate so the matcher proves these inputs do

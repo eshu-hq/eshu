@@ -42,6 +42,11 @@ on:
       # ifa_fault_generic_shared_intent_lock.sh holds the mandatory
       # non-vacuity precondition the whole change rests on -- without this,
       # weakening that precondition would re-run no gate at all.
+      # The literal stays alongside the glob: the registry lists this exact
+      # path, and the registry-subset-of-workflow lockstep compares trigger
+      # strings rather than expanding globs, so dropping the literal makes the
+      # gate selectable-but-never-started.
+      - 'scripts/lib/ifa_fault_generic_cells.sh'
       - 'scripts/lib/ifa_fault_generic_*.sh'
       - 'scripts/lib/test-ifa-fault-injection-shard-cases.sh'
       # The per-family pin files, sourced by variable path from the pins
@@ -479,6 +484,22 @@ jobs:
   # EVERY shard -- it is the sole writer of digests[baseline], which every
   # other cell compares against in-shell, so re-running it per shard is
   # deliberate rather than plumbing that digest between runners.
+  #
+  # What this drops, and why that is acceptable: before sharding, one process
+  # computed digests[baseline] once and every one of the other 17 cells in
+  # that SAME process compared against it. Now each of the four runners
+  # computes its own cell_baseline digest independently, and nothing in this
+  # workflow compares the four runners' baseline digests to each other -- a
+  # fault-free drive that produced a different digest on runner 2 than on
+  # runner 1 would go unnoticed here. That comparison is not this gate's job:
+  # proving that the same fault-free drive is byte-identical across separate
+  # processes and worker counts is exactly what the sibling
+  # determinism-matrix job above already asserts (N=1,2,4 against the demo-org
+  # and synth-multiscope cassettes). This job assumes that cross-run baseline
+  # determinism and instead proves recovery -- that each fault, injected
+  # against its OWN freshly-computed baseline, still converges to it. If
+  # cross-run baseline determinism itself regressed, the determinism-matrix
+  # job is where it would be caught, not here.
   #
   # The matrix.shard list below must stay in lockstep with
   # IFA_FAULT_SHARD_DEFAULT_N in that library;

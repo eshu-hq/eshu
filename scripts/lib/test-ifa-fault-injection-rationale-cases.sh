@@ -347,7 +347,7 @@ test_ifa_stop_join_failures_preserve_ownership() (
 )
 
 run_ifa_rationale_live_static_cases() {
-	local needle invocation_count
+	local needle
 
 	for needle in \
 		"scripts/lib/ifa_rationale_live.sh" \
@@ -405,14 +405,14 @@ run_ifa_rationale_live_static_cases() {
 		rg --line-regexp --quiet -- "ifa_fault_shard_run ${needle}" "${script}" \
 			|| fail "fault verifier does not invoke ${needle} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
 	done
-	# 18 = the 15 cells this family's gate defined plus the three
-	# deployable_unit-targeted cells (#5993) that landed alongside it. Still a
-	# COUNT pin, not weakened to an existence check: the needle now counts
-	# ifa_fault_shard_run-wrapped dispatch lines, since every one of the
-	# eighteen carries that prefix.
-	invocation_count="$(rg --count --line-regexp -- 'ifa_fault_shard_run cell_[a-z_]+' "${script}")"
-	[[ "${invocation_count}" == "18" ]] \
-		|| fail "fault verifier invokes ${invocation_count} cells via ifa_fault_shard_run, want 18"
+	# The cell-count pin that used to live here MOVED to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh, next to the
+	# hand-authored cell list and the dispatch/list set-equality check (F-4).
+	# It was never about rationale_edges: it guarded the total number of
+	# dispatched cells, so parking it in one family's case module meant a
+	# family author adding cells hit a failure in an unrelated file, bumped
+	# the number, and never saw the checks that actually prove their cells
+	# reach a shard.
 	rg --fixed-strings --quiet -- 'assert_rationale_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \
 		&& fail "delta-retract incorrectly demands baseline rationale truth after driving its delta generation"
 	rg --fixed-strings --quiet -- 'assert_rationale_delta_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \

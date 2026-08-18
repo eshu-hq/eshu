@@ -93,6 +93,50 @@ run_ifa_fault_injection_shard_cases() {
 		|| test_ifa_fault_shard_cases_fail "--list-cells output does not match the hand-authored literal list (see file header) -- actual:
 ${actual_full}"
 
+	# CELL-COUNT PIN (relocated here from
+	# scripts/lib/test-ifa-fault-injection-rationale-cases.sh, F-4). 18 = the
+	# 15 cells the fault gate originally defined plus the three
+	# deployable_unit-targeted cells (#5993). It is a COUNT pin, deliberately
+	# not weakened to an existence check, and it belongs beside the
+	# hand-authored cell list: the person who changes the number is the person
+	# adding cells, and they need to land in this file -- where the literal
+	# list and the set-equality check below will also demand their attention
+	# -- rather than in an unrelated family's module where bumping the number
+	# is the whole fix.
+	local dispatch_count
+	dispatch_count="$(rg --count --line-regexp -- 'ifa_fault_shard_run cell_[a-z_]+' "${script}")"
+	[[ "${dispatch_count}" == "${#ifa_full_cell_list_literal[@]}" ]] \
+		|| test_ifa_fault_shard_cases_fail "gate dispatches ${dispatch_count} cells via ifa_fault_shard_run, but the hand-authored literal list has ${#ifa_full_cell_list_literal[@]}"
+
+	# REVERSE DIRECTION (F-4): every cell the gate DISPATCHES must also be in
+	# the partitioner's cell list. The literal check above only proves the
+	# other way round -- that each of the 18 known names is dispatched -- so a
+	# cell added to the gate's dispatch block but NOT to IFA_FAULT_ALL_CELLS
+	# is assigned to no shard and silently runs in NONE of them, while all
+	# four shards report green. Proven reachable: a dispatched-but-unlisted
+	# cell prints "skipped (not assigned to shard k/n)" for every k and the
+	# gate still exits 0.
+	#
+	# This is not self-referential. The gate's dispatch block and the
+	# partitioner's IFA_FAULT_ALL_CELLS are authored independently, in
+	# different files, by whoever lands a family -- which is exactly the
+	# cross-check rationale this file already accepts for the workflow
+	# matrix-cardinality pin. What makes the old one-directional form
+	# dangerous is that the ONLY thing catching a new dispatch line was the
+	# hardcoded cell-count pin, and that pin lived in an unrelated family's
+	# case module where a family author would never look.
+	local dispatched_cells
+	dispatched_cells="$(rg --only-matching --replace '$1' -- '^ifa_fault_shard_run (\S+)$' "${script}" | sort -u)" \
+		|| test_ifa_fault_shard_cases_fail "could not extract ifa_fault_shard_run dispatch lines from the gate"
+	local listed_cells
+	listed_cells="$(printf '%s\n' "${actual_full}" | sort -u)"
+	[[ "${dispatched_cells}" == "${listed_cells}" ]] \
+		|| test_ifa_fault_shard_cases_fail "gate dispatch block and --list-cells disagree -- a cell dispatched but not listed runs in NO shard (and one listed but not dispatched never runs at all).
+dispatched only:
+$(comm -23 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cells}"))
+listed only:
+$(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cells}"))"
+
 	# DISPATCH-ANCHOR CHECKS (moved here from scripts/test-verify-ifa-fault-injection.sh
 	# to give that file real line-count headroom -- extraction, not deletion;
 	# every comment below is the original, unabridged rationale).
