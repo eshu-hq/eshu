@@ -58,55 +58,42 @@ rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cell
 rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"
 entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
+# shellcheck disable=SC2034  # read indirectly as "${!lib_var}" by the
+# syntax-check loop below, which shellcheck cannot follow.
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
 generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
+table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
+table_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
 
-bash -n "${script}" || fail "verify-ifa-fault-injection.sh has a syntax error"
-bash -n "${fault_lib}" || fail "ifa_fault_injection_common.sh has a syntax error"
-bash -n "${driver_lib}" || fail "ifa_fault_injection_driver.sh has a syntax error"
-bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
-bash -n "${cells_lib}" || fail "ifa_fault_injection_cells.sh has a syntax error"
-bash -n "${sql_cells_lib}" || fail "ifa_fault_injection_sql_cells.sh has a syntax error"
-bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh has a syntax error"
-bash -n "${collateral_nodes_lib}" || fail "ifa_fault_injection_collateral_nodes.sh has a syntax error"
-bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
-bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh has a syntax error"
-bash -n "${code_call_cases_lib}" || fail "test-ifa-fault-injection-code-call-cases.sh has a syntax error"
-bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
-bash -n "${documentation_cells_lib}" || fail "ifa_fault_injection_documentation_cells.sh has a syntax error"
-bash -n "${documentation_barrier_lib}" || fail "ifa_fault_injection_documentation_ack_barrier.sh has a syntax error"
-bash -n "${documentation_barrier_setup_lib}" || fail "ifa_fault_injection_documentation_ack_setup.sh has a syntax error"
+# Syntax-check every sourced library. This was 37 near-identical hand-written
+# lines, so a family that added a lib and forgot to add its line got no syntax
+# check at all -- silently. Driving it from one list makes the coverage total
+# by construction; the failure still names the offending file by basename.
+for lib_var in \
+	script fault_lib driver_lib delta_lib \
+	cells_lib sql_cells_lib delivery_cells_lib collateral_nodes_lib \
+	code_call_lib code_call_cells_lib code_call_cases_lib documentation_lib \
+	documentation_cells_lib documentation_barrier_lib documentation_barrier_setup_lib documentation_cases_lib \
+	deployable_unit_live_lib deployable_unit_diagnostics_lib deployable_unit_converge_lib deployable_unit_lock_lib \
+	deployable_unit_cells_lib review_cases_lib deployable_unit_cases_lib documentation_barrier_cases_lib \
+	documentation_barrier_cleanup_cases_lib rationale_lib rationale_cells_lib rationale_cases_lib \
+	fixtures_lib review_cases_lib entrypoint_cases_lib assertions_lib \
+	shard_lib shard_cases_lib generic_cells_lib table_lock_lib \
+	table_lock_cases_lib; do
+	lib_path="${!lib_var}"
+	bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
+done
 rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "${documentation_barrier_lib}" \
 	|| fail "documentation ACK barrier must source its setup/holder helper"
-bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documentation-cases.sh has a syntax error"
-bash -n "${deployable_unit_live_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
-bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
-bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
-bash -n "${deployable_unit_lock_lib}" || fail "ifa_fault_injection_deployable_unit_lock.sh has a syntax error"
-bash -n "${deployable_unit_cells_lib}" || fail "ifa_fault_injection_deployable_unit_cells.sh has a syntax error"
-bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
-bash -n "${deployable_unit_cases_lib}" || fail "test-ifa-fault-injection-deployable-unit-cases.sh has a syntax error"
-bash -n "${documentation_barrier_cases_lib}" || fail "test-ifa-fault-injection-documentation-ack-barrier-cases.sh has a syntax error"
-bash -n "${documentation_barrier_cleanup_cases_lib}" || fail "test-ifa-fault-injection-documentation-ack-cleanup-cases.sh has a syntax error"
-bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
-bash -n "${rationale_cells_lib}" || fail "ifa_fault_injection_rationale_cells.sh has a syntax error"
-bash -n "${rationale_cases_lib}" || fail "test-ifa-fault-injection-rationale-cases.sh has a syntax error"
-bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
-bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
-bash -n "${entrypoint_cases_lib}" || fail "test-ifa-fault-injection-entrypoint-cases.sh has a syntax error"
-bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
-bash -n "${shard_lib}" || fail "ifa_fault_shard.sh has a syntax error"
-bash -n "${shard_cases_lib}" || fail "test-ifa-fault-injection-shard-cases.sh has a syntax error"
-bash -n "${generic_cells_lib}" || fail "ifa_fault_generic_cells.sh has a syntax error"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
 # The GATE script needs the same guard as this mirror. Its determinism sibling
@@ -465,7 +452,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
@@ -479,6 +466,9 @@ done
 # shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
 run_ifa_fault_injection_marker_cases
+# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh
+source "${table_lock_cases_lib}"
+run_ifa_fault_injection_generic_table_lock_cases
 
 # Shard selector: exact-cover proof, invalid-input rejection, and the
 # CI-wiring/matrix-cardinality cross-checks against the workflow -- module
