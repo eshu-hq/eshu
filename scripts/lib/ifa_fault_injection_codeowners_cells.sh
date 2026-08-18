@@ -1,36 +1,30 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2154
 # codeowners_ownership_edges-targeted live fault cells (#5992), mirroring
-# scripts/lib/ifa_fault_injection_code_call_cells.sh's shape exactly. The
-# sibling this mirrors says "sourced by verify-ifa-fault-injection.sh", which
-# is true there and NOT here -- that driver does not source this file (see
-# NOT YET WIRED below). The cells are written against the contract that driver
-# WILL own once wired: strict mode and the globals (bin_dir, tagged_bin_dir,
-# log_dir, work_dir, use_compose, compose_file, FAULT_COMPOSE_PROJECT,
-# ESHU_POSTGRES_DSN, CLAIMED_ROW_WAIT_TIMEOUT, wall_times, bg_pids, log, die,
-# plus the
-# fresh_stack / drive_all_cassettes / run_drain_gate / assert_no_dead_letters
-# / capture_digest / assert_matches_baseline / teardown_cell helpers from
+# scripts/lib/ifa_fault_injection_code_call_cells.sh's shape exactly.
+# WIRED: scripts/verify-ifa-fault-injection.sh sources this file and runs
+# all three cells (baseline_codeowners, kill-worker-after-claim-codeowners,
+# fail-graph-write-once-then-succeed-codeowners) against a live Postgres +
+# NornicDB stack. The cells rely on the driver's strict mode and globals
+# (bin_dir, tagged_bin_dir, log_dir, work_dir, use_compose, compose_file,
+# FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, CLAIMED_ROW_WAIT_TIMEOUT,
+# wall_times, bg_pids, log, die, plus the fresh_stack / drive_all_cassettes /
+# run_drain_gate / assert_no_dead_letters / capture_digest /
+# assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
 #
-# PARTIALLY EXERCISED: no cell function here runs against a live stack yet
-# (see NOT YET WIRED below), but this file is no longer unread.
-# scripts/lib/test-ifa-fault-injection-codeowners-cases.sh sources it and
-# drives ifa_codeowners_start_fact_records_lock and
+# LIVE-PROVEN: all three cells pass in the 21-cell fault matrix, matching
+# digest across baseline/killworker/failgraphwrite. codeowners_expected_edges
+# and codeowners_edge_operation_match are declared in
+# verify-ifa-fault-injection.sh; codeowners_expected_edges is also declared in
+# verify-ifa-determinism.sh for the determinism-side digest comparison.
+#
+# scripts/lib/test-ifa-fault-injection-codeowners-cases.sh sources this file
+# and drives ifa_codeowners_start_fact_records_lock and
 # ifa_codeowners_release_fact_records_lock under stubs, and
 # scripts/test-verify-ifa-fault-injection.sh runs that module -- so editing
 # either function's fail-closed behavior or its bg_pids bookkeeping will fail
 # `make pre-pr`.
-#
-# NOT YET WIRED (out of scope for this phase, tracked under #5992): a
-# working baseline_codeowners_retried global and a
-# codeowners_edge_operation_match anchor both need to be declared where
-# code_call_materialization's siblings are declared today
-# (cell_baseline in ifa_fault_injection_cells.sh; codeowners_expected_edges
-# and codeowners_edge_operation_match near line 212/234 of
-# verify-ifa-fault-injection.sh; codeowners_expected_edges also near line
-# 175 of verify-ifa-determinism.sh) -- these two cell functions assume they
-# exist. See the #5992 handoff report for the exact line-by-line list.
 #
 # codeowners_ownership_edges is SINGLE-STAGE. An earlier version of this header
 # described a two-stage pipeline and every cell below was built on it; the
