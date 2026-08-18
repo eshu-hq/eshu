@@ -75,6 +75,21 @@ image: seven per-label statements at 12.589s / 11.810s / 12.187s / 11.775s on a
 `ledger:5998-delta-per-label-probe-empty`). Each path is compared only against
 its own same-store, same-host pair.
 
+One cost these rows do not isolate: on a `deleted` outcome the retract now
+acquires the canonical backpressure permit TWICE in sequence -- the probe takes
+one and releases it, then the DELETE takes a fresh one -- where the unguarded
+path acquired once. Under a saturated gate that is a second queue traversal, on
+the one path where the guard saves nothing. It is unmeasured; no run in this
+document was taken against a contended gate. The direction is still favourable
+and does not rest on that measurement. Each probe acquires and releases its own
+permit, so the per-permit hold is roughly 0.02s (the whole-scope probe, which is
+one statement) to 0.04s (the delta path's 0.310s divided across its seven
+per-label probes -- that ledger row is the seven-statement total, not a single
+probe), against the 12-18s a DELETE holds one. Each `skipped` outcome therefore
+removes far more permit occupancy than the extra acquisition on `deleted` adds.
+Permit wait is counted inside the probe's own duration histogram, so a contended
+gate shows up in `probe_duration_seconds` rather than hiding.
+
 No-Regression Evidence: graph truth is unchanged. The Ifá determinism matrix is
 green across N=1/2/4 with digest
 `aa0904cc09da0b95bf78a0f27dd1b5b0e2aec15c371e0077edb81312360a4998`, byte-identical
@@ -376,8 +391,22 @@ and every probe dead-ends in the middle of the chain with all tests green.
 rather than leaving it to review. A companion test,
 `probe_follows_group_repo_scan_test.go`, walks every non-test `.go` file under
 `go/cmd` and `go/internal` for `ExecuteGroup` receivers and requires a
-package-scoped `ExecuteProbe`, so a newly added wrapper anywhere in the tree
-cannot be silently omitted from the table.
+package-scoped `ExecuteProbe`, so a newly added wrapper in either of those two
+roots cannot be silently omitted from the table.
+
+That scan's reach is worth stating exactly, because a gate with an unstated
+blind spot is worse than no gate. It reads source text and never constructs a
+type, so unlike the in-package table it does NOT skip files behind the
+`ifafaultinjection` build tag -- which matters, since `ifa_fault_wiring.go`
+defines `ifaExecutorRetryArmedExecutor`, a real wrapper in the live reducer
+chain, under exactly that tag. The scan as it shipped in #6165 inherited the
+in-package skip and could not see that wrapper; the exclusion is removed in the
+follow-up that carries this paragraph, not in #6165 itself, and the removal was
+proven by deleting that wrapper's `ExecuteProbe` and watching the scan go red.
+Two limits remain and are not claimed away: the walk covers only `go/cmd` and
+`go/internal` (no `ExecuteGroup` receiver lives outside them today), and its
+receiver regex does not match generic type parameters, so a
+`func (w *Wrapper[T]) ExecuteGroup(` receiver would not be seen.
 
 The rule is not universal in practice, and the exceptions are deliberate rather
 than overlooked. That repo scan carries an allowlist, and three of its five
@@ -493,6 +522,53 @@ What it still does not cover: it exercises single-node NornicDB, so it cannot
 exercise the routed-follower case that motivates `AccessModeWrite` — the
 in-source comment on `QueryCypherExists` already says so, and the direction of
 that change is strictly safer either way.
+
+## Follow-up: the six review findings closed after merge
+
+#6165 squash-merged before the review fixes were pushed, so six findings landed
+against already-merged code and are closed in a follow-up rather than in #6165
+itself. Two were live gaps, not documentation debt: the repo-wide
+`ExecuteGroup` -> `ExecuteProbe` scan could not see `ifaExecutorRetryArmedExecutor`
+because it skipped `ifafaultinjection`-tagged files, and the collector
+disjointness test collapsed its rows through a degenerate acceptance key
+(`SourceRunID` empty, so `AcceptanceKey` returned `ok=false`) -- a shape
+`FilterAuthoritativeIntents` drops one stage before dedup, so the test proved
+nothing about the production path. The other four were a missing `AccessModeWrite`
+regression test and three inaccurate comments.
+
+No-Regression Evidence: this follow-up changes no runtime behavior, so there is
+nothing to measure and no baseline to compare against. The claim is that the
+production code paths are untouched, and that was verified rather than asserted:
+`git diff -U0 31b7b123f..HEAD` over the three non-test Go files, with the diff
+markers stripped, shows zero changed lines that are not comments. The only
+non-test Go edits are comment text -- `instruments.go` (the
+`unsupported` vs `probe_error` correction) and
+`shared_projection_worker_refresh_fence.go` (the literal-site count) -- plus a
+godoc block on `collectWholeScopeRefreshRepoIDs`. Every other change is a test
+file. No statement, parameter, batch bound, executor wiring, retry policy, lease,
+or worker knob moves, so the retract path issues the same Cypher with the same
+parameters against the same pinned NornicDB image
+(`eshu-nornicdb-pr290:3722b483c02c`) as the merged #6165. The performance figures
+earlier in this document therefore still describe the shipped code exactly, and
+are not re-measured here; re-running them would produce numbers for identical
+statements. Terminal queue state and row counts are likewise unchanged, since no
+row is produced or consumed differently. What was proven instead is that each
+new guard fails when the thing it guards is broken: deleting `ExecuteProbe` from
+`ifaExecutorRetryArmedExecutor` turns the scan red naming that wrapper, blanking
+`SourceRunID` turns the shape guard red, and replacing the `delta_projection`
+exclusion with `if false` turns the disjointness assertion red. Each returns to
+green on restore, with a clean tree.
+
+No-Observability-Change: no instrument, label, or bounded label value is added,
+removed, or renamed. `RationaleRetractProbeOutcomes` keeps the same two
+dimensions and the same four `outcome` values (`skipped`, `deleted`,
+`unsupported`, `probe_error`) and two `scope` values (`whole_scope`,
+`delta_by_file_path`). The `instruments.go` edit corrects prose that told an
+operator the wrong thing -- it said a forwarding gap partway down the executor
+chain reports `unsupported`, when every wrapper below the outermost one returns
+an error and so reports `probe_error`. Dashboards, alerts, and the telemetry
+coverage contract are unaffected; `scripts/verify-telemetry-coverage.sh` still
+reports the coverage doc and `instruments.go` in agreement.
 
 ## Verification
 

@@ -21,11 +21,16 @@ import (
 // of its own; filterUpsertRows drops it from writes because its action is
 // repoRefreshAction.
 //
-// Two further production sites emit the same value as a hard-coded literal
-// rather than through this constant: code_call_materialization_intents.go and
-// code_call_projection_work.go. They are DomainCodeCalls rows and never reach
-// collectWholeScopeRefreshRepoIDs, so they are not a live drift hazard for the
-// rationale guard, but they are copies and should migrate to this constant.
+// Four further production sites spell the same value as a hard-coded literal
+// rather than through this constant. Two EMIT it --
+// code_call_materialization_intents.go and code_call_projection_work.go -- and
+// two COMPARE against it: code_call_projection_partitions.go, and
+// storage/postgres/shared_intents_history.go, where it decides
+// rowCanBeCoveredByFileRefresh. All four are DomainCodeCalls-side and never
+// reach collectWholeScopeRefreshRepoIDs, so none is a live drift hazard for the
+// rationale guard, but they are copies and should migrate to this constant. A
+// drifted comparison site is the same hazard as a drifted emitter: it fails
+// silently, matching nothing rather than erroring.
 //
 // Exported because the graph-write side reads it back: storage/cypher's
 // rationale retract collects whole-scope repository ids by matching this
@@ -33,7 +38,7 @@ import (
 // the whole-scope retract would silently stop running, and stale EXPLAINS edges
 // would persist with no error and no dead letter. One definition shared by that
 // predicate and the five emitters above is what keeps that from being possible
-// (#5998); the two literals noted above are the remaining exception.
+// (#5998); the four literal sites noted above are the remaining exception.
 const (
 	RepoRefreshIntentType = "repo_refresh"
 	repoRefreshAction     = "refresh"

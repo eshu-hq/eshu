@@ -4,7 +4,6 @@
 package cypher
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,15 +55,26 @@ type receiverTypeSite struct {
 	pkgDir   string
 }
 
-// scanExecuteGroupAndProbeReceivers walks every .go file under go/cmd and
-// go/internal (skipping _test.go files and files gated behind the
-// ifafaultinjection build tag, the same exclusions
-// executeGroupReceiverTypesFromSource applies within this package) and
-// returns every ExecuteGroup receiver found, plus a set recording which
-// (package directory, type name) pairs also have an ExecuteProbe receiver
-// somewhere in that same package. The Probe lookup is package-scoped, not
-// file-scoped: a type's two methods do not have to live in the same file for
-// this check to see both.
+// scanExecuteGroupAndProbeReceivers walks every non-_test.go file under
+// go/cmd and go/internal and returns every ExecuteGroup receiver found, plus
+// a set recording which (package directory, type name) pairs also have an
+// ExecuteProbe receiver somewhere in that same package. The Probe lookup is
+// package-scoped, not file-scoped: a type's two methods do not have to live
+// in the same file for this check to see both.
+//
+// Unlike executeGroupReceiverTypesFromSource (probe_follows_group_test.go,
+// this package's in-package scan), this walk does NOT skip files gated behind
+// the ifafaultinjection build tag (#6165 review F3). That in-package scan's
+// skip exists because it feeds wrapperProbeFollowsGroupCases, a
+// construct-and-assert table in an untagged file that cannot reference a
+// tag-gated type without the build tag -- a real constraint. This scan has no
+// such constraint: it is a pure source-text regex match over raw file bytes,
+// never compiled or constructed, so it can and must see tag-gated production
+// files too. Copying the in-package skip here previously left
+// cmd/reducer/ifa_fault_wiring.go's ifaExecutorRetryArmedExecutor -- a real
+// wrapper in the live reducer executor chain under the ifafaultinjection tag
+// -- structurally invisible to the one gate meant to catch exactly this bug
+// class: a decorator that forwards ExecuteGroup but not ExecuteProbe.
 func scanExecuteGroupAndProbeReceivers(t *testing.T) (groupReceivers []receiverTypeSite, hasProbe map[string]bool) {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -88,9 +98,6 @@ func scanExecuteGroupAndProbeReceivers(t *testing.T) (groupReceivers []receiverT
 			src, readErr := os.ReadFile(path)
 			if readErr != nil {
 				return readErr
-			}
-			if bytes.Contains(src, []byte("//go:build ifafaultinjection")) {
-				return nil
 			}
 			pkgDir, relErr := filepath.Rel(goModuleRoot, filepath.Dir(path))
 			if relErr != nil {
@@ -124,8 +131,10 @@ func scanExecuteGroupAndProbeReceivers(t *testing.T) (groupReceivers []receiverT
 // This test takes the same invariant -- a decorator that forwards
 // ExecuteGroup must also forward ExecuteProbe -- and checks it the one way
 // that works across package boundaries without construction: purely by
-// source text, walking every non-test, non-tag-gated .go file under go/cmd
-// and go/internal and asserting that every type with an ExecuteGroup
+// source text, walking every non-test .go file under go/cmd and go/internal,
+// including files gated behind a build tag such as ifafaultinjection (#6165
+// review F3 -- see scanExecuteGroupAndProbeReceivers for why this scan does
+// not skip them), and asserting that every type with an ExecuteGroup
 // receiver also has an ExecuteProbe receiver SOMEWHERE in the same package,
 // unless it is named in executeGroupProbeAllowlist with a reason. It cannot
 // prove the forwarding is behaviorally correct (only TestWrapperProbeFollowsGroup's

@@ -73,6 +73,34 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // a strictly new over-delete that the pre-#5998 file-scoped path never
 // performed. Requiring the refresh intent_type keeps the whole-repository
 // delete bound to rows that actually asked for a whole-repository refresh.
+//
+// #6165 review F1: this function and its sibling collectDeltaProjectionRepoIDs
+// are not provably disjoint from each other's output by anything IN THIS FILE
+// -- neither collector is aware of the other's rows. They are disjoint today
+// only because of an UPSTREAM property: reducer.LatestIntentsByRepoAndPartition
+// dedupes intents by (acceptance key, partition key), and every rationale
+// whole-scope refresh -- delta-flagged or not -- is emitted under the same
+// per-repository partition key (rationaleWholeScopePartitionKey, which carries
+// no delta/generation component), so at most one refresh row per repository
+// survives a batch.
+//
+// TWO upstream mechanisms carry that, not one, and BOTH must hold.
+// reducer.FilterAuthoritativeIntents runs first and keeps only rows matching the
+// accepted generation for their acceptance key, so every row that reaches dedup
+// for a repository already shares one (scope, unit, run) tuple; the shared
+// partition key then collapses that set to a single survivor. The shared
+// partition key ALONE is not sufficient -- two refresh rows for one repository
+// differing in SourceRunID would both survive dedup on their own.
+//
+// This therefore breaks if EITHER mechanism moves: a future change giving the
+// delta variant its own partition key, two accepted generations live at once for
+// one acceptance key, or dedup reordered ahead of the authoritative filter. In
+// any of those cases both rows survive and reach this file, and a repository
+// lands in both collectors' output: its delta files get rewritten AND its entire
+// EXPLAINS set is deleted repo-wide in the same batch, silently -- no error, no
+// dead letter. See
+// TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup, which
+// asserts both the collapse and the production-shaped acceptance key it needs.
 func collectWholeScopeRefreshRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string

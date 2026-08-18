@@ -395,6 +395,44 @@ func TestQueryCypherExistsPassesTransactionConfigurers(t *testing.T) {
 	}
 }
 
+// TestQueryCypherExistsUsesAccessModeWrite guards the correctness choice the
+// in-source comment right above the session.Run call documents (#6165 review
+// F2): both callers of QueryCypherExists -- the rationale retract probe guard
+// and CanonicalNodeChecker -- read in order to decide whether to mutate, and
+// neither session shares a BookmarkManager with the write session that
+// follows it. On a routed Neo4j deployment, an AccessModeRead session can be
+// served by a lagging follower and report zero rows for edges already
+// committed on the leader. For the probe guard that lands on exactly the
+// outcome the whole design exists to prevent: the guard skips the DELETE and
+// records an ordinary `skipped`, indistinguishable from a correct skip, while
+// stale edges are left behind. AccessModeWrite keeps the read on the leader.
+// If a future edit ever "simplifies" this to AccessModeRead because the
+// statement itself is read-only, this test goes RED.
+func TestQueryCypherExistsUsesAccessModeWrite(t *testing.T) {
+	t.Parallel()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+	sourcePath := filepath.Join(filepath.Dir(filename), "neo4j_wiring.go")
+	source, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", sourcePath, err)
+	}
+
+	body, ok := extractFuncBody(string(source), "func (r neo4jSessionRunner) QueryCypherExists(")
+	if !ok {
+		t.Fatal("QueryCypherExists function body not found in neo4j_wiring.go")
+	}
+	if !strings.Contains(body, "neo4jdriver.AccessModeWrite") {
+		t.Fatalf("QueryCypherExists does not specify neo4jdriver.AccessModeWrite -- a routed Neo4j read-mode session for this probe/pre-flight read can be served by a lagging follower and report zero rows for edges already committed on the leader, which for the rationale retract probe guard means a skipped DELETE recorded as an ordinary `skipped` while stale edges are left behind:\n%s", body)
+	}
+	if strings.Contains(body, "neo4jdriver.AccessModeRead") {
+		t.Fatalf("QueryCypherExists specifies neo4jdriver.AccessModeRead, want AccessModeWrite (see the correctness-choice comment above session.Run in neo4j_wiring.go):\n%s", body)
+	}
+}
+
 // extractFuncBody returns the source text from signature (a unique function
 // signature prefix) up to the next top-level "\nfunc " boundary, or ok=false
 // if signature is not found. It is a crude brace-agnostic slice, sufficient
