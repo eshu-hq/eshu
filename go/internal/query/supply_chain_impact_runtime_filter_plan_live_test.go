@@ -11,6 +11,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+	// Registers the "pgx" driver this test opens by name. Other files in this
+	// package also blank-import it, so the driver would resolve without this
+	// line today -- but only by accident of what else compiles into the test
+	// binary. Without it, removing a sibling import or moving this file to an
+	// external package_test turns the failure into sql: unknown driver "pgx",
+	// visible only when ESHU_POSTGRES_TEST_DSN is set, so CI would skip green.
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
