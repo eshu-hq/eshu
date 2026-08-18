@@ -66,30 +66,34 @@ shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.s
 generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
 table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
 table_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
+# The dispatcher self-sources these two by variable path, so nothing else in
+# this mirror named them and the derived syntax loop below could not see them.
+# shared_intent_lock holds _ifa_generic_require_intent_writer, the mandatory
+# non-vacuity precondition this change rests on.
+generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
+generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
 
-# Syntax-check every sourced library. This was 37 near-identical hand-written
-# lines, so a family that added a lib and forgot to add its line got no syntax
-# check at all -- silently. Driving it from one list makes the coverage total
-# by construction; the failure still names the offending file by basename.
-for lib_var in \
-	script fault_lib driver_lib delta_lib \
-	cells_lib sql_cells_lib delivery_cells_lib collateral_nodes_lib \
-	code_call_lib code_call_cells_lib code_call_cases_lib documentation_lib \
-	documentation_cells_lib documentation_barrier_lib documentation_barrier_setup_lib documentation_cases_lib \
-	deployable_unit_live_lib deployable_unit_diagnostics_lib deployable_unit_converge_lib deployable_unit_lock_lib \
-	deployable_unit_cells_lib review_cases_lib deployable_unit_cases_lib documentation_barrier_cases_lib \
-	documentation_barrier_cleanup_cases_lib rationale_lib rationale_cells_lib rationale_cases_lib \
-	fixtures_lib review_cases_lib entrypoint_cases_lib assertions_lib \
-	shard_lib shard_cases_lib generic_cells_lib table_lock_lib \
-	table_lock_cases_lib; do
+# Syntax-check every declared library, derived from the *_lib variables above
+# rather than a hand-typed list. The hand-typed form was 37 names and had the
+# exact failure it was meant to prevent: ifa_fault_generic_shared_intent_lock.sh
+# and ifa_fault_generic_runner_wait.sh -- the first of which holds the mandatory
+# non-vacuity precondition this whole change rests on -- were introduced by this
+# same branch and never added to it, so a syntax error or a truncating edit in
+# either surfaced only in the ~22-minute live Docker shard. Deriving the list
+# from the declarations makes the coverage total for real, instead of a comment
+# claiming it is.
+for lib_var in $(compgen -v | rg '_lib$' | sort); do
 	lib_path="${!lib_var}"
+	# Skip anything that is not an existing file: a few *_lib names hold
+	# fragments or directories rather than scripts.
+	[[ -f "${lib_path}" ]] || continue
 	bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
 done
 rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "${documentation_barrier_lib}" \
@@ -452,7 +456,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
