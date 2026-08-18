@@ -9,9 +9,10 @@
 3. `go/cmd/eshu/scan.go` — the thin cobra `RunE` wrapper. `defaultScanRuntime`
    there is where every process seam is wired; it is the file that shows how
    the two halves fit together.
-4. `go/cmd/eshu/first_run_index.go` and `go/cmd/eshu/vuln_scan.go` — the two
-   other production callers of `Execute`, and the reason its exported surface
-   is wider than `eshu scan` alone needs.
+4. `go/cmd/eshu/first_run_index.go` and `go/internal/cli/vulnscan/run.go`
+   (`RunRepo`, with the `scan.Runtime` wired by `go/cmd/eshu/vuln_scan.go`) —
+   the two other production callers of `Execute`, and the reason its exported
+   surface is wider than `eshu scan` alone needs.
 
 ## Invariants this package enforces
 

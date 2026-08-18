@@ -5,11 +5,13 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
 
 ## Read first
 
-1. [`doc.go`](doc.go) — the package contract and the two seams that exist
+1. [`doc.go`](doc.go) — the package contract and the three seams that exist
    because their concrete types live in package main.
-2. [`README.md`](README.md) — ownership boundary, invariants, and why
-   `Result.Scan` is `any`.
-3. [`go/cmd/eshu/vuln_scan.go`](../../../cmd/eshu/vuln_scan.go) and
+2. [`README.md`](README.md) — ownership boundary, invariants, which document
+   each outcome writes, and why `Result.Scan` is `any`.
+3. [`run.go`](run.go) and [`finish.go`](finish.go) — `RunRepo`, the repo
+   subcommand end to end, and the output-selection rules behind it.
+4. [`go/cmd/eshu/vuln_scan.go`](../../../cmd/eshu/vuln_scan.go) and
    [`vuln_scan_provider_parity.go`](../../../cmd/eshu/vuln_scan_provider_parity.go)
    — the cobra wrappers, and the only consumers.
 
@@ -23,12 +25,23 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
   on top of `not_configured`, `target_incomplete`, `evidence_incomplete`, or
   `readiness_unavailable`.
 - **No cobra, no process environment for decisions, no exit codes.** Flags,
-  streams, `os.Getenv` lookups that drive behavior, and the mapping onto
-  `commandExitError` all belong in `go/cmd/eshu`. The one environment read here
-  is `os.Getenv` passed to `localsupervisor.ChildOverrides` when composing a
-  child process environment, which is how `localsupervisor` composes its own.
-  Guard the rule with
-  `go list -deps ./internal/cli/vulnscan | rg spf13` — it must print nothing.
+  the process streams, `os.Getenv` lookups that drive behavior, and the mapping
+  onto `commandExitError` all belong in `go/cmd/eshu`. `RunRepo` returns a
+  `*Failure` for a scanner verdict and a plain error otherwise; it writes only
+  to the writers in `RepoDeps`. The one direct environment read here is
+  `os.Getenv` passed to `localsupervisor.ChildOverrides` when composing a
+  child process environment, which is how `localsupervisor` composes its own;
+  the truth fallback in `finishRepo` also reads `ESHU_GRAPH_BACKEND` through
+  `scan.CurrentGraphBackend`, as provenance. Guard the rule with
+  `go list -deps ./internal/cli/vulnscan | rg spf13` — it must print nothing —
+  and with `doc_lockstep_test.go`, which pins the direct imports and the `os`
+  and `fmt` calls; widen its sets only alongside the docs.
+- **The exit codes 3/4/5 and their messages are the published contract, and
+  the failure paths are the proof.** A change to `RunRepo` or `finishRepo` is
+  proven by `TestRunRepoOutcomeContract` and
+  `TestRunRepoOutputSelectionByOutcome`, which drive the real `RunRepo` through
+  every verdict, plus the wrapper's own tests in `go/cmd/eshu`. A happy-path
+  test proves almost nothing here.
 - **The JSON envelope and the report are a wire contract.** Field names, field
   order, and `omitempty` are what operators and their tooling parse. Changing
   the report shape needs a new `ReportSchemaVersion`, not an edit to the
@@ -47,8 +60,14 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
   Three writers read the same finding map; a field added to one and not the
   others is the drift this package is easiest to get wrong on.
 - **New exit class:** `ExitClassification` and `ExitMessage` in `exit.go`, and
-  the scanner-exit predicate in `go/cmd/eshu/vuln_scan.go`, which lists the
-  codes a report is still written for.
+  `isScannerExit` in `finish.go`, which lists the codes a report is still
+  written for. Add the new class to `TestRunRepoOutcomeContract` with its
+  message.
+- **New step in the repo run:** add it to `RunRepo` between the existing
+  steps, give its failure the readiness state the envelope should report, and
+  return through `finishRepoAfterCleanup` so the local runtime is stopped and
+  the document is still written. A new process dependency goes in `RepoDeps`,
+  wired by the wrapper, not read here.
 - **Local runtime change:** the seams are package variables so tests can drive
   startup without binding ports. Keep new steps behind a seam, keep that seam
   unexported (`PrepareLocalRuntime` is the only one the wrapper reads), and keep

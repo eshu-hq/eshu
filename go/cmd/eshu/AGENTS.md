@@ -39,8 +39,12 @@
    every `eshu graph` subcommand's logic is in
    `go/internal/cli/localsupervisor`; the repository-selector matching rules
    behind the `analyze` family's `--repo` and `vuln-scan repo`'s scanned root
-   are in `go/internal/cli/reposelector`. Read the target package's
-   `AGENTS.md` before changing the wrapper that calls it.
+   are in `go/internal/cli/reposelector`; the `vuln-scan repo` run itself —
+   scan, resolution, findings read, guards, output document — is
+   `vulnscan.RunRepo` in `go/internal/cli/vulnscan`, and `vuln_scan.go` keeps
+   only the flags, the local-runtime decision, the API client, and the
+   `*vulnscan.Failure` to `commandExitError` mapping. Read the target
+   package's `AGENTS.md` before changing the wrapper that calls it.
 
 ## Invariants this package enforces
 
