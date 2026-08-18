@@ -46,7 +46,7 @@ func TestScanWaitFlagIsRegisteredWhereItIsPrinted(t *testing.T) {
 				t.Fatalf("rootCmd.Find(%v) error = %v, want nil", tc.path, err)
 			}
 			if cmd.Flags().Lookup(scan.WaitFlag) == nil {
-				t.Fatalf("%v does not register --%s; internal/cli/vulnscan tells the operator to rerun with --%s=true, so that flag must exist here", tc.path, scan.WaitFlag, scan.WaitFlag)
+				t.Fatalf("%v does not register --%s; internal/cli/vulnscan prints \"rerun with --%s=true\", so an operator following that message has no such flag", tc.path, scan.WaitFlag, scan.WaitFlag)
 			}
 		})
 	}
