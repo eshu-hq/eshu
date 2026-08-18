@@ -322,7 +322,6 @@ require (
 	github.com/jupiterrider/ffi v0.6.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
@@ -387,3 +386,5 @@ replace github.com/eshu-hq/eshu/sdk/go/collector => ../sdk/go/collector
 replace github.com/eshu-hq/eshu/sdk/go/factschema => ../sdk/go/factschema
 
 replace github.com/tree-sitter/tree-sitter-elixir => github.com/elixir-lang/tree-sitter-elixir v0.3.5
+
+replace github.com/fergusstrange/embedded-postgres => github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1
