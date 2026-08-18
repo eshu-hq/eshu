@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestBackfillDeferredPassExcludesSelfRepoIDMatch is the issue #3659 regression
@@ -123,13 +123,13 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	if len(args) != 7 {
 		t.Fatalf("deferred fact query args count = %d, want 7 (non-repo_id anchors, repo_id values, scope_id, generation_id, own-excluded regex, own repo_id, repo_id reference keys)", len(args))
 	}
-	nonRepoIDTerms, ok := args[0].(pq.StringArray)
+	nonRepoIDTerms, ok := args[0].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("deferred query arg[0] type = %T, want pq.StringArray", args[0])
+		t.Fatalf("deferred query arg[0] type = %T, want pgarray.StringArray", args[0])
 	}
-	repoIDTerms, ok := args[1].(pq.StringArray)
+	repoIDTerms, ok := args[1].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("deferred query arg[1] type = %T, want pq.StringArray", args[1])
+		t.Fatalf("deferred query arg[1] type = %T, want pgarray.StringArray", args[1])
 	}
 	if _, ok := args[2].(string); !ok {
 		t.Fatalf("deferred query arg[2] (scope_id) type = %T, want string", args[2])
@@ -143,9 +143,9 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	if _, ok := args[5].(string); !ok {
 		t.Fatalf("deferred query arg[5] ($6 own repo_id hint) type = %T, want string", args[5])
 	}
-	repoIDKeys, ok := args[6].(pq.StringArray)
+	repoIDKeys, ok := args[6].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("deferred query arg[6] ($7 repo_id reference keys) type = %T, want pq.StringArray", args[6])
+		t.Fatalf("deferred query arg[6] ($7 repo_id reference keys) type = %T, want pgarray.StringArray", args[6])
 	}
 	if len(repoIDKeys) != len(repoIDTerms) {
 		t.Fatalf("deferred query arg[6] keys = %d, want one key per repo_id term (%d)", len(repoIDKeys), len(repoIDTerms))

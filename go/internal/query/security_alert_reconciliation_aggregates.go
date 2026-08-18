@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // SecurityAlertReconciliationAggregateStore reads cheap-summary aggregates
@@ -133,14 +133,14 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) CountSecurityAlertRec
 	}
 
 	args := []any{
-		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		pgarray.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, securityAlertReconciliationAggregateTotalQuery, args...)
@@ -223,14 +223,14 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) SecurityAlertReconcil
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
-		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		pgarray.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

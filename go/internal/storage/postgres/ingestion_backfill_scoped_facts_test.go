@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // contentFactRow builds the 16-column fact_records projection row that
@@ -70,9 +70,9 @@ func TestLoadOnboardedRepoScopedRelationshipFactsPassesAnchorsAndScans(t *testin
 	if len(call.args) != 1 {
 		t.Fatalf("query args = %d, want 1", len(call.args))
 	}
-	likeArgs, ok := call.args[0].(pq.StringArray)
+	likeArgs, ok := call.args[0].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("query arg type = %T, want pq.StringArray", call.args[0])
+		t.Fatalf("query arg type = %T, want pgarray.StringArray", call.args[0])
 	}
 	if len(likeArgs) != 1 || likeArgs[0] != "%payments-service%" {
 		t.Fatalf("LIKE args = %v, want [%%payments-service%%]", []string(likeArgs))

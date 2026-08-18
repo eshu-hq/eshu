@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -176,7 +176,7 @@ func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (
 	}
 	args := []any{}
 	factKinds := serviceStoryTargetSupportFactKinds()
-	args = append(args, pq.Array(factKinds))
+	args = append(args, pgarray.Array(factKinds))
 	clauses := []string{
 		"fact.fact_kind = ANY($1::text[])",
 		"fact.is_tombstone = FALSE",

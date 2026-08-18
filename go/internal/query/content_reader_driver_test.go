@@ -234,7 +234,7 @@ func contentReaderQueryContainsInOrder(query string, fragments []string) error {
 // contentReaderCheckArgs asserts args carries exactly the values in want, in
 // the same $1, $2, ... order. A nil want skips the check -- most fake-driver
 // tests only assert query text, and want stays nil for them. args is already
-// past driver.DefaultParameterConverter (a pq.Array argument arrives here as
+// past driver.DefaultParameterConverter (a pgarray.Array argument arrives here as
 // the array's already-converted literal string, not the original slice), so
 // want must hold the converted form too.
 func contentReaderCheckArgs(args []driver.NamedValue, want []driver.Value) error {

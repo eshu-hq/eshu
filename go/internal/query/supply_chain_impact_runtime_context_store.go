@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // Runtime-context fact kinds read at query time (#5746). cicdRunCorrelationFactKind
@@ -123,10 +123,10 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	rows, err := s.DB.QueryContext(
 		ctx,
 		selectSupplyChainImpactRuntimeContextQuery,
-		pq.Array(supplyChainImpactRuntimeContextFactKinds),
-		pq.Array(repositoryIDs),
-		pq.Array(allowedRepositoryIDs),
-		pq.Array(allowedScopeIDs),
+		pgarray.Array(supplyChainImpactRuntimeContextFactKinds),
+		pgarray.Array(repositoryIDs),
+		pgarray.Array(allowedRepositoryIDs),
+		pgarray.Array(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -75,12 +75,12 @@ func quiescentScopes(scopeIDs ...string) []stubProducerScope {
 	return scopes
 }
 
-// collectorKindArgument unwraps the pq.StringArray the probe binds to $1.
+// collectorKindArgument unwraps the pgarray.StringArray the probe binds to $1.
 func collectorKindArgument(args []any) []string {
 	if len(args) == 0 {
 		return nil
 	}
-	kinds, ok := args[0].(pq.StringArray)
+	kinds, ok := args[0].(pgarray.StringArray)
 	if !ok {
 		return nil
 	}

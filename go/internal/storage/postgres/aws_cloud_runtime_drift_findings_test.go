@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestAWSCloudRuntimeDriftFindingStoreListsActiveScopedFindings(t *testing.T) {
@@ -224,7 +224,7 @@ func TestAWSCloudRuntimeDriftFindingStoreCapsLimit(t *testing.T) {
 // Scoped=true and asserts the `fact.scope_id = ANY($N)` grant predicate is
 // (1) present, (2) AND-combined with the account predicate (not OR), (3) at
 // the correct positional-parameter index, and (4) bound to the exact
-// pq.StringArray grant value. The handler-layer fakeIaCManagementStore proofs
+// pgarray.StringArray grant value. The handler-layer fakeIaCManagementStore proofs
 // reimplement this filter one layer above the real store and never invoke
 // this builder, so a mis-ordered $N, an OR-instead-of-AND, or a dropped
 // predicate would ship undetected without this test.
@@ -263,7 +263,7 @@ func TestAWSCloudRuntimeDriftFindingStoreScopedGrantBindsScopePredicate(t *testi
 	if strings.Contains(query, " OR ") {
 		t.Fatalf("query must not OR-combine the scope grant predicate: %s", query)
 	}
-	if got, want := db.queries[0].args[2], pq.StringArray(grant); !reflect.DeepEqual(got, want) {
+	if got, want := db.queries[0].args[2], pgarray.StringArray(grant); !reflect.DeepEqual(got, want) {
 		t.Fatalf("scope grant arg = %#v, want %#v", got, want)
 	}
 }

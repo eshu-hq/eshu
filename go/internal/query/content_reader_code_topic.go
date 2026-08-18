@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -143,7 +143,7 @@ func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) 
 		// caller); a nil/empty list leaves the search unrestricted.
 		if len(req.AllowedRepositoryIDs) > 0 {
 			filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
-			args = append(args, pq.Array(req.AllowedRepositoryIDs))
+			args = append(args, pgarray.Array(req.AllowedRepositoryIDs))
 			nextArg++
 		}
 	}

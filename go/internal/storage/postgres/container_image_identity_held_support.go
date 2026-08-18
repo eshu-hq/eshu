@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // ContainerImageIdentityHeldSupportStore reads the bounded prior authority
@@ -47,7 +47,7 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 		scopeID,
 		generationID,
 		activationEpoch,
-		pq.Array(imageRefs),
+		pgarray.Array(imageRefs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query held container image identity supports: %w", err)
@@ -67,14 +67,14 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 			&support.SourceRevisionProvenance,
 			&support.Reason,
 			&support.CanonicalWrites,
-			pq.Array(&support.SourceRepositoryIDs),
-			pq.Array(&support.BuildProvenanceRepositoryIDs),
-			pq.Array(&support.BaseImageForRepositoryIDs),
-			pq.Array(&support.WorkloadIDs),
-			pq.Array(&support.ServiceIDs),
-			pq.Array(&support.SourceLayers),
-			pq.Array(&support.EvidenceFactIDs),
-			pq.Array(&support.MissingEvidence),
+			pgarray.Array(&support.SourceRepositoryIDs),
+			pgarray.Array(&support.BuildProvenanceRepositoryIDs),
+			pgarray.Array(&support.BaseImageForRepositoryIDs),
+			pgarray.Array(&support.WorkloadIDs),
+			pgarray.Array(&support.ServiceIDs),
+			pgarray.Array(&support.SourceLayers),
+			pgarray.Array(&support.EvidenceFactIDs),
+			pgarray.Array(&support.MissingEvidence),
 		); err != nil {
 			return nil, fmt.Errorf("scan held container image identity support: %w", err)
 		}

@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const serviceCatalogCorrelationFactKind = "reducer_service_catalog_correlation"
@@ -110,8 +110,8 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 		filter.DriftStatus,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list service catalog correlations: %w", err)
@@ -158,7 +158,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 		ctx,
 		listServiceCatalogLocalDescriptorEvidenceQuery,
 		serviceCatalogGitRepositoryScopeID(repositoryID),
-		pq.Array(facts.ServiceCatalogFactKinds()),
+		pgarray.Array(facts.ServiceCatalogFactKinds()),
 		limit,
 	)
 	if err != nil {

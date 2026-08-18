@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -100,7 +100,7 @@ func (cr *ContentReader) ListRepoEntitiesByTypes(ctx context.Context, repoID str
 		WHERE repo_id = $1 AND entity_type = ANY($2::text[])
 		ORDER BY relative_path, start_line, entity_id
 		LIMIT $3
-	`, repoID, pq.Array(entityTypes), limit)
+	`, repoID, pgarray.Array(entityTypes), limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo entities by types: %w", err)

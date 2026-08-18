@@ -13,7 +13,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestStatusStoreReadRawSnapshot(t *testing.T) {
@@ -460,13 +460,13 @@ func (r *fakeRows) Scan(dest ...any) error {
 			default:
 				return fmt.Errorf("row[%d] type = %T, want time.Time or nil", i, row[i])
 			}
-		case *pq.StringArray:
+		case *pgarray.StringArray:
 			switch value := row[i].(type) {
 			case nil:
-				*target = pq.StringArray{}
+				*target = pgarray.StringArray{}
 			case []string:
-				*target = pq.StringArray(value)
-			case pq.StringArray:
+				*target = pgarray.StringArray(value)
+			case pgarray.StringArray:
 				*target = value
 			default:
 				return fmt.Errorf("row[%d] type = %T, want string array", i, row[i])

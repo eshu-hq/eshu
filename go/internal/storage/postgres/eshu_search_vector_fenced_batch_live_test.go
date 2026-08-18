@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/lib/pq"
 )
 
 // TestEshuSearchVectorFencedBatchRejectsStaleWorkerLive proves that vector
@@ -250,7 +250,7 @@ func assertFencedVectorRowLive(
 SELECT vector_values, updated_at
 FROM eshu_search_vector_values
 WHERE scope_id=$1 AND generation_id=$2 AND document_id=$3`,
-		scopeID, generationID, documentID).Scan(pq.Array(&vector), &valueUpdatedAt); err != nil {
+		scopeID, generationID, documentID).Scan(pgarray.Array(&vector), &valueUpdatedAt); err != nil {
 		t.Fatalf("read vector value: %v", err)
 	}
 	if fmt.Sprint(vector) != fmt.Sprint(wantVector) || !valueUpdatedAt.Equal(wantUpdatedAt) {

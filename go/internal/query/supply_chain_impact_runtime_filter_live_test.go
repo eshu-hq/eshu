@@ -10,8 +10,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	_ "github.com/lib/pq"
 )
 
 const (
@@ -41,7 +39,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5747 scoped runtime-filter proof")
 	}
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}

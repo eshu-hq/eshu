@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
@@ -60,9 +60,9 @@ func (f *fakeTerraformDriftFactStore) ExecContext(
 		if !ok {
 			return nil, fmt.Errorf("retire generation_id arg type = %T, want string", args[2])
 		}
-		keepArr, ok := args[3].(pq.StringArray)
+		keepArr, ok := args[3].(pgarray.StringArray)
 		if !ok {
-			return nil, fmt.Errorf("retire keep_fact_ids arg type = %T, want pq.StringArray", args[3])
+			return nil, fmt.Errorf("retire keep_fact_ids arg type = %T, want pgarray.StringArray", args[3])
 		}
 		keep := map[string]bool{}
 		for _, id := range keepArr {

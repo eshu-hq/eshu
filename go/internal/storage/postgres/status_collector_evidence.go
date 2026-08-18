@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // collectorFactEvidenceQuery summarizes active source and reducer fact evidence
@@ -93,7 +93,7 @@ func readCollectorFactEvidence(
 	for rows.Next() {
 		var row statuspkg.CollectorFactEvidence
 		var observationCount int64
-		var sourceSystems pq.StringArray
+		var sourceSystems pgarray.StringArray
 		if err := rows.Scan(
 			&row.CollectorKind,
 			&row.InstanceID,

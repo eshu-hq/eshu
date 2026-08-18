@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // CloudRuntimeDriftAggregateFilter bounds an aggregate read that spans BOTH
@@ -205,7 +205,7 @@ func buildCloudRuntimeDriftAggregateQuery(
 	}
 
 	kinds := cloudRuntimeDriftAggregateFactKinds(filter.Provider)
-	args := []any{pq.StringArray(kinds)}
+	args := []any{pgarray.StringArray(kinds)}
 	conditions := []string{
 		"fact.fact_kind = ANY($1)",
 		"fact.is_tombstone = false",

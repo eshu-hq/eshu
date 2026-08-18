@@ -8,7 +8,7 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker proves the ORDER BY
@@ -75,9 +75,9 @@ func TestListRepoEntitiesByTypesIssuesTypeFilteredQuery(t *testing.T) {
 	t.Parallel()
 
 	entityTypes := []string{"K8sResource", "TerraformResource"}
-	wantTypesArg, err := pq.Array(entityTypes).Value()
+	wantTypesArg, err := pgarray.Array(entityTypes).Value()
 	if err != nil {
-		t.Fatalf("pq.Array(entityTypes).Value() error = %v, want nil", err)
+		t.Fatalf("pgarray.Array(entityTypes).Value() error = %v, want nil", err)
 	}
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{

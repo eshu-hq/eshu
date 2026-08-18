@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -58,9 +58,9 @@ WHERE quarantine.scope_id = $1
 	// scope_id could never read its own quarantine rows (codex review on
 	// PR #5252, issue #4630).
 	if len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0 {
-		args = append(args, pq.Array(f.AllowedRepositoryIDs))
+		args = append(args, pgarray.Array(f.AllowedRepositoryIDs))
 		repoArg := len(args)
-		args = append(args, pq.Array(f.AllowedScopeIDs))
+		args = append(args, pgarray.Array(f.AllowedScopeIDs))
 		scopeArg := len(args)
 		_, _ = fmt.Fprintf(&builder,
 			" AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY($%d)) OR quarantine.scope_id = ANY($%d))\n",

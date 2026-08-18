@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/lib/pq"
 )
 
 const (
@@ -213,7 +213,7 @@ func openSuppressionSQLProofDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Cleanup(func() { _ = adminDB.Close() })
 
 	schemaName := fmt.Sprintf("suppression_sql_5466_%d", time.Now().UnixNano())
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+pq.QuoteIdentifier(schemaName)); err != nil {
+	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+pgarray.QuoteIdentifier(schemaName)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
 	t.Cleanup(func() {
@@ -221,7 +221,7 @@ func openSuppressionSQLProofDB(t *testing.T) (context.Context, *sql.DB) {
 		defer cleanupCancel()
 		_, _ = adminDB.ExecContext(
 			cleanupCtx,
-			"DROP SCHEMA "+pq.QuoteIdentifier(schemaName)+" CASCADE",
+			"DROP SCHEMA "+pgarray.QuoteIdentifier(schemaName)+" CASCADE",
 		)
 	})
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -120,7 +120,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 		addPayloadFilter("account_id", filter.AccountAliasValue)
 	}
 	if !filter.AllScopes {
-		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))
+		args = append(args, pgarray.Array(filter.AllowedRepositoryIDs), pgarray.Array(filter.AllowedScopeIDs))
 		clauses = append(clauses, fmt.Sprintf(
 			"(fact_records.scope_id = ANY($%d) OR fact_records.scope_id = ANY($%d))",
 			len(args)-1, len(args),

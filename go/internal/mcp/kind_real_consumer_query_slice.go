@@ -11,17 +11,17 @@ import (
 	"path/filepath"
 )
 
-// pqArraySliceFactKinds scans every non-test .go file directly under dir
+// pgarrayArraySliceFactKinds scans every non-test .go file directly under dir
 // (expected: go/internal/query) for package-level `<name> = []string{"a",
-// "b", ...}` var/const declarations, then separately for `pq.Array(<name>)`
+// "b", ...}` var/const declarations, then separately for `pgarray.Array(<name>)`
 // call arguments referencing one of those identifiers, and returns the
 // union of literal kind strings from every slice actually passed to
-// pq.Array.
+// pgarray.Array.
 //
 // This closes a second round-2 #5474 blind spot:
 // vulnerabilitySourceSnapshotFactKinds (supply_chain_impact_readiness_families.go:39,
 // `[]string{"vulnerability.source_snapshot"}`) is bound via
-// `pq.Array(vulnerabilitySourceSnapshotFactKinds)`
+// `pgarray.Array(vulnerabilitySourceSnapshotFactKinds)`
 // (supply_chain_impact_readiness_postgres.go:76) into positional parameter
 // $8 of listSupplyChainImpactReadinessQuery, whose
 // `WHERE fact.fact_kind = ANY($8::text[])` (supply_chain_impact_readiness_postgres_query.go:179)
@@ -35,7 +35,7 @@ import (
 // (rawSQLFactKindReaders only matches literal quotes, not a `= ANY($N)`
 // parameterized array bind).
 //
-// The `pq.Array(<name>)` requirement is what keeps this precise: a
+// The `pgarray.Array(<name>)` requirement is what keeps this precise: a
 // same-shaped local slice that is declared but never bound into a query —
 // there is no such case in go/internal/query today, but the requirement is
 // deliberate so a future dead `*FactKinds` slice does not silently count as
@@ -43,7 +43,7 @@ import (
 // postgresPayloadReaderKinds and the case/equality-dispatch requirement in
 // factsDispatchedKinds: mere declaration or a load-list append is not
 // consumption, only a call site that actually feeds a live query is.
-func pqArraySliceFactKinds(dir string) (map[string]bool, error) {
+func pgarrayArraySliceFactKinds(dir string) (map[string]bool, error) {
 	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		return nil, fmt.Errorf("kind_real_consumer: glob %s: %w", dir, err)
@@ -91,7 +91,7 @@ func pqArraySliceFactKinds(dir string) (map[string]bool, error) {
 			if !ok || sel.Sel.Name != "Array" {
 				return true
 			}
-			if pkgIdent, ok := sel.X.(*ast.Ident); !ok || pkgIdent.Name != "pq" {
+			if pkgIdent, ok := sel.X.(*ast.Ident); !ok || pkgIdent.Name != "pgarray" {
 				return true
 			}
 			if ident, ok := call.Args[0].(*ast.Ident); ok {

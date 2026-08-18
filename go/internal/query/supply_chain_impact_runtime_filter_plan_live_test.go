@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const runtimeFilterHighCardinalityEnvironment = "shared-production-5747"
@@ -23,7 +23,7 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5747 query-plan proof")
 	}
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}
@@ -131,10 +131,10 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"runtime_context_200_candidates",
 		selectSupplyChainImpactRuntimeContextQuery,
-		pq.Array(supplyChainImpactRuntimeContextFactKinds),
-		pq.Array(contextCandidates),
-		pq.Array(contextCandidates),
-		pq.Array([]string{}),
+		pgarray.Array(supplyChainImpactRuntimeContextFactKinds),
+		pgarray.Array(contextCandidates),
+		pgarray.Array(contextCandidates),
+		pgarray.Array([]string{}),
 	)
 
 	baseFilter := SupplyChainImpactFindingFilter{
@@ -429,8 +429,8 @@ func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []a
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }
 
@@ -453,8 +453,8 @@ func supplyChainRuntimeFilterAggregateArgs(filter SupplyChainImpactAggregateFilt
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }
 
@@ -470,7 +470,7 @@ func supplyChainRuntimeFilterExplainArgs(filter SupplyChainImpactExplanationFilt
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // awsAggregateFixtureRow builds one fake fact_records row shaped like the
@@ -105,7 +105,7 @@ func TestMultiCloudRuntimeDriftFindingStoreListActiveFindingsAcrossProvidersRetu
 	if !strings.Contains(query, "ORDER BY fact.observed_at DESC, fact.fact_id ASC") {
 		t.Fatalf("query missing deterministic order-by: %s", query)
 	}
-	kinds, ok := args[0].(pq.StringArray)
+	kinds, ok := args[0].(pgarray.StringArray)
 	if !ok {
 		t.Fatalf("args[0] is not a string array: %#v", args[0])
 	}
@@ -145,7 +145,7 @@ func TestMultiCloudRuntimeDriftFindingStoreListActiveFindingsAcrossProvidersUnfi
 	}
 
 	args := db.queries[0].args
-	kinds, ok := args[0].(pq.StringArray)
+	kinds, ok := args[0].(pgarray.StringArray)
 	if !ok {
 		t.Fatalf("args[0] is not a string array: %#v", args[0])
 	}
@@ -182,7 +182,7 @@ func TestMultiCloudRuntimeDriftFindingStoreListActiveFindingsAcrossProvidersGCPE
 	}
 
 	args := db.queries[0].args
-	kinds, ok := args[0].(pq.StringArray)
+	kinds, ok := args[0].(pgarray.StringArray)
 	if !ok {
 		t.Fatalf("args[0] is not a string array: %#v", args[0])
 	}

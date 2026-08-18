@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -43,10 +43,10 @@ func (cr *ContentReader) CountRepositoriesByLanguage(
 		       MAX(indexed_at) AS last_indexed_at
 		FROM content_files
 		WHERE language = ANY($1)`
-	args := []any{pq.Array(languages)}
+	args := []any{pgarray.Array(languages)}
 	if !allScopes {
 		query += " AND (repo_id = ANY($2) OR repo_id = ANY($3))"
-		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+		args = append(args, pgarray.Array(allowedRepositoryIDs), pgarray.Array(allowedScopeIDs))
 	}
 	row := cr.db.QueryRowContext(ctx, query, args...)
 
@@ -94,13 +94,13 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 	defer span.End()
 
 	languageRowsWhere := "WHERE language = ANY($1)"
-	args := []any{pq.Array(languages)}
+	args := []any{pgarray.Array(languages)}
 	if !allScopes {
 		languageRowsWhere += " AND (repo_id = ANY($4) OR repo_id = ANY($5))"
 	}
 	args = append(args, limit, offset)
 	if !allScopes {
-		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+		args = append(args, pgarray.Array(allowedRepositoryIDs), pgarray.Array(allowedScopeIDs))
 	}
 
 	rows, err := cr.db.QueryContext(ctx, `
@@ -235,7 +235,7 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	}
 	args = append(args, limit, offset)
 	if !allScopes {
-		args = append(args, pq.Array(allowedRepositoryIDs), pq.Array(allowedScopeIDs))
+		args = append(args, pgarray.Array(allowedRepositoryIDs), pgarray.Array(allowedScopeIDs))
 	}
 
 	rows, err := cr.db.QueryContext(ctx, `

@@ -13,7 +13,7 @@ import (
 // unfalsifiable reason. A round-2 review found the detector at that time had
 // two blind spots — it only matched `== facts.<Kind>` (never
 // `!= facts.<Kind>`, the extremely common "skip-unless-this-kind" idiom) and
-// could not see raw-JSON storage/postgres readers or `pq.Array`-bound
+// could not see raw-JSON storage/postgres readers or `pgarray.Array`-bound
 // `fact_kind = ANY($N)` queries with no locally-declared const — and named 3
 // kinds (a 4th, vulnerability.source_snapshot, surfaced during the round-2
 // re-verification this comment describes) that were wrongly disclosed

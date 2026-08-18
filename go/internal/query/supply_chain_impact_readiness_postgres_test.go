@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
@@ -402,7 +402,7 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 
 	// Regression for #5467: the store must bind the OS-package and
 	// scanner-worker-analysis fact-kind allowlists as two more positional
-	// array parameters ($15, $16), following the same pq.Array pattern as
+	// array parameters ($15, $16), following the same pgarray.Array pattern as
 	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
 	// would bind against the wrong (or a missing) parameter.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}
@@ -414,16 +414,16 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	if len(db.args) != 16 {
 		t.Fatalf("QueryContext args = %d, want 16 (8 fact-kind arrays + 6 scalars + 2 new scan-tier arrays)", len(db.args))
 	}
-	osPackageKinds, ok := db.args[14].(*pq.StringArray)
+	osPackageKinds, ok := db.args[14].(*pgarray.StringArray)
 	if !ok {
-		t.Fatalf("args[14] = %#v (%T), want *pq.StringArray for vulnerability.os_package fact kinds", db.args[14], db.args[14])
+		t.Fatalf("args[14] = %#v (%T), want *pgarray.StringArray for vulnerability.os_package fact kinds", db.args[14], db.args[14])
 	}
 	if got := []string(*osPackageKinds); fmt.Sprint(got) != fmt.Sprint([]string{"vulnerability.os_package"}) {
 		t.Fatalf("args[14] kinds = %v, want [vulnerability.os_package]", got)
 	}
-	scannerKinds, ok := db.args[15].(*pq.StringArray)
+	scannerKinds, ok := db.args[15].(*pgarray.StringArray)
 	if !ok {
-		t.Fatalf("args[15] = %#v (%T), want *pq.StringArray for scanner_worker.analysis fact kinds", db.args[15], db.args[15])
+		t.Fatalf("args[15] = %#v (%T), want *pgarray.StringArray for scanner_worker.analysis fact kinds", db.args[15], db.args[15])
 	}
 	if got := []string(*scannerKinds); fmt.Sprint(got) != fmt.Sprint([]string{"scanner_worker.analysis"}) {
 		t.Fatalf("args[15] kinds = %v, want [scanner_worker.analysis]", got)

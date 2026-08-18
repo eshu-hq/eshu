@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -129,11 +129,11 @@ func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
 			  AND entity_name ` + operator
 	args := []any{nameArg}
 	if search.Scope == EntityNameScopeRepositories {
-		args = append(args, pq.Array(search.RepositoryIDs))
+		args = append(args, pgarray.Array(search.RepositoryIDs))
 		query += fmt.Sprintf(" AND repo_id = ANY($%d::text[])", len(args))
 	}
 	if len(search.Languages) > 0 {
-		args = append(args, pq.Array(search.Languages))
+		args = append(args, pgarray.Array(search.Languages))
 		query += fmt.Sprintf(" AND coalesce(language, '') = ANY($%d::text[])", len(args))
 	}
 	if search.EntityType != "" {

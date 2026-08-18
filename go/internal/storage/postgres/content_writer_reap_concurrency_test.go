@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestContentWriterReapConcurrentDifferentRepos is the concurrency proof for
@@ -109,7 +109,7 @@ func TestContentWriterReapConcurrentDifferentRepos(t *testing.T) {
 	// nothing else -- proves the concurrent goroutines never cross-
 	// contaminated each other's freshIDsByPath grouping despite all touching
 	// a path literally named "package.json".
-	reapsByRepo := make(map[string]pq.StringArray)
+	reapsByRepo := make(map[string]pgarray.StringArray)
 	for _, e := range db.execs {
 		if !strings.Contains(e.query, "DELETE FROM content_entities") || !strings.Contains(e.query, "entity_id <> ALL") {
 			continue
@@ -118,9 +118,9 @@ func TestContentWriterReapConcurrentDifferentRepos(t *testing.T) {
 		if !ok {
 			t.Fatalf("reap repo_id arg type = %T, want string", e.args[0])
 		}
-		freshIDs, ok := e.args[2].(pq.StringArray)
+		freshIDs, ok := e.args[2].(pgarray.StringArray)
 		if !ok {
-			t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", e.args[2])
+			t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", e.args[2])
 		}
 		if _, dup := reapsByRepo[repoID]; dup {
 			t.Fatalf("more than one reap DELETE for %s", repoID)

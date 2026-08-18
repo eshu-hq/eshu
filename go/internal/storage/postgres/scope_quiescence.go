@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // producerScopeQuiescenceSQL returns EVERY ingestion scope registered under a
@@ -101,7 +101,7 @@ func ProducerScopeQuiescence(
 		return ProducerScopeQuiescenceReport{}, fmt.Errorf("producer scope quiescence: querier is required")
 	}
 
-	rows, err := db.QueryContext(ctx, producerScopeQuiescenceSQL, pq.StringArray(collectorKinds))
+	rows, err := db.QueryContext(ctx, producerScopeQuiescenceSQL, pgarray.StringArray(collectorKinds))
 	if err != nil {
 		return ProducerScopeQuiescenceReport{}, fmt.Errorf("query producer scope quiescence: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // PostgresAdvisoryCatalogStore reads a bounded, browsable page of canonical
@@ -65,9 +65,9 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 			cveID         sql.NullString
 			ghsaID        sql.NullString
 			publishedAt   sql.NullString
-			sources       pq.StringArray
-			ecosystems    pq.StringArray
-			packageIDs    pq.StringArray
+			sources       pgarray.StringArray
+			ecosystems    pgarray.StringArray
+			packageIDs    pgarray.StringArray
 			kev           bool
 		)
 		if err := rows.Scan(
@@ -119,7 +119,7 @@ func normalizeAdvisoryCatalogFilter(filter AdvisoryCatalogFilter) AdvisoryCatalo
 // trimmedStrings copies a Postgres text array into a trimmed Go slice, dropping
 // blank entries. It returns nil for an empty result so JSON omitempty fields
 // stay absent.
-func trimmedStrings(values pq.StringArray) []string {
+func trimmedStrings(values pgarray.StringArray) []string {
 	if len(values) == 0 {
 		return nil
 	}

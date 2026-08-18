@@ -21,7 +21,7 @@ const (
 	handlerQueryplanSafeVariantFamilySHA256       = "1c92f90f31c42cf65bf53e417ec51dad943ce514de1de611fb6a76c21c36553e"
 	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
-	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
+	entityNameSearchQueryplanBuilderSourceSHA256  = "8b5d6874aae2a204979eb9a0a784059ffb99ca624cc4a1fd350af0e71f38fb44"
 	entityNameSearchQueryplanExpectedVariantCount = 17
 	// resourceSelectorQueryplanExpectedVariantCount dropped by 24 (issue
 	// #5478): CrossplaneClaim's removal from resourceInvestigationDefaultLabels

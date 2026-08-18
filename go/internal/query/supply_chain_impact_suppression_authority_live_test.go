@@ -11,7 +11,6 @@ import (
 	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	_ "github.com/lib/pq"
 )
 
 const (
@@ -43,7 +42,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5465 suppression-authority proof")
 	}
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}

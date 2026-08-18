@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // EshuSearchVectorBuildState is the low-cardinality lifecycle state for
@@ -281,7 +281,7 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	args := []any{filter.ScopeID, filter.ProviderProfileID, filter.SourceClass, filter.EmbeddingModelID, filter.VectorIndexVersion}
 	if len(filter.DocumentIDs) > 0 {
 		query = strings.Replace(query, "\nORDER BY meta.document_id ASC", "\n  AND meta.document_id = ANY($6)\nORDER BY meta.document_id ASC", 1)
-		args = append(args, pq.Array(filter.DocumentIDs))
+		args = append(args, pgarray.Array(filter.DocumentIDs))
 		query = strings.Replace(query, "LIMIT $6", "LIMIT $7", 1)
 	}
 	args = append(args, filter.Limit)

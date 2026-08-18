@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // SupplyChainImpactWinnersReadEnv is the operator gate (#3389 Phase 2) that
@@ -420,8 +420,8 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		supplyChainImpactSuppressionReadAt(s.Now),
 	)
 	if err != nil {

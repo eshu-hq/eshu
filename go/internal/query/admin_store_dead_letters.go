@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -67,9 +67,9 @@ WHERE work.status = 'dead_letter'
 		_, _ = fmt.Fprintf(&builder, " AND work.updated_at < $%d\n", len(args))
 	}
 	if len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0 {
-		args = append(args, pq.Array(f.AllowedRepositoryIDs))
+		args = append(args, pgarray.Array(f.AllowedRepositoryIDs))
 		repoArg := len(args)
-		args = append(args, pq.Array(f.AllowedScopeIDs))
+		args = append(args, pgarray.Array(f.AllowedScopeIDs))
 		scopeArg := len(args)
 		_, _ = fmt.Fprintf(&builder,
 			" AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY($%d)) OR work.scope_id = ANY($%d))\n",

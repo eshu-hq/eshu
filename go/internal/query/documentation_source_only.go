@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -67,7 +67,7 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 }
 
 func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string, []any) {
-	args := []any{pq.Array(documentationSourceOnlyFactKindsList())}
+	args := []any{pgarray.Array(documentationSourceOnlyFactKindsList())}
 	clauses := []string{
 		"fact.fact_kind = ANY($1::text[])",
 		"fact.is_tombstone = FALSE",
