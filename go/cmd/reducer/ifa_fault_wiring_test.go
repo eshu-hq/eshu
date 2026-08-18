@@ -22,6 +22,23 @@ type ifaWiringTestExecutor struct{}
 
 func (ifaWiringTestExecutor) Execute(context.Context, sourcecypher.Statement) error { return nil }
 
+// ifaProbeCapableExecutor implements Executor and ProbeExecutor for testing
+// ifaExecutorRetryArmedExecutor.ExecuteProbe forwarding (#5998 review).
+type ifaProbeCapableExecutor struct {
+	probeFound bool
+	probeErr   error
+	probeCalls int
+}
+
+func (e *ifaProbeCapableExecutor) Execute(context.Context, sourcecypher.Statement) error {
+	return nil
+}
+
+func (e *ifaProbeCapableExecutor) ExecuteProbe(_ context.Context, _ sourcecypher.Statement) (bool, error) {
+	e.probeCalls++
+	return e.probeFound, e.probeErr
+}
+
 func getenvMap(values map[string]string) func(string) string {
 	return func(name string) string { return values[name] }
 }
@@ -244,6 +261,51 @@ func TestIfaExecutorRetryArmedExecutorBindsGroupFaultToArmingContext(t *testing.
 	assertIfaFaultContextBound(t, armed.Arm, func(ctx context.Context) error {
 		return armed.ExecuteGroup(ctx, statements)
 	}, &inner.groupCalls)
+}
+
+// TestIfaExecutorRetryArmedExecutorExecuteProbeForwardsWithoutConsumingFault
+// proves ExecuteProbe forwards to inner and, unlike Execute/ExecuteGroup,
+// never consumes the armed fault token -- a probe issued while a fault is
+// armed must not silently "use up" the scripted failure the next Execute or
+// ExecuteGroup call is meant to hit.
+func TestIfaExecutorRetryArmedExecutorExecuteProbeForwardsWithoutConsumingFault(t *testing.T) {
+	t.Parallel()
+
+	inner := &ifaProbeCapableExecutor{probeFound: true}
+	armed := &ifaExecutorRetryArmedExecutor{inner: inner}
+
+	armedCtx := armed.Arm(context.Background())
+	found, err := armed.ExecuteProbe(armedCtx, sourcecypher.Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if err != nil {
+		t.Fatalf("ExecuteProbe() error = %v, want nil", err)
+	}
+	if !found {
+		t.Fatal("ExecuteProbe() found = false, want true")
+	}
+	if inner.probeCalls != 1 {
+		t.Fatalf("inner.probeCalls = %d, want 1", inner.probeCalls)
+	}
+	// The fault token must still be armed: ExecuteProbe must not have consumed
+	// it.
+	if err := armed.Execute(armedCtx, sourcecypher.Statement{Cypher: "MERGE (r) RETURN r"}); err == nil {
+		t.Fatal("Execute() error = nil, want the scripted fault to still fire after an unrelated ExecuteProbe call")
+	}
+}
+
+// TestIfaExecutorRetryArmedExecutorExecuteProbeErrorsWithoutProbeSupport
+// proves ExecuteProbe fails closed when inner does not implement
+// ProbeExecutor, never a silent "not found".
+func TestIfaExecutorRetryArmedExecutorExecuteProbeErrorsWithoutProbeSupport(t *testing.T) {
+	t.Parallel()
+
+	armed := &ifaExecutorRetryArmedExecutor{inner: ifaWiringTestExecutor{}}
+	found, err := armed.ExecuteProbe(context.Background(), sourcecypher.Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if err == nil {
+		t.Fatal("ExecuteProbe() error = nil, want non-nil (inner does not implement ProbeExecutor)")
+	}
+	if found {
+		t.Fatal("ExecuteProbe() found = true, want false on the unsupported path")
+	}
 }
 
 func assertIfaFaultContextBound(

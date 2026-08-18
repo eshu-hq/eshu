@@ -873,6 +873,63 @@ graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
 
+## Rationale Retract Probe Outcomes
+
+`eshu_dp_rationale_retract_probe_outcomes_total` counts one outcome per
+guarded rationale `EXPLAINS` retract statement. Two guarded paths share this
+counter: the whole-repository retract and the per-target-label delta retract.
+Both run behind a bounded existence probe, because on the pinned NornicDB build
+the `DELETE` costs proportional to store size even when it removes zero rows.
+The counter carries two bounded labels:
+
+- `outcome`, taking four values:
+  - `skipped` — the probe found no matching edges, so the delete did not run;
+  - `deleted` — the probe found edges, so the delete ran;
+  - `unsupported` — the executor chain does not offer a probe;
+  - `probe_error` — the probe failed.
+- `scope`, taking two values:
+  - `whole_scope` — the full-repository retract, firing once per
+    `RetractEdges` batch and binding every repository in that batch (so expect
+    on the order of 9-16 per generation on a ~900-repository corpus, not one
+    per repository);
+  - `delta_by_file_path` — the per-target-label delta retract, firing once per
+    target label (seven per `RetractEdges` batch, binding a union of the
+    batch's delta file paths) on every incremental sync.
+
+`scope` exists because the two paths fire at very different rates. Collapsed
+into one series, a `skipped` count could not show which guard is doing the
+work, and a guard on one path that silently stopped engaging would hide behind
+the other path's counts.
+
+Read `unsupported` and `probe_error` as the signals to watch on either scope:
+both are fail-safe (the delete runs unconditionally, so graph truth is
+correct), but a sustained non-zero value means that scope's guard is inert and
+every retract on it is paying full cost again. In a healthy reducer both read
+zero for both scopes. The usual cause is an executor wrapper that does not
+forward the probe capability.
+
+Be precise about what this metric cannot tell you. It distinguishes an *inert*
+guard from an *active* one; it does not distinguish a correct skip from a wrong
+one, because a repository that genuinely has no rationale edges and a probe that
+wrongly reported none both increment `skipped`. Treat it as a performance signal,
+not a correctness one.
+
+There is no dashboard panel for this counter. To check either scope's guard
+directly:
+
+```promql
+# Is either guard inert? Both series should sit flat at zero.
+sum by (scope) (rate(eshu_dp_rationale_retract_probe_outcomes_total{outcome=~"unsupported|probe_error"}[15m]))
+
+# Is the guard doing work? skipped should dominate on a steady-state corpus,
+# because most repositories have no rationale edges to retract.
+sum by (scope, outcome) (rate(eshu_dp_rationale_retract_probe_outcomes_total[15m]))
+```
+
+The first query is the one worth alerting on. A sustained non-zero value on
+either scope means every retract on that scope is paying the full store-size
+cost again, while graph truth stays correct.
+
 ## Unroutable Shared-Edge Rows
 
 `eshu_dp_shared_edge_unroutable_rows_total` counts shared-projection rows a

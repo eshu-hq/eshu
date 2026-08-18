@@ -16,10 +16,101 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// collectRepoIDs returns every distinct repository id in the batch, with NO
+// intent_type filter. That asymmetry with its sibling
+// collectWholeScopeRefreshRepoIDs is deliberate and load-bearing to know
+// about: the sibling requires reducer.RepoRefreshIntentType precisely so an
+// unmarked legacy per-edge row cannot pull a whole-repository retract, while
+// this function is the pre-#5998 batch-wide collector and still can. A
+// no-delta batch carrying such a row therefore still reaches a repo-wide
+// DELETE for that repository. That is pre-existing behavior, unchanged by the
+// #5998 probe guard and deliberately left alone by it, and it is tracked in
+// #6166 -- do not read the sibling's guard as covering this path too.
 func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
 	for _, row := range rows {
+		repoID := row.RepositoryID
+		if repoID == "" {
+			repoID = payloadString(row.Payload, "repo_id")
+		}
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		result = append(result, repoID)
+	}
+	return result
+}
+
+// collectWholeScopeRefreshRepoIDs is collectRepoIDs restricted to repo-wide
+// REFRESH rows that are not delta-scoped. It exists for the rationale EXPLAINS
+// domain's mixed-batch retract (#5998 review F6): one ProcessPartitionOnce
+// batch can legitimately contain some repositories' refresh rows correctly
+// flagged delta_projection:true (buildRationaleRefreshIntents,
+// go/internal/reducer/rationale_edge_intents.go, gates that flag per
+// repository) alongside sibling repositories' refresh rows that carry no
+// delta_projection key at all -- a repository on a full generation whose scope
+// happens to share a partition bucket with a delta-generation sibling.
+// collectDeltaFilePaths only ever sees the delta-flagged rows, so the
+// whole-scope refresh rows this function collects need their own retract;
+// otherwise those repositories are silently dropped from the batch whenever
+// hasDeltaScope ends up true because of an unrelated sibling row.
+//
+// Both conditions are load-bearing, and the intent_type one is the subtle one.
+// "Lacks delta_projection" is NOT the same as "is a whole-scope refresh": a
+// batch can also carry unmarked legacy per-edge rows, which
+// planRepoWideRetractWork deliberately routes into retractRows so they drain
+// instead of deferring forever (shared_projection_worker_refresh_fence.go), and
+// ProcessPartitionOnce passes every row as retractRows when no refresh fence is
+// configured at all. Those rows carry no delta_projection either. Sweeping them
+// in here would hand their repository a whole-repository
+// `rationale.repo_id IN $repo_ids` DELETE that erases that repository's entire
+// EXPLAINS set across every file, while only this batch's rows get rewritten --
+// a strictly new over-delete that the pre-#5998 file-scoped path never
+// performed. Requiring the refresh intent_type keeps the whole-repository
+// delete bound to rows that actually asked for a whole-repository refresh.
+func collectWholeScopeRefreshRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
+	seen := make(map[string]struct{}, len(rows))
+	var result []string
+	for _, row := range rows {
+		if payloadBool(row.Payload, "delta_projection") {
+			continue
+		}
+		if payloadString(row.Payload, "intent_type") != reducer.RepoRefreshIntentType {
+			continue
+		}
+		repoID := row.RepositoryID
+		if repoID == "" {
+			repoID = payloadString(row.Payload, "repo_id")
+		}
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		result = append(result, repoID)
+	}
+	return result
+}
+
+// collectDeltaProjectionRepoIDs is collectRepoIDs restricted to the rows the
+// delta path actually retracts on. The delta guard reports repo_count and one
+// sample_repo_id on every probe outcome, so handing it the whole batch would
+// let a delta_by_file_path log line name a repository whose retract went
+// through the whole-scope call instead.
+func collectDeltaProjectionRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
+	seen := make(map[string]struct{}, len(rows))
+	var result []string
+	for _, row := range rows {
+		if !payloadBool(row.Payload, "delta_projection") {
+			continue
+		}
 		repoID := row.RepositoryID
 		if repoID == "" {
 			repoID = payloadString(row.Payload, "repo_id")

@@ -814,6 +814,30 @@ on `rationale-edges:v1:files:<repo>:<sha256(repo,target_path,edge)>` (edge ident
 mixed in to avoid the dedup collapse), fenced behind one per-repo refresh intent
 emitted under the shared `repoWideRetractRefreshPartitionKey`.
 
+That per-repo refresh fires for every admitted repository, including ones with
+no rationale comments at all, so a repository whose comments all disappeared
+still gets its stale EXPLAINS edges retracted. That is also what makes the
+retract a performance problem: most repositories have nothing to retract, so the
+statement runs and deletes zero rows.
+
+The retract is no longer unconditional. It runs behind a bounded existence
+probe, because on the pinned NornicDB build a zero-row EXPLAINS `DELETE` costs
+proportional to store size while the identical MATCH as a read stays cheap on
+both an empty and a large store (ledger:5998-zero-row-explains-delete-large-store,
+ledger:5998-zero-row-explains-delete-empty-store,
+ledger:5998-explains-existence-probe-read) — see
+[NornicDB Pitfalls](nornicdb-pitfalls.md) for the full comparison table and for
+the upstream defect this mitigates. The statement is issued once per
+`RetractEdges` batch, binding every repository in that batch, so a ~900-repository
+corpus issues on the order of 9-16 of them per generation rather than one each:
+at the measured per-statement cost that is minutes of backend work per full
+generation to delete nothing, and the probes that stand in for them are
+sub-second. A skip needs the whole batch to have nothing to retract, so how
+much of that is actually reclaimed depends on batch composition and is not
+measured here. Where there IS something to delete the DELETE still runs, and the
+probe is a small addition to it rather than a saving. The probe fails safe toward deleting: no probe
+capability, or a probe error, runs the DELETE unconditionally.
+
 The readiness gate moved from `semantic_nodes_committed` to
 `canonical_nodes_committed`: `canonical_rationale_edges.go` shows the EXPLAINS edge
 MATCHes a canonical code-entity target (`:Function|Class|Struct|Interface|TypeAlias|

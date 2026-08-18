@@ -145,6 +145,46 @@ func (e TimeoutExecutor) ExecuteGroup(ctx context.Context, statements []Statemen
 	return err
 }
 
+// ExecuteProbe forwards a read-only probe with an optional deadline when the
+// wrapped executor supports probing. It returns an error without attempting
+// the probe when Inner does not implement ProbeExecutor.
+func (e TimeoutExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
+	if e.Inner == nil {
+		return false, fmt.Errorf("inner executor is required")
+	}
+	pe, ok := e.Inner.(ProbeExecutor)
+	if !ok {
+		return false, fmt.Errorf("inner executor does not support ExecuteProbe")
+	}
+	if e.Timeout <= 0 {
+		return pe.ExecuteProbe(ctx, stmt)
+	}
+
+	execCtx, cancel := context.WithTimeout(ctx, e.Timeout)
+	defer cancel()
+
+	found, err := pe.ExecuteProbe(execCtx, stmt)
+	if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		return false, timeoutError(
+			"neo4j execute probe timed out",
+			e.Timeout,
+			e.TimeoutHint,
+			statementSummary(stmt),
+			context.DeadlineExceeded,
+		)
+	}
+	if errors.Is(execCtx.Err(), context.Canceled) {
+		return false, timeoutError(
+			"neo4j execute probe canceled before completion",
+			0,
+			"",
+			statementSummary(stmt),
+			context.Canceled,
+		)
+	}
+	return found, err
+}
+
 func timeoutError(prefix string, timeout time.Duration, timeoutHint string, summary string, cause error) error {
 	if errors.Is(cause, context.DeadlineExceeded) {
 		return GraphWriteTimeoutError{

@@ -3,7 +3,7 @@
 
 // Package telemetry provides pre-registered OTEL metric instruments for the
 // Go data plane.
-package telemetry //nolint:filelength // data registry; ~4400 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.
+package telemetry //nolint:filelength // data registry; ~5900 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.
 
 import (
 	"context"
@@ -1300,7 +1300,41 @@ type Instruments struct {
 	// instead, which did re-count every poll; that approach was replaced
 	// because a payload-deterministic rejection can never be retried away
 	// (#5984, PR #6008 review).
-	SharedEdgeUnroutableRows           metric.Int64Counter
+	SharedEdgeUnroutableRows metric.Int64Counter
+	// RationaleRetractProbeOutcomes counts the #5998 rationale EXPLAINS
+	// retract probe-guard decision by two bounded labels: outcome (skipped /
+	// deleted / unsupported / probe_error) and scope (whole_scope /
+	// delta_by_file_path) -- see retractRationaleEdgesWithProbe and
+	// executeGuardedRationaleDeltaRetracts in
+	// go/internal/storage/cypher/edge_writer_rationale_labels.go and
+	// edge_writer_retract.go.
+	//
+	// scope separates the two guarded paths because they fire at very
+	// different rates: whole_scope runs one statement per RetractEdges batch
+	// (binding every repository in that batch), while delta_by_file_path runs
+	// one statement per target label (seven) per batch on every incremental
+	// sync. Collapsed into one series a
+	// "skipped" count could not show which guard is doing the work, and a
+	// delta guard that silently stopped engaging would hide behind the
+	// whole-scope path's counts.
+	//
+	// The outcome dimension answers exactly one question: is the guard ACTIVE
+	// (skipped or deleted -- the probe ran and its answer decided whether the
+	// DELETE fired) or INERT (unsupported or probe_error -- the DELETE ran
+	// unconditionally without the probe's answer mattering, the pre-#5998
+	// fail-safe behavior). unsupported means the wrapped executor chain does
+	// not implement ProbeExecutor somewhere along it; probe_error means the
+	// probe itself failed.
+	//
+	// It does NOT distinguish a correct skip from a wrongly-skipped
+	// repository: both increment "skipped" identically, because a probe that
+	// wrongly reports zero rows (a bug in the probe/retract MATCH/WHERE
+	// mirroring, or a backend that mis-evaluates the probe's predicate) is
+	// indistinguishable from a probe that correctly reports zero rows using
+	// only this counter. Proving the skip was correct requires graph-truth
+	// evidence (a live-backend positive-branch check, or the golden-corpus
+	// gate), not this metric.
+	RationaleRetractProbeOutcomes      metric.Int64Counter
 	SharedEdgeWriteGroupDuration       metric.Float64Histogram
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
@@ -4290,6 +4324,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeUnroutableRows counter: %w", err)
+	}
+
+	inst.RationaleRetractProbeOutcomes, err = meter.Int64Counter(
+		"eshu_dp_rationale_retract_probe_outcomes_total",
+		metric.WithDescription("Total rationale EXPLAINS retract probe-guard decisions by bounded outcome (skipped, deleted, unsupported, probe_error) and scope (whole_scope, delta_by_file_path)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register RationaleRetractProbeOutcomes counter: %w", err)
 	}
 
 	sharedEdgeWriteGroupDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

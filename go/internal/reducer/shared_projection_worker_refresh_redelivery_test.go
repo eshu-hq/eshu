@@ -125,7 +125,7 @@ func sqlRefreshFenceDeliveryIntents(
 		GenerationID:     generationID,
 		Payload: map[string]any{
 			"repo_id":     repositoryID,
-			"intent_type": repoRefreshIntentType,
+			"intent_type": RepoRefreshIntentType,
 			"action":      repoRefreshAction,
 		},
 		CreatedAt: createdAt,

@@ -223,6 +223,8 @@ ifa_live_gate_common_seams=(
 	'go/internal/replay/canonical.go|go/internal/replay/canonical.go'
 	'go/internal/storage/cypher/canonical_rationale_edges.go|go/internal/storage/cypher/canonical_rationale_edges.go'
 	'go/internal/storage/cypher/edge_writer_rationale_labels.go|go/internal/storage/cypher/edge_writer_rationale_labels.go'
+	'go/internal/storage/cypher/canonical.go|go/internal/storage/cypher/canonical.go'
+	'go/internal/storage/cypher/backpressure_executor.go|go/internal/storage/cypher/backpressure_executor.go'
 	'testdata/cassettes/rationale/**|testdata/cassettes/rationale/ifa-rationale-family.json'
 	'testdata/cassettes/rationale/**|testdata/cassettes/rationale/ifa-rationale-family-delta.json'
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json'

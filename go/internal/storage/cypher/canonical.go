@@ -16,6 +16,28 @@ const (
 	// OperationCanonicalRetract removes canonical domain edges or orphan
 	// nodes.
 	OperationCanonicalRetract Operation = "canonical_retract"
+
+	// OperationCanonicalProbe runs a read-only statement that answers whether
+	// a paired retract would remove anything, without mutating the graph (see
+	// ProbeExecutor in writer.go). Kept distinct from OperationCanonicalRetract
+	// so backpressure-wait labelling (BackpressureGate.Acquire) does not count
+	// a probe as a retract: the #5998 rationale probe guard runs one probe per
+	// RetractEdges batch whether or not the paired DELETE follows, so folding
+	// it into the retract label would count every probe as a retract and mask
+	// the ratio of probes to real deletes -- the very signal the probe guard
+	// adds. The retry counter is NOT a reason here: RetryingExecutor.ExecuteProbe
+	// does not retry, so a probe's Operation never reaches runWithRetry's
+	// deadlock-retry metric at all.
+	//
+	// Operation is also a write-path routing discriminator, not only a label:
+	// go/internal/storage/nornicdb/phase_group_executor_retract.go sets its
+	// flush boundary on
+	// OperationCanonicalRetract and statement_chunk.go only chunks statements
+	// carrying it. Probe statements never reach those paths -- they dispatch
+	// only through ExecuteProbe, never Execute/ExecuteGroup -- but the
+	// vocabulary is shared, so adding a value here is a routing change and
+	// should be weighed as one.
+	OperationCanonicalProbe Operation = "canonical_probe"
 )
 
 // --- Cypher templates ---

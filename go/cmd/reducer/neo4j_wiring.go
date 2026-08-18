@@ -97,19 +97,59 @@ func (r neo4jSessionRunner) transactionConfigurers() []func(*neo4jdriver.Transac
 
 // QueryCypherExists runs a read-only Cypher query and returns true if at
 // least one row is returned. This implements neo4j.CypherReader for the
-// CanonicalNodeChecker pre-flight check.
+// CanonicalNodeChecker pre-flight check, and (#5998 review F8) the
+// cypherProber capability cypherRunnerStatementExecutor.ExecuteProbe uses for
+// the rationale retract probe guard.
+//
+// Bounded by r.TxTimeout via r.transactionConfigurers() (review F8): this
+// method previously called session.Run with no configurers at all, so a
+// hung read had no deadline on either backend, unlike RunCypher/RunCypherGroup
+// below, which already pass r.transactionConfigurers() through. On NornicDB
+// that reused the SAME ESHU_CANONICAL_WRITE_TIMEOUT ceiling every other
+// reducer graph write already carries (reducerTransactionTimeout,
+// nornicDBCanonicalWriteTimeout; default 30s), rather than adding a new
+// probe-specific knob: a hung probe blocking the retract while holding its
+// partition lease is exactly the failure class that ceiling already exists to
+// bound, and every consumer of this shared read primitive (both
+// CanonicalNodeChecker and the rationale probe guard) benefits identically.
+// On plain Neo4j r.TxTimeout is 0 (reducerTransactionTimeout only applies to
+// NornicDB), so this remains unbounded there too -- unchanged behavior,
+// matching every other graph read/write on that backend.
 func (r neo4jSessionRunner) QueryCypherExists(ctx context.Context, cypher string, params map[string]any) (bool, error) {
 	if r.Driver == nil {
 		return false, fmt.Errorf("neo4j driver is required")
 	}
 
+	// AccessModeWrite for a read-only statement is deliberate, and it is a
+	// correctness choice rather than a copy-paste slip. Both callers of this
+	// primitive read in order to decide whether to mutate: the rationale probe
+	// guard skips a DELETE when this returns false, and CanonicalNodeChecker
+	// gates a write on whether a node already exists. Neither session shares a
+	// BookmarkManager with the write session that follows it, so on a routed
+	// Neo4j deployment an AccessModeRead session can be served by a lagging
+	// follower and report zero rows for edges already committed on the leader.
+	// For the probe guard that lands on the one outcome the whole design is
+	// built to avoid -- a skipped delete leaving stale edges behind, with the
+	// counter recording an ordinary `skipped` because it cannot tell a correct
+	// skip from a wrong one. Write mode keeps the read on the leader, which
+	// costs a little leader load and buys read-your-writes. Single-node
+	// NornicDB is unaffected either way, which is exactly why the backend proof
+	// on that image could not have surfaced this.
+	//
+	// On today's tree the leader-load half of that trade is theoretical:
+	// NewCanonicalNodeChecker has no production call site (only the type in
+	// storage/cypher and the interface in internal/reducer, whose own doc says
+	// the code-call handler no longer uses it), so the probe guard is the sole
+	// live consumer. That matters if the checker is ever revived, because its
+	// statement is an unlabeled all-node scan with an OR -- decide then whether
+	// it wants leader routing, rather than inheriting this choice by accident.
 	session := r.Driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeRead,
+		AccessMode:   neo4jdriver.AccessModeWrite,
 		DatabaseName: r.DatabaseName,
 	})
 	defer func() { _ = session.Close(ctx) }()
 
-	result, err := session.Run(ctx, cypher, params)
+	result, err := session.Run(ctx, cypher, params, r.transactionConfigurers()...)
 	if err != nil {
 		return false, err
 	}

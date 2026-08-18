@@ -84,6 +84,23 @@ func (e *concurrencyProbeExecutor) ExecuteGroup(ctx context.Context, _ []Stateme
 	return e.err
 }
 
+// ExecuteProbe mirrors Execute/ExecuteGroup's concurrency-tracking shape so
+// TestBackpressureExecutorProbeRespectsBound can prove ExecuteProbe shares the
+// same permit pool. found is always true; only the error and the concurrency
+// bound are under test here.
+func (e *concurrencyProbeExecutor) ExecuteProbe(ctx context.Context, _ Statement) (bool, error) {
+	e.enter()
+	defer e.leave()
+	if e.release != nil {
+		select {
+		case <-e.release:
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
+	}
+	return true, e.err
+}
+
 // TestBackpressureExecutorBoundsConcurrentWrites is the core regression for
 // issue #3560: without a write-path bound, every reducer/projector worker can
 // drive a concurrent graph write at once, so a slow NornicDB backend is hammered
@@ -243,6 +260,73 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 	// grouped writes instead of sharing the concurrent permit pool.
 	if peak := probe.peakConcurrency(); peak != maxInFlight {
 		t.Fatalf("peak concurrent grouped writes = %d, want exactly %d (bound breached or writes were serialized below the ceiling)", peak, maxInFlight)
+	}
+}
+
+// TestBackpressureExecutorProbeRespectsBound mirrors
+// TestBackpressureExecutorGroupRespectsBound for ExecuteProbe (#5998): probing
+// must draw from the same in-flight permit pool as writes, not bypass it.
+func TestBackpressureExecutorProbeRespectsBound(t *testing.T) {
+	const maxInFlight = 2
+	const callers = 12
+
+	probe := &concurrencyProbeExecutor{release: make(chan struct{})}
+	exec := NewBackpressureExecutor(probe, maxInFlight, nil)
+
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = exec.ExecuteProbe(context.Background(), Statement{Cypher: "RETURN 1 LIMIT 1"})
+		}()
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if exec.InFlight() >= maxInFlight {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(probe.release)
+	wg.Wait()
+
+	if peak := probe.peakConcurrency(); peak != maxInFlight {
+		t.Fatalf("peak concurrent probes = %d, want exactly %d (bound breached or probes were serialized below the ceiling)", peak, maxInFlight)
+	}
+}
+
+// TestBackpressureExecutorExecuteProbeErrorsWithoutProbeExecutor proves
+// ExecuteProbe fails closed with errInnerNoExecuteProbe (not a silent "not
+// found") when inner does not implement ProbeExecutor.
+func TestBackpressureExecutorExecuteProbeErrorsWithoutProbeExecutor(t *testing.T) {
+	t.Parallel()
+
+	exec := NewBackpressureExecutor(ExecuteOnlyExecutor{Inner: &concurrencyProbeExecutor{}}, 4, nil)
+	found, err := exec.ExecuteProbe(context.Background(), Statement{Cypher: "RETURN 1 LIMIT 1"})
+	if !errors.Is(err, errInnerNoExecuteProbe) {
+		t.Fatalf("ExecuteProbe() error = %v, want errInnerNoExecuteProbe", err)
+	}
+	if found {
+		t.Fatal("found = true on an unsupported probe, want false")
+	}
+}
+
+// TestBackpressureExecutorWithExecuteOnlyInnerDoesNotExposeProbe is the
+// ProbeExecutor sibling of TestBackpressureExecutorWithExecuteOnlyInnerDoesNotExposeGroup:
+// when the executeOnlyBackpressureWrapper hides GroupExecutor from a caller
+// wrapping an ExecuteOnlyExecutor, it must hide ProbeExecutor the same way, so
+// a type assertion for either capability fails identically through that seam.
+func TestBackpressureExecutorWithExecuteOnlyInnerDoesNotExposeProbe(t *testing.T) {
+	t.Parallel()
+
+	inner := ExecuteOnlyExecutor{Inner: &concurrencyProbeExecutor{}}
+	exec := NewBackpressureExecutor(inner, 4, nil)
+
+	wrapped := ExecuteOnlyBackpressureExecutor(exec)
+	if _, ok := wrapped.(ProbeExecutor); ok {
+		t.Fatal("ExecuteOnlyBackpressureExecutor exposes ProbeExecutor, want no ProbeExecutor so the unsupported fallback applies")
 	}
 }
 

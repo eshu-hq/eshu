@@ -184,7 +184,7 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 			GenerationID:     "gen-1",
 			Payload: map[string]any{
 				"repo_id":     repoID,
-				"intent_type": repoRefreshIntentType,
+				"intent_type": RepoRefreshIntentType,
 				"action":      repoRefreshAction,
 			},
 			CreatedAt: created,

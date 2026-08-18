@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -73,7 +74,25 @@ func (w *EdgeWriter) RetractEdges(
 			// The canonical source also retracts the one bounded legacy source
 			// in each statement; custom sources remain exact-source retracts.
 			stmts := BuildRetractRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
-			return w.executeSequentialRetractStatements(ctx, stmts)
+			probes := BuildProbeRationaleEdgeStatementsByFilePath(filePaths, evidenceSource)
+			if err := w.executeGuardedRationaleDeltaRetracts(ctx, probes, stmts, collectDeltaProjectionRepoIDs(rows)); err != nil {
+				return err
+			}
+			// #5998 review F6: a ProcessPartitionOnce batch can legitimately mix
+			// delta-flagged rows (handled above) with sibling REFRESH rows that
+			// carry no delta_projection at all -- a repository on a full
+			// generation whose refresh happened to share this partition bucket
+			// with a delta-generation repository. collectDeltaFilePaths only
+			// inspects the delta-flagged rows, so those non-delta repositories
+			// never reach a retract at all unless handled here too. The
+			// collector matches on the refresh intent_type and not merely on the
+			// absence of delta_projection; see its doc for the unmarked-legacy
+			// over-delete that distinction prevents.
+			wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+			if len(wholeScopeRepoIDs) == 0 {
+				return nil
+			}
+			return w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
 		}
 	}
 
@@ -105,6 +124,19 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainInheritanceEdges {
 		stmts := BuildRetractInheritanceEdgeStatements(repoIDs, evidenceSource)
 		return w.executeInheritanceRetractStatements(ctx, stmts)
+	}
+	if domain == reducer.DomainRationaleEdges {
+		// Deliberately the batch-wide repoIDs, not the narrower
+		// collectWholeScopeRefreshRepoIDs the mixed-batch branch above uses.
+		// This is the no-delta-rows-in-the-batch case, and it retracts exactly
+		// the set the pre-#5998 dispatch did (buildRetractStatement's shared
+		// repo-id path); the probe guard is the only change. The narrower
+		// collector exists for the mixed branch because that branch is NEW
+		// code deciding which of a mixed batch's repositories deserve a
+		// whole-repository delete. Narrowing this path too would change which
+		// repositories get retracted, which is a scope change rather than a
+		// guard, and belongs in its own change with its own proof.
+		return w.retractRationaleEdgesWithProbe(ctx, repoIDs, evidenceSource)
 	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
@@ -185,6 +217,90 @@ func (w *EdgeWriter) executeSQLRelationshipRetractStatements(ctx context.Context
 	return w.executeSequentialRetractStatements(ctx, stmts)
 }
 
+// executeGuardedRationaleDeltaRetracts runs each per-label delta retract behind
+// its own existence probe (#5998). probes and retracts are built from the same
+// label list in the same order, so probes[i] answers exactly the question
+// retracts[i] would delete on.
+//
+// Why per label rather than one shared probe: each statement matches a
+// different target label, so a single probe would answer a narrower question
+// than six of the seven deletes it guarded, and a label whose edges exist would
+// be skipped on the strength of a different label's emptiness.
+//
+// Why guard at all: this shape carries the same store-size term as the
+// whole-repository retract and is worse per statement — seven statements cost
+// about 12s together on a 190,000-relationship store while deleting zero rows
+// (ledger:5998-delta-per-label-retract-seeded-rerun), against about 0.29s on an
+// empty store (ledger:5998-delta-per-label-retract-empty; same host and image,
+// but that empty half is from an earlier session than the seeded figure, which
+// the evidence doc records) and 0.31s for the seven probes that guard them
+// (ledger:5998-delta-per-label-probe-seeded). It runs on every incremental
+// sync, not once per generation.
+//
+// Concurrency: the per-label statements already run sequentially, each in its
+// own transaction, for the NornicDB managed-transaction reason documented on
+// executeCodeCallRetractStatements.
+//
+// What bounds a statement's match set is the repo-qualification of the paths,
+// not a repository predicate: these statements bind target.path IN $file_paths
+// with no repo_id term, and semanticQualifyDeltaPath (rationale_delta_scope.go)
+// is what makes those paths repository-specific. The code-call, inheritance,
+// and SQL delta retracts are shaped the same way.
+//
+// Edge writes carrying the retract_via_refresh marker are fenced behind the
+// refresh that owns this retract, by same-batch ordering and by the durable
+// completed-intents gate, so a marked writer cannot insert a matching EXPLAINS
+// edge between a label's probe and that label's delete. Unmarked legacy rows
+// bypass that fence (shared_projection_worker_refresh_fence.go), so state the
+// residual honestly rather than claiming no writer can race: an unmarked row
+// landing inside the probe-to-delete window is no worse under the guard than
+// without it. Skip-then-write leaves a correct current-generation edge, and
+// write-then-delete is the pre-existing #2910 behavior the guard does not
+// change.
+//
+// Fail-safe direction matches the whole-repository guard: no ProbeExecutor, or
+// a probe error, runs that label's DELETE unconditionally. Only a definitive
+// zero skips. A redundant delete is slow; a skipped one leaves stale edges.
+func (w *EdgeWriter) executeGuardedRationaleDeltaRetracts(
+	ctx context.Context,
+	probes []Statement,
+	retracts []Statement,
+	repoIDs []string,
+) error {
+	if len(probes) != len(retracts) {
+		return fmt.Errorf(
+			"rationale delta retract guard: %d probes for %d retracts; they are built from one label list and must pair",
+			len(probes), len(retracts),
+		)
+	}
+	pe, canProbe := w.executor.(ProbeExecutor)
+	for i, retract := range retracts {
+		if !canProbe {
+			w.observeRationaleRetractProbe(ctx, rationaleRetractProbeOutcomeUnsupported, repoIDs, rationaleDeltaProbeScope, 0, nil)
+			if err := w.executor.Execute(ctx, retract); err != nil {
+				return WrapRetryableNeo4jError(err)
+			}
+			continue
+		}
+		start := time.Now()
+		found, err := pe.ExecuteProbe(ctx, probes[i])
+		duration := time.Since(start).Seconds()
+		switch {
+		case err != nil:
+			w.observeRationaleRetractProbe(ctx, rationaleRetractProbeOutcomeProbeError, repoIDs, rationaleDeltaProbeScope, duration, err)
+		case !found:
+			w.observeRationaleRetractProbe(ctx, rationaleRetractProbeOutcomeSkipped, repoIDs, rationaleDeltaProbeScope, duration, nil)
+			continue
+		default:
+			w.observeRationaleRetractProbe(ctx, rationaleRetractProbeOutcomeDeleted, repoIDs, rationaleDeltaProbeScope, duration, nil)
+		}
+		if err := w.executor.Execute(ctx, retract); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
 // executeSequentialRetractStatements runs independently scoped, idempotent
 // retract statements in separate auto-commit transactions.
 func (w *EdgeWriter) executeSequentialRetractStatements(ctx context.Context, stmts []Statement) error {
@@ -223,8 +339,10 @@ func buildRetractStatement(
 	// DomainDocumentationEdges is handled before this shared repo-id path in
 	// RetractEdges because documentation retracts anchor on section.scope_id, not
 	// a repository id. It must never reach this repo-id-bound builder.
-	case reducer.DomainRationaleEdges:
-		return BuildRetractRationaleEdges(repoIDs, evidenceSource), nil
+	// DomainRationaleEdges is handled before this shared repo-id path in
+	// RetractEdges (retractRationaleEdgesWithProbe, #5998) because its retract
+	// runs a probe-then-delete guard, not a bare Execute of the builder's
+	// statement. It must never reach this single-statement builder.
 	// DomainSQLRelationships is handled before this shared repo-id path in
 	// RetractEdges because its retract fans out to one per-source-label
 	// statement run sequentially (the SQL sibling of #5116) and must never

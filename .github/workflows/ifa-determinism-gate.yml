@@ -335,6 +335,8 @@ on:
       - 'go/internal/replay/canonical.go'
       - 'go/internal/storage/cypher/canonical_rationale_edges.go'
       - 'go/internal/storage/cypher/edge_writer_rationale_labels.go'
+      - 'go/internal/storage/cypher/canonical.go'
+      - 'go/internal/storage/cypher/backpressure_executor.go'
       - 'testdata/cassettes/rationale/**'
       - 'go/internal/ifa/testdata/rationale/**'
       - 'scripts/lib/ifa_rationale_live.sh'

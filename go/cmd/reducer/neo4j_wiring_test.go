@@ -37,11 +37,17 @@ func TestNornicDBTuningDocSemanticDefaultsMatchCode(t *testing.T) {
 	}
 }
 
-// fakeNeo4jSession records cypher calls for assertion.
+// fakeNeo4jSession records cypher calls for assertion. probeFound/probeErr
+// script QueryCypherExists (#5998 rationale retract probe guard); probeCalls
+// records every probe invocation separately from calls (RunCypher/DELETE) so
+// a test can assert the probe ran without also asserting a delete happened.
 type fakeNeo4jSession struct {
-	calls []fakeCypherCall
-	err   error
-	errs  []error
+	calls      []fakeCypherCall
+	err        error
+	errs       []error
+	probeFound bool
+	probeErr   error
+	probeCalls []fakeCypherCall
 }
 
 type fakeCypherCall struct {
@@ -66,6 +72,14 @@ func (s *fakeNeo4jSession) RunCypherGroup(ctx context.Context, stmts []sourcecyp
 		}
 	}
 	return nil
+}
+
+// QueryCypherExists implements the cypherProber interface
+// (reducer_executor_adapters.go) so fakeNeo4jSession can stand in for
+// neo4jSessionRunner in ExecuteProbe tests.
+func (s *fakeNeo4jSession) QueryCypherExists(_ context.Context, cypher string, params map[string]any) (bool, error) {
+	s.probeCalls = append(s.probeCalls, fakeCypherCall{Cypher: cypher, Parameters: params})
+	return s.probeFound, s.probeErr
 }
 
 func readNornicDBTuningDoc(t *testing.T) string {
@@ -344,6 +358,59 @@ func TestReducerNeo4jSessionRunnerTransactionConfigurersSetTimeout(t *testing.T)
 	if got := config.Timeout; got != 4*time.Second {
 		t.Fatalf("transaction timeout = %s, want 4s", got)
 	}
+}
+
+// TestQueryCypherExistsPassesTransactionConfigurers is a source-level
+// regression for review F8: neo4jSessionRunner.QueryCypherExists' session.Run
+// call previously omitted r.transactionConfigurers()..., unlike RunCypher and
+// RunCypherGroup, so a probe or CanonicalNodeChecker read had no deadline on
+// either backend even when ESHU_CANONICAL_WRITE_TIMEOUT bounds every other
+// reducer graph write. neo4jdriver.SessionWithContext (the neo4j-go-driver/v5
+// package) carries an unexported method (lastBookmark), so it cannot be
+// implemented by a fake outside that package -- the same reason RunCypher and
+// RunCypherGroup have no unit-level "was the configurer actually passed to
+// session.Run" test either, only the live-backend suite
+// (repo_dependency_*_prove_theory_live_test.go). This test proves the same
+// property the only way available at the unit level: read this package's own
+// source and assert QueryCypherExists' body calls r.transactionConfigurers().
+func TestQueryCypherExistsPassesTransactionConfigurers(t *testing.T) {
+	t.Parallel()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+	sourcePath := filepath.Join(filepath.Dir(filename), "neo4j_wiring.go")
+	source, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", sourcePath, err)
+	}
+
+	body, ok := extractFuncBody(string(source), "func (r neo4jSessionRunner) QueryCypherExists(")
+	if !ok {
+		t.Fatal("QueryCypherExists function body not found in neo4j_wiring.go")
+	}
+	if !strings.Contains(body, "r.transactionConfigurers()") {
+		t.Fatalf("QueryCypherExists does not call r.transactionConfigurers() -- probe/pre-flight reads would have no deadline:\n%s", body)
+	}
+}
+
+// extractFuncBody returns the source text from signature (a unique function
+// signature prefix) up to the next top-level "\nfunc " boundary, or ok=false
+// if signature is not found. It is a crude brace-agnostic slice, sufficient
+// for asserting a call appears inside one specific function without pulling
+// in go/ast for a single regression check.
+func extractFuncBody(source, signature string) (string, bool) {
+	start := strings.Index(source, signature)
+	if start == -1 {
+		return "", false
+	}
+	rest := source[start+len(signature):]
+	end := strings.Index(rest, "\nfunc ")
+	if end == -1 {
+		return rest, true
+	}
+	return rest[:end], true
 }
 
 func TestNornicDBSemanticObservedExecutorLogsStatementDuration(t *testing.T) {

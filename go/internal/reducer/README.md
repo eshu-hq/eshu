@@ -218,6 +218,16 @@ Core interfaces:
 - `GraphProjectionPhaseRepairQueue` — `graph_projection_phase_repair.go:36`
 - `GraphProjectionPhaseStateLookup` — `graph_projection_phase_repair_runner.go:25`
 
+Exported constants:
+
+- `RepoRefreshIntentType` — `shared_projection_worker_refresh_fence.go:38` — the
+  `intent_type` payload value a repo-wide refresh intent carries. Exported
+  because the graph-write side reads it back rather than keeping its own copy:
+  `storage/cypher`'s rationale retract selects whole-scope repositories by
+  matching it, and a drifted copy there would match nothing, silently stop the
+  whole-scope retract, and leave stale EXPLAINS edges with no error and no dead
+  letter.
+
 Key construction functions:
 
 - `NewDefaultRuntime(DefaultHandlers)` — `defaults.go:137` — one-call wiring

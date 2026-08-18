@@ -112,6 +112,51 @@ func (i *InstrumentedExecutor) ExecuteGroup(ctx context.Context, stmts []Stateme
 	return err
 }
 
+// ExecuteProbe forwards to Inner.ExecuteProbe when the inner executor
+// implements ProbeExecutor. Returns an error without attempting the probe
+// when it does not, mirroring ExecuteGroup's fail-closed capability check
+// (#5998 review F1): InstrumentedExecutor wraps the reducer's base
+// reducerNeo4jExecutor in production (observed_service_wiring.go) BELOW the
+// backpressure gates and ABOVE the retry/adapter seam, so a missing forward
+// here makes the outer chain still type-assert as ProbeExecutor (every
+// wrapper above this one always has the method) while every call silently
+// dead-ends into "unsupported" -- exactly the failure this fixes.
+func (i *InstrumentedExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
+	pe, ok := i.Inner.(ProbeExecutor)
+	if !ok {
+		return false, fmt.Errorf("inner executor does not support ExecuteProbe")
+	}
+
+	start := time.Now()
+
+	var span trace.Span
+	if i.Tracer != nil {
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute_probe",
+			trace.WithAttributes(
+				attribute.String("db.system", "neo4j"),
+				attribute.String("db.operation", string(stmt.Operation)),
+			),
+		)
+		defer span.End()
+	}
+
+	found, err := pe.ExecuteProbe(ctx, stmt)
+
+	if i.Instruments != nil && i.Instruments.Neo4jQueryDuration != nil {
+		duration := time.Since(start).Seconds()
+		i.Instruments.Neo4jQueryDuration.Record(ctx, duration, metric.WithAttributes(
+			attribute.String("operation", "probe"),
+		))
+	}
+
+	if err != nil && span != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	return found, err
+}
+
 // recordStatementBatchMetrics emits one bounded row-count signal per UNWIND
 // statement. Grouped Neo4j writes use this to expose the same phase and label
 // clues available to NornicDB phase-group logs without splitting the transaction.

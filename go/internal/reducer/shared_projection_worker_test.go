@@ -53,7 +53,7 @@ func TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst(t *testing.T) {
 			RepositoryID: "repo-a",
 			PartitionKey: "inheritance_edges:refresh:v1:whole:repo-a",
 			CreatedAt:    t0.Add(time.Hour),
-			Payload:      map[string]any{"intent_type": repoRefreshIntentType, "action": repoRefreshAction},
+			Payload:      map[string]any{"intent_type": RepoRefreshIntentType, "action": repoRefreshAction},
 		},
 	}
 
