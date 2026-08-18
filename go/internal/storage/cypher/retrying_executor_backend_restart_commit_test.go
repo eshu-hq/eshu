@@ -138,3 +138,46 @@ func TestBackendRestartCommitBlockedWritesClassificationFailsClosedForNearMisses
 		})
 	}
 }
+
+// Point 3 above was only PARTLY classified. isNornicDBRestartTransactionStartFailure
+// matched the begin-side teardown on an exact message, "failed to write WAL tx
+// begin: wal: closed" -- but NornicDB reports the same condition a second way
+// when the engine is already closed rather than only its WAL:
+//
+//	write canonical gcp relationship edges: Neo4jError:
+//	Neo.ClientError.Transaction.TransactionStartFailed
+//	(failed to start transaction: engine is closed)
+//
+// Observed live on 2026-08-18 in the same restart-backend-between-phase-groups
+// cell, dead-lettering a gcp_relationship_materialization write as
+// failure_class=projection_bug and failing the drain at residual=1. Both
+// spellings mean the transaction never began, so replay is equally safe; only
+// the wording differs. This test pins the second spelling so narrowing the
+// match back to one message fails here rather than intermittently in a
+// twenty-minute Docker cell, which is how both halves of this were found.
+func TestBackendRestartEngineClosedTransactionStartIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	engineClosed := &neo4jdriver.Neo4jError{
+		Code: nornicDBRestartTransactionStartCode,
+		Msg:  nornicDBEngineClosedTransactionStartMsg,
+	}
+	require.True(t, isNornicDBRestartTransactionStartFailure(engineClosed),
+		"engine-closed begin failure must classify as a backend restart, not a projection bug")
+
+	walClosed := &neo4jdriver.Neo4jError{
+		Code: nornicDBRestartTransactionStartCode,
+		Msg:  nornicDBRestartTransactionStartMsg,
+	}
+	require.True(t, isNornicDBRestartTransactionStartFailure(walClosed),
+		"the original WAL-closed spelling must keep classifying")
+
+	// Same code, unrelated body: must stay terminal. Without this the fix would
+	// be a widening that swallows genuine begin-time faults.
+	unrelated := &neo4jdriver.Neo4jError{
+		Code: nornicDBRestartTransactionStartCode,
+		Msg:  "failed to start transaction: constraint violation",
+	}
+	require.False(t, isNornicDBRestartTransactionStartFailure(unrelated),
+		"an unrelated TransactionStartFailed body must remain terminal")
+}
