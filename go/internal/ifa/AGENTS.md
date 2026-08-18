@@ -208,6 +208,18 @@ what does not.
 | Workflow `paths:` entries | `.github/workflows/ifa-determinism-gate.yml` | Registry-subset-of-workflow lockstep |
 | Blocker declaration vs handler shape | registry row `IFA_FAMILY_BLOCKER_KIND` | `TestMaterializedEdgeFamilyBlockerLockstep` — a family whose handler holds no `IntentWriter` may not declare `shared_intent_lock` |
 
+Line-cap headroom is the constraint that will bite first. Two files grow per
+family and both sit close to the hard 500-line limit: the fault gate itself
+(two dispatch lines plus this file's convention of a rationale comment) and
+`materialized_edge_family_blocker_shape_test.go` (an expectations entry plus
+its citation). When either runs out, extract — move a self-contained block of
+rationale to the library it actually documents, the way the `cell_failgraphwrite_sql`
+history and the deployable-unit ordering note were moved. Do not trim comments
+to fit; the rationale in these files is what lets a reviewer catch a cell whose
+stated intent has drifted from what it does, which is the defect class this
+whole program exists to close. Note the `filelength` linter skips `_test.go`,
+so the Go file's limit is policy, not a gate — nothing will stop you.
+
 Not enforced by any gate — get these right by hand:
 
 - **`IFA_FAMILY_RETRY_BASELINE_VAR`.** A `shared_intent_lock` family without it

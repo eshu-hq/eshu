@@ -24,8 +24,13 @@ import (
 // the real declarations scripts/lib/ifa_family_registry.sh's own accessor
 // functions return, never a Go-side copy of them.
 var (
-	ifaFamilyRegistryBlockerKindRE = regexp.MustCompile(`IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
-	ifaFamilyRegistryWaitKeyRE     = regexp.MustCompile(`IFA_FAMILY_WAIT_KEY\[(\w+)\]="([^"]*)"`)
+	// Anchored to line start (?m). Unanchored, these matched an assignment
+	// anywhere in a row file -- including inside a comment -- and a later match
+	// overwrote an earlier one, so a commented-out old row left below the live
+	// one would be parsed as the declaration and silently drive the lockstep
+	// test against a value the shell loader never reads.
+	ifaFamilyRegistryBlockerKindRE = regexp.MustCompile(`(?m)^IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
+	ifaFamilyRegistryWaitKeyRE     = regexp.MustCompile(`(?m)^IFA_FAMILY_WAIT_KEY\[(\w+)\]="([^"]*)"`)
 )
 
 // ifaFamilyRegistryRowsDir returns the absolute path to

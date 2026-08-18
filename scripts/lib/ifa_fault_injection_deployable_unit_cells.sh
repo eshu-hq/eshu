@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# Relocated from scripts/verify-ifa-fault-injection.sh (it documents these
+# cells, and that file was at its 500-line cap):
+# deployable_unit_edges cells (#5993). cell_baseline_deployable_unit MUST run
+# before the two fault cells below: it populates digests[baseline_deployable_unit]
+# and baseline_deployable_unit_retried, shell state the fault cells' own
+# assert_matches_baseline/ifa_fault_assert_retried_above calls read. This is a
+# family-scoped baseline, not the shared cell_baseline above: cell_baseline
+# never runs a bootstrap-index maintenance pass, so its digest has ZERO
+# deployable_unit_edges materialization by construction and would never match
+# a cell that does run the pass -- see scripts/lib/
+# ifa_fault_injection_deployable_unit_cells.sh's header for the full ruling.
+
 # shellcheck disable=SC2034,SC2154
 # deployable_unit_edges-targeted live fault cells (#5993). Sourced by
 # verify-ifa-fault-injection.sh; the driver owns strict mode and globals

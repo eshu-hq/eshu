@@ -12,12 +12,16 @@
 # go/internal/reducer/code_call_materialization.go:32 declares
 # CodeCallIntentWriter; :47 embeds it as IntentWriter; :224 calls
 # h.IntentWriter.UpsertIntents(...) inside Handle(). Same shape as
-# sql_relationships => blocker_kind=shared_intent_lock. Confirmed live:
-# scripts/lib/ifa_fault_injection_code_call_cells.sh:53 calls
-# ifa_fault_wait_for_claimed against fact_work_items domain
-# "code_call_materialization" (go/internal/reducer/intent.go:42
-# DomainCodeCallMaterialization Domain = "code_call_materialization") --
-# handler stage.
+# sql_relationships => blocker_kind=shared_intent_lock. Confirmed live, one
+# hop through the generic dispatcher rather than a direct call:
+# cell_killworker_code_calls (scripts/lib/ifa_fault_injection_code_call_cells.sh)
+# is now a one-line delegation to cell_killworker_family, whose
+# _ifa_generic_wait_for_claimed helper (scripts/lib/ifa_fault_generic_cells.sh)
+# calls ifa_fault_wait_for_claimed against fact_work_items domain
+# "code_call_materialization" -- the wait_key this family's own row declares
+# (scripts/lib/ifa_family_registry/rows/02_code_calls.sh) --
+# (go/internal/reducer/intent.go:42 DomainCodeCallMaterialization Domain =
+# "code_call_materialization") -- handler stage.
 IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"

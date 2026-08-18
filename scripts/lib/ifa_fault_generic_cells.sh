@@ -210,9 +210,6 @@ _ifa_generic_cell_killworker_body() {
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
 }
 
-# _ifa_generic_cell_killworker_none is blocker_kind=none's thin wrapper --
-# too small to earn its own mechanism file. No precondition: there is no
-# blocker to fail to engage.
 # _ifa_generic_require_retry_baseline proves a shared_intent_lock family's
 # kill cell genuinely re-executed the interrupted work ABOVE its fault-free
 # retry baseline. F-5(b): a missing IFA_FAMILY_RETRY_BASELINE_VAR row must
@@ -236,6 +233,9 @@ _ifa_generic_require_retry_baseline() {
 		|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
 }
 
+# _ifa_generic_cell_killworker_none is blocker_kind=none's thin wrapper --
+# too small to earn its own mechanism file. No precondition: there is no
+# blocker to fail to engage.
 _ifa_generic_cell_killworker_none() {
 	local family="$1" cell="genkillworker${1//_/}"
 	_ifa_generic_cell_killworker_body "${family}" "${cell}" none ""
