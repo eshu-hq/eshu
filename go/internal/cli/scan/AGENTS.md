@@ -9,7 +9,8 @@
 3. `go/cmd/eshu/scan.go` — the thin cobra `RunE` wrapper. `defaultScanRuntime`
    there is where every process seam is wired; it is the file that shows how
    the two halves fit together.
-4. `go/cmd/eshu/first_run_index.go` and `go/internal/cli/vulnscan/run.go`
+4. `go/internal/cli/firstrun` (`Deps.RunScan`, wired to `scan.Execute` by
+   `go/cmd/eshu/first_run.go`) and `go/internal/cli/vulnscan/run.go`
    (`RunRepo`, with the `scan.Runtime` wired by `go/cmd/eshu/vuln_scan.go`) —
    the two other production callers of `Execute`, and the reason its exported
    surface is wider than `eshu scan` alone needs.
@@ -76,21 +77,27 @@
   reuse it precisely so there is only one. A status report with no completed or
   active generation is not-ready, not drained.
 
-- **`mergeEnv` and `pathExists` are deliberate copies** of `go/cmd/eshu`'s
-  `mergeEnvironment` and `pathExists`, which stay there for their callers
-  outside the scan family. A behavior change to one is a bug unless made to
-  both. The parity tests in `go/cmd/eshu/scan_parity_test.go` enforce this:
-  `TestScanMergeEnvMatchesMergeEnvironment` and
-  `TestScanPathExistsMatchesScanCommandProbe` run shared input tables through
-  both sides, and `TestScanEnvAndPathCopiesAreTokenIdentical` pins the
+- **`pathExists` is a deliberate copy** of `go/cmd/eshu`'s `pathExists`
+  (`go/cmd/eshu/scan.go:148`), which stays there because `first_run.go` passes
+  it as `Deps.FileExists`. A behavior change to one is a bug unless made to
+  both. Two parity tests in `go/cmd/eshu/scan_parity_test.go` enforce it:
+  `TestScanPathExistsMatchesScanCommandProbe` runs a shared input table through
+  both sides, and `TestScanPathExistsCopyIsTokenIdentical` pins the two
   function bodies token-identical.
+
+  There is no longer an env-merging copy to keep in parity. `mergeEnvironment`
+  left `go/cmd/eshu` for `go/internal/cli/procexec` (`MergeEnvironment`), which
+  is an importable home, so this package calls it rather than copying it. An
+  earlier version of this bullet described a `mergeEnv` copy here and named two
+  parity tests for it; neither the copy nor those tests exist.
 
 ## Common changes and how to scope them
 
 - **Add a readiness condition** → edit `EvaluateReadiness` in `status.go` and
   add a case to `TestEvaluateReadinessTerminalCases`. Why: three call sites
-  outside this package (`first_run_index.go`, `first_run_diagnostics.go`,
-  `hosted_setup_verify.go`) depend on that one function agreeing with `Execute`;
+  outside this package (`go/internal/cli/firstrun/index.go`,
+  `go/internal/cli/firstrun/signals.go`, `go/cmd/eshu/hosted_setup_cmd.go`)
+  depend on that one function agreeing with `Execute`;
   a condition added at a call site instead makes them disagree.
 - **Change what the bootstrap child receives** → edit `Options.BootstrapArgs`
   or `Options.BootstrapEnv`. They are the only place the child's argv and
