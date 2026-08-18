@@ -681,7 +681,7 @@ linters:
       # The other eight are in exercises.go: seven in the exercise* helpers,
       # and one in supportedSupplyChainPacket, whose only non-test caller is
       # exerciseInvestigationEvidencePacketArtifact. Their errors never reach
-      # anyone: ExerciseResults discards the error and records the static
+      # anyone: exerciseResults discards the error and records the static
       # exerciseFailureDetail string instead, because the real text can carry
       # local paths and the artifact is share-safe output. They are covered
       # here so the package has one rule rather than a per-function split,
