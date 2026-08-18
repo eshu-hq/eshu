@@ -51,6 +51,10 @@ require_code_call_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${code_call_cells_lib}" || fail "missing ${label} (code-call cells lib): ${needle}"
 }
+require_generic_cells() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${generic_cells_lib}" || fail "missing ${label} (generic cells lib): ${needle}"
+}
 require_documentation_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"

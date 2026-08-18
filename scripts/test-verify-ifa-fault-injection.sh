@@ -61,10 +61,11 @@ assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
+generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -105,6 +106,7 @@ bash -n "${entrypoint_cases_lib}" || fail "test-ifa-fault-injection-entrypoint-c
 bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
 bash -n "${shard_lib}" || fail "ifa_fault_shard.sh has a syntax error"
 bash -n "${shard_cases_lib}" || fail "test-ifa-fault-injection-shard-cases.sh has a syntax error"
+bash -n "${generic_cells_lib}" || fail "ifa_fault_generic_cells.sh has a syntax error"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
 # The GATE script needs the same guard as this mirror. Its determinism sibling
@@ -350,17 +352,32 @@ require "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
 require "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
 require_code_call_lib "code-call drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
-require_code_call_cells "claimed row targets code-call materialization" '"code_call_materialization"'
-require_code_call_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
-require_code_call_cells "graph-write cell selects queue-retry" '"queue-retry"'
-require_code_call_cells "graph-write cell targets durable code-call marker" "ifa_fault_assert_once_fault_marker"
-require_code_call_cells "graph-write cell probes code-call intents" "projection_domain = 'code_calls'"
+# cell_killworker_code_calls/cell_failgraphwrite_code_calls now delegate to
+# the generic, registry-driven dispatcher (scripts/lib/ifa_fault_generic_cells.sh)
+# instead of hand-writing the kill/reclaim/drain/assert and fail-graph-write
+# skeleton per family, per that file's own WIRING header. The five literal-
+# text pins this replaces moved with the behavior, not away -- they now check
+# the mechanism's new, family-agnostic home instead of the (now one-line)
+# per-family cell body. The anchored per-family delegation proof (both
+# code_calls and rationale_edges) and the registry-row wait_key/retry-
+# baseline bindings live in scripts/lib/test-ifa-fault-injection-shard-cases.sh
+# instead of here or in test-ifa-fault-injection-rationale-cases.sh, to keep
+# every file under the line cap without a bare, prose-satisfiable needle
+# anywhere -- see that module for why a bare `cell_killworker_family
+# code_calls` substring check is not anchored enough on its own. The
+# generic_cells_lib's own `projection_domain` intent-window diagnostic IS
+# restored (the old bespoke cell had it; the generic dispatcher now does too,
+# generically, driven by the family argument every cell already passes).
+require "generic-cell dispatcher sourced by the gate" 'source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"'
+require_generic_cells "generic kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+require_generic_cells "generic graph-write cell selects queue-retry" '"queue-retry"'
+require_generic_cells "generic graph-write cell targets the durable once-fired marker" "ifa_fault_assert_once_fault_marker"
+require_generic_cells "generic graph-write cell asserts edges by the registry's per-family domain" 'assert-edges -domain "${family}" -expected "${expected}"'
 require_lib "shared-domain precondition preserves query failure" "precondition query FAILED (exit"
 require_lib "shared-domain precondition distinguishes empty output" "returned empty output"
 require_lib "shared-domain precondition rejects non-numeric output" "returned non-numeric output"
 require_lib "shared-domain precondition reports stale intents" "survived fresh_stack"
 require_lib "shared lock preserves code-call log naming" 'log_namespace="${namespace//_/-}"'
-require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
 
 # documentation_edges (#5994) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the deployable-unit
@@ -448,7 +465,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi

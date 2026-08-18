@@ -148,6 +148,50 @@ ${actual_full}"
 	rg --quiet --line-regexp -- 'ifa_fault_shard_run cell_failgraphwrite_sql' "${script}" \
 		|| test_ifa_fault_shard_cases_fail "cell_failgraphwrite_sql is no longer invoked via ifa_fault_shard_run in the default matrix -- missing entirely, held out (#5974), or dispatched WITHOUT the wrapper"
 
+	# GENERIC DISPATCHER DELEGATION (code_calls and rationale_edges, the two
+	# families scripts/lib/ifa_fault_generic_cells.sh's WIRING header names as
+	# actually swapped onto it). Anchored multiline so each needle proves the
+	# real DELEGATION -- declaration plus body -- not merely that the wrapper
+	# function still exists. A bare substring needle like
+	# "cell_killworker_family code_calls" is satisfied by prose anywhere in
+	# the file (this module's own header comments say "rationale_edges"
+	# repeatedly) and would keep passing even if the delegation were deleted
+	# entirely -- the identical defect class the eighteen-cell dispatch-anchor
+	# loop above already documents. Do not weaken these back to bare-word
+	# checks.
+	local code_call_cells_lib rationale_cells_lib
+	code_call_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
+	rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
+	rg -U --fixed-strings --quiet -- $'cell_killworker_code_calls() {\n\tcell_killworker_family code_calls\n}' "${code_call_cells_lib}" \
+		|| test_ifa_fault_shard_cases_fail "code-call kill cell did not delegate to the generic shared-intent-lock dispatcher"
+	rg -U --fixed-strings --quiet -- $'cell_failgraphwrite_code_calls() {\n\tcell_failgraphwrite_family code_calls\n}' "${code_call_cells_lib}" \
+		|| test_ifa_fault_shard_cases_fail "code-call graph-fault cell did not delegate to the generic fresh-domain-guard dispatcher"
+	rg -U --fixed-strings --quiet -- $'cell_killworker_rationale() {\n\tcell_killworker_family rationale_edges\n}' "${rationale_cells_lib}" \
+		|| test_ifa_fault_shard_cases_fail "rationale kill cell did not delegate to the generic shared-intent-lock dispatcher"
+	rg -U --fixed-strings --quiet -- $'cell_failgraphwrite_rationale() {\n\tcell_failgraphwrite_family rationale_edges\n}' "${rationale_cells_lib}" \
+		|| test_ifa_fault_shard_cases_fail "rationale graph-fault cell did not delegate to the generic fresh-domain-guard dispatcher"
+
+	# The old bespoke cells' wait_key and retry-baseline-variable literals
+	# (e.g. "rationale_materialization", "baseline_code_call_retried") moved
+	# one level further than the dispatcher: they are now registry DATA, not
+	# dispatcher code, in scripts/lib/ifa_family_registry/rows/. The
+	# dispatcher reads them generically (ifa_family_wait_key /
+	# ifa_family_retry_baseline_var); only the registry row still says which
+	# literal a given family binds to.
+	local code_call_registry_row rationale_registry_row
+	code_call_registry_row="${repo_root}/scripts/lib/ifa_family_registry/rows/02_code_calls.sh"
+	rationale_registry_row="${repo_root}/scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh"
+	[[ -f "${code_call_registry_row}" ]] || test_ifa_fault_shard_cases_fail "missing ${code_call_registry_row}"
+	[[ -f "${rationale_registry_row}" ]] || test_ifa_fault_shard_cases_fail "missing ${rationale_registry_row}"
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_WAIT_KEY[code_calls]="code_call_materialization"' "${code_call_registry_row}" \
+		|| test_ifa_fault_shard_cases_fail "code_calls registry row does not bind wait_key to code_call_materialization"
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_RETRY_BASELINE_VAR[code_calls]="baseline_code_call_retried"' "${code_call_registry_row}" \
+		|| test_ifa_fault_shard_cases_fail "code_calls registry row does not bind its retry-baseline variable to baseline_code_call_retried"
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_WAIT_KEY[rationale_edges]="rationale_materialization"' "${rationale_registry_row}" \
+		|| test_ifa_fault_shard_cases_fail "rationale_edges registry row does not bind wait_key to rationale_materialization"
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_RETRY_BASELINE_VAR[rationale_edges]="baseline_rationale_retried"' "${rationale_registry_row}" \
+		|| test_ifa_fault_shard_cases_fail "rationale_edges registry row does not bind its retry-baseline variable to baseline_rationale_retried"
+
 	# CI WIRING INTENT (migrated from a pin the workflow's shard rollout
 	# broke): before sharding, the fault-injection job ran as one step whose
 	# label named "18 cells" -- a hand-written count -- and a pin here

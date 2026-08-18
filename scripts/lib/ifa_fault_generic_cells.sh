@@ -251,6 +251,18 @@ _ifa_generic_cell_failgraphwrite() {
 	run_drain_gate "${cell}"
 	assert_no_dead_letters "${cell}"
 	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
+	# Operator-facing diagnostic (informational only -- gates nothing): which
+	# domain's intent window this cell was actually watching. shared_projection_
+	# intents.projection_domain is keyed by the family/registry name itself
+	# (verified against every bespoke cell this replaced: the old code_calls and
+	# rationale_edges cells both filtered on their own family name here, not
+	# their wait_key), so this generalizes with no registry lookup beyond the
+	# family argument this function already has. At 3am when a generic cell
+	# fails, this is how an operator tells whether it was watching the right
+	# domain at all.
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT count(*) AS total, count(*) FILTER (WHERE completed_at IS NULL) AS pending FROM shared_projection_intents WHERE projection_domain = '${family}';" \
+		"${compose_file}" | sed "s/^/  ${family} intent window: /"
 	marker_rc=0
 	ifa_fault_assert_once_fault_marker "${fault_once_script}" "${anchor}" || marker_rc=$?
 	if [[ "${marker_rc}" -eq 2 ]]; then

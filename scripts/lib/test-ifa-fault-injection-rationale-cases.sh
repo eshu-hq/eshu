@@ -388,22 +388,14 @@ run_ifa_rationale_live_static_cases() {
 		rg --fixed-strings --quiet -- "${needle}" "${fault_lib}" \
 			|| fail "fault common library missing generalized shared-intent helper: ${needle}"
 	done
-	rg --fixed-strings --quiet -- 'ifa_fault_start_shared_intent_lock "killworkercodecalls"' "${code_call_cells_lib}" \
-		|| fail "code-call kill cell did not move onto the generalized shared-intent lock"
-	rg --fixed-strings --quiet -- 'ifa_fault_require_fresh_domain_intents' "${code_call_cells_lib}" \
-		|| fail "code-call graph-fault cell did not move onto the generalized fresh-domain guard"
-
-	for needle in \
-		'cell_killworker_rationale() {' \
-		'"rationale_materialization")' \
-		'"${baseline_rationale_retried}"' \
-		'cell_failgraphwrite_rationale() {' \
-		'rationale_edges' \
-		'"queue-retry"' \
-		'ifa_fault_assert_once_fault_marker'; do
-		rg --fixed-strings --quiet -- "${needle}" "${rationale_cells_lib}" \
-			|| fail "rationale fault cells missing targeted recovery proof: ${needle}"
-	done
+	# code_calls' and rationale_edges' kill/graph-fault cells moved onto the
+	# generic, registry-driven dispatcher (scripts/lib/ifa_fault_generic_cells.sh)
+	# instead of calling the generalized shared-intent-lock/fresh-domain-guard
+	# helpers directly. The anchored delegation and registry-binding proof for
+	# both families lives in scripts/lib/test-ifa-fault-injection-shard-cases.sh
+	# (run_ifa_fault_injection_shard_cases), alongside the shard partitioner's
+	# own dispatch-anchor checks -- not duplicated here, extracted there to
+	# keep this file under the line cap without shortening either proof.
 
 	# Needles carry the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh):
 	# every dispatch line routes through that wrapper for --shard skip support,
@@ -463,7 +455,14 @@ run_ifa_rationale_live_static_cases() {
 		|| fail "delta helper starts a duplicate projector/reducer pair instead of reusing caller-owned workers"
 	[[ "${delta_function}" == *"caller-owned running projector + reducer"* ]] \
 		|| fail "delta helper does not document its one-lifecycle worker ownership"
-	for target in "${cells_lib}" "${sql_cells_lib}" "${code_call_cells_lib}" "${documentation_cells_lib}" "${rationale_cells_lib}"; do
+	# code_call_cells_lib and rationale_cells_lib dropped out of this list:
+	# their kill/join/untrack sequence moved into the generic dispatcher's
+	# shared skeleton (_ifa_generic_cell_killworker_body,
+	# scripts/lib/ifa_fault_generic_cells.sh) along with the rest of the
+	# kill-worker cell body, so generic_cells_lib stands in for both --
+	# checked once, not duplicated per family, since the join/untrack call
+	# itself is family-agnostic there.
+	for target in "${cells_lib}" "${sql_cells_lib}" "${generic_cells_lib}" "${documentation_cells_lib}"; do
 		rg --fixed-strings --quiet -- 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL' "${target}" \
 			|| fail "$(basename "${target}") does not join/untrack the killed candidate-adjacent reducer"
 	done
