@@ -7,9 +7,12 @@
 2. `README.md` — ownership boundary, the exported surface and why the matcher
    internals are not part of it, and the two pre-existing behaviours that look
    like bugs and are not yours to fix here.
-3. `go/cmd/eshu/repository_selector.go` — the cobra wrapper. It owns the
-   `--repo` / `--repo-id` flag names and the `--repo-id` short-circuit that
-   skips resolution entirely.
+3. `go/cmd/eshu/repository_selector.go` — the cobra wrapper. It reads the
+   `--repo` / `--repo-id` flags that each command file declares for itself
+   (`analyze.go:96`, `analyze.go:315`), and owns the `--repo-id`
+   short-circuit that skips resolution entirely. It does not declare the flag
+   names; adding a selector flag to a new command means declaring it in that
+   command's file.
 4. `go/cmd/eshu/AGENTS.md` — the wrapper's package rules, including why
    command logic lives out here at all (epic #6053, issue #6059).
 
@@ -31,7 +34,7 @@ server-side against the graph. Same concept, different code, different owner.
   returned twice does not read as ambiguous.
 - **The package stays process-neutral.** No cobra, no environment, no process
   stream, no subprocess, no file write.
-  `TestPackageStaysProcessNeutral` in `doc_lockstep_test.go` pins the direct
+  `TestPackageStaysCobraAndEnvFree` in `doc_lockstep_test.go` pins the direct
   import set and the `os` / `fmt` selector sets as set equalities, so a new
   import or a new `os` call fails until the README sentence it widens is
   revisited too.
@@ -73,7 +76,9 @@ server-side against the graph. Same concept, different code, different owner.
 ## What NOT to change without an ADR
 
 - The `resolve repo selector %q: ...` error prefixes. They are what an
-  operator sees, and the CLI parity check pins operator-visible text.
+  operator sees, and `TestRunAnalyzeDeadCodeFailsOnAmbiguousRepoSelector`
+  (`go/cmd/eshu/analyze_test.go:287`) asserts the ambiguous-match string
+  verbatim, so changing the wording fails that test.
 - The exact-vs-canonicalized split between identity and path fields. Widening
   it changes which repository an existing selector resolves to, silently, for
   every operator script already using one.

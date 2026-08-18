@@ -31,7 +31,22 @@ func resolveRepositorySelectorFromFlags(cmd *cobra.Command, client *APIClient) (
 	if exact {
 		return selector, nil
 	}
+	if client == nil {
+		return "", missingAPIClientError(selector)
+	}
 	return reposelector.Resolve(client, selector)
+}
+
+// missingAPIClientError reproduces the error a nil client produced before the
+// selector logic moved to go/internal/cli/reposelector. The check has to
+// happen here, on the concrete pointer: a nil *APIClient boxed into
+// reposelector.Getter is a non-nil interface, so it slips that package's own
+// nil guard and panics inside APIClient.do instead. Callers build the client
+// with apiClientFromCmd, which never returns nil, so this is defensive -- but
+// preserving it keeps the extraction behaviour-preserving rather than
+// behaviour-preserving-for-today's-callers.
+func missingAPIClientError(selector string) error {
+	return fmt.Errorf("resolve repo selector %q: missing API client", selector)
 }
 
 // readRepositorySelectorFlag returns the selector value, whether it is already

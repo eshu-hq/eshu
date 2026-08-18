@@ -10,24 +10,34 @@ into the canonical repository ID the API keys everything else by.
 Two entry points, because two different callers need it:
 
 - `Resolve(client, selector)` fetches the repository listing and returns the
-  single matching ID. `eshu vuln-scan repo` and every `--repo`-flagged command
-  reach it through `go/cmd/eshu/repository_selector.go`.
+  single matching ID. Two callers reach it, both through
+  `go/cmd/eshu/repository_selector.go`: the `analyze` family's `--repo` flag
+  (`analyze.go:96`, `analyze.go:315`) and `eshu vuln-scan repo`'s scanned root.
 - `Matches(entry, selector)` is the same rule applied to one already-fetched
-  entry. `eshu first-run` and `eshu hosted setup` hold the listing already and
+  entry. `eshu first-run` and `eshu hosted-setup` hold the listing already and
   only want the predicate.
+
+Not every `--repo` flag in the CLI comes here. `map`, `trace service`, and
+`docs verify` each declare their own `--repo` (`map.go:33`, `trace.go:43`,
+`docs.go:65`) and pass it to the API unresolved, letting the server resolve
+it; `hosted onboard`'s `--repo` (`hosted_onboard_cmd.go:40`) takes exact
+`owner/name` values and needs no resolution at all.
 
 `ListResponse` and `Entry` are the `/api/v0/repositories` wire shapes both
 paths decode. Two files in `go/cmd/eshu` decode `ListResponse` themselves
 rather than going through `Resolve`: `first_run.go` and `hosted_setup_cmd.go`,
-which each need the whole listing, not one ID.
+which need the listing, not one ID. Both fetch a bounded page
+(`firstrun.QueryEndpoint` is `?limit=5`, `hosted.ReposPath` is `?limit=25`).
 
 ## Ownership boundary
 
 This package owns matching and the listing read. It does not own anything
-cobra-shaped: flag names, flag reading, the `--repo-id` short-circuit that
-skips resolution entirely, streams, and exit codes stay in
+cobra-shaped: flag reading, the `--repo-id` short-circuit that skips
+resolution entirely, streams, and exit codes stay in
 `go/cmd/eshu/repository_selector.go`, which is `package main` and therefore
-cannot be imported from here.
+cannot be imported from here. The flag *names* are not owned there either --
+each command file declares its own `--repo` / `--repo-id`, and
+`repository_selector.go` only reads whichever one the command declared.
 
 It does not own the server-side selector either. `go/internal/query` has its
 own unrelated `resolveRepositorySelector` for HTTP path parameters; the two
@@ -55,7 +65,7 @@ client in. `*APIClient` satisfies `Getter` as written, and the pattern matches
 
 Standard library only: `fmt`, `path/filepath`, `slices`, and `strings`. No
 intra-repo import, no cobra, no environment read, no process stream, no
-subprocess. `TestPackageStaysProcessNeutral` in `doc_lockstep_test.go` pins
+subprocess. `TestPackageStaysCobraAndEnvFree` in `doc_lockstep_test.go` pins
 that as a set equality, so a new import fails the guard until the sentence
 above is revisited too.
 
@@ -88,12 +98,19 @@ its returned error, which the wrapper maps to the operator's exit code.
   the matching IDs sorted, so the operator can re-run with an exact one.
   Silently taking the first match would let the CLI report on a repository the
   operator never named.
-- **A `nil` client is an error, not a panic** — but only for a nil `Getter`
-  interface. A typed-nil `*APIClient` passed in as a `Getter` is non-nil to
-  this package and would panic in `Get`; the wrapper owns building a real
-  client, and `apiClientFromCmd` never returns nil.
+- **A `nil` client is an error, not a panic.** `Resolve` rejects a nil
+  `Getter` interface. A typed-nil `*APIClient` is non-nil once boxed into a
+  `Getter`, so it would slip that guard and panic in `Get` — which is why the
+  wrapper keeps its own `client == nil` check on the concrete pointer before
+  calling in (`repository_selector.go`, `vuln_scan.go`). That check predates
+  the extraction and was deliberately preserved, so the "missing API client"
+  error still reaches the operator instead of a stack trace.
 
 ## Related docs
 
-`go/cmd/eshu/AGENTS.md` covers the wrapper side. `docs/public/reference/cli-reference.md`
-documents the `--repo` / `--repo-id` flags operators actually type.
+`go/cmd/eshu/AGENTS.md` covers the wrapper side, including which flags reach
+this package and which do not. The selector forms themselves are documented
+where each command is; `docs/public/reference/cli-reference.md` covers other
+`--repo` flags with different semantics (`hosted onboard`'s exact
+`owner/name`, change impact's `--repo-id`), not the `analyze` selector this
+package resolves.

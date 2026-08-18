@@ -14,12 +14,19 @@ import (
 	"testing"
 )
 
-// TestPackageStaysProcessNeutral is the standing guard behind the ownership
+// TestPackageStaysCobraAndEnvFree is the standing guard behind the ownership
 // claim doc.go, README.md and AGENTS.md all make: this package reads no cobra
 // flag, reads no environment variable, touches no process stream, writes no
-// file, and never exits. The only host contact it has is the deliberate one --
-// filepath.EvalSymlinks resolving a selector against the real filesystem --
-// and that arrives through path/filepath, which the import set below pins.
+// file, and never exits.
+//
+// The name is deliberately literal about what is pinned, because this package
+// is NOT inert and a broader name would imply it is. It reads the real
+// filesystem on every match -- filepath.EvalSymlinks resolving a selector and
+// each candidate path -- and it reaches the network on every Resolve, through
+// the Getter the wrapper injects. Both are the package's job. What the guard
+// covers is process contact: cobra, the environment, the standard streams, and
+// os.Exit. A reader who greps for this test must not come away thinking the
+// package touches nothing.
 //
 // Without this test the claim would rest on nothing a gate re-runs. The
 // package was lifted out of go/cmd/eshu, where cobra, os.Exit and the process
@@ -42,7 +49,7 @@ import (
 // folding them in would swell the expected set until it no longer described
 // the boundary. This file is itself a _test.go, so the skip also keeps the
 // guard from tripping over its own os.ReadDir.
-func TestPackageStaysProcessNeutral(t *testing.T) {
+func TestPackageStaysCobraAndEnvFree(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatalf("read package dir: %v", err)
@@ -54,14 +61,19 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	// printed, because the wrapper in go/cmd/eshu owns the operator's streams.
 	wantFmt := []string{"Errorf"}
 
-	// README.md states this package has no intra-repo dependency and makes no
-	// subprocess or network call. The os and fmt sets cannot see that: a direct
+	// README.md states this package has no intra-repo dependency and depends on
+	// the standard library alone. The os and fmt sets cannot see that: a direct
 	// os/exec, net, net/http or syscall import would leave both sets untouched,
 	// and so would importing another Eshu package. Pinning the import set
 	// catches those, and catches them for the package nobody thought to ban
 	// rather than for a list someone remembered -- the same reason the selector
 	// checks are equalities. A genuinely new import then needs this list
 	// edited, which is the intended trade.
+	//
+	// "No DIRECT network call" is the honest phrasing, and the distinction is
+	// load-bearing: Resolve does reach the network, through the Getter the
+	// wrapper injects. What the pin guarantees is that this package cannot
+	// acquire its own transport.
 	//
 	// Be exact about the limit, because the honest version of this comment is
 	// the part that keeps working. The pin is over DIRECT imports, and today
@@ -131,9 +143,10 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	assertSelectorSet(t, "fmt", gotFmt, wantFmt,
 		"this package returns errors and is rendered by its caller, never writing to the process stdout")
 	assertSelectorSet(t, "import", gotImports, wantImports,
-		"README.md states this package depends on the standard library alone and makes no subprocess or network call; "+
-			"a new import here means that sentence needs revisiting, and cobra in particular belongs in "+
-			"go/cmd/eshu's repository_selector.go")
+		"README.md states this package depends on the standard library alone, makes no subprocess call, and opens no "+
+			"transport of its own (Resolve reaches the network only through the injected Getter); a new import here "+
+			"means that sentence needs revisiting, and cobra in particular belongs in go/cmd/eshu's "+
+			"repository_selector.go")
 
 	// A scan that read no files, or walked no selectors, is not evidence. Two
 	// non-test sources today: doc.go and reposelector.go. The selector floor is

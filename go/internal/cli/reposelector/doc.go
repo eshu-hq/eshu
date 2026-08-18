@@ -9,7 +9,7 @@
 // entry the selector names, erroring when the selector matches nothing or
 // matches more than one repository. Matches is the same rule applied to a
 // single already-fetched Entry, which is what the `eshu first-run` and
-// `eshu hosted setup` scope checks need: they hold the listing already and
+// `eshu hosted-setup` scope checks need: they hold the listing already and
 // only want the predicate. ListResponse and Entry are the wire shapes both
 // paths decode.
 //

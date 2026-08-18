@@ -163,9 +163,12 @@ func firstRunListRepositories(client scan.Client) (firstrun.RepositoryList, erro
 }
 
 // firstRunSelectorMatches adapts reposelector's matching rules to the firstrun
-// package's plain-value repository model, so a --repository scope check in
-// first-run resolves names, slugs, paths, and symlinks the same way every
-// other command does.
+// package's plain-value repository model. first-run has no selector flag: the
+// selector is the workspace root it resolved, matched against the indexed
+// repositories to decide whether an existing index is reusable
+// (firstrun.firstRunRepoMatchesTarget). Routing it through reposelector means
+// that match canonicalizes paths and resolves symlinks the same way an
+// explicit --repo selector would.
 func firstRunSelectorMatches(repo firstrun.Repository, selector string) bool {
 	return reposelector.Matches(reposelector.Entry{
 		ID:        repo.ID,

@@ -231,6 +231,10 @@ func resolveVulnScanRepoID(client *APIClient, opts vulnScanRepoOptions) (string,
 	if opts.RepoID != "" {
 		return opts.RepoID, nil
 	}
+	if client == nil {
+		return "", fmt.Errorf("resolve scanned repository: %w",
+			missingAPIClientError(opts.Scan.Target.Root))
+	}
 	repositoryID, err := reposelector.Resolve(client, opts.Scan.Target.Root)
 	if err != nil {
 		return "", fmt.Errorf("resolve scanned repository: %w", err)
