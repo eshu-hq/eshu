@@ -44,6 +44,12 @@
   over the package, then follow each callee — rather than amending the sentence
   a reviewer complained about.
 
+- **`WaitFlag` is a name, not a flag read.** `internal/cli/vulnscan` prints
+  `--wait=true` in its not-ready message, and `go/cmd/eshu/AGENTS.md` requires
+  a flag name printed by an `internal/cli` package to be declared by one owner,
+  so this package declares the scan family's flag name and `go/cmd/eshu/scan.go`
+  registers it from here. It is the only flag name here; the flag itself is
+  still read in the wrapper.
 - **Every process collaborator arrives through `Runtime`.** `Execute` validates
   `Client`, `Environ`, `LookPath`, `RunBootstrap`, `FetchStatus`, and
   `FetchQueryProbe` and returns a `scan: Runtime.X is required` error naming the

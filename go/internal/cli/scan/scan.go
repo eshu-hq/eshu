@@ -17,6 +17,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
+// WaitFlag is the name of the scan family's --wait flag. It is declared here,
+// not in go/cmd/eshu, because internal/cli/vulnscan prints it in the
+// operator-facing "rerun with --wait=true" message when a scan stops short of
+// ready, and a flag name that appears in a message an internal/cli package
+// produces is declared by the package that owns the flag so the string has
+// one owner. go/cmd/eshu registers the flag from this constant.
+const WaitFlag = "wait"
+
 const (
 	// statusEndpoint is the pipeline status route Execute polls to decide
 	// whether an index is queryable. It is the only readiness evidence the

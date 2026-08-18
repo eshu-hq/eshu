@@ -133,7 +133,10 @@ func RunRepo(ctx context.Context, deps RepoDeps, opts RepoOptions) error {
 	if scanResult.Status != "ready" {
 		result.ReadinessState = "target_incomplete"
 		RecordPerformance(&result, startedAt, opts.Scan.Target.Root)
-		failure := &Failure{Message: "vulnerability scan target is not ready; rerun with --wait=true before reading findings", Code: 4}
+		failure := &Failure{
+			Message: fmt.Sprintf("vulnerability scan target is not ready; rerun with --%s=true before reading findings", scan.WaitFlag),
+			Code:    4,
+		}
 		return finishRepoAfterCleanup(deps, opts, result, scanResult.Truth, failure)
 	}
 
