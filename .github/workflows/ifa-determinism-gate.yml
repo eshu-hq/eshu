@@ -36,8 +36,19 @@ on:
       - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
       - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
       - 'scripts/lib/ifa_fault_shard.sh'
-      - 'scripts/lib/ifa_fault_generic_cells.sh'
+      # Glob, not one literal: the dispatcher sources its three mechanism files
+      # through a VARIABLE path, so the sourced-to-triggered drift check cannot
+      # see them (it only resolves a literal "scripts/" inside a source line).
+      # ifa_fault_generic_shared_intent_lock.sh holds the mandatory
+      # non-vacuity precondition the whole change rests on -- without this,
+      # weakening that precondition would re-run no gate at all.
+      - 'scripts/lib/ifa_fault_generic_*.sh'
       - 'scripts/lib/test-ifa-fault-injection-shard-cases.sh'
+      # The per-family pin files, sourced by variable path from the pins
+      # module. Their governing rule is that pins are hand-derived and never
+      # generated from the registry; editing one to "just make it match" has
+      # to re-run the gate that would object.
+      - 'scripts/lib/ifa_family_registry_pins/**'
       - 'go/internal/storage/postgres/migrations/**'
       - 'go/internal/graphschemacompat/**'
       - 'go/internal/projector/retry.go'

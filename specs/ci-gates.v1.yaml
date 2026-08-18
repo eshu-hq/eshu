@@ -2156,13 +2156,21 @@ gates:
       - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      # The Go blocker-shape lockstep test PARSES these shell files: it reads
+      # each family's declared blocker_kind from the registry rows and binds
+      # it to the real handler's write shape. Without these triggers a row
+      # could be flipped to shared_intent_lock for an EdgeWriter-only handler,
+      # its hand-derived pin updated to agree, and the one check able to prove
+      # that blocker architecturally vacuous would never run.
+      - "scripts/lib/ifa_family_registry.sh"
+      - "scripts/lib/ifa_family_registry/**"
       - "testdata/cassettes/sqlrelationships/**"
       - "testdata/cassettes/codecalls/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run 'TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep' -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run 'TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep' -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2417,6 +2425,11 @@ gates:
       - "scripts/lib/test-ifa-determinism-family-cases.sh"
       - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
       - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
+      # The per-family pin files the module above sources by variable path.
+      # Their hard rule is that pins are hand-derived and never generated
+      # from the registry; editing one to "just make it match" must re-run
+      # the gate that would object.
+      - "scripts/lib/ifa_family_registry_pins/**"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -2740,6 +2753,14 @@ gates:
       # -- the most common edit -- selecting no gate at all.
       - "scripts/lib/ifa_family_registry/**"
       - "scripts/lib/ifa_fault_shard.sh"
+      # The generic cells dispatcher sources these three mechanism files
+      # through a VARIABLE path, so internal/cigates/scripttrigger.go cannot
+      # see the dependency (it only resolves a literal "scripts/" in a source
+      # line). ifa_fault_generic_shared_intent_lock.sh holds
+      # _ifa_generic_require_intent_writer -- the mandatory non-vacuity
+      # precondition this whole change rests on -- so without this glob,
+      # weakening it would re-run no gate at all.
+      - "scripts/lib/ifa_fault_generic_*.sh"
       - "scripts/lib/ifa_fault_generic_cells.sh"
       - "scripts/lib/test-ifa-fault-injection-shard-cases.sh"
     local:
@@ -2748,6 +2769,23 @@ gates:
     ci:
       workflow: ifa-determinism-gate.yml
       job: "fault-injection"
+      # The job runs as a four-shard matrix, so GitHub never emits a check
+      # literally named "fault-injection" -- only "fault-injection (shard N/4)".
+      # cmd/ci-gates/await.go falls back to the job name when check_names is
+      # empty and then matches on exact string equality, so leaving this out
+      # resolves the required check to MISSING forever: every PR touching an
+      # ifa-fault-injection trigger path would be unmergeable, and worse, the
+      # four shard checks that DO run would belong to no gate, so a red shard
+      # would be invisible to required-gates-complete. Each name below is
+      # validated against the expanded matrix by internal/cigates/drift.go, so
+      # changing the shard count without updating this list fails the drift
+      # check rather than silently un-gating a shard. Same pattern as
+      # golden-corpus-gate's corpus-gate (nornicdb) above.
+      check_names:
+        - "fault-injection (shard 1/4)"
+        - "fault-injection (shard 2/4)"
+        - "fault-injection (shard 3/4)"
+        - "fault-injection (shard 4/4)"
     requirements:
       - go
     ci_only_reason: ""
