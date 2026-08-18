@@ -32,7 +32,7 @@ server-side against the graph. Same concept, different code, different owner.
   did not name.
 - **Duplicate IDs in one listing collapse.** The `seen` set means a repository
   returned twice does not read as ambiguous.
-- **The package stays process-neutral.** No cobra, no environment, no process
+- **The package stays cobra- and env-free.** No cobra, no environment, no process
   stream, no subprocess, no file write.
   `TestPackageStaysCobraAndEnvFree` in `doc_lockstep_test.go` pins the direct
   import set and the `os` / `fmt` selector sets as set equalities, so a new

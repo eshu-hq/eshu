@@ -143,8 +143,9 @@ func TestPackageStaysCobraAndEnvFree(t *testing.T) {
 	assertSelectorSet(t, "fmt", gotFmt, wantFmt,
 		"this package returns errors and is rendered by its caller, never writing to the process stdout")
 	assertSelectorSet(t, "import", gotImports, wantImports,
-		"README.md states this package depends on the standard library alone, makes no subprocess call, and opens no "+
-			"transport of its own (Resolve reaches the network only through the injected Getter); a new import here "+
+		"README.md states this package depends on the standard library alone and makes no subprocess call; that "+
+			"also means it opens no transport of its own, since Resolve reaches the network only through the "+
+			"injected Getter. A new import here "+
 			"means that sentence needs revisiting, and cobra in particular belongs in go/cmd/eshu's "+
 			"repository_selector.go")
 

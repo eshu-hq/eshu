@@ -20,7 +20,7 @@ Two entry points, because two different callers need it:
 Not every `--repo` flag in the CLI comes here. `map`, `trace service`, and
 `docs verify` each declare their own `--repo` (`map.go:33`, `trace.go:43`,
 `docs.go:65`) and pass it to the API unresolved, letting the server resolve
-it; `hosted onboard`'s `--repo` (`hosted_onboard_cmd.go:40`) takes exact
+it; `hosted-onboard`'s `--repo` (`hosted_onboard_cmd.go:40`) takes exact
 `owner/name` values and needs no resolution at all.
 
 `ListResponse` and `Entry` are the `/api/v0/repositories` wire shapes both
@@ -111,6 +111,6 @@ its returned error, which the wrapper maps to the operator's exit code.
 `go/cmd/eshu/AGENTS.md` covers the wrapper side, including which flags reach
 this package and which do not. The selector forms themselves are documented
 where each command is; `docs/public/reference/cli-reference.md` covers other
-`--repo` flags with different semantics (`hosted onboard`'s exact
+`--repo` flags with different semantics (`hosted-onboard`'s exact
 `owner/name`, change impact's `--repo-id`), not the `analyze` selector this
 package resolves.
