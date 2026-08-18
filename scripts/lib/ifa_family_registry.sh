@@ -81,14 +81,26 @@
 #                text against this substring (see
 #                ifa_fault_injection_common.sh's ifa_fault_write_once_script
 #                doc comment for why a substring, not a fixed ordinal).
-#   cell_kind    generic | custom. custom is the escape hatch for a family
-#                whose blocker cannot be expressed as the two generic shapes
-#                scripts/lib/ifa_fault_generic_cells.sh supports
-#                (shared_intent_lock, table_lock:<name>) -- e.g.
-#                documentation_edges' bespoke fact_work_items ACK barrier.
-#                A custom family keeps its own hand-written cell function(s)
-#                and is only DISPATCHED through this registry, never forced
-#                into the generic shape.
+#   cell_kind    generic | custom. This records DISPATCH REALITY: does the gate
+#                reach this family's fault cells through cell_killworker_family
+#                / cell_failgraphwrite_family (generic), or by naming its own
+#                hand-written cell functions (custom)? It is NOT "could the
+#                generic dispatcher express this family's blocker in principle".
+#
+#                Those two readings disagree for real families, and the wrong
+#                one is dangerous. sql_relationships' blocker_kind=none IS a
+#                shape the dispatcher supports, but its cells are hand-written
+#                and dispatched by name, so it is custom. Reading it as generic
+#                invites someone to "finish the migration" by pointing its
+#                dispatch at cell_killworker_family -- which routes it to the
+#                no-blocker path: no lock, no precondition, and correctly no
+#                retry-baseline proof. That is strictly weaker than the bespoke
+#                cell it replaced, and the row would have read as sanctioning
+#                it. deployable_unit_edges' table_lock:admission_decisions is
+#                a supported shape too, and is custom for the same reason.
+#
+#                Verify from the gate's call sites, never by inferring from
+#                blocker_kind.
 #
 # Two more field GROUPS exist below the seven above. They are deliberately
 # NOT part of the seven-field schema a mirror-pin author checks against --

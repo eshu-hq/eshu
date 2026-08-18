@@ -46,8 +46,14 @@ IFA_FAMILY_PIN_WAIT_KEY="sql_relationship_materialization"
 # (this family predates the registry loop and is still driven by its own
 # inline call, not through the loop, but into the SAME per-N cell every
 # other shared family uses). cell_kind: blocker_kind=none is one of the
-# three generic-dispatcher shapes
-# (scripts/lib/ifa_fault_generic_cells.sh:16-17,469-473) => generic.
+# cell_kind: derived from the gate's call sites, not from blocker_kind.
+# scripts/verify-ifa-fault-injection.sh names this family's own functions
+# (ifa_fault_shard_run cell_killworker_sql / cell_failgraphwrite_sql); nothing
+# routes it through cell_killworker_family. So custom, even though
+# blocker_kind=none IS a shape the generic dispatcher supports -- that is the
+# distinction the registry schema now spells out, and reading it the other way
+# would sanction migrating this family onto the no-blocker path, which is
+# weaker than the bespoke cell it has.
 IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1
-IFA_FAMILY_PIN_CELL_KIND="generic"
+IFA_FAMILY_PIN_CELL_KIND="custom"

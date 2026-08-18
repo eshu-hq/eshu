@@ -19,7 +19,12 @@ IFA_FAMILY_WAIT_KEY[sql_relationships]="sql_relationship_materialization"
 IFA_FAMILY_SHARED_CELL[sql_relationships]=1
 # scripts/verify-ifa-fault-injection.sh:279
 IFA_FAMILY_ANCHOR[sql_relationships]="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
-IFA_FAMILY_CELL_KIND[sql_relationships]="generic"
+# custom: cell_killworker_sql and cell_failgraphwrite_sql are hand-written
+# functions the gate dispatches by name, not through cell_killworker_family.
+# blocker_kind=none IS a shape the generic dispatcher supports, which is why
+# this row read generic before -- but cell_kind records how the family is
+# dispatched today, not what the dispatcher could express.
+IFA_FAMILY_CELL_KIND[sql_relationships]="custom"
 
 # Irregular name: scripts/lib/ifa_sql_delta_live.sh, not the
 # ifa_<family>_drive convention every other family follows.
