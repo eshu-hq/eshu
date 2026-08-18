@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 type workItemEvidenceQueryer interface {
@@ -53,7 +53,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listWorkItemEvidenceQuery,
-		pq.Array(workItemEvidenceFactKinds),
+		pgarray.Array(workItemEvidenceFactKinds),
 		filter.ScopeID,
 		filter.WorkItemKey,
 		filter.ProviderWorkItemID,
@@ -61,7 +61,7 @@ func (s PostgresWorkItemEvidenceStore) ListWorkItemEvidence(
 		filter.URLFingerprint,
 		nullableWorkItemEvidenceTime(filter.ObservedAfter),
 		filter.AfterFactID,
-		pq.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
 		filter.Limit,
 	)
 	if err != nil {

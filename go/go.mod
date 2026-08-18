@@ -167,7 +167,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/indigo-net/Brf.it v0.21.0
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.21
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/orneryd/nornicdb v1.0.45
@@ -387,3 +386,5 @@ replace github.com/eshu-hq/eshu/sdk/go/collector => ../sdk/go/collector
 replace github.com/eshu-hq/eshu/sdk/go/factschema => ../sdk/go/factschema
 
 replace github.com/tree-sitter/tree-sitter-elixir => github.com/elixir-lang/tree-sitter-elixir v0.3.5
+
+replace github.com/fergusstrange/embedded-postgres => github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1

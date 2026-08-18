@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // CICDRunCorrelationAggregateStore reads cheap-summary aggregates over
@@ -207,8 +207,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
@@ -297,8 +297,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 		filter.Outcome,
 		limit,
 		offset,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inventory ci/cd run correlations: %w", err)

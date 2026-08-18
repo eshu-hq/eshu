@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -409,11 +409,11 @@ func (s FactStore) listCICDRunFacts(
 		listCICDRunFactsForRunKeysQuery,
 		strings.TrimSpace(scopeID),
 		strings.TrimSpace(targetGenerationID),
-		pq.Array(providers),
-		pq.Array(runIDs),
-		pq.Array(runAttempts),
-		pq.Array(artifactTombstoneKeys),
-		pq.Array(cicdRunHistoricalFactKinds),
+		pgarray.Array(providers),
+		pgarray.Array(runIDs),
+		pgarray.Array(runAttempts),
+		pgarray.Array(artifactTombstoneKeys),
+		pgarray.Array(cicdRunHistoricalFactKinds),
 		maxCICDRunHistoricalFacts+1,
 		includeScopeSnapshot,
 	)

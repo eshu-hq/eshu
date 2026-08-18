@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const maxEshuSearchVectorValues = 4096
@@ -304,7 +304,7 @@ func upsertEshuSearchVectorValueBatch(ctx context.Context, db ExecQueryer, batch
 			row.EmbeddingDimensions,
 			row.EmbeddingContentHash,
 			row.VectorIndexVersion,
-			pq.Array(row.VectorValues),
+			pgarray.Array(row.VectorValues),
 			row.CreatedAt,
 			row.UpdatedAt,
 		)
@@ -335,7 +335,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	args := []any{filter.ScopeID, filter.ProviderProfileID, filter.SourceClass, filter.EmbeddingModelID, filter.VectorIndexVersion}
 	if len(filter.DocumentIDs) > 0 {
 		query = strings.Replace(query, "\nORDER BY vec.document_id ASC", "\n  AND vec.document_id = ANY($6)\nORDER BY vec.document_id ASC", 1)
-		args = append(args, pq.Array(filter.DocumentIDs))
+		args = append(args, pgarray.Array(filter.DocumentIDs))
 		query = strings.Replace(query, "LIMIT $6", "LIMIT $7", 1)
 	}
 	args = append(args, filter.Limit)
@@ -373,7 +373,7 @@ func scanEshuSearchVectorValue(rows Rows) (EshuSearchVectorValue, error) {
 		&dimensions,
 		&row.EmbeddingContentHash,
 		&row.VectorIndexVersion,
-		pq.Array(&row.VectorValues),
+		pgarray.Array(&row.VectorValues),
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	); err != nil {

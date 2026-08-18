@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
@@ -106,8 +106,8 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 		filter.Outcome,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list ci/cd run correlations: %w", err)

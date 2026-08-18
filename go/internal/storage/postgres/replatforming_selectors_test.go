@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestAWSCloudRuntimeDriftFindingStoreListsActiveReplatformingScopes(t *testing.T) {
@@ -93,9 +93,9 @@ func TestAWSCloudRuntimeDriftFindingStoreScopesReplatformingSelectorsToExactGran
 	if got, want := args[0], any(AWSCloudRuntimeDriftFindingFactKind); got != want {
 		t.Fatalf("query arg[0] = %#v, want %#v", got, want)
 	}
-	grants, ok := args[1].(pq.StringArray)
+	grants, ok := args[1].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("query arg[1] type = %T, want pq.StringArray", args[1])
+		t.Fatalf("query arg[1] type = %T, want pgarray.StringArray", args[1])
 	}
 	if got, want := []string(grants), allowedScopeIDs; !equalStringSlice(got, want) {
 		t.Fatalf("query arg[1] = %#v, want %#v", got, want)

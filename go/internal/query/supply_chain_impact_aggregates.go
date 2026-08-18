@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // SupplyChainImpactAggregateStore reads cheap-summary aggregates over
@@ -155,8 +155,8 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
@@ -210,8 +210,8 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 	)
 	if err != nil {
@@ -255,8 +255,8 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 	)
 	if err != nil {
@@ -322,8 +322,8 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 		limit,
 		offset,

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestTerraformConfigStateDriftFindingStoreListsActiveScopedFindings(t *testing.T) {
@@ -219,7 +219,7 @@ func TestTerraformConfigStateDriftFindingStoreScopedGrantBindsScopePredicate(t *
 	if strings.Contains(query, " OR ") {
 		t.Fatalf("query must not OR-combine the scope grant predicate: %s", query)
 	}
-	if got, want := db.queries[0].args[2], pq.StringArray(grant); !reflect.DeepEqual(got, want) {
+	if got, want := db.queries[0].args[2], pgarray.StringArray(grant); !reflect.DeepEqual(got, want) {
 		t.Fatalf("scope grant arg = %#v, want %#v", got, want)
 	}
 }

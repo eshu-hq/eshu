@@ -11,8 +11,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+	// Registers the "pgx" driver this test opens by name. Other files in this
+	// package also blank-import it, so the driver would resolve without this
+	// line today -- but only by accident of what else compiles into the test
+	// binary. Without it, removing a sibling import or moving this file to an
+	// external package_test turns the failure into sql: unknown driver "pgx",
+	// visible only when ESHU_POSTGRES_TEST_DSN is set, so CI would skip green.
+	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const runtimeFilterHighCardinalityEnvironment = "shared-production-5747"
@@ -23,7 +30,7 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5747 query-plan proof")
 	}
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}
@@ -131,10 +138,10 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"runtime_context_200_candidates",
 		selectSupplyChainImpactRuntimeContextQuery,
-		pq.Array(supplyChainImpactRuntimeContextFactKinds),
-		pq.Array(contextCandidates),
-		pq.Array(contextCandidates),
-		pq.Array([]string{}),
+		pgarray.Array(supplyChainImpactRuntimeContextFactKinds),
+		pgarray.Array(contextCandidates),
+		pgarray.Array(contextCandidates),
+		pgarray.Array([]string{}),
 	)
 
 	baseFilter := SupplyChainImpactFindingFilter{
@@ -429,8 +436,8 @@ func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []a
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }
 
@@ -453,8 +460,8 @@ func supplyChainRuntimeFilterAggregateArgs(filter SupplyChainImpactAggregateFilt
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }
 
@@ -470,7 +477,7 @@ func supplyChainRuntimeFilterExplainArgs(filter SupplyChainImpactExplanationFilt
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 	}
 }

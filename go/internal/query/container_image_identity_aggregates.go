@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // ContainerImageIdentityAggregateStore reads cheap-summary aggregates over
@@ -117,7 +117,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, containerImageIdentityAggregateTotalQuery, args...)
@@ -200,7 +200,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

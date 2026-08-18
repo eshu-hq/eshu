@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const (
@@ -186,7 +186,7 @@ func (s PostgresSecurityAlertReconciliationStore) ListSecurityAlertReconciliatio
 		ctx,
 		listSecurityAlertReconciliationsQuery,
 		securityAlertReconciliationFactKind,
-		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		pgarray.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
@@ -195,7 +195,7 @@ func (s PostgresSecurityAlertReconciliationStore) ListSecurityAlertReconciliatio
 		filter.ReconciliationStatus,
 		filter.AfterReconciliationID,
 		filter.Limit,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list security alert reconciliations: %w", err)

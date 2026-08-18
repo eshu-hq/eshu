@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TerraformConfigStateDriftFindingFactKind is the durable reducer fact
@@ -254,7 +254,7 @@ func buildTerraformConfigStateDriftFindingQuery(
 		// binding `= ANY(allowed_scope_ids)` here even against an empty array
 		// is a safe no-op (matches zero rows), not a leak, so this stays
 		// unconditional on Scoped rather than also checking length.
-		conditions = append(conditions, "fact.scope_id = ANY("+addArg(pq.StringArray(filter.AllowedScopeIDs))+")")
+		conditions = append(conditions, "fact.scope_id = ANY("+addArg(pgarray.StringArray(filter.AllowedScopeIDs))+")")
 	}
 
 	var builder strings.Builder

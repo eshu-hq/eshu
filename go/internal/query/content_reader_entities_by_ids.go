@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -53,7 +53,7 @@ func (cr *ContentReader) ListRepoEntitiesByIDs(
 		  AND entity_id = ANY($2)
 		ORDER BY relative_path, start_line, entity_id
 		LIMIT $3
-	`, repoID, pq.Array(ids), limit)
+	`, repoID, pgarray.Array(ids), limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo entities by ids: %w", err)

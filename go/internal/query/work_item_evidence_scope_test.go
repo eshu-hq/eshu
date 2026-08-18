@@ -252,7 +252,7 @@ func TestWorkItemEvidenceStoreBindsMultiRepoGrantArrayBeforeLimit(t *testing.T) 
 	// partial grant still matches any of the work item's granted linked repos.
 	gotGrants, ok := queryer.args[8].(interface{ Value() (driver.Value, error) })
 	if !ok {
-		t.Fatalf("arg[8] = %#v, want a pq.Array-wrapped grant slice", queryer.args[8])
+		t.Fatalf("arg[8] = %#v, want a pgarray.Array-wrapped grant slice", queryer.args[8])
 	}
 	value, err := gotGrants.Value()
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -69,7 +69,7 @@ func TestBuildLiveActivityQueryAppliesScopePredicateForGrantedAccess(t *testing.
 		t.Fatalf("access-scope predicate must precede ORDER BY, got:\n%s", query)
 	}
 
-	wantArgs := []any{101, pq.Array([]string{"repo-a"}), pq.Array([]string{"scope-a"})}
+	wantArgs := []any{101, pgarray.Array([]string{"repo-a"}), pgarray.Array([]string{"scope-a"})}
 	if !reflect.DeepEqual(args, wantArgs) {
 		t.Fatalf("buildLiveActivityQuery(allScopes=false) args = %#v, want %#v", args, wantArgs)
 	}

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // SBOMAttestationAttachmentAggregateStore reads cheap-summary aggregates over
@@ -210,7 +210,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	}
 
 	rows, err := s.DB.QueryContext(ctx, sbomAttestationAttachmentAggregateRollupQuery, args...)
@@ -331,7 +331,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

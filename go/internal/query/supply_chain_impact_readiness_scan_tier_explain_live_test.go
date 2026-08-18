@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -57,17 +57,17 @@ func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {
 	targetDigest := seedScanTierReadinessExplainCorpus(t, ctx, db)
 
 	args := []any{
-		pq.Array(vulnerabilityAdvisoryFactKinds),
-		pq.Array(vulnerabilityExploitabilityFactKinds),
-		pq.Array(packageConsumptionCorrelationFactKinds),
-		pq.Array(packageRegistryFactKinds),
-		pq.Array(sbomComponentFactKinds),
-		pq.Array(sbomAttestationFactKinds),
-		pq.Array(containerImageIdentityFactKinds),
-		pq.Array(vulnerabilitySourceSnapshotFactKinds),
+		pgarray.Array(vulnerabilityAdvisoryFactKinds),
+		pgarray.Array(vulnerabilityExploitabilityFactKinds),
+		pgarray.Array(packageConsumptionCorrelationFactKinds),
+		pgarray.Array(packageRegistryFactKinds),
+		pgarray.Array(sbomComponentFactKinds),
+		pgarray.Array(sbomAttestationFactKinds),
+		pgarray.Array(containerImageIdentityFactKinds),
+		pgarray.Array(vulnerabilitySourceSnapshotFactKinds),
 		"", "", "", targetDigest, "", "",
-		pq.Array(vulnerabilityOSPackageFactKinds),
-		pq.Array(scannerWorkerAnalysisFactKinds),
+		pgarray.Array(vulnerabilityOSPackageFactKinds),
+		pgarray.Array(scannerWorkerAnalysisFactKinds),
 	}
 
 	var raw []byte
@@ -101,7 +101,7 @@ func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {
 		var factCount int
 		var latest sql.NullTime
 		var incompleteFlag sql.NullBool
-		var reasons pq.StringArray
+		var reasons pgarray.StringArray
 		var a, b, c sql.NullString
 		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &a, &b, &c); err != nil {
 			t.Fatalf("scan: %v", err)
@@ -178,17 +178,17 @@ ANALYZE scope_generations;
 	}
 
 	args := []any{
-		pq.Array(vulnerabilityAdvisoryFactKinds),
-		pq.Array(vulnerabilityExploitabilityFactKinds),
-		pq.Array(packageConsumptionCorrelationFactKinds),
-		pq.Array(packageRegistryFactKinds),
-		pq.Array(sbomComponentFactKinds),
-		pq.Array(sbomAttestationFactKinds),
-		pq.Array(containerImageIdentityFactKinds),
-		pq.Array(vulnerabilitySourceSnapshotFactKinds),
+		pgarray.Array(vulnerabilityAdvisoryFactKinds),
+		pgarray.Array(vulnerabilityExploitabilityFactKinds),
+		pgarray.Array(packageConsumptionCorrelationFactKinds),
+		pgarray.Array(packageRegistryFactKinds),
+		pgarray.Array(sbomComponentFactKinds),
+		pgarray.Array(sbomAttestationFactKinds),
+		pgarray.Array(containerImageIdentityFactKinds),
+		pgarray.Array(vulnerabilitySourceSnapshotFactKinds),
 		"", "", "", targetDigest, "", "",
-		pq.Array(vulnerabilityOSPackageFactKinds),
-		pq.Array(scannerWorkerAnalysisFactKinds),
+		pgarray.Array(vulnerabilityOSPackageFactKinds),
+		pgarray.Array(scannerWorkerAnalysisFactKinds),
 	}
 	rows, err := db.QueryContext(ctx, listSupplyChainImpactReadinessQuery, args...)
 	if err != nil {
@@ -201,7 +201,7 @@ ANALYZE scope_generations;
 		var factCount int
 		var latest sql.NullTime
 		var incompleteFlag sql.NullBool
-		var reasons pq.StringArray
+		var reasons pgarray.StringArray
 		var a, b, c sql.NullString
 		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &a, &b, &c); err != nil {
 			t.Fatalf("scan: %v", err)

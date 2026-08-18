@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 var (
@@ -149,7 +149,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 	rows, err := s.DB.QueryContext(
 		ctx,
 		explainSupplyChainImpactEvidenceFactsQuery,
-		pq.Array(factIDs),
+		pgarray.Array(factIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
@@ -306,8 +306,8 @@ func supplyChainImpactExplanationQueryArgs(
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		supplyChainImpactSuppressionReadAt(now),
 	}
 }

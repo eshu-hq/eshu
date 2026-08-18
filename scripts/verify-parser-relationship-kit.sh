@@ -115,6 +115,13 @@ go/internal/mcp/language*.go) ;;
     # language-query-dsl.md documents; they are not that DSL's source, so a
     # change to them does not require a language-query-dsl.md update.
     *language_inventory.go) return 1 ;;
+    # content_reader_language.go is the same class: ListRepoFilesByLanguage is a
+    # pushed-down files-by-language read for the repository-tree endpoint, called
+    # only from repository_tree.go, and its own doc comment notes the language
+    # match is "identical to the by-language inventory reads". execute_language
+    # _query lives in go/internal/mcp and never reaches it, so a change here does
+    # not change the DSL that language-query-dsl.md documents.
+    */content_reader_language.go) return 1 ;;
     *) return 0 ;;
   esac
 }

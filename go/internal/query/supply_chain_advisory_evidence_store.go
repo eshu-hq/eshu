@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 type advisoryEvidenceQueryer interface {
@@ -63,15 +63,15 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listAdvisoryEvidenceQuery,
-		pq.Array(advisoryEvidenceFactKinds),
-		pq.Array(advisoryEvidenceLookupIDs(filter)),
-		pq.Array(advisoryEvidencePackageIDs(filter)),
+		pgarray.Array(advisoryEvidenceFactKinds),
+		pgarray.Array(advisoryEvidenceLookupIDs(filter)),
+		pgarray.Array(advisoryEvidencePackageIDs(filter)),
 		filter.Source,
 		advisoryEvidenceMaxFactRows,
 		filter.RepositoryID,
 		filter.ServiceID,
 		filter.WorkloadID,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)

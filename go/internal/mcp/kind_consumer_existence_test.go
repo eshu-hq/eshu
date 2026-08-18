@@ -234,7 +234,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 //     (cloud_identity_policy_evidence.go:85, cloud_resource_change_evidence.go:90).
 //
 // A third, independently-discovered blind spot during this round's
-// re-verification: a `pq.Array(<kind-list-var>)`-bound `fact_kind = ANY($N)`
+// re-verification: a `pgarray.Array(<kind-list-var>)`-bound `fact_kind = ANY($N)`
 // parameterized query — seeded with the PRODUCTION vulnerability.source_snapshot
 // entry (supply_chain_impact_readiness_postgres_query.go:179, reading
 // payload->>'source' and friends).
@@ -243,7 +243,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 // 1 because the detector at that time could not see any of these three
 // shapes. This test proves the round-2 detector (factsDispatchedKinds now
 // matching token.NEQ, postgresPayloadReaderKinds, and
-// pqArraySliceFactKinds) correctly classifies them CONSUMED, and that none
+// pgarrayArraySliceFactKinds) correctly classifies them CONSUMED, and that none
 // of the four remain in the disclosure ledger.
 func TestKindConsumerExistenceBITES_RoundTwoBlindSpots(t *testing.T) {
 	t.Parallel()
@@ -261,7 +261,7 @@ func TestKindConsumerExistenceBITES_RoundTwoBlindSpots(t *testing.T) {
 		{kind: "package_registry.source_hint", signal: "reducer != (skip-unless) dispatch"},
 		{kind: "azure_identity_observation", signal: "storage/postgres raw-JSON payload reader"},
 		{kind: "azure_resource_change", signal: "storage/postgres raw-JSON payload reader"},
-		{kind: "vulnerability.source_snapshot", signal: "pq.Array-bound fact_kind = ANY($N) query"},
+		{kind: "vulnerability.source_snapshot", signal: "pgarray.Array-bound fact_kind = ANY($N) query"},
 	}
 
 	for _, tc := range cases {

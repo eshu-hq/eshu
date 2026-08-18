@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 type suppressionQueryPlanProof struct {
@@ -78,8 +78,8 @@ func suppressionListPlanArgs(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 	}
 }
@@ -106,8 +106,8 @@ func suppressionAggregatePlanArgs(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+		pgarray.Array(filter.AllowedRepositoryIDs),
+		pgarray.Array(filter.AllowedScopeIDs),
 		readAt,
 	}
 }
@@ -124,8 +124,8 @@ func suppressionExplainPlanArgs(readAt time.Time) []any {
 		"",
 		"",
 		"",
-		pq.Array([]string(nil)),
-		pq.Array([]string(nil)),
+		pgarray.Array([]string(nil)),
+		pgarray.Array([]string(nil)),
 		readAt,
 	}
 }

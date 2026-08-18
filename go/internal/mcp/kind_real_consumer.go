@@ -272,11 +272,11 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		dispatchKinds[kind] = true
 	}
 
-	pqArrayKinds, err := pqArraySliceFactKinds(filepath.Join(repoRoot, realConsumerRawSQLDir))
+	pgarrayArrayKinds, err := pgarrayArraySliceFactKinds(filepath.Join(repoRoot, realConsumerRawSQLDir))
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}
-	for kind := range pqArrayKinds {
+	for kind := range pgarrayArrayKinds {
 		rawSQLKinds[kind] = true
 	}
 

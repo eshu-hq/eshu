@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestContentWriterReapsStaleEntityOnIDChurn is the id-churn regression this
@@ -75,16 +75,16 @@ func TestContentWriterReapsStaleEntityOnIDChurn(t *testing.T) {
 	if got, want := reapArgs[0].(string), "github.com/acme/app"; got != want {
 		t.Fatalf("reap repo_id arg = %q, want %q", got, want)
 	}
-	paths, ok := reapArgs[1].(pq.StringArray)
+	paths, ok := reapArgs[1].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap path arg type = %T, want pq.StringArray", reapArgs[1])
+		t.Fatalf("reap path arg type = %T, want pgarray.StringArray", reapArgs[1])
 	}
 	if len(paths) != 1 || paths[0] != "package.json" {
 		t.Fatalf("reap paths = %v, want [package.json]", []string(paths))
 	}
-	freshIDs, ok := reapArgs[2].(pq.StringArray)
+	freshIDs, ok := reapArgs[2].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", reapArgs[2])
+		t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", reapArgs[2])
 	}
 
 	// Both the churned (react, new line) and unchanged (lodash) fresh ids
@@ -140,9 +140,9 @@ func TestContentWriterReapsRemovedEntityAlongsideSurvivor(t *testing.T) {
 	}
 
 	_, reapArgs := findReapExec(t, db)
-	freshIDs, ok := reapArgs[2].(pq.StringArray)
+	freshIDs, ok := reapArgs[2].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", reapArgs[2])
+		t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", reapArgs[2])
 	}
 
 	mustContain(t, freshIDs, "repo-1:composer.json:Variable:kept-dep:5")
@@ -205,9 +205,9 @@ func TestContentWriterReapDoesNotLabelFilter(t *testing.T) {
 	}
 
 	_, reapArgs := findReapExec(t, db)
-	freshIDs, ok := reapArgs[2].(pq.StringArray)
+	freshIDs, ok := reapArgs[2].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", reapArgs[2])
+		t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", reapArgs[2])
 	}
 
 	// The Function row's fresh id MUST be present in the keep-set even
@@ -294,17 +294,17 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDOnSectionKeyedMigration(t *
 		t.Fatalf("reap query = %q, want a DELETE FROM content_entities", reapQuery)
 	}
 
-	paths, ok := reapArgs[1].(pq.StringArray)
+	paths, ok := reapArgs[1].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap path arg type = %T, want pq.StringArray", reapArgs[1])
+		t.Fatalf("reap path arg type = %T, want pgarray.StringArray", reapArgs[1])
 	}
 	if len(paths) != 2 {
 		t.Fatalf("reap paths = %v, want both package.json and composer.json", []string(paths))
 	}
 
-	freshIDs, ok := reapArgs[2].(pq.StringArray)
+	freshIDs, ok := reapArgs[2].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", reapArgs[2])
+		t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", reapArgs[2])
 	}
 
 	// The new section-keyed id and the unrelated path's id are both in the
@@ -350,7 +350,7 @@ func findReapExec(t *testing.T, db *fakeExecQueryer) (string, []any) {
 	return query, args
 }
 
-func mustContain(t *testing.T, ids pq.StringArray, want string) {
+func mustContain(t *testing.T, ids pgarray.StringArray, want string) {
 	t.Helper()
 	for _, id := range ids {
 		if id == want {
@@ -360,7 +360,7 @@ func mustContain(t *testing.T, ids pq.StringArray, want string) {
 	t.Fatalf("fresh entity_id set %v does not contain %q", []string(ids), want)
 }
 
-func mustNotContain(t *testing.T, ids pq.StringArray, unwanted string) {
+func mustNotContain(t *testing.T, ids pgarray.StringArray, unwanted string) {
 	t.Helper()
 	for _, id := range ids {
 		if id == unwanted {

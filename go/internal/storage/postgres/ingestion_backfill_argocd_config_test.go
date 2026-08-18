@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -48,9 +48,9 @@ func TestLoadArgoCDGeneratorConfigFactsPassesRepoIDsAndScans(t *testing.T) {
 	if len(call.args) != 1 {
 		t.Fatalf("query args = %d, want 1", len(call.args))
 	}
-	repoArgs, ok := call.args[0].(pq.StringArray)
+	repoArgs, ok := call.args[0].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("query arg type = %T, want pq.StringArray", call.args[0])
+		t.Fatalf("query arg type = %T, want pgarray.StringArray", call.args[0])
 	}
 	if len(repoArgs) != 1 || repoArgs[0] != "repo:gitops-config" {
 		t.Fatalf("repo args = %v, want [repo:gitops-config]", []string(repoArgs))

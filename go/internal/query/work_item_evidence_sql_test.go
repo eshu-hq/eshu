@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestWorkItemEvidenceQueryUsesActiveFactReadModel(t *testing.T) {
@@ -58,7 +58,7 @@ func TestWorkItemEvidenceQueryAvoidsRawURLMatching(t *testing.T) {
 func TestWorkItemEvidenceQueryTreatsNullGrantArrayAsUnscoped(t *testing.T) {
 	t.Parallel()
 
-	bound, err := pq.Array([]string(nil)).Value()
+	bound, err := pgarray.Array([]string(nil)).Value()
 	if err != nil {
 		t.Fatalf("nil grant array Value() error = %v", err)
 	}

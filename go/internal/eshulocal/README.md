@@ -138,6 +138,11 @@ Standard library only for cross-platform files. Platform-specific files pull in:
 
 - `golang.org/x/sys/unix` — flock and `Kill` on Unix
 - `github.com/fergusstrange/embedded-postgres` — Postgres binary lifecycle on Unix
+  `go/go.mod` `replace`s this to `github.com/eshu-hq/embedded-postgres`
+  `v1.34.0-eshu.1`, a fork of v1.34.0 whose only change is dropping `lib/pq` for
+  the pgx stdlib driver. The `replace` is unversioned on the left-hand side, so
+  it keeps pinning the fork through any future `require` bump — check it when
+  upgrading.
 - `github.com/jackc/pgx/v5/stdlib` — ping after Postgres start on Unix
 
 No internal-package imports. This package is a leaf in the dependency graph.

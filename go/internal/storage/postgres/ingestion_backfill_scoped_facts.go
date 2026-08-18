@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -189,7 +189,7 @@ func loadOnboardedRepoScopedRelationshipFacts(
 	rows, err := queryer.QueryContext(
 		ctx,
 		listOnboardedRepoScopedRelationshipFactRecordsQuery,
-		pq.StringArray(likeTerms),
+		pgarray.StringArray(likeTerms),
 	)
 	if err != nil {
 		return nil, err

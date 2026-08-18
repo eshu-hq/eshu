@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func insertContainerImageIdentityLegacyLiveFact(
@@ -288,14 +288,14 @@ ORDER BY digest, image_ref, repository_id, outcome
 			&support.SourceRevisionProvenance,
 			&support.Reason,
 			&support.CanonicalWrites,
-			pq.Array(&support.SourceRepositoryIDs),
-			pq.Array(&support.BuildProvenanceRepositoryIDs),
-			pq.Array(&support.BaseImageForRepositoryIDs),
-			pq.Array(&support.WorkloadIDs),
-			pq.Array(&support.ServiceIDs),
-			pq.Array(&support.SourceLayers),
-			pq.Array(&support.EvidenceFactIDs),
-			pq.Array(&support.MissingEvidence),
+			pgarray.Array(&support.SourceRepositoryIDs),
+			pgarray.Array(&support.BuildProvenanceRepositoryIDs),
+			pgarray.Array(&support.BaseImageForRepositoryIDs),
+			pgarray.Array(&support.WorkloadIDs),
+			pgarray.Array(&support.ServiceIDs),
+			pgarray.Array(&support.SourceLayers),
+			pgarray.Array(&support.EvidenceFactIDs),
+			pgarray.Array(&support.MissingEvidence),
 		); err != nil {
 			return nil, err
 		}

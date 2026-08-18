@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -192,12 +192,12 @@ func (q *chunkProbeQueryer) QueryContext(
 	q.calls++
 	call := q.calls
 	if len(args) >= 1 {
-		if nonRepoID, ok := args[0].(pq.StringArray); ok && len(nonRepoID) > 0 {
+		if nonRepoID, ok := args[0].(pgarray.StringArray); ok && len(nonRepoID) > 0 {
 			q.nonRepoIDArgCalls++
 		}
 	}
 	if len(args) >= 2 {
-		if repoIDs, ok := args[1].(pq.StringArray); ok && len(repoIDs) > q.maxRepoIDArgs {
+		if repoIDs, ok := args[1].(pgarray.StringArray); ok && len(repoIDs) > q.maxRepoIDArgs {
 			q.maxRepoIDArgs = len(repoIDs)
 		}
 	}
@@ -234,8 +234,8 @@ func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 		repoIDs = append(repoIDs, "repo-"+itoa(i))
 	}
 	params := deferredScopedFactQueryParams{
-		nonRepoIDLike: pq.StringArray{"%external-config%"},
-		repoIDValues:  pq.StringArray(repoIDs),
+		nonRepoIDLike: pgarray.StringArray{"%external-config%"},
+		repoIDValues:  pgarray.StringArray(repoIDs),
 	}
 	probe := &chunkProbeQueryer{}
 	store := NewIngestionStore(nil)
@@ -295,8 +295,8 @@ func TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask(t *testing.T
 		repoIDs = append(repoIDs, "repo-"+itoa(i))
 	}
 	params := deferredScopedFactQueryParams{
-		nonRepoIDLike: pq.StringArray{"%external-config%"},
-		repoIDValues:  pq.StringArray(repoIDs),
+		nonRepoIDLike: pgarray.StringArray{"%external-config%"},
+		repoIDValues:  pgarray.StringArray(repoIDs),
 	}
 	probe := &chunkProbeQueryer{}
 	store := NewIngestionStore(nil)
@@ -343,8 +343,8 @@ func TestLoadDeferredScopedFactsCanceledContextReturnsError(t *testing.T) {
 		ctx,
 		probe,
 		deferredScopedFactQueryParams{
-			nonRepoIDLike: pq.StringArray{"%external-config%"},
-			repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+			nonRepoIDLike: pgarray.StringArray{"%external-config%"},
+			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
 		},
 		[]scopeGenerationPartition{{ScopeID: "scope-large", GenerationID: "gen-large"}},
 		nil,

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -47,7 +47,7 @@ func (cr *ContentReader) ListRepoEntitiesByPaths(
 		  AND relative_path = ANY($2)
 		ORDER BY relative_path, start_line, entity_name, entity_id
 		LIMIT $3
-	`, repoID, pq.Array(paths), limit)
+	`, repoID, pgarray.Array(paths), limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo entities by paths: %w", err)

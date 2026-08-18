@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -116,9 +116,9 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesAcceptedFactIDsBeforeIn
 	if !strings.Contains(db.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
 		t.Fatalf("first exec query = %q, want delete", db.execs[0].query)
 	}
-	deleted, ok := db.execs[0].args[0].(pq.StringArray)
+	deleted, ok := db.execs[0].args[0].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("delete arg type = %T, want pq.StringArray", db.execs[0].args[0])
+		t.Fatalf("delete arg type = %T, want pgarray.StringArray", db.execs[0].args[0])
 	}
 	wantDeleted := []string{"fact-live", "fact-tombstone", "fact-repository"}
 	for i, want := range wantDeleted {
@@ -177,7 +177,7 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesOnlyWhenNoCandidatesRem
 	if !strings.Contains(db.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
 		t.Fatalf("exec query = %q, want delete", db.execs[0].query)
 	}
-	deleted := db.execs[0].args[0].(pq.StringArray)
+	deleted := db.execs[0].args[0].(pgarray.StringArray)
 	wantDeleted := []string{"fact-tombstone", "fact-retyped"}
 	for i, want := range wantDeleted {
 		if i >= len(deleted) || deleted[i] != want {

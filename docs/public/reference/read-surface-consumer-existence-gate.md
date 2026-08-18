@@ -345,15 +345,15 @@ of these:
    extraction does not count. `azure_identity_observation` and
    `azure_resource_change` (`cloud_identity_policy_evidence.go:85`,
    `cloud_resource_change_evidence.go:90`) are the concrete round-2 cases.
-7. **`pq.Array`-bound fact-kind slice** (round 2, `pqArraySliceFactKinds`) —
+7. **`pgarray.Array`-bound fact-kind slice** (round 2, `pgarrayArraySliceFactKinds`) —
    a package-level `<name> = []string{"a", "b", ...}` declaration in
-   `go/internal/query` that is passed as `pq.Array(<name>)` into a live
+   `go/internal/query` that is passed as `pgarray.Array(<name>)` into a live
    query — the parameterized sibling of signal 3's literal
    `fact_kind = '<kind>'` match, for a `fact_kind = ANY($N::text[])` bind.
    `vulnerability.source_snapshot`
    (`supply_chain_impact_readiness_postgres_query.go:179`, feeding
    `payload->>'source'` and similar reads into the readiness API response)
-   is the concrete round-2 case. Requiring the `pq.Array` call site (not mere
+   is the concrete round-2 case. Requiring the `pgarray.Array` call site (not mere
    declaration) keeps a future dead `*FactKinds` slice from silently
    counting as a consumer.
 8. **Disclosure ledger** — the kind is pinned in
@@ -399,7 +399,7 @@ gate passed only via the retired `PayloadSchema`/pipeline-consumer signals.
 Round 1 disclosed 25 kinds here under one shared, unfalsifiable reason
 (`noRealConsumerFound2026Q3`); a round-2 review found the detector at that
 time had blind spots (only `==`, never `!=`; no storage/postgres raw-JSON
-reader signal; no `pq.Array`-bound parameterized-query signal) and named 3
+reader signal; no `pgarray.Array`-bound parameterized-query signal) and named 3
 wrongly-disclosed kinds, and re-verification found a 4th
 (`vulnerability.source_snapshot`). All four —
 `package_registry.source_hint`, `azure_identity_observation`,
@@ -452,7 +452,7 @@ it seeds the four kinds round 1 wrongly disclosed
 `azure_resource_change`, `vulnerability.source_snapshot`) from the
 PRODUCTION registry and proves each is now detected as consumed via its
 specific round-2 signal (the `!=` dispatch, the storage/postgres payload
-reader, or the `pq.Array` slice signal), is no longer in the disclosure
+reader, or the `pgarray.Array` slice signal), is no longer in the disclosure
 ledger, and — via `classifyKindConsumer`'s explicit parameters — would go RED
 under the contradiction check if it were still (wrongly) disclosed. Manually
 reverting the round-2 detector code and re-running this test reproduces the

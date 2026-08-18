@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/lib/pq"
 )
 
 // fileKindGateProofRepoFileFacts is how many `file` facts each seeded
@@ -254,7 +254,7 @@ func openFileKindGateProofDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Cleanup(func() { _ = adminDB.Close() })
 
 	schemaName := fmt.Sprintf("supply_chain_5237_%d", time.Now().UnixNano())
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+pq.QuoteIdentifier(schemaName)); err != nil {
+	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+pgarray.QuoteIdentifier(schemaName)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
 	t.Cleanup(func() {
@@ -262,7 +262,7 @@ func openFileKindGateProofDB(t *testing.T) (context.Context, *sql.DB) {
 		defer cleanupCancel()
 		_, _ = adminDB.ExecContext(
 			cleanupCtx,
-			"DROP SCHEMA "+pq.QuoteIdentifier(schemaName)+" CASCADE",
+			"DROP SCHEMA "+pgarray.QuoteIdentifier(schemaName)+" CASCADE",
 		)
 	})
 

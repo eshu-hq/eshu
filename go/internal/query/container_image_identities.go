@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // ContainerImageIdentityStore reads reducer-owned container image identity
@@ -111,7 +111,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		filter.Outcome,
 		filter.AfterIdentityID,
 		filter.Limit,
-		pq.Array(filter.AllowedSourceRepositoryIDs),
+		pgarray.Array(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list container image identities: %w", err)

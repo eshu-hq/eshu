@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lib/pq"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const fencedVectorWriteJoins = `
@@ -147,7 +147,7 @@ func upsertEshuSearchVectorValueBatchFenced(
 		args = append(args, row.ScopeID, row.GenerationID, row.DocumentID,
 			row.ProviderProfileID, row.SourceClass, row.EmbeddingModelID,
 			row.EmbeddingDimensions, row.EmbeddingContentHash, row.VectorIndexVersion,
-			pq.Array(row.VectorValues), row.CreatedAt, row.UpdatedAt,
+			pgarray.Array(row.VectorValues), row.CreatedAt, row.UpdatedAt,
 			row.ProjectionRevision, row.BuildFence)
 	}
 	query := `WITH incoming (
