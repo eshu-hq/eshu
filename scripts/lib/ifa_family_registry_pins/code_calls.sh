@@ -31,14 +31,20 @@ IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"
 # canonical.go:99-109's single-row canonicalCodeCallUpsertCypher is
 # explicitly commented "legacy... has no production caller" at that same
 # file, so it is not the source of truth despite sharing the same MERGE
-# text. anchor (also matches scripts/verify-ifa-fault-injection.sh:293
-# code_call_edge_operation_match). shared_cell:
+# text. anchor (matches the registry row's own literal --
+# scripts/lib/ifa_family_registry/rows/02_code_calls.sh's
+# IFA_FAMILY_ANCHOR[code_calls] -- read by the generic dispatcher's
+# _ifa_generic_cell_failgraphwrite via ifa_family_anchor; there is no
+# dedicated *_operation_match shell var for this family any more now that it
+# has no hand-written fault cells of its own). shared_cell:
 # scripts/lib/ifa_fault_injection_driver.sh:97-98's drive_all_cassettes
 # calls ifa_code_call_drive unconditionally for every cell, and
-# scripts/verify-ifa-determinism.sh:338-342's registry-driven shared_cell
-# loop is what this family's determinism-gate drive now runs through.
-# cell_kind: blocker_kind=shared_intent_lock is generic-dispatcher-supported
-# => generic.
+# scripts/verify-ifa-determinism.sh's `for family in
+# $(ifa_family_registry_names); do ... ifa_family_registry_drive` loop
+# (header comment at :338, loop body at :347-353) is what this family's
+# determinism-gate drive now runs through. cell_kind:
+# blocker_kind=shared_intent_lock is generic-dispatcher-supported =>
+# generic.
 IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:CALLS]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1
 IFA_FAMILY_PIN_CELL_KIND="generic"

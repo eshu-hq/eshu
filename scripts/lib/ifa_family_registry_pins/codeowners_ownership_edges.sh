@@ -21,20 +21,37 @@
 # wait_key="codeowners_ownership" (go/internal/reducer/intent.go:75
 # DomainCodeownersOwnership Domain = "codeowners_ownership").
 #
-# *** KNOWN DISCREPANCY, REPORTED HERE, NOT SILENTLY CONFORMED TO ***
-# The LANDED cell (scripts/lib/ifa_fault_injection_codeowners_cells.sh,
-# ifa_codeowners_start_intent_lock, proven by
-# scripts/lib/test-ifa-fault-injection-codeowners-cases.sh:23-30 to hold the
-# "shared_projection_intents blocker") uses shared_intent_lock, copying the
-# code_calls/sql_relationships/rationale_edges pattern even though this
-# handler has no IntentWriter and that lock is architecturally vacuous for
-# it -- the same defect class as documentation_edges' now-removed
-# ifa_documentation_start_intent_lock (#6149 follow-up item 8). This pin
-# asserts the CORRECT value (ack_barrier); it does not conform to the landed
-# cell's mistake. If ifa_family_registry.sh instead declares
-# shared_intent_lock for this family (matching the landed, wrong cell), that
-# is the registry describing a bug, not this pin being stale, and the fix
-# belongs in the cell + registry together, not here.
+# *** RE-DERIVED, NOT JUST RE-CITED: the vacuous-lock discrepancy this
+# section used to report is FIXED on the landed cell; a different question
+# now stands in its place -- see the last paragraph below. ***
+# The LANDED cell (scripts/lib/ifa_fault_injection_codeowners_cells.sh) no
+# longer calls ifa_codeowners_start_intent_lock at all -- that function does
+# not exist in the file any more. It now calls
+# ifa_codeowners_start_fact_records_lock, which takes `LOCK TABLE
+# fact_records IN ACCESS EXCLUSIVE MODE` so the handler blocks on its FIRST
+# synchronous read (the fact load), not on a shared_projection_intents write
+# the handler never performs. That file's own header states this was PROVEN
+# live (#5992, 2026-08-17): the claimed row sat blocked for 14 consecutive
+# 1s samples with reducer backends visibly waiting on pg_locks for
+# fact_records, then reached succeeded within 1s of the lock's release. This
+# resolves the vacuous-lock defect the earlier version of this section
+# reported (shared_intent_lock copied from code_calls/sql_relationships/
+# rationale_edges onto a handler with no IntentWriter) -- confirmed by
+# scripts/lib/test-ifa-fault-injection-codeowners-cases.sh, which now stubs
+# and drives ifa_codeowners_start_fact_records_lock /
+# ifa_codeowners_release_fact_records_lock, not the removed intent-lock pair.
+#
+# OPEN QUESTION this pin does not resolve on its own: the schema
+# (ifa_family_registry.sh's field-comment block) lists table_lock:<tablename>
+# and ack_barrier as distinct blocker_kind categories, and the now-proven
+# landed mechanism is literally a table lock (fact_records) blocking a read
+# -- not a trigger blocking the claimed->succeeded ACK transition the way
+# documentation_edges' mechanism does. Whether that makes
+# blocker_kind=table_lock:fact_records the now-correct value, or whether
+# ack_barrier is meant more broadly here, is a call for whoever owns this
+# family's row, not something to resolve by editing a citation. Reported,
+# not silently conformed to; the pinned value below is unchanged pending
+# that decision.
 IFA_FAMILY_PIN_BLOCKER_KIND="ack_barrier"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="codeowners_ownership"

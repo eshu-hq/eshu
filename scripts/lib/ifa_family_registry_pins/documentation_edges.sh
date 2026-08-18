@@ -17,15 +17,17 @@
 # Handle() calls only h.EdgeWriter.RetractEdges/WriteEdges (lines 78, 90); it
 # never touches shared_projection_intents. A shared_intent_lock on that table
 # would therefore never engage for this family -- confirmed by this suite's
-# own history: scripts/lib/test-ifa-fault-injection-documentation-cases.sh:302-307
+# own history: scripts/lib/test-ifa-fault-injection-documentation-cases.sh:312-317
 # asserts ifa_documentation_start_intent_lock/ifa_documentation_release_intent_lock/
 # "LOCK TABLE shared_projection_intents" must NOT survive in
 # ifa_fault_injection_documentation_cells.sh, because that lock was vacuous
 # for this family. The family's real blocker, landed under #5998, is a
 # BEFORE UPDATE trigger on public.fact_work_items
 # (scripts/lib/ifa_fault_injection_documentation_ack_setup.sh, asserted at
-# scripts/lib/test-ifa-fault-injection-documentation-cases.sh:51,57-65) that
-# blocks the row's own claimed->succeeded ACK transition
+# scripts/lib/test-ifa-fault-injection-documentation-cases.sh:55 as
+# "BEFORE UPDATE ON public.fact_work_items", and at :61-65 for the
+# domain/status/stage predicates) that blocks the row's own claimed->succeeded
+# ACK transition
 # (NEW.status = 'succeeded', OLD.stage = 'reducer',
 # NEW.domain = 'documentation_materialization') => blocker_kind=ack_barrier,
 # wait_stage=handler (it blocks the family's own fact_work_items row, not a
@@ -40,7 +42,7 @@ IFA_FAMILY_PIN_WAIT_KEY="documentation_materialization"
 # target) and :34-49 (workload target) are the two DOCUMENTS write
 # templates; both end in the IDENTICAL final MERGE line, so the substring is
 # unambiguous across either template (matches
-# scripts/verify-ifa-fault-injection.sh:302
+# scripts/verify-ifa-fault-injection.sh:311
 # documentation_edge_operation_match, and
 # scripts/lib/test-ifa-fault-injection-documentation-cases.sh:25's own pin).
 # shared_cell: scripts/lib/ifa_fault_injection_driver.sh:99-100 drives it

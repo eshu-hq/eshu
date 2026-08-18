@@ -12,25 +12,35 @@
 # go/internal/reducer/rationale_edge_materialization.go:26 declares
 # RationaleEdgeIntentWriter; :39 embeds it as IntentWriter; :98 calls
 # h.IntentWriter.UpsertIntents(...) inside Handle(). Same shape as
-# code_calls => blocker_kind=shared_intent_lock. Confirmed live:
-# scripts/lib/ifa_fault_injection_rationale_cells.sh:22-24 calls
-# ifa_fault_wait_for_claimed against fact_work_items domain
-# "rationale_materialization" (go/internal/reducer/intent.go:69
-# DomainRationaleMaterialization Domain = "rationale_materialization") --
-# handler stage.
+# code_calls => blocker_kind=shared_intent_lock. Confirmed live, one hop
+# through the generic dispatcher rather than a direct call:
+# cell_killworker_rationale (scripts/lib/ifa_fault_injection_rationale_cells.sh)
+# is now a one-line delegation to cell_killworker_family, whose
+# _ifa_generic_wait_for_claimed helper (scripts/lib/ifa_fault_generic_cells.sh)
+# calls ifa_fault_wait_for_claimed against fact_work_items domain
+# "rationale_materialization" -- the wait_key this family's own row declares
+# (scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh) --
+# (go/internal/reducer/intent.go:69 DomainRationaleMaterialization Domain =
+# "rationale_materialization") -- handler stage.
 IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="rationale_materialization"
 
 # go/internal/storage/cypher/canonical_rationale_edges.go:33-45
 # (batchCanonicalRationaleExplainsEdgeCypher) is the family's only EXPLAINS
-# write template (matches scripts/verify-ifa-fault-injection.sh:294
-# rationale_edge_operation_match). shared_cell:
+# write template (matches the registry row's own literal --
+# scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh's
+# IFA_FAMILY_ANCHOR[rationale_edges] -- read by the generic dispatcher's
+# _ifa_generic_cell_failgraphwrite via ifa_family_anchor; there is no
+# dedicated *_operation_match shell var for this family any more now that it
+# has no hand-written fault cells of its own). shared_cell:
 # scripts/lib/ifa_fault_injection_driver.sh:101-102 drives it
 # unconditionally in drive_all_cassettes, and
-# scripts/verify-ifa-determinism.sh:338-342/386-390's registry-driven loop
-# runs its drive/assert every N. cell_kind: blocker_kind=shared_intent_lock
-# => generic.
+# scripts/verify-ifa-determinism.sh's `for family in
+# $(ifa_family_registry_names); do ... ifa_family_registry_drive` /
+# `... ifa_family_registry_assert` loops (header comments at :338 and :394,
+# loop bodies at :347-353 and :398-404) run its drive/assert every N.
+# cell_kind: blocker_kind=shared_intent_lock => generic.
 IFA_FAMILY_PIN_ANCHOR="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1
 IFA_FAMILY_PIN_CELL_KIND="generic"
