@@ -18,9 +18,9 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Eighteen cells, each hitting a genuinely different recovery or delivery
-# seam. All eighteen run by default. Cell
-# functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
+# Twenty-one cells, each hitting a genuinely different recovery or delivery
+# seam. All twenty-one run by default. Cell functions live in
+# scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
 # #5991), scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and
@@ -221,6 +221,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 # shellcheck source=scripts/lib/ifa_rationale_live.sh
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
+# shellcheck source=scripts/lib/ifa_codeowners_live.sh
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"  # two sources, one line: this file is at the 500-line cap
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -240,7 +242,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 # reducer retry delay (cells 4/12/13/14/15/18's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
-: "${CLAIMED_ROW_WAIT_TIMEOUT:=60}"
+# 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
+: "${CLAIMED_ROW_WAIT_TIMEOUT:=120}"
 : "${RESTART_SENTINEL_WAIT_TIMEOUT:=90}"
 
 compose_file="docker-compose.yaml"
@@ -279,6 +282,7 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"
 rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"
+codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -483,6 +487,11 @@ cell_failgraphwrite_rationale
 cell_baseline_deployable_unit
 cell_killworker_deployable_unit
 cell_failgraphwrite_deployable_unit
+
+# codeowners_ownership_edges (#5992), cells 19-21; baseline first (it sets digests[baseline_codeowners] + baseline_codeowners_retried).
+cell_baseline_codeowners
+cell_killworker_codeowners
+cell_failgraphwrite_codeowners
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

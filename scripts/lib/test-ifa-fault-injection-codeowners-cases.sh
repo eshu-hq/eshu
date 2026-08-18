@@ -20,8 +20,8 @@ codeowners_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_codeowners_ce
 [[ -f "${codeowners_cells_lib}" ]] || fail "missing ${codeowners_cells_lib}"
 bash -n "${codeowners_cells_lib}" || fail "ifa_fault_injection_codeowners_cells.sh has a syntax error"
 
-# ifa_codeowners_start_intent_lock's whole job is to guarantee the
-# shared_projection_intents blocker is actually HELD before the cell kills the
+# ifa_codeowners_start_fact_records_lock's whole job is to guarantee the
+# fact_records blocker is actually HELD before the cell kills the
 # reducer. If it returned success on a lock it never observed,
 # cell_killworker_codeowners would kill a handler that had already committed,
 # and "non-vacuous: N blocked claimed/running row(s) observed" would become a
@@ -51,23 +51,23 @@ test_ifa_codeowners_intent_lock_is_fail_closed() (
 	bg_pids=()
 	lock_holder_pid=""
 	rc=0
-	ifa_codeowners_start_intent_lock nolock lock_holder_pid || rc=$?
+	ifa_codeowners_start_fact_records_lock nolock lock_holder_pid || rc=$?
 	[[ "${rc}" -ne 0 ]] \
-		|| fail "ifa_codeowners_start_intent_lock returned 0 with no granted lock; the kill cell would then kill an unblocked handler and its non-vacuity claim would be a race"
+		|| fail "ifa_codeowners_start_fact_records_lock returned 0 with no granted lock; the kill cell would then kill an unblocked handler and its non-vacuity claim would be a race"
 
 	# The lock is granted on the first poll.
 	lock_count_output=" 1 "
 	bg_pids=()
 	lock_holder_pid=""
-	ifa_codeowners_start_intent_lock haslock lock_holder_pid \
-		|| fail "ifa_codeowners_start_intent_lock rejected a granted AccessExclusiveLock"
+	ifa_codeowners_start_fact_records_lock haslock lock_holder_pid \
+		|| fail "ifa_codeowners_start_fact_records_lock rejected a granted AccessExclusiveLock"
 	[[ "${lock_holder_pid}" =~ ^[0-9]+$ ]] \
-		|| fail "ifa_codeowners_start_intent_lock did not report the holder PID: ${lock_holder_pid}"
+		|| fail "ifa_codeowners_start_fact_records_lock did not report the holder PID: ${lock_holder_pid}"
 	[[ " ${bg_pids[*]} " == *" ${lock_holder_pid} "* ]] \
-		|| fail "ifa_codeowners_start_intent_lock did not track the holder PID; teardown would leave the blocker running into the next cell"
+		|| fail "ifa_codeowners_start_fact_records_lock did not track the holder PID; teardown would leave the blocker running into the next cell"
 )
 
-# ifa_codeowners_release_intent_lock joins the lock-holder process, so that PID
+# ifa_codeowners_release_fact_records_lock joins the lock-holder process, so that PID
 # must stop being tracked as owned. If it stayed in bg_pids, teardown_cell
 # would signal a PID the shell has already reaped -- and after PID reuse that
 # signal lands on an unrelated process. Mirrors the code_calls and
@@ -95,7 +95,7 @@ test_ifa_codeowners_released_lock_holder_is_not_torn_down_twice() (
 	kill() { printf '%s\n' "$@" >>"${case_dir}/kill.log"; }
 	log() { :; }
 
-	ifa_codeowners_release_intent_lock test "${holder_pid}"
+	ifa_codeowners_release_fact_records_lock test "${holder_pid}"
 	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
 		|| fail "joined codeowners lock-holder PID remained in tracked ownership"
 	teardown_cell test

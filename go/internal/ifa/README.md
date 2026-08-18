@@ -211,6 +211,22 @@ Existing diagnostics remain the `go test` suite (including
 `scripts/verify-ifa-dead-letter-determinism.sh`'s docker-backed proof) and the
 `ifa mutate-cassette`/`ifa dead-letters` command output.
 
+No-Regression Evidence (#5992): `codeowners_family_catalog.go` adds a compiled
+Odù literal and its doc comment mentions the DECLARES_CODEOWNER `MERGE` only
+to describe the production Cypher it exercises — it contains no Cypher, worker
+claim, batching, or concurrency code of its own; it is a pure fixture that
+`TestCodeownersFamilyIsCatalogedAndResolvable` pins against the checked-in
+cassette via `reflect.DeepEqual`. The production write path it drives
+(`CodeownersOwnershipEdgeMaterializationHandler`) is unchanged by this PR.
+No-Observability-Change: same reasoning — no runtime path, worker, queue, or
+graph write is added or altered; the observable behavior is entirely in the
+already-existing handler and `canonical_codeowners_edges.go`. Both live gates
+(`scripts/verify-ifa-fault-injection.sh`'s 21-cell matrix,
+`scripts/verify-ifa-determinism.sh`'s N=1/2/4 matrix) were run fresh against
+this fixture and matched digests across every codeowners cell and every N,
+which is the operator-equivalent proof for a fixture-only change on this
+surface.
+
 ## Gotchas / Invariants
 
 - The canonical form is produced by `replay.CanonicalizeValue`, not by a new Ifá

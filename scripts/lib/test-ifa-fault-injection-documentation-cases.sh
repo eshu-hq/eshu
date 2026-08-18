@@ -144,10 +144,10 @@ run_ifa_documentation_live_static_cases() {
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
-	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other seventeen cells remain bound"
-	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (18 cells, fresh stack per cell)" \
+	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound"
+	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (21 cells, fresh stack per cell)" \
 		"${repo_root}/.github/workflows/ifa-determinism-gate.yml" \
-		|| fail "fault workflow job label does not name all eighteen cells"
+		|| fail "fault workflow job label does not name all twenty-one cells"
 	local private_scan_block static_test
 	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
 	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"

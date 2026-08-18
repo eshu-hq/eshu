@@ -409,11 +409,12 @@ run_ifa_rationale_live_static_cases() {
 		rg --line-regexp --quiet -- "${needle}" "${script}" \
 			|| fail "fault verifier does not invoke ${needle} on its own line"
 	done
-	# 18 = the 15 cells this family's gate defined plus the three
-	# deployable_unit-targeted cells (#5993) that landed alongside it.
+	# 21 = the 15 cells this family's gate defined, plus the three
+	# deployable_unit-targeted cells (#5993) that landed alongside it, plus the
+	# three codeowners-targeted cells (#5992).
 	invocation_count="$(rg --count --line-regexp -- 'cell_[a-z_]+' "${script}")"
-	[[ "${invocation_count}" == "18" ]] \
-		|| fail "fault verifier invokes ${invocation_count} cells, want 18"
+	[[ "${invocation_count}" == "21" ]] \
+		|| fail "fault verifier invokes ${invocation_count} cells, want 21"
 	rg --fixed-strings --quiet -- 'assert_rationale_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \
 		&& fail "delta-retract incorrectly demands baseline rationale truth after driving its delta generation"
 	rg --fixed-strings --quiet -- 'assert_rationale_delta_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \

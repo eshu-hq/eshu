@@ -3,12 +3,12 @@
 # scripts/lib/ifa_code_call_live.sh's shape exactly. Callers own strict mode
 # and cleanup.
 #
-# NOT SOURCED YET. The sibling this mirrors carries "this file is sourced by
-# the determinism and fault-injection drivers", which is true there and not
-# here: neither scripts/verify-ifa-determinism.sh nor
-# scripts/verify-ifa-fault-injection.sh references this file or the codeowners
-# cassette, so nothing below has ever executed. Wiring it is the live-proof
-# phase, tracked under #5992.
+# SOURCED by both scripts/verify-ifa-determinism.sh and
+# scripts/verify-ifa-fault-injection.sh. Live-proven: the determinism matrix
+# drives and asserts the codeowners cassette uniformly across N=1/2/4, and the
+# fault matrix's three codeowners cells (baseline, kill-worker-after-claim,
+# fail-graph-write-once-then-succeed) all pass against a live Postgres +
+# NornicDB stack.
 
 # ifa_codeowners_drive replays the committed family cassette into one matrix
 # cell. The caller performs the aggregate fact_work_items non-vacuity check.

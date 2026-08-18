@@ -94,14 +94,23 @@ ifa_fault_write_restart_script() {
 # (in practice gcp_resource_materialization) the driven cassettes happen to
 # schedule first.
 #
-# Args: compose_project use_compose dsn compose_file [budget_seconds=60] [domain]
+# An optional 7th arg widens the watched statuses to also include 'pending' --
+# codeowners_ownership's kill-worker cell needs this for a separate,
+# earlier wait: the row's enqueue depends on the projector finishing its own
+# scope (queued behind up to ~15 demo-org/synth-multiscope/family scopes with
+# only 4 projector workers), which can outlast this function's normal
+# claimed/running budget with no reducer ever having existed yet to claim it.
+#
+# Args: compose_project use_compose dsn compose_file [budget_seconds=60] [domain] [include_pending=0]
 ifa_fault_wait_for_claimed() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
-	local budget="${5:-60}" domain="${6:-}"
+	local budget="${5:-60}" domain="${6:-}" include_pending="${7:-0}"
 	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
 		echo "ifa_fault_wait_for_claimed: budget must be a positive integer, got ${budget}" >&2
 		return 1
 	fi
+	local statuses="'claimed', 'running'"
+	[[ "${include_pending}" -eq 1 ]] && statuses="'pending', 'claimed', 'running'"
 	# The domain lands inside a SQL string literal that is itself embedded in a
 	# CREATE OR REPLACE FUNCTION body, so a value carrying a quote would break out
 	# of two levels at once. Every caller passes a hardcoded constant today; this
@@ -125,7 +134,7 @@ ifa_fault_wait_for_claimed() {
 		   LOOP
 		     SELECT count(*) INTO observed
 		       FROM fact_work_items
-		      WHERE stage = 'reducer' AND status IN ('claimed', 'running')${domain_clause};
+		      WHERE stage = 'reducer' AND status IN (${statuses})${domain_clause};
 		     IF observed > 0 THEN
 		       RETURN observed;
 		     END IF;
@@ -450,7 +459,15 @@ ifa_fault_redeliver_succeeded() {
 		fi
 		domain_clause=" AND domain = '${domain}'"
 	fi
-	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+	# Captured before the pipe, deliberately. Piping ifa_det_pg straight into
+	# `tr` made this helper's exit status depend on pipefail being set by the
+	# caller, and discarded the reason on the way: a failed redelivery UPDATE
+	# surfaced only as the calling cell dying with the step name and nothing
+	# else. That is what made #6149's duplicate-delivery failure undiagnosable
+	# (#5992). ifa_det_pg already prints psql's stderr with its exit code; the
+	# gap was this pipeline swallowing the status.
+	local redelivered_raw redelivered_rc=0
+	redelivered_raw="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"WITH redelivered AS (
 		   UPDATE fact_work_items
 		      SET status = 'pending',
@@ -463,5 +480,10 @@ ifa_fault_redeliver_succeeded() {
 		RETURNING 1
 		 )
 		 SELECT count(*) FROM redelivered;" \
-		"${compose_file}" | tr -d '[:space:]'
+		"${compose_file}")" || redelivered_rc=$?
+	if [[ "${redelivered_rc}" -ne 0 ]]; then
+		echo "ifa_fault_redeliver_succeeded: redelivery UPDATE failed (psql exit ${redelivered_rc}); ifa_det_pg's error above carries the reason" >&2
+		return "${redelivered_rc}"
+	fi
+	printf '%s' "${redelivered_raw}" | tr -d '[:space:]'
 }

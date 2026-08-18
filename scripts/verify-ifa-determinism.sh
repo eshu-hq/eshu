@@ -134,6 +134,8 @@ source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"  # two sources, one line, deliberately: this file is at the 500-line cap (#5993 P6 review) and a genuinely new line here is not free
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
+# shellcheck source=scripts/lib/ifa_codeowners_live.sh
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -342,6 +344,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: documentation family drive failed"
 	ifa_rationale_drive "n${n}" "${bin_dir}" "${rationale_cassette}" "${n}" "${log_dir}" \
 		|| die "N=${n}: rationale family drive failed"
+	ifa_codeowners_drive "n${n}" "${bin_dir}" "${codeowners_cassette}" "${n}" "${log_dir}" \
+		|| die "N=${n}: codeowners family drive failed"
 
 	# Optional seventh drive (--contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -365,7 +369,7 @@ for n in "${worker_counts[@]}"; do
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family + rationale family): %s\n' "${n}" "${work_items}"
+	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family + rationale family + codeowners family): %s\n' "${n}" "${work_items}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()
@@ -390,6 +394,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: documentation family assertion failed"
 	ifa_rationale_assert "N=${n}" "${bin_dir}" "${rationale_expected_edges}" \
 		|| die "N=${n}: rationale family assertion failed"
+	ifa_codeowners_assert "N=${n}" "${bin_dir}" "${codeowners_expected_edges}" \
+		|| die "N=${n}: codeowners family assertion failed"
 	ifa_rationale_assert_work_counts "N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" \
 		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${ifa_rationale_generation_id}" "${ifa_rationale_expected_tuple}" \
@@ -406,6 +412,8 @@ for n in "${worker_counts[@]}"; do
 		|| die "N=${n}: SQL generation 2 changed the code-call family's five-edge exact set"
 	ifa_documentation_assert "post-delta N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
 		|| die "N=${n}: SQL generation 2 changed the documentation family's three-edge exact set"
+	ifa_codeowners_assert "post-delta N=${n}" "${bin_dir}" "${codeowners_expected_edges}" \
+		|| die "N=${n}: SQL generation 2 changed the codeowners family's five-edge exact set"
 	ifa_rationale_assert_delta_truth "post-delta N=${n}" "${bin_dir}" \
 		"${rationale_delta_expected_records}" "${work_dir}/rationale-delta-n${n}.dump" \
 		|| die "N=${n}: rationale generation 2 did not converge to exact-one EXPLAINS plus the exact Charge survivor node"
