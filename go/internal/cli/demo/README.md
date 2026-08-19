@@ -20,8 +20,8 @@ the ownership guard, the readiness loop, the manifest question executor, and
 the TTFA scorecard. It does not own process wiring. Reading cobra flags,
 calling `os.Getwd` and `os.Getenv`, resolving `cmd.InOrStdin()` /
 `cmd.OutOrStdout()`, and mapping an error to an exit code all stay in
-`go/cmd/eshu/demo.go` and `go/cmd/eshu/demo_benchmark_cmd.go`, because
-`go/cmd/eshu` is `package main` and nothing can import it.
+`go/cmd/eshu/demo.go`, because `go/cmd/eshu` is `package main` and nothing
+can import it.
 
 `APIBase`, `MCPBase`, and `ResolveComposeFile` each take a
 `getenv func(string) string` parameter instead of calling `os.Getenv`. The
@@ -107,8 +107,8 @@ imports.) Test-only imports are deliberately out of scope, matching
 package itself sits below the graph, storage, and query layers rather than
 beside them.
 
-Consumed by `go/cmd/eshu`: `demo.go` (the `demo up|down|status` tree) and
-`demo_benchmark_cmd.go` (the `demo-benchmark` scorer).
+Consumed by `go/cmd/eshu`: `demo.go`, which carries both the
+`demo up|down|status` tree and the `demo-benchmark` scorer.
 
 ## Telemetry
 

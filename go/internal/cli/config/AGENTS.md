@@ -6,10 +6,10 @@
    exported surface, and the reasoning behind what is deliberately not
    exported
 2. `go/internal/cli/config/doc.go` — the godoc contract
-3. `go/cmd/eshu/config_cmd.go` and `go/cmd/eshu/config_validate.go` — the
-   cobra `RunE` wrappers that resolve process state (flags, real stdin,
-   `os.Environ`, `cmd.OutOrStdout`) and call into this package. These are
-   the files that show how the two halves fit together.
+3. `go/cmd/eshu/config_cmd.go` — the cobra `RunE` wrappers that resolve
+   process state (flags, real stdin, `os.Environ`, `cmd.OutOrStdout`) and
+   call into this package. It is the file that shows how the two halves fit
+   together.
 4. `go/internal/envregistry/AGENTS.md` — the `ESHU_*` registry
    `ValidateEnv` checks an environment snapshot against. Variable
    definitions belong there, not here.

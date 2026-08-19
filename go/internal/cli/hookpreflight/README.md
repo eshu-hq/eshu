@@ -18,7 +18,7 @@ already-decoded Claude PreToolUse payload, rendering the text output, and
 building the Claude hook response value. It does not own process wiring:
 reading cobra flags, reading stdin, decoding or encoding JSON, or mapping
 the result to an exit code. Those stay in
-`go/cmd/eshu/assistant_hook_preflight.go`, the cobra `RunE` wrapper, because
+`go/cmd/eshu/assistant.go`, the cobra `RunE` wrapper, because
 `go/cmd/eshu` is `package main` and nothing can import it. The wrapper
 resolves process state and passes it into this package as plain values;
 this package returns data, never printing anything itself except through
@@ -76,7 +76,7 @@ under `t.TempDir()`. Like the `json.Marshal` above, that is test-only, and it
 is what lets those tests fail on a real file the way a compiler-level overlay
 could not.
 
-Consumed by `go/cmd/eshu`: `assistant_hook_preflight.go` (the `hook
+Consumed by `go/cmd/eshu`: `assistant.go` (the `hook
 preflight` command) is the only production caller.
 `assistant_hook_preflight_bench_test.go` also imports the package, to measure
 `Evaluate` alongside the command wrapper.

@@ -5,11 +5,11 @@
 1. `go/internal/cli/firstrunbench/README.md` — purpose, ownership boundary,
    exported surface, and the wire-mirror invariant.
 2. `go/internal/cli/firstrunbench/doc.go` — the godoc contract.
-3. `go/cmd/eshu/first_run_benchmark_cmd.go` — the cobra wrapper that resolves
+3. `go/cmd/eshu/first_run.go` — the cobra wrapper that resolves
    flags and streams, decodes through `firstrun.ParseEnvelope`, calls in here,
    and maps the verdict to an exit code.
 4. `go/internal/cli/demo` (criteria.go, benchmark.go, benchmark_render.go,
-   render.go) and its wrapper `go/cmd/eshu/demo_benchmark_cmd.go` — the second
+   render.go) and its wrapper `go/cmd/eshu/demo.go` — the second
    consumer. The demo family builds its criteria rows from this package's
    `CriterionName`/`CriterionStatus` vocabulary, renders with `Marker`, and
    reads envelopes with `ReadEnvelope`; its envelope error is

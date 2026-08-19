@@ -39,7 +39,6 @@
 // hosted-service traffic runs through the Deps seams that go/cmd/eshu wires; the
 // only syscall this package makes on its own is the os.WriteFile inside
 // WriteArtifact, against the operator-supplied --out path. go/cmd/eshu's
-// hosted_setup_cmd.go and hosted_onboard_cmd.go are the thin cobra wrappers that
-// read flags, resolve streams, build the HTTP seams, and map a result to an exit
-// code.
+// hosted.go holds the thin cobra wrappers that read flags, resolve streams,
+// build the HTTP seams, and map a result to an exit code.
 package hosted

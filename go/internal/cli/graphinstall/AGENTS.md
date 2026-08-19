@@ -5,7 +5,7 @@
 1. `go/internal/cli/graphinstall/README.md` — purpose, ownership boundary,
    exported surface
 2. `go/internal/cli/graphinstall/doc.go` — the godoc contract
-3. `go/cmd/eshu/graph_install_cmd.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/graph.go` — the cobra `RunE` wrapper that
    resolves process state (flags, `localGraphReadVersion`) and calls into
    this package. This is the file that shows how the two halves fit
    together.
@@ -18,7 +18,7 @@
 
 - **No process wiring in this package.** No cobra flags, no `fmt.Print*`.
   `go/cmd/eshu` is `package main`, so nothing can import it — any symbol that
-  reads a flag or maps to an exit code has to live in `graph_install_cmd.go`
+  reads a flag or maps to an exit code has to live in `graph.go`
   instead.
 
   The environment this package reads is install-scoped, not wiring. There are
@@ -98,7 +98,7 @@
   run before any other work, so this fails immediately rather than part-way
   through an install. Every `Install`/`ManagedBinaryIfPresent` call in this
   package's own tests passes `execNornicDBVersion` (install_helpers_test.go);
-  `graph_install_cmd.go` passes `localGraphReadVersion`.
+  `graph.go` passes `localGraphReadVersion`.
 - Symptom: a test asserting `os.IsNotExist` on `ManagedBinaryIfPresent`'s
   error starts failing after an edit near the `os.Stat` call → check whether
   the edit added `fmt.Errorf("...: %w", err)` around that specific error;
@@ -114,7 +114,7 @@
 
 - **Printing from this package.** `Install` and `ManagedBinaryIfPresent`
   return data and errors; `fmt.Print*` belongs only in
-  `graph_install_cmd.go`.
+  `graph.go`.
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`).
   If new logic needs something only `go/cmd/eshu` has (a cobra flag, the
   real `VersionReader`), add a parameter or a narrow interface instead.
@@ -123,7 +123,7 @@
 
 ## What NOT to change without an ADR
 
-- The `VersionReader` function type's signature — `graph_install_cmd.go`
+- The `VersionReader` function type's signature — `graph.go`
   wires `localGraphReadVersion` against it structurally; changing the
   signature breaks that wiring silently until the next build.
 - Moving `readLocalGraphVersion`/the local_graph process-supervision cluster

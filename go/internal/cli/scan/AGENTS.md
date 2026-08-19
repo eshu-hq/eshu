@@ -96,7 +96,7 @@
 - **Add a readiness condition** → edit `EvaluateReadiness` in `status.go` and
   add a case to `TestEvaluateReadinessTerminalCases`. Why: three call sites
   outside this package (`go/internal/cli/firstrun/index.go`,
-  `go/internal/cli/firstrun/signals.go`, `go/cmd/eshu/hosted_setup_cmd.go`)
+  `go/internal/cli/firstrun/signals.go`, `go/cmd/eshu/hosted.go`)
   depend on that one function agreeing with `Execute`;
   a condition added at a call site instead makes them disagree.
 - **Change what the bootstrap child receives** → edit `Options.BootstrapArgs`

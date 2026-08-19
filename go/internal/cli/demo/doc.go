@@ -47,7 +47,7 @@
 // Transport nil, so http.DefaultTransport honours HTTP_PROXY, HTTPS_PROXY,
 // and NO_PROXY.
 //
-// go/cmd/eshu's demo.go and demo_benchmark_cmd.go are the thin cobra wrappers.
+// go/cmd/eshu's demo.go holds the thin cobra wrappers.
 // They read the flags, resolve os.Getwd and os.Getenv, resolve stdin and
 // stdout through cmd.InOrStdin/cmd.OutOrStdout, and map a returned error to
 // the CLI's exit code. That split is mechanical: go/cmd/eshu is `package

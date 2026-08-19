@@ -24,7 +24,7 @@ import (
 // the CLI's --live path does after decoding the same three routes over HTTP.
 //
 // The bundle is stack-wide, mirroring the CLI's --live path
-// (cmd/eshu/evidence_bundle_cmd.go, which refuses --scope with --live for the
+// (cmd/eshu/evidence.go, which refuses --scope with --live for the
 // same reason): none of the composed status data carries a repository or
 // tenant selector. This route is deliberately absent from
 // scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and carries no

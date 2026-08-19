@@ -32,7 +32,7 @@
 // honours HTTP_PROXY/HTTPS_PROXY/NO_PROXY; os.MkdirTemp and os.CreateTemp
 // read TMPDIR; exec.Command resolves through PATH.
 //
-// go/cmd/eshu's graph_install_cmd.go is the thin cobra wrapper that resolves
+// go/cmd/eshu's graph.go is the thin cobra wrapper that resolves
 // flags and the exit-code contract and calls into this package. That split is
 // mechanical: cmd/eshu is `package main`, so nothing can import it, and any
 // symbol reading a flag or mapping to an exit code has to stay there.

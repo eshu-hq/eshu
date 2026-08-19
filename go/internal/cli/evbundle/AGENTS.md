@@ -6,7 +6,7 @@
    the "what the artifact screens, and what it does not" enumeration. Read
    that section before touching anything that reaches a bundle field.
 2. `go/internal/cli/evbundle/doc.go` — the godoc contract.
-3. `go/cmd/eshu/evidence_bundle_cmd.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/evidence.go` — the cobra `RunE` wrapper that
    resolves flags, builds the API client, supplies the clock, and maps errors
    to exit codes. This is where the two halves fit together.
 4. `go/internal/evidencebundle/AGENTS.md` — the composer this package feeds.
@@ -19,7 +19,7 @@
   credential from the process environment, no `os.Stdin`/`os.Stdout`, no
   `time.Now`, no `os.Exit`. `go/cmd/eshu` is `package main`, so nothing can
   import it — a symbol that reads a flag or maps to an exit code belongs in
-  `evidence_bundle_cmd.go` instead.
+  `evidence.go` instead.
 
   `ReadBundleInput` and `WriteBundle` call `os.ReadFile` / `os.WriteFile` on a
   path parameter the caller supplies. That is not process wiring; it is the

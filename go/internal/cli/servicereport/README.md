@@ -16,7 +16,7 @@ This package owns report-input *logic*: parsing a captured response envelope,
 reading the optional supply-chain file, and formatting the composed
 `serviceintel.Report` for a terminal. It does not own process wiring: reading
 cobra flags, resolving the process's stdin stream, or mapping errors to exit
-codes. Those stay in `go/cmd/eshu/service_report_cmd.go`, the cobra `RunE`
+codes. Those stay in `go/cmd/eshu/service.go`, the cobra `RunE`
 wrapper, because `go/cmd/eshu` is `package main` and nothing can import it.
 The wrapper resolves process state (flags, `cmd.InOrStdin()`,
 `cmd.OutOrStdout()`) and passes it into this package as plain values; this
@@ -68,7 +68,7 @@ See `doc.go` for the full godoc contract.
 - `internal/query` -- `query.TruthEnvelope`, decoded from the captured
   response envelope
 - Consumed by `go/cmd/eshu`: the `service-report` command
-  (`service_report_cmd.go`)
+  (`service.go`)
 
 ## Telemetry
 

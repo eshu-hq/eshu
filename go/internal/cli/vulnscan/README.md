@@ -10,8 +10,7 @@ is good enough to call the answer clean, stamps the performance block, stops
 the one-shot local runtime if the wrapper started one, and writes the JSON
 envelope, the SARIF or VEX export, or the human summary. It also holds the
 report builder, both export writers, the fail-closed guards, and the local
-runtime startup those steps depend on. `go/cmd/eshu/vuln_scan.go` and
-`go/cmd/eshu/vuln_scan_provider_parity.go` are the cobra wrappers around it.
+runtime startup those steps depend on. `go/cmd/eshu/vuln_scan.go` holds the cobra wrappers around it.
 
 The logic lived in `go/cmd/eshu` until #6059. That package is `package main`,
 so nothing could import it and none of this was reachable from a test outside

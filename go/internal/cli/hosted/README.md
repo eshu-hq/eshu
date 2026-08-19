@@ -11,8 +11,7 @@ Before this package existed the same code lived in `go/cmd/eshu`, which is
 `package main` — nothing could import it, so none of it could be tested outside
 the binary. The split (issue #6059) moved the decisions here and left the cobra
 registration, flag reads, stream resolution, HTTP transport, and exit-code
-mapping in `go/cmd/eshu/hosted_setup_cmd.go` and
-`go/cmd/eshu/hosted_onboard_cmd.go`.
+mapping in `go/cmd/eshu/hosted.go`.
 
 ## Ownership boundary
 

@@ -25,5 +25,5 @@
 // firstrun.EnvelopeError, which belongs to that package, not this one.
 //
 // Flag resolution, stdin/stdout stream selection, and exit-code mapping stay
-// in the cobra wrapper go/cmd/eshu/first_run_benchmark_cmd.go.
+// in the cobra wrapper go/cmd/eshu/first_run.go.
 package firstrunbench

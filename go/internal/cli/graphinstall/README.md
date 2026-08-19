@@ -13,7 +13,7 @@ into Eshu's managed home with an install manifest alongside it.
 This package owns install *logic* -- what source to resolve, what to verify,
 and where the managed binary and manifest live. It does not own process
 wiring: reading cobra flags or mapping errors to the CLI exit-code contract.
-Those stay in `go/cmd/eshu/graph_install_cmd.go`, the cobra `RunE` wrapper,
+Those stay in `go/cmd/eshu/graph.go`, the cobra `RunE` wrapper,
 because `go/cmd/eshu` is `package main` and nothing can import it.
 
 It does not run the candidate NornicDB binary. (It does run one other
@@ -62,8 +62,8 @@ See `doc.go` for the full godoc contract.
   the install manifest
 - `internal/buildinfo` -- `AppVersion`, used to resolve the pinned release
   manifest entry for the running Eshu version
-- Consumed by `go/cmd/eshu`: the `install nornicdb` wrapper
-  (`graph_install_cmd.go`) and `graph.go`'s `eshu graph upgrade` path
+- Consumed by `go/cmd/eshu`: `graph.go`, which carries both the
+  `install nornicdb` wrapper and the `eshu graph upgrade` path
   (`localsupervisor.UpgradeForLayout`)
 - Consumed by `go/internal/cli/localsupervisor`: `graph_process.go`'s
   `ResolveGraphBinary` and `lifecycle.go`'s `UpgradeForLayout`

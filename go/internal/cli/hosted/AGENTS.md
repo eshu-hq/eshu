@@ -5,8 +5,8 @@
 1. `go/internal/cli/hosted/README.md` — purpose, ownership boundary, the
    redaction contract, and the network/environment surface.
 2. `go/internal/cli/hosted/doc.go` — the godoc contract.
-3. `go/cmd/eshu/hosted_setup_cmd.go` and `go/cmd/eshu/hosted_onboard_cmd.go` —
-   the cobra wrappers. They show which half owns what: flags, streams, the HTTP
+3. `go/cmd/eshu/hosted.go` — the cobra wrappers for both `hosted-setup` and
+   `hosted-onboard`. They show which half owns what: flags, streams, the HTTP
    client, and the exit code live there.
 4. `go/internal/cli/mcpsetup/AGENTS.md` — the token-redaction and snippet
    helpers this package calls.
@@ -53,7 +53,7 @@
   decide its redaction before writing the code. If it can hold an endpoint or a
   credential, add a sentinel for it to `redaction_test.go`.
 - **Change what the caller must supply** → edit `Deps` in deps.go and wire the
-  new seam in `go/cmd/eshu/hosted_setup_cmd.go`'s `hostedSetupDeps`.
+  new seam in `go/cmd/eshu/hosted.go`'s `hostedSetupDeps`.
   `TestHostedSetupDepsWiresEverySeam` fails on a seam left nil, because a nil
   seam panics at the stage that calls it.
 

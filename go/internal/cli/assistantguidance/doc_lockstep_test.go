@@ -55,7 +55,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 
 		for _, imp := range file.Imports {
 			if strings.Contains(imp.Path.Value, "spf13/cobra") {
-				t.Errorf("%s imports cobra; flag handling belongs in go/cmd/eshu's assistant_guidance.go", name)
+				t.Errorf("%s imports cobra; flag handling belongs in go/cmd/eshu's assistant.go", name)
 			}
 		}
 
@@ -70,7 +70,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 			}
 			selectors++
 			if names, tracked := processWiringSelectors[pkg.Name]; tracked && names[sel.Sel.Name] {
-				t.Errorf("%s uses %s.%s at %s; process wiring belongs in go/cmd/eshu's assistant_guidance.go",
+				t.Errorf("%s uses %s.%s at %s; process wiring belongs in go/cmd/eshu's assistant.go",
 					name, pkg.Name, sel.Sel.Name, fset.Position(sel.Pos()))
 			}
 			return true

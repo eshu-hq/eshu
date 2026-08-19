@@ -52,7 +52,7 @@ See `doc.go` for the full godoc contract.
 - Consumed by `go/cmd/eshu`: the `mcp setup`/`m` wrapper
   (`mcp_setup_cmd.go`), the `hosted-setup`/`hosted-onboard` commands (which
   reuse `TokenReference`/`RedactToken`/`RenderSetupSnippet` to show the
-  credential they actually used), `assistant_guidance.go` (reuses the local
+  credential they actually used), `assistant.go` (reuses the local
   stdio verification seam for `assistant status --verify`), and
   `first_run_evidence.go` (reuses `RedactToken` for endpoint redaction)
 

@@ -19,8 +19,7 @@ prefix, not because they share a mechanism:
 This package owns *what to ask for*. It does not own process wiring: reading
 cobra flags, building the `*APIClient`, opening Postgres, resolving the
 data-encryption keyring, printing, or mapping errors to exit codes. All of
-that stays in `go/cmd/eshu/admin.go` and
-`go/cmd/eshu/admin_initial_credential.go`, because `go/cmd/eshu` is
+that stays in `go/cmd/eshu/admin.go`, because `go/cmd/eshu` is
 `package main` and nothing can import it.
 
 What that boundary means concretely, verified against the non-test source:
@@ -30,7 +29,7 @@ What that boundary means concretely, verified against the non-test source:
   `ESHU_AUTH_SECRET_ENC_KEY`, `ESHU_AUTH_BOOTSTRAP_MODE`, and
   `ESHU_ADMIN_USERNAME`/`PASSWORD` in operator-facing error strings, and
   `ESHU_POSTGRES_DSN` in comments only.
-  `go/cmd/eshu/admin_initial_credential.go` reads `ESHU_POSTGRES_DSN`
+  `go/cmd/eshu/admin.go` reads `ESHU_POSTGRES_DSN`
   directly and hands `os.Getenv` to `secretcrypto.KeyringFromEnv`, which is
   what reaches the encryption-key variables. The same holds transitively for the call paths this
   package reaches — `query.IdentityHash`, `secretcrypto`'s `Seal`/`Open`/

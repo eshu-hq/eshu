@@ -23,8 +23,7 @@ and writing the `.env` file, normalizing a backend name into the three keys
 the runtime reads, and turning registry findings into a report. It does not
 own process wiring: reading cobra flags, resolving cobra output streams,
 calling `os.Environ`, reading the reset confirmation from stdin, or mapping a
-result to an exit code. Those stay in `go/cmd/eshu/config_cmd.go` and
-`go/cmd/eshu/config_validate.go`, the cobra `RunE` wrappers, because
+result to an exit code. Those stay in `go/cmd/eshu/config_cmd.go`, the cobra `RunE` wrappers, because
 `go/cmd/eshu` is `package main` and nothing can import it.
 
 `Home` is the only function here that reads the process environment, and it
@@ -86,8 +85,7 @@ See `doc.go` for the full godoc contract.
 
 - `internal/envregistry` -- `Registry`, `Finding`, and `Registry.Validate`;
   the wrapper builds the registry with `envregistry.Default()` and passes it in
-- Consumed by `go/cmd/eshu`: `config_cmd.go` and `config_validate.go` (the
-  command wrappers), plus `client.go`, `doctor.go`, `vuln_scan.go`, and
+- Consumed by `go/cmd/eshu`: `config_cmd.go` (the command wrappers), plus `client.go`, `doctor.go`, `vuln_scan.go`, and
   `first_run_diagnostics.go`, which resolve persisted settings
 
 ## Telemetry
@@ -129,8 +127,8 @@ returned errors the wrapper prints.
 
 ## Related docs
 
-- `go/cmd/eshu/config_cmd.go` and `go/cmd/eshu/config_validate.go` -- the cobra
-  wrappers; read these to see which half of the command lives where
+- `go/cmd/eshu/config_cmd.go` -- the cobra wrappers; read these to see which
+  half of the command lives where
 - `go/internal/envregistry/README.md` -- the `ESHU_*` registry
   `ValidateEnv` checks against
 - `docs/public/reference/env-registry.md` -- the committed copy of the same

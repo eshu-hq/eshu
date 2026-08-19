@@ -8,7 +8,7 @@
    comparison behind the claim that #6059 changed no behavior
 2. `go/internal/cli/evidpacket/doc.go` — the godoc contract, which states the
    same list
-3. `go/cmd/eshu/evidence_packet_dogfood_cmd.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/evidence.go` — the cobra `RunE` wrapper that
    resolves flags and streams and calls in here. This is the file that shows how
    the two halves fit together.
 4. `go/internal/cli/compparity/exercises.go` — the second consumer, and the one
@@ -26,7 +26,7 @@
   Its `fmt.Fprintf` and `fmt.Fprintln` calls all target a local
   `strings.Builder`. `go/cmd/eshu` is `package main`, so nothing can import it;
   any symbol that reads a flag, reads the environment, or maps a verdict to a
-  process exit code has to live in `evidence_packet_dogfood_cmd.go` instead.
+  process exit code has to live in `evidence.go` instead.
 
 - **`dogfood.go` writes no file.** Its only filesystem call is
   `os.ReadFile(path)` in `ReadBenchmark`. It creates, truncates, renames, and
@@ -85,7 +85,7 @@
   before you decide the change is contained. Why: two commands carry its line
   into an error an operator reads. `eshu evidence-packet-dogfood` returns
   `evidence-packet dogfood FAILED: <summary>`
-  (`go/cmd/eshu/evidence_packet_dogfood_cmd.go`), and
+  (`go/cmd/eshu/evidence.go`), and
   `eshu competitive-parity validate` returns `dogfood fixture failed: <summary>`
   (`go/internal/cli/compparity/exercises.go`). Both prefixes are grep-able; the
   call in each file is the `FailureSummary` one. The join separator and the
@@ -128,7 +128,7 @@
 
 - **Writing to a stream from here.** `RenderVerdict` returns a string on
   purpose. The `fmt.Fprint` onto the command's stdout belongs only in
-  `evidence_packet_dogfood_cmd.go`.
+  `evidence.go`.
 - **Reaching into `go/cmd/eshu`.** It cannot be imported (`package main`). If
   logic here needs something only the wrapper has, add a parameter or a narrow
   interface.

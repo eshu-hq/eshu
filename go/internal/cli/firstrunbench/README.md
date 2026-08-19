@@ -16,7 +16,7 @@ canonical `{data, truth, error}` contract and its parser live in
 `internal/cli/firstrun` (`firstrun.Envelope`, `firstrun.ParseEnvelope`). This
 package also does not own cobra flags, stream resolution, environment reads,
 or exit-code mapping — those stay in the wrapper
-`go/cmd/eshu/first_run_benchmark_cmd.go` — nor the first-run command itself,
+`go/cmd/eshu/first_run.go` — nor the first-run command itself,
 the envelope's emit side, or the evidence report.
 
 ## Exported surface
