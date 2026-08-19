@@ -446,18 +446,21 @@ func inheritanceEntityFacts() []facts.Envelope {
 				"entity_id":   "content-entity:e_parent",
 				"entity_type": "Class",
 				"entity_name": "ParentClass",
-				"path":        "/repo/parent.py",
+				// "relative_path" is the key contentEntityFactEnvelope actually
+				// emits (git_content_fact_envelopes.go:80); production carries no
+				// top-level "path" key (#5996).
+				"relative_path": "/repo/parent.py",
 			},
 		},
 		{
 			FactKind: "content_entity",
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
-				"repo_id":     "repo-1",
-				"entity_id":   "content-entity:e_child",
-				"entity_type": "Class",
-				"entity_name": "ChildClass",
-				"path":        "/repo/child.py",
+				"repo_id":       "repo-1",
+				"entity_id":     "content-entity:e_child",
+				"entity_type":   "Class",
+				"entity_name":   "ChildClass",
+				"relative_path": "/repo/child.py",
 				"entity_metadata": map[string]any{
 					"bases": []any{"ParentClass"},
 				},
