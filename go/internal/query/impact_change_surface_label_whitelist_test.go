@@ -94,11 +94,6 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	t.Parallel()
 
-	for label := range changeSurfaceImpactedLabels {
-		if !strings.Contains(changeSurfaceLegacyCypher, "'"+label+"'") {
-			t.Errorf("label %q is admitted in Go but absent from the legacy Cypher whitelist", label)
-		}
-	}
 	// Pin the quantifier as well as the list. An earlier revision parsed only the
 	// bracketed labels, so rewriting any() to all() passed -- and all() drops every
 	// node carrying a label outside the list, which would gut the unscoped path
@@ -114,8 +109,22 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 		t.Fatal("legacy cypher no longer carries a label whitelist; update this guard")
 	}
 	end := strings.Index(clause[start:], "]")
+
+	// Both directions run over the PARSED bracket contents. An earlier revision
+	// checked the Go-to-Cypher direction with strings.Contains over the whole
+	// constant, so dropping a label from the whitelist while leaving it quoted
+	// anywhere else -- an unrelated `<> 'DataAsset'` predicate, say -- satisfied
+	// the mirror with an incidental occurrence.
+	cypherLabels := map[string]struct{}{}
 	for _, quoted := range strings.Split(clause[start+len("label IN ["):start+end], ",") {
-		label := strings.Trim(strings.TrimSpace(quoted), "'")
+		cypherLabels[strings.Trim(strings.TrimSpace(quoted), "'")] = struct{}{}
+	}
+	for label := range changeSurfaceImpactedLabels {
+		if _, ok := cypherLabels[label]; !ok {
+			t.Errorf("label %q is admitted in Go but absent from the legacy Cypher whitelist", label)
+		}
+	}
+	for label := range cypherLabels {
 		if _, ok := changeSurfaceImpactedLabels[label]; !ok {
 			t.Errorf("label %q is admitted by the legacy Cypher but dropped by the Go filter", label)
 		}
@@ -141,6 +150,13 @@ func TestChangeSurfaceScopedCypherWhitelistMatchesGoMap(t *testing.T) {
 	t.Parallel()
 
 	marker := "WITH path, impacted\n  WHERE impacted:"
+	// Exactly one. Nothing asserted uniqueness before, so appending a SECOND
+	// WITH/WHERE block later in the constant passed: this guard parsed the first
+	// and never saw the second, which could admit any label it liked.
+	if n := strings.Count(changeSurfaceScopedOutgoingCypher, marker); n != 1 {
+		t.Fatalf("scoped cypher carries %d WITH-attached label whitelists, want exactly 1; "+
+			"this guard parses one and would not see the others", n)
+	}
 	start := strings.Index(changeSurfaceScopedOutgoingCypher, marker)
 	if start < 0 {
 		t.Fatal("scoped cypher no longer carries a WITH-attached label whitelist; update this guard")

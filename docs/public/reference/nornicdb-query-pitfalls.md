@@ -601,16 +601,20 @@ impacted:CloudResource … }` against a seeded graph returned the `File` node
 alongside the two whitelisted ones. So the Go-side enforcement is **not** a
 legacy-pin workaround — it is required against current upstream.
 
-Three images are relevant, and this shape was checked on all three:
+Two pinned images and one local build are relevant, and this shape was checked
+on all three:
 
 - `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
-  (`docker-compose.yaml:10`), the local lane. The comparison table above was
-  measured here against Neo4j 2026.05.0.
+  (`docker-compose.yaml:10`), the local lane. The Neo4j-vs-NornicDB counts under
+  **Observed shape** above were measured here against Neo4j 2026.05.0.
 - `timothyswt/nornicdb-cpu-bge:v1.1.11` — the Helm chart's pin
   (`deploy/helm/eshu/values.yaml:1102-1103`), the deployed lane, and the image
   most of this page's other entries name. The ignored-label-filter behaviour
   **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
   `WITH` still admitted a `File` row.
+- NornicDB `main` at `8abc2269` — a local checkout rather than a published
+  image, so it has no pin to cite. Checked to confirm the defect is not already
+  fixed upstream; it is not.
 
 So the defect spans every lane, including current upstream. A related question
 is settled in the other direction: `length(path)` and `labels()` **are**

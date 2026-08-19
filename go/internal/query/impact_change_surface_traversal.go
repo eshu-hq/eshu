@@ -185,7 +185,11 @@ func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
 // This filter is shared by the scoped/governed path and the unscoped
 // legacy/investigate path (changeSurfaceImpactRows, findChangeSurfaceImpactRows
 // both route through changeSurfaceTraversalRows), so the label check now runs
-// on the unscoped path too. That is a no-op there today: the unscoped Cypher's
+// on the unscoped path too. It also filters rows from
+// changeSurfaceRepositoryConsumersCypher, whose label constraint is the MATCH
+// pattern (impacted:Repository) rather than a whitelist clause -- neither drift
+// guard covers that pattern, and the check is a no-op there only because
+// Repository is in the map. That is a no-op there today: the unscoped Cypher's
 // whitelist sits in a MATCH-attached WHERE, the clause position the pinned
 // backend evaluates correctly, and TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher
 // keeps that list and changeSurfaceImpactedLabels equal. It stays a no-op only
