@@ -1922,3 +1922,45 @@ No-Observability-Change: no span, metric, log, or status field is added,
 removed, or renamed by the identity registry or its `assertMaterializedEdges`
 consumer; a live-gate identity mismatch surfaces through the same
 `assert-edges` exit code and stderr report as every other exact-set defect.
+
+## Backend-restart begin failures: second message spelling (#5995-#6003 precursor)
+
+`isNornicDBRestartTransactionStartFailure` (`retryable_error.go`) recognises the
+begin-side half of a NornicDB restart, where the transaction never starts and
+replay is therefore safe. It matched one exact message,
+`failed to write WAL tx begin: wal: closed`. NornicDB reports the same condition
+a second way when the engine itself is closed rather than only its WAL, and that
+spelling fell through to terminal:
+
+```
+Neo.ClientError.Transaction.TransactionStartFailed
+(failed to start transaction: engine is closed)
+```
+
+No-Regression Evidence: baseline `bash scripts/verify-ifa-fault-injection.sh`
+on this branch before the change, NornicDB pinned build + Postgres via the gate's
+own compose stack, 21 cells, fresh stack per cell. The
+`restart-backend-between-phase-groups` cell dead-lettered one
+`gcp_relationship_materialization` write as `failure_class=projection_bug`, and the
+drain never reached its residual bound: terminal counts
+`residual=1 dead_letter=1 failed=0`, gate exit 1 after 4m of polling. After the
+change, same command and same stack: 21/21 cells, 53 exact edge-set matches,
+terminal counts `residual=0 dead_letter=0`, gate exit 0. The graph digest is
+unchanged (`dd3a9f8c…` across N=1/2/4 on the determinism gate), so this moves a
+misclassified failure from terminal to retryable without altering projected
+truth.
+
+The change is safe because both messages describe the same state: no transaction
+body has run, so both immediate and durable queue replay are valid. The match
+stays scoped to the two known teardown bodies under
+`Neo.ClientError.Transaction.TransactionStartFailed` — an unrelated body under
+the same code remains terminal, which
+`TestBackendRestartEngineClosedTransactionStartIsRetryable` pins directly so the
+fix cannot widen into swallowing genuine begin-time faults.
+
+No-Observability-Change: no metric, span, or log surface changes. The
+condition was already visible: it surfaced as a durable dead-letter row with
+`failure_class=projection_bug` and the full driver message, which is how it was
+diagnosed. After the change the same write is retried and the operator-facing
+evidence is the existing retry/attempt counters the restart cell already asserts
+against (`ifa_fault_assert_retried_above`).
