@@ -99,6 +99,15 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 			t.Errorf("label %q is admitted in Go but absent from the legacy Cypher whitelist", label)
 		}
 	}
+	// Pin the quantifier as well as the list. An earlier revision parsed only the
+	// bracketed labels, so rewriting any() to all() passed -- and all() drops every
+	// node carrying a label outside the list, which would gut the unscoped path
+	// while this guard stayed green.
+	if !strings.Contains(changeSurfaceLegacyCypher, "any(label IN labels(impacted) WHERE label IN [") {
+		t.Error("legacy cypher no longer uses any(label IN labels(impacted) WHERE label IN [...]); " +
+			"all() would drop every node with a label outside the whitelist")
+	}
+
 	clause := changeSurfaceLegacyCypher
 	start := strings.Index(clause, "label IN [")
 	if start < 0 {
@@ -136,12 +145,30 @@ func TestChangeSurfaceScopedCypherWhitelistMatchesGoMap(t *testing.T) {
 	if start < 0 {
 		t.Fatal("scoped cypher no longer carries a WITH-attached label whitelist; update this guard")
 	}
-	start += len(marker)
-	end := strings.Index(changeSurfaceScopedOutgoingCypher[start:], "\n")
-	if end < 0 {
-		t.Fatal("could not find the end of the scoped cypher's label whitelist clause")
+
+	// The whitelist must live in arm 1. An earlier revision of this guard located
+	// the marker anywhere in the constant and never checked which arm held it, so
+	// moving the whole WITH/WHERE block into the Repository arm passed: arm 1 lost
+	// its whitelist entirely and arm 2 gained a label test no Repository node can
+	// satisfy, which would return nothing the moment upstream fixes clause
+	// evaluation.
+	if armTwo := strings.Index(changeSurfaceScopedOutgoingCypher, "(impacted:Repository)"); armTwo >= 0 && start > armTwo {
+		t.Fatal("the WITH-attached label whitelist has moved into the Repository arm; it belongs in arm 1")
 	}
-	clause := changeSurfaceScopedOutgoingCypher[start : start+end]
+
+	start += len(marker)
+	// Read to the end of the WHERE clause, not to the end of its first line. An
+	// earlier revision stopped at the first "\n", so a label added on a wrapped
+	// continuation line was invisible to this guard -- the exact drift it exists
+	// to catch. The clause ends where the next Cypher keyword begins.
+	rest := changeSurfaceScopedOutgoingCypher[start:]
+	end := len(rest)
+	for _, keyword := range []string{"\n  RETURN", "\n  WITH", "\n  MATCH", "\n  CALL", "\nRETURN", "\nWITH", "\nMATCH", "\nCALL", "\n}"} {
+		if i := strings.Index(rest, keyword); i >= 0 && i < end {
+			end = i
+		}
+	}
+	clause := rest[:end]
 
 	got := map[string]struct{}{}
 	for _, label := range strings.Split(clause, " OR impacted:") {
@@ -159,5 +186,34 @@ func TestChangeSurfaceScopedCypherWhitelistMatchesGoMap(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("scoped cypher WITH-attached whitelist = %v, want %v (changeSurfaceImpactedLabels minus "+
 			"Repository) -- keep the inert Cypher list in sync with the Go filter it stands in for", got, want)
+	}
+}
+
+// TestChangeSurfaceRowLabelAdmittedFailsClosed pins the behaviour
+// changeSurfaceRowLabelAdmitted's doc comment states as a design claim: a row
+// whose labels cannot be read is refused rather than admitted.
+//
+// Nothing pinned this before, and a mutation making it fail OPEN on an empty
+// label set passed the entire package. That direction is the dangerous one: the
+// filter exists precisely because the scoped traversal's server-side label test
+// is inert on the pinned backend, so admitting an unlabelled row would return
+// exactly the rows the filter was added to exclude.
+func TestChangeSurfaceRowLabelAdmittedFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for name, row := range map[string]map[string]any{
+		"labels key absent":  {"id": "x"},
+		"labels empty slice": {"labels": []string{}},
+		"labels empty any":   {"labels": []any{}},
+		"labels wrong type":  {"labels": "Workload"},
+		"labels nil":         {"labels": nil},
+	} {
+		if changeSurfaceRowLabelAdmitted(row) {
+			t.Errorf("%s: row was admitted; an unreadable label set must fail closed", name)
+		}
+	}
+
+	if !changeSurfaceRowLabelAdmitted(map[string]any{"labels": []string{"Workload"}}) {
+		t.Error("a row carrying a whitelisted label must still be admitted")
 	}
 }
