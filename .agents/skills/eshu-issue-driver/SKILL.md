@@ -160,6 +160,26 @@ current turn, stop and ask — do not self-approve and proceed.
   (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
   before proceeding. An empty first review is not a pass — it is a failed
   request that must be retried.
+- **If an external reviewer is quota-exhausted, dispatch a replacement reviewer.**
+  A quota message is NOT a review and NOT a retryable failure — re-requesting it
+  only burns polls. Recognise the shape rather than the exact wording: Copilot
+  posts "reached their quota limit", `chatgpt-codex-connector[bot]` posts
+  "reached your Codex usage limits". Both can be down at once, which is the case
+  that silently drops a PR to zero external review.
+
+  When every external reviewer is unavailable, the coverage MUST be replaced,
+  not waived: dispatch a subagent in a separate context to run the full
+  `eshu-code-review` against the final diff, prompted to FIND defects (default
+  to reject), and treat its verdict as the gating review — proof tier, all
+  required passes including hostile read, cross-pass contradiction check,
+  severity/confidence/disposition per finding, and the generated-artifact,
+  docs, private-data and evidence scans. Only when delegation is genuinely
+  unavailable does self-review substitute, and then it must say so explicitly.
+
+  State in the PR which reviewers were unavailable and what replaced them.
+  Merging with "the bots were out of credit" and nothing in their place is a
+  rule violation, not a shortcut: the merge bar is a reviewed diff, and where
+  that review comes from is an implementation detail.
 - Check GHA on every PR. Enumerate **every** check's state, not just the green
   rollup; on red, root-cause (no symptom patch), fix, rerun. While checks are
   pending, poll the PR about every 60 seconds for merge conflicts and new review
@@ -225,7 +245,9 @@ current turn, stop and ask — do not self-approve and proceed.
    before waiting on CI.
 9. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the review gate above both land AND all their findings resolve. CI green
-   is necessary, not sufficient. During CI waiting, poll mergeability and review
+   is necessary, not sufficient. If every external reviewer is quota-exhausted,
+   this clause is satisfied by the dispatched replacement reviewer in Step 4,
+   never by proceeding with no external review at all. During CI waiting, poll mergeability and review
    threads about every 60 seconds. If `origin/main` advances, mergeability
    changes, or the PR head changes for any reason, rebase on `origin/main`,
    rerun affected focused proof, and repeat the complete Steps 5-7 sequence on
