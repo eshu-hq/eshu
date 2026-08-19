@@ -88,14 +88,12 @@ CI runs this gate as **four parallel shards**, so a failure shows up as
 `fault-injection (shard N/4)` rather than a single `fault-injection` check. The
 shard number in the check name is the one you need:
 
+List the cells a shard owns, reproduce that shard alone, or print the whole
+matrix:
+
 ```bash
-# which cells does that shard own?
 bash scripts/verify-ifa-fault-injection.sh --list-cells --shard 3/4
-
-# reproduce just that shard locally
 bash scripts/verify-ifa-fault-injection.sh --shard 3/4
-
-# the full eighteen-cell list, unsharded
 bash scripts/verify-ifa-fault-injection.sh --list-cells
 ```
 
