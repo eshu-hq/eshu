@@ -56,6 +56,14 @@ so "done per the skill" is checkable. Run with auto mode on so each turn runs
 unattended. While a PR is open, poll conflicts, CI, and review comments about
 every 60 seconds; do not only wait for the check rollup.
 
+Poll with a **bounded background waiter that blocks until a condition holds**
+(`until <check>; do sleep 40; done`, with an iteration cap), not by spending a
+turn per poll. One waiter per condition: duplicates racing on the same condition
+waste turns, and a waiter whose match pattern cannot occur — watching a log for a
+string that run never prints — spins to its cap while reporting nothing. Kill
+superseded waiters when the thing they watch is replaced. The cadence is a
+ceiling on staleness, not a requirement to burn a turn each minute.
+
 ## Step 1 — Build the work set (expand epics)
 
 For each input issue:
@@ -142,9 +150,32 @@ current turn, stop and ask — do not self-approve and proceed.
   (`gh pr checks <n> --json bucket` shows `pending == 0` AND the total count is
   unchanged across two polls). GitHub registers large check sets in waves, so a
   single `0-pending` read is a false "done" — never merge or claim green on it.
-  Report CI status with the exact query used. Only the orchestrator runs the late
+  Report CI status with the exact query used, **and the head SHA it was read
+  against**. Re-resolve the SHA at read time, never at watcher launch: a poller
+  that captured `$SHA` when it started keeps reporting that commit after a
+  force-push, so both of its "stable" reads can honestly describe a head that no
+  longer exists. A read whose SHA is not the current head is stale — discard it.
+  Before merging, confirm local `HEAD` equals the PR's `headRefOid`.
+  Only the orchestrator runs the late
   `make pre-pr`; dispatched executors run focused proof only (see
   [Orchestration, PR, And CI Discipline](../../../CLAUDE.md)).
+- **Cancelled is not failed, but a cancelled BLOCKING gate is not self-healing.**
+  Most cancelled jobs re-fire themselves; a cancelled required gate strands
+  `required-gates-complete` once every other check finishes, and nothing
+  re-triggers it. Re-run those explicitly (`gh run rerun <run-id>`) and confirm
+  the aggregate re-fires. An aggregate failure whose only cause is cancelled
+  children says nothing about the diff: read the failing job's steps before
+  concluding, since a hung setup step — a package install stalling until the
+  runner kills it — presents identically to a real failure.
+- **Keep the machine quiet for the live lanes.** They bind fixed host ports and
+  saturate CPU, so a build, a second gate, or another worktree's `make pre-pr`
+  running alongside produces a RED that is starvation, not a defect. One session
+  lost a 936s run this way and drew two wrong conclusions from it before a quiet
+  re-run passed the identical diff in 451s; the same gate takes 139s unloaded.
+  Serialize gate runs, and before treating any live-lane failure as real, check
+  what else was running during it. Detect a live run by the gate binary or the
+  bound port — `pgrep -f "make pre-pr"` has failed to match a running gate and
+  been misread as the process having died.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
@@ -203,6 +234,8 @@ current turn, stop and ask — do not self-approve and proceed.
 3. Runtime-affecting -> perf proof or no-regression measurement + operator
    telemetry (spans/metrics/logs).
 4. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
+   run `go build ./...` (a textually clean rebase has produced a non-compiling
+   tree when a sibling PR moved a symbol — conflict-free is not compile-clean),
    rerun the focused gates affected by the rebase, confirm
    `git status --short` is clean, and inspect
    `git diff --stat origin/main..HEAD` for unrelated reversions or sibling-PR
@@ -302,7 +335,9 @@ it to the epic's follow-ups list at creation time.
   do not assert it from local git or memory.**
 - The PR history shows the branch was fetched/rebased on `origin/main` before
   PR creation or the latest PR update, the rebased head was pushed, and the
-  CI-wait loop polled mergeability about every 60 seconds until merge.
+  CI-wait loop watched mergeability continuously until merge (a bounded waiter
+  blocking on the condition satisfies this; a literal poll-per-turn is not
+  required, but leaving a PR unwatched between long gates is not acceptable).
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
 - Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2=0** with

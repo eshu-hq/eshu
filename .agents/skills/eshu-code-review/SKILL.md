@@ -50,7 +50,7 @@ water them down:
 Use this first as a preliminary full review after focused proof and before
 `make pre-pr`, then again on the exact post-preflight diff before every Eshu
 `git push`, PR create/update, and merge-readiness claim. `make pre-pr` may run
-only after a preliminary P0=0/P1=0/P2=0 verdict. Re-run review after any fix or
+only after a preliminary P0=0/P1=0/P2-blocking=0 verdict. Re-run review after any fix or
 diff/evidence change. Self-review is valid when no separate reviewer is available.
 
 Inputs required:
@@ -448,12 +448,16 @@ Severity:
   change on a hot path, or required proof tier not run. Blocks push/PR update
   until fixed and re-reviewed.
 - **P2**: edge case, doc drift, genuine missing coverage, minor performance or
-  naming issue. Fix inline before preflight or push. A linked follow-up may
-  preserve context, but does not make a pre-push review verdict clean.
+  naming issue. Fix inline by default; it blocks only when it contradicts a
+  claim the PR makes or is cheap and in the same edit. Otherwise track it, name
+  it in the PR, and merge. Count fix-induced findings separately. Full bar and
+  the unbounded-loop it prevents: `references/merge-bar.md`.
 
 Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between
-review passes.
+review passes, and none may be re-derived: a finding restated across rounds is
+the same finding. Reference the prior round and escalate it rather than
+re-litigating it from scratch.
 
 `fixed` is the default disposition. `deferred-to-linked-follow-up` is the
 exception and must be justified: a defect found during review is usually still in
@@ -471,7 +475,9 @@ The verdict is `blocked` when any of these are true:
 - the full-picture gate is incomplete for any touched production surface;
 - proof tier is missing, wrong, or not actually run for in-scope behavior;
 - an applicable adversarial probe is missing or only checks a helper instead of the production subject;
-- any P0, P1, or P2 finding remains unresolved before preflight or push;
+- any P0 or P1 finding, or any blocking P2 (`references/merge-bar.md`), remains
+  unresolved before preflight or push; a deferred P2 must be tracked and named,
+  never silently dropped;
 - generated artifacts or cassettes changed without source-of-truth proof;
 - root `AGENTS.md` and `CLAUDE.md` drift;
 - public text contains private data, credentials, internal identifiers, or AI attribution;
@@ -483,5 +489,6 @@ The verdict is `blocked` when any of these are true:
 
 Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
-Ready means `P0=0`, `P1=0`, and `P2=0`, the full-picture gate is complete,
+Ready means `P0=0`, `P1=0`, and `P2-blocking=0` with every deferred P2 tracked
+and named, the full-picture gate is complete,
 every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are dispositioned honestly — fixed inline by default, and routed to a tracked follow-up only when the fix cannot ride along and the owner agreed — without overstating readiness, and the review was repeated after fixes.
