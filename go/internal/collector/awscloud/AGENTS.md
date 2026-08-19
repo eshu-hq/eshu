@@ -63,15 +63,28 @@ trust:
   cannot see that: its digest is `sha256` over sorted **basenames**, not
   contents, so the count stays 154, the digest is unchanged, and the gate stays
   green while this number drifts.
-- **Row 4** is a difference between rows 1 and 2, so it holds at 21 until a file
-  that matches neither glob appears in the root.
+- **Row 4** is a difference between rows 1 and 2, so it moves only on a file that
+  matches row 1's glob but not row 2's: it holds at 21 until a **non-test `.go`
+  file that does not match `constants_*.go`** appears in the root. A new
+  `*_test.go` matches neither glob, so it leaves row 1 and therefore row 4
+  untouched.
 
   **The 21 are not all non-constants, and the row's label is not a bucket
   boundary.** `acm_types.go`, `cloudtrail_types.go` and `guardduty_types.go` hold
   service and resource constants under the older `_types.go` naming, and land in
   this row only because they do not match `constants_*.go`. Despite the name,
-  all three declare **zero** Go types — they are constants files whose name
-  predates the convention. A restructure planner reading "everything else" as
+  all three declare **zero** Go types and zero funcs — they are constants files
+  whose name predates the convention.
+
+  Re-derive that set by **content, not by filename**: across the 21, exactly
+  three declare constants while declaring no types and no funcs. Seven other root
+  files also declare constants (`partition.go`, `redaction.go`,
+  `iam_permission_envelope.go`, `s3_external_principal_grant_envelope.go`,
+  `scan_status.go`, `security_group_rule_envelope.go`, `types.go`) and every one
+  of them carries types or functions and is genuinely infrastructure with an
+  incidental constant. A `*_types.go` glob is **not** a sound check here —
+  `types.go` does not match it, and a constants-only file under any other name
+  would be missed the same way. A restructure planner reading "everything else" as
   "infrastructure" would undercount the constants population to consolidate by
   three and misclassify these as infra.
 - **Row 5 and the composition** move whenever a new **file** imports this
@@ -102,7 +115,7 @@ naming alongside it lands exactly here.
 | Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/awscloud` |
 | `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
 | Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
-| Root files not matching `constants_*.go` (**not** all non-constants — see row 4 below) | 21 | 154 − 133 |
+| Non-test root files not matching `constants_*.go` (**not** all non-constants — see row 4 above) | 21 | 154 − 133 |
 | Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
 
 That 1,312 is not 1,312 external dependents, and the difference decides the
