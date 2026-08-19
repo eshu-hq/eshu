@@ -478,49 +478,41 @@ these literals are the regeneration surface, not a second measurement.
 
 ## 4. Edge families and identifier sites a re-key must carry
 
-Relationships anchored on a `workload:`/`workload-instance:` identifier:
+This section is organised by **what a site does with the identifier**, because
+that is what decides the migration action. Earlier revisions had one table, one
+prose block and one flat "parse sites" list, with no kind labelled — so
+"parse sites" became the catch-all: it swallowed three construction sites and
+excluded every equality-anchored read. With no category defined, nothing stated
+what *complete* would mean, and a reviewer could only lengthen the list, never
+check it.
 
-| Edge | Anchor | Written at |
-| --- | --- | --- |
-| `(Repository)-[:DEFINES]->(Workload)` | `workload_id` | `go/internal/reducer/workload_materializer.go:364`, `go/internal/storage/cypher/canonical.go:52` |
-| `(WorkloadInstance)-[:INSTANCE_OF]->(Workload)` | both | `go/internal/reducer/workload_materializer.go:385`, `go/internal/storage/cypher/canonical.go:66` |
-| `(WorkloadInstance)-[:RUNS_ON]->(Platform)` | `instance_id` | `go/internal/reducer/workload_materializer.go:413`, `go/internal/storage/cypher/canonical.go:82`; id built independently at `go/internal/reducer/projection_helpers.go:110` |
-| `(WorkloadInstance)-[:DEPLOYMENT_SOURCE]->(Repository)` | `instance_id` | `go/internal/reducer/workload_materializer.go:393`, `go/internal/storage/cypher/canonical.go:89` |
-| `(Workload)-[:DEPENDS_ON]->(Workload)` | `workload_id`, `target_workload_id` | `go/internal/reducer/workload_materializer.go:429`, `go/internal/storage/cypher/canonical.go:114-116, 174-176` |
-| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go:21` |
-| `(Function)-[:RUNS_IN]->(Workload)` | resolved via `(repo)-[:DEFINES]->(w)` | `go/internal/storage/cypher/canonical_runs_in_edges.go:24-31` |
-| documentation edge onto `Workload` | `target_entity_id` | `go/internal/storage/cypher/canonical_documentation_edges.go:35` |
-| `Endpoint` | `stableAPIEndpointID(repoID, workloadID, path)` | `go/internal/reducer/projection_helpers.go:58` |
+Each subsection below says how its members are enumerated. Where the population
+is small and every member needs its own migration decision, that is a list.
+Where it is large and the action is the same for every member, it is a criterion
+you can run, with the count it returned and the commit it returned it at — so
+staleness is falsifiable in one command rather than implied.
 
-**A second, non-graph identity subsystem also uses this prefix, and a graph-only
-re-key would leave it inconsistent.** An earlier revision of this paragraph
-attributed it to the wrong producer, fact kind, and field; the corrected reading:
+**What this does and does not buy.** Criterion plus count makes staleness
+*detectable*, not *detected*: nothing re-runs a count that lives in prose. There
+are three rungs, and this section is on the first — falsifiable by hand, enforced
+by nobody. The second is the generate/verify pair section 6 item 0 proposes as
+its floor, enforced by CI. The third is the typed constructor, enforced by the
+compiler. Do not read this section as more than rung one.
 
-- The `reducer_workload_identity` fact is written by
-  `go/internal/reducer/workload_identity_writer.go:52`
-  (`const workloadIdentityFactKind = "reducer_workload_identity"`), and its
-  persisted field is **`entity_keys`** — a JSON *array* (`:163`), not a scalar.
-  Both readers unnest it accordingly:
-  `go/internal/query/repository_read_model_summary.go:96-97` and
-  `go/internal/query/content_reader_repository_catalog.go:89` both unnest
-  `payload->'entity_keys'` — the first with a comma join, the second with
-  `CROSS JOIN`, each wrapping it in `coalesce(…, '[]'::jsonb)`. So the re-key
-  surface here is the reducer writer's own key construction plus three SQL
-  readers unnesting an array — not a collector field.
-- `go/internal/collector/git_followup_facts.go` is a *different* fact. It emits kind
-  `"shared_followup"` (`:58`) with a singular `entity_key` of
-  `"workload:" + filepath.Base(repoPath)` (`:52`) — keyed on repo basename, and
-  carrying `reducer_domain: "workload_identity"` (`:51`). A second envelope in the
-  same file carries `reducer_domain: "workload_materialization"` (`:187`) with its
-  own `entity_key` at `:188` — a different domain, so the two are not one thing
-  and must not be cited as one.
+### 4.1 Identifier constructions
 
-Either way the prefix is surfaced through `entity_workload_context.go` as the
-`materialization_status: "identity_only"` fallback (`:212`, `:269`) used
-precisely when a workload has no materialized graph node, and the supply-chain
-impact domain treats any `workload:`-prefixed key as workload-identity evidence.
-Open question 3 and migration item 6 both turn on this, so an implementer
-following the earlier wording would have started in the wrong package.
+Enumerated by hand; two for the instance id, three for the workload id.
+
+| Builds | At |
+| --- | --- |
+| `workload-instance:<name>:<env>` | `go/internal/reducer/projection.go:327` |
+| `workload-instance:<name>:<env>`, again | `go/internal/reducer/projection_helpers.go:110` |
+| `workload:<name>` | `go/internal/reducer/projection.go:279` |
+| `workload:<name>` for the `DEPENDS_ON` target | `go/internal/reducer/dependency.go:76` |
+| `workload:<basename>` for the `shared_followup` fact | `go/internal/collector/git_followup_facts.go:52` |
+
+
+#### The second instance-id construction, and why it is easy to miss
 
 **A second construction of the instance id lives outside `projection.go`.**
 `go/internal/reducer/projection_helpers.go:110` builds `fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)`
@@ -582,6 +574,89 @@ documented fallback for exactly the scenario in section 2 and carries its own
 identity scheme: the fact is written by `workload_identity_writer.go` into
 `entity_keys`, a JSON array. The repo-basename key belongs to a *different* fact,
 `shared_followup` from `git_followup_facts.go` — see the two bullets above.
+
+### 4.2 Node property stamps
+
+Where the identifier lands as a property rather than as an edge anchor.
+
+| Property | Stamped at |
+| --- | --- |
+| `endpoint.workload_id` | `go/internal/reducer/workload_materializer.go:441` |
+| `Endpoint` node id, built from the workload id | `stableAPIEndpointID(repoID, workloadID, path)`, `go/internal/reducer/projection_helpers.go:58` |
+| `WorkloadInstance.workload_id` | the denormalized copy migration item 4 covers; at least five read paths filter on it |
+
+### 4.3 Edge writes anchored on the identifier
+
+Enumerated by hand; every member needs its own migration decision.
+
+| Edge | Anchor | Written at |
+| --- | --- | --- |
+| `(Repository)-[:DEFINES]->(Workload)` | `workload_id` | `go/internal/reducer/workload_materializer.go:364`, `go/internal/storage/cypher/canonical.go:52` |
+| `(WorkloadInstance)-[:INSTANCE_OF]->(Workload)` | both | `go/internal/reducer/workload_materializer.go:385`, `go/internal/storage/cypher/canonical.go:66` |
+| `(WorkloadInstance)-[:RUNS_ON]->(Platform)` | `instance_id` | `go/internal/reducer/workload_materializer.go:413`, `go/internal/storage/cypher/canonical.go:82`; id built independently at `go/internal/reducer/projection_helpers.go:110` |
+| `(WorkloadInstance)-[:DEPLOYMENT_SOURCE]->(Repository)` | `instance_id` | `go/internal/reducer/workload_materializer.go:393`, `go/internal/storage/cypher/canonical.go:89` |
+| `(Workload)-[:DEPENDS_ON]->(Workload)` | `workload_id`, `target_workload_id` | `go/internal/reducer/workload_materializer.go:429`, `go/internal/storage/cypher/canonical.go:114-116, 174-176` |
+| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go:21` |
+| `(Function)-[:RUNS_IN]->(Workload)` | resolved via `(repo)-[:DEFINES]->(w)` | `go/internal/storage/cypher/canonical_runs_in_edges.go:24-31` |
+| documentation edge onto `Workload` | `target_entity_id` | `go/internal/storage/cypher/canonical_documentation_edges.go:35` |
+| `(Workload)-[:EXPOSES_ENDPOINT]->(Endpoint)` | `workload_id` | `go/internal/reducer/workload_materializer.go:459`, anchored by `MATCH (workload:Workload {id: row.workload_id})` at `:457` |
+
+`EXPOSES_ENDPOINT` has **no `canonical.go` counterpart** — unlike every other row
+above, which cites one. There are exactly two write sites in the tree, both batch
+constants in `workload_materializer.go` (`:456-461` for the workload edge,
+`:449-454` for the repository sibling), and `canonical.go` contains no `Endpoint`
+at all. A reader looking for the single-row form will not find one.
+
+### 4.6 Derived keys that embed the identifier
+
+Three members, three different consequences, each needing its own decision. This
+category exists because none of these is an edge write or a parse site, so nobody
+sweeping the earlier `section 4` would have looked for them — and two of the
+three are the most consequential findings in this document.
+
+| Derived key | Embeds | Consequence of a re-key |
+| --- | --- | --- |
+| `ServiceRuntimeEvidenceKey` — `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` (`go/internal/reducer/service_materialization_runtime.go:101-103`, shape in its own doc comment at `:98-99`, built via `ServiceRuntimeEvidenceKeyFromIdentity` `:108-114`) | the WorkloadInstance id, as `WorkloadRef` (declared `:65-69`, set at `go/internal/reducer/service_runtime_instance_lookup.go:124,134`) | **Changes a durable persisted Postgres key**, and nothing retires the old row — see migration item 7. |
+| `serviceRuntimeEvidenceIdentity` (`go/internal/reducer/service_materialization_runtime.go:121-128`, joined at `:127`) | the same `WorkloadRef`, hashed into the payload at `:140` | Flips every existing row to removed-plus-added rather than unchanged. |
+| The retract statement's anchor (`go/internal/reducer/workload_materializer_retract_instances.go:35-38`) | `instance_id` | Retract with the **old** ids before the new ones exist, or the statement matches nothing. Its own comment at `:21` records that instance ids are not repository-namespaced, and `:17-18` already carries a worked re-key example. |
+
+The reducer conflict-domain key at `go/internal/reducer/dependency_domain.go:101,116`
+looks like a fourth member and is not; see below for why the production
+consequence does not exist.
+
+### 4.7 Non-graph identity subsystems
+
+One member, and it needs its own decision (open question 3).
+
+**A second, non-graph identity subsystem also uses this prefix, and a graph-only
+re-key would leave it inconsistent.** An earlier revision of this paragraph
+attributed it to the wrong producer, fact kind, and field; the corrected reading:
+
+- The `reducer_workload_identity` fact is written by
+  `go/internal/reducer/workload_identity_writer.go:52`
+  (`const workloadIdentityFactKind = "reducer_workload_identity"`), and its
+  persisted field is **`entity_keys`** — a JSON *array* (`:163`), not a scalar.
+  Both readers unnest it accordingly:
+  `go/internal/query/repository_read_model_summary.go:96-97` and
+  `go/internal/query/content_reader_repository_catalog.go:89` both unnest
+  `payload->'entity_keys'` — the first with a comma join, the second with
+  `CROSS JOIN`, each wrapping it in `coalesce(…, '[]'::jsonb)`. So the re-key
+  surface here is the reducer writer's own key construction plus three SQL
+  readers unnesting an array — not a collector field.
+- `go/internal/collector/git_followup_facts.go` is a *different* fact. It emits kind
+  `"shared_followup"` (`:58`) with a singular `entity_key` of
+  `"workload:" + filepath.Base(repoPath)` (`:52`) — keyed on repo basename, and
+  carrying `reducer_domain: "workload_identity"` (`:51`). A second envelope in the
+  same file carries `reducer_domain: "workload_materialization"` (`:187`) with its
+  own `entity_key` at `:188` — a different domain, so the two are not one thing
+  and must not be cited as one.
+
+Either way the prefix is surfaced through `entity_workload_context.go` as the
+`materialization_status: "identity_only"` fallback (`:212`, `:269`) used
+precisely when a workload has no materialized graph node, and the supply-chain
+impact domain treats any `workload:`-prefixed key as workload-identity evidence.
+Open question 3 and migration item 6 both turn on this, so an implementer
+following the earlier wording would have started in the wrong package.
 
 ## 5. Options
 
@@ -726,10 +801,18 @@ same settling discipline and Neo4j as the control:
 ### What the migration must therefore do
 
 **Delete nodes, not relationships.** `DETACH DELETE` of the `Workload` node
-removes all four families above; `DETACH DELETE` of each `WorkloadInstance` node
-removes `INSTANCE_OF`, `RUNS_ON` and `DEPLOYMENT_SOURCE`. Between them that is
-every family in section 4, and both work identically on Neo4j and on the pinned
-build — so the migration is not betting on a backend fix.
+removes all four families measured above; `DETACH DELETE` of each
+`WorkloadInstance` node removes `INSTANCE_OF`, `RUNS_ON` and
+`DEPLOYMENT_SOURCE`. Both work identically on Neo4j and on the pinned build — so
+the migration is not betting on a backend fix.
+
+One family in section 4.3 is **not** in the table above: `EXPOSES_ENDPOINT`,
+which hangs off the `Workload` node. A `Workload` `DETACH DELETE` removes it too,
+for the same reason it removes the other four — but that is **reasoned from
+node-delete semantics, not measured**, and the probe did not exercise it. Treat
+it as expected rather than proven, on the same footing this document gives every
+other traced-but-not-executed claim. So "every family in section 4" holds only
+with that caveat attached, and an earlier revision asserted it without one.
 
 **Retract before writing the new ids, using the old ones.** Both retract
 statements are anchored on the id (`workload_materializer_retract_instances.go:36`
