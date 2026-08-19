@@ -229,8 +229,19 @@ _ifa_generic_require_retry_baseline() {
 		|| die "${cell}: ${family}: ifa_family_retry_baseline_var accessor failed -- refusing to silently skip the retry-above-baseline proof"
 	[[ -n "${retry_var}" ]] \
 		|| die "${cell}: ${family} is a shared_intent_lock family but declares no IFA_FAMILY_RETRY_BASELINE_VAR row -- its kill cell cannot prove a durable retry above baseline and must not pass claiming it did (register the row in ifa_family_registry/rows/)"
+	# Captured, not inlined into the call. An unchecked
+	# "$(ifa_family_wait_key ...)" yields empty on accessor failure and hands
+	# ifa_fault_assert_retried_above an empty domain, which still fails the cell
+	# but blames "did not re-execute above baseline" -- a statement about the
+	# reducer -- when the real fault is a missing registry row. Same fail-closed
+	# shape the drive/assert loops already use; this one call had been left out.
+	local wait_key
+	wait_key="$(ifa_family_wait_key "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- refusing to run the retry-above-baseline proof against an unknown domain"
+	[[ -n "${wait_key}" ]] \
+		|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- the retry-above-baseline proof would be scoped to no domain and could not fail on this family"
 	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${!retry_var}" 15 "$(ifa_family_wait_key "${family}")" \
+		"${!retry_var}" 15 "${wait_key}" \
 		|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
 }
 
