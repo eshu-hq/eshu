@@ -51,9 +51,28 @@ require_code_call_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${code_call_cells_lib}" || fail "missing ${label} (code-call cells lib): ${needle}"
 }
+# _ifa_count_code_matches counts lines of ${2} containing ${1} whose first
+# non-whitespace character is NOT `#`. Every generic pin below routes through it
+# because the plain `rg --fixed-strings` form is defeatable by a COMMENT: a
+# reviewer proved that commenting out both real call sites (`# was: <call>`)
+# left the count at 2 and the mirror green with ZERO real invocations, and that
+# replacing the baseline cell's assertion with `# NOTE: this used to call ...`
+# also passed. A pin satisfiable by prose about the code is not a pin on the
+# code. require_line above already carries this lesson for ${script} -- it was in
+# this same file when these helpers were written, and they did not use it.
+_ifa_count_code_matches() {
+	local needle="$1" file="$2" n=0 line stripped
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${line}" == *"${needle}"* ]] && n=$((n + 1))
+	done < "${file}"
+	printf '%s\n' "${n}"
+}
 require_generic_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${generic_cells_lib}" || fail "missing ${label} (generic cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${generic_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (generic cells lib), or it survives only inside a comment: ${needle}"
 }
 # require_generic_cells_count pins a needle that must appear an EXACT number of
 # times, not merely at least once. `rg --quiet` proves >=1 and stops looking, so
@@ -68,8 +87,7 @@ require_generic_cells() {
 # proves only that the artifact equals itself.
 require_generic_cells_count() {
 	local label="$1" needle="$2" want="$3" got
-	got="$(rg --fixed-strings --count-matches -- "${needle}" "${generic_cells_lib}" || true)"
-	got="${got:-0}"
+	got="$(_ifa_count_code_matches "${needle}" "${generic_cells_lib}")"
 	[[ "${got}" == "${want}" ]] \
 		|| fail "${label}: expected ${want} call site(s) of this invocation in ${generic_cells_lib##*/}, found ${got} -- a deleted call site is a proof that silently stopped running: ${needle}"
 }
@@ -83,8 +101,8 @@ require_generic_cells_count() {
 # establishing an empty baseline every recovery cell then matches.
 require_generic_baseline() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${generic_baseline_lib}" \
-		|| fail "missing ${label} (generic baseline cell): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${generic_baseline_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (generic baseline cell), or it survives only inside a comment: ${needle}"
 }
 require_documentation_lib() {
 	local label="$1" needle="$2"
