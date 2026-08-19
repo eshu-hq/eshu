@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 )
 
@@ -23,7 +23,7 @@ func assertRationaleMaterializedEdgeRecords(
 	ctx context.Context,
 	reader graphdump.Reader,
 	repoID string,
-	expected []ifa.RationaleExpectedEdgeRecord,
+	expected []materializededges.RationaleExpectedEdgeRecord,
 ) error {
 	expectedCounts := make(map[string]int, len(expected))
 	expectedEndpointIDs := make(map[string]struct{}, 2*len(expected))
@@ -86,7 +86,7 @@ func rationaleEdgeTouchesRepository(edge graphdump.Edge, repoID string) bool {
 	return fromRepo == repoID || toRepo == repoID
 }
 
-func canonicalRationaleExpectedRecord(record ifa.RationaleExpectedEdgeRecord) (string, error) {
+func canonicalRationaleExpectedRecord(record materializededges.RationaleExpectedEdgeRecord) (string, error) {
 	return canonicalRationaleRecord(
 		record.RelationshipType,
 		record.SourceRecord.Labels,

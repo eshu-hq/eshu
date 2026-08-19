@@ -12,7 +12,7 @@ import (
 // documentationFamilyOdu is the binary-portable compiled catalog
 // representation. This file projects the committed cassette
 // (testdata/cassettes/documentation/ifa-documentation-family.json) through
-// the same strict envelope boundary loadDocumentationFamilyOdu
+// the same strict envelope boundary LoadDocumentationFamilyOdu
 // (documentation_family_odu.go) does, so TestDocumentationFamilyIsCatalogedAndResolvable
 // can deeply compare the two representations and fail closed the moment a
 // one-sided edit lets them drift.

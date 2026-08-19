@@ -17,7 +17,7 @@ const (
 	codeownersFamilyRepoID       = "repo-ifa-codeowners-family"
 )
 
-// codeownersFamilyOdu returns the binary-portable catalog representation of
+// CodeownersFamilyOdu returns the binary-portable catalog representation of
 // the codeowners_ownership_edges cassette (#5992, under the #5543 umbrella).
 // The checked-in cassette remains the live replay source;
 // TestCodeownersFamilyIsCatalogedAndResolvable deeply pins this compiled
@@ -55,9 +55,9 @@ const (
 //
 // Total: 5 DECLARES_CODEOWNER edges -- 3 to @org/docs (RULE A, B, C),
 // 1 to @org/backend (RULE C), 1 to @org/infra (RULE E).
-func codeownersFamilyOdu() CatalogOdu {
+func CodeownersFamilyOdu() CatalogOdu {
 	factsForOdu := []facts.Envelope{
-		codeownersFamilyRepositoryFact(),
+		CodeownersFamilyRepositoryFact(),
 		// RULE A.
 		codeownersFamilyOwnershipFact(codeownersv1.Ownership{
 			RepoID: codeownersFamilyRepoID, SourcePath: ".github/CODEOWNERS", Pattern: "*.md",
@@ -86,7 +86,7 @@ func codeownersFamilyOdu() CatalogOdu {
 		codeownersFamilySharedFollowupFact(),
 	}
 	return CatalogOdu{
-		Odu: Odu{Name: codeownersFamilyOduName, Facts: factsForOdu},
+		Odu: Odu{Name: CodeownersFamilyOduName, Facts: factsForOdu},
 		Detail: "one repository with two CODEOWNERS files: a same-team multi-pattern " +
 			"collision (RULE A/B), a multi-owner rule adding a third edge to that same " +
 			"team (RULE C), a last-match-wins duplicate rule (RULE D), and a " +
@@ -136,9 +136,9 @@ func codeownersFamilySharedFollowupFact() facts.Envelope {
 	}
 }
 
-// codeownersFamilyRepositoryFact builds the typed "repository" fact the
+// CodeownersFamilyRepositoryFact builds the typed "repository" fact the
 // codeowners.ownership facts below are scoped against.
-func codeownersFamilyRepositoryFact() facts.Envelope {
+func CodeownersFamilyRepositoryFact() facts.Envelope {
 	sourceRunID := "run-ifa-codeowners-family-1"
 	localPath := "/repo-codeowners"
 	repository := codegraphv1.Repository{

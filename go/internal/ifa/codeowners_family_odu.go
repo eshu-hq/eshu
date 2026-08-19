@@ -17,7 +17,7 @@ import (
 
 // The codeowners_ownership_edges family Odù (#5992, under the #5543 umbrella).
 //
-// codeownersFamilyOdu in codeowners_family_catalog.go is the binary-portable
+// CodeownersFamilyOdu in codeowners_family_catalog.go is the binary-portable
 // compiled catalog representation. This file projects the committed cassette
 // through the same strict envelope boundary for
 // TestCodeownersFamilyIsCatalogedAndResolvable, which deeply compares the two
@@ -27,9 +27,14 @@ import (
 // the determinism/fault-injection matrices therefore assert the same committed
 // bytes rather than maintaining parallel fixtures that can drift.
 const (
-	codeownersFamilyOduName      = "odu:ifa-codeowners-family"
+	// CodeownersFamilyOduName is this Odù's catalog name, the ref a
+	// materialized_edges:codeowners_ownership_edges coverage-manifest row
+	// names to resolve through it. Exported (#6163) so
+	// materializededges' moved codeowners-family tests, which build and
+	// resolve against this exact Odù, can name and look it up by that ref
+	// without duplicating the literal.
+	CodeownersFamilyOduName      = "odu:ifa-codeowners-family"
 	codeownersFamilyCassettePath = "testdata/cassettes/codeowners/ifa-codeowners-family.json"
-	codeownersExpectedEdgesPath  = "go/internal/ifa/testdata/codeowners/ifa-codeowners-family-expected-edges.json"
 )
 
 // codeownersFamilyCassetteFile declares the cassette's FULL envelope shape,
@@ -78,31 +83,29 @@ type codeownersFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// codeownersFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func codeownersFamilyCassetteFullPath(repoRoot string) string {
+// CodeownersFamilyCassetteFullPath joins repoRoot onto the cassette path.
+// Exported (#6163) so materializededges' moved codeowners-family tests can
+// locate the same committed cassette LoadCodeownersFamilyOdu reads.
+func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeownersFamilyCassettePath)
 }
 
-// codeownersFamilyExpectedEdgesPath joins repoRoot onto the expected-edge
-// fixture.
-//
-// It lives under go/internal/ifa/testdata/ rather than testdata/cassettes/
-// for the same reason the SQL, code_calls, documentation and rationale
-// families' fixtures do: the offline cassette validator globs every
-// testdata/cassettes/*/*.json as a replay cassette, and this file is a gate
-// ASSERTION, not a cassette.
-func codeownersFamilyExpectedEdgesPath(repoRoot string) string {
-	return filepath.Join(repoRoot, codeownersExpectedEdgesPath)
-}
+// codeownersFamilyExpectedEdgesPath moved to
+// materializededges/materialized_edges_codeowners.go with the rest of the
+// codeowners_ownership_edges vacuity guard (#6163): it was called only from
+// MaterializedEdgeOduResolver.Resolve's dispatch, which moved there too.
 
-// loadCodeownersFamilyOdu reads the committed cassette and projects it onto
+// LoadCodeownersFamilyOdu reads the committed cassette and projects it onto
 // the fact envelopes the reducer's extractor consumes.
 //
-// Unexported because it is the test-side lockstep loader for the committed
-// cassette. Production registers the compiled codeownersFamilyOdu in
-// catalogSeed; TestCodeownersFamilyIsCatalogedAndResolvable compares that
-// registered Odù with this strict cassette projection and exercises the
-// codeowners_ownership_edges resolver guard.
+// It is the test-side lockstep loader for the committed cassette. Production
+// registers the compiled CodeownersFamilyOdu in catalogSeed;
+// TestCodeownersFamilyIsCatalogedAndResolvable (still in this package) compares
+// that registered Odù with this strict cassette projection, and
+// materializededges' moved codeowners-family tests (#6163) call it directly to
+// exercise the codeowners_ownership_edges resolver guard against the same
+// cassette. Exported so both sides of that package boundary can reach it
+// without a second copy of the cassette decoder.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // would make every downstream assertion vacuous, which is the failure mode
@@ -118,7 +121,7 @@ func codeownersFamilyExpectedEdgesPath(repoRoot string) string {
 // json.Decoder.Decode reads exactly one JSON value and stops, unlike the
 // json.Unmarshal this replaces, so a second Decode requiring io.EOF closes
 // the trailing-content gap switching decoders would otherwise reopen.
-func loadCodeownersFamilyOdu(cassettePath string) (Odu, error) {
+func LoadCodeownersFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read codeowners cassette %s: %w", cassettePath, err)
@@ -154,5 +157,5 @@ func loadCodeownersFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: codeownersFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: CodeownersFamilyOduName, Facts: envelopes}, nil
 }

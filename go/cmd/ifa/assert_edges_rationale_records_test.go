@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -23,7 +23,7 @@ const rationaleRecordRepoID = "repository:r_fixture"
 func TestRunAssertEdgesCommandDispatchesRationaleFullRecordComparison(t *testing.T) {
 	expected := rationaleRecordFixture()
 	raw, err := json.Marshal(struct {
-		Edges []ifa.RationaleExpectedEdgeRecord `json:"edges"`
+		Edges []materializededges.RationaleExpectedEdgeRecord `json:"edges"`
 	}{Edges: expected})
 	if err != nil {
 		t.Fatalf("marshal expected fixture: %v", err)
@@ -35,7 +35,7 @@ func TestRunAssertEdgesCommandDispatchesRationaleFullRecordComparison(t *testing
 
 	actual := rationaleGraphEdges(expected)
 	actual[0].Props["reason"] = "corrupted"
-	edgeTypes, err := ifa.MaterializedEdgeDomainEdgeTypes("rationale_edges")
+	edgeTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("rationale_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(rationale_edges): %v", err)
 	}
@@ -43,7 +43,7 @@ func TestRunAssertEdgesCommandDispatchesRationaleFullRecordComparison(t *testing
 	if err != nil {
 		t.Fatalf("MaterializedEdgeIdentityProperties(rationale_edges): %v", err)
 	}
-	genericExpected := []ifa.ExpectedEdge{{
+	genericExpected := []materializededges.ExpectedEdge{{
 		RelationshipType: expected[0].RelationshipType,
 		SourceEntityID:   expected[0].SourceEntityID,
 		TargetEntityID:   expected[0].TargetEntityID,
@@ -85,7 +85,7 @@ func TestRunAssertEdgesCommandDispatchesRationaleFullRecordComparison(t *testing
 func TestAssertRationaleMaterializedEdgeRecordsExactFullRecords(t *testing.T) {
 	t.Parallel()
 	fixturePath := filepath.Join(repoRootDir(t), "go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json")
-	repoID, expected, err := ifa.LoadRationaleExpectedEdgeRecords(fixturePath)
+	repoID, expected, err := materializededges.LoadRationaleExpectedEdgeRecords(fixturePath)
 	if err != nil {
 		t.Fatalf("LoadRationaleExpectedEdgeRecords: %v", err)
 	}
@@ -268,13 +268,13 @@ func TestAssertRationaleMaterializedEdgeRecordsRejectsMispositionedExpectedIdent
 func TestAssertRationaleMaterializedEdgeRecordsMatchesJSONAndBoltIntegralNumbers(t *testing.T) {
 	t.Parallel()
 	raw, err := json.Marshal(struct {
-		Edges []ifa.RationaleExpectedEdgeRecord `json:"edges"`
+		Edges []materializededges.RationaleExpectedEdgeRecord `json:"edges"`
 	}{Edges: rationaleRecordFixture()})
 	if err != nil {
 		t.Fatalf("marshal expected records: %v", err)
 	}
 	var decoded struct {
-		Edges []ifa.RationaleExpectedEdgeRecord `json:"edges"`
+		Edges []materializededges.RationaleExpectedEdgeRecord `json:"edges"`
 	}
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatalf("unmarshal expected records: %v", err)
@@ -313,8 +313,8 @@ func (f failingEdgeReader) StreamEdges(context.Context, func(graphdump.Edge) err
 	return f.err
 }
 
-func rationaleRecordFixture() []ifa.RationaleExpectedEdgeRecord {
-	return []ifa.RationaleExpectedEdgeRecord{
+func rationaleRecordFixture() []materializededges.RationaleExpectedEdgeRecord {
+	return []materializededges.RationaleExpectedEdgeRecord{
 		{
 			RelationshipType: "EXPLAINS",
 			SourceEntityID:   "rationale:one",
@@ -323,12 +323,12 @@ func rationaleRecordFixture() []ifa.RationaleExpectedEdgeRecord {
 			TargetPath:       "src/one.py",
 			RepoID:           rationaleRecordRepoID,
 			CommentKind:      "WHY",
-			SourceRecord: ifa.RationaleExpectedNodeRecord{
+			SourceRecord: materializededges.RationaleExpectedNodeRecord{
 				Labels: []string{"Evidence", "Rationale"},
 				Props:  map[string]any{"uid": "rationale:one", "type": "rationale", "repo_id": rationaleRecordRepoID, "comment_kind": "WHY", "excerpt_hash": "one", "evidence_source": "reducer/rationale"},
 			},
 			EdgeProps: map[string]any{"confidence": 0.95, "reason": "Intent comment explains the code entity it precedes", "evidence_source": "reducer/rationale", "comment_kind": "WHY"},
-			TargetRecord: ifa.RationaleExpectedNodeRecord{
+			TargetRecord: materializededges.RationaleExpectedNodeRecord{
 				Labels: []string{"Code", "Function"},
 				Props:  map[string]any{"uid": "content-entity:one", "id": "content-entity:one", "repo_id": rationaleRecordRepoID, "relative_path": "src/one.py", "language": "python", "end_line": 2},
 			},
@@ -336,7 +336,7 @@ func rationaleRecordFixture() []ifa.RationaleExpectedEdgeRecord {
 	}
 }
 
-func rationaleGraphEdges(records []ifa.RationaleExpectedEdgeRecord) []graphdump.Edge {
+func rationaleGraphEdges(records []materializededges.RationaleExpectedEdgeRecord) []graphdump.Edge {
 	edges := make([]graphdump.Edge, 0, len(records))
 	for _, record := range records {
 		edges = append(edges, graphdump.Edge{
@@ -353,13 +353,13 @@ func rationaleGraphEdges(records []ifa.RationaleExpectedEdgeRecord) []graphdump.
 
 func cloneGraphEdges(t *testing.T, edges []graphdump.Edge) []graphdump.Edge {
 	t.Helper()
-	records := make([]ifa.RationaleExpectedEdgeRecord, 0, len(edges))
+	records := make([]materializededges.RationaleExpectedEdgeRecord, 0, len(edges))
 	for _, edge := range edges {
-		records = append(records, ifa.RationaleExpectedEdgeRecord{
+		records = append(records, materializededges.RationaleExpectedEdgeRecord{
 			RelationshipType: edge.Type,
-			SourceRecord:     ifa.RationaleExpectedNodeRecord{Labels: edge.FromLabels, Props: edge.FromProps},
+			SourceRecord:     materializededges.RationaleExpectedNodeRecord{Labels: edge.FromLabels, Props: edge.FromProps},
 			EdgeProps:        edge.Props,
-			TargetRecord:     ifa.RationaleExpectedNodeRecord{Labels: edge.ToLabels, Props: edge.ToProps},
+			TargetRecord:     materializededges.RationaleExpectedNodeRecord{Labels: edge.ToLabels, Props: edge.ToProps},
 		})
 	}
 	return rationaleGraphEdges(records)

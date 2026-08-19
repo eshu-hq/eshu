@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -47,7 +47,7 @@ func codeownersEdge(repoUID, teamUID, pattern, sourcePath string) graphdump.Edge
 func TestAssertMaterializedEdgesIdentityDistinguishesSameEndpointEdges(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
@@ -57,7 +57,7 @@ func TestAssertMaterializedEdgesIdentityDistinguishesSameEndpointEdges(t *testin
 		codeownersEdge("repo-1", "team-a", "*.go", "CODEOWNERS"),
 		codeownersEdge("repo-1", "team-a", "*.md", "docs/CODEOWNERS"),
 	}}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a", Identity: map[string]string{"pattern": "*.go", "source_path": "CODEOWNERS"}},
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a", Identity: map[string]string{"pattern": "*.md", "source_path": "docs/CODEOWNERS"}},
 	}
@@ -86,7 +86,7 @@ func TestAssertMaterializedEdgesIdentityDistinguishesSameEndpointEdges(t *testin
 func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
@@ -95,7 +95,7 @@ func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testin
 	graph := fakeEdgeReader{edges: []graphdump.Edge{
 		codeownersEdge("repo-1", "team-a", "*.go", "CODEOWNERS"),
 	}}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		// Names the same endpoints but a different pattern than the graph has.
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a", Identity: map[string]string{"pattern": "*.py", "source_path": "CODEOWNERS"}},
 	}
@@ -130,13 +130,13 @@ func TestAssertMaterializedEdgesIdentityMismatchFailsAsMissingAndExtra(t *testin
 func TestAssertMaterializedEdgesIdentityErrorOnMissingProperty(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
 	identity := codeownersIdentityForTest(t)
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a", Identity: map[string]string{"pattern": "*.go", "source_path": "CODEOWNERS"}},
 	}
 

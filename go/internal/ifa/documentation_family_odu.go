@@ -20,7 +20,7 @@ import (
 // (code_call_family_odu.go) exactly: every field the real committed cassette
 // (testdata/cassettes/documentation/ifa-documentation-family.json) carries,
 // verified against that file directly, not just the load-bearing subset
-// loadDocumentationFamilyOdu consumes. Declaring the full schema is what
+// LoadDocumentationFamilyOdu consumes. Declaring the full schema is what
 // makes DisallowUnknownFields (below) safe: a narrower struct would reject
 // the real cassette's own envelope fields as "unknown". The per-fact fields
 // are load-bearing: schema_version is (an empty version reads as "latest"
@@ -52,20 +52,24 @@ type documentationFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// documentationFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func documentationFamilyCassetteFullPath(repoRoot string) string {
+// DocumentationFamilyCassetteFullPath joins repoRoot onto the cassette path.
+// Exported (#6163) so materializededges' moved documentation-family tests can
+// locate the same committed cassette LoadDocumentationFamilyOdu reads.
+func DocumentationFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, documentationFamilyCassettePath)
 }
 
-// loadDocumentationFamilyOdu reads the committed cassette and projects it onto
+// LoadDocumentationFamilyOdu reads the committed cassette and projects it onto
 // the fact envelopes the reducer's extractor consumes, mirroring
-// loadCodeCallFamilyOdu exactly.
+// LoadCodeCallFamilyOdu exactly.
 //
-// Unexported because it is the test-side lockstep loader for the committed
-// cassette. Production registers the compiled documentationFamilyOdu in
-// catalogSeed; TestDocumentationFamilyIsCatalogedAndResolvable compares that
+// It is the test-side lockstep loader for the committed cassette. Production
+// registers the compiled documentationFamilyOdu in catalogSeed;
+// TestDocumentationFamilyIsCatalogedAndResolvable in materializededges (#6163,
+// moved with the rest of the documentation_edges guard) compares that
 // registered Odù with this strict cassette projection and exercises the
-// documentation_edges resolver guard.
+// documentation_edges resolver guard. Exported so that moved test can reach it
+// across the package boundary.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // would make every downstream assertion vacuous, which is the failure mode
@@ -73,14 +77,14 @@ func documentationFamilyCassetteFullPath(repoRoot string) string {
 //
 // The decoder disallows unknown fields, so a typo anywhere in the envelope
 // fails loudly at load time instead of silently decoding to a zero value --
-// mirroring loadCodeCallFamilyOdu's reasoning: an unnoticed typo would
+// mirroring LoadCodeCallFamilyOdu's reasoning: an unnoticed typo would
 // silently project the WRONG fact set, and the resulting Odù would still
 // drive an exact-set gate whose green result would then attest to something
 // the cassette did not actually say, the same false-attestation shape that
 // forced a coverage-row withdrawal on #5994. The second Decode/io.EOF check
 // closes the trailing-content gap switching from json.Unmarshal to
 // json.Decoder would otherwise reopen.
-func loadDocumentationFamilyOdu(cassettePath string) (Odu, error) {
+func LoadDocumentationFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read documentation cassette %s: %w", cassettePath, err)

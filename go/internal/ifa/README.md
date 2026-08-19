@@ -72,104 +72,19 @@ authoring; it does not build a second coverage framework.
   (`dead_letters.go`) - the durable `fact_work_items` dead-letter set shape and
   its cross-run comparator, which `cmd/ifa`'s `ifa dead-letters` verb reads and
   renders.
-- `RegistryMaterializedEdges`, `MaterializedEdgeSurfacePrefix`,
-  `MaterializedEdgeManifestFileName`, `EnumerateMaterializedEdgeSurfaces`,
-  `MaterializedEdgeOduResolver`, `MaterializedEdgeWaiver`,
-  `LoadMaterializedEdgeWaivers`, `MaterializedEdgeCoverageInputs`,
-  `RunMaterializedEdgeCoverage` (`materialized_edges.go`,
-  `materialized_edges_manifest.go`, #5351) - the `materialized_edges:<domain>`
-  exhaustiveness gate: binds an Odù expectation to each
-  `reducer.MaterializedEdgeFamilies()` entry, mirroring `RunCoverage`'s shape
-  with one addition — a `waivers:` section (parsed separately from the
-  standard `replaycoverage.Manifest` `coverage:`/`scenario_requirements:`
-  rows) that softens an otherwise-required uncovered row into an advisory
-  finding naming a tracked child issue, instead of silently exempting it.
-  Waivers are keyed per `(surface, proof_gate)` — equal to the reconciled row
-  key — so waiving a family's `fault` (`ifa-fault-injection`) row never revokes
-  credit for a proven `baseline` (`ifa-determinism`) row. The manifest is a
-  CLAIMS LEDGER, not a roadmap: each required `(surface × scenario_type)` row
-  must name the proof gate that runs it. SQL relationships has proven baseline
-  and `delta_tombstone` rows under `ifa-determinism`; the matrix drives gen 2
-  after gen 1 and checks the accumulated exact edge set. Its `fault` row is
-  also proven (#5555 closed): `scripts/lib/ifa_fault_injection_sql_cells.sh`'s
-  `cell_killworker_sql` and `cell_failgraphwrite_sql` provably target the
-  `sql_relationship_materialization` / `sql_relationships` work item (a
-  domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
-  `CloudResource`).
-  `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
-  the first family vacuity guard (`sql_relationships`): it asserts the
-  hand-derived expected-edge-set fixture covers every
-  `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
-  exactly by running the Odù's facts through the pure
-  `reducer.ExtractSQLRelationshipRows` seam. The SQL-family Odù now proves all
-  nine writer-registry types, including table-to-table `REFERENCES_TABLE` and
-  routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
-  Because the expected type inventory is registry-derived, adding a tenth type
-  without extending the Odù fails closed instead of preserving a stale count.
-- `codeCallFamilyOdu` (`code_call_family_catalog.go`, #5991, unexported) - is the
-  compiled, binary-portable Odù for the code-call family. Its facts and five
-  hand-derived expected edges are pinned to the committed
-  `testdata/cassettes/codecalls/` fixtures by a strict equality test, so changing
-  either side alone fails closed. The determinism gate replays the cassette and
-  exact-asserts all five live edges at N=1/2/4. The fault gate repeats that
-  assertion after domain-scoped worker-kill recovery and a once-then-succeed
-  graph-write fault. Together those gates prove all four code-call writer types
-  and satisfy the family's baseline and fault manifest rows without waivers.
-- `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
-  (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
-  `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it
-  loads the SAME hand-derived expected-edge-set fixture the pure vacuity guard
-  consumes (so the live gate and the pure `go test` guard cannot drift on the
-  format) and returns the family's registry edge types
-  (registry-derived: each family's set comes from its own writer registry in
-  `internal/storage/cypher`, never hand-listed here) so a live graph read knows
-  which edges belong to the family. All fourteen umbrella families resolve as of
-  #5543 - the multi-type ones (`sql_relationships`, `code_calls`,
-  `inheritance_edges`, `repo_dependency`) through explicit arms, the rest from
-  cypher's shared single-type table. An unregistered family returns an error
-  rather than an empty set, so a caller fails closed instead of asserting
-  nothing. This is what backs
-  the `materialized_edges:sql_relationships`,
-  `materialized_edges:code_calls`, `materialized_edges:documentation_edges`,
-  and `materialized_edges:rationale_edges`
-  manifest rows' `proof_gate` claims from inside the `ifa-determinism` and
-  `ifa-fault-injection` live gates — digest equality
-  across worker counts cannot catch a family silently
-  empty in all cells; the absolute expected set can. The determinism gate
-  asserts each baseline, drives the SQL and rationale generation-2 cassettes,
-  and checks both delta outcomes before comparing N=1/2/4 graph digests.
-  `ExpectedEdge` additionally carries `Identity map[string]string`: the
-  relationship-property values, beyond the endpoint pair, that participate in
-  an edge's MERGE identity for `codeowners_ownership_edges` and
-  `submodule_pin_edges` (`cypher.MaterializedEdgeIdentityProperties`) —
-  `Key()` appends them in sorted property-name order and is byte-identical to
-  the pre-`Identity` key when `Identity` is empty, so every family with no
-  declared identity needs no re-proof. `LoadExpectedEdges` now takes a
-  `family` argument and validates every loaded edge's `Identity` key set
-  matches the family's declaration exactly (a missing declared key, an
-  undeclared key, or any `Identity` on a declared-empty family is a fixture
-  error), non-blank identity-triple fields, and rejects an unknown JSON field
-  in the fixture (`DisallowUnknownFields`). `assertMaterializedEdges`
-  (`cmd/ifa/assert_edges.go`) mirrors the same validation against the LIVE
-  graph: a declared identity property missing, non-string, or blank on a live
-  edge is a loud identity defect, never silently keyed as `""`.
-
-- `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
-  `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)
-  extend the single rationale expected fixture with the complete source node,
-  EXPLAINS relationship, and target node record used by the live CLI assertion.
-  The loader rejects an empty or mixed repository scope and any disagreement
-  between the fixture's top-level identities and nested raw properties before
-  the graph backend is opened. Both live matrices drive the rationale cassette
-  and exact-assert its full EXPLAINS records; the determinism matrix also drives
-  generation 2 and checks the exact one-record survivor.
-
-- `LoadDocumentationExpectedEdges` (`materialized_edges_documentation.go`,
-  #5994) loads the exact three-edge DOCUMENTS set used by the live CLI
-  assertion. Both live matrices drive the documentation cassette and
-  exact-assert its three DOCUMENTS edges in baseline and domain-scoped recovery
-  cells; the fault delta cell keeps those full graph records exact through its
-  collateral comparison rather than a separate documentation assertion.
+- **Materialized-edge coverage** (`RegistryMaterializedEdges`,
+  `MaterializedEdgeSurfacePrefix`, `MaterializedEdgeOduResolver`,
+  `RunMaterializedEdgeCoverage`, `ExpectedEdge`, `LoadExpectedEdges`, and every
+  per-family vacuity guard, #5351) moved to the sibling package
+  `go/internal/ifa/materializededges` (#6163), to keep this package under the
+  repository's directory file-count gate. See that package's `README.md` and
+  `doc.go` for the exhaustiveness-gate design, the waiver semantics, the SQL/
+  code-calls/documentation/rationale/codeowners/deployable-unit family
+  guards, and the live-gate proof history this section used to carry.
+  `cmd/ifa`'s `assert-edges` verb, the `ifa-determinism`/`ifa-fault-injection`
+  gates, and every family's Odù catalog entry (still seeded from this
+  package's own `catalog_seed.go` and `*_family_catalog.go`/`*_family_odu.go`
+  files) are unaffected by the move.
 
 ## Dependencies
 

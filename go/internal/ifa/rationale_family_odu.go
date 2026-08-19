@@ -22,25 +22,57 @@ import (
 // well-formed comments proves the extractor emits edges without proving it
 // emits the right ones — and the set is asserted exactly, so an edge nobody
 // derived fails as loudly as a missing one.
+// Every constant below is exported (#6163): the rationale_edges guard and its
+// two live-fixture tests (rationale_family_live_fixture_test.go,
+// rationale_family_delta_live_fixture_test.go) moved to materializededges
+// because they exercise the moved guard, and that package can only rebuild
+// this Odù's exact facts -- entity IDs, scope/generation coordinates, source
+// paths -- by reading these identifiers from here, not a second copy of them.
 const (
-	rationaleFamilyOduName           = "odu:ifa-rationale-family"
-	rationaleFamilyScopeID           = "scope-ifa-rationale-family"
-	rationaleFamilyGenerationID      = "gen-ifa-rationale-family-1"
-	rationaleFamilyDeltaGenerationID = "gen-ifa-rationale-family-2"
-	rationaleFamilyRepoID            = "repository:r_f781caa5"
-	rationaleFamilyRemoteURL         = "https://github.com/eshu-hq/ifa-rationale-fixture"
-	rationaleFamilyCassetteRelPath   = "testdata/cassettes/rationale/ifa-rationale-family.json"
-	rationaleFamilySourceRunID       = "run-ifa-rationale-family-1"
-	rationaleFamilyLocalPath         = "/repo-rationale"
-	rationaleFamilyChargePath        = "services/payments/charge.py"
-	rationaleFamilyInvoicePath       = "services/billing/invoice.py"
-	rationaleFamilyRefundPath        = "services/payments/refund.py"
-	rationaleFamilyReconcilePath     = "services/support/reconcile.py"
-	rationaleFamilyHealthcheckPath   = "services/support/healthcheck.py"
-	rationaleFamilyChargeName        = "charge"
-	rationaleFamilyInvoiceName       = "issue_invoice"
-	rationaleFamilyChargeLine        = 5
-	rationaleFamilyInvoiceLine       = 2
+	// RationaleFamilyOduName is this Odù's catalog name.
+	RationaleFamilyOduName = "odu:ifa-rationale-family"
+	// RationaleFamilyScopeID is the ScopeID every fact in this Odù carries.
+	RationaleFamilyScopeID = "scope-ifa-rationale-family"
+	// RationaleFamilyGenerationID is the gen-1 GenerationID every base fact in
+	// this Odù carries.
+	RationaleFamilyGenerationID = "gen-ifa-rationale-family-1"
+	// RationaleFamilyDeltaGenerationID is the gen-2 GenerationID the delta
+	// live-fixture test stamps onto its own facts, proving the reducer
+	// re-derives rationale edges after a second generation for the same repo.
+	RationaleFamilyDeltaGenerationID = "gen-ifa-rationale-family-2"
+	// RationaleFamilyRepoID is this Odù's repository ID.
+	RationaleFamilyRepoID    = "repository:r_f781caa5"
+	rationaleFamilyRemoteURL = "https://github.com/eshu-hq/ifa-rationale-fixture"
+	// RationaleFamilyCassetteRelPath is the repo-root-relative path to this
+	// family's committed cassette.
+	RationaleFamilyCassetteRelPath = "testdata/cassettes/rationale/ifa-rationale-family.json"
+	// RationaleFamilySourceRunID is the collector SourceRunID stamped onto
+	// this Odù's repository fact.
+	RationaleFamilySourceRunID = "run-ifa-rationale-family-1"
+	// RationaleFamilyLocalPath is the repository's checkout path every file
+	// and content-entity fact's paths are anchored under.
+	RationaleFamilyLocalPath = "/repo-rationale"
+	// RationaleFamilyChargePath and RationaleFamilyInvoicePath are the two
+	// Python files whose rationale comments derive EXPLAINS edges (charge
+	// derives WHY edges with a duplicate and an empty TODO exercising
+	// dedup/rejection; invoice derives one HACK edge).
+	RationaleFamilyChargePath  = "services/payments/charge.py"
+	RationaleFamilyInvoicePath = "services/billing/invoice.py"
+	// RationaleFamilyRefundPath, RationaleFamilyReconcilePath, and
+	// RationaleFamilyHealthcheckPath are the negative-case Python files this
+	// Odù carries (no rationale comments, or comments the parser does not
+	// recognize).
+	RationaleFamilyRefundPath      = "services/payments/refund.py"
+	RationaleFamilyReconcilePath   = "services/support/reconcile.py"
+	RationaleFamilyHealthcheckPath = "services/support/healthcheck.py"
+	// RationaleFamilyChargeName and RationaleFamilyInvoiceName are the
+	// top-level function names content.CanonicalEntityID keys on.
+	RationaleFamilyChargeName  = "charge"
+	RationaleFamilyInvoiceName = "issue_invoice"
+	// RationaleFamilyChargeLine and RationaleFamilyInvoiceLine are the
+	// declaration line numbers content.CanonicalEntityID keys on.
+	RationaleFamilyChargeLine  = 5
+	RationaleFamilyInvoiceLine = 2
 )
 
 // rationaleFamilyOdu carries five parser-reachable Python functions. Two
@@ -55,18 +87,18 @@ func rationaleFamilyOdu() CatalogOdu {
 		invoiceText = "Invoices are immutable once issued."
 	)
 	chargeID := content.CanonicalEntityID(
-		rationaleFamilyRepoID, rationaleFamilyChargePath, "Function",
-		rationaleFamilyChargeName, rationaleFamilyChargeLine,
+		RationaleFamilyRepoID, RationaleFamilyChargePath, "Function",
+		RationaleFamilyChargeName, RationaleFamilyChargeLine,
 	)
 	invoiceID := content.CanonicalEntityID(
-		rationaleFamilyRepoID, rationaleFamilyInvoicePath, "Function",
-		rationaleFamilyInvoiceName, rationaleFamilyInvoiceLine,
+		RationaleFamilyRepoID, RationaleFamilyInvoicePath, "Function",
+		RationaleFamilyInvoiceName, RationaleFamilyInvoiceLine,
 	)
-	refundID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyRefundPath, "Function", "refund", 3)
-	reconcileID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyReconcilePath, "Function", "reconcile", 3)
-	healthID := content.CanonicalEntityID(rationaleFamilyRepoID, rationaleFamilyHealthcheckPath, "Function", "healthcheck", 1)
-	sourceRunID := rationaleFamilySourceRunID
-	localPath := rationaleFamilyLocalPath
+	refundID := content.CanonicalEntityID(RationaleFamilyRepoID, RationaleFamilyRefundPath, "Function", "refund", 3)
+	reconcileID := content.CanonicalEntityID(RationaleFamilyRepoID, RationaleFamilyReconcilePath, "Function", "reconcile", 3)
+	healthID := content.CanonicalEntityID(RationaleFamilyRepoID, RationaleFamilyHealthcheckPath, "Function", "healthcheck", 1)
+	sourceRunID := RationaleFamilySourceRunID
+	localPath := RationaleFamilyLocalPath
 	files := []struct {
 		path         string
 		name         string
@@ -76,33 +108,33 @@ func rationaleFamilyOdu() CatalogOdu {
 		entitySource string
 		comments     []any
 	}{
-		{rationaleFamilyInvoicePath, rationaleFamilyInvoiceName, invoiceID, rationaleFamilyInvoiceLine, 3, "def issue_invoice():\n    pass\n", []any{
+		{RationaleFamilyInvoicePath, RationaleFamilyInvoiceName, invoiceID, RationaleFamilyInvoiceLine, 3, "def issue_invoice():\n    pass\n", []any{
 			map[string]any{"kind": "HACK", "text": invoiceText},
 		}},
-		{rationaleFamilyChargePath, rationaleFamilyChargeName, chargeID, rationaleFamilyChargeLine, 6, "def charge():\n    pass\n", []any{
+		{RationaleFamilyChargePath, RationaleFamilyChargeName, chargeID, RationaleFamilyChargeLine, 6, "def charge():\n    pass\n", []any{
 			map[string]any{"kind": "WHY", "text": chargeText},
 			map[string]any{"kind": "NOTE", "text": chargeText},
 			map[string]any{"kind": "WHY", "text": chargeText},
 			map[string]any{"kind": "TODO", "text": ""},
 		}},
-		{rationaleFamilyRefundPath, "refund", refundID, 3, 4, "def refund():\n    pass\n", nil},
-		{rationaleFamilyHealthcheckPath, "healthcheck", healthID, 1, 2, "def healthcheck():\n    pass\n", nil},
-		{rationaleFamilyReconcilePath, "reconcile", reconcileID, 3, 4, "def reconcile():\n    pass\n", nil},
+		{RationaleFamilyRefundPath, "refund", refundID, 3, 4, "def refund():\n    pass\n", nil},
+		{RationaleFamilyHealthcheckPath, "healthcheck", healthID, 1, 2, "def healthcheck():\n    pass\n", nil},
+		{RationaleFamilyReconcilePath, "reconcile", reconcileID, 3, 4, "def reconcile():\n    pass\n", nil},
 	}
 	factsForOdu := make([]facts.Envelope, 0, 12)
-	graphID, graphKind, repoName, parsedCount := rationaleFamilyRepoID, "repository", "repo-rationale", "5"
+	graphID, graphKind, repoName, parsedCount := RationaleFamilyRepoID, "repository", "repo-rationale", "5"
 	repoSlug, remoteURL := "eshu-hq/ifa-rationale-fixture", rationaleFamilyRemoteURL
 	isDependency := false
-	factsForOdu = append(factsForOdu, rationaleFamilyRepositoryFact(codegraphv1.Repository{
-		RepoID: rationaleFamilyRepoID, SourceRunID: &sourceRunID, LocalPath: &localPath,
+	factsForOdu = append(factsForOdu, RationaleFamilyRepositoryFact(codegraphv1.Repository{
+		RepoID: RationaleFamilyRepoID, SourceRunID: &sourceRunID, LocalPath: &localPath,
 		GraphID: &graphID, GraphKind: &graphKind, Name: &repoName,
 		ParsedFileCount: &parsedCount, IsDependency: &isDependency,
 		RepoSlug: &repoSlug, RemoteURL: &remoteURL,
 	}))
 	for _, file := range files {
-		fileGraphID, fileGraphKind, language := rationaleFamilyRepoID+":"+file.path, "file", "python"
-		factsForOdu = append(factsForOdu, rationaleFamilyFileFact(codegraphv1.File{
-			RepoID: rationaleFamilyRepoID, RelativePath: file.path,
+		fileGraphID, fileGraphKind, language := RationaleFamilyRepoID+":"+file.path, "file", "python"
+		factsForOdu = append(factsForOdu, RationaleFamilyFileFact(codegraphv1.File{
+			RepoID: RationaleFamilyRepoID, RelativePath: file.path,
 			ParsedFileData: rationaleFamilyParsedFile(file.path, file.name, file.entityID, file.startLine, file.endLine, file.entitySource, file.comments),
 			GraphID:        &fileGraphID, GraphKind: &fileGraphKind,
 			IsDependency: &isDependency, Language: &language,
@@ -121,7 +153,7 @@ func rationaleFamilyOdu() CatalogOdu {
 	}
 	factsForOdu = append(factsForOdu, rationaleFamilyFollowupFact())
 	odu := Odu{
-		Name:  rationaleFamilyOduName,
+		Name:  RationaleFamilyOduName,
 		Facts: factsForOdu,
 	}
 	return CatalogOdu{
@@ -138,7 +170,7 @@ func rationaleFamilyContentEntity(entityID, name, relativePath string, startLine
 	payload := map[string]any{
 		"graph_id":      entityID,
 		"graph_kind":    "content_entity",
-		"repo_id":       rationaleFamilyRepoID,
+		"repo_id":       RationaleFamilyRepoID,
 		"entity_id":     entityID,
 		"entity_type":   "Function",
 		"entity_name":   name,
@@ -156,22 +188,30 @@ func rationaleFamilyContentEntity(entityID, name, relativePath string, startLine
 	return rationaleFamilyFact("content_entity", "content_entity:"+entityID, payload, false)
 }
 
-func rationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
+// RationaleFamilyRepositoryFact builds one typed "repository" fact from
+// repository, stamped with this family's scope/generation coordinates and
+// carrying the fixture's imports_map. Exported (#6163) so materializededges'
+// moved rationale-family live-fixture tests can build the same repository
+// fact this Odù's own builder uses, rather than a second, driftable copy.
+func RationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphRepository(repository)
 	if err != nil {
 		panic(fmt.Sprintf("ifa: encode rationale repository %q: %v", repository.RepoID, err))
 	}
 	payload["imports_map"] = map[string]any{
-		"charge":        []any{rationaleFamilyLocalPath + "/" + rationaleFamilyChargePath},
-		"healthcheck":   []any{rationaleFamilyLocalPath + "/" + rationaleFamilyHealthcheckPath},
-		"issue_invoice": []any{rationaleFamilyLocalPath + "/" + rationaleFamilyInvoicePath},
-		"reconcile":     []any{rationaleFamilyLocalPath + "/" + rationaleFamilyReconcilePath},
-		"refund":        []any{rationaleFamilyLocalPath + "/" + rationaleFamilyRefundPath},
+		"charge":        []any{RationaleFamilyLocalPath + "/" + RationaleFamilyChargePath},
+		"healthcheck":   []any{RationaleFamilyLocalPath + "/" + RationaleFamilyHealthcheckPath},
+		"issue_invoice": []any{RationaleFamilyLocalPath + "/" + RationaleFamilyInvoicePath},
+		"reconcile":     []any{RationaleFamilyLocalPath + "/" + RationaleFamilyReconcilePath},
+		"refund":        []any{RationaleFamilyLocalPath + "/" + RationaleFamilyRefundPath},
 	}
 	return rationaleFamilyFact(factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload, false)
 }
 
-func rationaleFamilyFileFact(file codegraphv1.File) facts.Envelope {
+// RationaleFamilyFileFact builds one typed "file" fact from file, stamped
+// with this family's scope/generation coordinates. Exported (#6163) for the
+// same reason as RationaleFamilyRepositoryFact.
+func RationaleFamilyFileFact(file codegraphv1.File) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphFile(file)
 	if err != nil {
 		panic(fmt.Sprintf("ifa: encode rationale file %q: %v", file.RelativePath, err))
@@ -189,8 +229,8 @@ func rationaleFamilyParsedFile(relativePath, name, uid string, startLine, endLin
 		function["rationale_comments"] = comments
 	}
 	parsed := map[string]any{
-		"path":          rationaleFamilyLocalPath + "/" + relativePath,
-		"repo_path":     rationaleFamilyLocalPath,
+		"path":          RationaleFamilyLocalPath + "/" + relativePath,
+		"repo_path":     RationaleFamilyLocalPath,
 		"lang":          "python",
 		"is_dependency": false,
 		"iac_relevant":  false,
@@ -230,18 +270,18 @@ var rationaleFamilyNilParserKeys = []string{
 }
 
 func rationaleFamilyFollowupFact() facts.Envelope {
-	return rationaleFamilyFact("shared_followup", "shared_followup:"+rationaleFamilyRepoID+":rationale_materialization", map[string]any{
+	return rationaleFamilyFact("shared_followup", "shared_followup:"+RationaleFamilyRepoID+":rationale_materialization", map[string]any{
 		"reducer_domain": "rationale_materialization",
 		"entity_key":     "rationale:repo-rationale",
 		"reason":         "repository generation requested rationale materialization reconciliation",
-		"repo_id":        rationaleFamilyRepoID,
+		"repo_id":        RationaleFamilyRepoID,
 	}, false)
 }
 
 func rationaleFamilyFact(factKind, stableFactKey string, payload map[string]any, tombstone bool) facts.Envelope {
 	return facts.Envelope{
-		ScopeID:          rationaleFamilyScopeID,
-		GenerationID:     rationaleFamilyGenerationID,
+		ScopeID:          RationaleFamilyScopeID,
+		GenerationID:     RationaleFamilyGenerationID,
 		FactKind:         factKind,
 		StableFactKey:    stableFactKey,
 		SchemaVersion:    "1.0.0",

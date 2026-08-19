@@ -67,8 +67,8 @@ func TestLoadCodeownersFamilyOduRejectsUnknownJSONField(t *testing.T) {
 	if err := os.WriteFile(goodPath, []byte(goodRaw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := loadCodeownersFamilyOdu(goodPath); err != nil {
-		t.Fatalf("loadCodeownersFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
+	if _, err := LoadCodeownersFamilyOdu(goodPath); err != nil {
+		t.Fatalf("LoadCodeownersFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
 	}
 
 	// Each case is a field the narrow struct never declared, so a permissive
@@ -95,8 +95,8 @@ func TestLoadCodeownersFamilyOduRejectsUnknownJSONField(t *testing.T) {
 			if err := os.WriteFile(badPath, []byte(badRaw), 0o600); err != nil {
 				t.Fatalf("write temp cassette: %v", err)
 			}
-			if _, err := loadCodeownersFamilyOdu(badPath); err == nil {
-				t.Fatalf("loadCodeownersFamilyOdu accepted a cassette with an unknown field (%s typo)", tc.name)
+			if _, err := LoadCodeownersFamilyOdu(badPath); err == nil {
+				t.Fatalf("LoadCodeownersFamilyOdu accepted a cassette with an unknown field (%s typo)", tc.name)
 			}
 		})
 	}
@@ -127,7 +127,7 @@ func TestLoadCodeownersFamilyOduRejectsTrailingContent(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := loadCodeownersFamilyOdu(path); err == nil {
-		t.Fatal("loadCodeownersFamilyOdu accepted a cassette with a second concatenated JSON document")
+	if _, err := LoadCodeownersFamilyOdu(path); err == nil {
+		t.Fatal("LoadCodeownersFamilyOdu accepted a cassette with a second concatenated JSON document")
 	}
 }

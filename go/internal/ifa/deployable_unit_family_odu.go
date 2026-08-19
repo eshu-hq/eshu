@@ -42,23 +42,27 @@ type deployableUnitFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// deployableUnitFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func deployableUnitFamilyCassetteFullPath(repoRoot string) string {
+// DeployableUnitFamilyCassetteFullPath joins repoRoot onto the cassette path.
+// Exported (#6163) so materializededges' moved deployable-unit-family tests
+// can locate the same committed cassette LoadDeployableUnitFamilyOdu reads.
+func DeployableUnitFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, deployableUnitFamilyCassettePath)
 }
 
-// loadDeployableUnitFamilyOdu reads the committed cassette and projects it
+// LoadDeployableUnitFamilyOdu reads the committed cassette and projects it
 // onto the fact envelopes the reducer's extraction seam consumes.
 //
-// Unexported: it is the test-side lockstep loader for the committed
-// cassette. Production registers the compiled deployableUnitFamilyOdu() in
-// catalogSeed; a lockstep test compares that registered Odù with this strict
-// cassette projection so a one-sided edit fails the focused suite.
+// It is the test-side lockstep loader for the committed cassette. Production
+// registers the compiled deployableUnitFamilyOdu() in catalogSeed; a lockstep
+// test in materializededges (#6163, moved with the rest of the
+// deployable_unit_edges guard) compares that registered Odù with this strict
+// cassette projection so a one-sided edit fails the focused suite. Exported so
+// that moved test can reach it across the package boundary.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // would make every downstream assertion vacuous, which is the failure mode
 // the whole #5543 exhaustiveness effort exists to remove.
-func loadDeployableUnitFamilyOdu(cassettePath string) (Odu, error) {
+func LoadDeployableUnitFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read deployable-unit cassette %s: %w", cassettePath, err)
