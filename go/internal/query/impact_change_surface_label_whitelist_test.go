@@ -113,11 +113,15 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 			"this guard parses one and would not see the others", n)
 	}
 
+	// No index check here, deliberately: the Count assertion above already
+	// guarantees exactly one occurrence, so Index cannot return -1. An earlier
+	// revision carried a `start < 0` check that was both unreachable and unable
+	// to fire -- the arithmetic runs before the comparison, so a -1 index would
+	// have produced start = +35, an in-bounds offset into arbitrary text. A
+	// safety net that cannot catch anything is worse than none, because it reads
+	// as protection.
 	clause := changeSurfaceLegacyCypher
 	start := strings.Index(clause, quantified) + len(quantified) - len("label IN [")
-	if start < 0 {
-		t.Fatal("legacy cypher no longer carries a label whitelist; update this guard")
-	}
 	end := strings.Index(clause[start:], "]")
 
 	// Both directions run over the PARSED bracket contents. An earlier revision
