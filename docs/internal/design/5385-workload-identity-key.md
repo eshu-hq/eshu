@@ -208,8 +208,9 @@ WHERE rel.evidence_source = $evidence_source
 DELETE rel
 ```
 
-Same unfiltered `DEFINES` traversal, and nothing scopes `i` to the retracting
-repository. The matching upsert (`canonicalRunsOnUpsertCypher`, `:322-330`) has the
+The same shape: `DEFINES` is anchored to the retracting repository, but it
+traverses into a possibly-shared `Workload`, and the `INSTANCE_OF` hop that
+follows never scopes `i` back to that repository. The matching upsert (`canonicalRunsOnUpsertCypher`, `:322-330`) has the
 identical two-hop shape, and there `evidence_source` is only *set*, never filtered —
 so nothing scopes the write side either.
 
@@ -456,14 +457,24 @@ which never exercises mode two at all, so it bears on mode one only.
 
 ### 3.3 Golden corpus
 
-| Artifact | `workload:` literals | `workload-instance:` literals |
-| --- | ---: | ---: |
-| `testdata/golden/e2e-20repo-snapshot.json` | 33 | 12 |
-| `testdata/cassettes/` | 1 (in 1 file) | 0 |
+| Artifact | `workload:` | of which id values | `workload-instance:` | of which id values |
+| --- | ---: | ---: | ---: | ---: |
+| `testdata/golden/e2e-20repo-snapshot.json` | 33 | 32 | 12 | 6 |
+| `testdata/cassettes/` | 1 (in 1 file) | 1 | 0 | 0 |
+
+One number cannot carry both halves, and the split is what a regenerator needs:
+**39 identifier values that regeneration changes, plus 7 prose mentions in
+snapshot notes that a human has to update by hand.** The 46 raw occurrences are
+the sum of the two. The 32 quoted `workload:` values are 13 `api-svc`, 10
+`deployable-config`, 7 `deployable-source`, 1 `claim-honesty-demo` and 1
+`supply-chain-demo-db`; the 6 instance values are all
+`workload-instance:deployable-source:prod` or `:stage`; the cassette's single
+value is `"workload_object_id": "workload:claim-honesty-demo"`
+(`testdata/cassettes/kuberneteslive/supply-chain-demo.json:445`).
 
 The B-12 snapshot's own node counts are floor/ceiling ranges rather than
 per-repository lists, so it cannot independently answer the collision question;
-the 46 literals above are the regeneration surface, not a second measurement.
+these literals are the regeneration surface, not a second measurement.
 
 ## 4. Edge families and identifier sites a re-key must carry
 
@@ -490,9 +501,10 @@ attributed it to the wrong producer, fact kind, and field; the corrected reading
   (`const workloadIdentityFactKind = "reducer_workload_identity"`), and its
   persisted field is **`entity_keys`** — a JSON *array* (`:163`), not a scalar.
   Both readers unnest it accordingly:
-  `go/internal/query/repository_read_model_summary.go:97` and
-  `go/internal/query/content_reader_repository_catalog.go:89` each
-  `CROSS JOIN jsonb_array_elements_text(payload->'entity_keys')`. So the re-key
+  `go/internal/query/repository_read_model_summary.go:96-97` and
+  `go/internal/query/content_reader_repository_catalog.go:89` both unnest
+  `payload->'entity_keys'` — the first with a comma join, the second with
+  `CROSS JOIN`, each wrapping it in `coalesce(…, '[]'::jsonb)`. So the re-key
   surface here is the reducer writer's own key construction plus three SQL
   readers unnesting an array — not a collector field.
 - `go/internal/collector/git_followup_facts.go` is a *different* fact. It emits kind
@@ -582,7 +594,7 @@ heuristic.
   id would claim the config repo while `repo_id` and the `DEFINES` edge — both
   written from `WorkloadRow.RepoID` — claim the defining one. The
   `DEPLOYMENT_SOURCE` edge's own reason string says what that relationship is:
-  "Deployment manifests for workload instance live in deployment repository."
+  "Deployment manifests for workload instance live in deployment repository"
   That is provenance, and the correlation rules keep deployment repos
   provenance-only.
 
@@ -734,8 +746,10 @@ retracted and rebuilt rather than rewritten in place.
      made the `dirgate` grandfather rows serialize.
    - **State the blind spot in the script's own header.** It bounds
      literal-adjacent construction and does not bound generic kind/prefix
-     joiners; point at `searchdocs.GraphHandle` with `handleKey` as the shape to
-     audit by hand. A guard advertised as complete when it is not invites
+     joiners; point at `searchdocs.GraphHandle` joined by
+     `go/internal/searchbench/evidence.go:354` as the shape to audit by hand.
+     Name that file: there is no `searchdocs.handleKey`, and four unrelated
+     unexported functions share the name `handleKey`. A guard advertised as complete when it is not invites
      exactly the "trust it and stop looking" failure this step exists to
      prevent.
 
@@ -755,7 +769,8 @@ retracted and rebuilt rather than rewritten in place.
    The retract half — `retractRepoRunsOnEdgesCypher` /
    `retractSingleRepoRunsOnEdgesCypher` (`canonical_relationships.go:352-364`,
    dispatched from `edge_writer_retract_repo.go:112,114`) — traverses `DEFINES`
-   unfiltered and never scopes the instance to the retracting repository either,
+   into a possibly-shared `Workload` and never scope the instance back to the
+   retracting repository either,
    and the same repo-scoped key makes that traversal safe by construction. Worth
    fixing, but do not treat it as the leak.
 
@@ -771,8 +786,10 @@ retracted and rebuilt rather than rewritten in place.
    `mutations.go` needs no fix — it is unreachable (section 2) and its correct
    disposition is deletion under the repo's own dead-code precedent, separately
    from this work.
-3. **Regenerate the golden artifacts** — 45 literals in the B-12 snapshot, 1 in
-   the cassettes, moved in the same change per the golden-corpus rules.
+3. **Regenerate the golden artifacts** — 38 identifier values in the B-12
+   snapshot and 1 in the cassettes, moved in the same change per the
+   golden-corpus rules, plus 7 prose mentions in snapshot notes that
+   regeneration will not touch (section 3.3).
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
    likely to be missed, and the only one that fails *silently*. It is a
    denormalized scalar copy of the workload id on every instance node, and **at
@@ -954,12 +971,13 @@ itself. The tracing is careful and I believe it, but the document holds section 
 to a measured standard and these are not measured.
 
 The impact resolver tries id, then a
-`workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:82-108`),
+`workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:80-108`),
 so a stored prefixed handle matches none of the three after a re-key and resolves
 empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
 (`go/internal/mcp/dispatch_args.go:54-59`), turning a three-part id into `<repo_id>:<name>`.
-Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres
-(`storage/postgres/eshu_search_index.go:216,300-312`) and stay stale until
+Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres —
+written at `go/internal/searchdocs/project.go:283`, matched back at
+`storage/postgres/eshu_search_index.go:216,300-312` — and stay stale until
 reindexed. The catalog read model *synthesizes* graph-shaped ids from the
 separate `reducer_workload_identity` scheme (`go/internal/query/catalog.go:213`), so the Console is
 handed ids that would 404 against `/workloads/{id}/context`.
@@ -985,8 +1003,10 @@ MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:Worklo
 A `MATCH` that misses is a silent no-op — the `USES` edge simply is not written.
 **A read-side alias layer cannot cover this**, because the value originates
 outside the repository. It needs a reducer-side resolution step, and the
-ambiguity path it would use already exists (`ambiguous_anchor`,
-`workload_cloud_relationship_materialization.go:306-308`).
+ambiguity path it would use already exists: the
+`ambiguous_anchor` literal at
+`workload_cloud_relationship_materialization.go:233`, and the `default:` branch
+that increments its counter at `:306-308`.
 
 **How much this actually costs is not knowable from inside this repository, and
 the honest answer is neither reassuring nor alarming.** Nothing in-tree writes
@@ -1005,7 +1025,7 @@ exercises it.
 **And users hold these handles.** Public docs give copyable examples with the
 prefix spelled out — `GET /api/v0/workloads/workload:payments-api/context`
 (`docs/public/guides/shared-infra-trace.md:47,53`),
-`{workload_id: "workload:api-svc"}` (`getting-started/first-five-questions.md:67`),
+`{workload_id: "workload:api-svc"}` (`docs/public/getting-started/first-five-questions.md:67`),
 and `docs/public/reference/http-api/catalog-workload-selection.md:58` tells readers that pasted `workload:...`
 handles "remain canonical". The Console builds ids from names and puts them in
 bookmarkable URLs (`/workspace/services/<id>`), and prompts operators to paste
@@ -1031,7 +1051,7 @@ Either way, scoping needs to know which repository owns a workload — so both r
 with the re-key rather than ahead of it.
 
 The case for now is section 3.2: cost scales with the workload population, which
-is 40 nodes, 33 instances, and 46 golden literals today. **Both failure modes are
+is 40 nodes, 33 instances, and 39 golden identifier values today. **Both failure modes are
 silent.** Mode one merges — one node, ownership reassigned to whoever wrote last,
 cross-repo environments. Mode two drops — the losing repository's workload row
 discarded, so the surviving node carries someone else's kind, classification,
@@ -1051,7 +1071,7 @@ schema-risk change with cassette and B-12 impact.
 | Query-plan gate | `fetchWorkloadRuntimeTopology` is pinned by `source_sha256` with `WorkloadInstance.workload_id` as a required anchor and a retained 75x-regression caveat. Re-proving it is **not** trivial and was unpriced until now. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
 | RUNS_ON scoping | Small once the key is decided; cannot land before it. |
-| Golden regeneration | 46 literals across the snapshot and one cassette. |
+| Golden regeneration | 39 identifier values across the snapshot and one cassette, plus 7 prose mentions a human updates. |
 | Retract/rebuild proof | Live replay-tier retract coverage per edge family. Moderate. |
 | Collision telemetry | Small. |
 | Consumer breakage | **The largest item.** Public API path/body params, MCP selectors, the Console's bookmarkable URLs, persisted search handles, and provider-asserted ids in the SDK fact contract. Section 6a. |
@@ -1092,7 +1112,7 @@ There is no longer an independent fix to approve. An earlier revision asked to f
 called the RUNS_ON retract "the real leak", which section 5a disproved — that
 retract is a silent no-op, not an over-broad delete. What remains is the cross-repo
 merge itself, which the name-only key causes directly and which no retract fix
-reaches. It cannot be scoped without the identity answer, so it belongs to this
+reaches. Fixing it needs the identity answer, so it belongs to this
 issue rather than beside it.
 
 No production code has been written for this issue and none will be until the
