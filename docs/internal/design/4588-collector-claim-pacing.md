@@ -797,9 +797,51 @@ reported as five samples each, because the first pass varied between 15.6 ms and
 numbers to quote; the plan shapes — Seq Scan plus sort against Index Scan — are
 the durable finding and did not vary at all.
 
+**Section 5's claim-count experiments ran on a different major version.** The
+three results — `row_number()` recomputed per claim, the fixed per-key sequence,
+and the unequal-lifetime-volume case — were measured on PostgreSQL 16.15, not the
+18.4 used for the section 3 drain probe and the section 4 and 5 plan-cost
+timings above. Section 5 names 16.15 where the first of the two claim-count
+tables is introduced and says "the same harness" at the second; it names no
+version for its third table, the plan-cost one. An earlier revision of these caveats
+said none of that, so a reader checking the environment here would have assumed
+18.4 throughout.
+
+The repository ships Postgres 18, so 16.15 is off-target rather than a second
+supported environment. It does not change the conclusions: section 5's
+claim-count experiments count claims rather than time them, so planner-cost
+differences between majors cannot move the claim counts. (The pick *order*
+section 5 reports — burst, small2, small3, small4, small1 — is not derivable
+from anything section 5 states, so something unstated chose it; the counts are
+the robust part.) `row_number()` re-evaluation and integer
+comparison of a fixed per-key sequence are standard SQL behaviour, identical in
+16 and 18. That invariance is reasoned, not re-measured — section 9 records that
+the probe harness is throwaway and not in this branch, so nothing here can be
+re-run on 18.4 without rebuilding it.
+
+Section 6's 40-of-40 static-tiebreak result records no version anywhere in this
+document. It is the same 40-claim shape against a section 5 formulation, so it
+was almost certainly the same harness, but that is inference, and it is not
+recoverable from this document or the branch — treat its backend as unrecorded
+rather than as either version.
+
+Section 6's result needs no version argument at all, which is just as well given
+its backend is unrecorded. It turns on a static lexicographic tiebreak, and text
+ordering is collation-dependent rather than version-invariant — Postgres tracks
+`datcollversion` precisely because sort order can move under you. The finding
+does not depend on *which* order, though: under any total order on key names
+exactly one key sorts first, and it is served until it drains while the keys
+behind it wait. The finding — starvation moved to a different key rather than
+going away — holds for any collation that orders the key names distinctly, any
+version, any image. How the 40 claims
+divide among the keys does depend on the order and on a backlog depth section 6
+does not state; the finding does not.
+
 Environment: Apple M4 Pro, 12 logical CPUs, 64 GiB, PostgreSQL 18.4 (aarch64) in
 Docker with no CPU or memory limit. Contributor-class hardware, not the reference
-profile; no absolute target is claimed from it.
+profile; no absolute target is claimed from it. Section 5's claim-count
+experiments ran on PostgreSQL 16.15 on the same machine; section 6's 40-of-40
+result records no version at all.
 
 ## 8a. Status of the recommendation
 
@@ -964,12 +1006,15 @@ priority class.
 
 This is not an argument against the model — cross-tier precedence is the owner's
 stated constraint, and a priority column that could be starved by a lower tier
-would not be a priority column. It is an argument against how section 6 states
-its result. "Small-key time to first claim: materially lower" is unscoped and
-therefore overclaims; it holds **within a priority class** and nowhere else. The
-proof table needs a **mixed-priority skew workload** alongside the single-class
-one, so the anti-serialization gate cannot pass while low-priority keys still
-starve. Without that row, the gate measures the easy case and calls it fixed.
+would not be a priority column. It was an argument against how section 6 stated
+its result: "Small-key time to first claim: materially lower" is unscoped on its
+own and would overclaim, holding **within a priority class** and nowhere else.
+**Resolved in section 6** — the proof table carries both a "single priority
+class" row scoped as such and a required "mixed priority classes" row, so the
+"materially lower" claim stays scoped within a priority class: the cross-tier
+tail is measured and reported before acceptance rather than left to overclaim.
+The complaint was stale from birth: `5ee7f1dac` added the section 6 row and this
+paragraph in one commit, so section 6 was never amended to answer it.
 
 **The one thing this does not settle** is whether class disappearing from the key
 is intended to change rotation behaviour or is a side effect of wanting it in a
