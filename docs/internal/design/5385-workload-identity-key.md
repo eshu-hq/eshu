@@ -544,7 +544,22 @@ a prefix test at `:104`), and `go/internal/query/entity_workload_context.go:286`
 `apps/console/src/pages/VulnerabilitiesReachable.tsx:377` builds
 `` `workload:${workload.id.slice("wl:".length)}` `` — a console-side construction
 that also re-keys off a *different* prefix, and the only construction this
-document has found outside `go/`.
+document has found outside `go/`. **It is demo-only, and that disposition is part
+of the row.** `wl:` has exactly one source in the console:
+`apps/console/src/console/demoModel.ts:74,96,97`, the neutral prospect demo
+fixture, whose header states that private mode "never falls back to these rows".
+The guard at `:376` therefore cannot fire on live data — a live
+`workload:<repo_id>:<name>` does not start with `wl:`, so the branch is skipped
+and `:379` returns the id unchanged. The consequence of a re-key here is "update
+the demo fixture", not "production breaks", and it is listed beside five
+production constructions only because it is a construction, not because it
+carries their risk.
+
+Applying that discipline is not optional in this document: `entity.go:58` is
+marked dead on the production path and `dependency_domain` carries "zero
+production callers" for the same reason. A row without its reachability
+disposition reads as production risk by default, and this is the fourth site
+where that distinction changed the answer.
 
 
 #### The second instance-id construction, and why it is easy to miss
@@ -673,7 +688,9 @@ generator" is the accurate statement, and saying so is stronger than picking one
 
 Small enough to list, and the members are **not** homogeneous — a `HasPrefix`
 test, a first-colon cut and an idempotent re-prefix each break differently — so
-this is rows rather than a criterion. Enumerated by hand across `go/`.
+this is rows rather than a criterion. Enumerated by hand across `go/` **and the
+console** — the table carries seven console rows, and an earlier revision's
+`go/`-only scope line understated them.
 
 | Site | Shape |
 | --- | --- |
@@ -1234,8 +1251,11 @@ retracted and rebuilt rather than rewritten in place.
    uses it to classify added, updated, unchanged, **retired** and superseded
    between generations. That is published through the MCP tool
    `get_service_changed_since`, whose own description
-   (`go/internal/mcp/tools_freshness.go:51`) promises "Retired and superseded are
-   never collapsed into unchanged." So the generation that re-keys reports every
+   (`go/internal/mcp/tools_freshness.go:101`) promises "Retired and superseded are
+   never collapsed into unchanged." That sentence appears verbatim on **two** tool
+   descriptions, and the repository-scope tool at `:51` is the other one — but
+   `:51` is keyed by stable fact key and never mentions `service_evidence_key`, so
+   citing it would attribute this consequence to a tool the re-key does not touch. So the generation that re-keys reports every
    service's runtime evidence as retired-plus-added through a tool that guarantees
    the churn cannot be suppressed. Section 6a's consumer-breakage accounting should
    carry it too.
