@@ -540,6 +540,67 @@ Compare stable identity properties: `coalesce(a.id, a.uid) <> coalesce(b.id,
 b.uid)`. The route-to-caller directional reads use this form to exclude the
 handler itself from its own caller/callee set.
 
+## Pitfall: A `WHERE` Attached To `WITH` Is Not Evaluated As A Filter
+
+### Observed shape
+
+A `WHERE` sub-clause attached to a `WITH` is not applied. It fails in both
+directions depending on the predicate, and never errors:
+
+```cypher
+-- IGNORED (over-returns): a label test
+MATCH (n) WITH n WHERE n:Workload RETURN count(*)
+-- Neo4j 1, NornicDB 4 -- every node comes back
+
+-- IGNORED (over-returns): a string operator
+MATCH (a:T) WITH a WHERE a.v STARTS WITH 'al' RETURN count(*)
+-- Neo4j 1, NornicDB 2
+
+-- NULL (under-returns to zero): any function call on a bound variable or alias
+MATCH (a:T) WITH a WHERE toUpper(a.v) = 'ALPHA' RETURN count(*)       -- Neo4j 1, NornicDB 0
+MATCH (a:T) WITH a WHERE size(a.v) = 5 RETURN count(*)                -- Neo4j 1, NornicDB 0
+MATCH (a:T) WITH a WHERE coalesce(a.v,'X') = 'alpha' RETURN count(*)  -- Neo4j 1, NornicDB 0
+
+-- WORKS: a bare property compared to a literal
+MATCH (a:T) WITH a WHERE a.v = 'alpha' RETURN count(*)                -- both 1
+
+-- WORKS: hoist the function into the WITH projection, filter on the alias
+MATCH (a:T) WITH a, toUpper(a.v) AS u WHERE u = 'ALPHA' RETURN count(*)  -- both 1
+
+-- WORKS: put the WHERE before the WITH
+MATCH (a:T) WHERE toUpper(a.v) = 'ALPHA' WITH a RETURN count(*)       -- both 1
+```
+
+The NULL mechanism is pinned directly: `WHERE coalesce(a.v,'X') IS NULL` returns
+1 on NornicDB and 0 on Neo4j. Since `coalesce(null,'X')` is `'X'`, the arguments
+resolve — the whole call short-circuits to NULL, which explains why `=`, `<>` and
+`IS NOT NULL` all filter everything. Function calls on literal arguments are
+unaffected (`WHERE size('abcd') = 4` returns 1 on both).
+
+This is about clause position, not about any particular function. `coalesce` is
+not special; `toUpper` and `size` fail the same way, and `coalesce(a.v, b.v)`
+with no literal argument fails too.
+
+### Eshu implications
+
+Do not express a filter in a `WHERE` attached to a `WITH`. Put the predicate in
+the `MATCH`-attached `WHERE`, or hoist the expression into the `WITH` projection
+and compare the alias.
+
+Where neither is available, enforce the predicate in Go and say so at the call
+site. The scoped change-surface traversal is the live example: its impacted-label
+whitelist sits in a `WITH`-attached `WHERE`, and the split is not gratuitous —
+combining the `repo_id` predicate and the label predicate in one `WHERE` empties
+that traversal on the same build. With no clause arrangement that filters
+correctly, the whitelist is enforced by `changeSurfaceImpactedLabels` in
+`go/internal/query/impact_change_surface_traversal.go`.
+
+A Go-side filter does not fully restore the contract, and the gap is worth
+stating. `LIMIT` still runs server-side against the unfiltered set, so a page
+dominated by rows the server should have excluded returns fewer results than the
+limit allows. Compute the truncation signal from the raw row count, before the
+Go filter, so a short page is reported as truncated rather than as complete.
+
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
 ### Observed shape

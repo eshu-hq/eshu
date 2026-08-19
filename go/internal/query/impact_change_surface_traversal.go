@@ -142,6 +142,52 @@ func (h *ImpactHandler) runChangeSurfaceRepositoryConsumers(
 	return h.Neo4j.Run(ctx, cypher, access.graphParams(queryParams))
 }
 
+// changeSurfaceImpactedLabels is the set of node labels a change-surface
+// traversal may return. It mirrors the whitelist in changeSurfaceLegacyCypher,
+// which the pinned graph backend evaluates correctly because that clause is
+// attached to the MATCH.
+//
+// The scoped traversal cannot rely on its own copy of this whitelist. It carries
+// the same list in a WHERE attached to a WITH, and the pinned NornicDB build does
+// not evaluate that clause position as a filter -- label tests there are silently
+// dropped and every reachable node comes back. The WITH split is not gratuitous:
+// combining the repo_id predicate and the label predicate in one WHERE empties
+// the traversal on the same build, so there is no clause arrangement that filters
+// correctly server-side today. Until that is fixed upstream, this set is where
+// the whitelist is actually enforced.
+var changeSurfaceImpactedLabels = map[string]struct{}{
+	"Repository":       {},
+	"Workload":         {},
+	"WorkloadInstance": {},
+	"CloudResource":    {},
+	"TerraformModule":  {},
+	"DataAsset":        {},
+}
+
+// changeSurfaceRowLabelAdmitted reports whether an impacted row carries at least
+// one whitelisted label. A row with no readable labels is refused: the scoped
+// traversal's server-side filter cannot be trusted, so an unlabelled row is
+// unproven rather than assumed benign.
+func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
+	for _, label := range StringSliceVal(row, "labels") {
+		if _, ok := changeSurfaceImpactedLabels[label]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// changeSurfaceFilterTraversalRows applies the parts of the change-surface
+// contract that cannot be trusted to the graph backend: the impacted-label
+// whitelist (see changeSurfaceImpactedLabels), the environment match, the
+// repository grant, and the per-branch edge direction.
+//
+// The label check cannot recover rows the server-side LIMIT already discarded.
+// The pinned backend applies LIMIT to the unfiltered set, so a scoped read whose
+// first page is dominated by non-whitelisted nodes can return fewer impacts than
+// the limit allows. That under-reporting is bounded and reported: the caller's
+// truncation flag is computed from the raw row count before this filter runs, so
+// a short page is flagged truncated rather than presented as complete.
 func changeSurfaceFilterTraversalRows(
 	rows []map[string]any,
 	environment string,
@@ -158,6 +204,9 @@ func changeSurfaceFilterTraversalRows(
 			continue
 		}
 		if !impactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
+			continue
+		}
+		if !changeSurfaceRowLabelAdmitted(row) {
 			continue
 		}
 		edges := changeSurfaceRelEdges(row["rels"])
