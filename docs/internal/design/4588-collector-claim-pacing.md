@@ -382,8 +382,10 @@ measured under the skewed backlog, at the same worker count.**
 | Claim statement at 50,100 pending | 10.832 ms (median of 5) | **≤ 10.832 ms** |
 
 The first row is the anti-serialization gate. A design that fixes the tail by
-throttling the burst lowers it and fails; one that fixes the ordering holds it,
-and section 5 says fair claiming should raise it substantially.
+throttling the burst lowers it and fails; one that fixes the ordering should at
+least hold it. This document no longer predicts by how much: section 5's
+throughput figures measure a formulation since shown not to rotate, so whatever
+mechanism is finally chosen has to bring its own number.
 
 The last row matters because it is possible to improve the tail and make the
 claim path worse at once; both must be reported. The even-distribution row is the
@@ -435,9 +437,39 @@ stated as the invariant itself, not as a proxy for it:
 > cadence independent of any key's own claim history or rate.** A key's own
 > volume may not change how quickly its eligibility is discovered, nor how
 > quickly its own weight is updated.
+>
+> **6. Where two eligible keys' head rows tie on position, the tiebreak may not
+> be either row's age.** Age is what both measured-broken formulations resolved
+> ties with, and it is what hands every claim to the key whose backlog is oldest.
+>
+> **7. No eligible key may be passed over more than a bounded number of
+> consecutive claims while it has eligible work, and that bound must be
+> demonstrated by measurement rather than argued.** The measurement must include
+> at least one workload with unequal per-key backlog size, one with unequal
+> arrival times, and one with unequal cumulative lifetime volume per key.
 
-That is exactly the property section 5 claims makes starvation structurally
-impossible under Option B, and it is false of any rate cap.
+**Clause 7 is the load-bearing one, and clauses 1-6 cannot substitute for it.**
+Clauses 1-6 all constrain the *inputs* to the ordering — what may be excluded,
+what may change eligibility, what a position may depend on, what the unit is, how
+often things refresh, what may break a tie. Every formulation this document has
+proposed satisfied all of them, and two were then measured starving a key
+completely. A mechanism can honour every input constraint and still resolve, in
+aggregate, to "always serve the same key," because the failure lives in the
+ordering's outcome rather than in any single term of it.
+
+Clause 6 illustrates why the input constraints are not enough on their own. It is
+necessary — banning age tiebreaks rules out both measured failures — but it is
+not sufficient. Measured: with the degenerate rank from formulation #2 (uniformly
+1 for every active key) and a purely static lexicographic tiebreak, which
+satisfies clause 6 exactly as written, the alphabetically-first key took **40 of
+40** claims. Starvation did not go away; it moved to a different key. Only clause
+7 catches that, and only by measurement.
+
+This is also the property section 5 *used* to claim was structural under Option
+B. That claim is withdrawn — see section 5 — precisely because presence in the
+candidate set was never the thing preventing starvation. Clauses 1-6 remain the
+right constraints for ruling out a rate cap dressed as fairness, which is what
+they were written for.
 
 An earlier draft of this document used a weaker proxy — "must not read or write
 per-key state outside the claim SQL and its supporting index" — which does not
