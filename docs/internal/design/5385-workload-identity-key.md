@@ -623,7 +623,13 @@ containing `:` (`cli/opdigest/digest.go:91,244`), so `workload:<repo_id>:<name>`
 would be unusable for `eshu report --scope` until that parser changes. These break
 visibly, which is the right behaviour for a contract in transition.
 
-**Tier 2 — silent, alias-fixable with work.** The impact resolver tries id, then a
+**Tier 2 — silent, alias-fixable with work.** Every claim in this tier is
+**traced through the source, not executed against a re-keyed graph** — unlike
+tier 1, where the exact-match and 404-on-miss behaviour is visible in the handler
+itself. The tracing is careful and I believe it, but the document holds section 2
+to a measured standard and these are not measured.
+
+ The impact resolver tries id, then a
 `workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:82-108`),
 so a stored prefixed handle matches none of the three after a re-key and resolves
 empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
@@ -635,21 +641,37 @@ separate `reducer_workload_identity` scheme (`catalog.go:213`), so the Console i
 handed ids that would 404 against `/workloads/{id}/context`.
 
 **Tier 3 — silent, and NOT alias-fixable.** `workload_id`/`workload_ids` are
-documented in the published SDK fact schema as **provider-asserted** values that
-out-of-tree collectors emit (`sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`;
+documented in the published SDK fact schema as **provider-asserted**
+(`sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`;
 `servicecatalog/v1/repository_link.go:72` — "a provider-asserted Eshu workload
-id"). They reach an exact match in
-`workload_cloud_relationship_writer.go:20`:
+id"), and `cloudResourceServiceAnchorDecisionForPayload`
+(`aws_resource_service_anchor.go:121-139`) passes them straight through from
+`Resource.Attributes` with no name-matching fallback. They reach an exact match in
+`workload_cloud_relationship_writer.go:21`:
 
 ```cypher
 MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)
 ```
 
 A `MATCH` that misses is a silent no-op — the `USES` edge simply is not written.
-**A read-side alias layer cannot cover this**, because the data originates outside
-the repository from collectors written against a published contract. It needs a
-reducer-side resolution step, and the ambiguity path it would use already exists
-(`ambiguous_anchor`, `workload_cloud_relationship_materialization.go:306-308`).
+**A read-side alias layer cannot cover this**, because the value originates
+outside the repository. It needs a reducer-side resolution step, and the
+ambiguity path it would use already exists (`ambiguous_anchor`,
+`workload_cloud_relationship_materialization.go:306-308`).
+
+**How much this actually costs is not knowable from inside this repository, and
+the honest answer is neither reassuring nor alarming.** Nothing in-tree writes
+these attributes — a sweep of `go/internal/collector/` for a writer of
+`workload_id`/`workload_ids` on AWS resource attributes returns zero. That is not
+an accident of coverage: `servicecatalog/facts_builder.go:34-36` states that
+"service_id and workload_id are deliberately absent: the collector observes a
+YAML file and has no canonical service or workload identity to assert," and four
+collector test files pin `workload_id` blank. So the path is wired end to end —
+decode, exact `MATCH`, silent miss — with **no known writer in this codebase**.
+Whether real deployments feed it is outside what this repository can show. It
+stays tier 3 because "no in-tree writer today" is a different claim from "no
+writer," and a published schema field is a contract whether or not this repo
+exercises it.
 
 **And users hold these handles.** Public docs give copyable examples with the
 prefix spelled out — `GET /api/v0/workloads/workload:payments-api/context`
@@ -663,11 +685,6 @@ bookmarkable URLs (`/workspace/services/<id>`), and prompts operators to paste
 Migration must therefore add, beyond section 6: a read-side resolution layer for
 tiers 1 and 2 that fails closed on an ambiguous legacy name, a reducer-side
 resolution step for tier 3, a search reindex, and doc updates in lockstep.
-
-**Compatibility:** any consumer holding a stored `workload:<name>` identifier —
-saved query, dashboard, external API caller — breaks.
-`impact_change_surface_resolvers.go` accepts a bare name and prefixes it, so that
-entry point survives; a stored full id does not.
 
 ## 7. Recommendation and cost
 
