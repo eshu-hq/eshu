@@ -144,6 +144,23 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/codeowners/**|testdata/cassettes/codeowners/ifa-codeowners-family.json'
 	'go/internal/ifa/testdata/codeowners/**|go/internal/ifa/testdata/codeowners/ifa-codeowners-family-expected-edges.json'
 	'scripts/lib/ifa_codeowners_live.sh|scripts/lib/ifa_codeowners_live.sh'
+	# submodule_pin_edges (#6002): offline Odù/catalog/cassette landed with no
+	# gate trigger at all (`rg -c submodule specs/ci-gates.v1.yaml` returned 0
+	# before this row), so this family had never retriggered either live gate
+	# on any of these paths -- the gate was dark for its entire surface, not
+	# merely for the new live lib. Registered as one block, mirroring
+	# codeowners_ownership_edges' block above.
+	'go/internal/ifa/submodule_pin_family_odu.go|go/internal/ifa/submodule_pin_family_odu.go'
+	'go/internal/ifa/submodule_pin_family_catalog.go|go/internal/ifa/submodule_pin_family_catalog.go'
+	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_submodule_pin.go'
+	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_materialization.go'
+	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_delta_scope.go'
+	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_submodule.go'
+	'sdk/go/factschema/submodule/v1/**|sdk/go/factschema/submodule/v1/pin.go'
+	'go/internal/storage/cypher/*submodule*.go|go/internal/storage/cypher/canonical_submodule_edges.go'
+	'testdata/cassettes/submodulepin/**|testdata/cassettes/submodulepin/ifa-submodule-pin-family.json'
+	'go/internal/ifa/testdata/submodulepin/**|go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json'
+	'scripts/lib/ifa_submodule_pin_live.sh|scripts/lib/ifa_submodule_pin_live.sh'
 	'scripts/lib/ifa_deployable_unit_live.sh|scripts/lib/ifa_deployable_unit_live.sh'
 	'scripts/lib/ifa_deployable_unit_live_diagnostics.sh|scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
 	'scripts/lib/ifa_deployable_unit_live_converge.sh|scripts/lib/ifa_deployable_unit_live_converge.sh'

@@ -26,6 +26,7 @@ deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_li
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 codeowners_lib="${repo_root}/scripts/lib/ifa_codeowners_live.sh"
+submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
@@ -238,6 +239,11 @@ require_codeowners_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${codeowners_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (codeowners lib), or it survives only inside a comment: ${needle}"
+}
+
+require_submodule_pin_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${submodule_pin_lib}" || fail "missing ${label} (submodule-pin lib): ${needle}"
 }
 
 # Strict mode and self-cleanup.
