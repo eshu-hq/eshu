@@ -44,8 +44,30 @@ materialized last.**
 The reducer materializes one `Intent` per call
 (`workload_materialization_handler.go:216`), and that intent's candidates are
 loaded for a single `(scope_id, generation_id)` pair
-(`correlated_workload_projection_input_loader.go:35-42`). Two unrelated
-repositories therefore arrive as **two separate calls**, not one.
+(`correlated_workload_projection_input_loader.go:35-42`).
+
+**One call is one scope-generation, not one repository.** An earlier revision of
+this document said "two unrelated repositories therefore arrive as two separate
+calls, not one" and treated that as structural. It is not — it is current
+git-sync behaviour, and the distinction produces a second failure mode described
+below. The loader filters on `(scope_id, generation_id)` and on nothing else; no
+repository predicate exists anywhere on that path. The sibling helper
+`scopeRepositoryGraphIDs` (`workload_materialization_repo_phase.go:202-232`)
+returns a **deduplicated, sorted set** of repository graph ids drawn from the
+same scope-generation, and that `seen` map exists because more than one
+repository per scope is representable. So does the ingestion side: the commit
+path explicitly accumulates several repository ids under one
+`(ScopeID, GenerationID)` key
+(`ingestion_backfill.go:294-338`), and a closed incident records why —
+"the ingestion commit path accepts multi-repo scopes; production git sync just
+happens to commit one repo per scope, so this had not fired there"
+(`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md:11-13`).
+That assumption has already misfired once in this pipeline, with a live Ifá gate
+run taking a `SQLSTATE 21000` rollback for it.
+
+The consequence is that **there are two collision modes, not one**, and which one
+fires depends on whether the colliding repositories land in the same
+scope-generation.
 
 Driving the real `WorkloadMaterializer` against a live NornicDB that way — one
 call per repository, `alpha` deploying to production and `beta` to staging, both
@@ -80,18 +102,47 @@ edge. `WorkloadInstance` has one (`ReconcileWorkloadInstanceRetraction`, tested
 never to cross repo scope at `workload_instance_retraction_test.go:91`); the
 workload itself does not.
 
-### The narrower same-scope case, which is different
+### Mode two: same scope-generation, and the row is dropped rather than merged
 
-Within a *single* intent, `projection.go:289` dedups on the name-only id before
-anything is written, so a second candidate with the same name in the same
-scope-generation is dropped rather than merged. That is the dedup's actual job.
-It cannot help across repositories, because the map is created per call
-(`projection.go:253`).
+If two colliding repositories' facts sit in one scope-generation, they arrive in
+**one** candidate slice, and the merge above never happens. `seenWorkloads`
+(`projection.go:289`) takes the first candidate and **discards the second
+repository's `WorkloadRow` entirely** — so the surviving node's kind,
+classification, confidence and provenance are the first candidate's, and the
+second repository's are gone. `seenInstances` (`:328`) does the same to any
+instance sharing a name and environment. Meanwhile `RepoDescriptors` is appended
+**unconditionally**, one line above the dedup check (`:282-286`), so the dropped
+repository still gets a `DEFINES` descriptor pointing at a node built from
+someone else's evidence.
 
-This distinction matters: an earlier draft of this document tested only the
-same-scope path and concluded the losing repository was silently dropped. Driven
-through the production shape, the opposite happens. **The failure is a merge, not
-a drop.**
+This is the finding an earlier revision of this document raised and then
+withdrew. The withdrawal was half right and I over-corrected: the probe that
+produced it was invalid, because it called
+`BuildProjectionRowsWithInfrastructurePlatforms` directly with both repositories'
+candidates in one slice, which is not how git sync reaches it today. But the
+shape that probe simulated is reachable through the production path — a
+multi-repo scope produces exactly that slice — so the correct disposition is
+"real, currently unexercised by git sync", not "not a production path". Both
+modes are recorded here rather than one replacing the other.
+
+Neither mode errors, and neither increments anything.
+
+### Why the dedup does not save either mode
+
+`projection.go:289` dedups on the name-only id before anything is written. That
+is the map's actual job, and within one candidate slice it does it. But the id it
+dedups on carries no repository, so it cannot tell "the same workload seen twice"
+from "two repositories' different workloads that share a name" — it treats both
+as the second one being redundant. That is mode two.
+
+Across calls it does not run at all: the map is created per call
+(`projection.go:253`), so each scope-generation starts with an empty one and the
+graph-side `MERGE` decides. That is mode one.
+
+An earlier draft tested only the first shape and reported a drop; the revision
+after it tested only the second and reported a merge, calling the drop finding
+withdrawn. Both were partial. The mechanism is one name-only key reached by two
+dispatch shapes, and it fails differently in each.
 
 ### The reset path: I called this live, and it is not
 
@@ -222,6 +273,20 @@ RETURN (i.repo_id = w.repo_id) AS same_repo, count(*) ORDER BY same_repo
 
 **No collision is firing on the largest corpus available.** The mechanism is
 real and destructive; the trigger is currently absent.
+
+Two limits on how far that zero carries. It measures **mode one only** — a merged
+node keeps both `DEFINES` edges, so the detector sees it, but a mode-two drop
+leaves no graph evidence at all: the losing row never reaches the writer, and the
+surviving node looks like an ordinary single-definer workload. Nothing in this
+table could distinguish "no collision occurred" from "a collision occurred and
+one repository's evidence was discarded." And the corpus was ingested through git
+sync, which commits one repository per scope, so it never exercised the multi-repo
+scope path that produces mode two in the first place. The honest reading is "zero
+cross-scope merges under single-repo-per-scope ingestion", not "zero collisions".
+
+Neither limit changes the recommendation — it makes the case for the
+`seenWorkloads` counter in migration item 7, which is the only thing that would
+have seen a mode-two drop.
 
 ### 3.2 Why the population is so small
 
@@ -526,15 +591,21 @@ retracted and rebuilt rather than rewritten in place.
 
    Placement matters more than it looks. Beside the `seenWorkloads` dedup
    (`projection.go:289`) the counter would be **blind to the case that matters**:
-   that map is created per call (`:253`) and `BuildProjectionRowsWithInfrastructurePlatforms`
-   has exactly one caller, inside `Handle()` (`workload_materialization_handler.go:216`),
-   so two repositories arrive as two separate calls and never share a map
-   instance. A counter there reads zero forever while a real cross-repo collision
-   fires. The valid detector is graph-side — workloads with more than one
-   `DEFINES` edge — and section 3.1 has already run it: zero. So the counter is
-   not decision-support, it is a **regression guard**: after the re-key, two
-   repositories defining one workload should be structurally impossible, and a
-   counter that ever fires means the key leaked.
+   that map is created per call (`:253`), so it is blind to mode one — the
+   cross-scope merge, which is what git sync produces today and what section 2
+   measured live. It is **not** blind to mode two: a multi-repo scope-generation
+   is exactly the case where the dedup drops a row, and a counter on that branch
+   would catch it. So one counter is not enough. Instrument both: the
+   `seenWorkloads` branch, comparing the incoming candidate's `RepoID` against
+   the retained row's, which detects a same-scope drop at the moment it happens;
+   and a graph-side detector for workloads carrying more than one `DEFINES` edge,
+   which is the only thing that sees a cross-scope merge. Section 3.1 has already
+   run the graph-side one: zero, under an ingestion regime that only produces
+   single-repo scopes, which is why that zero is a weaker signal than it looks.
+
+   After the re-key both become **regression guards**: two repositories defining
+   one workload should be structurally impossible, and either counter firing
+   means the key leaked.
 
 ## 6a. What holds a `workload:<name>` identifier, measured
 
