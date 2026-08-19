@@ -5,9 +5,16 @@
 # scripts/lib/ifa_family_registry.sh's IFA_FAMILY_CELL_KIND comment for the
 # scoping call this mechanism is currently affected by).
 #
-# UNEXERCISED IN THIS PR: deployable_unit_edges is the only family whose
-# blocker_kind is table_lock:<name> today, and it is registered
-# cell_kind=custom rather than generic -- it keeps its own already-proven
+# UNEXERCISED IN THIS PR: no family is registered cell_kind=generic with a
+# table_lock blocker today. Two declare one -- deployable_unit_edges
+# (admission_decisions) and codeowners_ownership_edges (fact_records) -- and
+# BOTH keep bespoke cells. Read the precondition below with that second family
+# in mind: _ifa_generic_require_table_domain_written assumes the locked table
+# carries a `domain` column, which is true of admission_decisions and is NOT
+# true of fact_records. Flipping codeowners to generic without addressing that
+# fails loudly (the query errors, ifa_det_pg propagates the rc, the precondition
+# returns it and the cell dies) -- loud, but only after a live shard has been
+# spent. deployable_unit_edges keeps its own already-proven
 # cell_killworker_deployable_unit / cell_failgraphwrite_deployable_unit
 # (ifa_fault_injection_deployable_unit_cells.sh) rather than migrating onto
 # this mechanism, so nothing in this file runs against a live stack in this

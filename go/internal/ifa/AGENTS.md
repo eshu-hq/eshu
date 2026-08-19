@@ -238,8 +238,14 @@ wiring: that is the registry loop this design replaced the inline blocks with,
 and a new family costs a row there, not a new block.
 Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
 `go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
-Go-only (it also skips `_test.go`), so for every shell file above, and for the Go
-test file, the limit is policy and nothing will stop you crossing it. When
+Go-only (it also skips `_test.go`), so for every shell file above, for the Go
+test file, and for YAML, the limit is policy and nothing will stop you crossing
+it. `.github/workflows/ifa-determinism-gate.yml` is over it deliberately (the
+sharding trade-off, the baseline-per-shard argument and the trigger
+justifications are the kind of rationale this repo would rather keep than trim,
+and `test.yml` has been over it on main for longer) — a considered exception,
+not an oversight, and the place to split if it grows again is the sharding
+rationale into the library it documents. When
 headroom runs out, extract — move a self-contained block of
 rationale to the library it actually documents, the way the `cell_failgraphwrite_sql`
 history and the deployable-unit ordering note were moved. Do not trim comments
@@ -250,8 +256,9 @@ whole program exists to close.
 Not enforced by any gate — get these right by hand:
 
 - **`IFA_FAMILY_RETRY_BASELINE_VAR` and `IFA_FAMILY_HANDLER_GO_FILE`.** Both are
-  `shared_intent_lock`-only rows, both are read only at live-run time, and
-  neither is one of the pinned fields. A family missing either one dies rather
+  required only for `shared_intent_lock` families — other rows may record
+  `handler_go_file` deliberately, and `rows/06` does — both are read only at
+  live-run time, and neither is one of the pinned fields. A family missing either one dies rather
   than passing — but it dies part-way into a four-shard CI run, not statically,
   which is the expensive place to find out. `handler_go_file` has exactly one
   consumer, `_ifa_generic_require_intent_writer`; the Go blocker lockstep does

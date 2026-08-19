@@ -35,8 +35,10 @@ IFA_FAMILY_ANCHOR[deployable_unit_edges]="MERGE (source_repo)-[rel:CORRELATES_DE
 IFA_FAMILY_CELL_KIND[deployable_unit_edges]="custom"
 
 # Not a shared_cell family (its own standalone determinism cell), but the
-# generic fault cells (ifa_fault_generic_cells.sh) need this too, since this
-# is the one family exercising blocker_kind table_lock:<name> today.
+# generic fault cells (ifa_fault_generic_cells.sh) need this too. Note this is
+# not the only table_lock:<name> family -- codeowners_ownership_edges declares
+# table_lock:fact_records (rows/06) -- and neither reaches the generic
+# dispatcher, since both are cell_kind=custom.
 IFA_FAMILY_CASSETTE_VAR[deployable_unit_edges]="deployable_unit_cassette"
 IFA_FAMILY_EXPECTED_VAR[deployable_unit_edges]="deployable_unit_expected_edges"
 
