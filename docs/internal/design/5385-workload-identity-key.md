@@ -114,7 +114,7 @@ If two colliding repositories' facts sit in one scope-generation, they arrive in
 (`projection.go:289`) takes the first candidate and **discards the second
 repository's `WorkloadRow` entirely** — so the surviving node's kind,
 classification, confidence and provenance are the first candidate's, and the
-second repository's are gone. `seenInstances` (`:328`) does the same to any
+second repository's are gone. `seenInstances` (`:329`) does the same to any
 instance sharing a name and environment.
 
 **No `DEFINES` edge is written for the losing repository.** The edge batch is
@@ -443,8 +443,8 @@ Parse sites in the read path: `go/internal/query/catalog.go:213-214,332`,
 `go/internal/query/impact_change_surface_resolvers.go:102-108`, `go/internal/query/entity_workload_context.go:261,280,286`,
 `go/internal/query/repository_read_model_summary.go:114`, `go/internal/query/content_reader_repository_catalog.go:107`,
 `go/internal/query/service_workload_resolution.go:137`, `go/internal/query/supply_chain_impact_path.go:145`,
-`go/internal/reducer/supply_chain_impact_match.go:147`, `mcp/dispatch_args.go:61-66`.
-`entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep working.
+`go/internal/reducer/supply_chain_impact_match.go:147`, `go/internal/mcp/dispatch_args.go:61-66`.
+`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep working.
 
 Nothing parses a `workload-instance:<name>:<env>` identifier back apart — a
 verified negative, not an unsearched gap.
@@ -641,13 +641,13 @@ retracted and rebuilt rather than rewritten in place.
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
    likely to be missed, and the only one that fails *silently*. It is a
    denormalized scalar copy of the workload id on every instance node, and
-   **three** read paths filter on it directly: `workload_runtime_topology.go:90-97`
-   (`i.workload_id = $workload_id`), `service_workload_resolution.go:249,284`
-   (`w.id = i.workload_id`), and `compare.go:187-194`. Re-key the node without
+   **three** read paths filter on it directly: `go/internal/query/workload_runtime_topology.go:90-97`
+   (`i.workload_id = $workload_id`), `go/internal/query/service_workload_resolution.go:249,284`
+   (`w.id = i.workload_id`), and `go/internal/query/compare.go:187-194`. Re-key the node without
    this and topology goes blank, environment compare degrades to "unsupported",
    and nothing errors anywhere.
 
-   A fourth site, `impact_resource_investigation_reads.go:78`, only *projects*
+   A fourth site, `go/internal/query/impact_resource_investigation_reads.go:78`, only *projects*
    the scalar and uses it as the last fallback in
    `firstNonEmpty(resolved.id, workloadIDRaw, instanceID)` (`:151-161`), after a
    live `INSTANCE_OF` traversal that would return the correctly re-keyed id. It
@@ -657,13 +657,13 @@ retracted and rebuilt rather than rewritten in place.
 5. **Update the parse sites** in section 4, with a test per site. Two deserve
    naming: `go/internal/query/catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
    *name only*, so split siblings silently vanish from `/catalog`) and
-   `mcp/dispatch_args.go:54-59` (`normalizeQualifiedIdentifier` cuts at the FIRST
+   `go/internal/mcp/dispatch_args.go:54-59` (`normalizeQualifiedIdentifier` cuts at the FIRST
    colon, so a three-part id becomes `<repo>:<name>` and 404s).
 
    The loud breaks are safer and already have error types: name-selector surfaces
    go ambiguous for collision names —
-   `impact_trace_workload_selection.go:52-54` (`errAmbiguousTraceWorkloadSelector`)
-   and `service_workload_resolution.go:93-104` (`serviceWorkloadAmbiguousError`).
+   `go/internal/query/impact_trace_workload_selection.go:52-54` (`errAmbiguousTraceWorkloadSelector`)
+   and `go/internal/query/service_workload_resolution.go:93-104` (`serviceWorkloadAmbiguousError`).
    The `repo`/`environment` narrowing arguments those surfaces already accept
    become mandatory for collision names.
 6. **Decide the `reducer_workload_identity` question** (section 8, question 3).
@@ -775,7 +775,7 @@ differently.**
 `/api/v0/workloads/{workload_id}/context` and `/story`
 (`openapi_paths_entities.go:107,134`; handler matches `w.id` exactly at
 `entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
-`POST /api/v0/compare/environments` (`compare.go:35,64`, `MATCH (w:Workload) WHERE
+`POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
 containing `:` (`cli/opdigest/digest.go:91,244`), so `workload:<repo_id>:<name>`
 would be unusable for `eshu report --scope` until that parser changes. These break
@@ -791,7 +791,7 @@ The impact resolver tries id, then a
 `workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:82-108`),
 so a stored prefixed handle matches none of the three after a re-key and resolves
 empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
-(`dispatch_args.go:54-59`), turning a three-part id into `<repo_id>:<name>`.
+(`go/internal/mcp/dispatch_args.go:54-59`), turning a three-part id into `<repo_id>:<name>`.
 Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres
 (`storage/postgres/eshu_search_index.go:216,300-312`) and stay stale until
 reindexed. The catalog read model *synthesizes* graph-shaped ids from the
