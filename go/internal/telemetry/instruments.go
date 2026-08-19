@@ -1322,9 +1322,16 @@ type Instruments struct {
 	// (skipped or deleted -- the probe ran and its answer decided whether the
 	// DELETE fired) or INERT (unsupported or probe_error -- the DELETE ran
 	// unconditionally without the probe's answer mattering, the pre-#5998
-	// fail-safe behavior). unsupported means the wrapped executor chain does
-	// not implement ProbeExecutor somewhere along it; probe_error means the
-	// probe itself failed.
+	// fail-safe behavior). unsupported means the OUTERMOST executor the writer
+	// holds fails the ProbeExecutor type assertion, so no probe was ever
+	// attempted; probe_error means a probe was attempted and did not return a
+	// usable answer. A forwarding gap partway down the chain surfaces as
+	// probe_error, NOT unsupported: every wrapper below the outermost one
+	// defines ExecuteProbe unconditionally and returns "inner executor does
+	// not support ExecuteProbe" when its own inner lacks the capability. So
+	// sustained probe_error means either the backend is failing the probe or a
+	// wrapper stopped forwarding -- check the chain before concluding it is
+	// the backend.
 	//
 	// It does NOT distinguish a correct skip from a wrongly-skipped
 	// repository: both increment "skipped" identically, because a probe that
