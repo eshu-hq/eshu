@@ -4,8 +4,8 @@
 package backendconformance
 
 import (
+	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -88,18 +88,27 @@ func TestValueFlowSeedWritesEveryValueTheReadCaseBinds(t *testing.T) {
 		t.Fatalf("read case %q is absent", valueFlowReadCaseName)
 	}
 
-	var seed string
+	// Membership over the seed's parameter VALUES, never containment in its
+	// concatenated text. A bound value must equal a value the seed writes; if it
+	// merely appears inside one, the read matches nothing on both backends while
+	// the guard passes. "backend-conformance" is a substring of nearly every
+	// fixture id and would satisfy a containment check.
+	seeded := make(map[string]struct{})
+	statements := 0
 	for _, c := range DefaultWriteCorpus() {
-		if c.Name == valueFlowWriteCaseName {
-			for _, st := range c.Statements {
-				seed += st.Cypher + "\n"
-				for _, v := range st.Parameters {
-					seed += renderSeedValue(v) + "\n"
+		if c.Name != valueFlowWriteCaseName {
+			continue
+		}
+		for _, st := range c.Statements {
+			statements++
+			for _, v := range st.Parameters {
+				for _, sv := range flattenSeedValue(v) {
+					seeded[sv] = struct{}{}
 				}
 			}
 		}
 	}
-	if seed == "" {
+	if statements == 0 {
 		t.Fatalf("write case %q is absent or has no statements", valueFlowWriteCaseName)
 	}
 
@@ -110,16 +119,12 @@ func TestValueFlowSeedWritesEveryValueTheReadCaseBinds(t *testing.T) {
 			continue
 		}
 		for _, v := range flattenSeedValue(bound) {
-			if !strings.Contains(seed, v) {
+			if _, ok := seeded[v]; !ok {
 				t.Errorf("read case binds %s %q, which the seed never writes; "+
 					"the read would return zero rows on every backend", m[1], v)
 			}
 		}
 	}
-}
-
-func renderSeedValue(v any) string {
-	return strings.Join(flattenSeedValue(v), "\n")
 }
 
 func flattenSeedValue(v any) []string {
@@ -141,7 +146,10 @@ func flattenSeedValue(v any) []string {
 		}
 		return out
 	}
-	return nil
+	// Never silently skip an uncased type. A bool or numeric bound parameter
+	// would otherwise go unchecked, which is the same false-green shape this
+	// guard exists to close.
+	return []string{fmt.Sprintf("%v", v)}
 }
 
 // readCaseLabel and readCaseRelType extract the labels and relationship types
@@ -163,8 +171,15 @@ var (
 // Known limit, stated so nobody over-trusts it: this checks that the shapes are
 // NAMED in the seed, not that they are WIRED. It cannot tell "creates" from
 // "matches" — deleting a node's MERGE leaves its label present in the later MATCH
-// clauses — and it does not check property targets. Three mutations pass it and
-// each turns the case into "returns zero rows on every backend", which is
+// clauses — and it does not check property targets.
+//
+// Two known mutations pass: deleting the WorkloadInstance MERGE (its label
+// survives in the later MATCH clauses) and moving `actions` from the
+// relationship to the sink node. No count here is authoritative — this one is
+// hand-kept and only covers mutations someone has actually tried, so treat it as
+// examples of the class rather than its full extent.
+//
+// Each turns the case into "returns zero rows on every backend", which is
 // indistinguishable from the defect it detects. The live Neo4j lane is what proves
 // the wiring, which is why #6192's positive control is load-bearing rather than
 // decorative.
