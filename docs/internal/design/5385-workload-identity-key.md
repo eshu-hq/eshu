@@ -668,6 +668,80 @@ workload — which is half the wrong answer in section 2.
 - **Fixes both halves**; instances inherit their parent's scope by construction.
 - **Cost:** the largest identifier churn of the three.
 
+## 5a. Retract/rebuild proof
+
+Run before any implementation — and now run, on a fresh single-purpose stack against the
+pinned backend, with Neo4j 5.x community as the control and a settling loop on
+every read.
+
+**Result: relationship retraction does not work on the pinned build; node-level
+`DETACH DELETE` does.**
+
+| Operation | Neo4j 5 | NornicDB (pinned) |
+| --- | --- | --- |
+| bare relationship `DELETE` | 1 → 0 | **1 → 1**, still 1 after 43 s |
+| `retractSingleRepoRunsOnEdgesCypher` verbatim | 1 → 0 | **1 → 1**, still 1 after 46 s |
+| node `DETACH DELETE` (instance retract) | node and all incident edges gone | node and all incident edges gone |
+
+I made two harness errors and corrected them before trusting these numbers,
+and both are worth recording because either would have produced a confident
+wrong answer:
+
+- The driver executes lazily. A write whose result is never consumed looks
+  exactly like a backend ignoring the write. Caught by the Neo4j control
+  failing identically.
+- This backend has eventual-read consistency. An immediate count after a delete
+  reads stale. A first run showed `RUNS_ON` surviving a `DETACH DELETE` — it had
+  not; the same query returned zero moments later. The relationship-`DELETE`
+  result was then re-checked with a settling loop, and that one is real.
+
+**What this means for the migration.** A re-key's retract-and-rebuild cannot lean
+on relationship retraction on this backend. What does work is node-level
+`DETACH DELETE`, which `batchWorkloadInstanceRetractCypher` already uses and which
+removes every incident edge — so instance-anchored families are carried by
+deleting and rebuilding the instance node.
+
+That statement is anchored on `instance_id`
+(`workload_materializer_retract_instances.go:36`), and the instance id **changes**
+under a re-key. So the migration must retract using the **old** ids before writing
+the new ones. Retracting after the new ids exist finds nothing and leaves the old
+instance nodes, with all their edges, orphaned under the previous key.
+
+### Every family, measured both ways
+
+The four families not incident to a `WorkloadInstance` were then measured
+individually, each driven through its own production retract statement, with the
+same settling discipline and Neo4j as the control:
+
+| Family | Relationship retract, Neo4j | Relationship retract, NornicDB | Workload `DETACH DELETE`, both |
+| --- | --- | --- | --- |
+| `DEFINES` | 1 → 0 | **1 → 1** | cleared |
+| `DEPENDS_ON` | 1 → 0 | **1 → 1** | cleared |
+| `RUNS_IN` | 1 → 0 | **1 → 1** | cleared |
+| documentation `DOCUMENTS` | 1 → 0 | **1 → 1** | cleared |
+
+**Every relationship retract is inert on the pinned backend. Node-level
+`DETACH DELETE` clears every one of them, on both backends.**
+
+### What the migration must therefore do
+
+**Delete nodes, not relationships.** `DETACH DELETE` of the `Workload` node
+removes all four families above; `DETACH DELETE` of each `WorkloadInstance` node
+removes `INSTANCE_OF`, `RUNS_ON` and `DEPLOYMENT_SOURCE`. Between them that is
+every family in section 4, and both work identically on Neo4j and on the pinned
+build — so the migration is not betting on a backend fix.
+
+**Retract before writing the new ids, using the old ones.** Both retract
+statements are anchored on the id (`workload_materializer_retract_instances.go:36`
+for instances), and the id is what changes. Retract after the new nodes exist and
+the statement finds nothing, leaving the old nodes and all their edges orphaned
+under the previous key.
+
+**Do not rely on the existing relationship retract statements for any part of
+this.** They are correct Cypher and they work on Neo4j; they do nothing here.
+That is a backend defect rather than a design flaw, but the migration has to be
+written against the backend it runs on.
+
 ## 6. Migration
 
 Every edge in section 4 is anchored on the old value, so old nodes must be
@@ -812,10 +886,11 @@ retracted and rebuilt rather than rewritten in place.
    relationship retract came back 1 → 1, a silent no-op, where Neo4j gives
    1 → 0. So scoping them fixes a latent hazard that will matter when the
    backend starts applying them; it does not fix anything observable today, and
-   an implementer who scopes this and stops has fixed nothing. Section 5a's
-   standing instruction holds: do not rely on the existing relationship retract
-   statements for any part of the rebuild — delete nodes, not relationships, and
-   retract with the old ids before the new ones exist.
+   an implementer who scopes this and stops has fixed nothing. Section 5a's three
+   standing instructions — delete nodes not relationships, retract with the old
+   ids first, and do not rely on the relationship retracts for any part of this —
+   govern the whole of this section and are stated there rather than repeated
+   here.
 
    `mutations.go` needs no fix — it is unreachable (section 2) and its correct
    disposition is deletion under the repo's own dead-code precedent, separately
@@ -904,80 +979,6 @@ retracted and rebuilt rather than rewritten in place.
    After the re-key both become **regression guards**: two repositories defining
    one workload should be structurally impossible, and either counter firing
    means the key leaked.
-
-## 5a. Retract/rebuild proof
-
-Run before any implementation — and now run, on a fresh single-purpose stack against the
-pinned backend, with Neo4j 5.x community as the control and a settling loop on
-every read.
-
-**Result: relationship retraction does not work on the pinned build; node-level
-`DETACH DELETE` does.**
-
-| Operation | Neo4j 5 | NornicDB (pinned) |
-| --- | --- | --- |
-| bare relationship `DELETE` | 1 → 0 | **1 → 1**, still 1 after 43 s |
-| `retractSingleRepoRunsOnEdgesCypher` verbatim | 1 → 0 | **1 → 1**, still 1 after 46 s |
-| node `DETACH DELETE` (instance retract) | node and all incident edges gone | node and all incident edges gone |
-
-I made two harness errors and corrected them before trusting these numbers,
-and both are worth recording because either would have produced a confident
-wrong answer:
-
-- The driver executes lazily. A write whose result is never consumed looks
-  exactly like a backend ignoring the write. Caught by the Neo4j control
-  failing identically.
-- This backend has eventual-read consistency. An immediate count after a delete
-  reads stale. A first run showed `RUNS_ON` surviving a `DETACH DELETE` — it had
-  not; the same query returned zero moments later. The relationship-`DELETE`
-  result was then re-checked with a settling loop, and that one is real.
-
-**What this means for the migration.** A re-key's retract-and-rebuild cannot lean
-on relationship retraction on this backend. What does work is node-level
-`DETACH DELETE`, which `batchWorkloadInstanceRetractCypher` already uses and which
-removes every incident edge — so instance-anchored families are carried by
-deleting and rebuilding the instance node.
-
-That statement is anchored on `instance_id`
-(`workload_materializer_retract_instances.go:36`), and the instance id **changes**
-under a re-key. So the migration must retract using the **old** ids before writing
-the new ones. Retracting after the new ids exist finds nothing and leaves the old
-instance nodes, with all their edges, orphaned under the previous key.
-
-### Every family, measured both ways
-
-The four families not incident to a `WorkloadInstance` were then measured
-individually, each driven through its own production retract statement, with the
-same settling discipline and Neo4j as the control:
-
-| Family | Relationship retract, Neo4j | Relationship retract, NornicDB | Workload `DETACH DELETE`, both |
-| --- | --- | --- | --- |
-| `DEFINES` | 1 → 0 | **1 → 1** | cleared |
-| `DEPENDS_ON` | 1 → 0 | **1 → 1** | cleared |
-| `RUNS_IN` | 1 → 0 | **1 → 1** | cleared |
-| documentation `DOCUMENTS` | 1 → 0 | **1 → 1** | cleared |
-
-**Every relationship retract is inert on the pinned backend. Node-level
-`DETACH DELETE` clears every one of them, on both backends.**
-
-### What the migration must therefore do
-
-**Delete nodes, not relationships.** `DETACH DELETE` of the `Workload` node
-removes all four families above; `DETACH DELETE` of each `WorkloadInstance` node
-removes `INSTANCE_OF`, `RUNS_ON` and `DEPLOYMENT_SOURCE`. Between them that is
-every family in section 4, and both work identically on Neo4j and on the pinned
-build — so the migration is not betting on a backend fix.
-
-**Retract before writing the new ids, using the old ones.** Both retract
-statements are anchored on the id (`workload_materializer_retract_instances.go:36`
-for instances), and the id is what changes. Retract after the new nodes exist and
-the statement finds nothing, leaving the old nodes and all their edges orphaned
-under the previous key.
-
-**Do not rely on the existing relationship retract statements for any part of
-this.** They are correct Cypher and they work on Neo4j; they do nothing here.
-That is a backend defect rather than a design flaw, but the migration has to be
-written against the backend it runs on.
 
 ## 6a. What holds a `workload:<name>` identifier, measured
 
