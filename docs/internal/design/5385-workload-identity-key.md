@@ -237,19 +237,37 @@ pinned build at all, which makes this retract a **silent no-op** rather than an
 over-broad delete.
 
 So the `beta_inst->beta_plat` transition from 1 to 0 above has a different cause,
-and the likely one is `batchWorkloadInstanceRetractCypher`
-(`workload_materializer_retract_instances.go:35-38`), which `DETACH DELETE`s the
-`WorkloadInstance` **node**. Node deletion does work on this backend, and its own
-comment says it "removes every relationship incident to the node — INSTANCE_OF,
-RUNS_ON". The instance is then rebuilt by whichever repository materialized last,
-carrying that repository's platform. Same observed end state, different mechanism.
+**and this document does not currently know what it is.**
 
-**What survives this correction, and what does not.** The end state is unchanged
-and still wrong: beta's instance ends up asserting it runs on alpha's platform.
-The two-sided framing below is also unaffected, because it never depended on the
-retract. What does not survive is the attribution — this is not an over-broad
-relationship delete crossing a repository boundary; it is a node being deleted
-and rebuilt under a shared identity.
+A previous revision named `batchWorkloadInstanceRetractCypher`
+(`workload_materializer_retract_instances.go:35-38`), which `DETACH DELETE`s the
+`WorkloadInstance` node. That attribution is withdrawn, for two independent
+reasons, either of which is sufficient:
+
+- **The probe never dispatched it.** The run drove `EdgeWriter.RetractEdges`
+  only, which reaches `edge_writer_retract_repo.go` and dispatches exactly three
+  relationship-DELETE roles — `repository_relationship_edges` (`:37`),
+  `runs_on_relationships` (`:51`), and `evidence_artifacts` (`:64`) — and no node
+  delete at all. `batchWorkloadInstanceRetractCypher` lives in a different
+  package and is dispatched only through `WorkloadMaterializer.RetractInstances`.
+- **Its own guard forbids the behaviour attributed to it.** The statement is
+  `MATCH (i:WorkloadInstance {id: row.instance_id}) WHERE i.repo_id IN $repo_ids
+  AND i.evidence_source = $evidence_source`. During alpha's pass, beta's repo id
+  is not in `$repo_ids`, so it is structurally incapable of deleting beta's
+  instance — which is exactly the scoping the same section credits it with.
+
+**What survives this correction, and what does not.** The observation survives:
+6/6 runs, beta's edge gone, measured and ledgered. The end state survives and is
+still wrong: beta's instance ends up asserting it runs on alpha's platform. The
+two-sided framing below is unaffected, because it never depended on the retract.
+
+What does not survive is any mechanism. The relationship retract is inert on the
+pinned build and the node retract was never dispatched, so the 6/6 result
+currently has **no supported cause**. Do not build on the mechanism; the
+observation is what this design relies on, and identifying the cause needs
+another probe run with per-statement dispatch logging rather than another
+reading of the code. That is a gap in this document, not a reason to doubt the
+measurement.
 
 **And it surfaces a second defect worth its own attention.** If
 `retractSingleRepoRunsOnEdgesCypher` is inert, then stale `RUNS_ON` edges are
@@ -411,17 +429,34 @@ Relationships anchored on a `workload:`/`workload-instance:` identifier:
 | `Endpoint` | `stableAPIEndpointID(repoID, workloadID, path)` | `go/internal/reducer/projection_helpers.go:58` |
 
 **A second, non-graph identity subsystem also uses this prefix, and a graph-only
-re-key would leave it inconsistent.** `go/internal/collector/git_followup_facts.go:52,188`
-emits a `reducer_workload_identity` Postgres fact whose `entity_key` is
-`"workload:" + filepath.Base(repoPath)` — a *third* independent construction,
-keyed on repo basename. It is read back by `go/internal/query/repository_read_model_summary.go:114`
-and `go/internal/query/content_reader_repository_catalog.go:107`, and surfaced through
-`entity_workload_context.go` as the `materialization_status: "identity_only"`
-fallback (`:212`, `:269`) used precisely when a workload has no materialized
-graph node. The supply-chain impact domain also treats any `workload:`-prefixed
-`entity_key` as workload-identity evidence.
+re-key would leave it inconsistent.** An earlier revision of this paragraph
+attributed it to the wrong producer, fact kind, and field; the corrected reading:
 
-**A third construction of the instance id lives outside `projection.go`.**
+- The `reducer_workload_identity` fact is written by
+  `go/internal/reducer/workload_identity_writer.go:52`
+  (`const workloadIdentityFactKind = "reducer_workload_identity"`), and its
+  persisted field is **`entity_keys`** — a JSON *array* (`:163`), not a scalar.
+  Both readers unnest it accordingly:
+  `go/internal/query/repository_read_model_summary.go:97` and
+  `go/internal/query/content_reader_repository_catalog.go:89` each
+  `CROSS JOIN jsonb_array_elements_text(payload->'entity_keys')`. So the re-key
+  surface here is the reducer writer's own key construction plus three SQL
+  readers unnesting an array — not a collector field.
+- `go/internal/collector/git_followup_facts.go` is a *different* fact. It emits kind
+  `"shared_followup"` (`:58`) with a singular `entity_key` of
+  `"workload:" + filepath.Base(repoPath)` (`:52`) — keyed on repo basename, and
+  carrying `reducer_domain: "workload_identity"`. Line `:188` carries
+  `reducer_domain: "workload_materialization"`, a different domain again, so the
+  two lines are not one thing and must not be cited as one.
+
+Either way the prefix is surfaced through `entity_workload_context.go` as the
+`materialization_status: "identity_only"` fallback (`:212`, `:269`) used
+precisely when a workload has no materialized graph node, and the supply-chain
+impact domain treats any `workload:`-prefixed key as workload-identity evidence.
+Open question 3 and migration item 6 both turn on this, so an implementer
+following the earlier wording would have started in the wrong package.
+
+**A second construction of the instance id lives outside `projection.go`.**
 `go/internal/reducer/projection_helpers.go:110` builds `fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)`
 again, for `RuntimePlatformRow.InstanceID`, which feeds
 `MATCH (i:WorkloadInstance {id: row.instance_id})` in the `RUNS_ON` upsert
@@ -473,7 +508,9 @@ heuristic.
 - **`DeploymentRepoIDs` must not be the key.** This was an open question and is
   now settled. It fails three independent tests for key material: **plural** (the golden
   corpus carries deployment-typed evidence from three separate fixtures —
-  `helm-argocd-platform`, `kustomize-deployable-overlay`, `helm-umbrella-chart` —
+  `helm_argocd_platform`, `kustomize-deployable-overlay`, `helm-umbrella-chart`
+  (the first is underscored where its two siblings are hyphenated, in
+  `scripts/lib/golden-corpus-fixtures.sh:29,34,41`) —
   all pointing at the same `deployable-source` repo; note one committed snapshot
   note records a single-element resolved value, so treat "plural" as established
   and the exact count as unverified), **unstable** (the
@@ -493,9 +530,13 @@ heuristic.
   provenance-only.
 
 - **"One workload or two" was largely a false premise.** In the golden corpus the
-  split-repo family already materializes as *three separately named* workloads —
-  `deployable-source`, `deployable-config`, `kustomize-deployable-overlay` —
-  because names come from repo names, not manifest names. Their unity is carried
+  split-repo family already materializes as *separately named* workloads —
+  `workload:deployable-source` and `workload:deployable-config` — because names
+  come from repo names, not manifest names. An earlier revision named a third,
+  `kustomize-deployable-overlay`; that is a fixture name, not a workload. The
+  snapshot's complete `workload:` set is `api-svc`, `claim-honesty-demo`,
+  `deployable-config`, `deployable-source`, and `supply-chain-demo-db`, and its
+  only instances are `deployable-source:prod` and `deployable-source:stage`. Their unity is carried
   by `DEPLOYS_FROM` / `CORRELATES_DEPLOYABLE_UNIT` / `DEPLOYMENT_SOURCE`, none of
   which a re-key touches. The name-only collapse merges only when repo *names*
   coincide, which is this defect rather than a feature.
@@ -563,9 +604,14 @@ retracted and rebuilt rather than rewritten in place.
    real construction sites. What it does not do is keep a *human-maintained list*
    correct: this document's own inventory missed `projection_helpers.go:110`
    through two revisions, and the withdrawn paragraph was itself incomplete — it
-   named two files carrying the handle form when four do (`searchdocs/project.go`,
-   `searchdocs/semantic_context.go`, `cli/hookpreflight/preflight.go`, and
-   `searchbench/evidence.go`). The failure mode
+   named two files carrying the handle form, and the categories are not even
+   the same shape: there are **three** non-test sites that build a
+   `{Kind: "workload", ID: …}` handle (`searchdocs/project.go:283`,
+   `searchdocs/semantic_context.go:52`, `cli/hookpreflight/preflight.go:251`) and
+   a separate set that merely *joins or carries* one, of which
+   `searchbench/evidence.go:354` is one among several. Giving a single number to
+   two different categories is the same class of error as the inventory it is
+   citing. The failure mode
    is not that the search cannot see the sites; it is that someone has to run the
    right search, read every hit, and transcribe them without error, repeatedly,
    as the tree moves. A type removes that step rather than making a search
@@ -638,24 +684,48 @@ retracted and rebuilt rather than rewritten in place.
 1. **Rebuild, do not rewrite.** Retract every `Workload` and `WorkloadInstance`
    plus their edges, then re-project from facts. At 40 nodes and 33 instances
    this is cheap; the reducer already owns a correct rebuild path.
-2. **Scope the RUNS_ON retract in the same change.**
-   `retractRepoRunsOnEdgesCypher` / `retractSingleRepoRunsOnEdgesCypher`
+2. **Scope the RUNS_ON retract in the same change — but do not treat it as the
+   leak.** `retractRepoRunsOnEdgesCypher` / `retractSingleRepoRunsOnEdgesCypher`
    (`canonical_relationships.go:352-364`, dispatched from
    `edge_writer_retract_repo.go:112,114`) traverse `DEFINES` unfiltered and never
-   scope the instance to the retracting repository. A repo-scoped key makes that
-   traversal safe by construction. `mutations.go` needs no fix — it is
-   unreachable (section 2) and its correct disposition is deletion under the
-   repo's own dead-code precedent, separately from this work.
+   scope the instance to the retracting repository, and a repo-scoped key makes
+   that traversal safe by construction — so the fix is still worth making.
+
+   **Section 5a measured these statements as inert on the pinned build**: every
+   relationship retract came back 1 → 1, a silent no-op, where Neo4j gives
+   1 → 0. So scoping them fixes a latent hazard that will matter when the
+   backend starts applying them; it does not fix anything observable today, and
+   an implementer who scopes this and stops has fixed nothing. Section 5a's
+   standing instruction holds: do not rely on the existing relationship retract
+   statements for any part of the rebuild — delete nodes, not relationships, and
+   retract with the old ids before the new ones exist.
+
+   `mutations.go` needs no fix — it is unreachable (section 2) and its correct
+   disposition is deletion under the repo's own dead-code precedent, separately
+   from this work.
 3. **Regenerate the golden artifacts** — 45 literals in the B-12 snapshot, 1 in
    the cassettes, moved in the same change per the golden-corpus rules.
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
    likely to be missed, and the only one that fails *silently*. It is a
-   denormalized scalar copy of the workload id on every instance node, and
-   **three** read paths filter on it directly: `go/internal/query/workload_runtime_topology.go:90-97`
+   denormalized scalar copy of the workload id on every instance node, and **at
+   least five** read paths filter on it directly:
+   `go/internal/query/workload_runtime_topology.go:90-97`
    (`i.workload_id = $workload_id`), `go/internal/query/service_workload_resolution.go:249,284`
-   (`w.id = i.workload_id`), and `go/internal/query/compare.go:187-194`. Re-key the node without
-   this and topology goes blank, environment compare degrades to "unsupported",
-   and nothing errors anywhere.
+   (`w.id = i.workload_id`), `go/internal/query/compare.go:187-194`,
+   `go/internal/query/entity_map_resolver.go:70-75` (the `workload_instance` case emits three
+   resolvers; the rank-0 `id` and rank-1 `workload_id` ones both anchor on values
+   the re-key moves, via `MATCH (n:WorkloadInstance {workload_id: $from})` at
+   `:168`), and `go/internal/query/impact_change_surface_resolvers.go:93` (the phase-2
+   alternate-identity resolver, `changeSurfaceWorkloadInstanceResolverQuery("workload_id", …)`).
+   Re-key the node without these and topology goes blank, environment compare
+   degrades to "unsupported", entity-map and change-surface resolution stop
+   matching, and nothing errors anywhere.
+
+   An earlier revision said three, and section 4 disposes of
+   `entity_map_resolver.go` on the strength of one line (`:188` resolves by
+   `{repo_id, name}` and would keep working) in a way that reads as "skip this
+   file". That is true of that line and false of the file. Treat a count in this
+   document as a floor until re-derived.
 
    A fourth site, `go/internal/query/impact_resource_investigation_reads.go:78`, only *projects*
    the scalar and uses it as the last fallback in
@@ -663,6 +733,21 @@ retracted and rebuilt rather than rewritten in place.
    live `INSTANCE_OF` traversal that would return the correctly re-keyed id. It
    would most likely survive an unmigrated re-key, and its actual failure mode
    needs its own verification rather than being assumed to match the other three.
+
+   **`workload_runtime_topology.go` is under a committed query-plan gate, and
+   this item edits the thing the gate pins.**
+   `go/internal/queryplan/testdata/hot-cypher.yaml:236-256` pins
+   `fetchWorkloadRuntimeTopology` by `source_sha256`, declares
+   `required_anchors: WorkloadInstance.workload_id` and `required_schema:
+   workload_instance_workload_id` (the index at
+   `go/internal/graph/schema_tables_indexes.go:176`), and carries this caveat
+   verbatim: "The WorkloadInstance workload_id predicate must remain the textual
+   traversal anchor; retained NornicDB evidence showed repository-first traversal
+   was about 75 times slower for the same rows (issue #5272)." A repo-scoped key
+   changes the value that predicate matches on. Re-keying it therefore needs the
+   pin updated, the index checked against the new key shape, and the 75x finding
+   re-proven rather than assumed to carry — this is a performance-contract
+   dependency, not a string edit.
 
 5. **Update the parse sites** in section 4, with a test per site. Two deserve
    naming: `go/internal/query/catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
@@ -787,7 +872,10 @@ differently.**
 `entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
 `POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
-containing `:` (`cli/opdigest/digest.go:91,244`), so `workload:<repo_id>:<name>`
+containing `:` (`isShareSafeLabel` at `cli/opdigest/digest.go:245`, reached via
+`normalizeScope` at `:223`; note `:91` is the `Scope` doc comment, which lists
+`workload:name` as a *valid* target rather than a rejection), so
+`workload:<repo_id>:<name>`
 would be unusable for `eshu report --scope` until that parser changes. These break
 visibly, which is the right behaviour for a contract in transition.
 
@@ -808,11 +896,16 @@ reindexed. The catalog read model *synthesizes* graph-shaped ids from the
 separate `reducer_workload_identity` scheme (`go/internal/query/catalog.go:213`), so the Console is
 handed ids that would 404 against `/workloads/{id}/context`.
 
-**Tier 3 — silent, and NOT alias-fixable.** `workload_id`/`workload_ids` are
-documented in the published SDK fact schema as **provider-asserted**
-(`sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`;
-`servicecatalog/v1/repository_link.go:72` — "a provider-asserted Eshu workload
-id"), and `cloudResourceServiceAnchorDecisionForPayload`
+**Tier 3 — silent, and NOT alias-fixable.** The **provider-asserted** wording
+belongs to one fact and one only: `servicecatalog/v1/repository_link.go:72`, "a
+provider-asserted Eshu workload id", on the `service_catalog.repository_link`
+fact. An earlier revision also attributed it to
+`sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`, which does not contain the
+phrase at all — `:45-49` calls those fields "collector-side
+workload-correlation tags", close to the opposite characterization. The tier-3
+argument below traces the AWS `Resource.Attributes` shape, so read it as resting
+on that shape's own behaviour rather than on the `repository_link` wording.
+`cloudResourceServiceAnchorDecisionForPayload`
 (`aws_resource_service_anchor.go:121-139`) passes them straight through from
 `Resource.Attributes` with no name-matching fallback. They reach an exact match in
 `workload_cloud_relationship_writer.go:21`:
@@ -881,7 +974,8 @@ schema-risk change with cassette and B-12 impact.
 
 | Item | Estimate |
 | --- | --- |
-| Key change | Two format strings. Trivial. |
+| Key change | Two format strings in `internal/workloadid`. Trivial in isolation. |
+| Query-plan gate | `fetchWorkloadRuntimeTopology` is pinned by `source_sha256` with `WorkloadInstance.workload_id` as a required anchor and a retained 75x-regression caveat. Re-proving it is **not** trivial and was unpriced until now. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
 | RUNS_ON scoping | Small once the key is decided; cannot land before it. |
 | Golden regeneration | 46 literals across the snapshot and one cassette. |
@@ -915,15 +1009,18 @@ schema-risk change with cassette and B-12 impact.
 Before any code is written I need:
 
 - **A decision on Option C over A**, and on timing.
-- **An answer to question 1** — it determines the key.
+- **Confirmation of the recommended answer to question 1** — the defining
+  repository, `WorkloadCandidate.RepoID`. It determines the key, and everything
+  else in this design follows from it.
 - **A decision on question 3**, the non-graph identity subsystem.
-- **Confirmation of the recommended answer to question 1**, since everything else
-  in this design follows from it.
 
 There is no longer an independent fix to approve. An earlier revision asked to fix
-`mutations.go:119` on its own; that path is unreachable (section 2), and the real
-leak — the RUNS_ON retract — cannot be scoped without the identity answer, so it
-belongs to this issue rather than beside it.
+`mutations.go:119` on its own; that path is unreachable (section 2). A later one
+called the RUNS_ON retract "the real leak", which section 5a disproved — that
+retract is a silent no-op, not an over-broad delete. What remains is the cross-repo
+merge itself, which the name-only key causes directly and which no retract fix
+reaches. It cannot be scoped without the identity answer, so it belongs to this
+issue rather than beside it.
 
 No production code has been written for this issue and none will be until the
 above is settled. The probe files are throwaway and are not in this branch.
