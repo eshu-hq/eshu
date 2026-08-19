@@ -53,6 +53,7 @@ on:
       - 'go/internal/repositoryidentity/**'
       - 'go/internal/sourcetool/**'
       - 'go/internal/terraformschema/**'
+      - 'go/internal/workloadid/**'
       # Reachability-checked against the B-12 snapshot's asserted MCP/query
       # shapes (not assumed): each backs a non-trivial asserted response.
       - 'go/internal/environment/**'
