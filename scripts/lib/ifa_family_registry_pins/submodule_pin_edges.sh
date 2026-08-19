@@ -27,34 +27,20 @@
 # table_lock:<name>) cannot be settled from the handler shape alone -- an
 # EdgeWriter-only handler admits either, per
 # checkFamilyBlockerLockstep (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283).
-# No live fault cell exists for this family yet (no
-# ifa_fault_injection_submodule_pin_cells.sh), so unlike
-# codeowners_ownership_edges' pin -- which resolves this from ITS landed
-# cell's real lock call (ifa_codeowners_start_fact_records_lock) -- there is
-# no cell call site here to read yet. This pin instead derives the SAME
-# conclusion from the handler's own fact-load entry point, which is provably
-# identical to codeowners' in shape: loadSubmodulePinMaterializationFacts
-# (go/internal/reducer/submodule_pin_delta_scope.go:38-55) calls
-# loadFactsForKinds -> loader.ListFactsByKind
-# (go/internal/storage/postgres/facts_filtered.go:140
-# FactStore.ListFactsByKind) -- the identical FactLoader call path
-# codeowners_ownership_edges' own handler uses for its first synchronous
-# read. Both families are EdgeWriter-only handlers whose first read is a
-# fact-kind-scoped ListFactsByKind call; a table lock on fact_records is what
-# a kill cell would need to engage to hold either handler in flight on that
-# first read, for the identical reason. table_lock:fact_records, not
-# ack_barrier: this handler's blocking dependency is a fact READ, not an ACK
-# transition a trigger could gate the way documentation_edges' ack_barrier
-# mechanism does.
-#
-# THIS IS A WEAKER DERIVATION THAN CODEOWNERS' PIN, AND SAID SO PLAINLY: it
-# reasons from handler-shape analogy, not from a live cell's own lock SQL,
-# because no cell exists yet to read. Re-derive this pin from the real fault
-# cell's call site once ifa_fault_injection_submodule_pin_cells.sh lands, the
-# same way codeowners_ownership_edges' pin was corrected in place once ITS
-# landed cell was re-read (that pin's own history section documents the
-# earlier, wrong "ack_barrier by analogy" conclusion this family's pin is
-# now careful not to repeat pre-cell).
+# RE-DERIVED FROM THE LANDED CELL, not analogy: this pin was originally
+# written before scripts/lib/ifa_fault_injection_submodule_pin_cells.sh
+# existed, reasoning only from handler-shape similarity to
+# codeowners_ownership_edges -- flagged in-file at the time as weaker than
+# codeowners' own pin for exactly that reason. That cell now exists.
+# ifa_submodule_pin_start_fact_records_lock (that file) takes `LOCK TABLE
+# fact_records IN ACCESS EXCLUSIVE MODE`, so the handler blocks on its FIRST
+# synchronous read (loadSubmodulePinMaterializationFacts ->
+# loadFactsForKinds -> loader.ListFactsByKind ->
+# go/internal/storage/postgres/facts_filtered.go:140
+# FactStore.ListFactsByKind), never on shared_projection_intents the handler
+# never writes. table_lock:fact_records, not ack_barrier: the blocking
+# dependency is a fact READ, not an ACK transition a trigger could gate the
+# way documentation_edges' ack_barrier mechanism does.
 IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="submodule_pin"
@@ -78,19 +64,42 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (parent)-[rel:PINS_SUBMODULE {path: row.submodule_p
 # unlike codeowners_ownership_edges, there is no interim "row exists but not
 # yet driven" state for this family to have recorded.
 #
-# The FAULT side is NOT shared and does not exist yet: no
-# ifa_fault_injection_submodule_pin_cells.sh has landed (confirmed by its
-# continued listing in materializedEdgeFamilyNotYetInRegistry,
-# go/internal/reducer/materialized_edge_family_blocker_shape_test.go:173).
+# The FAULT side is NOT shared: scripts/lib/ifa_fault_injection_submodule_pin_cells.sh
+# drives its own cassette from its own cells, the same "a new family's own
+# cells drive its cassette" convention codeowners_ownership_edges follows.
 # shared_cell describes the determinism shared cell only, per the schema.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: custom, on the team's stated dispatch intent for when the fault
-# cells land (hand-written functions dispatched by name, mirroring
-# codeowners_ownership_edges and documentation_edges, not the generic
-# table_lock dispatcher) -- NOT yet verifiable from a real call site, because
-# no fault cell exists. This is the one field on this pin that is a stated
-# intent rather than an observed fact; re-derive it from
-# ifa_fault_injection_submodule_pin_cells.sh's real dispatch once that file
-# lands, exactly as the schema's own rule demands ("Verify from the gate's
-# call sites, never by inferring").
+# cell_kind: custom, verified from the real dispatch call site, not
+# inferred: scripts/lib/ifa_fault_injection_submodule_pin_cells.sh's three
+# cells (cell_baseline_submodule_pin, cell_killworker_submodule_pin,
+# cell_failgraphwrite_submodule_pin) are hand-written functions dispatched by
+# name from scripts/verify-ifa-fault-injection.sh
+# (`ifa_fault_shard_run cell_killworker_submodule_pin`, etc.), never through
+# cell_killworker_family/cell_failgraphwrite_family.
+#
+# custom FOR A DIFFERENT REASON THAN CODEOWNERS' PIN STATES FOR ITSELF, and
+# this pin is deliberately not copying that reasoning: codeowners_ownership_edges
+# is custom because #6160 hand-wired its cells before
+# scripts/lib/ifa_fault_generic_cells.sh existed and never migrated them (a
+# dispatch-history reason, true of codeowners and false of this family, which
+# was built AFTER the generic dispatcher landed). This family is custom
+# because the generic table_lock mechanism is PROVEN BROKEN for fact_records:
+# scripts/lib/ifa_fault_generic_table_lock.sh's
+# _ifa_generic_require_table_domain_written runs `SELECT count(*) FROM
+# <table> WHERE domain = '<wait_key>'`, assuming a domain column that
+# fact_records does not have. Verified directly against the schema, not
+# against that file's own claim about it:
+# go/internal/storage/postgres/migrations/003_fact_records.sql's CREATE
+# TABLE plus its own four ALTER TABLE ADD COLUMN statements enumerate
+# fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+# schema_version, collector_kind, fencing_token, source_confidence,
+# source_system, source_fact_key, source_uri, source_record_id, observed_at,
+# ingested_at, is_tombstone, payload -- no domain column, and no later
+# migration adds one (`rg "ALTER TABLE fact_records"
+# go/internal/storage/postgres/migrations/*.sql` returns only 003's own
+# four). ifa_fault_generic_table_lock.sh's own header names
+# codeowners_ownership_edges (also table_lock:fact_records) as the worked
+# example of this exact mismatch; this family shares the same table and
+# inherits the same mismatch on its own evidence, independently confirmed
+# against the migration rather than taken on that header's word.
 IFA_FAMILY_PIN_CELL_KIND="custom"

@@ -2790,6 +2790,8 @@ gates:
       - "scripts/lib/test-ifa-fault-injection-documentation-cases.sh"
       - "scripts/lib/ifa_fault_injection_codeowners_cells.sh"
       - "scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
+      - "scripts/lib/ifa_fault_injection_submodule_pin_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-code-call-cases.sh"

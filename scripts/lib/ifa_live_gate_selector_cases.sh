@@ -303,6 +303,8 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_generic_*.sh|scripts/lib/ifa_fault_generic_shared_intent_lock.sh'
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
+	'scripts/lib/ifa_fault_injection_submodule_pin_cells.sh|scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
+	'scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh|scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh|scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
 	'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'

@@ -23,11 +23,11 @@
 # loadFactsForKinds -> loader.ListFactsByKind, the identical FactLoader path
 # codeowners_ownership_edges' row already established reads fact_records
 # first (go/internal/storage/postgres/facts_filtered.go:140
-# FactStore.ListFactsByKind). Both EdgeWriter-only handlers share the same
-# fact-load entry point, so this row takes the same table_lock this family's
-# closest structural sibling took, for the same reason: it is what a kill
-# cell can actually engage to hold the handler in flight on its first
-# synchronous read.
+# FactStore.ListFactsByKind). Verified against the real cell, not merely
+# analogy: scripts/lib/ifa_fault_injection_submodule_pin_cells.sh's
+# ifa_submodule_pin_start_fact_records_lock takes `LOCK TABLE fact_records IN
+# ACCESS EXCLUSIVE MODE`, the identical mechanism codeowners_ownership_edges'
+# landed cell uses.
 IFA_FAMILY_BLOCKER_KIND[submodule_pin_edges]="table_lock:fact_records"
 IFA_FAMILY_WAIT_STAGE[submodule_pin_edges]="handler"
 # go/internal/reducer/intent.go:76-82 declares
@@ -49,12 +49,12 @@ IFA_FAMILY_WAIT_KEY[submodule_pin_edges]="submodule_pin"
 # land in the same change as this row, so there is no "NOT YET WIRED"
 # interim state to record here.
 #
-# The fault side is separate and is NOT drive_all_cassettes, and is not yet
-# built at all: no ifa_fault_injection_submodule_pin_cells.sh exists as of
-# this writing (see materializedEdgeFamilyNotYetInRegistry in
-# go/internal/reducer/materialized_edge_family_blocker_shape_test.go, which
-# still lists DomainSubmodulePinEdges pending exactly that file). shared_cell
-# describes the determinism shared cell only, per the schema comment above.
+# The fault side is separate and is NOT drive_all_cassettes:
+# scripts/lib/ifa_fault_injection_submodule_pin_cells.sh drives its own
+# cassette from its own cells (mirroring codeowners_ownership_edges), the
+# same "a new family's own cells drive its cassette" convention every
+# FAULT_SHARED_DRIVE=0 family follows. shared_cell describes the determinism
+# shared cell only, per the schema comment above.
 IFA_FAMILY_SHARED_CELL[submodule_pin_edges]=1
 # Dispatch metadata for the determinism drive/assert loop. Signatures follow
 # the majority labeled shape -- ifa_submodule_pin_drive(label, bin_dir,
@@ -72,25 +72,41 @@ IFA_FAMILY_EXPECTED_VAR[submodule_pin_edges]="submodule_pin_expected_edges"
 # {path: row.submodule_path} so a parent repository pinning the same target
 # at two different paths (or two different targets) does not collapse onto
 # one edge -- mirroring codeowners_ownership_edges' identical reasoning for
-# {pattern, source_path}. This family is cell_kind=custom, so the live cell
-# (once it exists) will read a family-specific match string the way
-# codeowners' row documents its own generic-dispatch exemption; this row
-# still records the precise anchor substring including the property map, not
-# the bare `]->(target)`.
+# {pattern, source_path}. cell_kind=custom, so the live cell reads a
+# family-specific match string
+# (scripts/verify-ifa-fault-injection.sh's submodule_pin_edge_operation_match,
+# a bare prefix) rather than this field -- this row still records the
+# precise anchor substring including the property map, not the bare
+# `]->(target)`, mirroring codeowners' identical field/live-string split.
 IFA_FAMILY_ANCHOR[submodule_pin_edges]="MERGE (parent)-[rel:PINS_SUBMODULE {path: row.submodule_path}]->(target)"
-# No fault cells exist for this family yet (see the shared_cell comment
-# above), so cell_kind cannot yet be verified from a real dispatch call site
-# the way the schema's own rule demands ("Verify from the gate's call sites,
-# never by inferring"). Recorded as custom on the team's stated intent for
-# when the cells land -- this family's cells will be hand-written functions
-# dispatched by name, the same shape codeowners_ownership_edges and
-# documentation_edges take, not the generic table_lock dispatcher
-# (ifa_fault_generic_table_lock.sh) -- NOT because table_lock is an
-# unsupported generic shape (it is, per deployable_unit_edges' row), but
-# because that is the planned dispatch shape. Re-verify this field against
-# the real fault cell's call site once ifa_fault_injection_submodule_pin_cells.sh
-# lands, the same way codeowners_ownership_edges' row was corrected in place
-# once ITS landed cell was re-read.
+# cell_kind=custom, verified against the real dispatch call site, not
+# inferred: scripts/lib/ifa_fault_injection_submodule_pin_cells.sh's three
+# cells are hand-written functions dispatched by name
+# (ifa_fault_shard_run cell_killworker_submodule_pin, etc.), never through
+# cell_killworker_family/cell_failgraphwrite_family.
+#
+# custom FOR A DIFFERENT REASON than codeowners_ownership_edges' row states
+# for itself -- codeowners is custom because #6160 hand-wired its cells
+# before the generic dispatcher existed and never migrated them (a
+# dispatch-history reason). This family is custom because the generic
+# table_lock path is PROVEN BROKEN for fact_records:
+# scripts/lib/ifa_fault_generic_table_lock.sh's
+# _ifa_generic_require_table_domain_written runs `SELECT count(*) FROM
+# <table> WHERE domain = '<wait_key>'`, assuming the locked table has a
+# domain column. fact_records does not:
+# go/internal/storage/postgres/migrations/003_fact_records.sql's CREATE
+# TABLE plus its own four ALTER TABLE ADD COLUMN statements list fact_id,
+# scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+# collector_kind, fencing_token, source_confidence, source_system,
+# source_fact_key, source_uri, source_record_id, observed_at, ingested_at,
+# is_tombstone, payload -- no domain column anywhere, and no later
+# migration adds one (`rg "ALTER TABLE fact_records"
+# go/internal/storage/postgres/migrations/*.sql` returns only 003's own
+# four). ifa_fault_generic_table_lock.sh's own header already names
+# codeowners_ownership_edges (also table_lock:fact_records) as the worked
+# example of this exact mismatch; this family shares the same table and
+# therefore the same mismatch, so cell_kind=custom records a proven
+# incompatibility, not a dispatch-history accident or a stated intent.
 IFA_FAMILY_CELL_KIND[submodule_pin_edges]="custom"
 
 # No IFA_FAMILY_RETRY_BASELINE_VAR row: that field is required only for

@@ -252,6 +252,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
 source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
+# shellcheck source=scripts/lib/ifa_submodule_pin_live.sh
+source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_submodule_pin_cells.sh"  # two sources, one line, same reason
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -310,6 +312,7 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 # committed sql_cassette, so this fault genuinely fires during that drive.
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
+submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical_submodule_edges.go:32; see the cells lib header
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
@@ -492,6 +495,11 @@ ifa_fault_shard_run cell_failgraphwrite_codeowners
 ifa_fault_shard_run cell_baseline_repo_dependency
 ifa_fault_shard_run cell_killworker_repo_dependency
 ifa_fault_shard_run cell_failgraphwrite_repo_dependency
+
+# submodule_pin_edges (#6002), cells 22-24; baseline first (it sets digests[baseline_submodule_pin] + baseline_submodule_pin_retried), same trio shape as codeowners above.
+ifa_fault_shard_run cell_baseline_submodule_pin
+ifa_fault_shard_run cell_killworker_submodule_pin
+ifa_fault_shard_run cell_failgraphwrite_submodule_pin
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

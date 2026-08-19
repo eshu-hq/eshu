@@ -375,13 +375,11 @@ on:
       - 'scripts/lib/ifa_fault_injection_codeowners_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
       # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
-      # reducer stage, and live helper are all inputs to what the live lanes
-      # assert, so each one must retrigger them. materialized_edges*.go and
-      # factschema_decode_*.go are already triggers above (generic globs a
-      # prior family added); this family's files already match them, so they
-      # are not repeated here. No fault cell exists for this family yet, so
-      # unlike codeowners there is no ifa_fault_injection_submodule_pin_cells.sh
-      # / test-ifa-fault-injection-submodule-pin-cases.sh pair to add.
+      # reducer stage, and live/fault helpers are all inputs to what the live
+      # lanes assert, so each one must retrigger them. materialized_edges*.go
+      # and factschema_decode_*.go are already triggers above (generic globs
+      # a prior family added); this family's files already match them, so
+      # they are not repeated here.
       - 'go/internal/ifa/submodule_pin_family_odu.go'
       - 'go/internal/ifa/submodule_pin_family_catalog.go'
       - 'go/internal/reducer/submodule_pin*.go'
@@ -389,6 +387,8 @@ on:
       - 'go/internal/storage/cypher/*submodule*.go'
       - 'testdata/cassettes/submodulepin/**'
       - 'go/internal/ifa/testdata/submodulepin/**'
+      - 'scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
       - 'scripts/lib/ifa_submodule_pin_live.sh'
       # deployable_unit_edges (#5993) is driven and exact-set asserted in its own
       # standalone determinism cell (after the shared N-loop, since materializing
