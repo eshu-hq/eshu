@@ -583,8 +583,25 @@ with no literal argument fails too.
 
 ### Which builds this was measured on
 
-Two different images are called "pinned" in this repository, and this shape was
-checked on both:
+**This is not fixed upstream.** Re-measured against NornicDB `main` at commit
+`8abc2269` (reports `v1.2.2`), built locally with `-tags nolocalllm`. Every
+signature reproduces:
+
+| Query | Correct | NornicDB main `8abc2269` |
+| --- | ---: | ---: |
+| `MATCH (n) WITH n WHERE n:Workload RETURN count(*)` | 1 | **4** |
+| `MATCH (n) WHERE n:Workload WITH n RETURN count(*)` | 1 | 1 |
+| `MATCH (a:Workload) WITH a WHERE toUpper(a.name) = 'CHECKOUT' RETURN count(*)` | 1 | **0** |
+| `MATCH (a:Workload) WITH a WHERE a.name = 'checkout' RETURN count(*)` | 1 | 1 |
+| `MATCH (a:Workload) WITH a WHERE coalesce(a.name,'X') IS NULL RETURN count(*)` | 0 | **1** |
+
+The production change-surface shape leaks on `main` as well: running arm 1's
+exact `CALL { … WITH path, impacted WHERE impacted:Workload OR
+impacted:CloudResource … }` against a seeded graph returned the `File` node
+alongside the two whitelisted ones. So the Go-side enforcement is **not** a
+legacy-pin workaround — it is required against current upstream.
+
+Three images are relevant, and this shape was checked on all three:
 
 - `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
   (`docker-compose.yaml:10`), the local lane. The comparison table above was
@@ -595,15 +612,21 @@ checked on both:
   **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
   `WITH` still admitted a `File` row.
 
-So the defect spans both lanes. One related question was settled only on the
-deployed pin: `length(path)` and `labels()` **are** projected correctly inside a
-`CALL {}` subquery on v1.1.11 (`depth` returned 1 and 2, not 0; `labels` returned
-real arrays). That matters because the adjacent
+So the defect spans every lane, including current upstream. A related question
+is settled in the other direction: `length(path)` and `labels()` **are**
+projected correctly inside a `CALL {}` subquery — `depth` returned 1 and 2, not
+`0`, and `labels` returned real arrays, on both v1.1.11 and `main` `8abc2269`.
+That matters because the adjacent
 [multi-clause read pitfall](#pitfall-multi-clause-read-queries-silently-corrupt-the-projection)
-reports `length(path)` collapsing to `0` — that failure was measured at the top
-level, outside any `CALL {}`, and the subquery scope is exempt. **The same check
-has not been run against the Compose `pr290` build**, so treat the exemption as
-established for the deployed pin only.
+reports `length(path)` collapsing to `0`, which would make the change-surface
+depth ordering untrustworthy if it applied here. It does not.
+
+One thing deliberately not claimed: on `main` `8abc2269`, `length(path)` also
+returned real values in the *top-level* `MATCH … WITH path, impacted RETURN …
+length(path)` shape. That is one shape, not the full pattern the older pitfall
+documents, so it is recorded here as an observation rather than as evidence that
+the older pitfall is fixed. Someone re-validating that entry should measure it
+directly.
 
 ### Eshu implications
 
