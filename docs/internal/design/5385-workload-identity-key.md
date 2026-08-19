@@ -826,6 +826,16 @@ every read.
 **Result: relationship retraction does not work on the pinned build; node-level
 `DETACH DELETE` does.**
 
+**One trial per cell in both tables below, and that is enough here — but say so
+rather than let a bare number imply more.** These are binary works/does-not-work
+outcomes with a Neo4j control on every row and a settling loop on every read, not
+latencies: a single sample distinguishes 1 → 0 from 1 → 1 in a way it could never
+distinguish two timings. The settling loop is what earns it, and it is why the
+"still 1 after 43 s" figures are quoted — the read was retried to a deadline
+rather than taken once. Note also that this document records one earlier run on
+this backend giving a confident wrong answer from read staleness (see below), so
+a single unsettled read would not have been enough.
+
 | Operation | Neo4j 5 | NornicDB (pinned) |
 | --- | --- | --- |
 | bare relationship `DELETE` | 1 → 0 | **1 → 1**, still 1 after 43 s |
@@ -860,7 +870,8 @@ instance nodes, with all their edges, orphaned under the previous key.
 
 The four families not incident to a `WorkloadInstance` were then measured
 individually, each driven through its own production retract statement, with the
-same settling discipline and Neo4j as the control:
+same settling discipline and Neo4j as the control. One trial per cell again, on
+the same reasoning as above:
 
 | Family | Relationship retract, Neo4j | Relationship retract, NornicDB | Workload `DETACH DELETE`, both |
 | --- | --- | --- | --- |
@@ -1239,9 +1250,24 @@ prefix spelled out — `GET /api/v0/workloads/workload:payments-api/context`
 (`docs/public/guides/shared-infra-trace.md:47,53`),
 `{workload_id: "workload:api-svc"}` (`docs/public/getting-started/first-five-questions.md:67`),
 and `docs/public/reference/http-api/catalog-workload-selection.md:58` tells readers that pasted `workload:...`
-handles "remain canonical". The Console builds ids from names and puts them in
-bookmarkable URLs (`/workspace/services/<id>`), and prompts operators to paste
-`workload:…` directly.
+handles "remain canonical". The Console does all three, and in a section titled
+"measured" these were the only claims carrying no citation:
+
+- **Builds ids from names.** `apps/console/src/pages/ExplorerPage.tsx:384` returns
+  `` `workload:${service.name}` ``, and
+  `apps/console/src/api/eshuGraphDeploymentModel.ts:49` falls back to the same
+  shape when neither `trace.workload_id` nor `context.id` is set.
+- **Puts them in bookmarkable URLs.**
+  `apps/console/src/pages/ImpactDeploymentSummary.tsx:108` links to
+  `` `/workspace/services/${encodeURIComponent(trace.workloadId)}` ``.
+- **Prompts operators to paste one.**
+  `apps/console/src/pages/ExposureServiceSelector.tsx:93` is the placeholder
+  "Search authorized services or paste `workload:…`".
+
+Two of these four citations were passed to me with the wrong directory
+(`components/` rather than `pages/`) and did not resolve. They are opened and
+corrected here, which is the reason this document cites by file and line rather
+than by description.
 
 Migration must therefore add, beyond section 6: a read-side resolution layer for
 tiers 1 and 2 that fails closed on an ambiguous legacy name, a reducer-side
