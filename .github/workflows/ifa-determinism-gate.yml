@@ -545,11 +545,6 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
-      # The classification regression test that pins the P6 fault-error
-      # fidelity fix is behind the ifafaultinjection build tag, so a normal
-      # `go test ./...` never runs it. Run it explicitly here, alongside the
-      # tagged decorator and reducer-wiring tests, so a revert of the
-      # Retryable()/FailureClass() contract fails CI even before the Docker leg.
       # The gate's own preconditions shell out to rg (the repo forbids grep), and
       # the fault-injection job did not install it -- #6173's first CI run failed
       # both codeowners-carrying shards with "rg: command not found" reported as
@@ -559,6 +554,11 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # The classification regression test that pins the P6 fault-error
+      # fidelity fix is behind the ifafaultinjection build tag, so a normal
+      # `go test ./...` never runs it. Run it explicitly here, alongside the
+      # tagged decorator and reducer-wiring tests, so a revert of the
+      # Retryable()/FailureClass() contract fails CI even before the Docker leg.
       - name: Run tagged fault-classification unit tests
         working-directory: go
         run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/replay/faultreplay ./cmd/reducer -count=1

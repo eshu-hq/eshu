@@ -158,13 +158,23 @@ run_ifa_documentation_live_static_cases() {
 	# wired from matrix.shard into the gate's --shard flag) and adds a
 	# matrix-cardinality cross-check (workflow shard count vs.
 	# IFA_FAULT_SHARD_DEFAULT_N) that a single label string never could.
-	local private_scan_block static_test
-	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
-	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"
-	for target in '"${documentation_lib}"' '"${documentation_cells_lib}"' '"${documentation_barrier_lib}"' '"${documentation_cases_lib}"' '"${documentation_barrier_cases_lib}"' '"${documentation_barrier_cleanup_cases_lib}"'; do
-		[[ "${private_scan_block}" == *"${target}"* ]] \
-			|| fail "fault verifier private-data scan omits ${target}"
-	done
+	# This used to extract the scan's hand-typed file list and assert six
+	# documentation libs appeared in it. That check is obsolete BY UPGRADE, not
+	# by deletion: the scan now derives its list from every declared *_lib via
+	# compgen, so naming individual libs proves less than the derivation does.
+	# The hand-typed list was also wrong -- it covered 36 of 42 libs and had
+	# silently lost the file the 500-line split created.
+	#
+	# So assert the DERIVATION instead, which is what makes coverage total, plus
+	# the fail-closed guard that stops a missing file being skipped rather than
+	# reported. Both are pinned as live code, so a comment describing them
+	# cannot stand in for them.
+	local assertions_src
+	assertions_src="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
+	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
+		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
+	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \
+		|| fail "private-data scan no longer fails closed on a missing file"
 }
 
 test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed() (

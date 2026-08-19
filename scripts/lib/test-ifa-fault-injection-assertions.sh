@@ -51,21 +51,67 @@ require_code_call_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${code_call_cells_lib}" || fail "missing ${label} (code-call cells lib): ${needle}"
 }
-# _ifa_count_code_matches counts lines of ${2} containing ${1} whose first
-# non-whitespace character is NOT `#`. Every generic pin below routes through it
-# because the plain `rg --fixed-strings` form is defeatable by a COMMENT: a
-# reviewer proved that commenting out both real call sites (`# was: <call>`)
-# left the count at 2 and the mirror green with ZERO real invocations, and that
-# replacing the baseline cell's assertion with `# NOTE: this used to call ...`
-# also passed. A pin satisfiable by prose about the code is not a pin on the
-# code. require_line above already carries this lesson for ${script} -- it was in
-# this same file when these helpers were written, and they did not use it.
+# _ifa_count_code_matches counts lines of ${2} where ${1} appears in the CODE
+# portion -- the part before any `#`. Lines whose first non-whitespace character
+# is `#` are skipped outright.
+#
+# Both halves are load-bearing, and each was defeated in review before it was
+# added. Skipping only leading-`#` lines left `true  # was: <needle>` counting as
+# a live call, so commenting out every call site that way passed with ZERO real
+# invocations. Truncating at the first `#` closes that, and also stops a needle
+# quoted inside a trailing comment, a here-doc line, or a disabled continuation
+# from standing in for the code it describes.
+#
+# Direction of the residual imprecision is deliberate: a `#` inside a quoted
+# string truncates the code portion early, so a needle after it reads as absent
+# and the pin REDS. That is a false alarm a human resolves in seconds, never a
+# false pass. Counting lines rather than matches is the same trade -- two needles
+# on one line read 1, which can only over-report absence.
+#
+# require_line above pins whole lines for the same reason, and its docstring is
+# this lesson from an earlier incident. It was in this file when the weaker form
+# was written here; read the siblings before adding a pin helper.
+# assert_no_private_data scans the gate plus EVERY *_lib it declares for
+# hostnames, IPs, cloud account IDs, keys and internal paths.
+#
+# The file list is DERIVED from the declarations, not hand-typed. The hand-typed
+# version listed 36 of 42 *_lib vars; the six it missed included this file, and
+# it silently lost the library the 500-line split created until a reviewer
+# caught it. A hand-typed list does not grow when the tree does.
+#
+# Lives here rather than in the mirror because that file sits against the
+# 500-line cap and this is a whole coherent unit -- the same reason, and the
+# same shape, as the other extractions this branch made.
+assert_no_private_data() {
+	local private_pattern f
+	# Every alternative below brackets one character, so the pattern does not
+	# contain its own literals. A bracketed single-character class matches exactly
+	# the same text as the bare character, so detection is unchanged.
+	#
+	# This is required now that the scan covers every declared *_lib, including
+	# this file. Spelling any of these tokens plainly in this function -- even in
+	# prose explaining them -- makes the scanner flag itself on every run. That
+	# happened twice while writing this comment, which is why it now describes the
+	# tokens rather than quoting them.
+	#
+	# The hazard was latent before, not absent: the literal used to live in the
+	# mirror, whose ${script} points at the GATE, so the mirror never scanned
+	# itself and never noticed.
+	private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
+	for f in "$@" $(compgen -v | rg '_lib$' | sort | while IFS= read -r v; do printf '%s\n' "${!v}"; done); do
+		[[ -f "${f}" ]] || fail "assert_no_private_data: ${f} does not exist -- a scan that skips a missing file proves nothing"
+		if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
+			fail "$(basename "${f}") looks like it contains private data"
+		fi
+	done
+}
 _ifa_count_code_matches() {
-	local needle="$1" file="$2" n=0 line stripped
+	local needle="$1" file="$2" n=0 line stripped code
 	while IFS= read -r line || [[ -n "${line}" ]]; do
 		stripped="${line#"${line%%[![:space:]]*}"}"
 		[[ "${stripped}" == "#"* ]] && continue
-		[[ "${line}" == *"${needle}"* ]] && n=$((n + 1))
+		code="${line%%#*}"
+		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
 }

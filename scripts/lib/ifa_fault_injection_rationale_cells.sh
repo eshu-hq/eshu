@@ -11,7 +11,7 @@
 # (scripts/lib/ifa_fault_generic_cells.sh): the rationale_edges row in
 # scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh declares
 # blocker_kind=shared_intent_lock and wait_key=rationale_materialization,
-# which is exactly the shape this file hand-wrote below before the registry
+# which is exactly the shape this file used to hand-write, before the registry
 # existed -- see that dispatcher's header for the shared kill/reclaim/drain/
 # assert skeleton and the uniform fail-graph-write cell.
 cell_killworker_rationale() {

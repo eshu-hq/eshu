@@ -179,7 +179,7 @@ delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_
 # `while IFS= read -r family` whose redirect was dropped reads EOF immediately
 # and iterates zero times, passing every downstream assertion vacuously. Binding
 # the header alone would not catch that.
-require "drive loop iterates the family registry, not a hardcoded list" 'done < <(ifa_family_registry_names)'
+require_code "drive loop iterates the family registry, not a hardcoded list" 'done < <(ifa_family_registry_names)'
 # The filter is two statements, not one, and that is the point: a bare
 # `[[ "$(accessor)" == "1" ]] || continue` cannot tell shared_cell=0 apart
 # from an accessor FAILURE on a row missing IFA_FAMILY_SHARED_CELL -- a
@@ -188,11 +188,11 @@ require "drive loop iterates the family registry, not a hardcoded list" 'done < 
 # shared-cell family" and never driven or asserted while the gate stayed
 # green. Pin BOTH halves so the fail-closed check cannot be collapsed back
 # into the one-liner.
-require "drive/assert loop captures the accessor's exit status separately" 'family_shared_cell="$(ifa_family_shared_cell "${family}")"'
-require "drive/assert loop dies when the shared_cell accessor fails" 'refusing to silently skip this family'
-require "drive/assert loop skips non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue'
-require "drive loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}"'
-require "assert loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_assert "${family}" "${n}" "${bin_dir}"'
+require_code "drive/assert loop captures the accessor's exit status separately" 'family_shared_cell="$(ifa_family_shared_cell "${family}")"'
+require_code "drive/assert loop dies when the shared_cell accessor fails" 'refusing to silently skip this family'
+require_code "drive/assert loop skips non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue'
+require_code "drive loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}"'
+require_code "assert loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_assert "${family}" "${n}" "${bin_dir}"'
 # The registry-fed redirect must appear exactly twice (drive, then assert) -- a
 # gate half-migrated to the registry (e.g. drive converted but assert still
 # hand-listing families) would satisfy a single occurrence.

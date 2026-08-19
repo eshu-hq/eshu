@@ -29,6 +29,21 @@ run_ifa_fault_injection_generic_modules() {
 		"${runner}"
 		ran=$((ran + 1))
 	done
+
+	# STRAY-FILE GUARD. The list above is hand-typed, so a fourth
+	# test-ifa-fault-injection-generic-*-cases.sh can land, get bash -n'd by the
+	# mirror's derived syntax loop, and contribute ZERO cases while this runner
+	# still reports "N generic mechanism case module(s) run". That is the exact
+	# silent-skip shape this file's header says these modules exist to close, so
+	# it must not be reachable through the runner itself. The sibling pins module
+	# carries the same guard for the same reason.
+	local on_disk expected=0 f
+	for f in "${repo_root}"/scripts/lib/test-ifa-fault-injection-generic-*-cases.sh; do
+		[[ -e "${f}" ]] || continue
+		expected=$((expected + 1))
+	done
+	[[ "${expected}" -eq "${ran}" ]] \
+		|| fail "generic case modules: ${expected} test-ifa-fault-injection-generic-*-cases.sh file(s) on disk but ${ran} registered in this runner's list -- a module that is not listed contributes no cases and is never missed"
 	# A loop that ran zero modules would pass silently.
 	[[ "${ran}" -gt 0 ]] || fail "generic case module runner executed no modules"
 	printf 'test-verify-ifa-fault-injection: %d generic mechanism case module(s) run\n' "${ran}"

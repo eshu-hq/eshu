@@ -89,9 +89,42 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
+# _ifa_det_count_code_matches counts lines of ${2} where ${1} appears in the CODE
+# portion -- before any `#`. Lines whose first non-whitespace character is `#`
+# are skipped. Mirrors scripts/lib/test-ifa-fault-injection-assertions.sh's
+# helper of the same shape, for the same reason: the bare `rg --fixed-strings`
+# form below was satisfied by a COMMENT quoting its needle. Proven on this very
+# file's pins -- prefixing both occurrences of the shared_cell guard with
+# `# DISABLED: ` left this mirror green while the drive loop stopped skipping
+# non-shared_cell families. Truncating at `#` also stops the `true  # was: X`
+# shape. A `#` inside a quoted string can only make a pin RED, never pass.
+_ifa_det_count_code_matches() {
+	local needle="$1" file="$2" n=0 line stripped code
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		code="${line%%#*}"
+		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
+	done < "${file}"
+	printf '%s\n' "${n}"
+}
+# require pins a needle ANYWHERE in the gate, comments included. That is correct
+# for the pins that deliberately bind FRAMING -- e.g. the contention
+# ledger-regression rationale, which exists only as prose. Do NOT route those
+# through require_code: a prose pin that demands the text be code can never pass.
 require() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+# require_code pins a needle that must be LIVE CODE, not prose about code. Use it
+# for anything asserting the gate DOES something; use require above only for
+# framing. Proven necessary: prefixing both occurrences of the shared_cell guard
+# with `# DISABLED: ` left this mirror green while the drive loop stopped
+# skipping non-shared_cell families.
+require_code() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${script}")" -ge 1 ]] \
+		|| fail "missing ${label}, or it survives only inside a comment: ${needle}"
 }
 # require_fixture asserts a needle that lives in the shared family-fixtures lib
 # the gate sources, not in the gate script: the committed cassette and
@@ -139,9 +172,14 @@ require_rationale_lib() {
 	rg --fixed-strings --quiet -- "${needle}" "${rationale_lib}" || fail "missing ${label} (rationale lib): ${needle}"
 }
 
+# Code-binding, so it goes through the same code-portion matcher as require_code:
+# every needle it carries asserts the codeowners live lib DOES something (its
+# assert-edges domain, its labeled signature, its exact-set framing), and a
+# comment quoting any of them must not stand in for the call.
 require_codeowners_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${codeowners_lib}" || fail "missing ${label} (codeowners lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${codeowners_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (codeowners lib), or it survives only inside a comment: ${needle}"
 }
 
 # Strict mode and self-cleanup.
