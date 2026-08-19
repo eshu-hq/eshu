@@ -12,10 +12,13 @@
 # fails `verify-ci-gates-registry.sh --drift` today, without this module.
 #
 # WHAT IS NOT: isLiteralTrigger (pathfilter.go:305) returns false for any
-# trigger containing "*", and drift skips those. So the GLOB triggers -- the
-# ones this design leans on hardest, because a family's row and pin files are
-# reached only through scripts/lib/ifa_family_registry/** and
-# scripts/lib/ifa_family_registry_pins/** -- are the half nothing checked.
+# trigger containing "*", and drift skips those. So the GLOB triggers are the
+# half nothing checked -- and for THIS gate that means exactly one,
+# scripts/lib/ifa_family_registry/**, which is the only door a family's row
+# files are reached through. (The sibling scripts/lib/ifa_family_registry_pins/**
+# belongs to ifa-determinism, not to this gate; its parity is covered by the
+# registry-subset-of-workflow loop in
+# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh.)
 # Narrowing a "**" to a "*" in the workflow (dorny "*" does not cross "/") left
 # the whole registry test green: an edit to rows/NN_<family>.sh would then
 # select ifa-materialized-edge-coverage as BLOCKING while the job that runs it
@@ -34,6 +37,34 @@ run_ci_gates_registry_ifa_filter_cases() {
 	workflow_filter="$(sed -n '/^[[:space:]]*ifa:$/,/^[[:space:]]*[a-z][a-z0-9]*:$/p' "${static_contract_workflow}")"
 	[[ -n "${workflow_filter}" ]] \
 		|| fail "missing ifa workflow filter in ${static_contract_workflow##*/}"
+
+	# Literal pins on the workflow's ifa job. These are NOT redundant with the
+	# derived glob loop below, and they are not redundant with drift.go either:
+	# drift proves a registry trigger is SELECTED by the filter, and says nothing
+	# about the job's command. Restored here after the rewrite of this module
+	# silently dropped them -- `cat >` over a file that had just absorbed them
+	# from scripts/test-verify-ci-gates-registry.sh, which is how a guard
+	# disappears without anyone deciding to remove it. Both were proven
+	# load-bearing by mutation: drop the reducer leg, or drop
+	# go/internal/ifa/** from the filter, and without these the whole registry
+	# test still exits 0.
+	require "Ifa workflow filter" \
+		"ifa:" \
+		"${static_contract_workflow}"
+	require "Ifa workflow path filter" \
+		"go/internal/ifa/**" \
+		"${static_contract_workflow}"
+	# The reducer leg is part of the pinned text on purpose. The registry's
+	# local.command for ifa-materialized-edge-coverage runs it, and the Go
+	# blocker-shape lockstep this gate's triggers exist for lives in that package --
+	# the CI job ran without it until #6147, so the gate's own comment claiming the
+	# triggers protected that lockstep in CI was false. Pinning the whole command
+	# keeps local and CI reading the same thing; dropping the leg here again should
+	# fail loudly.
+	require "Ifa workflow matrix entry" \
+		'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"' \
+		"${static_contract_workflow}"
+
 
 	# Triggers are READ OUT OF the gate block, never restated here. The sibling
 	# module (test-verify-ci-gates-registry-docs-cli-env-cases.sh) records why:

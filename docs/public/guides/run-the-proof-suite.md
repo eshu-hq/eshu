@@ -110,7 +110,7 @@ resolves to the wrong evidence.
 | `ifa-determinism` | The canonical graph is byte-identical across worker counts 1, 2, and 4. |
 | `ifa-dead-letter-matrix` | A schema-major-mutated Odù dead-letters the identical durable set across worker counts. |
 | `ifa-load-saturation` | The corpus amplifier and the backpressure/saturation regression proof (issue #3560). |
-| `ifa-fault-injection` | Lease reclaim, retry, and idempotent replay converge across twenty-one cells (fault-injecting cells plus the baselines they compare against), sharded four ways in CI. |
+| `ifa-fault-injection` | Lease reclaim, retry, and idempotent replay converge across twenty-one cells — fault-injecting cells, the fault-free baselines they compare against, and a delta-retract cell asserting an exact edge set — sharded four ways in CI. |
 
 See [CI gates reference](../reference/ci-gates.md) for the full, generated
 table of every gate in the registry, and

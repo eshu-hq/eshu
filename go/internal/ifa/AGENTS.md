@@ -232,7 +232,10 @@ wc -l go/internal/reducer/materialized_edge_family_blocker_shape_test.go \
 Those five grow per family or per cell-list change: the blocker expectations
 entry plus its citation, the hand-authored cell literal, a `source` and a
 `run_*` call per new case module, two dispatch lines plus this file's convention
-of a rationale comment, and the determinism drive/assert wiring.
+of a rationale comment, and — in the determinism gate — the post-delta
+generation-2 per-family assertions, roughly two lines each. NOT its drive/assert
+wiring: that is the registry loop this design replaced the inline blocks with,
+and a new family costs a row there, not a new block.
 Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
 `go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
 Go-only, so for every shell file above the limit is policy and nothing will stop
