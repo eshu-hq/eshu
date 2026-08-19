@@ -615,7 +615,9 @@ Three images are relevant, and this shape was checked on all three:
 So the defect spans every lane, including current upstream. A related question
 is settled in the other direction: `length(path)` and `labels()` **are**
 projected correctly inside a `CALL {}` subquery — `depth` returned 1 and 2, not
-`0`, and `labels` returned real arrays, on both v1.1.11 and `main` `8abc2269`.
+`0`, and `labels` returned real arrays. Checked on all three builds: v1.1.11,
+`eshu-nornicdb-pr290:3722b483c02c`, and `main` `8abc2269`, with the same seeded
+graph and the same arm-1 shape each time.
 That matters because the adjacent
 [multi-clause read pitfall](#pitfall-multi-clause-read-queries-silently-corrupt-the-projection)
 reports `length(path)` collapsing to `0`, which would make the change-surface
