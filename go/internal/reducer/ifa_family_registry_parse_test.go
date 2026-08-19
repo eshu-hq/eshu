@@ -31,6 +31,7 @@ var (
 	// test against a value the shell loader never reads.
 	ifaFamilyRegistryBlockerKindRE = regexp.MustCompile(`(?m)^IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
 	ifaFamilyRegistryWaitKeyRE     = regexp.MustCompile(`(?m)^IFA_FAMILY_WAIT_KEY\[(\w+)\]="([^"]*)"`)
+	ifaFamilyRegistryWaitStageRE   = regexp.MustCompile(`(?m)^IFA_FAMILY_WAIT_STAGE\[(\w+)\]="([^"]*)"`)
 )
 
 // ifaFamilyRegistryRowsDir returns the absolute path to
@@ -72,6 +73,17 @@ func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string
 func parseIfaFamilyRegistryWaitKeys(t *testing.T, rowsDir string) map[string]string {
 	t.Helper()
 	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitKeyRE, "IFA_FAMILY_WAIT_KEY")
+}
+
+// parseIfaFamilyRegistryWaitStages reads each family's declared
+// IFA_FAMILY_WAIT_STAGE row. The stage decides WHICH queue a family's
+// non-vacuity wait polls, and the two queues have disjoint keyspaces --
+// fact_work_items.domain versus shared_projection_intents.projection_domain --
+// so a wait_key can only be validated once its stage is known. That is why this
+// parser exists rather than the wait_key check standing alone.
+func parseIfaFamilyRegistryWaitStages(t *testing.T, rowsDir string) map[string]string {
+	t.Helper()
+	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitStageRE, "IFA_FAMILY_WAIT_STAGE")
 }
 
 // parseIfaFamilyRegistryTable reads every *.sh file directly under rowsDir --
