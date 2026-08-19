@@ -548,33 +548,6 @@ Two further construction sites inside the reducer:
   the same unreached-code pattern section 2 withdrew for `mutations.go`, and this
   document made the error twice.
 
-Parse sites in the read path: `go/internal/query/catalog.go:213-214,332`,
-`go/internal/query/impact_change_surface_resolvers.go:102-108`, `go/internal/query/entity_workload_context.go:261,280,286`,
-`go/internal/query/repository_read_model_summary.go:114`, `go/internal/query/content_reader_repository_catalog.go:107`,
-`go/internal/query/service_workload_resolution.go:137`, `go/internal/query/supply_chain_impact_path.go:145`,
-`go/internal/reducer/supply_chain_impact_match.go:147`, `go/internal/mcp/dispatch_args.go:61-66`.
-`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep
-working — **but do not skip that file on the strength of this line.** Its
-`workload_instance` case at `:70-75` emits two further resolvers, anchored on
-`id` and on `workload_id`, and both break under the re-key. See migration item 4.
-
-Nothing decomposes a `workload-instance:<name>:<env>` identifier back into its
-name and environment. That strict negative holds and is a verified one rather
-than an unsearched gap — but the search covered `go/` only, and the console does
-test the prefix:
-`apps/console/src/api/impactDeploymentGraph.ts:453` is
-`if (id.startsWith("instance:") || id.startsWith("workload-instance:")) return "instance";`,
-which this document files as a parse site elsewhere. A re-key that keeps the
-prefix leaves it working; one that changes the prefix does not.
-
-This inventory is larger than it first appeared and should still be treated as a
-starting point. **The `reducer_workload_identity` subsystem in particular needs a
-decision before implementation** (section 8, question 3), because it is the
-documented fallback for exactly the scenario in section 2 and carries its own
-identity scheme: the fact is written by `workload_identity_writer.go` into
-`entity_keys`, a JSON array. The repo-basename key belongs to a *different* fact,
-`shared_followup` from `git_followup_facts.go` — see the two bullets above.
-
 ### 4.2 Node property stamps
 
 Where the identifier lands as a property rather than as an edge anchor.
@@ -606,6 +579,107 @@ above, which cites one. There are exactly two write sites in the tree, both batc
 constants in `workload_materializer.go` (`:456-461` for the workload edge,
 `:449-454` for the repository sibling), and `canonical.go` contains no `Endpoint`
 at all. A reader looking for the single-row form will not find one.
+
+### 4.4 Reads that equality-match the identifier
+
+Large and mostly uniform, so this one is a criterion rather than a list — the
+implementer's action is the same for every member. Run from the repository root:
+
+```bash
+rg -nP -g '*.go' -g '!*_test.go' \
+  '^(?!\s*//).*(?::Workload(?:Instance)?\s*\{[^}]*\b(?:id|workload_id)\s*:\s*\$|\b(?:w|i|inst|instance|workload)\.(?:id|workload_id)\s*(?:=|<>|IN)\s*\$)' \
+  go/internal/query go/internal/reducer go/cmd
+```
+
+**27 lines across 16 files at `bdd4f6768`** (28 anchors —
+`entity_workload_platform.go:69` carries two). `-P` is load-bearing: the
+`^(?!\s*//)` comment guard needs PCRE2. That guard also suppresses four doc
+comments describing the shape, so a comment-only edit to those lines does not
+move the count. The three path arguments are load-bearing too: dropping them and
+running over all of `go/` returns 35, and the extra 8 are write-path lines in
+`storage/cypher/canonical.go` — including a `SET` assignment inside an upsert,
+which is not a match predicate.
+
+One representative per anchor kind, because the kinds break differently:
+
+| Anchor kind | Representative | How a re-key breaks it |
+| --- | --- | --- |
+| Node-pattern property | `go/internal/query/entity_workload_handlers.go:29` | Matches nothing; the endpoint 404s. |
+| Denormalized `i.workload_id` | `go/internal/query/compare.go:189`, `go/internal/query/workload_runtime_topology.go:91` | Covered by migration item 4; the second is under a query-plan pin. |
+| Id/name conflated in one clause | `go/internal/query/entity.go:58` | The same parameter is tested against `w.name` **and** `w.id`, so after a re-key the name half still matches and the id half does not — the selector half-works, which is the worst shape to debug. |
+| Inequality exclusion | `go/internal/query/impact_change_surface_legacy.go:126` | `impacted.id <> $target_id` stops excluding the start node, so it **appears in its own impact set** — a wrong answer with no error. |
+| List membership | `go/internal/query/catalog_workload_environments.go:60,68,86` | Silent empty result. |
+
+`entity.go:58` is in the 27 but is **dead on the production path**:
+`serviceLookupWhereClause` has exactly two references in the tree, its own
+declaration and `service_context_endpoint_test.go:107`. Live count is 26.
+
+**A verified negative:** `go/internal/mcp/` contains no workload-id-anchored
+Cypher at all. Its citations elsewhere in this document are argument
+normalisation, not graph reads.
+
+#### Anchors composed at runtime, invisible to the criterion
+
+The criterion is a literal search, and these are assembled at run time, so no
+count covers them. They are rows because each needs its own decision:
+
+| Shape | Where | Note |
+| --- | --- | --- |
+| Property name from a Go variable | `go/internal/query/impact_change_surface_resolvers.go:113,131,142`, callers at `:29,32,41,42,80,83,88,93` | Builders carry no literal `id`; call sites carry no `$`. Neither end matches. |
+| Label, variable and parameter all dynamic | `go/internal/query/impact_anchor_resolve.go:31,46-48` | **A generator, not a site** — it emits one anchor per label per property, and `Workload`/`WorkloadInstance` are in the label list. There is no count to state. |
+| Label-less `impacted.id <> $target_id` | `go/internal/query/impact_change_surface_traversal.go:18,34,42`, `impact_change_surface_legacy.go:126` | Each has a surrounding label predicate naming `Workload` and `WorkloadInstance`. |
+| Label-less by-id anchors that can resolve a Workload | `go/internal/query/infra_relationship_filter.go:88`, `go/internal/query/entity.go:283` | `MATCH (n) WHERE n.id = $entity_id` and similar. |
+
+So there is no single honest number for this category. "27 statically greppable
+sites at `bdd4f6768`, plus the runtime-composed anchors above, one of which is a
+generator" is the accurate statement, and saying so is stronger than picking one.
+
+### 4.5 Reads that prefix-parse or decompose the identifier
+
+Small enough to list, and the members are **not** homogeneous — a `HasPrefix`
+test, a first-colon cut and an idempotent re-prefix each break differently — so
+this is rows rather than a criterion. Enumerated by hand across `go/`.
+
+| Site | Shape |
+| --- | --- |
+| `go/internal/query/catalog.go:213` | **Both** a parse and a construct: an idempotent re-prefix, `"workload:" + TrimPrefix(name, "workload:")`. |
+| `go/internal/query/catalog.go:214,332` | Pure parses. |
+| `go/internal/query/impact_change_surface_resolvers.go:102-108` | Construct guarded by a prefix test at `:104`; the construct itself is at `:107`. |
+| `go/internal/query/entity_workload_context.go:280,286` | Prefix parses. (`:261` is a construction — see 4.1.) |
+| `go/internal/query/repository_read_model_summary.go:114` | Prefix parse. |
+| `go/internal/query/content_reader_repository_catalog.go:107` | Prefix parse. |
+| `go/internal/query/service_workload_resolution.go:137` | `HasPrefix(selector.ServiceName, "workload:")` gates whether an id-equality read fires at all — so it breaks twice over. |
+| `go/internal/query/supply_chain_impact_path.go:145` | Prefix parse. |
+| `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse. |
+| `go/internal/mcp/dispatch_args.go:61-66` | Cuts at the **first** colon, which is a different break from a `HasPrefix` test: a three-part id becomes `<repo_id>:<name>`. |
+| `apps/console/src/api/impactDeploymentGraph.ts:453` | `startsWith("workload-instance:")`. Outside `go/`, which the enumeration above does not cover. |
+
+**Construct and parse are not disjoint** — `catalog.go:213` and
+`impact_change_surface_resolvers.go:102-108` are both — which is one more reason
+this could not have been fixed by adding rows to a flat "parse sites" list. Three
+sites an earlier revision filed here are constructions and now live in 4.1.
+
+`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep
+working — **but do not skip that file on the strength of this line.** Its
+`workload_instance` case at `:70-75` emits two further resolvers, anchored on
+`id` and on `workload_id`, and both break under the re-key. See migration item 4.
+
+Nothing decomposes a `workload-instance:<name>:<env>` identifier back into its
+name and environment. That strict negative holds and is a verified one rather
+than an unsearched gap — but the search covered `go/` only, and the console does
+test the prefix:
+`apps/console/src/api/impactDeploymentGraph.ts:453` is
+`if (id.startsWith("instance:") || id.startsWith("workload-instance:")) return "instance";`,
+which this document files as a parse site elsewhere. A re-key that keeps the
+prefix leaves it working; one that changes the prefix does not.
+
+This inventory is larger than it first appeared and should still be treated as a
+starting point. **The `reducer_workload_identity` subsystem in particular needs a
+decision before implementation** (section 8, question 3), because it is the
+documented fallback for exactly the scenario in section 2 and carries its own
+identity scheme: the fact is written by `workload_identity_writer.go` into
+`entity_keys`, a JSON array. The repo-basename key belongs to a *different* fact,
+`shared_followup` from `git_followup_facts.go` — see the two bullets above.
 
 ### 4.6 Derived keys that embed the identifier
 
