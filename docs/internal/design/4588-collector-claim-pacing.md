@@ -225,24 +225,50 @@ rows at `t=1s`, so the burst key's head *is* the global-oldest on every claim; i
 drains first and the small keys still wait ~25 s. That reproduces the exact
 defect this design exists to fix.
 
-The rotation has to be structural. Breadth-first by per-key rank does it, and
-does it without any per-key claim-history state, which is what section 6 clause 3
-forbids:
+The first replacement I proposed for it was **also wrong, and measurably so.**
+That attempt was `ORDER BY row_number() OVER (PARTITION BY fairness_key ORDER BY
+COALESCE(visible_at, created_at)), …`, on the reasoning that per-key rank gives
+every key a head before any key gets a second item.
 
-```sql
-ORDER BY row_number() OVER (
-             PARTITION BY fairness_key
-             ORDER BY COALESCE(visible_at, created_at)),
-         COALESCE(visible_at, created_at), work_item_id
-```
+It does not, and the reason is that the claim statement re-evaluates the whole
+expression on every call over whatever is *currently* `pending`
+(`go/internal/storage/postgres/workflow_control_sql.go:64-77`). Let `r*` be the
+globally-oldest pending row. Its age is minimal over *all* pending rows, so it is
+certainly minimal within its own partition — meaning `r*` is **rank 1 in its own
+key on every single evaluation**. Ordering by `(rank, age, id)` therefore always
+returns `r*`, which is exactly what plain FIFO returns. The window function
+cannot discriminate, because claimed rows vacate their rank slot rather than
+leaving a gap.
 
-Every key gets its first item before any key gets its second. Rank is computed
-from the rows themselves, so nothing records how often a key has claimed or how
-recently — the invariant survives.
+Measured, rather than argued, on PostgreSQL 16.15 with the section 3 skew shape —
+3,000 rows on one key at `t=0`, 25 each on four keys at `t=1s`, claiming 40 times
+and marking each claimed:
 
-This is still the same fairness idea the scheduler applies one level up, but the
-mechanism is a rank, not an age comparison, and the difference is the whole
-result.
+| Ordering | Claims to burst key | Claims to the four small keys |
+| --- | ---: | ---: |
+| `row_number()` recomputed per claim | **40** | **0** |
+| Fixed per-key sequence, assigned at enqueue | 8 | 8 / 8 / 8 / 8 |
+
+The first row is the defect this design exists to fix, reproduced exactly by its
+own proposed cure.
+
+**What does work is a rank that does not move.** Give each row a per-key sequence
+number at enqueue and order by it: because the position is fixed rather than
+recomputed, a claimed row's slot does *not* collapse, so the next claim at that
+rank level goes to a different key. The measured pick order rotates —
+`burst → small2 → small3 → small4 → small1 → burst → …`.
+
+**Two things must be settled before this is a recommendation rather than a
+candidate.** First, whether a persisted per-key sequence is compatible with
+clause 3 in section 6. It is assigned at enqueue from arrival order, before any
+claim exists, and it never excludes an eligible key's head — but as a key drains,
+its remaining rows carry higher sequence numbers, so the *effect* correlates with
+how much that key has already claimed. Whether that counts as depending on "the
+key's own claim history" is a real question about the invariant's intent, not a
+rhetorical one, and it belongs to whoever builds this. Second, the cost: it adds
+a column, an assignment at enqueue, and an index, none of which this document has
+priced.
+
 
 Measured at 50,100 pending using a loose index scan over distinct keys plus a
 lateral head per key — row C above, median **0.179 ms**:
@@ -264,9 +290,15 @@ head in the candidate set on every claim, so no key can be passed over
 indefinitely. That is a property of the query shape, not of a tuning parameter,
 which is what makes it worth preferring.
 
-**What is measured and what is not.** The 0.179 ms above is per-claim SQL cost at
-50,100 pending. It is *not* time-to-first-claim under skew, and this design does
-not measure the tail latency of the rank-based ordering at all — the 25.26 s
+**What is measured and what is not.** The 0.179 ms above was measured for a loose
+index scan over distinct keys with a lateral head per key — **not** for either
+ordering discussed above, and it must not be carried over to them. A window
+function in the outer `ORDER BY` generally forces the eligible backlog to be
+materialised and sorted before it can be ranked, which is the Seq-Scan-plus-sort
+shape section 4 measured at 10.8 ms, not 0.179 ms. Whatever mechanism is finally
+chosen needs its own `EXPLAIN ANALYZE`. The figure is *not* time-to-first-claim
+under skew either, and this design does not measure the tail latency of any
+proposed ordering — the 25.26 s
 figure in section 3 is the shipped FIFO behaviour. **Implementation must report
 small-key time-to-first-claim for the rank shape under the section 3 skew
 workload before the ORDER BY change is accepted.** Without it, the claim that
@@ -541,7 +573,14 @@ the priority contract intact — without it, putting fairness ahead of `created_
 reverses the `package_registry`/`vulnerability_intelligence` ordering the owner
 named as a constraint. Section 10 carries the detail.
 
-**Step 3 — make `fairness_key` load-bearing in the ORDER BY.** Head-of-key
+**Step 3 — make `fairness_key` load-bearing in the ORDER BY.** **The ordering
+for this step is not settled.** Two candidate expressions have been written into
+this document and both were wrong: age-among-per-key-heads is FIFO, and a
+recomputed `row_number()` is a measured no-op (section 5). A fixed per-key
+sequence assigned at enqueue does rotate, measured, but carries an unpriced
+schema cost and an unresolved question about clause 3. **Do not implement this
+step until an ordering is chosen and measured for both rotation and plan cost.**
+Head-of-key
 selection, supporting index, the section 7 telemetry, and the section 6 table
 including the work-conserving counter.
 
@@ -602,6 +641,29 @@ the durable finding and did not vary at all.
 Environment: Apple M4 Pro, 12 logical CPUs, 64 GiB, PostgreSQL 18.4 (aarch64) in
 Docker with no CPU or memory limit. Contributor-class hardware, not the reference
 profile; no absolute target is claimed from it.
+
+## 8a. Status of the recommendation
+
+**Option B's mechanism is unresolved, and the recommendation is weaker than the
+rest of this document.**
+
+What survives unchanged: the measured starvation in section 3, the claim-path
+index defect in section 4, the anti-serialization test in section 6, the
+telemetry in section 7, and the whole of section 10's decision record. Step 1 —
+indexing the claim path — is still a real, provable, standalone improvement.
+
+What does not survive: the specific ORDER BY that makes fairness load-bearing.
+Three formulations have now been proposed here. The first was age-based selection
+described as rotation. The second, a recomputed `row_number()`, is mathematically
+identical to FIFO and was measured claiming 40 of 40 items from the burst key.
+The third, a fixed per-key sequence, rotates in measurement but changes the
+schema and raises a genuine question about the invariant in section 6.
+
+I am recording this rather than quietly substituting a fourth candidate, because
+the pattern across all three is the same: a plausible ordering expression, an
+argument for why it rotates, and no measurement of whether it actually does. The
+next proposal should arrive with its rotation measured and its plan explained,
+not with a better argument.
 
 ## 9. Sign-off request
 
