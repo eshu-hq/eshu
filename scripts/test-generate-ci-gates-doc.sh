@@ -198,6 +198,29 @@ else
 	record_fail "check_names gate rendered the job key or dropped the concrete names: ${checknames_row}"
 fi
 
+# Case 13c: the in_check_names guard. Case 13b only exercises the OPEN path --
+# its fixture puts check_names: last under ci:, which is also true of all three
+# real gates that declare it today, so every CLOSE path in the parser is dead
+# input and deleting one keeps 13b green. Mutation testing found exactly that.
+# This fixture closes it from both sides: gate 1 has another 6-space ci key
+# carrying an 8-space list AFTER check_names (its item must not be absorbed),
+# and gate 2 declares check_names of its own (it must not inherit gate 1's).
+guard_registry="${tmp_root}/check-names-guard-registry.yaml"
+printf 'version: v1\ngates:\n  - id: guardone\n    name: Guard One\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo one"\n    ci:\n      workflow: guard.yml\n      check_names:\n        - "guardone (shard 1/1)"\n      other_list:\n        - "NOT_A_CHECK_NAME"\n  - id: guardtwo\n    name: Guard Two\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo two"\n    ci:\n      workflow: guard.yml\n      check_names:\n        - "guardtwo (only)"\n' >"${guard_registry}"
+guard_rows="$(awk -f "${parser}" "${guard_registry}")"
+guard_one_row="$(printf '%s\n' "${guard_rows}" | rg -F '`guardone`')"
+guard_two_row="$(printf '%s\n' "${guard_rows}" | rg -F '`guardtwo`')"
+if printf '%s' "${guard_one_row}" | rg -Fq 'guardone (shard 1/1)' \
+	&& ! printf '%s' "${guard_one_row}" | rg -Fq 'NOT_A_CHECK_NAME' \
+	&& printf '%s' "${guard_two_row}" | rg -Fq 'guardtwo (only)' \
+	&& ! printf '%s' "${guard_two_row}" | rg -Fq 'guardone'; then
+	record_pass "the in_check_names guard closes on the next ci key and per gate record"
+else
+	record_fail "check_names guard absorbed a foreign list item or leaked across gates:
+  gate one: ${guard_one_row}
+  gate two: ${guard_two_row}"
+fi
+
 # Case 14: a gate with a real self-test but NO primary local.command and no
 # ci_only_reason (a permanently local-only gate whose enforcement mechanism
 # cannot be a `local.command` at all -- prepr-stamp-verify-selftest, whose

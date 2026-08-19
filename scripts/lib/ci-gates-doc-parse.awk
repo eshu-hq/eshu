@@ -228,7 +228,16 @@ section == "ci" && /^      job: / && have_record {
 # on the 8-space indent alone: indent alone is true of every 8-space list item
 # in the ci section, and today check_names is the only such sequence, so a
 # future nested list under `ci:` would silently be read as check names. The flag
-# is set by the key and cleared by the next 6-space key or by reset_record().
+# is set by the key. What CLOSES it, in the order a line hits these rules: the
+# workflow:/job: rules below clear it themselves (they `next`, so they never
+# reach the generic 6-space rule), the generic 6-space ci-key rule clears it and
+# deliberately does NOT `next`, and the 4-space-key rule that ends the whole ci
+# section clears it too -- that last one is what separates one gate record from
+# the next, since every gate opens with 4-space keys. reset_record()'s clear is
+# belt-and-braces on top of that and is NOT load-bearing: a mutation removing it
+# alone changes no output, which is why the guard case in
+# scripts/test-generate-ci-gates-doc.sh pins the item-rule guard and the
+# cross-gate behaviour rather than claiming to cover all four.
 section == "ci" && /^      check_names:/ && have_record {
 	in_check_names = 1
 	next

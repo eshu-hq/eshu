@@ -40,8 +40,5 @@ IFA_FAMILY_CELL_KIND[deployable_unit_edges]="custom"
 IFA_FAMILY_CASSETTE_VAR[deployable_unit_edges]="deployable_unit_cassette"
 IFA_FAMILY_EXPECTED_VAR[deployable_unit_edges]="deployable_unit_expected_edges"
 
-# ifa_fault_injection_deployable_unit_cells.sh:261. Kept on its own
-# already-proven cell per the scoping call above.
-# ifa_fault_injection_deployable_unit_cells.sh:374.
 
 IFA_FAMILY_NAMES+=(deployable_unit_edges)

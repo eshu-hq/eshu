@@ -221,6 +221,10 @@ check_performance_evidence_trigger_parity
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
 check_docs_cli_env_refs_trigger_parity
 
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
+run_ci_gates_registry_ifa_filter_cases
+
 # The number of gates that trigger on every path ("**"). Derived by asking the
 # selector what a path no surface gate matches selects, rather than hardcoding
 # it: this file previously assumed exactly one such gate (the AI-attribution
@@ -450,22 +454,6 @@ require "selected gate matrix" \
 	"${static_contract_workflow}"
 require "empty-selection job guard" \
 	"needs.changes.outputs.any == 'true'" \
-	"${static_contract_workflow}"
-require "Ifa workflow filter" \
-	"ifa:" \
-	"${static_contract_workflow}"
-require "Ifa workflow path filter" \
-	"go/internal/ifa/**" \
-	"${static_contract_workflow}"
-# The reducer leg is part of the pinned text on purpose. The registry's
-# local.command for ifa-materialized-edge-coverage runs it, and the Go
-# blocker-shape lockstep this gate's triggers exist for lives in that package --
-# the CI job ran without it until #6147, so the gate's own comment claiming the
-# triggers protected that lockstep in CI was false. Pinning the whole command
-# keeps local and CI reading the same thing; dropping the leg here again should
-# fail loudly.
-require "Ifa workflow matrix entry" \
-	'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"' \
 	"${static_contract_workflow}"
 
 # #4263 workflow shape: Build Test must expose separately timed verdict

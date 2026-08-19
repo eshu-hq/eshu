@@ -215,11 +215,18 @@ what does not.
 | Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
 | Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
 
-Line-cap headroom is the constraint that will bite first. Two files grow per
-family and both sit close to the hard 500-line limit: the fault gate itself
-(two dispatch lines plus this file's convention of a rationale comment) and
-`materialized_edge_family_blocker_shape_test.go` (an expectations entry plus
-its citation). When either runs out, extract — move a self-contained block of
+Line-cap headroom is the constraint that will bite first. Several files grow per
+family and sit close to the hard 500-line limit — as of this writing
+`scripts/test-verify-ci-gates-registry.sh` (497), the Go
+`materialized_edge_family_blocker_shape_test.go` (495),
+`scripts/test-verify-ifa-fault-injection.sh` (492, which gains a `source` and a
+`run_*` call per new case module), and the fault gate itself (487, two dispatch
+lines plus this file's convention of a rationale comment). Check the real counts
+before adding to any of them rather than trusting this list, which ages.
+Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
+`go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
+Go-only, so for every shell file above the limit is policy and nothing will stop
+you crossing it. When either runs out, extract — move a self-contained block of
 rationale to the library it actually documents, the way the `cell_failgraphwrite_sql`
 history and the deployable-unit ordering note were moved. Do not trim comments
 to fit; the rationale in these files is what lets a reviewer catch a cell whose
@@ -229,9 +236,14 @@ so the Go file's limit is policy, not a gate — nothing will stop you.
 
 Not enforced by any gate — get these right by hand:
 
-- **`IFA_FAMILY_RETRY_BASELINE_VAR`.** A `shared_intent_lock` family without it
-  now dies rather than passing, but nothing tells you the row is missing until
-  the cell runs. It is not one of the pinned fields.
+- **`IFA_FAMILY_RETRY_BASELINE_VAR` and `IFA_FAMILY_HANDLER_GO_FILE`.** Both are
+  `shared_intent_lock`-only rows, both are read only at live-run time, and
+  neither is one of the pinned fields. A family missing either one dies rather
+  than passing — but it dies part-way into a four-shard CI run, not statically,
+  which is the expensive place to find out. `handler_go_file` has exactly one
+  consumer, `_ifa_generic_require_intent_writer`; the Go blocker lockstep does
+  not read it (it reflects on the real handler struct instead, which is a
+  stronger check of a different property).
 - **Triggers for the family's own new lib files.** The sourced-to-triggered
   drift walk only resolves a `source` line whose literal text contains
   `scripts/`; anything sourced through a variable is invisible to it, so a new

@@ -42,15 +42,17 @@ test_ifa_fault_shard_cases_fail() {
 }
 
 run_ifa_fault_injection_shard_cases() {
-	local repo_root script shard_lib workflow
+	local repo_root script shard_lib workflow registry
 	repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 	shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 	workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
+	registry="${repo_root}/specs/ci-gates.v1.yaml"
 
 	[[ -f "${script}" ]] || test_ifa_fault_shard_cases_fail "missing ${script}"
 	[[ -f "${shard_lib}" ]] || test_ifa_fault_shard_cases_fail "missing ${shard_lib}"
 	[[ -f "${workflow}" ]] || test_ifa_fault_shard_cases_fail "missing ${workflow}"
+	[[ -f "${registry}" ]] || test_ifa_fault_shard_cases_fail "missing ${registry}"
 	bash -n "${script}" || test_ifa_fault_shard_cases_fail "verify-ifa-fault-injection.sh has a syntax error"
 	bash -n "${shard_lib}" || test_ifa_fault_shard_cases_fail "ifa_fault_shard.sh has a syntax error"
 
@@ -279,6 +281,33 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	IFS=',' read -ra matrix_shard_items <<<"${matrix_shard_raw}"
 	[[ "${#matrix_shard_items[@]}" -eq "${n}" ]] \
 		|| test_ifa_fault_shard_cases_fail "workflow matrix.shard has ${#matrix_shard_items[@]} entries but IFA_FAULT_SHARD_DEFAULT_N=${n} -- keep them in lockstep or CI silently drops a shard's cells"
+
+	# CHECK_NAMES CARDINALITY PIN. The matrix pin above binds the workflow to
+	# IFA_FAULT_SHARD_DEFAULT_N; it says nothing about specs/ci-gates.v1.yaml's
+	# ci.check_names, and until this assert existed nothing did.
+	# internal/cigates/drift.go validates check_names as a SUBSET of the
+	# concrete matrix names, so removing a shard is caught (a listed name the
+	# matrix no longer produces) while ADDING one is not: the four listed names
+	# stay a valid subset and the fifth shard's check belongs to no gate. A
+	# check belonging to no gate is invisible to required-gates-complete, which
+	# is the same consequence the registry comment spells out for an empty
+	# check_names -- a red shard nobody waits on.
+	#
+	# Both halves are asserted: the COUNT must equal n, and every entry must end
+	# in "/n)" so a 5-shard matrix cannot be satisfied by four stale "/4"
+	# strings that happen to number four.
+	local registry_gate_block check_names_count
+	registry_gate_block="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id: /p' "${registry}")"
+	[[ -n "${registry_gate_block}" ]] \
+		|| test_ifa_fault_shard_cases_fail "could not find the ifa-fault-injection gate block in ${registry##*/}"
+	check_names_count="$(printf '%s\n' "${registry_gate_block}" \
+		| rg --count --only-matching -- '^        - "fault-injection \(shard [0-9]+/[0-9]+\)"$' || true)"
+	[[ "${check_names_count}" == "${n}" ]] \
+		|| test_ifa_fault_shard_cases_fail "ifa-fault-injection declares ${check_names_count:-0} ci.check_names entries but IFA_FAULT_SHARD_DEFAULT_N=${n} -- a shard whose check name is unlisted belongs to no gate, so a red shard is invisible to required-gates-complete"
+	printf '%s\n' "${registry_gate_block}" \
+		| rg --count --only-matching -- "^        - \"fault-injection \(shard [0-9]+/${n}\)\"\$" \
+		| rg --quiet --line-regexp -- "${n}" \
+		|| test_ifa_fault_shard_cases_fail "ifa-fault-injection's ci.check_names do not all carry the /${n} denominator -- stale names can keep the right COUNT while naming checks the matrix no longer emits"
 
 	# Invalid --shard input must fail loudly with exit 2 (never a silent
 	# fallback, never exit 0/1, which would read as either "ran everything"

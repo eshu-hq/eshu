@@ -44,7 +44,7 @@
 # The handler struct carries no IntentWriter -- only FactLoader, EdgeWriter,
 # PriorGenerationCheck, Instruments -- so it never writes
 # shared_projection_intents at all. Locking that table (what this file used to
-# do, copied from ifa_code_call_start_intent_lock) blocks nothing here: the
+# do, copied from the code_calls family) blocks nothing here: the
 # code_call sibling's FIRST-stage handler genuinely does write it via
 # CodeCallIntentWriter (go/cmd/reducer/main.go:241), which is why the technique
 # is true there and false here. That is the whole defect -- a mechanism claim
@@ -67,7 +67,7 @@
 # ifa_codeowners_start_fact_records_lock holds an ACCESS EXCLUSIVE lock on
 # fact_records so the codeowners_ownership handler blocks on its FIRST
 # synchronous read -- the fact load -- while its fact_work_items claim is
-# already held. It does NOT mirror ifa_code_call_start_intent_lock's table
+# already held. It does NOT mirror the code_calls family's table
 # choice: that sibling locks shared_projection_intents because its first-stage
 # handler writes it, and this handler never does (see the header). The claim,
 # heartbeat, and ack path never reads fact_records, so the row stays claimed

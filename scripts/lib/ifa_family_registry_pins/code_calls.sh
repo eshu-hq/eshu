@@ -28,7 +28,7 @@ IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"
 
 # go/internal/storage/cypher/canonical_code_call_edges.go:67-75
 # (batchCanonicalCodeCallUpsertCypher) is the live CALLS write template;
-# canonical.go:99-109's single-row canonicalCodeCallUpsertCypher is
+# canonical.go:121-126's single-row canonicalCodeCallUpsertCypher is
 # explicitly commented "legacy... has no production caller" at that same
 # file, so it is not the source of truth despite sharing the same MERGE
 # text. anchor (matches the registry row's own literal --

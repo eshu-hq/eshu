@@ -15,14 +15,15 @@
 # handler is architecturally CAPABLE of a shared_intent_lock the same way
 # code_calls/rationale_edges are -- but the family's actual fault-injection
 # kill cell does not use that mechanism. Read directly (not taken from the
-# registry): scripts/lib/ifa_fault_injection_sql_cells.sh:44-80
+# registry): scripts/lib/ifa_fault_injection_sql_cells.sh:86 (cell_killworker_sql)
 # (cell_killworker_sql) calls ifa_fault_wait_for_claimed against fact_work_items
 # domain "sql_relationship_materialization"
 # (go/internal/reducer/intent.go:55 DomainSQLRelationshipMaterialization
 # Domain = "sql_relationship_materialization" -- handler stage), then kills
 # the reducer directly with NO lock acquisition anywhere in the function --
 # no call to ifa_fault_start_shared_intent_lock or any other blocker helper
-# appears in that file. The function's own header comment (lines 56-63)
+# appears in that file. The function's own header comment (:66-85, the quote
+# below at :78)
 # states this plainly: "What it does NOT prove: that the kill landed
 # mid-handler, [...] the restart exercises an already-finished unit;" a
 # SEPARATE cell, cell_failgraphwrite_sql (anchored to the QUERIES_TABLE
@@ -35,7 +36,7 @@ IFA_FAMILY_PIN_BLOCKER_KIND="none"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="sql_relationship_materialization"
 
-# go/internal/storage/cypher/canonical.go:159-167
+# go/internal/storage/cypher/canonical.go:183-189
 # (batchCanonicalSQLQueriesTableUpsertCypher) is the SQL-relationship
 # family's QUERIES_TABLE write template (one of nine edge types the family
 # materializes, per ifa_family_fixtures.sh's header comment, but the one

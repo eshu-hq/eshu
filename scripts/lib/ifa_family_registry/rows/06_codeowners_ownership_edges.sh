@@ -29,12 +29,21 @@
 # takes the second, because that is what the cell actually engages.
 IFA_FAMILY_BLOCKER_KIND[codeowners_ownership_edges]="table_lock:fact_records"
 IFA_FAMILY_WAIT_STAGE[codeowners_ownership_edges]="handler"
-# ifa_fault_injection_codeowners_cells.sh:123: (..., "codeowners_ownership")
-# -- the FIRST-stage domain (reducer.DomainCodeownersOwnership). The
-# SECOND-stage shared-projection domain is the different string
-# "codeowners_ownership_edges" (reducer.DomainCodeownersOwnershipEdges, per
-# that file's own two-stage-pipeline comment, :35-50) -- do not confuse the
-# two if this family ever adds a wait_stage=runner cell.
+# ifa_fault_injection_codeowners_cells.sh:187 and :203 scope
+# ifa_fault_wait_for_claimed to "codeowners_ownership"
+# (reducer.DomainCodeownersOwnership).
+#
+# This family is SINGLE-STAGE, and an earlier version of this comment said the
+# opposite. It described "codeowners_ownership_edges" as a second, shared-
+# projection queue stage and warned the reader not to confuse the two "if this
+# family ever adds a wait_stage=runner cell" -- an invitation to build a runner
+# cell for a family that has no runner stage, which is how a mechanism claim
+# borrowed from a sibling family becomes a real defect (#5992's own history).
+# The cited header says so plainly at :29-32 and :41-42:
+# DomainCodeownersOwnershipEdges is a ProjectionDomain LABEL on the rows, not a
+# queue stage, and the handler's EdgeWriter is bound to a direct graph writer
+# (go/cmd/reducer/main.go:265 -> endpoint_presence_wiring.go:82-95). There is no
+# second stage to wait on.
 IFA_FAMILY_WAIT_KEY[codeowners_ownership_edges]="codeowners_ownership"
 # Driven in the determinism gate's shared N={1,2,4} cell as of #6160, which
 # landed this family's cassette + expected-edge entries in
@@ -90,6 +99,12 @@ IFA_FAMILY_CELL_KIND[codeowners_ownership_edges]="custom"
 # own their baseline (baseline_codeowners_retried, set by
 # cell_baseline_codeowners) and the generic precondition never runs for it.
 
+# Recorded even though nothing reads it for this family: handler_go_file is
+# consumed only by _ifa_generic_require_intent_writer, which runs for
+# shared_intent_lock + generic families, and this one is table_lock:fact_records
+# + custom. Kept because it is the file every other field here is derived from,
+# and because a family that later moves to generic dispatch needs it present
+# rather than remembered. Not dead by accident -- dead on purpose, said out loud.
 IFA_FAMILY_HANDLER_GO_FILE[codeowners_ownership_edges]="go/internal/reducer/codeowners_ownership_materialization.go"
 
 IFA_FAMILY_NAMES+=(codeowners_ownership_edges)
