@@ -11,6 +11,7 @@
 # ESHU_CI_APT_RIPGREP_URL (curl fetches file:// URLs locally, no network
 # needed), and the apt-path cases use ESHU_CI_APT_SKIP_INSTALL /
 # ESHU_CI_APT_NO_SUDO so apt-get and sudo are never invoked.
+# shellcheck disable=SC1091,SC2154  # helpers and tmp_root come from the lib sourced below; `shellcheck -x` is clean.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
