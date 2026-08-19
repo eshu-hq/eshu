@@ -52,6 +52,33 @@ The conformance pair runs the complete production statement rather than stopping
 at the first divergence, because a case truncated at the first bug goes green as
 soon as that bug is fixed while the query stays broken on a later clause.
 
+## Running it
+
+The pair is **opt-in**, behind `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW`, and off by
+default it is absent from the corpora entirely rather than present-and-skipped.
+
+```
+ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1 ESHU_BACKEND_CONFORMANCE_LIVE=1 \
+  ESHU_GRAPH_BACKEND=nornicdb go test ./internal/backendconformance -run Live
+```
+
+It is opt-in because it fails against NornicDB **by design** — that is what it is
+for — and the live-conformance gate blocks merges. Left in the default corpora it
+would red-line every unrelated change in the repo until upstream lands a fix,
+which is a heavy toll for a defect already documented in six upstream issues and
+in this note.
+
+Nothing about the pair is weakened by the gate. Measured both ways against a live
+pinned NornicDB:
+
+| | Exit | Case |
+| --- | ---: | --- |
+| opt-in unset | 0 | not run |
+| opt-in set | 1 | `read case "value-flow cloud sink aggregation and subscript projection" returned 0 rows, want at least 1` |
+
+Run it to check whether upstream has landed a fix: the day it exits 0 with the
+opt-in set, the defects are gone and the gate can come off.
+
 No-Regression Evidence: the cases are data appended to `DefaultReadCorpus` and
 `DefaultWriteCorpus`. They are evaluated only under the existing
 `ESHU_BACKEND_CONFORMANCE_LIVE` opt-in, so the default test path does no
