@@ -520,8 +520,78 @@ retracted and rebuilt rather than rewritten in place.
    The `repo`/`environment` narrowing arguments those surfaces already accept
    become mandatory for collision names.
 6. **Decide the `reducer_workload_identity` question** (section 8, question 3).
-7. **Add the collision counter that does not exist.** Nothing today reports two
-   candidates contending for one identity.
+7. **Add the collision counter that does not exist**, and build it *with* the
+   re-key rather than ahead of it. Nothing today reports two candidates
+   contending for one identity.
+
+   Placement matters more than it looks. Beside the `seenWorkloads` dedup
+   (`projection.go:289`) the counter would be **blind to the case that matters**:
+   that map is created per call (`:253`) and `BuildProjectionRowsWithInfrastructurePlatforms`
+   has exactly one caller, inside `Handle()` (`workload_materialization_handler.go:216`),
+   so two repositories arrive as two separate calls and never share a map
+   instance. A counter there reads zero forever while a real cross-repo collision
+   fires. The valid detector is graph-side — workloads with more than one
+   `DEFINES` edge — and section 3.1 has already run it: zero. So the counter is
+   not decision-support, it is a **regression guard**: after the re-key, two
+   repositories defining one workload should be structurally impossible, and a
+   counter that ever fires means the key leaked.
+
+## 6a. What holds a `workload:<name>` identifier, measured
+
+This was an open question. It is answered, and the answer is the largest cost in
+section 7: **these identifiers are a public contract, in three tiers that fail
+differently.**
+
+**Tier 1 — loud, and alias-fixable.** `workload_id` is a path parameter on
+`/api/v0/workloads/{workload_id}/context` and `/story`
+(`openapi_paths_entities.go:107,134`; handler matches `w.id` exactly at
+`entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
+`POST /api/v0/compare/environments` (`compare.go:35,64`, `MATCH (w:Workload) WHERE
+w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
+containing `:` (`cli/opdigest/digest.go:91,244`), so `workload:<repo_id>:<name>`
+would be unusable for `eshu report --scope` until that parser changes. These break
+visibly, which is the right behaviour for a contract in transition.
+
+**Tier 2 — silent, alias-fixable with work.** The impact resolver tries id, then a
+`workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:82-108`),
+so a stored prefixed handle matches none of the three after a re-key and resolves
+empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
+(`dispatch_args.go:54-59`), turning a three-part id into `<repo_id>:<name>`.
+Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres
+(`storage/postgres/eshu_search_index.go:216,300-312`) and stay stale until
+reindexed. The catalog read model *synthesizes* graph-shaped ids from the
+separate `reducer_workload_identity` scheme (`catalog.go:213`), so the Console is
+handed ids that would 404 against `/workloads/{id}/context`.
+
+**Tier 3 — silent, and NOT alias-fixable.** `workload_id`/`workload_ids` are
+documented in the published SDK fact schema as **provider-asserted** values that
+out-of-tree collectors emit (`sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`;
+`servicecatalog/v1/repository_link.go:72` — "a provider-asserted Eshu workload
+id"). They reach an exact match in
+`workload_cloud_relationship_writer.go:20`:
+
+```cypher
+MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)
+```
+
+A `MATCH` that misses is a silent no-op — the `USES` edge simply is not written.
+**A read-side alias layer cannot cover this**, because the data originates outside
+the repository from collectors written against a published contract. It needs a
+reducer-side resolution step, and the ambiguity path it would use already exists
+(`ambiguous_anchor`, `workload_cloud_relationship_materialization.go:306-308`).
+
+**And users hold these handles.** Public docs give copyable examples with the
+prefix spelled out — `GET /api/v0/workloads/workload:payments-api/context`
+(`docs/public/guides/shared-infra-trace.md:47,53`),
+`{workload_id: "workload:api-svc"}` (`getting-started/first-five-questions.md:67`),
+and `catalog-workload-selection.md:57` tells readers that pasted `workload:...`
+handles "remain canonical". The Console builds ids from names and puts them in
+bookmarkable URLs (`/workspace/services/<id>`), and prompts operators to paste
+`workload:…` directly.
+
+Migration must therefore add, beyond section 6: a read-side resolution layer for
+tiers 1 and 2 that fails closed on an ambiguous legacy name, a reducer-side
+resolution step for tier 3, a search reindex, and doc updates in lockstep.
 
 **Compatibility:** any consumer holding a stored `workload:<name>` identifier —
 saved query, dashboard, external API caller — breaks.
@@ -553,7 +623,7 @@ impact.
 | Golden regeneration | 46 literals across the snapshot and one cassette. |
 | Retract/rebuild proof | Live replay-tier retract coverage per edge family. Moderate. |
 | Collision telemetry | Small. |
-| Consumer breakage | Unknown until question 2 is answered. |
+| Consumer breakage | **The largest item.** Public API path/body params, MCP selectors, the Console's bookmarkable URLs, persisted search handles, and provider-asserted ids in the SDK fact contract. Section 6a. |
 
 ## 8. Open questions
 
@@ -565,24 +635,16 @@ impact.
    and goes silently false under deployment keying. This is presented as a
    recommendation rather than a decision: it is the one answer the whole design
    rests on, so it should be confirmed rather than assumed.
-2. **Do stored `workload:<name>` identifiers exist outside the graph** — saved
-   queries, dashboards, external callers?
+2. **Do stored `workload:<name>` identifiers exist outside the graph?**
+   **Answered: yes, on every axis — this is a public contract break, not an
+   internal refactor.** See section 6a. No decision needed; the cost is now
+   known and is the largest line item in section 7.
 3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?** It is
    keyed on repo basename, is the documented fallback for an unmaterialized
    workload, and a graph-only re-key leaves the two schemes disagreeing.
 4. **Now or later for the re-key?** Section 7 gives both cases. There is no
    separable timing decision beside it: the RUNS_ON scoping fix needs the
    identity answer, so it rides with the re-key either way.
-5. **Where does the collision counter belong?** Not before the re-key. Placed the
-   obvious way — beside the `seenWorkloads` dedup at `projection.go:289` — it
-   would be blind to the case that matters, because that map is created per
-   `Handle()` call and the cross-repo collision happens across separate calls. A
-   counter there would read zero forever while the real thing fired. The valid
-   detector is graph-side (workloads with more than one `DEFINES` edge), and
-   section 3.1 has already run it: zero. So the counter is not decision-support,
-   it is a **regression guard** — after the re-key, two repositories defining one
-   workload should be structurally impossible, and a counter that ever fires
-   means the key leaked. Build it with the re-key, not ahead of it.
 
 ## 9. Sign-off request
 
