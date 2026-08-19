@@ -54,7 +54,7 @@ type CaseResult struct {
 // DefaultReadCorpus returns the deterministic read corpus used as the common
 // graph-query adapter smoke for Chunk 5 backend conformance.
 func DefaultReadCorpus() []ReadCase {
-	return []ReadCase{
+	return append([]ReadCase{
 		{
 			Name:       "direct repository read",
 			Capability: CapabilityDirectGraphReads,
@@ -100,13 +100,13 @@ RETURN contains_count, file_count, entity_count`,
 			},
 			MinRows: 1,
 		},
-	}
+	}, valueFlowReadCases()...)
 }
 
 // DefaultWriteCorpus returns the deterministic write corpus used as the common
 // Cypher executor smoke for Chunk 5 backend conformance.
 func DefaultWriteCorpus() []WriteCase {
-	return []WriteCase{
+	return append([]WriteCase{
 		{
 			Name:       "canonical repository upsert",
 			Capability: CapabilityCanonicalWrites,
@@ -239,7 +239,7 @@ SET rel.evidence_source = 'projector/canonical',
 				},
 			},
 		},
-	}
+	}, valueFlowWriteCases()...)
 }
 
 // backendConformanceContainmentParams returns the deterministic fixture values
