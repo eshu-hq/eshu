@@ -447,6 +447,10 @@ stated as the invariant itself, not as a proxy for it:
 > consecutive claims while it has eligible work.** The bound must be stated as a
 > function of the number of currently-eligible keys, and it must hold for *any*
 > sequence of claim and enqueue events — not merely for sampled workloads.
+> **A key's position, once it becomes eligible, may not be pushed back by keys
+> that become eligible later.** Without that, a design can satisfy the bound by
+> letting every new arrival cut in front of a waiting key while the bound grows
+> to match — technically true, and useless.
 
 **Clause 7 is the load-bearing one, and clauses 1-6 cannot substitute for it.**
 Clauses 1-6 all constrain the *inputs* to the ordering — what may be excluded,
@@ -498,6 +502,19 @@ claims and enqueues. That is how round-robin fairness is normally established �
 by an amortized or potential-function argument over the ordering's own
 definition, not by sampling.
 
+**This is a solved problem, not a research one.** Deficit round robin and the
+fair-queueing family already provide exactly this guarantee under dynamic arrival
+and departure: a key eligible since time *T* waits at most (current eligible
+count) other-key claims, even as keys come and go — provided new arrivals enter
+the rotation without overtaking a key that is already waiting, which is what the
+second sentence of clause 7 pins. An implementer should be adapting a known
+result, not inventing one.
+
+**And the bound is relative, which is the whole reason it is achievable.** A
+bound independent of the eligible-key count would be impossible for any
+work-conserving mechanism with unbounded key growth. Stating it against a moving
+quantity is what makes it satisfiable — and also what limits it, below.
+
 **The floor.** These four workloads must be measured, and a failure in any of
 them is disqualifying. They do not add up to the obligation above:
 
@@ -511,6 +528,22 @@ them is disqualifying. They do not add up to the obligation above:
 A fifth mechanism that passes all four and fails a fifth workload should be
 treated as expected rather than surprising, and the answer then is the argument,
 not a fifth row.
+
+### What clause 7 does not bound
+
+Clause 7 bounds overtaking **in claims, against the eligible-key count**. It does
+not bound anything in wall-clock time, and the difference matters at 3 AM: if the
+number of distinct `fairness_key` values balloons — a runaway scheduler emitting
+one key per row, a misconfiguration multiplying instances — then a
+fully-compliant mechanism still leaves a key waiting for a very long time,
+because the bound scales with exactly the quantity that has gone wrong.
+
+This is why the distinct-key cardinality gauge in section 7 is not
+debugging convenience. It is the number that tells an operator whether clause 7's
+bound is currently small or enormous, and it is the only signal that
+distinguishes "fairness is working and there are simply many keys" from "fairness
+is broken." The two sections are two views of one risk and should be read
+together.
 
 This is also the property section 5 *used* to claim was structural under Option
 B. That claim is withdrawn — see section 5 — precisely because presence in the
@@ -642,6 +675,14 @@ The implementation needs, at minimum:
 3. **A skip counter**, reason-labeled, if the design skips candidates, so pacing
    that is working looks different from pacing that is stuck. This is also the
    signal that backs the work-conserving check in section 6.
+
+**A distinct-key count is required, not optional, and section 6 is why.** Clause 7
+bounds how long a key waits *in claims, against the number of eligible keys* — it
+bounds nothing in wall-clock time. So the distinct-key count is the number that
+tells an operator whether that bound is currently small or enormous, and the only
+signal separating "fairness is working and there are simply many keys" from
+"fairness is broken." Without it, a compliant mechanism and a runaway one look
+identical from outside.
 
 On cardinality, the real constraint: `fairness_key` embeds account and provider
 identifiers, so it is unbounded in principle and belongs in spans and logs rather
