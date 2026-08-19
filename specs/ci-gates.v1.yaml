@@ -305,6 +305,38 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ci-install-apt-packages
+    name: CI apt/ripgrep installer test mirror
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/test-ci-install-apt-packages.sh"
+    local:
+      # install-apt-packages.sh has no separate "verify" mode of its own --
+      # it is an installer (it downloads a pinned ripgrep release, verifies
+      # its checksum, and installs it, or shells out to apt-get for anything
+      # else), and running it for real would mutate the machine it runs on
+      # (system-wide /usr/local/bin writes, sudo, apt-get). The 30-assertion
+      # test mirror IS this gate's verification: it drives the same code
+      # paths (bounded-transfer curl flags, fail-closed checksum verify,
+      # arch-support guard, apt fallback) hermetically, off the network,
+      # via ESHU_CI_APT_RIPGREP_URL file:// fixtures and
+      # ESHU_CI_APT_SKIP_INSTALL/ESHU_CI_APT_NO_SUDO. Mirrors the
+      # golden-corpus-mirror gate's shape (a static/hermetic mirror gate
+      # whose `local.command` IS the test script, with no separate
+      # test_command) rather than the usual real-command/test-command split
+      # every other gate uses, because there is no non-mutating "real"
+      # command to pair it with.
+      command: "bash scripts/test-ci-install-apt-packages.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
   # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
 
   - id: openapi-surface

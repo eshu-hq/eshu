@@ -220,6 +220,17 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # install-apt-packages.sh has no separate verify mode -- the 30-case
+      # test mirror is its only enforcement (bounded curl transfer,
+      # fail-closed checksum verify, arch-support guard). Runs fully
+      # hermetically (file:// fixtures, isolated PATH/bin_dir), so it does
+      # not depend on or interfere with the "Install ripgrep" step above.
+      # See specs/ci-gates.v1.yaml's ci-install-apt-packages entry, which
+      # declares this job as its `ci.job`.
+      - name: Verify CI apt/ripgrep installer test mirror
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-ci-install-apt-packages.sh
+
       - name: Install golangci-lint
         if: ${{ !cancelled() }}
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2

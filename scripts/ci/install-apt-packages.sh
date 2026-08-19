@@ -99,9 +99,14 @@ sha256_command() {
 
 # download_ripgrep_archive downloads $1 to $2 with bounded retry and
 # doubling backoff -- the same shape as scripts/ci/go-mod-download-retry.sh.
-# Only transient download failures are retried; a checksum mismatch after a
-# successful download is never retried (that would just spend attempts
-# re-fetching a file whose bytes already do not match).
+# ANY download failure is retried, not only transient ones: `curl -f` exits
+# non-zero for a permanent HTTP error (404/403/410) exactly as it does for a
+# dropped connection, and this loop cannot tell them apart. A permanently bad
+# pinned URL therefore burns all attempts before failing loudly -- a few
+# seconds of backoff, which is not worth the complexity of classifying curl
+# exit codes to avoid. A checksum mismatch is different and is NEVER retried:
+# verification runs after this loop returns, so a file whose bytes already do
+# not match is never re-fetched.
 #
 # --connect-timeout alone is NOT enough: it bounds connection setup only, so
 # a host that accepts the connection and then stalls mid-transfer -- the same
