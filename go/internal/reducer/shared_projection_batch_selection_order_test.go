@@ -30,10 +30,12 @@ import (
 //
 //   - filter first (correct): the stale-generation row is dropped as stale, and
 //     dedup then sees only the accepted row.
-//   - dedup first: both share the dedup key and collapse to ONE survivor, chosen
-//     refresh-first then CreatedAt ASC then IntentID -- which can be the STALE
-//     row. FilterAuthoritativeIntents then drops that survivor as stale, and the
-//     repository loses its refresh for that cycle entirely.
+//   - dedup first: both share the dedup key and collapse to ONE survivor,
+//     chosen refresh-first, then LATEST CreatedAt, then largest IntentID on a
+//     tie -- which can be the STALE row. The sort is ascending and the map
+//     keeps the last row written per key, so the survivor is the newest, not
+//     the oldest. FilterAuthoritativeIntents then drops that survivor as
+//     stale, and the repository loses its refresh for that cycle entirely.
 //
 // The failure is a LOST refresh, not a double retract: the whole-scope retract
 // never runs and stale EXPLAINS edges persist with no error and no dead letter.

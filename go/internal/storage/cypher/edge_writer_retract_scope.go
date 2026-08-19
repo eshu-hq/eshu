@@ -112,7 +112,8 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // rows for one repository can share a dedup key while differing in generation.
 // Filtering first drops the stale-generation row and dedup then sees only the
 // accepted one. Deduping first collapses the pair to a single survivor chosen by
-// refresh-first, then CreatedAt, then intent id -- which can be the STALE row,
+// refresh-first, then LATEST CreatedAt, then largest intent id -- the STALE row
+// can be the one that survives,
 // which the filter then discards. The repository loses its refresh for that
 // cycle: the whole-scope retract never runs and stale EXPLAINS edges persist,
 // again with no error and no dead letter. The order is not enforced by the
