@@ -125,13 +125,23 @@ IFA_FAULT_ALL_CELLS=(
 # across shards. A cell not named in any entry here is its own singleton
 # group.
 # Deliberately NOT readonly, same rationale as IFA_FAULT_ALL_CELLS above: a
-# caller (including a test) that wants to exercise the multi-group merge path
-# in ifa_fault_shard_build_groups with a synthetic second atomic group -- the
-# real matrix has only ever had one -- must be able to reassign this array in
-# a subshell. See scripts/lib/test-ifa-fault-injection-shard-cases.sh's
-# test_ifa_fault_shard_multi_group_colocation for that case (F-13).
+# caller (including a test) must be able to reassign this array in a subshell to
+# exercise ifa_fault_shard_build_groups' merge path with synthetic groups.
+# Nothing does so today -- stated as available headroom, not as a guard that
+# exists. An earlier version of this comment said the real matrix "has only ever
+# had one" group and credited a
+# test_ifa_fault_shard_multi_group_colocation for covering the multi-group case;
+# there are two groups, immediately below, and no function by that name exists
+# anywhere in the repo. What DOES check these groups is
+# run_ifa_fault_injection_atomic_group_ordering_cases in
+# scripts/lib/test-ifa-fault-injection-shard-cases.sh, which asserts each
+# group's baseline dispatches before its other members.
+#
+# One entry per line: the two used to share a physical line separated by a tab,
+# which is the likeliest reason "only ever had one" survived several reads.
 IFA_FAULT_ATOMIC_GROUPS=(
-	"cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit"	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
+	"cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit"
+	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
 )
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges

@@ -30,6 +30,7 @@ run_ifa_fault_injection_generic_shared_intent_lock_cases() {
 	test_ifa_generic_intent_writer_empty_handler_file_fails
 	test_ifa_generic_intent_writer_missing_handler_file_fails
 	test_ifa_generic_intent_writer_absent_intent_writer_fails
+	test_ifa_generic_intent_writer_mention_without_field_fails
 	test_ifa_generic_intent_writer_declared_intent_writer_passes
 	test_ifa_generic_intent_writer_precondition_is_wired_before_the_body
 }
@@ -99,6 +100,32 @@ test_ifa_generic_intent_writer_absent_intent_writer_fails() (
 		|| fail "intent-writer precondition passed a handler that declares no IntentWriter (rc=${rc})"
 	[[ "${output}" == *"declares no IntentWriter"* ]] \
 		|| fail "intent-writer precondition did not name the absent IntentWriter"
+)
+
+# The word "IntentWriter" appearing in the file is NOT the field. Every real
+# handler here declares its writer interface in the same file as the struct, so
+# a substring match over the file is satisfied by a handler that has no field at
+# all -- which is what the earlier implementation did, and it passed this exact
+# fixture with rc=0 and "precondition confirmed". This is the case that pins the
+# difference; without it the guard can be loosened back to a substring match and
+# every other case here stays green.
+test_ifa_generic_intent_writer_mention_without_field_fails() (
+	# shellcheck source=scripts/lib/ifa_fault_generic_shared_intent_lock.sh
+	source "${generic_shared_intent_lock_lib}"
+	local rc=0 output tmp_dir handler
+	tmp_dir="$(mktemp -d)"
+	# shellcheck disable=SC2064
+	trap "rm -rf '${tmp_dir}'" EXIT
+	handler="${tmp_dir}/mentions_but_does_not_declare.go"
+	printf 'package reducer\n\n// SomeIntentWriter persists rows; this handler does NOT hold one.\ntype SomeIntentWriter interface{ Upsert() error }\n\ntype MentionOnlyHandler struct {\n\tEdgeWriter CanonicalEdgeWriter\n}\n' >"${handler}"
+
+	ifa_family_handler_go_file() { printf '%s\n' "${handler}"; }
+
+	output="$(_ifa_generic_require_intent_writer testfamily 2>&1)" || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "intent-writer precondition passed a handler that only MENTIONS IntentWriter (interface decl + comment) without holding the field (rc=${rc})"
+	[[ "${output}" == *"declares no IntentWriter"* ]] \
+		|| fail "intent-writer precondition did not name the absent IntentWriter field for a mention-only handler"
 )
 
 # The pass case has to be proven too, or a precondition that always fails would

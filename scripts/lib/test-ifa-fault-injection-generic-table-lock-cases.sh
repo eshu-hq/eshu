@@ -5,8 +5,10 @@
 # _ifa_generic_require_table_domain_written -- the MANDATORY PRECONDITION
 # ASSERT for the table_lock generic blocker mechanism. That file's own header
 # says the mechanism is UNEXERCISED against a live stack in this PR
-# (deployable_unit_edges, the only current table_lock family, is registered
-# cell_kind=custom and keeps its own already-proven precondition instead) but
+# (no family is registered cell_kind=generic with a table_lock blocker: the two
+# that declare one -- deployable_unit_edges with admission_decisions and
+# codeowners_ownership_edges with fact_records -- are both cell_kind=custom and
+# keep their own already-proven preconditions instead) but
 # claims to be "unit-tested (mocked ifa_det_pg)". This module is that proof:
 # it drives every branch of the fail-closed discrimination the header
 # describes -- query failure, empty output, and non-numeric output are all

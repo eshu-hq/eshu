@@ -10,8 +10,8 @@
 # or read back out of the registry.
 
 # go/internal/reducer/documentation_edge_materialization.go:23-33 declares
-# DocumentationEdgeMaterializationHandler with FactLoader, EdgeWriter, and
-# PriorGenerationCheck fields ONLY -- no IntentWriter field anywhere in the
+# DocumentationEdgeMaterializationHandler with FactLoader, EdgeWriter,
+# PriorGenerationCheck and Instruments fields -- and NO IntentWriter, anywhere in the
 # struct or the file (`rg -c IntentWriter
 # go/internal/reducer/documentation_edge_materialization.go` returns nothing).
 # Handle() calls only h.EdgeWriter.RetractEdges/WriteEdges (lines 78, 90); it

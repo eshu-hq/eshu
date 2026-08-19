@@ -44,7 +44,19 @@ _ifa_generic_require_intent_writer() {
 		printf 'cell_killworker_family (%s): PRECONDITION FAILED: registered handler_go_file %s does not exist\n' "${family}" "${handler_file}" >&2
 		return 1
 	fi
-	if ! rg --quiet --fixed-strings 'IntentWriter' "${handler_file}"; then
+	# Matches a FIELD DECLARATION, not the word anywhere in the file. The
+	# earlier form was `rg --fixed-strings 'IntentWriter'`, which every one of
+	# these handlers satisfies twice over without having the field: each
+	# declares its writer INTERFACE in the same file as the struct
+	# (CodeCallIntentWriter at code_call_materialization.go:32,
+	# RationaleEdgeIntentWriter at rationale_edge_materialization.go:26). A
+	# refactor that drops the struct field but keeps the interface -- or that
+	# leaves the word in a comment -- passed. Proven by feeding it a handler
+	# whose only occurrence was in a comment: rc=0, "precondition confirmed".
+	# The declaration form is uniform across all five current writers
+	# (`rg -n '^\s+IntentWriter\s' go/internal/reducer/*.go`), so anchoring on
+	# it is not a guess.
+	if ! rg --quiet '^[[:space:]]+IntentWriter[[:space:]]' "${handler_file}"; then
 		printf 'cell_killworker_family (%s): PRECONDITION FAILED: %s declares no IntentWriter. The shared_intent_lock blocker targets shared_projection_intents, a table this handler never writes to, so the lock cannot engage -- Handle would run to completion and ack before kill -9 lands, proving ordinary baseline recovery under a name that claims domain-scoped reclaim (the exact defect class ifa_fault_injection_deployable_unit_lock.sh:81-86 already documents for a different family and lock target). Register this family'"'"'s true blocker_kind in ifa_family_registry.sh instead of forcing shared_intent_lock.\n' \
 			"${family}" "${handler_file}" >&2
 		return 1

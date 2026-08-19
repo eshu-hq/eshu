@@ -79,7 +79,7 @@ test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 
 	# Drives the LIVE primitive, not the family wrapper. This family's kill cell
 	# now goes through the generic dispatcher, which calls
-	# ifa_fault_release_shared_intent_lock itself (ifa_fault_generic_cells.sh:198)
+	# ifa_fault_release_shared_intent_lock itself (ifa_fault_generic_cells.sh:199)
 	# with the family name as the lock namespace; the old
 	# ifa_code_call_release_intent_lock wrapper had no callers left and was
 	# deleted. Testing the wrapper would have been a helper-only probe over an
