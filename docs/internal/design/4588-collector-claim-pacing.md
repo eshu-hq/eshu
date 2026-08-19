@@ -473,6 +473,12 @@ verifier, X3 CI gate, X4 dashboard — not a metric alone.
 
 ## 8. Recommendation
 
+> **Superseded in part by [section 10](#10-owner-decision-2026-08-19).** The
+> mechanism below stands. The two-step split, its cost table's step boundary, and
+> its rollback row do not: the owner selected a three-step plan in one PR,
+> adding a `fairness_key` normalisation this section does not describe. Read the
+> split argument here as the case that was put, not the plan of record.
+
 **Option B, extending the existing fairness model down to `fairness_key`, in two
 separately provable steps.**
 
@@ -502,17 +508,19 @@ behaviour, step 2 changes behaviour. Bundled, neither is cleanly provable.
 | Step 1 | One migration, one index, an order-equivalence test, a plan assertion. Small. |
 | Step 2 | Rewritten candidate CTE, second index, dispatch tests, live contention proof, telemetry with its four artifacts. Moderate. |
 | Migration risk | Two `CREATE INDEX CONCURRENTLY` on a hot table. Build time on a large `workflow_work_items` is the operational risk and needs measuring on a realistic table first. |
-| Rollback | Step 1 is a dropped index. Step 2 needs a flag or a revert, since claim order is observable in drain behaviour. |
+| Rollback | ~~Step 1 is a dropped index. Step 2 needs a flag or a revert.~~ **Superseded (section 10):** one PR means one revert, so the steps must be kept separately revertible deliberately if that property is wanted. |
 
 ### Open questions for the owner
 
-1. **Is `fairness_key` the right unit?** The design takes it as the schedulers
-   already build it — some per-account, some per-provider, some per-scope. If the
+1. **Is `fairness_key` the right unit?** *(Answered in section 10: no — the
+   selected option normalises it to a 3-segment key.)* The design takes it as the
+   schedulers already build it — some per-account, some per-provider, some per-scope. If the
    intended unit differs, that decision precedes any code; it is the design.
 2. **Cardinality bound for telemetry** (section 7). How many distinct keys does a
    large single-instance family reach in production? That sets both the top-N
    bound and the cost of the loose index scan.
-3. **Does step 1 ship on its own?** I would recommend yes.
+3. **Does step 1 ship on its own?** *(Answered in section 10: no.)* I would
+   recommend yes.
 4. **Weights** (Option C). Deferred unless a weighting rule exists — but the
    `Weight` field already in `FairnessCandidate` suggests someone once intended
    one. Worth knowing whether that intent is still live.
@@ -548,37 +556,99 @@ settled. The probe harness is throwaway and is not in this branch.
 
 ## 10. Owner decision, 2026-08-19
 
-**Full fair claiming, now.** Option B, both steps, rather than landing step 1
-alone and deferring the behaviour change.
+The decision was made by selecting one of four options I offered. The exact text
+of the selected option, verbatim, because everything below is an interpretation
+of it and the interpretation should be checkable against the source:
 
-That settles three of the four open questions:
+> **Full fair claiming now** — Do all three steps including the ORDER BY change.
+> Fixes the measured 25.26s starvation, but must not regress the
+> package_registry/vulnerability_intelligence priority ordering — which needs the
+> normalisation anyway, so this is option 2 plus more risk in one PR.
 
-- **Option B over A and C** — accepted.
-- **Question 3** — the index fix does not ship on its own. It still gets its own
-  commit and its own order-equivalence proof, because a performance change and a
-  behaviour change are not provable in one diff; but both land together.
-- **Question 1, the fairness unit** — accepted as `fairness_key`, the unit the 19
-  schedulers already build. Recorded here as an inference from "full fair
-  claiming" rather than an explicit answer, so if the intended unit is something
-  else this is the line to correct: it is load-bearing and every other decision
-  sits on top of it.
+### This is a three-step plan, and section 8 describes two
 
-**Question 2 stays open and I am not blocking on it.** Nobody has measured how
-many distinct `fairness_key` values a large single-instance family reaches, and
-the top-N telemetry bound in section 7 depends on it. Rather than guess a bound
-and bake it in, the implementation carries the bound as a knob with a
-conservative default and emits the observed distinct-key count as its own gauge —
-so the first production deployment measures the answer instead of a design
-document asserting one. **Question 4, weights**, remains deferred with Option C.
+Section 8 recommends **two** steps: index the claim path, then make
+`fairness_key` load-bearing in the ORDER BY. The selected option says *three*,
+because the option list carried a middle step section 8 does not have — the one
+offered as "index fix, then normalise `fairness_key`":
 
-**What this changes about the plan.** Nothing in the mechanism, everything in the
-proof obligation. Landing both steps in one PR means the section 6 test is not
-optional and not deferrable to a follow-up: it is the only thing standing between
-this change and the exact failure mode the repository forbids. A fairness rewrite
-that quietly costs aggregate throughput is a serialization workaround wearing a
-better name, and the aggregate-throughput assertion is what makes that
-distinguishable from the honest outcome. Same for the `status_registry.go:97,108`
-`SPLIT_PART` pin — with both steps in one diff, the undeclared key-shape contract
-is exposed and re-pinned in the same change rather than one release later.
+> 3-segment key, target-class moved out to a real priority column, real ecosystem
+> column retiring the `SPLIT_PART` parse, `PartitionKey` decoupled.
 
-Implementation proceeds on this basis. The design above stands as written.
+I did not notice this when first recording the decision, and the omission
+mattered. **It reverses section 10's earlier claim about the fairness unit.** An
+earlier revision of this section said the decision accepted `fairness_key` as the
+19 schedulers already build it. It does the opposite: the selected option
+normalises the key to three segments and retires the positional
+`SPLIT_PART(fairness_key, ':', 4)` parse in favour of a real ecosystem column.
+The undeclared shape contract at `status_registry.go:97,108` is not something the
+implementation must preserve — it is something the decision explicitly removes.
+
+### What the option settles, and how directly
+
+| Question | Settled by | Directness |
+| --- | --- | --- |
+| Option B over A and C | "all three steps including the ORDER BY change" describes Option B's mechanism | Direct — the option describes it, no letter needed |
+| One PR, not two | "in one PR", stated | Verbatim |
+| Accepting the bundled risk | "option 2 plus more risk in one PR" | Verbatim, and named as risk |
+| The fairness unit | The normalisation step redefines it | Direct — a 3-segment key with target-class and ecosystem extracted |
+| Priority contract preserved | "must not regress the package_registry/vulnerability_intelligence priority ordering" | Verbatim, and it is a constraint, not a preference |
+
+Nothing here is settled by inference from the four-word label. The option text
+carries all of it.
+
+### Section 8's split argument, and why it does not survive
+
+Section 8 argued for shipping step 1 alone on two grounds. The provability
+ground — "bundled, neither is cleanly provable" — is answered by keeping separate
+commits with their own proofs: an order-equivalence proof for the index, a
+starvation proof for the ORDER BY change.
+
+The **risk-isolation** ground is not answered, and I should not pretend it is.
+Section 8 said step 1 was "worth landing alone: a real defect, independent of
+fairness, carrying none of its risk," and gave the two steps independent rollback
+stories — a dropped index versus a flag or a revert. Bundled, that is gone: one
+PR, one revert, and rolling back the fairness change takes the index fix with it
+unless the implementation keeps them separately revertible on purpose.
+
+The owner accepted this explicitly — "plus more risk in one PR" — so it is a
+priced decision, not an oversight. But section 8's recommendation and its rollback
+row are **superseded by this section**, not reconciled with it, and I have marked
+them so rather than leaving the document arguing both positions.
+
+### Still open, and not settled by this decision
+
+**Telemetry cardinality.** Nobody has measured how many distinct `fairness_key`
+values a large single-instance family reaches, which bounds the top-N telemetry
+in section 7. An earlier revision of this section resolved it by committing to a
+knob with a conservative default plus a distinct-key gauge. **That was my
+proposal, not a decision, and I was asserting it without the proof this document
+demands of everything else.** A gauge re-evaluated on every scrape is a recurring
+production query whose cost scales with exactly the cardinality nobody has
+measured — the Prove-The-Theory-First rule applies to it as much as to the claim
+path. It needs its own cheapest-shim measurement before it is committed to.
+Recorded here as an open item.
+
+**Weights.** Option C's weighting remains deferred, unchanged from section 8.
+
+### The proof obligation the bundling creates
+
+The mechanism is unchanged; what has to be proven before it lands is not. Two
+obligations are now non-deferrable:
+
+The **aggregate-throughput assertion** in section 6 is the only thing separating
+this change from the failure mode the repository forbids outright — a fairness
+rewrite that quietly costs throughput is a serialization workaround with a better
+name.
+
+The **priority-ordering regression test** is now a stated constraint rather than
+a caution. `targetCreatedAt(observedAt, ordinal)` at `target_priority.go:43-49`
+spaces priority by microseconds inside `created_at`, and
+`TestPackageRegistryWorkPlannerPrioritizesDirectOwnedBeforeBroadTargets` pins it.
+Any ORDER BY change that puts fairness ahead of `created_at` reverses that
+contract unless the normalisation moves target-class into a real priority column
+first — which is precisely why the selected option bundles the normalisation
+rather than treating it as optional.
+
+Sections 1-7 and 9 are unaffected by this decision. Section 8's split
+recommendation and rollback row are superseded above.
