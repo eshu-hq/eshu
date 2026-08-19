@@ -110,10 +110,31 @@ If two colliding repositories' facts sit in one scope-generation, they arrive in
 repository's `WorkloadRow` entirely** — so the surviving node's kind,
 classification, confidence and provenance are the first candidate's, and the
 second repository's are gone. `seenInstances` (`:328`) does the same to any
-instance sharing a name and environment. Meanwhile `RepoDescriptors` is appended
-**unconditionally**, one line above the dedup check (`:282-286`), so the dropped
-repository still gets a `DEFINES` descriptor pointing at a node built from
-someone else's evidence.
+instance sharing a name and environment.
+
+**No `DEFINES` edge is written for the losing repository.** The edge batch is
+built exclusively from `WorkloadRows` (`workload_materializer.go:124-143`), so a
+dropped row means a dropped edge. `RepoDescriptors` *is* appended unconditionally
+one block above the dedup check (`:283-287`), but it never reaches the edge
+writer — it feeds only `ReconcileWorkloadInstanceRetraction` and
+`ReconcileWorkloadDependencyEdges` (`workload_materialization_handler.go:274,307`).
+That path is safe here, and deliberately so: it carries an explicit
+positive-evidence guard, and a repository with a descriptor but zero instance
+rows this pass has its existing instances **left untouched** rather than treated
+as superseded (`workload_instance_retraction.go:58-73`). Someone already thought
+about this shape.
+
+Whether mode two leaves any graph trace at all depends on the environments:
+
+- **Same name, same environment.** Both the workload row and the instance row are
+  dropped. Nothing is written for the losing repository, and the surviving node
+  looks like an ordinary single-definer workload. **No graph evidence exists.**
+- **Same name, different environments.** The workload row is still dropped, but
+  the instance row is written — with `RepoID` set to the *losing* repository
+  (`projection.go:331-334`) and `WorkloadID` set to the shared name-only id. So
+  the graph gains instances owned by a repository that has no `DEFINES` edge to
+  the workload they hang off. **That is detectable**, and it is the same
+  cross-repo environment leak mode one produces, arrived at by a different route.
 
 This is the finding an earlier revision of this document raised and then
 withdrew. The withdrawal was half right and I over-corrected: the probe that
@@ -210,8 +231,9 @@ Three things this shows that the retract-side framing above does not:
   and the non-colliding control was never touched.
 
 What this does *not* show, stated plainly: that a collision exists in production.
-Section 3.1 measures zero on the largest corpus available. This proves the
-mechanism fires whenever one does.
+Section 3.1's detectors read zero on the largest corpus available, with the
+coverage limits recorded there. This proves the mechanism fires whenever one
+does.
 
 ### The authorization layer is already paying for this
 
@@ -250,10 +272,11 @@ substantive run, not a stub):
 | Workloads whose instances span more than one `repo_id` | 0 |
 | Instance/workload pairs where `i.repo_id = w.repo_id` | 33 of 33 |
 
-Section 2 establishes that a collision produces exactly two `DEFINES` edges on
-one node, so the highlighted row is a **valid, non-vacuous detector for the
-failure this issue describes** — and it is zero. So is the independent
-instance-side detector.
+Section 2 establishes that a **mode-one** collision produces exactly two
+`DEFINES` edges on one node, so the highlighted row is a valid, non-vacuous
+detector for that mode — and it is zero. The instance-side row is an independent
+detector, and it covers mode one plus mode two's differing-environment sub-case;
+it is zero as well. Neither covers mode two where the environments also match.
 
 Every count was re-derived from an unfiltered `GROUP BY` distribution rather
 than a `WHERE`-filtered aggregate, because a filtered predicate silently lied
@@ -274,19 +297,34 @@ RETURN (i.repo_id = w.repo_id) AS same_repo, count(*) ORDER BY same_repo
 **No collision is firing on the largest corpus available.** The mechanism is
 real and destructive; the trigger is currently absent.
 
-Two limits on how far that zero carries. It measures **mode one only** — a merged
-node keeps both `DEFINES` edges, so the detector sees it, but a mode-two drop
-leaves no graph evidence at all: the losing row never reaches the writer, and the
-surviving node looks like an ordinary single-definer workload. Nothing in this
-table could distinguish "no collision occurred" from "a collision occurred and
-one repository's evidence was discarded." And the corpus was ingested through git
-sync, which commits one repository per scope, so it never exercised the multi-repo
-scope path that produces mode two in the first place. The honest reading is "zero
-cross-scope merges under single-repo-per-scope ingestion", not "zero collisions".
+**The two detectors do not cover the same ground, and it is worth being precise
+about which covers what.**
 
-Neither limit changes the recommendation — it makes the case for the
-`seenWorkloads` counter in migration item 7, which is the only thing that would
-have seen a mode-two drop.
+The `DEFINES` detector — the highlighted row — sees **mode one only**. A merged
+node keeps both edges, so it is visible; a mode-two drop writes no edge for the
+losing repository at all, and what survives looks like an ordinary single-definer
+workload.
+
+The **instance-side detector is better than I first credited it.** Under mode two
+with differing environments, the losing repository's instance rows *are* written,
+carrying its own `repo_id` while attached to the shared workload — so
+"workloads whose instances span more than one `repo_id`" is a genuine mode-two
+detector for that sub-case, and it measured zero too.
+
+What neither detector can see is mode two where the environments also match: both
+rows are dropped, and no trace remains. For that sub-case this table cannot
+distinguish "no collision occurred" from "a collision occurred and one
+repository's evidence was silently discarded."
+
+And the whole corpus was ingested through git sync, which commits one repository
+per scope, so it never exercised the multi-repo scope path that produces mode two
+in the first place. The honest reading is **"zero cross-scope merges, and zero
+cross-repo instance spans, under single-repo-per-scope ingestion"** — not "zero
+collisions".
+
+None of this changes the recommendation. It makes the case for the `seenWorkloads`
+counter in migration item 7, which is the only thing that would see a same-name
+same-environment drop.
 
 ### 3.2 Why the population is so small
 
@@ -297,7 +335,11 @@ little opportunity to collide.
 
 This is the crux of the timing decision, and it cuts both ways:
 
-- **Against acting now:** zero observed collisions, on the largest corpus there is.
+- **Against acting now:** zero observed cross-scope merges and zero cross-repo
+instance spans, on the largest corpus there is — but see 3.1 for what that zero
+does and does not cover. It was measured under single-repo-per-scope ingestion,
+which never exercises mode two, and one mode-two sub-case leaves no trace for any
+detector to find.
 - **For acting now:** 40 nodes and 33 instances is the cheapest this migration
   will ever be, and the admission gate is expected to widen, not narrow.
 
@@ -600,8 +642,10 @@ retracted and rebuilt rather than rewritten in place.
    the retained row's, which detects a same-scope drop at the moment it happens;
    and a graph-side detector for workloads carrying more than one `DEFINES` edge,
    which is the only thing that sees a cross-scope merge. Section 3.1 has already
-   run the graph-side one: zero, under an ingestion regime that only produces
-   single-repo scopes, which is why that zero is a weaker signal than it looks.
+   run both graph-side detectors and both read zero — under an ingestion regime
+   that only produces single-repo scopes, which is why those zeroes are a weaker
+   signal than they look, and why the one sub-case they cannot see at all is the
+   one the in-process counter exists for.
 
    After the re-key both become **regression guards**: two repositories defining
    one workload should be structurally impossible, and either counter firing
@@ -696,12 +740,19 @@ independently. That recommendation is withdrawn: the path is unreachable
 needs to know which repository owns a workload — so it rides with the re-key
 rather than ahead of it.
 
-The case for now is section 3.2: cost scales with the workload
-population, which is 40 nodes, 33 instances, and 46 golden literals today. The
-failure is silent — a merged node, reassigned ownership, and cross-repo
-environments, with no error and no counter. The case for waiting is that measured
-collisions are zero, and this is a schema-risk change with cassette and B-12
-impact.
+The case for now is section 3.2: cost scales with the workload population, which
+is 40 nodes, 33 instances, and 46 golden literals today. **Both failure modes are
+silent.** Mode one merges — one node, ownership reassigned to whoever wrote last,
+cross-repo environments. Mode two drops — the losing repository's workload row
+discarded, so the surviving node carries someone else's kind, classification,
+confidence and provenance, no `DEFINES` edge for the repository that lost, and
+where environments differ, instances owned by a repository with no edge to the
+workload they hang off. Neither errors and neither increments anything.
+
+The case for waiting is that the corpus detectors read zero — with the scoping
+section 3.1 puts on that zero: measured under single-repo-per-scope ingestion,
+covering mode one and one of mode two's two sub-cases, and blind to the other.
+And this is a schema-risk change with cassette and B-12 impact.
 
 | Item | Estimate |
 | --- | --- |
