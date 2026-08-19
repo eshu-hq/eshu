@@ -252,7 +252,19 @@ _ifa_generic_cell_killworker_body() {
 	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
 	[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"
 	capture_digest "${cell}"
-	assert_matches_baseline "${cell}" "$(_ifa_generic_baseline_key "${family}" "${cell}")"
+	# Captured, NOT inlined into the call. Inside "$(...)" the helper's die exits
+	# only the substitution subshell: set -e does not fire on a failing
+	# substitution in argument position, because the simple command's status is
+	# assert_matches_baseline's. The cell would then be handed an empty key, and
+	# assert_matches_baseline's "${2:-baseline}" default would silently compare a
+	# self-driving family against the SHARED baseline -- dying with "graph
+	# diverged from the fault-free baseline" when the real fault is a registry
+	# row. A fail-closed guard that cannot abort its caller is the guard-that-
+	# does-not-guard class this whole mechanism exists to close.
+	local baseline_key
+	baseline_key="$(_ifa_generic_baseline_key "${family}" "${cell}")" \
+		|| die "${cell}: ${family}: could not resolve which baseline digest to compare against"
+	assert_matches_baseline "${cell}" "${baseline_key}"
 	teardown_cell "${cell}"
 	wall_times[$cell]=$(( $(date +%s) - cell_start ))
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
@@ -357,7 +369,19 @@ _ifa_generic_cell_failgraphwrite() {
 	[[ "${marker_rc}" -eq 0 ]] \
 		|| die "${cell}: once-fired marker did not name the targeted MERGE (marker status ${marker_rc})"
 	capture_digest "${cell}"
-	assert_matches_baseline "${cell}" "$(_ifa_generic_baseline_key "${family}" "${cell}")"
+	# Captured, NOT inlined into the call. Inside "$(...)" the helper's die exits
+	# only the substitution subshell: set -e does not fire on a failing
+	# substitution in argument position, because the simple command's status is
+	# assert_matches_baseline's. The cell would then be handed an empty key, and
+	# assert_matches_baseline's "${2:-baseline}" default would silently compare a
+	# self-driving family against the SHARED baseline -- dying with "graph
+	# diverged from the fault-free baseline" when the real fault is a registry
+	# row. A fail-closed guard that cannot abort its caller is the guard-that-
+	# does-not-guard class this whole mechanism exists to close.
+	local baseline_key
+	baseline_key="$(_ifa_generic_baseline_key "${family}" "${cell}")" \
+		|| die "${cell}: ${family}: could not resolve which baseline digest to compare against"
+	assert_matches_baseline "${cell}" "${baseline_key}"
 	teardown_cell "${cell}"
 	wall_times[$cell]=$(( $(date +%s) - cell_start ))
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"

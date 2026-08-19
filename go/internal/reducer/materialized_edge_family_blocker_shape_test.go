@@ -480,7 +480,9 @@ func TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration(t *te
 func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 	t.Parallel()
 
-	waitKeys := parseIfaFamilyRegistryWaitKeys(t, ifaFamilyRegistryRowsDir(t))
+	rowsDir := ifaFamilyRegistryRowsDir(t)
+	waitKeys := parseIfaFamilyRegistryWaitKeys(t, rowsDir)
+	waitStages := parseIfaFamilyRegistryWaitStages(t, rowsDir)
 	if len(waitKeys) == 0 {
 		t.Fatal("parsed zero IFA_FAMILY_WAIT_KEY rows -- registry format changed or the rows were emptied")
 	}
@@ -488,6 +490,16 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 		family, raw := family, raw
 		t.Run(family, func(t *testing.T) {
 			t.Parallel()
+			// knownDomains is the fact_work_items keyspace, so this check only
+			// applies to handler-stage rows. A runner-stage wait_key is a
+			// projection domain from allProjectionDomains, a DISJOINT keyspace
+			// -- validating it here would reject a correct row for the wrong
+			// reason the moment the first runner-stage family lands, which is
+			// the explicit purpose of the enabler this test ships with.
+			// TestIfaFamilyRegistryWaitStageAndKeyCohere owns the runner half.
+			if waitStages[family] != "handler" {
+				t.Skipf("family %q declares wait_stage=%q; its wait_key lives in allProjectionDomains, not knownDomains, and is checked by TestIfaFamilyRegistryWaitStageAndKeyCohere", family, waitStages[family])
+			}
 			if err := Domain(raw).Validate(); err != nil {
 				t.Fatalf("family %q: IFA_FAMILY_WAIT_KEY=%q is not a real reducer Domain constant (%v) -- scripts/lib/ifa_family_registry.sh's row and the fault-injection wait helper's hand-typed pin could rename together and still agree on a dead string here", family, raw, err)
 			}
@@ -518,12 +530,13 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 //     family never retried, which is a statement about the reducer rather than
 //     about the row that is actually wrong.
 //
-// The pre-existing TestIfaFamilyRegistryWaitKeyIsKnownDomain validated EVERY
-// row against knownDomains regardless of stage. That was correct while every
-// registered family was handler-stage, and becomes wrong the moment a
-// runner-stage family lands -- it would reject a correct row for the wrong
-// reason. This test replaces that blanket rule with the stage-aware one; the
-// older test now defers to it for rows that declare a stage.
+// TestIfaFamilyRegistryWaitKeyIsKnownDomain validated EVERY row against
+// knownDomains regardless of stage. That was correct while every registered
+// family was handler-stage and becomes wrong the moment a runner-stage family
+// lands -- it would reject a correct row for the wrong reason. That test is
+// gated on wait_stage == handler in this same change so the deference is real
+// rather than asserted here; it keeps the handler half, this test owns the
+// runner half and the blocker/stage pairing.
 func TestIfaFamilyRegistryWaitStageAndKeyCohere(t *testing.T) {
 	t.Parallel()
 
