@@ -1157,3 +1157,41 @@ Observability Evidence / No-Observability-Change: no new env var, metric
 series, span, graph write, or queue consumer is added; the new fields are
 additive on the existing `deployment_evidence` and workflow-artifact response
 objects.
+
+## Change-surface impacted-label whitelist enforced in Go
+
+The scoped change-surface traversal expresses its impacted-label whitelist as a
+`WHERE` attached to a `WITH`. The pinned NornicDB build does not evaluate that
+clause position as a filter, so the whitelist was silently inert and the
+governed read path returned every reachable node. The existing Go post-filter
+re-checked id, environment, repository grant and edge direction, but not labels.
+`changeSurfaceImpactedLabels` and `changeSurfaceRowLabelAdmitted` now enforce it
+in `changeSurfaceFilterTraversalRows`. See
+[NornicDB query pitfalls](../../../docs/public/reference/nornicdb-query-pitfalls.md)
+for the measured backend behaviour.
+
+No-Regression Evidence: no query text changed, so no plan, index, or row-fetch
+cost moves. The added work is one map lookup per already-fetched row, over rows
+the backend had already returned and the function was already iterating — the
+label check sits beside the environment, grant, and edge-branch checks in the
+same loop, and runs on a set bounded by the server-side `LIMIT`. `go test
+./internal/query -count=1` passes (full package), as do `./internal/mcp` and
+`./cmd/api`. The new
+`TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter` fails on pre-fix
+code, where `File` and `Function` rows reach the caller.
+
+The change strictly reduces rows returned, and reduces them to the set the
+legacy query already returns server-side, so no caller receives anything it
+would not have received on the unscoped path.
+
+One bounded behaviour change is intended and is not a regression to fix here:
+`LIMIT` still runs server-side against the unfiltered set, so a page dominated
+by rows the server should have excluded comes back shorter than the limit
+allows. That page is reported as truncated rather than complete, because
+`rawTruncated` is computed from the raw row count before this filter runs
+(`impact_change_surface_traversal.go:77,85`). Under-reporting with an honest
+truncation flag replaces silent over-reporting.
+
+No-Observability-Change: no new environment variable, metric series, span, log
+field, graph write, or queue consumer. The filter reuses the existing
+`changeSurfaceFilterTraversalRows` path and the pre-existing truncation signal.

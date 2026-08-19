@@ -4,9 +4,9 @@ This page is the query-shape companion to
 [NornicDB Behavior and Pitfalls](nornicdb-pitfalls.md) (which covers
 storage, schema, constraint, and transaction behavior). It records Cypher
 **shapes** that the pinned NornicDB planner/interpreter mishandles — label
-disjunctions, empty-first-branch unions, outer aggregation over `CALL {}`, and
-multi-clause reads — so a read or retract that looks correct does not silently
-return wrong rows.
+disjunctions, empty-first-branch unions, outer aggregation over `CALL {}`,
+a `WHERE` attached to a `WITH`, and multi-clause reads — so a read or retract
+that looks correct does not silently return wrong rows.
 
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.
@@ -15,8 +15,8 @@ NornicDB source before patching.
 
 1. Read the matching section before writing or changing a Cypher read/retract
    shape that anchors on a label disjunction, unions per-branch, aggregates over
-   a `CALL {}` subquery, or places any clause between the anchor `MATCH` and the
-   final `RETURN`.
+   a `CALL {}` subquery, attaches a `WHERE` to a `WITH`, or places any clause
+   between the anchor `MATCH` and the final `RETURN`.
 2. Validate the behavior against the current `NornicDB-New` checkout that built
    the image under test.
 3. Check upstream docs and release notes for the pinned `NORNICDB_IMAGE`.
@@ -539,6 +539,120 @@ Never express "these two nodes are different" as `a <> b` on this backend.
 Compare stable identity properties: `coalesce(a.id, a.uid) <> coalesce(b.id,
 b.uid)`. The route-to-caller directional reads use this form to exclude the
 handler itself from its own caller/callee set.
+
+## Pitfall: A `WHERE` Attached To `WITH` Is Not Evaluated As A Filter
+
+### Observed shape
+
+A `WHERE` sub-clause attached to a `WITH` is not applied. It fails in both
+directions depending on the predicate, and never errors:
+
+```cypher
+-- IGNORED (over-returns): a label test
+MATCH (n) WITH n WHERE n:Workload RETURN count(*)
+-- Neo4j 1, NornicDB 4 -- every node comes back
+
+-- IGNORED (over-returns): a string operator
+MATCH (a:T) WITH a WHERE a.v STARTS WITH 'al' RETURN count(*)
+-- Neo4j 1, NornicDB 2
+
+-- NULL (under-returns to zero): any function call on a bound variable or alias
+MATCH (a:T) WITH a WHERE toUpper(a.v) = 'ALPHA' RETURN count(*)       -- Neo4j 1, NornicDB 0
+MATCH (a:T) WITH a WHERE size(a.v) = 5 RETURN count(*)                -- Neo4j 1, NornicDB 0
+MATCH (a:T) WITH a WHERE coalesce(a.v,'X') = 'alpha' RETURN count(*)  -- Neo4j 1, NornicDB 0
+
+-- WORKS: a bare property compared to a literal
+MATCH (a:T) WITH a WHERE a.v = 'alpha' RETURN count(*)                -- both 1
+
+-- WORKS: hoist the function into the WITH projection, filter on the alias
+MATCH (a:T) WITH a, toUpper(a.v) AS u WHERE u = 'ALPHA' RETURN count(*)  -- both 1
+
+-- WORKS: put the WHERE before the WITH
+MATCH (a:T) WHERE toUpper(a.v) = 'ALPHA' WITH a RETURN count(*)       -- both 1
+```
+
+The NULL mechanism is pinned directly: `WHERE coalesce(a.v,'X') IS NULL` returns
+1 on NornicDB and 0 on Neo4j. Since `coalesce(null,'X')` is `'X'`, the arguments
+resolve — the whole call short-circuits to NULL, which explains why `=`, `<>` and
+`IS NOT NULL` all filter everything. Function calls on literal arguments are
+unaffected (`WHERE size('abcd') = 4` returns 1 on both).
+
+This is about clause position, not about any particular function. `coalesce` is
+not special; `toUpper` and `size` fail the same way, and `coalesce(a.v, b.v)`
+with no literal argument fails too.
+
+### Which builds this was measured on
+
+**This is not fixed upstream.** Re-measured against NornicDB `main` at commit
+`8abc2269` (reports `v1.2.2`), built locally with `-tags nolocalllm`. Every
+signature reproduces:
+
+| Query | Correct | NornicDB main `8abc2269` |
+| --- | ---: | ---: |
+| `MATCH (n) WITH n WHERE n:Workload RETURN count(*)` | 1 | **4** |
+| `MATCH (n) WHERE n:Workload WITH n RETURN count(*)` | 1 | 1 |
+| `MATCH (a:Workload) WITH a WHERE toUpper(a.name) = 'CHECKOUT' RETURN count(*)` | 1 | **0** |
+| `MATCH (a:Workload) WITH a WHERE a.name = 'checkout' RETURN count(*)` | 1 | 1 |
+| `MATCH (a:Workload) WITH a WHERE coalesce(a.name,'X') IS NULL RETURN count(*)` | 0 | **1** |
+
+The production change-surface shape leaks on `main` as well: running arm 1's
+exact `CALL { … WITH path, impacted WHERE impacted:Workload OR
+impacted:CloudResource … }` against a seeded graph returned the `File` node
+alongside the two whitelisted ones. So the Go-side enforcement is **not** a
+legacy-pin workaround — it is required against current upstream.
+
+Two pinned images and one local build are relevant, and this shape was checked
+on all three:
+
+- `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
+  (`docker-compose.yaml:10`), the local lane. The Neo4j-vs-NornicDB counts under
+  **Observed shape** above were measured here against Neo4j 2026.05.0.
+- `timothyswt/nornicdb-cpu-bge:v1.1.11` — the Helm chart's pin
+  (`deploy/helm/eshu/values.yaml:1102-1103`), the deployed lane, and the image
+  most of this page's other entries name. The ignored-label-filter behaviour
+  **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
+  `WITH` still admitted a `File` row.
+- NornicDB `main` at `8abc2269` — a local checkout rather than a published
+  image, so it has no pin to cite. Checked to confirm the defect is not already
+  fixed upstream; it is not.
+
+So the defect spans every lane, including current upstream. A related question
+is settled in the other direction: `length(path)` and `labels()` **are**
+projected correctly inside a `CALL {}` subquery — `depth` returned 1 and 2, not
+`0`, and `labels` returned real arrays. Checked on all three builds: v1.1.11,
+`eshu-nornicdb-pr290:3722b483c02c`, and `main` `8abc2269`, with the same seeded
+graph and the same arm-1 shape each time.
+That matters because the adjacent
+[multi-clause read pitfall](#pitfall-multi-clause-read-queries-silently-corrupt-the-projection)
+reports `length(path)` collapsing to `0`, which would make the change-surface
+depth ordering untrustworthy if it applied here. It does not.
+
+One thing deliberately not claimed: on `main` `8abc2269`, `length(path)` also
+returned real values in the *top-level* `MATCH … WITH path, impacted RETURN …
+length(path)` shape. That is one shape, not the full pattern the older pitfall
+documents, so it is recorded here as an observation rather than as evidence that
+the older pitfall is fixed. Someone re-validating that entry should measure it
+directly.
+
+### Eshu implications
+
+Do not express a filter in a `WHERE` attached to a `WITH`. Put the predicate in
+the `MATCH`-attached `WHERE`, or hoist the expression into the `WITH` projection
+and compare the alias.
+
+Where neither is available, enforce the predicate in Go and say so at the call
+site. The scoped change-surface traversal is the live example: its impacted-label
+whitelist sits in a `WITH`-attached `WHERE`, and the split is not gratuitous —
+combining the `repo_id` predicate and the label predicate in one `WHERE` empties
+that traversal on the same build. With no clause arrangement that filters
+correctly, the whitelist is enforced by `changeSurfaceImpactedLabels` in
+`go/internal/query/impact_change_surface_traversal.go`.
+
+A Go-side filter does not fully restore the contract, and the gap is worth
+stating. `LIMIT` still runs server-side against the unfiltered set, so a page
+dominated by rows the server should have excluded returns fewer results than the
+limit allows. Compute the truncation signal from the raw row count, before the
+Go filter, so a short page is reported as truncated rather than as complete.
 
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
