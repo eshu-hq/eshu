@@ -673,7 +673,7 @@ tier 1, where the exact-match and 404-on-miss behaviour is visible in the handle
 itself. The tracing is careful and I believe it, but the document holds section 2
 to a measured standard and these are not measured.
 
- The impact resolver tries id, then a
+The impact resolver tries id, then a
 `workload:`-prefixed candidate, then name (`impact_change_surface_resolvers.go:82-108`),
 so a stored prefixed handle matches none of the three after a re-key and resolves
 empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
