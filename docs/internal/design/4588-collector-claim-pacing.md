@@ -545,3 +545,40 @@ written I need a decision on:
 
 I have written no production code for this issue and will not until the above is
 settled. The probe harness is throwaway and is not in this branch.
+
+## 10. Owner decision, 2026-08-19
+
+**Full fair claiming, now.** Option B, both steps, rather than landing step 1
+alone and deferring the behaviour change.
+
+That settles three of the four open questions:
+
+- **Option B over A and C** — accepted.
+- **Question 3** — the index fix does not ship on its own. It still gets its own
+  commit and its own order-equivalence proof, because a performance change and a
+  behaviour change are not provable in one diff; but both land together.
+- **Question 1, the fairness unit** — accepted as `fairness_key`, the unit the 19
+  schedulers already build. Recorded here as an inference from "full fair
+  claiming" rather than an explicit answer, so if the intended unit is something
+  else this is the line to correct: it is load-bearing and every other decision
+  sits on top of it.
+
+**Question 2 stays open and I am not blocking on it.** Nobody has measured how
+many distinct `fairness_key` values a large single-instance family reaches, and
+the top-N telemetry bound in section 7 depends on it. Rather than guess a bound
+and bake it in, the implementation carries the bound as a knob with a
+conservative default and emits the observed distinct-key count as its own gauge —
+so the first production deployment measures the answer instead of a design
+document asserting one. **Question 4, weights**, remains deferred with Option C.
+
+**What this changes about the plan.** Nothing in the mechanism, everything in the
+proof obligation. Landing both steps in one PR means the section 6 test is not
+optional and not deferrable to a follow-up: it is the only thing standing between
+this change and the exact failure mode the repository forbids. A fairness rewrite
+that quietly costs aggregate throughput is a serialization workaround wearing a
+better name, and the aggregate-throughput assertion is what makes that
+distinguishable from the honest outcome. Same for the `status_registry.go:97,108`
+`SPLIT_PART` pin — with both steps in one diff, the undeclared key-shape contract
+is exposed and re-pinned in the same change rather than one release later.
+
+Implementation proceeds on this basis. The design above stands as written.
