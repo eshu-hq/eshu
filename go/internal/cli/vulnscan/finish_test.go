@@ -18,11 +18,17 @@ import (
 // error where it did not, while the JSON envelope is written either way.
 func TestRunRepoOutputSelectionByOutcome(t *testing.T) {
 	tests := []struct {
-		name         string
-		export       string
-		jsonOut      bool
-		findings     string
-		statusErr    error
+		name      string
+		export    string
+		jsonOut   bool
+		findings  string
+		statusErr error
+		// wantSuccess marks the rows where RunRepo returns nil. Without it the
+		// loop's unconditional Fatal below made the success + --export path
+		// impossible to express, which is why it went unpinned: the table's
+		// whole purpose is which document each mode writes, and ready-zero was
+		// the one outcome it could not say anything about.
+		wantSuccess  bool
 		wantWritten  bool
 		wantContains string
 	}{
@@ -36,6 +42,13 @@ func TestRunRepoOutputSelectionByOutcome(t *testing.T) {
 		{name: "summary rendered before findings exit", findings: repoRunFindings, wantWritten: true, wantContains: "Exit: code=3 reason=findings_present"},
 		{name: "summary skipped for preflight failure", findings: repoRunFindings, statusErr: errors.New("down"), wantWritten: false},
 		{name: "json envelope written for preflight failure", jsonOut: true, findings: repoRunFindings, statusErr: errors.New("down"), wantWritten: true, wantContains: `"error"`},
+		// Ready-zero success: no verdict, so the isScannerExit guard is not what
+		// lets these through -- the err == nil branch is. finish.go's doc says an
+		// export is written "for a scanner verdict ... or for success", and this
+		// is the "or for success" half.
+		{name: "sarif written for ready-zero success", export: ExportFormatSARIF, findings: repoRunReadyZero, wantSuccess: true, wantWritten: true, wantContains: `"$schema"`},
+		{name: "vex written for ready-zero success", export: ExportFormatVEX, findings: repoRunReadyZero, wantSuccess: true, wantWritten: true, wantContains: `"statements"`},
+		{name: "summary rendered for ready-zero success", findings: repoRunReadyZero, wantSuccess: true, wantWritten: true, wantContains: "Exit: code=0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -52,7 +65,10 @@ func TestRunRepoOutputSelectionByOutcome(t *testing.T) {
 			}
 
 			err := RunRepo(context.Background(), deps, opts)
-			if err == nil {
+			switch {
+			case tt.wantSuccess && err != nil:
+				t.Fatalf("RunRepo() error = %v, want nil (exit 0)", err)
+			case !tt.wantSuccess && err == nil:
 				t.Fatal("RunRepo() error = nil, want a verdict or an error")
 			}
 			// The scan banner goes to stdout only in text mode with no export;
