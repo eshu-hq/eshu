@@ -378,6 +378,7 @@ measured under the skewed backlog, at the same worker count.**
 | Aggregate drain, 3,100 items, 8 workers, skewed | 119 claims/s | **≥ 119 claims/s** |
 | Small-key time to first claim, single priority class | 25.26 s | materially lower; the even-distribution 30 ms is the floor |
 | Small-key time to first claim, mixed priority classes | not yet measured | **required before acceptance** — priority is ordered before rotation, so a lower-priority key can still starve behind a higher-priority burst |
+| Small-key time to first claim, 8 concurrent workers | not yet measured | **required before acceptance** — every rotation measurement so far was single-claimer, and a shared-cursor design fails only under concurrency (section 6) |
 | Small-key time to first claim, even distribution | 20–35 ms | unchanged |
 | Claim statement at 50,100 pending | 10.832 ms (median of 5) | **≤ 10.832 ms** |
 
@@ -443,10 +444,9 @@ stated as the invariant itself, not as a proxy for it:
 > ties with, and it is what hands every claim to the key whose backlog is oldest.
 >
 > **7. No eligible key may be passed over more than a bounded number of
-> consecutive claims while it has eligible work, and that bound must be
-> demonstrated by measurement rather than argued.** The measurement must include
-> at least one workload with unequal per-key backlog size, one with unequal
-> arrival times, and one with unequal cumulative lifetime volume per key.
+> consecutive claims while it has eligible work.** The bound must be stated as a
+> function of the number of currently-eligible keys, and it must hold for *any*
+> sequence of claim and enqueue events — not merely for sampled workloads.
 
 **Clause 7 is the load-bearing one, and clauses 1-6 cannot substitute for it.**
 Clauses 1-6 all constrain the *inputs* to the ordering — what may be excluded,
@@ -462,8 +462,55 @@ necessary — banning age tiebreaks rules out both measured failures — but it 
 not sufficient. Measured: with the degenerate rank from formulation #2 (uniformly
 1 for every active key) and a purely static lexicographic tiebreak, which
 satisfies clause 6 exactly as written, the alphabetically-first key took **40 of
-40** claims. Starvation did not go away; it moved to a different key. Only clause
-7 catches that, and only by measurement.
+40** claims. Starvation did not go away; it moved to a different key.
+
+### Clause 7 is a proof obligation. The tests below are a floor, not the proof.
+
+An earlier revision of clause 7 said the bound "must be demonstrated by
+measurement" and then listed three workloads. **That was wrong in a way worth
+naming, because it is the same mistake the clause exists to catch.** Three
+examples rule out three failure modes; they cannot establish a universal
+property. A finite test list is evadable on principle, however well the list is
+chosen — which means the previous clause 7 was the seventh clause closing one
+more specific evasion, dressed as something stronger.
+
+A worked evasion, to make that concrete. Keep a single `next_key_hint` recording
+which key is served next; on each claim take the hinted key if it has eligible
+work, then advance the hint cyclically either way. Run sequentially and it passes
+all three named workloads *trivially* — it consults neither backlog size, arrival
+time, nor lifetime volume, so none of those axes can perturb it. It is also the
+obvious thing to reach for once clause 6 bans age tiebreaks, and it is
+structurally what `FamilyFairnessScheduler` already does one level up.
+
+It fails on an axis none of those workloads touch: **concurrency**. The real
+claim path is several workers racing through `FOR UPDATE SKIP LOCKED` — section 3
+measured with eight, and section 6's own table requires eight. A shared cursor
+read and advanced by concurrent workers either races, so a burst of N concurrent
+claimers all read the same hint, all take the same key, and skip N-1 keys' turns
+in one round; or it is serialized to prevent that, which is a hot single-row
+write on every claim — the contention Option A was rejected for.
+
+So the honest split is:
+
+**The obligation.** A mechanism claiming compliance owes an argument that bounds
+overtaking as a function of the eligible-key count, valid for any interleaving of
+claims and enqueues. That is how round-robin fairness is normally established —
+by an amortized or potential-function argument over the ordering's own
+definition, not by sampling.
+
+**The floor.** These four workloads must be measured, and a failure in any of
+them is disqualifying. They do not add up to the obligation above:
+
+| Workload | Why it is here |
+| --- | --- |
+| Unequal per-key backlog size | Defeated formulations #1 and #2 |
+| Unequal arrival times | The burst-at-`t=0` shape section 3 measured |
+| Unequal cumulative lifetime volume | Defeated formulation #3, 40-0 |
+| **Concurrent claiming at eight workers** | The axis all three above share a blind spot on, and the worker count section 6 already requires |
+
+A fifth mechanism that passes all four and fails a fifth workload should be
+treated as expected rather than surprising, and the answer then is the argument,
+not a fifth row.
 
 This is also the property section 5 *used* to claim was structural under Option
 B. That claim is withdrawn — see section 5 — precisely because presence in the
