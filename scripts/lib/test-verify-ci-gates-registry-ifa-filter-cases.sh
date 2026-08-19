@@ -12,13 +12,11 @@
 # fails `verify-ci-gates-registry.sh --drift` today, without this module.
 #
 # WHAT IS NOT: isLiteralTrigger (pathfilter.go:305) returns false for any
-# trigger containing "*", and drift skips those. So the GLOB triggers are the
-# half nothing checked -- and for THIS gate that means exactly one,
-# scripts/lib/ifa_family_registry/**, which is the only door a family's row
-# files are reached through. (The sibling scripts/lib/ifa_family_registry_pins/**
-# belongs to ifa-determinism, not to this gate; its parity is covered by the
-# registry-subset-of-workflow loop in
-# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh.)
+# trigger containing "*", and drift skips those. This gate declares eleven glob
+# triggers, so eleven of its triggers were the half nothing checked -- including
+# go/internal/reducer/** and scripts/lib/ifa_family_registry/**, the two doors
+# the Go blocker lockstep and a family's row files are reached through. The loop
+# below is total over all eleven.
 # Narrowing a "**" to a "*" in the workflow (dorny "*" does not cross "/") left
 # the whole registry test green: an edit to rows/NN_<family>.sh would then
 # select ifa-materialized-edge-coverage as BLOCKING while the job that runs it
@@ -73,26 +71,26 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# workflow, and stayed green because the test's own list did not know about
 	# it either. A third family-registry glob added later is covered by this
 	# loop the moment it lands in the spec.
-	# Scoped to the shell family-registry globs. Two reasons, both load-bearing.
-	# First, this check asserts EXACT STRING presence, and that is only a valid
-	# test when no broader pattern in the filter already covers the glob:
-	# go/internal/ifa/materialized_edges*.go is a registry glob the filter does
-	# not name, and does not need to, because go/internal/ifa/** covers it.
-	# Asserting on every glob reports that as missing, which is a false positive.
-	# Second, the family-registry globs are the ones with no broader pattern
-	# above them -- nothing in the ifa filter covers scripts/lib/** -- so exact
-	# presence is exactly right for them and wrong for the rest.
+	# TOTAL over the gate's glob triggers, not a chosen subset. An earlier
+	# version scoped this to scripts/lib/ifa_family_registry* and justified it by
+	# claiming those were "the ones with no broader pattern above them". That was
+	# false -- go/internal/reducer/**, go/cmd/ifa/** and the cassette globs have
+	# no broader pattern in the ifa filter either -- and it left ten of the
+	# gate's eleven glob triggers unchecked while the header claimed to close
+	# "the half nothing checked".
 	#
-	# Still derived within that scope: a third scripts/lib/ifa_family_registry*
-	# glob added to the spec is picked up by this loop without editing here.
-	# A glob that DOES gain a broader covering pattern is out of scope by
-	# construction, and stating that is better than a check whose passes and
-	# failures both need interpreting.
+	# What made scoping look necessary was a real false positive:
+	# go/internal/ifa/materialized_edges*.go is a trigger the filter does not
+	# name and does not need to, because go/internal/ifa/** already covers it.
+	# The fix is to model that coverage rather than to duck it. A dorny entry
+	# "P/**" covers a trigger T when T starts with "P/", so a trigger is
+	# satisfied by an exact match OR by any prefix-glob entry above it. That is
+	# sound for the "**" form the filter uses and lets the loop run over
+	# everything.
 	local -a glob_triggers=()
 	while IFS= read -r trigger; do
 		[[ -n "${trigger}" ]] || continue
 		[[ "${trigger}" == *"*"* ]] || continue
-		[[ "${trigger}" == scripts/lib/ifa_family_registry* ]] || continue
 		glob_triggers+=("${trigger}")
 	done < <(
 		printf '%s\n' "${gate_block}" |
@@ -105,11 +103,42 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# gate has carried glob triggers since it was written, so zero means the
 	# parse broke, not that the spec changed.
 	[[ "${#glob_triggers[@]}" -gt 0 ]] \
-		|| fail "extracted zero scripts/lib/ifa_family_registry* glob triggers from the ifa-materialized-edge-coverage gate block -- the trigger parse broke, so the ifa filter parity check would pass vacuously"
+		|| fail "extracted zero glob triggers from the ifa-materialized-edge-coverage gate block -- the trigger parse broke, so the ifa filter parity check would pass vacuously"
 
+	local -a filter_entries=()
+	while IFS= read -r entry; do
+		[[ -n "${entry}" ]] && filter_entries+=("${entry}")
+	done < <(printf '%s\n' "${workflow_filter}" | sed -n "s/^ *- '\(.*\)'\$/\1/p")
+	[[ "${#filter_entries[@]}" -gt 0 ]] \
+		|| fail "extracted zero entries from static-contract-gates.yml's ifa filter -- the filter parse broke, so this check would pass vacuously"
+
+	local entry prefix covered
 	for trigger in "${glob_triggers[@]}"; do
-		printf '%s\n' "${workflow_filter}" | rg --fixed-strings --quiet -- "${trigger}" \
-			|| fail "static-contract-gates.yml's ifa filter omits the glob trigger ${trigger}, which specs/ci-gates.v1.yaml declares for ifa-materialized-edge-coverage -- drift.go skips glob triggers, so nothing else catches this: the gate is selected as blocking and its job never scheduled"
+		covered=0
+		for entry in "${filter_entries[@]}"; do
+			if [[ "${entry}" == "${trigger}" ]]; then
+				covered=1
+				break
+			fi
+			# A "P/**" entry covers everything under P/.
+			if [[ "${entry}" == */'**' ]]; then
+				prefix="${entry%/'**'}"
+				if [[ "${trigger}" == "${prefix}/"* ]]; then
+					covered=1
+					break
+				fi
+			fi
+		done
+		[[ "${covered}" -eq 1 ]] \
+			|| fail "static-contract-gates.yml's ifa filter neither names the glob trigger ${trigger} nor carries a broader \"P/**\" entry covering it, while specs/ci-gates.v1.yaml declares it for ifa-materialized-edge-coverage -- drift.go skips glob triggers, so nothing else catches this: the gate is selected as blocking and its job never scheduled"
 	done
-	printf 'test-verify-ci-gates-registry: ifa filter carries all %d family-registry glob trigger(s) the registry declares\n' "${#glob_triggers[@]}"
+
+	# The literal (non-glob) family-registry trigger is asserted on the REGISTRY
+	# side too. drift.go proves the workflow filter selects it; nothing proved
+	# the gate still declares it, and deleting it from the spec left this whole
+	# test green. The glob loop above cannot cover it -- it is not a glob.
+	printf '%s\n' "${gate_block}" | rg --fixed-strings --quiet -- '- "scripts/lib/ifa_family_registry.sh"' \
+		|| fail "the ifa-materialized-edge-coverage gate no longer triggers on scripts/lib/ifa_family_registry.sh -- an edit to the fail-closed row loader or its accessors would not select the gate that runs ifa_family_registry_parse_test.go"
+
+	printf 'test-verify-ci-gates-registry: ifa filter covers all %d glob trigger(s) the registry declares\n' "${#glob_triggers[@]}"
 }

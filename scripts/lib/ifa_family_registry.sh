@@ -130,7 +130,9 @@
 #
 #   drive_fn / assert_fn         shared-cell families only (scripts/verify-
 #                                 ifa-determinism.sh's N-loop).
-#   cassette_var / expected_var  shared-cell families only; the *name* of the
+#   cassette_var / expected_var  shared-cell families, plus any family whose
+#                                 own cells need the paths (deployable_unit_edges
+#                                 is shared_cell=0 and declares both); the *name* of the
 #                                 global variable (sourced from
 #                                 ifa_family_fixtures.sh) holding this
 #                                 family's cassette / expected-edge-set path.
@@ -146,7 +148,11 @@
 #                                 statically -- it fails part-way into a live
 #                                 four-shard CI run, which is the expensive
 #                                 place to find out.
-#   handler_go_file               shared_intent_lock families only; the Go
+#   handler_go_file               consumed only by
+#                                 _ifa_generic_require_intent_writer, so required
+#                                 for shared_intent_lock families; other rows may
+#                                 record it deliberately (rows/06 explains why it
+#                                 keeps one). The Go
 #                                 source path ifa_fault_generic_cells.sh's
 #                                 mandatory precondition assert greps for an
 #                                 IntentWriter before ever acquiring the lock.

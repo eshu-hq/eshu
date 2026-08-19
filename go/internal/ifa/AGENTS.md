@@ -238,14 +238,14 @@ wiring: that is the registry loop this design replaced the inline blocks with,
 and a new family costs a row there, not a new block.
 Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
 `go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
-Go-only, so for every shell file above the limit is policy and nothing will stop
-you crossing it. When either runs out, extract — move a self-contained block of
+Go-only (it also skips `_test.go`), so for every shell file above, and for the Go
+test file, the limit is policy and nothing will stop you crossing it. When
+headroom runs out, extract — move a self-contained block of
 rationale to the library it actually documents, the way the `cell_failgraphwrite_sql`
 history and the deployable-unit ordering note were moved. Do not trim comments
 to fit; the rationale in these files is what lets a reviewer catch a cell whose
 stated intent has drifted from what it does, which is the defect class this
-whole program exists to close. Note the `filelength` linter skips `_test.go`,
-so the Go file's limit is policy, not a gate — nothing will stop you.
+whole program exists to close.
 
 Not enforced by any gate — get these right by hand:
 

@@ -353,15 +353,6 @@ proves in `specs/ifa-coverage-manifest.v1.yaml` only once green (C-1), and run
 checklist (mirroring the parser package's "add a language" 7-step model) lives
 in `AGENTS.md`.
 
-## Related Docs
-
-- `docs/internal/design/4389-ifa-conformance-platform.md`
-- `go/internal/replay/README.md`
-- `go/internal/facts/README.md`
-- `go/internal/replaycoverage/README.md`
-- `go/internal/relationships/README.md`
-- `go/internal/goldengate/README.md`
-
 ## `--teeth`
 
 Relocated from `scripts/verify-ifa-determinism.sh`, which was at its
@@ -385,3 +376,12 @@ SAME comparison the gate already runs unmodified. No normal, CI, or
 production build ever compiles that fault: cloud_resource_node_writer_
 teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
 !ifadeterminismteeth) are its zero-cost, zero-behavior default.
+
+## Related Docs
+
+- `docs/internal/design/4389-ifa-conformance-platform.md`
+- `go/internal/replay/README.md`
+- `go/internal/facts/README.md`
+- `go/internal/replaycoverage/README.md`
+- `go/internal/relationships/README.md`
+- `go/internal/goldengate/README.md`

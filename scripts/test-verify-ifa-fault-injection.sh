@@ -92,9 +92,16 @@ done
 # claiming it is.
 for lib_var in $(compgen -v | rg '_lib$' | sort); do
 	lib_path="${!lib_var}"
-	# Skip anything that is not an existing file: a few *_lib names hold
-	# fragments or directories rather than scripts.
-	[[ -f "${lib_path}" ]] || continue
+	# A missing file FAILS rather than being skipped. The earlier `|| continue`
+	# carried a justification -- "a few *_lib names hold fragments or
+	# directories rather than scripts" -- that is not true of this file: every
+	# *_lib variable resolves to an existing script. What the skip actually did
+	# was hide a deletion: ${fixtures_lib} is the one *_lib not also named in
+	# the existence loop above, so renaming scripts/lib/ifa_family_fixtures.sh
+	# would have left this mirror green, where before the loop existed
+	# `bash -n "${fixtures_lib}"` failed loudly on it.
+	[[ -f "${lib_path}" ]] \
+		|| fail "${lib_var} points at ${lib_path}, which does not exist -- a renamed or deleted lib must fail here, not be skipped"
 	bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
 done
 rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "${documentation_barrier_lib}" \

@@ -34,7 +34,8 @@
 #
 # cell_kind=custom families (documentation_edges' ACK barrier,
 # deployable_unit_edges' table_lock kept on its bespoke cell,
-# codeowners_ownership_edges' not-yet-implemented ack_barrier target) are NOT
+# codeowners_ownership_edges' table_lock:fact_records, landed and kept on its
+# own bespoke cell) are NOT
 # forced into the generic shape. cell_killworker_family and
 # cell_failgraphwrite_family below dispatch straight to that family's own
 # hand-written cell function (custom_killworker_fn / custom_failgraphwrite_fn
@@ -52,7 +53,7 @@
 # / capture_digest / assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
 #
-# WIRED. scripts/verify-ifa-fault-injection.sh sources this file at line 209
+# WIRED. scripts/verify-ifa-fault-injection.sh sources this file at line 211
 # (`source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"`; this file
 # self-sources its own three mechanism files and ifa_family_registry.sh, so
 # that one source line is enough). code_calls and rationale_edges are the two
