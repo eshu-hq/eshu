@@ -365,8 +365,9 @@ builds every host binary with `-tags ifadeterminismteeth`, which links in
 exactly one build-tag-gated fault: go/internal/reducer/gcp_resource_
 materialization_teeth.go stamps TWO properties onto each CloudResource row —
 `ifa_teeth_seq` (a process-global monotonic sequence number, reintroduced in
-slice 6b now that the multi-scope cassette above makes it interleaving-
-sensitive again instead of inert) and `ifa_teeth_write_order` (wall-clock
+slice 6b now that the 8-project synth-multiscope cassette the determinism gate
+drives — see `SYNTH_MULTISCOPE_PROJECTS` in scripts/verify-ifa-determinism.sh —
+makes it interleaving-sensitive again instead of inert) and `ifa_teeth_write_order` (wall-clock
 nanoseconds, the guaranteed-red floor) — and go/internal/storage/cypher/
 cloud_resource_node_writer_teeth.go appends the two matching SET clauses
 that persist them. At least one of those values depends on this run's own

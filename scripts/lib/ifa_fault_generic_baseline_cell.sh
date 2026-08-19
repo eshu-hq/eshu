@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2154
+# The driver-owned globals this cell reads (use_compose, compose_file, log_dir,
+# bin_dir, work_dir) and sets (projector_pid, reducer_pid) are defined by
+# scripts/verify-ifa-fault-injection.sh before it sources this file; shellcheck
+# cannot see that from here. Same disable, same reason, as every sibling
+# *_cells.sh -- including ifa_fault_generic_cells.sh, whose header documents the
+# cross-file blindness in full.
 # The generic per-family BASELINE fault cell, split out of
 # scripts/lib/ifa_fault_generic_cells.sh because that file reached the
 # repository's 500-line cap -- the same reason, and the same split, its own
@@ -7,7 +14,7 @@
 # unit.
 #
 # Sourced AFTER ifa_fault_generic_cells.sh: this cell calls
-# _ifa_generic_drive_family and _ifa_generic_baseline_key, which that file
+# _ifa_generic_drive_family and _ifa_generic_assert_edges, which that file
 # defines. Bash resolves function bodies at call time, so the order matters
 # only for readability, not correctness -- but keep it, so a reader is never
 # asked to hold two files in their head to find a definition.
@@ -73,8 +80,20 @@ cell_baseline_family() {
 			|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- cannot scope the retry baseline to a domain"
 		[[ -n "${wait_key}" ]] \
 			|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- a retry baseline scoped to no domain proves nothing"
-		printf -v "${retry_var}" '%s' "$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}")" \
+		# Captured FIRST, then assigned. `printf -v x "%s" "$(cmd)" || die`
+		# tests PRINTF's status, never the substitution's -- printf succeeds
+		# just as happily on an empty string, so a failing
+		# ifa_fault_count_retried (psql error, compose hiccup) would silently
+		# establish an empty retry baseline that _ifa_generic_require_retry_baseline
+		# then dereferences as its threshold. That is the kill cell's central
+		# proof running against a number nobody validated, and it is the same
+		# guard-that-does-not-guard shape this mechanism's own header calls out
+		# two files over. The hand-written codeowners cell this generalizes uses
+		# a direct assignment, where `|| die` does fire; this is now no weaker.
+		local retried
+		retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}")" \
 			|| die "${cell}: could not establish ${retry_var} for ${family}"
+		printf -v "${retry_var}" '%s' "${retried}"
 		printf '%s: fault-free %s retry baseline (%s): %s\n' "${cell}" "${wait_key}" "${retry_var}" "${!retry_var}"
 	fi
 

@@ -228,6 +228,16 @@ test_ifa_generic_intent_writer_precondition_is_wired_before_the_body() {
 	# the invocation proves it RUNS. These two name the invocations.
 	require_generic_cells "generic kill cell WIRES the retry-baseline proof (call site, not body)" \
 		'[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"'
-	require_generic_cells "generic recovery cells WIRE the per-family edge assertion (call site, not body)" \
-		'_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"'
+	# TWO call sites, counted -- not "at least one". The kill-worker body and the
+	# fail-graph-write cell each assert the family's edge set, and a --quiet pin
+	# is satisfied by either one surviving alone.
+	require_generic_cells_count "generic recovery cells WIRE the per-family edge assertion (call site, not body)" \
+		'_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"' 2
+
+	# The baseline cell's own edge assertion lives in a different file since the
+	# 500-line split, so require_generic_cells cannot see it.
+	require_generic_baseline "generic baseline cell asserts the family edge set, not just a digest" \
+		'_ifa_generic_assert_edges "${family}"'
+	require_generic_baseline "generic baseline cell captures the retry count before assigning it (printf -v cannot report the substitution's failure)" \
+		'retried="$(ifa_fault_count_retried'
 }

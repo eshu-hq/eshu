@@ -331,13 +331,13 @@ for n in "${worker_counts[@]}"; do
 	# comparison is simply false either way. That silently treated a
 	# malformed row as "not a shared-cell family" -- never driven, never
 	# asserted, gate green -- exactly the failure this loop must not have.
-	for family in $(ifa_family_registry_names); do
+	while IFS= read -r family; do
 		family_shared_cell="$(ifa_family_shared_cell "${family}")" \
 			|| die "N=${n}: family=${family}: ifa_family_shared_cell accessor failed (row missing IFA_FAMILY_SHARED_CELL) -- refusing to silently skip this family"
 		[[ "${family_shared_cell}" == "1" ]] || continue
 		ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}" \
 			|| die "N=${n}: ${family} family drive failed"
-	done
+	done < <(ifa_family_registry_names)
 
 	# Optional seventh drive (--contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -382,13 +382,13 @@ for n in "${worker_counts[@]}"; do
 	# above. rationale_edges' durable lifecycle tuple below has no equivalent
 	# elsewhere, so it stays a targeted call, not a registry hook. Same F-5(a)
 	# fail-closed accessor check as the drive loop above -- see its comment.
-	for family in $(ifa_family_registry_names); do
+	while IFS= read -r family; do
 		family_shared_cell="$(ifa_family_shared_cell "${family}")" \
 			|| die "N=${n}: family=${family}: ifa_family_shared_cell accessor failed (row missing IFA_FAMILY_SHARED_CELL) -- refusing to silently skip this family"
 		[[ "${family_shared_cell}" == "1" ]] || continue
 		ifa_family_registry_assert "${family}" "${n}" "${bin_dir}" \
 			|| die "N=${n}: ${family} family assertion failed"
-	done
+	done < <(ifa_family_registry_names)
 	ifa_rationale_assert_work_counts "N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" \
 		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${ifa_rationale_generation_id}" "${ifa_rationale_expected_tuple}" \

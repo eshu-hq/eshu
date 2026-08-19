@@ -55,6 +55,37 @@ require_generic_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${generic_cells_lib}" || fail "missing ${label} (generic cells lib): ${needle}"
 }
+# require_generic_cells_count pins a needle that must appear an EXACT number of
+# times, not merely at least once. `rg --quiet` proves >=1 and stops looking, so
+# a needle occurring at N distinct call sites is satisfied by any one of them
+# surviving -- deleting the other N-1 leaves the mirror green. That is not
+# hypothetical: the assert-edges invocation appears at BOTH the kill-worker body
+# and the fail-graph-write cell, and deleting only the fail-graph-write one left
+# this mirror at exit 0 while cell_failgraphwrite_code_calls and
+# cell_failgraphwrite_rationale silently stopped asserting their family's exact
+# edge set. The expected count is hand-written by the caller and deliberately NOT
+# derived from the file under test -- a count read out of the artifact it checks
+# proves only that the artifact equals itself.
+require_generic_cells_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(rg --fixed-strings --count-matches -- "${needle}" "${generic_cells_lib}" || true)"
+	got="${got:-0}"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} call site(s) of this invocation in ${generic_cells_lib##*/}, found ${got} -- a deleted call site is a proof that silently stopped running: ${needle}"
+}
+# require_generic_baseline pins the contents of the generic BASELINE cell, which
+# lives in its own file since the 500-line split. Without this, that file is
+# pinned by nothing at all: require_generic_cells reads only generic_cells_lib,
+# so the split moved the baseline cell's assertions somewhere no pin could see
+# them. Proven at the time: deleting the baseline cell's own _ifa_generic_assert_edges
+# call left this mirror at exit 0, silently permitting the very thing that cell's
+# comment says it exists to prevent -- a fixture that materializes nothing
+# establishing an empty baseline every recovery cell then matches.
+require_generic_baseline() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${generic_baseline_lib}" \
+		|| fail "missing ${label} (generic baseline cell): ${needle}"
+}
 require_documentation_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"

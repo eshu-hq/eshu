@@ -32,7 +32,7 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# Scope to the ifa: filter block, not the whole workflow. Searching the file
 	# would let a pattern living under some other filter key satisfy an
 	# assertion whose message says "the ifa filter".
-	workflow_filter="$(sed -n '/^[[:space:]]*ifa:$/,/^[[:space:]]*[a-z][a-z0-9]*:$/p' "${static_contract_workflow}")"
+	workflow_filter="$(sed -n '/^[[:space:]]*ifa:$/,/^[[:space:]]*[a-z][a-z0-9_-]*:$/p' "${static_contract_workflow}")"
 	[[ -n "${workflow_filter}" ]] \
 		|| fail "missing ifa workflow filter in ${static_contract_workflow##*/}"
 

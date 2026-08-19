@@ -174,7 +174,12 @@ delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_
 # drive/assert calls the require()s above used to pin directly. "The loop
 # exists" alone is nearly vacuous (it passes whether or not the loop body
 # does anything useful); the totality check below is what gives it teeth.
-require "drive loop iterates the family registry, not a hardcoded list" 'for family in $(ifa_family_registry_names); do'
+# Pinned on the REDIRECT, not the loop header. The loop reads names on stdin, so
+# `done < <(ifa_family_registry_names)` is what supplies the data -- a
+# `while IFS= read -r family` whose redirect was dropped reads EOF immediately
+# and iterates zero times, passing every downstream assertion vacuously. Binding
+# the header alone would not catch that.
+require "drive loop iterates the family registry, not a hardcoded list" 'done < <(ifa_family_registry_names)'
 # The filter is two statements, not one, and that is the point: a bare
 # `[[ "$(accessor)" == "1" ]] || continue` cannot tell shared_cell=0 apart
 # from an accessor FAILURE on a row missing IFA_FAMILY_SHARED_CELL -- a
@@ -188,12 +193,12 @@ require "drive/assert loop dies when the shared_cell accessor fails" 'refusing t
 require "drive/assert loop skips non-shared_cell families" '[[ "${family_shared_cell}" == "1" ]] || continue'
 require "drive loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}"'
 require "assert loop dispatches through the registry, not a family-specific call" 'ifa_family_registry_assert "${family}" "${n}" "${bin_dir}"'
-# The loop header must appear exactly twice (drive, then assert) -- a gate
-# half-migrated to the registry (e.g. drive converted but assert still
+# The registry-fed redirect must appear exactly twice (drive, then assert) -- a
+# gate half-migrated to the registry (e.g. drive converted but assert still
 # hand-listing families) would satisfy a single occurrence.
-loop_header_count="$(rg --count --fixed-strings -- 'for family in $(ifa_family_registry_names); do' "${script}")"
+loop_header_count="$(rg --count --fixed-strings -- 'done < <(ifa_family_registry_names)' "${script}")"
 [[ "${loop_header_count}" -eq 2 ]] \
-	|| fail "expected exactly 2 occurrences of the family-registry drive/assert loop header (drive + assert), found ${loop_header_count}"
+	|| fail "expected exactly 2 occurrences of the family-registry drive/assert loop redirect (drive + assert), found ${loop_header_count} -- a while-read loop whose redirect was dropped iterates zero times and passes vacuously"
 
 # Totality, both directions, read LIVE through the real registry accessors
 # (never by re-deriving the expected set from ifa_family_registry.sh's own

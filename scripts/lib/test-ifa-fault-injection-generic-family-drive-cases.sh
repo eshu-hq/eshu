@@ -36,6 +36,20 @@ _ifa_generic_family_drive_case_setup() {
 	# cell_baseline_family lives in its own file since the 500-line split.
 	# shellcheck source=scripts/lib/ifa_fault_generic_baseline_cell.sh
 	source "${generic_baseline_lib}" 2>/dev/null || true
+	# Both sources swallow errors, and the cases below assert only `rc -ne 0`.
+	# A MISSING function returns 127, which satisfies that -- so a rename, a
+	# broken source path, or a deleted function would read as the refusal these
+	# cases are meant to prove. The 500-line split is what made this reachable:
+	# cell_baseline_family now sits behind a second path and a second variable
+	# that can break independently. Assert the functions exist before asserting
+	# how they behave. The sibling module runner already does exactly this with
+	# declare -F, and its header calls the silent-skip shape the defect class
+	# those modules exist to close.
+	local fn
+	for fn in cell_baseline_family _ifa_generic_drive_family _ifa_generic_baseline_key; do
+		declare -F "${fn}" >/dev/null \
+			|| fail "${fn} is not defined after sourcing the generic cell libs -- these cases would then 'pass' on rc=127 from a missing function instead of the refusal they claim to prove"
+	done
 	drive_workers=1
 	bin_dir="/nonexistent"
 	log_dir="/nonexistent"
