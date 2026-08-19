@@ -108,7 +108,13 @@ _ifa_det_count_code_matches() {
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently
 		# broke the floor pin added this round, which is exactly the kind of guard
 		# that must stay pinnable.
-		code="${line%%[[:space:]]#*}"
+		# Bash starts a comment at `#` after ANY unquoted metacharacter, not only
+		# whitespace: `;` `|` `&` `(` `)` `<` `>` all do it. Cutting only at
+		# whitespace-then-`#` let `:;#trap ifa_det_cleanup EXIT` read as live code,
+		# which reproduced on HEAD the exact defect the previous round closed --
+		# shellcheck does not flag it, `bash -n` passes, and no gate runs shellcheck
+		# on these scripts, so nothing else would have caught it.
+		code="${line%%[[:space:]\;\|\&\(\)\<\>]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -155,36 +161,44 @@ require_line() {
 }
 require_fixture() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
 }
 require_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${lib}" || fail "missing ${label} (lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (lib): ${needle}, or it survives only inside a comment"
 }
 require_lifecycle_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${lifecycle_lib}" || fail "missing ${label} (lifecycle lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${lifecycle_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (lifecycle lib): ${needle}, or it survives only inside a comment"
 }
 require_delta_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${delta_lib}" || fail "missing ${label} (delta lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${delta_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (delta lib): ${needle}, or it survives only inside a comment"
 }
 require_code_call_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${code_call_lib}" || fail "missing ${label} (code-call lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${code_call_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (code-call lib): ${needle}, or it survives only inside a comment"
 }
 require_documentation_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${documentation_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (documentation lib): ${needle}, or it survives only inside a comment"
 }
 require_deployable_unit_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lib}" || fail "missing ${label} (deployable-unit lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${deployable_unit_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit lib): ${needle}, or it survives only inside a comment"
 }
 
 require_rationale_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${rationale_lib}" || fail "missing ${label} (rationale lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${rationale_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (rationale lib): ${needle}, or it survives only inside a comment"
 }
 
 # Code-binding, so it goes through the same code-portion matcher as require_code:

@@ -84,10 +84,11 @@ codeowners_ownership_edges — with zero durable dead letters throughout.
 
 In CI the twenty non-baseline cells are split across four shards that run in
 parallel, and the fault-free baseline is repeated in every shard rather than
-partitioned into one -- every recovery cell compares its graph against a
+partitioned into one — every recovery cell compares its graph against a
 baseline captured on the same runner, so CI executes twenty-four cells for a
-twenty-one-cell matrix. Locally the command above runs all of them in one pass. `--shard k/4` runs one
-shard, and `--list-cells` prints the partition without starting anything.
+twenty-one-cell matrix. Locally the command above runs all of them in one
+pass. `--shard k/4` runs one shard, and `--list-cells` prints the partition
+without starting anything.
 
 ### Reading a red check, and reproducing it
 

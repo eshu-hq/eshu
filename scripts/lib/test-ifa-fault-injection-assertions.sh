@@ -40,35 +40,63 @@ require_line() {
 }
 require_fixture() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${fixtures_lib}" || fail "missing ${label} (fixtures lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
 }
 require_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${fault_lib}" || fail "missing ${label} (lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${fault_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (lib): ${needle}, or it survives only inside a comment"
+}
+# require_framing pins a needle that binds FRAMING -- rationale, overview or
+# inventory prose -- in a named file. Its counterparts (require_lib,
+# require_cells, ...) all bind CODE through the code-portion matcher, so a
+# prose needle can never satisfy them. The target file is passed explicitly so
+# the exception is visible at the call site rather than hidden in a helper name.
+#
+# Every use is a deliberate statement that the thing being pinned is
+# documentation, not behaviour. If a pin here could name live code instead, it
+# should -- prose pins survive a commented-out implementation by design.
+# require_shard_lib binds live code in the shard lib (flag parsing, partitioning).
+require_shard_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_count_code_matches "${needle}" "${shard_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (shard lib), or it survives only inside a comment: ${needle}"
+}
+require_framing() {
+	local label="$1" needle="$2" file="$3"
+	rg --fixed-strings --quiet -- "${needle}" "${file}" \
+		|| fail "missing ${label} (framing, ${file##*/}): ${needle}"
 }
 require_driver() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${driver_lib}" || fail "missing ${label} (driver lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${driver_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (driver lib): ${needle}, or it survives only inside a comment"
 }
 require_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${cells_lib}" || fail "missing ${label} (cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (cells lib): ${needle}, or it survives only inside a comment"
 }
 require_sql_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${sql_cells_lib}" || fail "missing ${label} (sql cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${sql_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (sql cells lib): ${needle}, or it survives only inside a comment"
 }
 require_delivery_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${delivery_cells_lib}" || fail "missing ${label} (delivery cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${delivery_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (delivery cells lib): ${needle}, or it survives only inside a comment"
 }
 require_code_call_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${code_call_lib}" || fail "missing ${label} (code-call lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${code_call_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (code-call lib): ${needle}, or it survives only inside a comment"
 }
 require_code_call_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${code_call_cells_lib}" || fail "missing ${label} (code-call cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${code_call_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (code-call cells lib): ${needle}, or it survives only inside a comment"
 }
 # _ifa_count_code_matches counts lines of ${2} where ${1} appears in the CODE
 # portion -- the part before any `#`. Lines whose first non-whitespace character
@@ -83,8 +111,12 @@ require_code_call_cells() {
 #
 # Direction of the residual imprecision is deliberate: a `#` inside a quoted
 # string truncates the code portion early, so a needle after it reads as absent
-# and the pin REDS. That is a false alarm a human resolves in seconds, never a
-# false pass. Counting lines rather than matches is the same trade -- two needles
+# and the pin REDS. That is a false alarm a human resolves in seconds. The
+# earlier form of this comment claimed that direction was "never a false pass",
+# which was wrong while the cut was whitespace-only -- `:;#<needle>` passed. It
+# holds for the metacharacter set below; it is a property of THAT set, not a
+# guarantee, so widen the set rather than restate the claim if another
+# comment-introducing context turns up. Counting lines rather than matches is the same trade -- two needles
 # on one line read 1, which can only over-report absence.
 #
 # require_line above pins whole lines for the same reason, and its docstring is
@@ -101,6 +133,35 @@ require_code_call_cells() {
 # Lives here rather than in the mirror because that file sits against the
 # 500-line cap and this is a whole coherent unit -- the same reason, and the
 # same shape, as the other extractions this branch made.
+# assert_libs_parse runs `bash -n` over every declared *_lib and floors the
+# count. Lives here rather than in the mirror for the same reason the
+# private-data scan does: that file sits against the 500-line cap, and a scan
+# plus its floor is one coherent unit.
+assert_libs_parse() {
+	local lib_var lib_path syntax_checked
+	syntax_checked=0
+	for lib_var in $(compgen -v | rg '_lib$' | sort); do
+		lib_path="${!lib_var}"
+		syntax_checked=$((syntax_checked + 1))
+		# A missing file FAILS rather than being skipped. The earlier `|| continue`
+		# carried a justification -- "a few *_lib names hold fragments or
+		# directories rather than scripts" -- that is not true of this file: every
+		# *_lib variable resolves to an existing script. What the skip actually did
+		# was hide a deletion: ${fixtures_lib} is the one *_lib not also named in
+		# the existence loop above, so renaming scripts/lib/ifa_family_fixtures.sh
+		# would have left this mirror green, where before the loop existed
+		# `bash -n "${fixtures_lib}"` failed loudly on it.
+		[[ -f "${lib_path}" ]] \
+			|| fail "${lib_var} points at ${lib_path}, which does not exist -- a renamed or deleted lib must fail here, not be skipped"
+		bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
+	done
+	# Floor: this derivation can resolve to NOTHING (an empty `for` word list is not
+	# an error), so one pattern edit would silently skip every lib where the 37
+	# explicit `bash -n` lines it replaced each cost only one. Hand-written, below
+	# the current count, never derived from the expression it guards.
+	[[ "${syntax_checked}" -ge 35 ]] \
+		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"
+}
 assert_no_private_data() {
 	local private_pattern f v
 	local -a targets
@@ -164,7 +225,13 @@ _ifa_count_code_matches() {
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently
 		# broke the floor pin added this round, which is exactly the kind of guard
 		# that must stay pinnable.
-		code="${line%%[[:space:]]#*}"
+		# Bash starts a comment at `#` after ANY unquoted metacharacter, not only
+		# whitespace: `;` `|` `&` `(` `)` `<` `>` all do it. Cutting only at
+		# whitespace-then-`#` let `:;#trap ifa_det_cleanup EXIT` read as live code,
+		# which reproduced on HEAD the exact defect the previous round closed --
+		# shellcheck does not flag it, `bash -n` passes, and no gate runs shellcheck
+		# on these scripts, so nothing else would have caught it.
+		code="${line%%[[:space:]\;\|\&\(\)\<\>]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -206,19 +273,23 @@ require_generic_baseline() {
 }
 require_documentation_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${documentation_lib}" || fail "missing ${label} (documentation lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${documentation_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (documentation lib): ${needle}, or it survives only inside a comment"
 }
 require_documentation_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${documentation_cells_lib}" || fail "missing ${label} (documentation cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${documentation_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (documentation cells lib): ${needle}, or it survives only inside a comment"
 }
 require_documentation_barrier() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_lib}" || fail "missing ${label} (documentation ACK barrier lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${documentation_barrier_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (documentation ACK barrier lib): ${needle}, or it survives only inside a comment"
 }
 require_documentation_barrier_setup() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${documentation_barrier_setup_lib}" || fail "missing ${label} (documentation ACK barrier setup lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${documentation_barrier_setup_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (documentation ACK barrier setup lib): ${needle}, or it survives only inside a comment"
 }
 
 # Deleting only the function name from a continued call leaves its arguments

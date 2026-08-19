@@ -49,7 +49,7 @@ run_ifa_documentation_live_static_cases() {
 	# thing rather than the thing.
 	require_documentation_cells "graph-write cell probes fresh DOCUMENTS edges" 'ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation"'
 	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
-	require_documentation_cells "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline"
+	require_framing "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline" "${documentation_cells_lib}"
 	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 	require_documentation_cells "documentation kill cell installs its ACK barrier" "ifa_documentation_start_ack_barrier"
 	require_documentation_barrier_setup "documentation ACK barrier is a before-update trigger" "BEFORE UPDATE ON public.fact_work_items"
@@ -148,7 +148,7 @@ run_ifa_documentation_live_static_cases() {
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
-	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound"
+	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound" "${driver_lib}"
 	# The literal-label pin that used to live here ("Run Ifa fault-injection
 	# matrix (18 cells, fresh stack per cell)") was migrated to
 	# scripts/lib/test-ifa-fault-injection-shard-cases.sh once the
@@ -180,6 +180,11 @@ run_ifa_documentation_live_static_cases() {
 	[[ "$(_ifa_count_code_matches 'assert_no_private_data' "${static_test}")" -ge 1 ]] \
 		|| fail "the fault mirror no longer calls assert_no_private_data -- the private-data scan is not running at all"
 	# And a floor on what it scans, so a derivation that resolves to nothing reds.
+	# The registry/rows/pins glob block is bound by nothing otherwise: deleting it
+	# drops the scan 57 -> 44, which still clears the floor of 40, so coverage
+	# silently reverts and loses exactly the 13 files it was added to cover.
+	[[ "$(_ifa_count_code_matches 'ifa_family_registry_pins' "${assertions_src}")" -ge 1 ]] \
+		|| fail "assert_no_private_data no longer scans the registry rows and pins -- 13 files this branch adds would go unscanned while the floor still passes"
 	[[ "$(_ifa_count_code_matches 'the *_lib derivation has collapsed' "${assertions_src}")" -ge 1 ]] \
 		|| fail "assert_no_private_data no longer asserts a scanned-file floor -- a collapsed derivation would scan one file and pass"
 	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
@@ -347,12 +352,12 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	# explaining the mechanism instead of recording a gap. It must also keep
 	# the scope of the pre-adoption probe, so a reader cannot mistake a
 	# mechanism proof for the live-matrix proof.
-	require_documentation_cells "documentation cells header states the family regained a mid-handler cell" "MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER"
-	require_documentation_cells "documentation cells header names the superseded gap ruling" "superseding the gap #6149 follow-up item 8 recorded here"
-	require_documentation_cells "documentation cells header keeps the measured handler duration that defeated both earlier triggers" "duration_seconds 0.0073"
-	require_documentation_cells "documentation cells header names the ACK-barrier mechanism" "pg_advisory_xact_lock(5998, 5994)"
-	require_documentation_cells "documentation cells header explains why handler width no longer matters" "handler width is irrelevant"
-	require_documentation_cells "documentation cells header bounds what the pre-adoption probe did not cover" "not the real"
+	require_framing "documentation cells header states the family regained a mid-handler cell" "MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER" "${documentation_cells_lib}"
+	require_framing "documentation cells header names the superseded gap ruling" "superseding the gap #6149 follow-up item 8 recorded here" "${documentation_cells_lib}"
+	require_framing "documentation cells header keeps the measured handler duration that defeated both earlier triggers" "duration_seconds 0.0073" "${documentation_cells_lib}"
+	require_framing "documentation cells header names the ACK-barrier mechanism" "pg_advisory_xact_lock(5998, 5994)" "${documentation_cells_lib}"
+	require_framing "documentation cells header explains why handler width no longer matters" "handler width is irrelevant" "${documentation_cells_lib}"
+	require_framing "documentation cells header bounds what the pre-adoption probe did not cover" "not the real" "${documentation_cells_lib}"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"

@@ -93,20 +93,6 @@ done
 # either surfaced only in the ~22-minute live Docker shard. Deriving the list
 # from the declarations makes the coverage total for real, instead of a comment
 # claiming it is.
-for lib_var in $(compgen -v | rg '_lib$' | sort); do
-	lib_path="${!lib_var}"
-	# A missing file FAILS rather than being skipped. The earlier `|| continue`
-	# carried a justification -- "a few *_lib names hold fragments or
-	# directories rather than scripts" -- that is not true of this file: every
-	# *_lib variable resolves to an existing script. What the skip actually did
-	# was hide a deletion: ${fixtures_lib} is the one *_lib not also named in
-	# the existence loop above, so renaming scripts/lib/ifa_family_fixtures.sh
-	# would have left this mirror green, where before the loop existed
-	# `bash -n "${fixtures_lib}"` failed loudly on it.
-	[[ -f "${lib_path}" ]] \
-		|| fail "${lib_var} points at ${lib_path}, which does not exist -- a renamed or deleted lib must fail here, not be skipped"
-	bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
-done
 rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "${documentation_barrier_lib}" \
 	|| fail "documentation ACK barrier must source its setup/holder helper"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
@@ -121,6 +107,9 @@ rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "
 
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
 source "${assertions_lib}"
+# Parses every declared *_lib and floors the count; defined in the assertions
+# lib, so it must run after that source.
+assert_libs_parse
 # shellcheck source=scripts/lib/test-ifa-fault-injection-rationale-cases.sh
 source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
@@ -202,7 +191,7 @@ require_sql_cells "a missing marker sends the reader to probe 2 rather than gues
 # "command not found" exit read as "the marker does not name the operation", so
 # a fault that fired correctly was reported as inert for weeks. A checker that
 # cannot run must never be readable as a negative result.
-require_lib "the marker assertion matches in bash, not via an external binary" "Bash substring match, NOT an external tool"
+require_framing "the marker assertion matches in bash, not via an external binary" "Bash substring match, NOT an external tool" "${fault_lib}"
 if rg --fixed-strings --quiet -- 'rg --quiet' "${fault_lib}"; then
 	fail "the marker assertion shells out to rg again; it is absent on the fault-injection runner and its failure is indistinguishable from a negative match (#5974)"
 fi
@@ -327,9 +316,9 @@ require_sql_cells "SQL-targeted once-then-succeed script writer" "ifa_fault_writ
 require_sql_cells "SQL-targeted queue-retry lane selected" '"queue-retry"'
 require_sql_cells "SQL-targeted ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script_sql}"
 require_sql_cells "SQL fired-fault proof reads the durable marker" "ifa_fault_assert_once_fault_marker"
-require_sql_cells "SQL fired-fault proof non-vacuity framing" "non-vacuity"
+require_framing "SQL fired-fault proof non-vacuity framing" "non-vacuity" "${sql_cells_lib}"
 require_lib "once-fired marker function signature" 'ifa_fault_assert_once_fault_marker() {'
-require_lib "marker assertion names the retired log route and why" "races the logger's flush"
+require_framing "marker assertion names the retired log route and why" "races the logger's flush" "${fault_lib}"
 # The log-poll helper is retired, not merely unused: leaving a mechanism that
 # is known to go inert in CI invites the next cell to reach for it.
 if rg --fixed-strings --quiet -- "ifa_fault_assert_sql_graph_write_fired" "${fault_lib}" "${sql_cells_lib}" "${script}"; then
@@ -432,7 +421,7 @@ run_ifa_fault_injection_codeowners_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
-require_driver "baseline digest capture" "digests[baseline]"
+require_framing "baseline digest capture" "digests[baseline]" "${driver_lib}"
 require_driver "digest comparison helper" "assert_matches_baseline"
 require_driver "mismatch framing" "MISMATCH:"
 require_driver "full-bytes diff on divergence" "diff -u"

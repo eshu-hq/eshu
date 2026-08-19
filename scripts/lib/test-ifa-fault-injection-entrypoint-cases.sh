@@ -27,8 +27,14 @@ run_ifa_fault_entrypoint_static_cases() {
 	# failure_message column so neither can be dropped silently.
 	require_code "durable work-item failure dump" "durable work-item failures (Postgres)"
 	require_code "durable dump selects failure_message" "failure_class, failure_message FROM fact_work_items"
-	require "--no-compose flag" "--no-compose"
-	require_code "--keep flag" "--keep"
+	# Pinned against the PARSER in the shard lib, not the gate's usage text.
+	# Both previously matched only the `printf` usage block, so the flags could
+	# have been dropped from the case statement with the mirror green -- and
+	# --no-compose had been reclassified as "framing" on exactly that evidence,
+	# which is what a pin matching prose looks like from the outside.
+	require_shard_lib "--no-compose flag is parsed" '--no-compose) use_compose=0 ;;'
+	require_shard_lib "--keep flag is parsed" '--keep) keep=1 ;;'
+	require "--no-compose documented in usage" "--no-compose"
 
 	# Isolation: a Compose project name and port triple distinct from every
 	# sibling verify-ifa-*.sh script and verify-golden-corpus-gate.sh.
