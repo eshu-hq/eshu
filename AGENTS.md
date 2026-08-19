@@ -49,8 +49,9 @@ full `eshu-code-review`. If that review reports any P0, P1, or blocking P2
 finding, fix it, rerun the affected focused verification, and repeat the full
 review; `make pre-pr` MUST NOT run until the verdict is P0=0, P1=0, and
 P2-blocking=0. A P2 blocks when it contradicts a claim the PR itself makes or is
-cheap and in the same edit; any other P2 is tracked and named in the PR rather
-than blocking. The bar and the unbounded loop it prevents are in
+cheap and in the same edit; any other P2 is tracked in a linked issue with the
+owner's agreement quoted in the PR, and named there with its severity-table
+category, rather than blocking. The bar and the unbounded loop it prevents are in
 `.agents/skills/eshu-code-review/references/merge-bar.md`.
 
 Once the preliminary review is clean, run `make pre-pr` exactly when the branch

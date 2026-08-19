@@ -451,9 +451,11 @@ Severity:
   until fixed and re-reviewed.
 - **P2**: edge case, doc drift, genuine missing coverage, minor performance or
   naming issue. Fix inline by default; it blocks only when it contradicts a
-  claim the PR makes or is cheap and in the same edit. Otherwise track it, name
-  it in the PR, and merge. Count fix-induced findings separately. Full bar and
-  the unbounded-loop it prevents: `references/merge-bar.md`.
+  claim the PR makes or is cheap and in the same edit. Otherwise track it in a
+  linked issue with the owner's agreement quoted in the PR, name it there with
+  its severity-table category, and merge. Count fix-induced findings
+  separately. Full bar and the unbounded loop it prevents:
+  `references/merge-bar.md`.
 
 Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between

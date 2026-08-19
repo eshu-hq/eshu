@@ -35,7 +35,7 @@ until the proof clauses in the DONE section all hold.
   `origin/main`, and rerun the focused proof affected by the rebase. Then follow
   the complete Steps 5-7 promotion sequence: preliminary full
   `eshu-code-review` with `P0=0, P1=0, P2-blocking=0`, one late `make pre-pr`,
-  final
+  a final
   full review of the exact post-preflight diff, and only then push. Never push
   directly after a rebase. Use `--force-with-lease` when the reviewed rebase
   rewrites an already-pushed branch. Do not create or update a PR from a branch
@@ -232,15 +232,21 @@ current turn, stop and ask — do not self-approve and proceed.
   wrote about itself.
 
   The replacement must be **independent in a way the dispatching agent cannot
-  self-certify**. It MUST run in a fresh context that did not write the diff and
-  on a **different model lineage than the authoring agent** — the
-  independent-verifier rule in
-  [Agent Orchestration Model](../../../docs/internal/agent-orchestration.md),
-  which exists because a different lineage catches what a single family
-  rationalizes away. A subagent sharing the author's model family and project
-  memory tends to rationalize away the same defects the external bot would have
-  caught, so "separate context" alone does not satisfy this. Name the reviewing
-  model in the verdict.
+  self-certify**. Two requirements are hard, because both are checkable in any
+  harness: it MUST run in a fresh context that did not write the diff, and its
+  verdict MUST be posted as a PR comment naming the reviewing model.
+
+  Prefer a **different model lineage than the author's wherever the harness
+  offers one** — a different lineage catches what a single family rationalizes
+  away ([Agent Orchestration Model](../../../docs/internal/agent-orchestration.md)
+  reaches for a cross-family model as an independent verifier for that reason).
+  This is a preference, not a MUST, because some harnesses expose only one
+  lineage: Claude Code's Agent tool offers Anthropic models only, so a
+  Claude-authored diff cannot get a cross-lineage reviewer there. When the
+  harness cannot offer one, say so in the PR comment — "this review shares the
+  author's lineage" — rather than leaving the reader to assume independence the
+  setup could not provide. An unsatisfiable MUST would simply be skipped, and
+  the clause skipped would be the one replacing external review.
 
   Self-review is the last resort, not a fallback of convenience. A `/goal`
   harness can dispatch subagents by definition, so "delegation is unavailable"
@@ -288,10 +294,10 @@ current turn, stop and ask — do not self-approve and proceed.
 5. **Preliminary review gate.** Run `eshu-code-review` on the rebased final diff
    after focused proof and before `make pre-pr`. Prefer separate-context
    reviewers in PARALLEL when the harness permits delegation; otherwise run the
-   skill as an explicit self-review in the current agent. "Permits delegation"
-   carries the strict meaning from the quota-exhaustion fallback above: the
-   harness exposes no subagent capability at all, not the agent judging
-   dispatch unnecessary. Either mode must be
+   skill as an explicit self-review in the current agent. "Does not permit
+   delegation" carries the strict meaning from the quota-exhaustion fallback
+   above: the harness exposes no subagent capability at all, not the agent
+   judging dispatch unnecessary. Either mode must be
    prompted to FIND defects (default to reject, not approve) and must include:
    - proof tier decision and required evidence,
    - all required passes including hostile-read verdict and cross-pass
@@ -305,8 +311,10 @@ current turn, stop and ask — do not self-approve and proceed.
 
    Do not run `make pre-pr` while a blocking finding stands. Fix every P0, P1,
    and blocking P2, rerun affected focused proof, and repeat the full review
-   until **P0=0, P1=0, and P2-blocking=0**, with every deferred P2 tracked and
-   named (`eshu-code-review/references/merge-bar.md`). In self-review mode,
+   until **P0=0, P1=0, and P2-blocking=0**, with every deferred P2 tracked
+   (linked issue, owner agreement quoted in the PR), named, and carrying its
+   severity-table category verbatim
+   (`eshu-code-review/references/merge-bar.md`). In self-review mode,
    explicitly say it was self-review mode and list the evidence inspected.
 6. **Promotion gate.** Once the preliminary review is clean and the branch is
    otherwise ready for its intended push, run `make pre-pr` exactly once. Do
@@ -327,9 +335,10 @@ current turn, stop and ask — do not self-approve and proceed.
    before waiting on CI.
 9. **NO MERGE** until the external bot reviews (codex / Copilot / Cursor / Claude)
    AND the review gate above both land AND all their findings resolve. CI green
-   is necessary, not sufficient. If every external reviewer is quota-exhausted,
-   this clause is satisfied by the dispatched replacement reviewer in Step 4,
-   never by proceeding with no external review at all. During CI waiting, poll
+   is necessary, not sufficient. If no external reviewer produced a review (the
+   Step 4 trigger — quota or silence), this clause is satisfied by the
+   dispatched replacement reviewer, never by proceeding with no external review
+   at all. During CI waiting, poll
    mergeability and review threads about every 60 seconds. If `origin/main`
    advances, mergeability changes, or the PR head changes for any reason,
    rebase on `origin/main`,

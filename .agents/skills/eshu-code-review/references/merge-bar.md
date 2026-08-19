@@ -43,12 +43,17 @@ self-certify is not a gate, and this bar must not become one. "Tracked" means a
 linked follow-up issue, not a sentence in a PR body: without an issue, nothing
 is tracked.
 
-Two carve-outs keep the self-judged half honest:
+Owner agreement is universal: there is no category a reviewing agent may defer
+on its own reading. An earlier draft carved out doc/naming/minor-perf findings,
+which re-introduced exactly the self-judgement this bar is meant to bound.
 
-- **Behavioural P2s are not deferrable on the agent's own judgement.** A missed
-  edge case or absent coverage of the production subject needs the owner's
-  agreement like any other deferral. Only doc drift, naming, and minor
-  performance findings may be deferred on the reviewer's own reading.
+Two rules keep the judgement that DOES stay with the agent auditable:
+
+- **Every deferred P2 carries its severity-table category verbatim** in the PR
+  ("doc drift", "edge case", "genuine missing coverage", …). The blocking test
+  is auditable because the finding, the PR's claims and the diff all sit in the
+  PR; severity is the call that becomes load-bearing, so naming the category
+  stops a missed edge case being quietly filed as a naming nit.
 - **A PR that claims little does not thereby lower its own bar.** "Contradicts a
   claim the PR makes" is read against what the PR *should* assert for its
   change — the description-carries-the-evidence rule — not against a
