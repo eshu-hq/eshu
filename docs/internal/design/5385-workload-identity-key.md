@@ -501,6 +501,15 @@ by nobody. The second is the generate/verify pair section 6 item 0 proposes as
 its floor, enforced by CI. The third is the typed constructor, enforced by the
 compiler. Do not read this section as more than rung one.
 
+That framing is about **enforcement** — who checks. There is a second axis it does
+not cover: what cannot be checked at all. Section 4.4's "anchors composed at
+runtime" table is itself hand-maintained, and item 0's argument applies to it in
+full. The restructure reduces the hand-kept surface there from 27 rows to 4 and
+makes those 4 the ones where each member needs its own decision anyway, which is a
+large improvement rather than an escape. The generator at `impact_anchor_resolve.go`
+is the sharpest case: a refactor could multiply the anchors it emits and nothing in
+section 4 would move.
+
 ### 4.1 Identifier constructions
 
 Enumerated by hand; two for the instance id, three for the workload id.
@@ -526,7 +535,7 @@ name-only format: it finds nothing, and `RUNS_ON` silently stops being written
 with no error. This is the precise failure class this inventory exists to
 prevent, and it was missed on the first two passes over this section.
 
-Two further construction sites inside the reducer:
+One further site, and one that looks like a site and is not:
 
 - `go/internal/reducer/dependency.go:76` — `targetWorkloadID := fmt.Sprintf("workload:%s", depName)`,
   a second name-only reconstruction for the `DEPENDS_ON` target.
@@ -558,7 +567,7 @@ Where the identifier lands as a property rather than as an edge anchor.
 | --- | --- |
 | `endpoint.workload_id` | `go/internal/reducer/workload_materializer.go:441` |
 | `Endpoint` node id, built from the workload id | `stableAPIEndpointID(repoID, workloadID, path)`, `go/internal/reducer/projection_helpers.go:58` |
-| `WorkloadInstance.workload_id` | the denormalized copy migration item 4 covers; at least five read paths filter on it |
+| `WorkloadInstance.workload_id` | `go/internal/storage/cypher/canonical.go:63` (`i.workload_id = $workload_id,`) and `go/internal/reducer/workload_materializer.go:376` (`i.workload_id = row.workload_id,`). This is the denormalized copy migration item 4 covers, and at least five read paths filter on it. |
 
 ### 4.3 Edge writes anchored on the identifier
 
@@ -653,7 +662,8 @@ this is rows rather than a criterion. Enumerated by hand across `go/`.
 | `go/internal/query/service_workload_resolution.go:137` | `HasPrefix(selector.ServiceName, "workload:")` gates whether an id-equality read fires at all — so it breaks twice over. |
 | `go/internal/query/supply_chain_impact_path.go:145` | Prefix parse. |
 | `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse. |
-| `go/internal/mcp/dispatch_args.go:61-66` | Cuts at the **first** colon, which is a different break from a `HasPrefix` test: a three-part id becomes `<repo_id>:<name>`. |
+| `go/internal/mcp/dispatch_args.go:54-59` | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. |
+| `go/internal/mcp/dispatch_args.go:61-66` | `canonicalWorkloadIdentifier` also cuts at the first colon but returns the **whole value** when the head is `workload`, so it survives a re-key intact. Listed because it sits beside the previous row and an earlier revision cited it as the truncating one. |
 | `apps/console/src/api/impactDeploymentGraph.ts:453` | `startsWith("workload-instance:")`. Outside `go/`, which the enumeration above does not cover. |
 
 **Construct and parse are not disjoint** — `catalog.go:213` and
@@ -675,13 +685,9 @@ test the prefix:
 which this document files as a parse site elsewhere. A re-key that keeps the
 prefix leaves it working; one that changes the prefix does not.
 
-This inventory is larger than it first appeared and should still be treated as a
-starting point. **The `reducer_workload_identity` subsystem in particular needs a
-decision before implementation** (section 8, question 3), because it is the
-documented fallback for exactly the scenario in section 2 and carries its own
-identity scheme: the fact is written by `workload_identity_writer.go` into
-`entity_keys`, a JSON array. The repo-basename key belongs to a *different* fact,
-`shared_followup` from `git_followup_facts.go` — see the two bullets above.
+**The `reducer_workload_identity` subsystem needs a decision before
+implementation** (section 8, question 3). Section 4.7 has the detail; do not
+re-derive it here.
 
 ### 4.6 Derived keys that embed the identifier
 
@@ -697,8 +703,8 @@ three are the most consequential findings in this document.
 | The retract statement's anchor (`go/internal/reducer/workload_materializer_retract_instances.go:35-38`) | `instance_id` | Retract with the **old** ids before the new ones exist, or the statement matches nothing. Its own comment at `:21` records that instance ids are not repository-namespaced, and `:17-18` already carries a worked re-key example. |
 
 The reducer conflict-domain key at `go/internal/reducer/dependency_domain.go:101,116`
-looks like a fourth member and is not; see below for why the production
-consequence does not exist.
+looks like a fourth member and is not; section 4.1 above records why the
+production consequence does not exist.
 
 ### 4.7 Non-graph identity subsystems
 
@@ -1170,6 +1176,20 @@ retracted and rebuilt rather than rewritten in place.
    section 6 did not mention until now: retract with the old ids **before** the
    new ones exist, or the statement matches nothing and orphans the row.
 
+   **The consequence is user-visible, not housekeeping.** `service_evidence_key` is
+   half a primary key — `schema/data-plane/postgres/026_service_evidence_snapshots.sql:5`
+   declares it and `:10` is `PRIMARY KEY (generation_id, service_evidence_key)`,
+   indexed at `:17`; the same file is mirrored at
+   `go/internal/storage/postgres/migrations/026_service_evidence_snapshots.sql` — and `go/internal/storage/postgres/service_changed_since_sql.go:57-79`
+   uses it to classify added, updated, unchanged, **retired** and superseded
+   between generations. That is published through the MCP tool
+   `get_service_changed_since`, whose own description
+   (`go/internal/mcp/tools_freshness.go:51`) promises "Retired and superseded are
+   never collapsed into unchanged." So the generation that re-keys reports every
+   service's runtime evidence as retired-plus-added through a tool that guarantees
+   the churn cannot be suppressed. Section 6a's consumer-breakage accounting should
+   carry it too.
+
 ## 6a. What holds a `workload:<name>` identifier, measured
 
 This was an open question. It is answered, and the answer is the largest cost in
@@ -1266,10 +1286,12 @@ handles "remain canonical". The Console does all three, and in a section titled
   `apps/console/src/pages/ExposureServiceSelector.tsx:93` is the placeholder
   "Search authorized services or paste `workload:…`".
 
-Two of these four citations were passed to me with the wrong directory
-(`components/` rather than `pages/`) and did not resolve. They are opened and
-corrected here, which is the reason this document cites by file and line rather
-than by description.
+All four were handed to me as bare filenames with no directory. I guessed
+`components/` for two of them, which is wrong — they are under `pages/` — and
+then recorded that as an error in the values I had been given. It was not; the
+error was mine. Corrected here because a wrong correction in the record
+miscalibrates how the next list gets treated, and because this is the reason the
+document cites by file and line rather than by description.
 
 Migration must therefore add, beyond section 6: a read-side resolution layer for
 tiers 1 and 2 that fails closed on an ambiguous legacy name, a reducer-side
