@@ -446,10 +446,10 @@ metric label, not as a span attribute, not in the contract file.
 What exists:
 
 - `eshu_dp_workflow_family_queue_depth` — labeled `collector_kind`,
-  `source_system`, `status` (`instruments.go:5163`). Too coarse: a burst key and
+  `source_system`, `status` (`instruments.go:5171`). Too coarse: a burst key and
   the keys it starves usually share a `source_system`.
 - `eshu_dp_workflow_claim_wait_seconds` — item age when a claim starts, buckets
-  to 3600s (`instruments.go:3379`). This *would* show the 25 s tail, but with no
+  to 3600s (`instruments.go:3387`). This *would* show the 25 s tail, but with no
   key label an operator sees that something waited and cannot see what.
 
 The implementation needs, at minimum:
