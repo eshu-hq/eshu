@@ -493,8 +493,9 @@ defect, independent of fairness, carrying none of its risk.
 
 **Step 2 — normalise the key.** *(Added by [section 10](#10-owner-decision-2026-08-19);
 this section was written without it.)* Three-segment key, target-class moved to a
-real priority column, a real ecosystem column, `PartitionKey` given its own
-value. **This must land before the ORDER BY change**, because it is what keeps
+real priority column, a real ecosystem column, and whatever "`PartitionKey`
+decoupled" turns out to mean (see section 10 — unresolved). **This must land
+before the ORDER BY change**, because it is what keeps
 the priority contract intact — without it, putting fairness ahead of `created_at`
 reverses the `package_registry`/`vulnerability_intelligence` ordering the owner
 named as a constraint. Section 10 carries the detail.
@@ -522,15 +523,17 @@ about shipping them apart and records why the owner overrode it.
 | Item | Estimate |
 | --- | --- |
 | Step 1 | One migration, one index, an order-equivalence test, a plan assertion. Small. |
-| Step 2 (normalisation, per section 10) | Key-shape change across 19 schedulers, a priority column, an ecosystem column, a `PartitionKey` value, and pins for both consumers in section 2. **Not in this section's original estimate.** |
+| Step 2 (normalisation, per section 10) | Key-shape change in the **2** schedulers that carry a target-class segment (`package_registry`, `vulnerability_intelligence`), a priority column, an ecosystem column, and a pin on the `SPLIT_PART` status query. **Not in this section's original estimate.** |
 | Step 3 (was step 2) | Rewritten candidate CTE, second index, dispatch tests, live contention proof, telemetry with its four artifacts. Moderate. |
 | Migration risk | Two `CREATE INDEX CONCURRENTLY` on a hot table. Build time on a large `workflow_work_items` is the operational risk and needs measuring on a realistic table first. |
 | Rollback | ~~Step 1 is a dropped index. Step 2 needs a flag or a revert.~~ **Superseded (section 10):** one PR means one revert, so the steps must be kept separately revertible deliberately if that property is wanted. |
 
 ### Open questions for the owner
 
-1. **Is `fairness_key` the right unit?** *(Answered in section 10: no — the
-   selected option normalises it to a 3-segment key.)* The design takes it as the
+1. **Is `fairness_key` the right unit?** *(Section 10: the selected option
+   normalises it to a 3-segment key, which changes the rotation granularity, not
+   only the encoding — but whether that coarsening was intended is itself
+   unconfirmed. See "The fairness unit changes meaning".)* The design takes it as the
    schedulers already build it — some per-account, some per-provider, some per-scope. If the
    intended unit differs, that decision precedes any code; it is the design.
 2. **Cardinality bound for telemetry** (section 7). How many distinct keys does a
@@ -594,10 +597,12 @@ the four options offered, labelled *"Index fix, then normalise `fairness_key`"*:
 
 Everything below about normalisation comes from this text.
 
-### This is a three-step plan, and section 8 describes two
+### This is a three-step plan, and section 8 originally described two
 
-Section 8 recommends **two** steps: index the claim path, then make
-`fairness_key` load-bearing in the ORDER BY. The selected option says *three*,
+Section 8 as first written recommended **two** steps: index the claim path, then
+make `fairness_key` load-bearing in the ORDER BY. It has since been updated to
+show three — see its supersession blockquote and the Step 2 annotation. The
+selected option says *three*,
 because the option list carried a middle step section 8 does not have — the one
 offered as "index fix, then normalise `fairness_key`":
 
@@ -667,25 +672,40 @@ column. The arithmetic is unambiguous about the *effect*; the option text does n
 say whether the effect was the point. Worth confirming before the ORDER BY change
 is built, because it is the difference between two fairness groups and one.
 
-### `PartitionKey` decoupled — the second consumer, and its own obligation
+### `PartitionKey` decoupled — what it refers to is not determinable from source
 
-Section 2 names two production consumers of `fairness_key`. The `SPLIT_PART`
-parse gets discussed above. The other is `partitionKey()`
+An earlier revision of this section claimed this phrase meant `partitionKey()`
 (`collector/extensionhost/mapping.go:69-73`), which returns the fairness key
-**verbatim** as the extension host's partition routing key, falling back to
-`SourceSystem + ":" + ScopeID` when it is empty.
+verbatim, and that failing to decouple it would coarsen extension-host routing
+along with the fairness unit. **That was wrong on every point, and a reviewer
+traced it to source.**
 
-"`PartitionKey` decoupled" is a deliberate change to exactly that consumer, and it
-has to be, because the key is losing a segment and changing meaning. Routing that
-is currently partitioned per class would otherwise silently coarsen along with
-the fairness unit — extension-host work for `configured_direct` and `broad`
-targets would begin sharing a partition. So the implementation owes this consumer
-its own value rather than a borrowed one, and owes a test pinning that
-extension-host partitioning does not coarsen when the fairness key does.
+`package_registry` and `vulnerability_intelligence` never reach `extensionhost`.
+They run as their own binaries and build `PartitionKey` themselves, with no
+reference to `FairnessKey`:
 
-This is the same class of obligation as the `SPLIT_PART` pin and it was missing
-from an earlier revision of this section, which said sections 1-7 were
-unaffected. Section 2's `mapping.go` bullet is the exception.
+```go
+// packageregistry/packageruntime/source.go:317
+PartitionKey: fmt.Sprintf("%s:%s", target.Base.Provider, target.Base.Ecosystem)
+// vulnerabilityintelligence/vulnruntime/source.go:357-362
+func partitionKey(target TargetConfig) string { ... string(target.Source) + ":" + target.Ecosystem }
+```
+
+Neither package imports `extensionhost`. Neither partition key contains
+target-class, so the coarsening I described is not something this decision could
+introduce. And the proof obligation I attached — a test pinning that
+extension-host partitioning does not coarsen — asked for proof about a path this
+work never touches.
+
+`extensionhost` is the runtime for the `component_extension` scheduler, which is
+its own entry in section 2's list with its own key shape
+(`component_extension_scheduler.go:166-172`) that has no class segment either.
+
+**So what does "`PartitionKey` decoupled" refer to?** The phrase is in the
+selected option verbatim, so it means something. It is not determinable from
+source which consumer it addresses, and rather than invent a second answer, this
+is an open question for the owner. Section 2's `partitionKey()` bullet remains a
+true fact about `extensionhost` — it is simply not a fact this decision changes.
 
 ### Section 8's split argument, and why it does not survive
 
@@ -740,6 +760,5 @@ contract unless the normalisation moves target-class into a real priority column
 first — which is precisely why the selected option bundles the normalisation
 rather than treating it as optional.
 
-Sections 1-7 and 9 stand, with one exception: section 2's `partitionKey()`
-bullet documents a consumer this decision changes, covered above. Section 8's
-split recommendation, its step boundary, and its rollback row are superseded.
+Sections 1-7 and 9 stand. Section 8's split recommendation, its step boundary,
+and its rollback row are superseded.
