@@ -246,10 +246,24 @@ reasons, either of which is sufficient:
 
 - **The probe never dispatched it.** The run drove `EdgeWriter.RetractEdges`
   only, which reaches `edge_writer_retract_repo.go` and dispatches exactly three
-  relationship-DELETE roles — `repository_relationship_edges` (`:37`),
-  `runs_on_relationships` (`:51`), and `evidence_artifacts` (`:64`) — and no node
-  delete at all. `batchWorkloadInstanceRetractCypher` lives in a different
-  package and is dispatched only through `WorkloadMaterializer.RetractInstances`.
+  roles. `batchWorkloadInstanceRetractCypher` is not among them: it lives in a
+  different package and is dispatched only through
+  `WorkloadMaterializer.RetractInstances`. Taking the three in turn, none can
+  produce the transition:
+
+  - `repository_relationship_edges` (`:37`) and `runs_on_relationships` (`:51`)
+    are relationship `DELETE`s, and section 5a measured every relationship
+    retract as inert on this pinned build — 1 → 1 where Neo4j gives 1 → 0.
+  - `evidence_artifacts` (`:64`) is **not** a relationship delete. An earlier
+    revision of this list called all three relationship deletes and said the
+    dispatch contained "no node delete at all"; that was wrong, and it matters,
+    because node deletion is the one class section 5a proves does work here.
+    `retractRepoEvidenceArtifactsCypher` (`canonical_relationships.go:365-374`)
+    ends in `DETACH DELETE artifact`. It is eliminated on different grounds: it
+    reaches `EvidenceArtifact` nodes through
+    `(source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact)`, and a
+    `WorkloadInstance`→`Platform` edge is not incident to an `EvidenceArtifact`,
+    so `DETACH DELETE` on that node cannot touch `beta_inst->beta_plat`.
 - **Its own guard forbids the behaviour attributed to it.** The statement is
   `MATCH (i:WorkloadInstance {id: row.instance_id}) WHERE i.repo_id IN $repo_ids
   AND i.evidence_source = $evidence_source`. During alpha's pass, beta's repo id
@@ -274,8 +288,9 @@ What does not survive is the *retract-side* mechanism. The relationship retract
 is inert on the pinned build and the node retract was never dispatched, so the
 `beta_inst->beta_plat` 1 → 0 transition specifically has **no supported cause**. Do not build on the mechanism; the
 observation is what this design relies on, and identifying the cause needs
-another probe run with per-statement dispatch logging rather than another
-reading of the code. That is a gap in this document, not a reason to doubt the
+another probe run with per-statement dispatch logging — the three dispatched
+roles are each eliminated above, so the next move is watching what actually
+executes rather than re-reading the same three statements. That is a gap in this document, not a reason to doubt the
 measurement.
 
 **And it surfaces a second defect worth its own attention.** If
@@ -365,7 +380,8 @@ RETURN (i.repo_id = w.repo_id) AS same_repo, count(*) ORDER BY same_repo
 ```
 
 **No collision is firing on the largest corpus available.** The mechanism is
-real and destructive; the trigger is currently absent.
+real and contaminating — it adds a false edge rather than removing a true one;
+the trigger is currently absent.
 
 **The two detectors do not cover the same ground, and it is worth being precise
 about which covers what.**
@@ -702,12 +718,22 @@ retracted and rebuilt rather than rewritten in place.
 1. **Rebuild, do not rewrite.** Retract every `Workload` and `WorkloadInstance`
    plus their edges, then re-project from facts. At 40 nodes and 33 instances
    this is cheap; the reducer already owns a correct rebuild path.
-2. **Scope the RUNS_ON retract in the same change — but do not treat it as the
-   leak.** `retractRepoRunsOnEdgesCypher` / `retractSingleRepoRunsOnEdgesCypher`
-   (`canonical_relationships.go:352-364`, dispatched from
-   `edge_writer_retract_repo.go:112,114`) traverse `DEFINES` unfiltered and never
-   scope the instance to the retracting repository, and a repo-scoped key makes
-   that traversal safe by construction — so the fix is still worth making.
+2. **Scope both halves of the RUNS_ON pair — the upsert is the live one.**
+   `canonicalRunsOnUpsertCypher` (`canonical_relationships.go:322-330`) is
+   `MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)` then
+   `MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)`, with nothing scoping `i`, so
+   one repository's platform attaches to every instance of a shared workload.
+   This is the half section 2 mechanises and reproduces, and the half section 7
+   calls the live leak. A repo-scoped id fixes it by construction: the first
+   `MATCH` then reaches exactly one `w`, so the second reaches only that
+   repository's instances. No separate predicate is needed.
+
+   The retract half — `retractRepoRunsOnEdgesCypher` /
+   `retractSingleRepoRunsOnEdgesCypher` (`canonical_relationships.go:352-364`,
+   dispatched from `edge_writer_retract_repo.go:112,114`) — traverses `DEFINES`
+   unfiltered and never scopes the instance to the retracting repository either,
+   and the same repo-scoped key makes that traversal safe by construction. Worth
+   fixing, but do not treat it as the leak.
 
    **Section 5a measured these statements as inert on the pinned build**: every
    relationship retract came back 1 → 1, a silent no-op, where Neo4j gives
