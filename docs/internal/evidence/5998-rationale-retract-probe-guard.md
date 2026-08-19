@@ -534,7 +534,11 @@ disjointness test collapsed its rows through a degenerate acceptance key
 (`SourceRunID` empty, so `AcceptanceKey` returned `ok=false`) -- a shape
 `FilterAuthoritativeIntents` drops one stage before dedup, so the test proved
 nothing about the production path. The other four were a missing `AccessModeWrite`
-regression test and three inaccurate comments.
+regression test and three inaccurate comments. Review of the follow-up PR then
+added two more guards: a pin on the whole-scope partition key shape, because the
+disjointness test mirrors that key as a literal and a mirror cannot police
+itself, and a pin on the filter-before-dedup order in `SelectPartitionBatch`,
+because that order is load-bearing and the compiler does not hold it.
 
 No-Regression Evidence: this follow-up changes no runtime behavior, so there is
 nothing to measure and no baseline to compare against. The claim is that the
@@ -552,12 +556,34 @@ parameters against the same pinned NornicDB image
 earlier in this document therefore still describe the shipped code exactly, and
 are not re-measured here; re-running them would produce numbers for identical
 statements. Terminal queue state and row counts are likewise unchanged, since no
-row is produced or consumed differently. What was proven instead is that each
-new guard fails when the thing it guards is broken: deleting `ExecuteProbe` from
-`ifaExecutorRetryArmedExecutor` turns the scan red naming that wrapper, blanking
-`SourceRunID` turns the shape guard red, and replacing the `delta_projection`
-exclusion with `if false` turns the disjointness assertion red. Each returns to
-green on restore, with a clean tree.
+row is produced or consumed differently. What was proven instead is that all
+five new guards fail when the thing each one guards is broken. Deleting
+`ExecuteProbe` from `ifaExecutorRetryArmedExecutor` turns the repo-wide scan red
+naming that wrapper. Blanking `SourceRunID` turns the acceptance-key shape guard
+red. Replacing the `delta_projection` exclusion with `if false` turns the
+disjointness assertion red. Changing the whole-scope key scheme from `v1` to `v2`
+turns `TestRepoWideRetractRefreshPartitionKeyShapeIsPinned` red -- and, in the
+same run, leaves the storage/cypher mirror test GREEN at exit 0, which is the
+false-green that pin exists to close and the reason a mirrored literal is not a
+guard. Reordering `LatestIntentsByRepoAndPartition` ahead of
+`FilterAuthoritativeIntents`, and separately passing it the raw partition rows
+instead of the filter's output, each turn
+`TestSelectPartitionBatchFiltersBeforeDeduping` red. Each returns to green on
+restore, with a clean tree.
+
+Two of those five came from review of the follow-up PR rather than from the
+original six findings, and one of them cost a false proof before it was right.
+The first attempt at the reorder mutation failed to compile
+(`declared and not used: active`), which would have supported the opposite
+conclusion -- that the compiler prevents the reorder. It does not: that error was
+an artifact of a mechanical edit leaving a dangling variable, and threading the
+variable through the way a real change would produces a clean compile with every
+reducer and storage/cypher test still passing. The argument half of the pin hit
+the same trap, failing first on a build error rather than on its assertion; it
+was re-run with `_ = active` added so the mutation compiled (`go vet` exit 0)
+before the red was accepted as real. A red from the compiler is not a red from
+the test, in the same way an exit code read after a pipe is not the exit code of
+the command that mattered.
 
 No-Observability-Change: no instrument, label, or bounded label value is added,
 removed, or renamed. `RationaleRetractProbeOutcomes` keeps the same two
