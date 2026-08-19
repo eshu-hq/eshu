@@ -56,7 +56,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` | bool | `false` | Contributor test knob, read by no Eshu service. Includes the opt-in value-flow cloud sink read/seed pair in the backend conformance corpora. The pair reproduces defects open upstream in NornicDB, so it is absent from the corpus when unset (absent, not skipped) rather than red-lining the blocking live gate on unrelated changes. No Eshu service reads this; it is consumed only by go/internal/backendconformance and scripts/verify_backend_conformance_live.sh. |
+| `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` | bool | `false` | Contributor test knob, read by no Eshu service -- consumed only by go/internal/backendconformance and scripts/verify_backend_conformance_live.sh. Includes the opt-in value-flow cloud sink read/seed pair in the backend conformance corpora. The pair reproduces defects open upstream in NornicDB, so it is absent from the corpus when unset (absent, not skipped) rather than red-lining the blocking live gate on unrelated changes. |
 
 ## collector-aws-cloud
 
