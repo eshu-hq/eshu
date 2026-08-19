@@ -92,13 +92,33 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // partition key ALONE is not sufficient -- two refresh rows for one repository
 // differing in SourceRunID would both survive dedup on their own.
 //
-// This therefore breaks if EITHER mechanism moves: a future change giving the
-// delta variant its own partition key, two accepted generations live at once for
-// one acceptance key, or dedup reordered ahead of the authoritative filter. In
-// any of those cases both rows survive and reach this file, and a repository
-// lands in both collectors' output: its delta files get rewritten AND its entire
-// EXPLAINS set is deleted repo-wide in the same batch, silently -- no error, no
-// dead letter. See
+// This therefore breaks if either mechanism moves, and the two ways it breaks
+// fail in OPPOSITE directions.
+//
+// Over-retract: a future change giving the delta variant its own partition key
+// (or, in principle, two accepted generations live at once for one acceptance
+// key -- today the AcceptedGenerationLookup signature returns a single
+// generation per key, so that one is type-enforced rather than merely intended).
+// Then both rows survive dedup, reach this file, and the repository lands in
+// BOTH collectors' output: its delta files get rewritten AND its entire EXPLAINS
+// set is deleted repo-wide in the same batch, silently -- no error, no dead
+// letter. The reducer pins the key shape against the first case in
+// TestRepoWideRetractRefreshPartitionKeyShapeIsPinned.
+//
+// Lost retract: dedup reordered ahead of the authoritative filter. This one does
+// NOT produce the over-delete above -- it drops work instead. GenerationID is not
+// part of reducer's dedup key (scope, acceptance unit, source run, repository,
+// partition key), and SourceRunID and GenerationID are independent fields, so two
+// rows for one repository can share a dedup key while differing in generation.
+// Filtering first drops the stale-generation row and dedup then sees only the
+// accepted one. Deduping first collapses the pair to a single survivor chosen by
+// refresh-first, then CreatedAt, then intent id -- which can be the STALE row,
+// which the filter then discards. The repository loses its refresh for that
+// cycle: the whole-scope retract never runs and stale EXPLAINS edges persist,
+// again with no error and no dead letter. The order is not enforced by the
+// compiler -- both functions take and return the same slice type, so the swap
+// type-checks -- so reducer pins it in
+// TestSelectPartitionBatchFiltersBeforeDeduping. See
 // TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup, which
 // asserts both the collapse and the production-shaped acceptance key it needs.
 func collectWholeScopeRefreshRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
