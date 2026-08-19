@@ -30,9 +30,28 @@ reducer's 74-package closure, and it survives the reducer split tracked under
 - **Stay a leaf.** No in-module imports. If a caller needs something from here
   that would require an import, the shape is wrong.
 - **One constructor per identifier.** Any second way to build one defeats the
-  enumeration this package exists for.
+  enumeration this package exists for. The invariant binds the **typed value**,
+  and today that means the reducer write path — the code that decides projected
+  graph truth. It is not yet true of the string; see below.
 - **A blank segment yields the empty id**, never a bare prefix or an id with an
   empty segment — either would `MERGE` unrelated candidates onto one shared node.
+
+## Sites that still build the string by hand
+
+Three read-side callers concatenate the prefix rather than taking a `WorkloadID`.
+They are unconverted deliberately — converting them is the re-key's work, not
+this step's — but they are listed here because the invariant above would
+otherwise read as covering them:
+
+| Site | What it builds | Why it matters at re-key |
+| --- | --- | --- |
+| `internal/query/impact_change_surface_resolvers.go:107` | `"workload:" + target` | The sharpest one. The result is matched against graph nodes, so a re-key confined to this package silently stops the change-surface resolver matching anything. |
+| `internal/query/entity_workload_context.go:261` | `"id": "workload:" + workloadName` | Emits the id into an API response body. |
+| `internal/query/catalog.go:213` | `"workload:" + strings.TrimPrefix(identity.Name, "workload:")` | Normalises a possibly-prefixed name back into an id. |
+
+The re-key must convert these or prove each one reads a value that was already
+built by a constructor. Until then, the compiler's guarantee stops at the
+reducer boundary.
 
 ## What this package is not
 

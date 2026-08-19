@@ -16,14 +16,17 @@ import (
 // alone, so two repositories with a same-named workload produce the same id and
 // collapse onto one node (#5385).
 //
-// Section 4 of docs/internal/design/5385-workload-identity-key.md was
-// hand-maintained and wrong three times, and the design shows why grep cannot
-// close it: a third construction form assembles the same string with no
-// "workload:" substring anywhere in the source, joining a Kind field to an ID
-// field in a different file. Any guard built on text matching therefore carries
-// a false-negative blind spot, which is the worst property for something meant
-// to be trusted as complete. A type has no such blind spot — nothing outside
-// this file can produce a WorkloadID without the compiler saying so.
+// Section 4 of docs/internal/design/5385-workload-identity-key.md is a
+// hand-maintained inventory of those places, and it has been wrong three times.
+// Text search does find the construction sites; what it does not do is keep a
+// hand-maintained list of them correct as the tree moves, which is the failure
+// this type removes. Nothing outside this file can produce a WorkloadID without
+// the compiler saying so.
+//
+// That guarantee covers the TYPE, not the string. Callers that still assemble
+// "workload:" + name by hand are outside its reach -- see the package README
+// for the ones that remain and why they are the re-key's work rather than this
+// package's.
 type WorkloadID string
 
 // WorkloadInstanceID is the canonical graph identifier for a WorkloadInstance
