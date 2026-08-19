@@ -17,7 +17,10 @@ IFA_FAMILY_WAIT_STAGE[sql_relationships]="handler"
 # "sql_relationship_materialization").
 IFA_FAMILY_WAIT_KEY[sql_relationships]="sql_relationship_materialization"
 IFA_FAMILY_SHARED_CELL[sql_relationships]=1
-# scripts/verify-ifa-fault-injection.sh:279
+# go/internal/storage/cypher/canonical.go:186 is the live QUERIES_TABLE write
+# template. This family keeps a shell twin, sql_edge_operation_match
+# (scripts/verify-ifa-fault-injection.sh:302), because its cells are still
+# hand-written (cell_kind=custom); the two must stay byte-identical.
 IFA_FAMILY_ANCHOR[sql_relationships]="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 # custom: cell_killworker_sql and cell_failgraphwrite_sql are hand-written
 # functions the gate dispatches by name, not through cell_killworker_family.

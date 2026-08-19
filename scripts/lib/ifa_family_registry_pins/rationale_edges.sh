@@ -38,8 +38,8 @@ IFA_FAMILY_PIN_WAIT_KEY="rationale_materialization"
 # unconditionally in drive_all_cassettes, and
 # scripts/verify-ifa-determinism.sh's `for family in
 # $(ifa_family_registry_names); do ... ifa_family_registry_drive` /
-# `... ifa_family_registry_assert` loops (header comments at :338 and :394,
-# loop bodies at :347-353 and :398-404) run its drive/assert every N.
+# `... ifa_family_registry_assert` loops (the drive call at :338 and the
+# assert call at :389) run its drive/assert every N.
 # cell_kind: blocker_kind=shared_intent_lock => generic.
 IFA_FAMILY_PIN_ANCHOR="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1

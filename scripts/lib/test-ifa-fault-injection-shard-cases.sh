@@ -94,9 +94,10 @@ run_ifa_fault_injection_shard_cases() {
 ${actual_full}"
 
 	# CELL-COUNT PIN (relocated here from
-	# scripts/lib/test-ifa-fault-injection-rationale-cases.sh, F-4). 18 = the
-	# 15 cells the fault gate originally defined plus the three
-	# deployable_unit-targeted cells (#5993). It is a COUNT pin, deliberately
+	# scripts/lib/test-ifa-fault-injection-rationale-cases.sh, F-4). 21 = the
+	# 15 cells the fault gate originally defined, plus the three
+	# deployable_unit-targeted cells (#5993), plus the three
+	# codeowners-targeted cells (#6160). It is a COUNT pin, deliberately
 	# not weakened to an existence check, and it belongs beside the
 	# hand-authored cell list: the person who changes the number is the person
 	# adding cells, and they need to land in this file -- where the literal
@@ -110,7 +111,7 @@ ${actual_full}"
 
 	# REVERSE DIRECTION (F-4): every cell the gate DISPATCHES must also be in
 	# the partitioner's cell list. The literal check above only proves the
-	# other way round -- that each of the 18 known names is dispatched -- so a
+	# other way round -- that each of the 21 known names is dispatched -- so a
 	# cell added to the gate's dispatch block but NOT to IFA_FAULT_ALL_CELLS
 	# is assigned to no shard and silently runs in NONE of them, while all
 	# four shards report green. Proven reachable: a dispatched-but-unlisted
@@ -138,22 +139,25 @@ listed only:
 $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cells}"))"
 
 	# DISPATCH-ANCHOR CHECKS (moved here from scripts/test-verify-ifa-fault-injection.sh
-	# to give that file real line-count headroom -- extraction, not deletion;
-	# every comment below is the original, unabridged rationale).
+	# to give that file real line-count headroom. The rationale below is the
+	# original; the CELL LIST is not -- the relocation landed an older
+	# eighteen-cell version of the loop, and the counts in this block went with
+	# it. Restored to twenty-one here.)
 	#
-	# The eighteen-cell shape: baseline plus seventeen cells with a live seam --
+	# The twenty-one-cell shape: baseline plus twenty cells with a live seam --
 	# four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
 	# (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
-	# two rationale-targeted (#5998), and a family-scoped baseline plus two
-	# recovery cells for deployable_unit_edges (#5993). All eighteen run by
-	# default.
+	# two rationale-targeted (#5998), a family-scoped baseline plus two recovery
+	# cells for deployable_unit_edges (#5993), and the same family-scoped trio for
+	# codeowners_ownership_edges (#6160). All twenty-one run by default.
 	# Every cell is anchored to its own invocation line, never matched by bare name.
 	# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
 	# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
 	# the cell_baseline dispatch line left the mirror green -- and cell_baseline is
-	# the sole writer of digests[baseline], so all sixteen assert_matches_baseline
-	# calls would then compare against an unset key. The anchored form was
-	# previously applied to only five of the eighteen; it now covers all of them.
+	# the sole writer of digests[baseline], so every assert_matches_baseline call
+	# that does not name a family-scoped baseline would then compare against an
+	# unset key. The anchored form was previously applied to only five cells; it
+	# now covers all twenty-one.
 	# rg without --fixed-strings so ^...$ binds.
 	#
 	# Prefixed with "ifa_fault_shard_run " (scripts/lib/ifa_fault_shard.sh): every
@@ -177,7 +181,9 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_failgraphwrite_sql cell_failgraphwrite_code_calls \
 		cell_failgraphwrite_documentation cell_failgraphwrite_rationale \
 		cell_baseline_deployable_unit cell_killworker_deployable_unit \
-		cell_failgraphwrite_deployable_unit; do
+		cell_failgraphwrite_deployable_unit \
+		cell_baseline_codeowners cell_killworker_codeowners \
+		cell_failgraphwrite_codeowners; do
 		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
 			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper (which would silently run every shard, ignoring --shard)"
 	done
@@ -200,7 +206,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# "cell_killworker_family code_calls" is satisfied by prose anywhere in
 	# the file (this module's own header comments say "rationale_edges"
 	# repeatedly) and would keep passing even if the delegation were deleted
-	# entirely -- the identical defect class the eighteen-cell dispatch-anchor
+	# entirely -- the identical defect class the twenty-one-cell dispatch-anchor
 	# loop above already documents. Do not weaken these back to bare-word
 	# checks.
 	local code_call_cells_lib rationale_cells_lib
@@ -344,7 +350,7 @@ ${sorted_expected}"
 run_ifa_fault_injection_deployable_unit_ordering_cases() {
 	local script="$1"
 
-	# Anchored the same way as the eighteen-cell loop above: needles carry
+	# Anchored the same way as the twenty-one-cell loop above: needles carry
 	# the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh), since
 	# every dispatch line now routes through that wrapper for --shard skip
 	# support. STRICTLY STRONGER than a bare-name check: an unwrapped cell
@@ -376,4 +382,84 @@ run_ifa_fault_injection_deployable_unit_ordering_cases() {
 	[[ "${baseline_du_line}" =~ ^[0-9]+$ && "${killworker_du_line}" =~ ^[0-9]+$ && "${failgraphwrite_du_line}" =~ ^[0-9]+$ \
 		&& "${baseline_du_line}" -lt "${killworker_du_line}" && "${baseline_du_line}" -lt "${failgraphwrite_du_line}" ]] \
 		|| test_ifa_fault_shard_cases_fail "cell_baseline_deployable_unit must be dispatched before both deployable-unit fault cells"
+}
+
+# run_ifa_fault_injection_atomic_group_ordering_cases generalizes the ordering
+# proof above over EVERY entry in IFA_FAULT_ATOMIC_GROUPS, instead of naming one
+# family's trio.
+#
+# The specific gap it closes: the codeowners trio was added to
+# IFA_FAULT_ALL_CELLS and IFA_FAULT_ATOMIC_GROUPS when #6160 landed mid-branch,
+# but no ordering assert came with it -- and cell_baseline_codeowners is the
+# sole writer of digests[baseline_codeowners] and baseline_codeowners_retried,
+# which both of its fault cells read. Reordering those three dispatch lines
+# passed every static check: set-equality is order-insensitive, and an atomic
+# group only guarantees CO-LOCATION in one shard, not order within it. The
+# failure would have surfaced as an unset-digest read inside a ~22-minute
+# Docker shard.
+#
+# Written as a loop over the groups rather than a second hand-written trio so
+# the next family to declare an atomic group inherits the check instead of
+# needing someone to remember this file. A group whose first member is not a
+# baseline cell is left alone: co-location is the only property those have.
+run_ifa_fault_injection_atomic_group_ordering_cases() {
+	local script="$1"
+	local group members baseline_cell baseline_line member member_line
+
+	# Make sure the partition data is actually in scope. Without it
+	# IFA_FAULT_ATOMIC_GROUPS is unset here, the loop below runs zero times, and
+	# this whole check passes no matter how the dispatch lines are ordered --
+	# which is exactly what the first version of it did: reordering the
+	# codeowners trio left the mirror green. Caught by deliberately breaking the
+	# gate and finding the check silent.
+	#
+	# Read from a FRESH bash process rather than sourcing into this one. Two
+	# facts make that the only working option, and both are easy to get wrong:
+	# ifa_fault_shard.sh declares its arrays with a bare `declare`, so sourcing
+	# it inside a function makes them FUNCTION-LOCAL and they vanish when
+	# run_ifa_fault_injection_shard_cases returns (the same bash trap that broke
+	# the family registry, fixed there with -g); while its scalars are
+	# `readonly`, which IS global and survives -- so a re-source in this process
+	# aborts with "readonly variable" instead of reloading. A subshell inherits
+	# readonly attributes too, so `( source ... )` fails the same way. A separate
+	# `bash -c` has neither problem, and matches how the other checks in this
+	# file reach the partition: through a subprocess, never in-process state.
+	local groups_raw
+	groups_raw="$(bash -c 'set -euo pipefail; source "$1"; printf "%s\n" "${IFA_FAULT_ATOMIC_GROUPS[@]}"' _ "${shard_lib}")" \
+		|| test_ifa_fault_shard_cases_fail "could not read IFA_FAULT_ATOMIC_GROUPS from ${shard_lib##*/}"
+	local -a IFA_FAULT_ATOMIC_GROUPS=()
+	while IFS= read -r group; do
+		[[ -n "${group}" ]] && IFA_FAULT_ATOMIC_GROUPS+=("${group}")
+	done <<<"${groups_raw}"
+
+	# And prove the data actually arrived. A rename or a failed source would
+	# otherwise restore the vacuum this comment exists to describe.
+	[[ "${#IFA_FAULT_ATOMIC_GROUPS[@]}" -gt 0 ]] \
+		|| test_ifa_fault_shard_cases_fail "IFA_FAULT_ATOMIC_GROUPS is empty or unset after sourcing ${shard_lib##*/} -- the atomic-group ordering check would pass vacuously"
+
+	local checked=0
+	for group in "${IFA_FAULT_ATOMIC_GROUPS[@]}"; do
+		read -r -a members <<<"${group}"
+		baseline_cell="${members[0]}"
+		[[ "${baseline_cell}" == cell_baseline_* ]] || continue
+
+		baseline_line="$(rg -n --line-regexp -- "ifa_fault_shard_run ${baseline_cell}" "${script}" | cut -d: -f1 || true)"
+		[[ "${baseline_line}" =~ ^[0-9]+$ ]] 			|| test_ifa_fault_shard_cases_fail "atomic group \"${group}\": ${baseline_cell} is not dispatched via ifa_fault_shard_run on its own line, so its dispatch order cannot be checked"
+
+		for member in "${members[@]:1}"; do
+			member_line="$(rg -n --line-regexp -- "ifa_fault_shard_run ${member}" "${script}" | cut -d: -f1 || true)"
+			[[ "${member_line}" =~ ^[0-9]+$ ]] \
+				|| test_ifa_fault_shard_cases_fail "atomic group \"${group}\": ${member} is not dispatched via ifa_fault_shard_run on its own line"
+			[[ "${baseline_line}" -lt "${member_line}" ]] \
+				|| test_ifa_fault_shard_cases_fail "atomic group \"${group}\": ${baseline_cell} (line ${baseline_line}) must be dispatched BEFORE ${member} (line ${member_line}); it is the sole writer of the baseline digest and retry baseline that member reads"
+			checked=$((checked + 1))
+		done
+	done
+
+	# Every baseline-led group must have contributed at least one comparison, or
+	# the loop found groups but compared nothing inside them.
+	[[ "${checked}" -gt 0 ]] \
+		|| test_ifa_fault_shard_cases_fail "atomic-group ordering check made zero comparisons across ${#IFA_FAULT_ATOMIC_GROUPS[@]} group(s) -- no baseline-led group was found, so nothing was proven"
+	printf 'test-ifa-fault-injection-shard-cases: atomic-group dispatch order proven (%d member comparisons across %d group(s))\n' \
+		"${checked}" "${#IFA_FAULT_ATOMIC_GROUPS[@]}"
 }

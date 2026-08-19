@@ -74,13 +74,17 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives eighteen cells — a
+(`bash scripts/verify-ifa-fault-injection.sh`) drives twenty-one cells — a
 fault-free baseline, a killed worker, a forced lease expiry, one failed graph
 write, a mid-drain backend restart, a duplicate delivery, a generation-2 delta
 retract, and per-family killed-worker and failed-graph-write cells for
 sql_relationships, code_calls, documentation_edges and rationale_edges, plus a
-scoped baseline and two recovery cells for deployable_unit_edges — with zero
-durable dead letters throughout.
+scoped baseline and two recovery cells each for deployable_unit_edges and
+codeowners_ownership_edges — with zero durable dead letters throughout.
+
+In CI those twenty-one cells are split across four shards that run in parallel;
+locally the command above runs all of them in one pass. `--shard k/4` runs one
+shard, and `--list-cells` prints the partition without starting anything.
 
 ### Reading a red check, and reproducing it
 

@@ -11,8 +11,11 @@ IFA_FAMILY_WAIT_STAGE[rationale_edges]="handler"
 # ifa_fault_injection_rationale_cells.sh:23: (..., "rationale_materialization").
 IFA_FAMILY_WAIT_KEY[rationale_edges]="rationale_materialization"
 IFA_FAMILY_SHARED_CELL[rationale_edges]=1
-# scripts/lib/test-ifa-fault-injection-rationale-cases.sh:359 (pins the live
-# rationale_edge_operation_match value byte-for-byte)
+# go/internal/storage/cypher/canonical_rationale_edges.go:41 is the live
+# EXPLAINS write template. Cited to the Cypher source rather than to a shell
+# twin because there is no longer a twin to cite: rationale_edge_operation_match
+# was deleted when this family moved to the generic cells, which read this field
+# through ifa_family_anchor.
 IFA_FAMILY_ANCHOR[rationale_edges]="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 IFA_FAMILY_CELL_KIND[rationale_edges]="generic"
 

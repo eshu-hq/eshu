@@ -390,6 +390,10 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# there is the full, unabridged rationale, including why the ordering
 	# check matters to the shard partitioner's one atomic group.
 	run_ifa_fault_injection_deployable_unit_ordering_cases "${script}"
+	# The generalized twin: proves the same baseline-before-members ordering for
+	# EVERY atomic group, so a family that declares one (codeowners today, more
+	# later) is covered without editing this file.
+	run_ifa_fault_injection_atomic_group_ordering_cases "${script}"
 	require_deployable_unit_cells "baseline cell captures digests[baseline_deployable_unit]" "capture_digest baseline_deployable_unit"
 	require_deployable_unit_cells "baseline cell captures the retry baseline" "baseline_deployable_unit_retried="
 	require_deployable_unit_cells "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_assert_empty_before_maintenance"

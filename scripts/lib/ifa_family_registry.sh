@@ -73,9 +73,22 @@
 #                the driven cassettes happen to schedule first, not this
 #                family's own work (issue #5555's confirmed-false SQL
 #                coverage claim).
-#   shared_cell  1 if this family is driven by drive_all_cassettes into every
-#                shared N={1,2,4} cell of the determinism gate, 0 if it runs
-#                in its own scoped cell(s) instead.
+#   shared_cell  1 if this family is driven into every shared N={1,2,4} cell of
+#                the DETERMINISM gate, 0 if it runs in its own scoped cell(s)
+#                there instead.
+#
+#                This says nothing about the FAULT gate. An earlier wording
+#                defined it as "driven by drive_all_cassettes into every shared
+#                N={1,2,4} cell", which names the fault gate's driver
+#                (ifa_fault_injection_driver.sh) in the definition of a
+#                determinism-gate property -- and it is false for
+#                codeowners_ownership_edges, which is shared_cell=1 yet has
+#                never been part of drive_all_cassettes. Applying that wording
+#                literally registers 0 for a family that belongs in the N-loop,
+#                after which it is never driven and never asserted there and
+#                the gate still reports green. Fault-side drive membership is a
+#                separate field, IFA_FAMILY_FAULT_SHARED_DRIVE, precisely
+#                because the two answers diverge.
 #   anchor       the MERGE operation-match string this family's graph write
 #                targets; the once-fault decorator matches Cypher statement
 #                text against this substring (see
@@ -117,6 +130,18 @@
 #                                 global variable (sourced from
 #                                 ifa_family_fixtures.sh) holding this
 #                                 family's cassette / expected-edge-set path.
+#   retry_baseline_var            shared_intent_lock families only; the *name*
+#                                 of the shell variable holding this family's
+#                                 fault-free retry count, which the generic
+#                                 kill cell compares against. NOT optional for
+#                                 that blocker kind:
+#                                 _ifa_generic_require_retry_baseline
+#                                 (scripts/lib/ifa_fault_generic_cells.sh)
+#                                 dies naming the family and this row when it
+#                                 is missing. Omitting it does not fail
+#                                 statically -- it fails part-way into a live
+#                                 four-shard CI run, which is the expensive
+#                                 place to find out.
 #   handler_go_file               shared_intent_lock families only; the Go
 #                                 source path ifa_fault_generic_cells.sh's
 #                                 mandatory precondition assert greps for an

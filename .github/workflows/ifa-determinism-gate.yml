@@ -56,6 +56,7 @@ on:
       # the one test standing behind that file's "unit-tested" claim re-runs
       # nothing at all.
       - 'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
       # The per-family pin files, sourced by variable path from the pins
       # module. Their governing rule is that pins are hand-derived and never
       # generated from the registry; editing one to "just make it match" has
@@ -476,7 +477,9 @@ jobs:
 
   # Sharded across four parallel runners. The matrix ran serially until the
   # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
-  # (~1.17 min/cell) left room for roughly seven more cells, and the
+  # (~1.17 min/cell) left room for roughly seven more cells. The matrix reached
+  # 21 before this change landed (~24.6 min at that rate), which is the argument
+  # for sharding rather than a footnote to it. The
   # materialized-edge exhaustiveness program adds two per family for eight
   # remaining families. Raising timeout-minutes would have bought time without
   # removing cost; sharding is the only lever that takes the per-cell fixed
@@ -493,7 +496,8 @@ jobs:
   # deliberate rather than plumbing that digest between runners.
   #
   # What that trade costs, stated plainly: there used to be ONE canonical
-  # baseline digest, written once and compared by all seventeen recovery cells
+  # baseline digest, written once and compared by every recovery cell that does
+  # not have a family-scoped baseline of its own
   # in a single process. There are now four, one per runner, and nothing
   # compares them to each other -- so a baseline that was nondeterministic
   # ACROSS runs would produce four different reference digests and no cell
@@ -505,7 +509,7 @@ jobs:
   # assumption has to be revisited.
   #
   # What this drops, and why that is acceptable: before sharding, one process
-  # computed digests[baseline] once and every one of the other 17 cells in
+  # computed digests[baseline] once and every other cell in
   # that SAME process compared against it. Now each of the four runners
   # computes its own cell_baseline digest independently, and nothing in this
   # workflow compares the four runners' baseline digests to each other -- a

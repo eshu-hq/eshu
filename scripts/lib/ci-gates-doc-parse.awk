@@ -53,6 +53,7 @@ BEGIN {
 function reset_record() {
 	id = ""; name = ""; category = ""; tier = ""; blocking = ""
 	command = ""; test_command = ""; workflow = ""; job = ""; reason = ""; ci_only_reason = ""
+	check_names = ""; check_name_count = 0
 	trigger_count = 0
 	delete triggers
 	section = ""
@@ -96,7 +97,18 @@ function render_row() {
 		}
 		if (workflow != "") {
 			ci_cell = workflow
-			if (job != "") {
+			# Prefer ci.check_names when the gate declares them. For a matrix
+			# job the `job:` key is NOT what GitHub emits -- a job keyed
+			# "fault-injection" with a 4-way matrix publishes
+			# "fault-injection (shard 1/4)" and three siblings, so rendering
+			# the key alone names a check that never appears on a pull
+			# request. check_names is the gate's own list of the concrete
+			# names, validated against the expanded matrix by
+			# internal/cigates/drift.go, so it is the accurate thing to show
+			# a reader who is looking for the check on their PR.
+			if (check_name_count > 0) {
+				ci_cell = ci_cell " / " escape_pipe(check_names)
+			} else if (job != "") {
 				ci_cell = ci_cell " / " escape_pipe(job)
 			}
 		} else {
@@ -207,6 +219,22 @@ section == "ci" && /^      workflow: / && have_record {
 }
 section == "ci" && /^      job: / && have_record {
 	job = $0; sub(/^      job: /, "", job); gsub(/^"|"$/, "", job); next
+}
+
+# ci.check_names entries are `        - "name"` list items, one indent level
+# deeper than the `      check_names:` key itself. Matched on that deeper
+# indent so they cannot be confused with the `      - ` items of any other
+# sequence in the ci section.
+section == "ci" && /^        - "/ && have_record {
+	check_name = $0
+	sub(/^        - /, "", check_name)
+	gsub(/^"|"$/, "", check_name)
+	if (check_name_count > 0) {
+		check_names = check_names ", "
+	}
+	check_names = check_names check_name
+	check_name_count++
+	next
 }
 
 END {

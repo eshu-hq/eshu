@@ -41,7 +41,7 @@ IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"
 # calls ifa_code_call_drive unconditionally for every cell, and
 # scripts/verify-ifa-determinism.sh's `for family in
 # $(ifa_family_registry_names); do ... ifa_family_registry_drive` loop
-# (header comment at :338, loop body at :347-353) is what this family's
+# (the drive call at :338) is what this family's
 # determinism-gate drive now runs through. cell_kind:
 # blocker_kind=shared_intent_lock is generic-dispatcher-supported =>
 # generic.

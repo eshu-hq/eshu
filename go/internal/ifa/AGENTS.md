@@ -207,6 +207,11 @@ what does not.
 | Triggers in both gate blocks | `specs/ci-gates.v1.yaml` | `TestEveryCoveredFamilyTriggersBothLiveGates` |
 | Workflow `paths:` entries | `.github/workflows/ifa-determinism-gate.yml` | Registry-subset-of-workflow lockstep |
 | Blocker declaration vs handler shape | registry row `IFA_FAMILY_BLOCKER_KIND` | `TestMaterializedEdgeFamilyBlockerLockstep` — a family whose handler holds no `IntentWriter` may not declare `shared_intent_lock` |
+| Cassette + expected-edge path globals | `scripts/lib/ifa_family_fixtures.sh` (`<family>_cassette`, `<family>_expected_edges`) | `ifa_family_fixtures_require` fails before any Compose stack starts. The registry's `CASSETTE_VAR`/`EXPECTED_VAR` hold only the NAMES of these globals, so a row can look complete while the paths do not exist |
+| Atomic-group entry for a family-scoped trio | `IFA_FAULT_ATOMIC_GROUPS` in `scripts/lib/ifa_fault_shard.sh` | The shard partitioner co-locates the group. Without an entry the baseline lands in a different shard from its recovery cells, which then read an unset `digests` key |
+| Dispatch ORDER within that trio | `scripts/verify-ifa-fault-injection.sh` | `run_ifa_fault_injection_atomic_group_ordering_cases` — the baseline must dispatch before every other member. Co-location alone does not give you order |
+| Cell names in the hand-authored literal list | `ifa_full_cell_list_literal` in `scripts/lib/test-ifa-fault-injection-shard-cases.sh` | Nothing but you. It is typed by hand ON PURPOSE — deriving it from the arrays it checks would make the check agree with itself |
+| Coverage row (what makes the family COUNT as covered) | `specs/ifa-materialized-edge-coverage.v1.yaml` | The coverage-row contract above. Add it only once both gates really drive and assert the family — a row added earlier claims a proof that is not being run |
 
 Line-cap headroom is the constraint that will bite first. Two files grow per
 family and both sit close to the hard 500-line limit: the fault gate itself

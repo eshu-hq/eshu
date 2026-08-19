@@ -111,7 +111,11 @@ done
 # their content is about) must retrigger ifa-determinism but never
 # ifa-fault-injection. Without this, a determinism-only test module could
 # silently broaden the fault registry, costing every future family an
-# unexercised ~22-minute four-shard fault-injection run on every edit.
+# unexercised fault-injection run on every edit. Scope that honestly: this
+# constrains REGISTRY SELECTION (what `ci-gates select` returns, and therefore
+# what `make pre-pr` runs locally). It does not by itself stop CI starting the
+# fault shards -- ifa-determinism-gate.yml has one workflow-level on.paths and
+# no per-job filter, so a determinism-only edit still starts all four.
 for seam in "${ifa_live_gate_determinism_only_seams[@]}"; do
 	trigger="${seam%%|*}"
 	concrete_path="${seam#*|}"

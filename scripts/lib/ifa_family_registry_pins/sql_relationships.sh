@@ -39,13 +39,17 @@ IFA_FAMILY_PIN_WAIT_KEY="sql_relationship_materialization"
 # (batchCanonicalSQLQueriesTableUpsertCypher) is the SQL-relationship
 # family's QUERIES_TABLE write template (one of nine edge types the family
 # materializes, per ifa_family_fixtures.sh's header comment, but the one
-# this family's fail-graph-write cell targets -- scripts/verify-ifa-fault-injection.sh:292
+# this family's fail-graph-write cell targets -- scripts/verify-ifa-fault-injection.sh:302
 # sql_edge_operation_match agrees byte-for-byte). shared_cell: driven every N
-# cell -- scripts/verify-ifa-determinism.sh:310-315 drives the SQL cassette
-# unconditionally before the registry-driven shared_cell loop even starts
-# (this family predates the registry loop and is still driven by its own
-# inline call, not through the loop, but into the SAME per-N cell every
-# other shared family uses). cell_kind: blocker_kind=none is one of the
+# cell, THROUGH the registry loop -- scripts/verify-ifa-determinism.sh:338
+# calls ifa_family_registry_drive for every shared_cell family, this one
+# included. An earlier version of this paragraph said the family "predates the
+# registry loop and is still driven by its own inline call": that inline call
+# was deleted in this same change, which is precisely why
+# ifa_family_registry_drive carries a special-case branch for this family's
+# grandfathered ifa_det_drive_sql_baseline signature. The value was right and
+# the reason was wrong -- the failure mode the documentation_edges pin warns is
+# the one a pin file is least able to survive.
 # cell_kind: derived from the gate's call sites, not from blocker_kind.
 # scripts/verify-ifa-fault-injection.sh names this family's own functions
 # (ifa_fault_shard_run cell_killworker_sql / cell_failgraphwrite_sql); nothing

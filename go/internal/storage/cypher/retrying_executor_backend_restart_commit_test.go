@@ -158,16 +158,25 @@ func TestBackendRestartCommitBlockedWritesClassificationFailsClosedForNearMisses
 func TestBackendRestartEngineClosedTransactionStartIsRetryable(t *testing.T) {
 	t.Parallel()
 
+	// Code and Msg are RAW LITERALS, copied from the observed NornicDB errors
+	// above, never the constants under test. Building the input out of
+	// nornicDBEngineClosedTransactionStartMsg would make this assert only that
+	// the classifier references the same constant it is compared against -- it
+	// would stay green through a typo or a truncation in that constant, while
+	// the real backend message went back to dead-lettering as
+	// failure_class=projection_bug. That is the co-derivation ban the shell
+	// side of this change states in capitals for its own pins
+	// (scripts/lib/test-ifa-fault-injection-shard-cases.sh), applied here.
 	engineClosed := &neo4jdriver.Neo4jError{
-		Code: nornicDBRestartTransactionStartCode,
-		Msg:  nornicDBEngineClosedTransactionStartMsg,
+		Code: "Neo.ClientError.Transaction.TransactionStartFailed",
+		Msg:  "failed to start transaction: engine is closed",
 	}
 	require.True(t, isNornicDBRestartTransactionStartFailure(engineClosed),
 		"engine-closed begin failure must classify as a backend restart, not a projection bug")
 
 	walClosed := &neo4jdriver.Neo4jError{
-		Code: nornicDBRestartTransactionStartCode,
-		Msg:  nornicDBRestartTransactionStartMsg,
+		Code: "Neo.ClientError.Transaction.TransactionStartFailed",
+		Msg:  "failed to write WAL tx begin: wal: closed",
 	}
 	require.True(t, isNornicDBRestartTransactionStartFailure(walClosed),
 		"the original WAL-closed spelling must keep classifying")

@@ -123,11 +123,11 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// ProjectionDomain: DomainCodeownersOwnershipEdges and writes them via
 	// h.EdgeWriter -- no IntentWriter field. This is the family
 	// TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration
-	// exercises: scripts/lib/ifa_fault_injection_codeowners_cells.sh:68 still
-	// declares the vacuous shared_intent_lock shape for this handler as of
-	// this writing (tracked under #5992); scripts/lib/ifa_family_registry.sh
-	// itself already disagrees and records ack_barrier as the kind this
-	// handler's write shape actually supports.
+	// exercises. The vacuous shared_intent_lock shape it feeds that test is
+	// now SYNTHETIC: #5992 removed it and #6160 replaced it with a fact_records
+	// table lock, so the registry row and its pin both record
+	// table_lock:fact_records today. The tooth is still the right one to keep --
+	// it is the bug class, not a live bug report.
 	DomainCodeownersOwnershipEdges: {routedDomain: DomainCodeownersOwnership},
 	// submodule_pin_materialization.go:249 tags rows
 	// ProjectionDomain: DomainSubmodulePinEdges and writes them via
@@ -433,11 +433,12 @@ func TestMaterializedEdgeFamilyBlockerLockstepCoversAllFamilies(t *testing.T) {
 // to catch -- independent of file I/O, so it stays fast and deterministic as
 // a permanent regression check. It calls checkFamilyBlockerLockstep directly
 // with blockerSharedIntentLock for codeowners_ownership_edges' real
-// (reflected) handler -- the literal declaration
-// scripts/lib/ifa_fault_injection_codeowners_cells.sh:68 still has committed
-// today (`LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE` for
-// an EdgeWriter-only handler, tracked under #5992) -- and asserts it is
-// rejected. The end-to-end version of this same proof, run through the real
+// (reflected) handler -- a shared_projection_intents lock declared for an
+// EdgeWriter-only handler -- and asserts it is rejected. That declaration was
+// once committed for this family; #5992 removed it and #6160 replaced it with
+// a fact_records table lock, so the input here is now constructed rather than
+// quoted from a live file. Keeping it costs nothing and the bug class it
+// guards is what any future family can still hit. The end-to-end version of this same proof, run through the real
 // scripts/lib/ifa_family_registry.sh parse against a mutated scratch copy of
 // that file, is not committed here (mutating a file this test does not own
 // is not something a unit test should do on every run) but was run manually

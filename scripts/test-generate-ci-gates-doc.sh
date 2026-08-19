@@ -181,6 +181,23 @@ else
 	record_fail "identical command/test_command pair rendered more than once: ${dedupe_row}"
 fi
 
+# Case 13b: a gate declaring ci.check_names must render THOSE names, not the
+# `job:` key. For a matrix job the key is not what GitHub publishes -- a job
+# keyed "shardjob" with a 2-way matrix emits "shardjob (shard 1/2)" and a
+# sibling -- so rendering the key sends a reader looking for a check that never
+# appears on their PR. Both halves are asserted: the concrete names present AND
+# the bare key absent, since printing "shardjob / shardjob (shard 1/2)" would
+# satisfy a presence-only check while still naming the wrong thing.
+checknames_registry="${tmp_root}/check-names-registry.yaml"
+printf 'version: v1\ngates:\n  - id: shardgate\n    name: Shard Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo shard"\n    ci:\n      workflow: shard.yml\n      job: shardjob\n      check_names:\n        - "shardjob (shard 1/2)"\n        - "shardjob (shard 2/2)"\n' >"${checknames_registry}"
+checknames_row="$(awk -f "${parser}" "${checknames_registry}")"
+if printf '%s' "${checknames_row}" | rg -Fq 'shard.yml / shardjob (shard 1/2), shardjob (shard 2/2)' \
+	&& ! printf '%s' "${checknames_row}" | rg -Fq '/ shardjob |'; then
+	record_pass "generated reference renders ci.check_names instead of the matrix job key"
+else
+	record_fail "check_names gate rendered the job key or dropped the concrete names: ${checknames_row}"
+fi
+
 # Case 14: a gate with a real self-test but NO primary local.command and no
 # ci_only_reason (a permanently local-only gate whose enforcement mechanism
 # cannot be a `local.command` at all -- prepr-stamp-verify-selftest, whose

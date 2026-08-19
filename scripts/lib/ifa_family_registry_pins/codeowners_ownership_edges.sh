@@ -41,18 +41,23 @@
 # and drives ifa_codeowners_start_fact_records_lock /
 # ifa_codeowners_release_fact_records_lock, not the removed intent-lock pair.
 #
-# OPEN QUESTION this pin does not resolve on its own: the schema
+# RESOLVED (was an open question on this pin): the schema
 # (ifa_family_registry.sh's field-comment block) lists table_lock:<tablename>
-# and ack_barrier as distinct blocker_kind categories, and the now-proven
-# landed mechanism is literally a table lock (fact_records) blocking a read
-# -- not a trigger blocking the claimed->succeeded ACK transition the way
-# documentation_edges' mechanism does. Whether that makes
-# blocker_kind=table_lock:fact_records the now-correct value, or whether
-# ack_barrier is meant more broadly here, is a call for whoever owns this
-# family's row, not something to resolve by editing a citation. Reported,
-# not silently conformed to; the pinned value below is unchanged pending
-# that decision.
-IFA_FAMILY_PIN_BLOCKER_KIND="ack_barrier"
+# and ack_barrier as distinct blocker_kind categories, and the landed mechanism
+# is literally a table lock on fact_records blocking a read -- not a trigger
+# blocking the claimed->succeeded ACK transition the way documentation_edges'
+# mechanism does. Resolved to table_lock:fact_records on the schema's own rule
+# for the sibling cell_kind field: it records DISPATCH REALITY, "verify from
+# the gate's call sites, never by inferring". The call site is
+# ifa_fault_injection_codeowners_cells.sh:190 invoking
+# ifa_codeowners_start_fact_records_lock (:76), whose SQL is
+# `LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE` (:79).
+# Derived here from those call sites, NOT read back out of the registry row.
+# checkFamilyBlockerLockstep
+# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283)
+# accepts either ack_barrier or a table_lock:<name> for an EdgeWriter-only
+# handler, so this is not a value the Go side could have disambiguated.
+IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="codeowners_ownership"
 
@@ -63,17 +68,18 @@ IFA_FAMILY_PIN_WAIT_KEY="codeowners_ownership"
 # deliberately includes {pattern, source_path} so two distinct CODEOWNERS
 # rules naming the same team do not collapse onto one edge -- so the anchor
 # substring must include that property map, not stop at the bare
-# `]->(team)`. shared_cell: this family has no cassette/expected-edge entry
-# anywhere in ifa_family_fixtures.sh (`rg -c codeowners
-# scripts/lib/ifa_family_fixtures.sh` returns nothing) and
-# scripts/lib/ifa_fault_injection_driver.sh's drive_all_cassettes never
-# mentions it either -- there is no cassette for the shared loop to drive,
-# so shared_cell=0 is architecturally forced, not a preference. cell_kind:
-# blocker_kind=ack_barrier => custom, same rule as documentation_edges;
-# independently confirmed live: this family's kill cell
-# (ifa_fault_injection_codeowners_cells.sh) is a hand-written function, the
-# same shape documentation_edges' custom cell takes, though (per the KNOWN
-# DISCREPANCY note above) built on the wrong lock target today.
+# `]->(team)`. cell_kind: custom, derived from the gate's call sites -- this
+# family's fault cells are hand-written functions dispatched by name
+# (ifa_fault_injection_codeowners_cells.sh), the same shape documentation_edges'
+# custom cell takes, not the generic dispatcher.
+#
+# A superseded shared_cell derivation used to sit in this paragraph, claiming
+# `rg -c codeowners scripts/lib/ifa_family_fixtures.sh` returns nothing and that
+# shared_cell=0 was therefore "architecturally forced". That command returns 6:
+# codeowners_cassette and codeowners_expected_edges are at
+# ifa_family_fixtures.sh:73-74, guarded at :96-97. #6160 added them, and the
+# derivation below pins 1. Removed rather than left standing beside the correct
+# one -- a pin file with two readings has lost the property it exists for.
 IFA_FAMILY_PIN_ANCHOR="MERGE (repo)-[rel:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)"
 # shared_cell: 1, re-derived after #6160 merged. That PR added this family's
 # cassette and expected-edge entries to scripts/lib/ifa_family_fixtures.sh and

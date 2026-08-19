@@ -284,8 +284,13 @@ done
 # lifecycle assertion (ifa_rationale_assert_work_counts, the one deliberate
 # exception noted above) is also a different function name, so neither can
 # collide with this pattern.
+# codeowners joins the blanket list on the same footing as the other drives:
+# #6160 gave this family a shared-cell drive, this change removed its inline
+# call along with the other four, and it has no legitimate bare-name drive
+# anywhere else in the gate (`rg -c 'ifa_codeowners_drive "'` on the gate
+# returns 0). It was missed when the family landed mid-branch.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
-	ifa_det_assert_sql_baseline ifa_rationale_assert; do
+	ifa_codeowners_drive ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
 	fi
@@ -301,4 +306,10 @@ code_call_assert_count="$(rg --count --fixed-strings -- 'ifa_code_call_assert "'
 documentation_assert_count="$(rg --count --fixed-strings -- 'ifa_documentation_assert "' "${script}")"
 [[ "${documentation_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_documentation_assert (the post-delta re-assertion) outside the registry loop; found ${documentation_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
+# codeowners has the same single legitimate post-delta re-assertion shape as
+# the two above, so it gets a count pin rather than a place in the blanket
+# list.
+codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert "' "${script}")"
+[[ "${codeowners_assert_count}" -eq 1 ]] \
+	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 }
