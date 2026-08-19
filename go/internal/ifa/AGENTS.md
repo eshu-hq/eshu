@@ -278,17 +278,38 @@ to fit; the rationale in these files is what lets a reviewer catch a cell whose
 stated intent has drifted from what it does, which is the defect class this
 whole program exists to close.
 
-Not enforced by any gate — get these right by hand:
+The doc sentence on `MaterializedEdgeOduResolver.Resolve`
+("Current guards cover ...") enumerates the resolver's `case` arms — families
+with a REGISTERED VACUITY GUARD — not families that are live-proven. Update it
+and its pinned copy in `code_call_live_documentation_test.go` in the same
+change that adds the family's `case` arm, whatever the live-proof status.
+Live proof is tracked by the coverage-manifest row and the waiver table, never
+by this sentence. Two authors read this the opposite way in one PR, which is
+why it is written down: the deciding evidence is that the sentence already
+listed codeowners_ownership_edges while that family's fault side was
+explicitly not live-proven, so the live-proven reading was false of the
+sentence as shipped.
+
+Not caught by any STATIC check — get these right by hand. Note the difference
+between "nothing enforces this" and "nothing enforces it until the gate runs":
+the first is a silent gap, the second costs you a twenty-minute cell instead of
+a millisecond, which is worth avoiding but is not a hole.
 
 - **`IFA_FAMILY_RETRY_BASELINE_VAR` and `IFA_FAMILY_HANDLER_GO_FILE`.** Both are
   required only for `shared_intent_lock` families — other rows may record
   `handler_go_file` deliberately, and `rows/06` does — both are read only at
-  live-run time, and neither is one of the pinned fields. A family missing either one dies rather
-  than passing — but it dies part-way into a four-shard CI run, not statically,
-  which is the expensive place to find out. `handler_go_file` has exactly one
-  consumer, `_ifa_generic_require_intent_writer`; the Go blocker lockstep does
-  not read it (it reflects on the real handler struct instead, which is a
-  stronger check of a different property).
+  gate RUNTIME, and neither is one of the pinned fields. For a
+  `shared_intent_lock` family `_ifa_generic_require_retry_baseline` dies naming
+  the family and the missing row, and the kill cell then proves
+  retry-above-baseline via `ifa_fault_assert_retried_above` scoped to the
+  family's wait_key; the family's baseline cell must populate the named variable
+  before its kill cell runs, and `baseline_code_call_retried` is the model. So a
+  missing row fails loudly rather than downgrading the cell — but it fails part
+  way into a four-shard CI run, which is the expensive place to find out.
+  `handler_go_file` has exactly one consumer,
+  `_ifa_generic_require_intent_writer`; the Go blocker lockstep does not read it
+  (it reflects on the real handler struct instead, which is a stronger check of
+  a different property).
 - **Triggers for the family's own new lib files.** The sourced-to-triggered
   drift walk only resolves a `source` line whose literal text contains
   `scripts/`; anything sourced through a variable is invisible to it, so a new
