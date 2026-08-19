@@ -60,12 +60,11 @@ every 60 seconds; do not only wait for the check rollup.
 Poll with a **bounded background waiter that blocks until a condition holds**
 (`until <check>; do sleep 40; done`, with an iteration cap), run as a background
 command — a foreground sleep is refused by the Claude Code harness — not by
-spending a turn per poll. One waiter per condition: duplicates racing on the
-same condition waste turns, and a waiter whose match pattern cannot occur —
-watching a log for a string that run never prints — spins to its cap while
-reporting nothing. Kill
-superseded waiters when the thing they watch is replaced. The cadence is a
-ceiling on staleness, not a requirement to burn a turn each minute.
+spending a turn per poll. One waiter per condition: duplicates racing on the same
+condition waste turns, and a waiter whose match pattern cannot occur — watching a
+log for a string that run never prints — spins to its cap while reporting
+nothing. Kill superseded waiters when the thing they watch is replaced. The
+cadence is a ceiling on staleness, not a requirement to burn a turn each minute.
 
 ## Step 1 — Build the work set (expand epics)
 
