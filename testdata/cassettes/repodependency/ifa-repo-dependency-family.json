@@ -1,0 +1,228 @@
+{
+  "scopes": [
+    {
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-source",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "repo-dependency-family-source",
+            "repo_id": "repo-ifa-repo-dependency-source",
+            "repo_slug": "ifa-org/repo-dependency-family-source",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-provisions",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-provisions",
+            "repo_id": "repo-ifa-repo-dependency-target-provisions",
+            "repo_slug": "ifa-org/target-provisions",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-usesmodule",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-usesmodule",
+            "repo_id": "repo-ifa-repo-dependency-target-usesmodule",
+            "repo_slug": "ifa-org/target-usesmodule",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-discoversconfig",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-discoversconfig",
+            "repo_id": "repo-ifa-repo-dependency-target-discoversconfig",
+            "repo_slug": "ifa-org/target-discoversconfig",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-dependson",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-dependson",
+            "repo_id": "repo-ifa-repo-dependency-target-dependson",
+            "repo_slug": "ifa-org/target-dependson",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-deploysfrom",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-deploysfrom",
+            "repo_id": "repo-ifa-repo-dependency-target-deploysfrom",
+            "repo_slug": "ifa-org/target-deploysfrom",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-readsconfig",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "name": "target-readsconfig",
+            "repo_id": "repo-ifa-repo-dependency-target-readsconfig",
+            "repo_slug": "ifa-org/target-readsconfig",
+            "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/app-repo.tf",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terraform_hcl",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "app_repo = \"target-provisions\"\n",
+            "content_path": "env/ifa-repo-dependency/app-repo.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/module.tf",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terraform_hcl",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "module \"queue\" {\n  source = \"../../modules/target-usesmodule\"\n}\n",
+            "content_path": "env/ifa-repo-dependency/module.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/terragrunt.hcl",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terragrunt",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "config_path = \"../target-discoversconfig\"\n",
+            "content_path": "env/ifa-repo-dependency/terragrunt.hcl",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:deploy/docker-compose.yml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "docker_compose",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "services:\n  app:\n    depends_on:\n      - target-dependson\n",
+            "content_path": "deploy/docker-compose.yml",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:deploy/docker-compose-build.yml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "docker_compose",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "services:\n  app:\n    build:\n      context: ../target-deploysfrom\n",
+            "content_path": "deploy/docker-compose-build.yml",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/iam.tf",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terraform_hcl",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "resource \"aws_iam_policy\" \"read_config\" {\n  policy = jsonencode({\n    Statement = [{\n      Effect   = \"Allow\"\n      Action   = [\"ssm:GetParameter\", \"ssm:GetParameters\"]\n      Resource = \"arn:aws:ssm:us-east-1:123456789012:parameter/configd/target-readsconfig/*\"\n    }]\n  })\n}\n",
+            "content_path": "env/ifa-repo-dependency/iam.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/self.tf",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terraform_hcl",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "app_repo = \"repo-dependency-family-source\"\n",
+            "content_path": "env/ifa-repo-dependency/self.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-repo-dependency-source:env/ifa-repo-dependency/prefix.tf",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "terraform_hcl",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content_body": "app_repo = \"target-provisions-extra\"\n",
+            "content_path": "env/ifa-repo-dependency/prefix.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        }
+      ],
+      "generation_id": "gen-ifa-repo-dependency-family-1",
+      "scope_id": "scope-ifa-repo-dependency-family"
+    }
+  ]
+}

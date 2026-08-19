@@ -1,0 +1,36 @@
+{
+  "odu": "odu:ifa-repo-dependency-family",
+  "note": "Six repo_dependency edges from the family's one source repository (repo-ifa-repo-dependency-source) to six distinct target repositories, one per registry relationship type this Odu proves. Every one of the six repo_dependency writer templates (batchCanonicalRepoDependencyUpsertCypher and its five DISCOVERS_CONFIG_IN/DEPLOYS_FROM/PROVISIONS_DEPENDENCY_FOR/USES_MODULE/READS_CONFIG_FROM siblings in canonical_relationships.go) MERGEs on (source_repo:Repository{id})-[:TYPE]->(target_repo:Repository{id}) alone -- no property participates in the merge key (materializedEdgeIdentityByFamily[\"repo_dependency\"] declares empty identity for every type), so this 3-tuple is each edge's full structural identity. RUNS_ON, the registry's seventh type, is deliberately absent: see materialized_edges_repo_dependency.go's package doc for why it is not fixture-reachable.",
+  "edges": [
+    {
+      "relationship_type": "PROVISIONS_DEPENDENCY_FOR",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-provisions"
+    },
+    {
+      "relationship_type": "USES_MODULE",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-usesmodule"
+    },
+    {
+      "relationship_type": "DISCOVERS_CONFIG_IN",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-discoversconfig"
+    },
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-dependson"
+    },
+    {
+      "relationship_type": "DEPLOYS_FROM",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-deploysfrom"
+    },
+    {
+      "relationship_type": "READS_CONFIG_FROM",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-readsconfig"
+    }
+  ]
+}

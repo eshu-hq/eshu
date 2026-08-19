@@ -141,3 +141,28 @@ func buildResolvedEdgeIntentRow(
 		CreatedAt:        createdAt,
 	}), routeType, true
 }
+
+// ExtractRepoDependencyIntentRows converts resolved cross-repo relationships
+// into repo_dependency shared-projection intent rows through the exact pure
+// conversion buildResolvedEdgeIntentRow applies in production (Handle step 5,
+// cross_repo_resolution.go). It performs no I/O and reads no other
+// process-global state, so it is safe for Ifá's repo_dependency
+// materialized-edge vacuity guard to call directly against a cataloged Odù's
+// own resolved relationships -- go/internal/ifa/AGENTS.md forbids wall-clock
+// time inside Ifá derivation, so createdAt must be an injected, deterministic
+// value, never time.Now(), exactly as ExtractDeployableUnitCorrelationRows's
+// now parameter requires for the deployable_unit_edges guard.
+//
+// The second return is the per-relationship-type route count
+// buildResolvedEdgeIntentRows already tallies, exposed so a caller can prove
+// which relationship types a resolved set actually produced without
+// re-deriving that from the returned rows' Payload.
+func ExtractRepoDependencyIntentRows(
+	resolved []relationships.ResolvedRelationship,
+	scopeID string,
+	sourceRunID string,
+	generationID string,
+	createdAt time.Time,
+) ([]SharedProjectionIntentRow, map[string]int) {
+	return buildResolvedEdgeIntentRows(resolved, scopeID, sourceRunID, generationID, createdAt)
+}
