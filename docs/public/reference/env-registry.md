@@ -52,6 +52,12 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_AUTH_SECRET_ENC_KEY_FILE` | string | — | Path to a file holding the base64-encoded 32-byte primary DEK; takes precedence over ESHU_AUTH_SECRET_ENC_KEY when both are set (epic #4962). |
 | `ESHU_AUTH_SECRET_ENC_KEY_ID` | string | — | Optional label for the primary DEK's key id, embedded in every envelope it seals for rotation bookkeeping. Defaults to the first 8 hex characters of SHA-256(key) when unset (epic #4962). |
 
+## backend-conformance
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` | bool | `false` | Contributor test knob, read by no Eshu service. Includes the opt-in value-flow cloud sink read/seed pair in the backend conformance corpora. The pair reproduces defects open upstream in NornicDB, so it is absent from the corpus when unset (absent, not skipped) rather than red-lining the blocking live gate on unrelated changes. No Eshu service reads this; it is consumed only by go/internal/backendconformance and scripts/verify_backend_conformance_live.sh. |
+
 ## collector-aws-cloud
 
 | Variable | Type | Default | Notes |
@@ -291,7 +297,6 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` | bool | `false` | Contributor test knob, not a runtime setting: includes the opt-in value-flow cloud sink read/seed pair in the backend conformance corpora. The pair reproduces defects open upstream in NornicDB, so it is absent from the corpus when unset (absent, not skipped) rather than red-lining the blocking live gate on unrelated changes. No Eshu service reads this; it is consumed only by go/internal/backendconformance and scripts/verify_backend_conformance_live.sh. |
 | `ESHU_GRAPH_BACKEND` | enum | `nornicdb` | Graph database backend. Allowed: `neo4j`, `nornicdb`. |
 | `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | int | — | Per-class in-flight ceiling for canonical (repository/entity/structural-edge) graph writes; overrides ESHU_GRAPH_WRITE_MAX_IN_FLIGHT for this class only (issue #4448). Empty falls back to ESHU_GRAPH_WRITE_MAX_IN_FLIGHT. |
 | `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | int | — | Bounds concurrent in-flight graph writes per writer process so a bootstrap+reducer write storm cannot push the graph backend past its throughput knee and cascade into canonical-write timeouts (issue #4456 / #3624). A measured NornicDB concurrent-writer sweep showed write throughput peaks near 12-16 concurrent writers then collapses, with p99 latency climbing to the canonical-write timeout. Empty or non-positive disables the bound (legacy passthrough); the shipped Compose default is 8. Falls back for both per-class ceilings below when neither is set. |

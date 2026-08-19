@@ -173,11 +173,19 @@ var (
 // "matches" — deleting a node's MERGE leaves its label present in the later MATCH
 // clauses — and it does not check property targets.
 //
-// Two known mutations pass: deleting the WorkloadInstance MERGE (its label
-// survives in the later MATCH clauses) and moving `actions` from the
-// relationship to the sink node. No count here is authoritative — this one is
-// hand-kept and only covers mutations someone has actually tried, so treat it as
-// examples of the class rather than its full extent.
+// Known mutations that pass: deleting the WorkloadInstance MERGE (its label
+// survives in the later MATCH clauses), moving `actions` from the relationship
+// to the sink node, and binding `function_uids` to valueFlowWorkloadID — a value
+// the seed genuinely writes, as the wrong entity. That last one is the parameter
+// guard's own bound: membership proves a value is seeded *somewhere*, not that it
+// is seeded as the right thing. Closing it would mean reconciling the bound
+// parameter name `function_uids` against the seed's `function_uid`, and
+// plural/singular name-matching is a worse guard than an honest limit.
+//
+// No count here is authoritative — this list is hand-kept and covers only
+// mutations someone has actually tried, so treat it as examples of the class
+// rather than its full extent. It has already been wrong once by carrying a
+// number across a boundary that moved underneath it.
 //
 // Each turns the case into "returns zero rows on every backend", which is
 // indistinguishable from the defect it detects. The live Neo4j lane is what proves

@@ -123,3 +123,18 @@
   for the chunked rollout plan and the matrix's place in it.
 - The default corpus contents: cases are referenced by tests outside this
   package; renames or removals need a coordinated update of every caller.
+
+## Citing a conformance env var in public docs registers it
+
+`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` is in `go/internal/envregistry` only
+because `docs/public/reference/backend-conformance.md` cites it. The
+`docs-cli-env-refs` gate requires a code owner for every env reference under
+`docs/public/`, and its debt baseline is frozen against a ceiling that can never
+grow — so a new public citation cannot be baselined and must be registered.
+
+`ESHU_BACKEND_CONFORMANCE_LIVE` is deliberately NOT registered: it is cited
+nowhere under `docs/public/`, so it is outside that gate's contract. The moment
+anyone adds it to a public page — and the obvious place is the page already
+documenting the live check — the gate fires and it cannot be baselined either.
+Register it in the `backend-conformance` subsystem alongside its sibling rather
+than rediscovering this during a preflight.
