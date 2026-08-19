@@ -1,0 +1,11 @@
+{
+  "odu": "odu:ifa-workload-dependency-family",
+  "note": "One workload_dependency edge from the family's positive pair: repo-ifa-workload-dependency-source depends on repo-ifa-workload-dependency-target (Docker Compose depends_on evidence), and both own exactly one current-generation Kubernetes-Deployment workload, so ReconcileWorkloadDependencyEdges admits workload:workload-dependency-source -> workload:workload-dependency-target. The family's other two resolved repo-to-repo DEPENDS_ON pairs (multi-workload, orphan) are DELIBERATELY ABSENT: they prove ReconcileWorkloadDependencyEdges' two independent drop conditions (workload_dependency_reconciliation.go:137-146) instead of admitting an edge -- see workloadDependencyAssertDropReasons (materialized_edges_workload_dependency.go), which fails this guard if either pair leaks into the admitted set. batchCanonicalWorkloadDependencyUpsertCypher (canonical.go) MERGEs on (source:Workload{id})-[:DEPENDS_ON]->(target:Workload{id}) alone; no property participates in the merge key (materializedEdgeIdentityByFamily[\"workload_dependency\"] declares no IdentityProperties), so this 3-tuple is the edge's full structural identity.",
+  "edges": [
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "workload:workload-dependency-source",
+      "target_entity_id": "workload:workload-dependency-target"
+    }
+  ]
+}

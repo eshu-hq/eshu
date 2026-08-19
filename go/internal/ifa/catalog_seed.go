@@ -60,6 +60,7 @@ var catalogSeed = []CatalogOdu{
 	repoDependencyFamilyOdu(),
 	inheritanceFamilyOdu(),
 	shellExecFamilyOdu(),
+	workloadDependencyFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds
