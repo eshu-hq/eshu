@@ -557,7 +557,7 @@ earlier in this document therefore still describe the shipped code exactly, and
 are not re-measured here; re-running them would produce numbers for identical
 statements. Terminal queue state and row counts are likewise unchanged, since no
 row is produced or consumed differently. What was proven instead is that all
-five new guards fail when the thing each one guards is broken. Deleting
+six new guards fail when the thing each one guards is broken. Deleting
 `ExecuteProbe` from `ifaExecutorRetryArmedExecutor` turns the repo-wide scan red
 naming that wrapper. Blanking `SourceRunID` turns the acceptance-key shape guard
 red. Replacing the `delta_projection` exclusion with `if false` turns the
@@ -568,10 +568,15 @@ false-green that pin exists to close and the reason a mirrored literal is not a
 guard. Reordering `LatestIntentsByRepoAndPartition` ahead of
 `FilterAuthoritativeIntents`, and separately passing it the raw partition rows
 instead of the filter's output, each turn
-`TestSelectPartitionBatchFiltersBeforeDeduping` red. Each returns to green on
-restore, with a clean tree.
+`TestSelectPartitionBatchFiltersBeforeDeduping` red. Flipping
+`QueryCypherExists`' session to `AccessModeRead` turns
+`TestQueryCypherExistsUsesAccessModeWrite` red, and that guard is scoped rather
+than a file-wide grep: the same flip applied to either of the two unrelated
+`AccessModeWrite` sites in that file leaves it green, because it reads only
+`QueryCypherExists`' own body. Each returns to green on restore, with a clean
+tree.
 
-Two of those five came from review of the follow-up PR rather than from the
+Two of those six came from review of the follow-up PR rather than from the
 original six findings, and one of them cost a false proof before it was right.
 The first attempt at the reorder mutation failed to compile
 (`declared and not used: active`), which would have supported the opposite
