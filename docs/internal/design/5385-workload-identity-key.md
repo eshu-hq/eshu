@@ -550,8 +550,14 @@ working — **but do not skip that file on the strength of this line.** Its
 `workload_instance` case at `:70-75` emits two further resolvers, anchored on
 `id` and on `workload_id`, and both break under the re-key. See migration item 4.
 
-Nothing parses a `workload-instance:<name>:<env>` identifier back apart — a
-verified negative, not an unsearched gap.
+Nothing decomposes a `workload-instance:<name>:<env>` identifier back into its
+name and environment. That strict negative holds and is a verified one rather
+than an unsearched gap — but the search covered `go/` only, and the console does
+test the prefix:
+`apps/console/src/api/impactDeploymentGraph.ts:453` is
+`if (id.startsWith("instance:") || id.startsWith("workload-instance:")) return "instance";`,
+which this document files as a parse site elsewhere. A re-key that keeps the
+prefix leaves it working; one that changes the prefix does not.
 
 This inventory is larger than it first appeared and should still be treated as a
 starting point. **The `reducer_workload_identity` subsystem in particular needs a
@@ -575,14 +581,21 @@ heuristic.
 - **Cost:** the identifier stops being human-readable; every parse site in
   section 4 needs revisiting.
 - **`DeploymentRepoIDs` must not be the key.** This was an open question and is
-  now settled. It fails three independent tests for key material: **plural** (the golden
-  corpus carries deployment-typed evidence from three separate fixtures —
-  `helm_argocd_platform`, `kustomize-deployable-overlay`, `helm-umbrella-chart`
-  (the first is underscored where its two siblings are hyphenated, in
-  `scripts/lib/golden-corpus-fixtures.sh:29,34,41`) —
-  all pointing at the same `deployable-source` repo; note one committed snapshot
-  note records a single-element resolved value, so treat "plural" as established
-  and the exact count as unverified), **unstable** (the
+  now settled. It fails three independent tests for key material.
+
+  **Plural**, and the type settles it before any fixture argument does:
+  `DeploymentRepoIDs` is declared `[]string` at
+  `go/internal/reducer/projection.go:39`. The corpus agrees — deployment-typed
+  evidence comes from three separate fixtures, `helm_argocd_platform`,
+  `kustomize-deployable-overlay` and `helm-umbrella-chart`, all pointing at the
+  same `deployable-source` repo. (The first is underscored where its two
+  siblings are hyphenated; all three are at
+  `scripts/lib/golden-corpus-fixtures.sh:29,34,41`.) One committed snapshot note
+  records a single-element resolved value, so the exact count in that fixture is
+  unverified — but a slice is a slice, and a key cannot be built on a field whose
+  cardinality is not one.
+
+  **Unstable** (the
   primary is re-picked whenever higher-confidence evidence arrives,
   `workload_deployment_sources.go:232-234`, so node identity would churn on a
   confidence change), and **usually absent** — that file's own comment at
@@ -873,7 +886,7 @@ retracted and rebuilt rather than rewritten in place.
 
 ## 5a. Retract/rebuild proof
 
-Run before any implementation, on a fresh single-purpose stack against the
+Run before any implementation — and now run, on a fresh single-purpose stack against the
 pinned backend, with Neo4j 5.x community as the control and a settling loop on
 every read.
 
@@ -886,7 +899,7 @@ every read.
 | `retractSingleRepoRunsOnEdgesCypher` verbatim | 1 → 0 | **1 → 1**, still 1 after 46 s |
 | node `DETACH DELETE` (instance retract) | node and all incident edges gone | node and all incident edges gone |
 
-Two harness errors were made and corrected before these numbers were trusted,
+I made two harness errors and corrected them before trusting these numbers,
 and both are worth recording because either would have produced a confident
 wrong answer:
 
