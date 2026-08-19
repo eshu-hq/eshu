@@ -346,6 +346,75 @@ $(cat "${out}")"
 # the message must name the missing tool rather than reporting an empty
 # "checksum mismatch".
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Case 9: a machine whose architecture the pin was not built for must fail at
+# INSTALL time, loudly, rather than installing a binary that cannot execute.
+#
+# This case exists because the guard is otherwise unreachable from this
+# suite: every other ripgrep case sets ESHU_CI_APT_RIPGREP_URL, which is
+# exactly the condition that makes assert_ripgrep_arch_supported return 0
+# immediately. So it deliberately does NOT set the URL override, and relies
+# on the guard running before the download (install_ripgrep_pinned_binary
+# calls it immediately after mktemp, before curl) to stay hermetic -- no
+# network is reached even though the real pinned URL is in play.
+# ---------------------------------------------------------------------------
+test_unsupported_arch_fails_before_download() {
+	local case_dir="${tmp_root}/unsupported-arch"
+	local bin_dir="${case_dir}/dest"
+	local stub_bin="${case_dir}/stubbin"
+	mkdir -p "${case_dir}" "${bin_dir}" "${stub_bin}"
+
+	# Stub uname so the script believes it is on arm64. Everything else the
+	# script needs before the guard resolves through the real PATH.
+	cat >"${stub_bin}/uname" <<'STUB'
+#!/usr/bin/env bash
+if [ "${1:-}" = "-m" ]; then
+	echo "aarch64"
+else
+	exec /usr/bin/uname "$@"
+fi
+STUB
+	chmod +x "${stub_bin}/uname"
+
+	local out="${case_dir}/out.log"
+	local rc=0
+	PATH="${stub_bin}:${PATH}" \
+		ESHU_CI_APT_FORCE_INSTALL=1 \
+		ESHU_CI_APT_NO_SUDO=1 \
+		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+
+	if [ "${rc}" -ne 0 ]; then
+		record_pass "unsupported-arch: exits nonzero (rc=${rc})"
+	else
+		record_fail "unsupported-arch: exited 0 on aarch64 -- an x86_64 binary that cannot execute would have been installed. output:
+$(cat "${out}")"
+	fi
+
+	if rg -q --fixed-strings "aarch64" "${out}" &&
+		rg -q --fixed-strings "x86_64-unknown-linux-musl" "${out}"; then
+		record_pass "unsupported-arch: message names both the pin's arch and the machine's"
+	else
+		record_fail "unsupported-arch: message does not name the architecture mismatch. output:
+$(cat "${out}")"
+	fi
+
+	if [ ! -e "${bin_dir}/rg" ]; then
+		record_pass "unsupported-arch: no binary was installed"
+	else
+		record_fail "unsupported-arch: rg was installed despite the architecture mismatch"
+	fi
+
+	# The guard must fire BEFORE the download, both so this case stays offline
+	# and so the diagnostic is the architecture rather than a network error.
+	if rg -q --fixed-strings "installing ripgrep from pinned binary release" "${out}"; then
+		record_fail "unsupported-arch: reached the download stage before failing -- the arch guard must run before curl. output:
+$(cat "${out}")"
+	else
+		record_pass "unsupported-arch: failed before attempting any download"
+	fi
+}
+
 test_missing_sha256_tool_fails_closed() {
 	local case_dir="${tmp_root}/no-sha-tool"
 	local bin_dir="${case_dir}/dest"
@@ -448,6 +517,7 @@ test_skip_install_skips_pinned_ripgrep
 test_download_failure_exhausts_retries_and_fails_loudly
 test_download_bounds_transfer_not_just_connect
 test_missing_sha256_tool_fails_closed
+test_unsupported_arch_fails_before_download
 
 if [ "${FAIL}" -ne 0 ]; then
 	printf 'test-ci-install-apt-packages: FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
