@@ -4,11 +4,15 @@
 # rationale_edges row. See ../../ifa_family_registry.sh for the schema and
 # every array declaration this file assigns into.
 
-# ifa_fault_injection_rationale_cells.sh:19: cell_killworker_rationale calls
-# ifa_fault_start_shared_intent_lock directly.
+# ifa_fault_generic_cells.sh:183: the generic kill cell calls
+# ifa_fault_start_shared_intent_lock for any family whose row declares this
+# kind, and :198 releases it. cell_killworker_rationale is now a one-line
+# delegation to cell_killworker_family, so the lock is taken there, not in this
+# familys own cells lib.
 IFA_FAMILY_BLOCKER_KIND[rationale_edges]="shared_intent_lock"
 IFA_FAMILY_WAIT_STAGE[rationale_edges]="handler"
-# ifa_fault_injection_rationale_cells.sh:23: (..., "rationale_materialization").
+# Consumed by ifa_fault_generic_cells.sh:141-144, which reads this row through
+# ifa_family_wait_key and scopes ifa_fault_wait_for_claimed to it.
 IFA_FAMILY_WAIT_KEY[rationale_edges]="rationale_materialization"
 IFA_FAMILY_SHARED_CELL[rationale_edges]=1
 # go/internal/storage/cypher/canonical_rationale_edges.go:41 is the live
@@ -24,7 +28,8 @@ IFA_FAMILY_ASSERT_FN[rationale_edges]="ifa_rationale_assert"
 IFA_FAMILY_CASSETTE_VAR[rationale_edges]="rationale_cassette"
 IFA_FAMILY_EXPECTED_VAR[rationale_edges]="rationale_expected_edges"
 
-# ifa_fault_injection_rationale_cells.sh:33: baseline_rationale_retried.
+# ifa_fault_injection_cells.sh:82: baseline_rationale_retried is set by the
+# shared cell_baseline.
 IFA_FAMILY_RETRY_BASELINE_VAR[rationale_edges]="baseline_rationale_retried"
 
 IFA_FAMILY_HANDLER_GO_FILE[rationale_edges]="go/internal/reducer/rationale_edge_materialization.go"

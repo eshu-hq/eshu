@@ -66,24 +66,29 @@ IFA_FAMILY_EXPECTED_VAR[codeowners_ownership_edges]="codeowners_expected_edges"
 # `MERGE (repo)-[rel:DECLARES_CODEOWNER`, and this row records the full form
 # including the property map. The property map is the more precise anchor
 # because the codeowners MERGE key is NOT the bare relationship type -- that
-# same file's header (:16-28) explains the key intentionally includes pattern
+# same file's header (:16-31) explains the key intentionally includes pattern
 # and source_path so distinct CODEOWNERS rules do not collapse onto one edge.
 # Nothing reconciles the two today. If this family is ever flipped to generic
 # dispatch, that flip silently changes which string the fault targets, so
 # reconcile them in the same change rather than discovering it from a cell that
 # fires on the wrong write.
 IFA_FAMILY_ANCHOR[codeowners_ownership_edges]="MERGE (repo)-[rel:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)"
-# ack_barrier is not one of the shapes ifa_fault_generic_cells.sh's generic
-# dispatcher builds, so custom. Custom families are dispatched by name from
-# the gate (ifa_fault_shard_run cell_killworker_codeowners), never through
-# that dispatcher -- #6160 wired this family's three cells that way.
+# Derived from the gate's call sites, not from blocker_kind: #6160 wired this
+# family's three cells as hand-written functions dispatched by name
+# (ifa_fault_shard_run cell_killworker_codeowners), never through
+# cell_killworker_family. table_lock IS a shape the generic dispatcher builds
+# (ifa_fault_generic_table_lock.sh), so this stays custom because of how it is
+# dispatched, NOT because the shape is unsupported -- the same distinction
+# rows/05_deployable_unit_edges.sh spells out for the other table_lock family.
+# Do not "finish the migration" by repointing these cells at the generic
+# dispatcher on the strength of the shape alone.
 IFA_FAMILY_CELL_KIND[codeowners_ownership_edges]="custom"
 
-# Deliberately empty: no ack_barrier-shaped kill cell exists for this family
-# yet. The landed cell_killworker_codeowners uses the vacuous
-# shared_intent_lock shape this row's blocker_kind explicitly disagrees with
-# (see that field's comment above) and MUST NOT be dispatched to here as if
-# it satisfied this row's claim. Tracked under #5992.
+# No IFA_FAMILY_RETRY_BASELINE_VAR row: that field is required for
+# shared_intent_lock families, whose generic kill cell compares against it.
+# This family is table_lock:fact_records and cell_kind=custom, so its own cells
+# own their baseline (baseline_codeowners_retried, set by
+# cell_baseline_codeowners) and the generic precondition never runs for it.
 
 IFA_FAMILY_HANDLER_GO_FILE[codeowners_ownership_edges]="go/internal/reducer/codeowners_ownership_materialization.go"
 

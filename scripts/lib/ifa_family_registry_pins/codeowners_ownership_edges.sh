@@ -11,15 +11,23 @@
 
 # go/internal/reducer/codeowners_ownership_materialization.go:26-35 declares
 # CodeownersOwnershipEdgeMaterializationHandler with FactLoader, EdgeWriter,
-# and PriorGenerationCheck fields ONLY -- no IntentWriter field anywhere in
-# the struct or the file (`rg -c IntentWriter
+# PriorGenerationCheck and Instruments fields -- and NO IntentWriter, anywhere
+# in the struct or the file (`rg -c IntentWriter
 # go/internal/reducer/codeowners_ownership_materialization.go` returns
-# nothing). Handle() calls only h.EdgeWriter.WriteEdges/RetractEdges (lines
-# 86, 138, 145); it never touches shared_projection_intents. Architecturally
-# identical to documentation_edges => the CORRECT declaration is
-# blocker_kind=ack_barrier, wait_stage=handler,
-# wait_key="codeowners_ownership" (go/internal/reducer/intent.go:75
+# nothing). That absence is the load-bearing fact. Handle() calls only
+# h.EdgeWriter.WriteEdges/RetractEdges (lines 86, 138, 145); it never touches
+# shared_projection_intents, so shared_intent_lock is the one kind this family
+# provably cannot use. wait_stage=handler, wait_key="codeowners_ownership"
+# (go/internal/reducer/intent.go:75
 # DomainCodeownersOwnership Domain = "codeowners_ownership").
+#
+# Which of the two REMAINING kinds is correct is settled further down, from the
+# landed cell rather than from the handler shape: an EdgeWriter-only handler
+# admits either ack_barrier or a table_lock:<name>, and the handler alone
+# cannot choose between them. An earlier version of this paragraph concluded
+# "ack_barrier" here, by analogy to documentation_edges, and then the
+# derivation below pinned table_lock:fact_records -- two readings in one pin
+# file, which is the property a pin file exists to not have.
 #
 # *** RE-DERIVED, NOT JUST RE-CITED: the vacuous-lock discrepancy this
 # section used to report is FIXED on the landed cell; a different question

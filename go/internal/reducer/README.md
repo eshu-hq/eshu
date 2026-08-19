@@ -318,6 +318,22 @@ values each counter carries.
 
 ## Gotchas / invariants
 
+- **This package's tests read shell files outside `go/`** —
+  `ifa_family_registry_parse_test.go` resolves
+  `scripts/lib/ifa_family_registry/rows/` through `runtime.Caller` and parses
+  the committed shell rows, binding each family's declared `blocker_kind` and
+  `wait_key` to the real handler's write shape. Renaming or moving that
+  directory breaks `go test ./internal/reducer` with an error that names a Go
+  package, in a repo where the shell side is owned by a different lane. The
+  registry is `scripts/lib/ifa_family_registry.sh`; its schema comment is the
+  contract those tests check against.
+- **The Ifá contract-layer CI gate runs this WHOLE package** —
+  `.github/workflows/static-contract-gates.yml`'s `Verify Ifa contract-layer
+  gate` runs `go test ./internal/reducer -count=1` with no `-run` filter (a
+  hand-maintained test-name regex went stale twice and silently stopped
+  selecting tests that had landed). Any test anywhere in `internal/reducer` can
+  now turn that gate red, which is a wider blast radius than the file list in
+  its trigger block suggests.
 - **All reducer domains must be cross-source, cross-scope, and truth-emitting**
   — enforced by `OwnershipShape.Validate`; domains either write canonical graph
   truth, publish durable reducer facts, or emit bounded counters.

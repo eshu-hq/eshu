@@ -151,11 +151,14 @@ func isMalformedNeo4jConnectivityError(err error) bool {
 	return errors.As(err, &connectivityErr) && connectivityErr.Inner == nil
 }
 
-// isNornicDBRestartTransactionStartFailure recognizes the exact error emitted
-// when a backend restart closes the WAL before a new transaction can begin.
-// No transaction body has run, so both immediate and durable queue replay are
-// safe. Keep the message guard alongside the code because NornicDB currently
-// reports this backend-unavailable condition under a ClientError prefix.
+// isNornicDBRestartTransactionStartFailure recognizes the begin-side failures a
+// backend restart produces. NornicDB reports the same condition under two
+// message spellings -- the WAL closing ahead of a new transaction, and the
+// engine already being closed -- and this accepts both. No transaction body has
+// run in either case, so immediate and durable queue replay are equally safe.
+// Keep the message guard alongside the code because NornicDB reports this
+// backend-unavailable condition under a ClientError prefix, which would
+// otherwise classify as a terminal projection bug.
 func isNornicDBRestartTransactionStartFailure(err error) bool {
 	var neo4jErr *neo4jdriver.Neo4jError
 	return errors.As(err, &neo4jErr) &&

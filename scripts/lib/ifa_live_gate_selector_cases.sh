@@ -6,6 +6,14 @@
 
 ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_live_gate_selector_cases.sh|scripts/lib/ifa_live_gate_selector_cases.sh'
+	# Wildcard fixtures. The literals above cannot exercise a glob, and this
+	# file's own contract is one representative PATH per pattern -- a
+	# string-only registry/workflow comparison agrees just as happily on a
+	# broken glob as on a working one. Concrete paths under each new wildcard
+	# so a narrowed pattern (e.g. '**' quietly becoming '*', which does not
+	# cross '/') fails here instead of silently selecting no gate for the most
+	# common edit in the tree.
+	'scripts/lib/ifa_family_registry/**|scripts/lib/ifa_family_registry/rows/01_sql_relationships.sh'
 	'go/internal/storage/postgres/migrations/**|go/internal/storage/postgres/migrations/001_ingestion_scopes.sql'
 	'go/internal/storage/postgres/migrations/**|go/internal/storage/postgres/migrations/096_provenance_edge_identity_upgrade_seed.sql'
 	'go/internal/graphschemacompat/**|go/internal/graphschemacompat/compatibility.go'
@@ -247,6 +255,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-documentation-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
+	'scripts/lib/ifa_fault_generic_*.sh|scripts/lib/ifa_fault_generic_shared_intent_lock.sh'
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
@@ -294,4 +303,5 @@ ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-family-cases.sh|scripts/lib/test-ifa-determinism-family-cases.sh'
 	'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
 	'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
+	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
 )

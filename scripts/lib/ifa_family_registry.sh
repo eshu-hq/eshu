@@ -31,8 +31,9 @@
 # ifa_fault_generic_cells.sh's mechanism split) is deliberate: blocker_kind
 # and cell_kind get corrected in place as the program learns things --
 # deployable_unit_edges' cell_kind just flipped generic->custom this same
-# session, and codeowners_ownership_edges' blocker_kind is deliberately
-# recorded as different from what its landed cell does -- and a
+# session, and codeowners_ownership_edges' blocker_kind was corrected in place
+# from ack_barrier to table_lock:fact_records once its landed cell was
+# re-read -- and a
 # mechanism-grouped rows file would turn every such correction into a file
 # MOVE. A per-family file never moves regardless of what any of its fields
 # currently say. Filenames are ordinal-prefixed (01_, 02_, ... -- the same
@@ -86,9 +87,12 @@
 #                never been part of drive_all_cassettes. Applying that wording
 #                literally registers 0 for a family that belongs in the N-loop,
 #                after which it is never driven and never asserted there and
-#                the gate still reports green. Fault-side drive membership is a
-#                separate field, IFA_FAMILY_FAULT_SHARED_DRIVE, precisely
-#                because the two answers diverge.
+#                the gate still reports green. Fault-side drive membership is
+#                NOT a registry field at all: it is decided by which cells call
+#                drive_all_cassettes (scripts/lib/ifa_fault_injection_driver.sh),
+#                and by repo convention that shared drive is not extended for a
+#                new family -- a new family's own cells drive its cassette. Read
+#                that from the driver's call sites, never from this field.
 #   anchor       the MERGE operation-match string this family's graph write
 #                targets; the once-fault decorator matches Cypher statement
 #                text against this substring (see

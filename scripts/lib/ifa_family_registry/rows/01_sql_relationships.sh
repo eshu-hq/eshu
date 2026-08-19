@@ -5,16 +5,18 @@
 # every array declaration this file assigns into (already declared empty by
 # the time any row file is sourced).
 
-# ifa_fault_injection_sql_cells.sh:44-63 (cell_killworker_sql's own header):
-# no lock is acquired before the kill. That header names exactly what this
-# means it does NOT prove -- "that the kill landed mid-handler" -- and
+# ifa_fault_injection_sql_cells.sh (cell_killworker_sql's own header): no lock
+# is acquired before the kill. That header names exactly what this means it
+# does NOT prove -- "What it does NOT prove: that the kill landed
+# mid-handler", :78 -- and
 # says the separate graph-write cell (cell_failgraphwrite_sql, anchored to
 # the QUERIES_TABLE MERGE) is what actually backs the family's fault
 # coverage claim. Recorded faithfully as none, not silently upgraded.
 IFA_FAMILY_BLOCKER_KIND[sql_relationships]="none"
 IFA_FAMILY_WAIT_STAGE[sql_relationships]="handler"
-# ifa_fault_injection_sql_cells.sh:73: ifa_fault_wait_for_claimed(...,
-# "sql_relationship_materialization").
+# ifa_fault_injection_sql_cells.sh:95: ifa_fault_wait_for_claimed(...,
+# "sql_relationship_materialization") -- this family keeps its own hand-written
+# call because its cells are custom.
 IFA_FAMILY_WAIT_KEY[sql_relationships]="sql_relationship_materialization"
 IFA_FAMILY_SHARED_CELL[sql_relationships]=1
 # go/internal/storage/cypher/canonical.go:186 is the live QUERIES_TABLE write

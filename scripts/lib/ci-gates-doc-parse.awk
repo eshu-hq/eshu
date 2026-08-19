@@ -53,7 +53,7 @@ BEGIN {
 function reset_record() {
 	id = ""; name = ""; category = ""; tier = ""; blocking = ""
 	command = ""; test_command = ""; workflow = ""; job = ""; reason = ""; ci_only_reason = ""
-	check_names = ""; check_name_count = 0
+	check_names = ""; check_name_count = 0; in_check_names = 0
 	trigger_count = 0
 	delete triggers
 	section = ""
@@ -199,7 +199,7 @@ function render_row() {
 	# Any other 4-space-indented key (ci_only_reason, hook_id, …) closes
 	# whichever list/section was open, so trigger accumulation cannot leak
 	# past its own block.
-	section = ""; next
+	section = ""; in_check_names = 0; next
 }
 
 section == "triggers" && /^      - "/ && have_record {
@@ -215,17 +215,36 @@ section == "local" && /^      test_command: / && have_record {
 	test_command = $0; sub(/^      test_command: /, "", test_command); gsub(/^"|"$/, "", test_command); next
 }
 section == "ci" && /^      workflow: / && have_record {
+	in_check_names = 0
 	workflow = $0; sub(/^      workflow: /, "", workflow); gsub(/^"|"$/, "", workflow); next
 }
 section == "ci" && /^      job: / && have_record {
+	in_check_names = 0
 	job = $0; sub(/^      job: /, "", job); gsub(/^"|"$/, "", job); next
 }
 
-# ci.check_names entries are `        - "name"` list items, one indent level
-# deeper than the `      check_names:` key itself. Matched on that deeper
-# indent so they cannot be confused with the `      - ` items of any other
-# sequence in the ci section.
-section == "ci" && /^        - "/ && have_record {
+# ci.check_names entries are `        - "name"` list items under the
+# `      check_names:` key. Gated on an explicit in_check_names flag rather than
+# on the 8-space indent alone: indent alone is true of every 8-space list item
+# in the ci section, and today check_names is the only such sequence, so a
+# future nested list under `ci:` would silently be read as check names. The flag
+# is set by the key and cleared by the next 6-space key or by reset_record().
+section == "ci" && /^      check_names:/ && have_record {
+	in_check_names = 1
+	next
+}
+
+# Any OTHER 6-space key inside ci closes the check_names list. Ordering matters:
+# this sits after the check_names: rule (which `next`s) and before the item
+# rule, so the key that opens the list is not the key that closes it. The
+# workflow:/job: rules above also `next`, so they clear the flag themselves
+# rather than falling through to here -- which is why the assignment appears in
+# three places and not one.
+section == "ci" && /^      [a-z_]+:/ && have_record {
+	in_check_names = 0
+}
+
+section == "ci" && in_check_names && /^        - "/ && have_record {
 	check_name = $0
 	sub(/^        - /, "", check_name)
 	gsub(/^"|"$/, "", check_name)

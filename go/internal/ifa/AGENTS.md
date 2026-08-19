@@ -212,6 +212,8 @@ what does not.
 | Dispatch ORDER within that trio | `scripts/verify-ifa-fault-injection.sh` | `run_ifa_fault_injection_atomic_group_ordering_cases` — the baseline must dispatch before every other member. Co-location alone does not give you order |
 | Cell names in the hand-authored literal list | `ifa_full_cell_list_literal` in `scripts/lib/test-ifa-fault-injection-shard-cases.sh` | Nothing but you. It is typed by hand ON PURPOSE — deriving it from the arrays it checks would make the check agree with itself |
 | Coverage row (what makes the family COUNT as covered) | `specs/ifa-materialized-edge-coverage.v1.yaml` | The coverage-row contract above. Add it only once both gates really drive and assert the family — a row added earlier claims a proof that is not being run |
+| Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
+| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
 
 Line-cap headroom is the constraint that will bite first. Two files grow per
 family and both sit close to the hard 500-line limit: the fault gate itself
