@@ -474,13 +474,16 @@ verifier, X3 CI gate, X4 dashboard — not a metric alone.
 ## 8. Recommendation
 
 > **Superseded in part by [section 10](#10-owner-decision-2026-08-19).** The
-> mechanism below stands. The two-step split, its cost table's step boundary, and
-> its rollback row do not: the owner selected a three-step plan in one PR,
-> adding a `fairness_key` normalisation this section does not describe. Read the
-> split argument here as the case that was put, not the plan of record.
+> mechanism below stands. What does not: the two-step split, the step numbering
+> (a normalisation step is inserted as the new step 2), the cost table's step
+> boundary, the rollback row, and the open either/or about the `SPLIT_PART`
+> parse. The owner selected a three-step plan in one PR. Read the split argument
+> here as the case that was put, not the plan of record — and do not reconstruct
+> an implementation order from this section alone.
 
-**Option B, extending the existing fairness model down to `fairness_key`, in two
-separately provable steps.**
+**Option B, extending the existing fairness model down to `fairness_key`.** This
+section recommended two separately *shipped* steps; per section 10 it is three
+steps in one PR, each keeping its own commit and its own proof.
 
 **Step 1 — index the claim path (no behavior change).** Add an index matching the
 current ORDER BY. Claims stop scanning the backlog: 10.832 ms → 0.064 ms median
@@ -488,25 +491,39 @@ at 50,100 pending, claim order byte-identical to today. Provable by exact
 row-order equivalence plus the plan change. Worth landing alone: it is a real
 defect, independent of fairness, carrying none of its risk.
 
-**Step 2 — make `fairness_key` load-bearing in the ORDER BY.** Head-of-key
+**Step 2 — normalise the key.** *(Added by [section 10](#10-owner-decision-2026-08-19);
+this section was written without it.)* Three-segment key, target-class moved to a
+real priority column, a real ecosystem column, `PartitionKey` given its own
+value. **This must land before the ORDER BY change**, because it is what keeps
+the priority contract intact — without it, putting fairness ahead of `created_at`
+reverses the `package_registry`/`vulnerability_intelligence` ordering the owner
+named as a constraint. Section 10 carries the detail.
+
+**Step 3 — make `fairness_key` load-bearing in the ORDER BY.** Head-of-key
 selection, supporting index, the section 7 telemetry, and the section 6 table
 including the work-conserving counter.
 
-Step 2 must also either preserve the key's colon-delimited segment layout or
-update `status_registry.go:97,108` in the same change. That query extracts
+*(Resolved by section 10: the normalisation retires the parse, so this is the
+"update" branch, not the "preserve" branch. Left below as written, since the
+reasoning for why it is a contract at all still holds.)*
+
+The ORDER BY step must also either preserve the key's colon-delimited segment
+layout or update `status_registry.go:97,108` in the same change. That query extracts
 `SPLIT_PART(fairness_key, ':', 4)` as an ecosystem label, so the key's shape is
 already an undeclared contract with an operator-facing surface. A regression test
 pinning that status output belongs in the same PR.
 
-Splitting them keeps the diffs honest: step 1 changes performance and not
-behaviour, step 2 changes behaviour. Bundled, neither is cleanly provable.
+Separate commits keep the diffs honest: step 1 changes performance and not
+behaviour, steps 2 and 3 change behaviour. Section 10 takes the argument below
+about shipping them apart and records why the owner overrode it.
 
 ### Cost
 
 | Item | Estimate |
 | --- | --- |
 | Step 1 | One migration, one index, an order-equivalence test, a plan assertion. Small. |
-| Step 2 | Rewritten candidate CTE, second index, dispatch tests, live contention proof, telemetry with its four artifacts. Moderate. |
+| Step 2 (normalisation, per section 10) | Key-shape change across 19 schedulers, a priority column, an ecosystem column, a `PartitionKey` value, and pins for both consumers in section 2. **Not in this section's original estimate.** |
+| Step 3 (was step 2) | Rewritten candidate CTE, second index, dispatch tests, live contention proof, telemetry with its four artifacts. Moderate. |
 | Migration risk | Two `CREATE INDEX CONCURRENTLY` on a hot table. Build time on a large `workflow_work_items` is the operational risk and needs measuring on a realistic table first. |
 | Rollback | ~~Step 1 is a dropped index. Step 2 needs a flag or a revert.~~ **Superseded (section 10):** one PR means one revert, so the steps must be kept separately revertible deliberately if that property is wanted. |
 
@@ -565,6 +582,18 @@ of it and the interpretation should be checkable against the source:
 > package_registry/vulnerability_intelligence priority ordering — which needs the
 > normalisation anyway, so this is option 2 plus more risk in one PR.
 
+### What "option 2" was
+
+The owner's reply refers to "option 2" without naming it. It was the second of
+the four options offered, labelled *"Index fix, then normalise `fairness_key`"*:
+
+> Index first, then a second PR: 3-segment key, target-class moved out to a real
+> priority column, real ecosystem column retiring the `SPLIT_PART` parse,
+> `PartitionKey` decoupled. Sets up fair claiming as priority-then-round-robin
+> later. More work, unblocks the real fix.
+
+Everything below about normalisation comes from this text.
+
 ### This is a three-step plan, and section 8 describes two
 
 Section 8 recommends **two** steps: index the claim path, then make
@@ -588,14 +617,75 @@ implementation must preserve — it is something the decision explicitly removes
 
 | Question | Settled by | Directness |
 | --- | --- | --- |
-| Option B over A and C | "all three steps including the ORDER BY change" describes Option B's mechanism | Direct — the option describes it, no letter needed |
+| Option B over A and C | "all three steps including the ORDER BY change", plus the **absence** of any weight, quota or borrowing language | **Inference.** Option C is Option B plus a weight and an accounting window (section 5), so it also changes the ORDER BY — the phrase does not exclude it. What excludes C is what the reply does not say. |
 | One PR, not two | "in one PR", stated | Verbatim |
 | Accepting the bundled risk | "option 2 plus more risk in one PR" | Verbatim, and named as risk |
-| The fairness unit | The normalisation step redefines it | Direct — a 3-segment key with target-class and ecosystem extracted |
+| The fairness unit | The normalisation step redefines it, and the segment arithmetic says how | **Direct, and it changes the rotation granularity — not just the encoding.** See below. |
 | Priority contract preserved | "must not regress the package_registry/vulnerability_intelligence priority ordering" | Verbatim, and it is a constraint, not a preference |
 
-Nothing here is settled by inference from the four-word label. The option text
-carries all of it.
+Most of this is carried by the option text rather than inferred from the label.
+Two rows are not: the choice of B over C rests on an absence, and the fairness
+unit is discussed below. Both are marked.
+
+### The fairness unit changes meaning, not just encoding
+
+This deserves more than a table row, because "normalise the key" could mean a
+tidier representation with the same rotation behaviour, and here it does not.
+
+The key today is **four** segments. Both schedulers build it the same way:
+
+```go
+// package_registry_scheduler.go:350
+fmt.Sprintf("%s:%s:%s:%s", scope.CollectorPackageRegistry, instance.InstanceID,
+    packageRegistryTargetClass(target), target.Ecosystem)
+// vulnerability_intelligence_scheduler.go:303 — same shape, source in place of ecosystem
+```
+
+The option asks for a **three**-segment key with "target-class moved out to a real
+priority column". Four minus one is three, and the segment named for removal is
+the class. So `<collector>:<instance>:<class>:<ecosystem>` becomes
+`<collector>:<instance>:<ecosystem>`, and **two work items that are in different
+fairness groups today — a `configured_direct` target and a `broad` target for the
+same instance and ecosystem — land in the same rotation slot afterwards.** That is
+a change to what the unit *is*, not to how it is written down.
+
+It also explains the rest of the sentence. `SPLIT_PART(fairness_key, ':', 4)`
+(`status_registry.go:97,108`) reads the fourth segment, which is the ecosystem.
+Drop the class and the ecosystem moves to position three, so a positional parse
+does not merely become ugly — it silently reads the wrong field. That is why the
+option pairs the removal with "real ecosystem column retiring the `SPLIT_PART`
+parse" rather than leaving the parse to be re-indexed.
+
+And "sets up fair claiming as priority-then-round-robin later" names the ordering
+model: an explicit priority column ordered first, then round-robin across
+fairness keys. That is how the priority contract survives — it stops being
+microseconds of spacing inside `created_at` and becomes a column.
+
+**The one thing this does not settle** is whether class disappearing from the key
+is intended to change rotation behaviour or is a side effect of wanting it in a
+column. The arithmetic is unambiguous about the *effect*; the option text does not
+say whether the effect was the point. Worth confirming before the ORDER BY change
+is built, because it is the difference between two fairness groups and one.
+
+### `PartitionKey` decoupled — the second consumer, and its own obligation
+
+Section 2 names two production consumers of `fairness_key`. The `SPLIT_PART`
+parse gets discussed above. The other is `partitionKey()`
+(`collector/extensionhost/mapping.go:69-73`), which returns the fairness key
+**verbatim** as the extension host's partition routing key, falling back to
+`SourceSystem + ":" + ScopeID` when it is empty.
+
+"`PartitionKey` decoupled" is a deliberate change to exactly that consumer, and it
+has to be, because the key is losing a segment and changing meaning. Routing that
+is currently partitioned per class would otherwise silently coarsen along with
+the fairness unit — extension-host work for `configured_direct` and `broad`
+targets would begin sharing a partition. So the implementation owes this consumer
+its own value rather than a borrowed one, and owes a test pinning that
+extension-host partitioning does not coarsen when the fairness key does.
+
+This is the same class of obligation as the `SPLIT_PART` pin and it was missing
+from an earlier revision of this section, which said sections 1-7 were
+unaffected. Section 2's `mapping.go` bullet is the exception.
 
 ### Section 8's split argument, and why it does not survive
 
@@ -650,5 +740,6 @@ contract unless the normalisation moves target-class into a real priority column
 first — which is precisely why the selected option bundles the normalisation
 rather than treating it as optional.
 
-Sections 1-7 and 9 are unaffected by this decision. Section 8's split
-recommendation and rollback row are superseded above.
+Sections 1-7 and 9 stand, with one exception: section 2's `partitionKey()`
+bullet documents a consumer this decision changes, covered above. Section 8's
+split recommendation, its step boundary, and its rollback row are superseded.
