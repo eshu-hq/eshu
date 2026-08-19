@@ -37,6 +37,56 @@ else
   ok "agent-canon fails when the two files drift"
 fi
 
+# Retired review-bar phrasing. Both live escapes were LINE-WRAPPED, at different
+# points, and a per-line sweep reported them clean twice, so the wrapped shapes
+# are the cases that matter -- a mirror that only checks the single-line form
+# would pass while the bug it targets sits in the tree.
+mkdir -p "$tmp/bar-ok"
+printf 'canon\n' >"$tmp/bar-ok/AGENTS.md"
+printf 'canon\n' >"$tmp/bar-ok/CLAUDE.md"
+printf 'Ready means P0=0, P1=0, P2-blocking=0 with every deferred P2 tracked\nin a linked issue with the owner agreement quoted.\n' \
+  >"$tmp/bar-ok/local-testing-stub.md"
+mkdir -p "$tmp/bar-ok/docs/public/reference"
+mv "$tmp/bar-ok/local-testing-stub.md" "$tmp/bar-ok/docs/public/reference/local-testing.md"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-ok" "$canon" >/dev/null 2>&1; then
+  ok "agent-canon passes on the P2-blocking bar wording"
+else
+  no "agent-canon should pass on the P2-blocking bar wording"
+fi
+
+mkdir -p "$tmp/bar-wrap-a/docs/public/reference"
+printf 'canon\n' >"$tmp/bar-wrap-a/AGENTS.md"
+printf 'canon\n' >"$tmp/bar-wrap-a/CLAUDE.md"
+printf 'Ready means every deferred P2 tracked\nand named, the gate is complete.\n' \
+  >"$tmp/bar-wrap-a/docs/public/reference/local-testing.md"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-wrap-a" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail on \"tracked\\nand named\" (wrap before the conjunction)"
+else
+  ok "agent-canon fails on \"tracked\\nand named\" (wrap before the conjunction)"
+fi
+
+mkdir -p "$tmp/bar-wrap-b/docs/public/reference"
+printf 'canon\n' >"$tmp/bar-wrap-b/AGENTS.md"
+printf 'canon\n' >"$tmp/bar-wrap-b/CLAUDE.md"
+printf 'Ready means every deferred P2 tracked and\nnamed, and the owner able to see why.\n' \
+  >"$tmp/bar-wrap-b/docs/public/reference/local-testing.md"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-wrap-b" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail on \"tracked and\\nnamed\" (wrap after the conjunction)"
+else
+  ok "agent-canon fails on \"tracked and\\nnamed\" (wrap after the conjunction)"
+fi
+
+mkdir -p "$tmp/bar-canon-p1/docs/public/reference"
+printf 'canon\n' >"$tmp/bar-canon-p1/AGENTS.md"
+printf 'canon\n' >"$tmp/bar-canon-p1/CLAUDE.md"
+printf 'a preliminary full review with zero\nP0/P1/P2 findings, run make pre-pr once.\n' \
+  >"$tmp/bar-canon-p1/docs/public/reference/local-testing.md"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/bar-canon-p1" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail on the wrapped \"zero\\nP0/P1/P2 findings\" clause"
+else
+  ok "agent-canon fails on the wrapped \"zero\\nP0/P1/P2 findings\" clause"
+fi
+
 mkdir -p "$tmp/skill-links/.agents/skills/example" \
   "$tmp/skill-links/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/skill-links/.claude/skills" \

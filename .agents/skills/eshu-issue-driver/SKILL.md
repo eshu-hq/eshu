@@ -66,6 +66,13 @@ log for a string that run never prints — spins to its cap while reporting
 nothing. Kill superseded waiters when the thing they watch is replaced. The
 cadence is a ceiling on staleness, not a requirement to burn a turn each minute.
 
+Confirm a detached launch actually took, by its process, not by the shell's exit
+status: `setsid` does not exist on macOS, so `setsid nohup … &` backgrounds an
+instant failure and returns 0. The log you then read is a stale file from an
+earlier run, which reads exactly like progress. Check the log's mtime and its
+size delta before believing its tail — mtime alone can advance on a process
+stuck retrying, so size delta is the better liveness probe.
+
 ## Step 1 — Build the work set (expand epics)
 
 For each input issue:

@@ -494,6 +494,6 @@ The verdict is `blocked` when any of these are true:
 
 Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
-Ready means `P0=0`, `P1=0`, and `P2-blocking=0` with every deferred P2 tracked
-and named, the full-picture gate is complete,
+Ready means `P0=0`, `P1=0`, `P2-blocking=0`, every deferred P2 tracked per
+`references/merge-bar.md`, the full-picture gate is complete,
 every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are dispositioned honestly — fixed inline by default, and routed to a tracked follow-up only when the fix cannot ride along and the owner agreed — without overstating readiness, and the review was repeated after fixes.
