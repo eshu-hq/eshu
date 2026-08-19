@@ -5,7 +5,7 @@
 1. `go/internal/cli/hookpreflight/README.md` — purpose, ownership boundary,
    exported surface
 2. `go/internal/cli/hookpreflight/doc.go` — the godoc contract
-3. `go/cmd/eshu/assistant_hook_preflight.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/assistant.go` — the cobra `RunE` wrapper that
    resolves process state (flags, stdin) and calls into this package. This
    is the file that shows how the two halves fit together.
 4. `docs/public/reference/assistant-fast-path-hooks.md` — the
@@ -23,7 +23,7 @@
 - **No process wiring in this package.** No cobra flags, no stdin reads, no
   `fmt.Print*` to a process stream. `go/cmd/eshu` is `package main`, so
   nothing can import it — any symbol that reads a flag or `cmd.InOrStdin()`
-  has to live in `assistant_hook_preflight.go` instead. `RenderPreflightText`
+  has to live in `assistant.go` instead. `RenderPreflightText`
   takes an `io.Writer` parameter rather than writing to stdout directly, so
   it stays testable without a cobra command.
 - **`Evaluate` never returns an error.** Every ineligible condition (expired
@@ -321,7 +321,7 @@
 - **Printing from this package.** `RenderPreflightText` writes to an
   `io.Writer` parameter; nothing in this package calls `fmt.Print*` to a
   process stream. `fmt.Print*` belongs only in
-  `go/cmd/eshu/assistant_hook_preflight.go`.
+  `go/cmd/eshu/assistant.go`.
   `TestDocLockstepProductionCallsStayPure` allows only `fmt.Fprintf` and
   `fmt.Sprintf` in the production files, so a stray `Println` fails there.
 - **Reaching the filesystem through `path/filepath`.** The four functions used

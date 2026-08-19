@@ -19,13 +19,13 @@ Two entry points, because two different callers need it:
 
 Not every `--repo` flag in the CLI comes here. `map`, `trace service`, and
 `docs verify` each declare their own `--repo` (`map.go:33`, `trace.go:43`,
-`docs.go:65`) and pass it to the API unresolved, letting the server resolve
-it; `hosted-onboard`'s `--repo` (`hosted_onboard_cmd.go:40`) takes exact
+`docs.go:64`) and pass it to the API unresolved, letting the server resolve
+it; `hosted-onboard`'s `--repo` (`hosted.go:159`) takes exact
 `owner/name` values and needs no resolution at all.
 
 `ListResponse` and `Entry` are the `/api/v0/repositories` wire shapes both
 paths decode. Two files in `go/cmd/eshu` decode `ListResponse` themselves
-rather than going through `Resolve`: `first_run.go` and `hosted_setup_cmd.go`,
+rather than going through `Resolve`: `first_run.go` and `hosted.go`,
 which need the listing, not one ID. Both fetch a bounded page
 (`firstrun.QueryEndpoint` is `?limit=5`, `hosted.ReposPath` is `?limit=25`).
 

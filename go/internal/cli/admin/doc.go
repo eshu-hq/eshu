@@ -26,8 +26,8 @@
 // reads it. Two of the package's _test.go files do read ESHU_POSTGRES_DSN,
 // to skip their real-Postgres proofs when no DSN is set.
 //
-// go/cmd/eshu/admin.go and go/cmd/eshu/admin_initial_credential.go are the
-// cobra wrappers that resolve all of that process state — flags, the shared
+// go/cmd/eshu/admin.go holds the cobra wrappers that resolve all of that
+// process state — flags, the shared
 // *APIClient, the Postgres connection, the data-encryption keyring, and the
 // output stream — and pass it in. That split is mechanical rather than a
 // design choice specific to this package: go/cmd/eshu is `package main`, so

@@ -37,8 +37,8 @@
 //
 // go/cmd/eshu is package main, so nothing can import it; every symbol that
 // reads a flag, reads real stdin, prints to the real stdout, or maps a result
-// to an exit code therefore stays in the cobra wrappers config_cmd.go and
-// config_validate.go. Those wrappers resolve process state -- the --strict and
+// to an exit code therefore stays in the cobra wrappers in config_cmd.go.
+// Those wrappers resolve process state -- the --strict and
 // --reference flags, cmd.OutOrStdout, os.Environ, the reset confirmation read
 // from stdin -- and pass it in here as plain values.
 package config

@@ -10,11 +10,11 @@
 // Verify is the entry point. It returns the verification result and a
 // PersistenceSummary; it does not choose an output format or an exit code.
 // The package reads no cobra flags, reads no environment variable, and never
-// calls os.Exit. go/cmd/eshu's docs.go and docs_image_api.go are the thin
-// cobra wrapper: they parse flags, resolve the "auto" image truth mode (which
-// needs both flags and the environment), build the API client, walk the live
-// cobra tree for the command surface, open Postgres from the environment, and
-// map a result onto the CLI's exit-code contract.
+// calls os.Exit. go/cmd/eshu's docs.go is the thin cobra wrapper: it parses
+// flags, resolves the "auto" image truth mode (which needs both flags and the
+// environment), builds the API client, walks the live cobra tree for the
+// command surface, opens Postgres from the environment, and maps a result onto
+// the CLI's exit-code contract.
 //
 // # Filesystem surface
 //

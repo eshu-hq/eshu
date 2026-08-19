@@ -42,7 +42,7 @@ artifact wrapper, and the share-safe scope rules live in
     before they enter the report. The orchestration, diagnostics classifier,
     and evidence model live in `internal/cli/firstrun`; this package keeps the
     cobra wrappers that resolve flags, the API client, and the config-backed
-    MCP endpoint (`first_run.go`, `first_run_evidence_cmd.go`).
+    MCP endpoint (`first_run.go`).
     `hosted-setup` runs the
     first-five-minutes flow against a deployed service, resolving the endpoint
     and bearer token and running ordered, individually-reported checks
@@ -62,18 +62,18 @@ artifact wrapper, and the share-safe scope rules live in
     truth classes, while documenting the current shared-token authorization
     limitation
     (`hosted_onboard.go`, `hosted_onboard_rules.go`, `hosted_onboard_render.go`,
-    `hosted_onboard_cmd.go`); `first-run-benchmark`
+    `hosted.go`); `first-run-benchmark`
     scores a captured `first-run --json` envelope against the first-five-minutes
     onboarding criteria and rejects a health-only "answer" — the scoring engine
     lives in `internal/cli/firstrunbench`, the envelope decode in
-    `internal/cli/firstrun` (`first_run_benchmark_cmd.go`);
+    `internal/cli/firstrun` (`first_run.go`);
     `answer-quality-scorecard` scores a captured, redacted answer-quality
     evidence artifact across API, MCP, CLI, and hosted surfaces
     (`answer_quality_scorecard_cmd.go`); `evidence bundle export|validate`
     writes and validates deterministic `evidence_bundle.v1` snapshots with
     share-safe packet, catalog, freshness, missing-evidence, and reproduce
     handles, and with `--live` composes that snapshot from a running stack's
-    status routes (`evidence_bundle_cmd.go`, wrapping
+    status routes (`evidence.go`, wrapping
     `internal/cli/evbundle`); `competitive-parity validate` runs the #3265 gate (`competitive_parity_cmd.go`); `report` renders the deterministic offline `operator_digest.v1` model for an explicit share-safe scope and can
     write a shareable `operator_digest_artifact.v1` JSON wrapper, with
     unsupported sections and fixed-template follow-up questions until live
@@ -90,8 +90,7 @@ artifact wrapper, and the share-safe scope rules live in
     or print tokens. `assistant hook preflight` is a separate opt-in local
     Claude Code-style planner that reads PreToolUse metadata, fails open for
     unsafe or unsupported cases, and emits advisory hook JSON only when the
-    scope is narrow and share-safe (`assistant_guidance.go`,
-    `assistant_hook_preflight.go` for the cobra wrapper, and
+    scope is narrow and share-safe (`assistant.go` for the cobra wrapper, and
     `go/internal/cli/hookpreflight` for the classification, scope safety, and
     advisory-JSON construction the wrapper calls into).
   - security intelligence: `vuln-scan repo [path]` runs the local scan
@@ -133,7 +132,7 @@ artifact wrapper, and the share-safe scope rules live in
     `component_api.go`; the command bodies live in
     `internal/cli/component`)
   - `graph`, `install` with `nornicdb`, `status`, `start`, `stop`,
-    `logs`, `upgrade` (`graph.go`, `graph_install_cmd.go`; the status,
+    `logs`, `upgrade` (`graph.go`; the status,
     stop, logs, and upgrade logic lives in
     `internal/cli/localsupervisor` and the install logic in
     `internal/cli/graphinstall`)

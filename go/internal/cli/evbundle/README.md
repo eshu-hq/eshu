@@ -19,7 +19,7 @@ how their decoded responses map onto an `evidencebundle.LiveSnapshot`, the
 order of build -> validate -> stamp -> render, and the validation verdict
 line. It does not own process wiring -- cobra flags, the API client, the
 process clock, the exit-code mapping -- which stays in
-`go/cmd/eshu/evidence_bundle_cmd.go` because `go/cmd/eshu` is `package main`
+`go/cmd/eshu/evidence.go` because `go/cmd/eshu` is `package main`
 and nothing can import it. The wrapper also owns the `--scope` / `--live`
 refusal, since that is a flag-combination check.
 
@@ -65,7 +65,7 @@ See `doc.go` for the godoc contract.
   `Validate`, `StampValidation`, `RenderJSON`, and the `Live*Snapshot` input
   shapes. That package is a pure composer and dials nothing; this package is
   where the live path touches the network.
-- Consumed by `go/cmd/eshu`: `evidence_bundle_cmd.go`.
+- Consumed by `go/cmd/eshu`: `evidence.go`.
 
 No storage, graph, or queue package is imported, and no LLM provider is
 reached. The live path's only outbound calls are the three status GETs.

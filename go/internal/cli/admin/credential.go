@@ -35,7 +35,7 @@ import (
 // This package neither opens that connection nor resolves the key: the
 // caller passes in an already-open pgstorage.ExecQueryer and an already-
 // resolved *secretcrypto.Keyring, because both come from the process
-// environment (go/cmd/eshu/admin_initial_credential.go reads
+// environment (go/cmd/eshu/admin.go reads
 // ESHU_POSTGRES_DSN and hands secretcrypto.KeyringFromEnv its os.Getenv).
 // The plaintext credential is returned to that caller; nothing here logs it,
 // prints it, or writes it to a file.

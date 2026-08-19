@@ -50,7 +50,7 @@
 // meant to agree field for field. RenderReport's documentation lists the
 // subset, and TestRenderReportJSONKeyContract pins it key by key.
 //
-// go/cmd/eshu's service_report_cmd.go is the thin cobra wrapper that
+// go/cmd/eshu's service.go is the thin cobra wrapper that
 // resolves flags (--from, --supply-chain-from, --json), passes process stdin
 // in as that io.Reader, composes the report, and returns errors to main,
 // which maps them to an exit code.

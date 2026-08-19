@@ -44,7 +44,7 @@
 // fmt.Fprintln calls all target the local strings.Builder in RenderVerdict,
 // which returns the text so the caller owns the stream.
 //
-// go/cmd/eshu/evidence_packet_dogfood_cmd.go is the thin cobra wrapper for the
+// go/cmd/eshu/evidence.go is the thin cobra wrapper for the
 // dogfood command. It owns what this package deliberately does not:
 // registering on rootCmd, declaring and reading the --from and --json flags,
 // resolving cobra's input and output streams, calling

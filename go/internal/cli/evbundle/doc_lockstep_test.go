@@ -75,7 +75,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 
 		for _, imp := range file.Imports {
 			if strings.Contains(imp.Path.Value, "spf13/cobra") {
-				t.Errorf("%s imports cobra; flag handling belongs in go/cmd/eshu's evidence_bundle_cmd.go", name)
+				t.Errorf("%s imports cobra; flag handling belongs in go/cmd/eshu's evidence.go", name)
 			}
 		}
 
@@ -103,7 +103,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 	}
 
 	assertSelectorSet(t, "os", gotOS, wantOS,
-		"AGENTS.md permits only caller-supplied-path file access here; streams, environment and exit belong in go/cmd/eshu's evidence_bundle_cmd.go")
+		"AGENTS.md permits only caller-supplied-path file access here; streams, environment and exit belong in go/cmd/eshu's evidence.go")
 	assertSelectorSet(t, "time", gotTime, wantTime,
 		"the caller owns the clock and passes a now func() time.Time in; AGENTS.md states this package never calls time.Now")
 

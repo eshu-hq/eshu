@@ -16,7 +16,7 @@ it; this package uses that package's `Verdict`, `Criterion`, and
 This package owns input acquisition and presentation. It does not own process
 wiring: cobra flags, the input and output streams, the
 `ParseBenchmark`/`Score` call pair, and the mapping from a failing verdict to a
-non-zero exit stay in `go/cmd/eshu/evidence_packet_dogfood_cmd.go`. They stay
+non-zero exit stay in `go/cmd/eshu/evidence.go`. They stay
 there because `go/cmd/eshu` is `package main` and nothing can import it, so any
 symbol touching flags, process environment, or the exit-code contract has to
 live on that side of the seam.
@@ -117,7 +117,7 @@ sources reach the same operator:
 - `internal/packetdogfood` — types and constants only. That package itself
   imports nothing beyond `encoding/json`, `fmt`, `sort`, and `strings`, so no
   environment read, subprocess, or network call hides behind it.
-- Consumed by `go/cmd/eshu`'s `evidence_packet_dogfood_cmd.go` (all three
+- Consumed by `go/cmd/eshu`'s `evidence.go` (all three
   exported functions) and by `go/internal/cli/compparity/exercises.go`
   (`FailureSummary`, in `exerciseEvidencePacketDogfoodFixture`).
 
@@ -226,9 +226,9 @@ without anything here changing.
 
 The method, which anyone can rerun:
 
-1. Side A is the pre-move `go/cmd/eshu/evidence_packet_dogfood_cmd.go` as of the
+1. Side A is the pre-move `go/cmd/eshu/evidence.go` as of the
    commit before the move, plus `quoteIfEmpty` from `go/cmd/eshu/first_run.go`.
-   Side B is today's `evidence_packet_dogfood_cmd.go` together with
+   Side B is today's `evidence.go` together with
    `dogfood.go` here.
 2. Parse both sides with `go/parser` and without `parser.ParseComments`, which
    drops every comment.

@@ -56,7 +56,7 @@
 // This package reads no cobra flag, resolves no output stream, reads no process
 // environment or working directory, and never calls os.Exit. RenderInstall,
 // RenderStatus, and RenderUninstall write only to the io.Writer the caller
-// supplies. go/cmd/eshu's assistant_guidance.go is the thin cobra wrapper: it
+// supplies. go/cmd/eshu's assistant.go is the thin cobra wrapper: it
 // declares the commands and flags, resolves --path against the process working
 // directory, passes the resulting absolute root and platform list in as plain
 // values, hands cmd.OutOrStdout() to the renderers, and maps returned errors to

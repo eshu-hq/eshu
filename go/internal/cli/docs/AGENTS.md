@@ -7,16 +7,15 @@
 2. `go/internal/cli/docs/doc.go` — the godoc contract, including the exact
    filesystem read surface.
 3. `go/cmd/eshu/docs.go` — the cobra `RunE` wrapper. It shows the split: flags
-   in, `docs.Verify` called, exit code out.
-4. `go/cmd/eshu/docs_image_api.go` — the other half of the wrapper, and the
-   reason the image-truth decision is not in this package.
+   in, `docs.Verify` called, exit code out. It also carries the image-truth
+   decision, and the reason that decision is not in this package.
 
 ## Invariants this package enforces
 
 - **No process wiring here.** No cobra flags, no `os.Getenv`, no `os.Exit`, no
   `fmt.Print*` to a fixed stream. `go/cmd/eshu` is `package main` and cannot be
   imported, so anything reading a flag, reading the environment, or choosing an
-  exit code has to live in `docs.go` / `docs_image_api.go` instead. `rg
+  exit code has to live in `docs.go` instead. `rg
   'os\.Getenv|os\.Exit|cobra\.'` over this package returns nothing today; keep
   it that way.
 

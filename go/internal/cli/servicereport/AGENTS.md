@@ -5,7 +5,7 @@
 1. `go/internal/cli/servicereport/README.md` — purpose, ownership boundary,
    exported surface
 2. `go/internal/cli/servicereport/doc.go` — the godoc contract
-3. `go/cmd/eshu/service_report_cmd.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/service.go` — the cobra `RunE` wrapper that
    resolves process state (flags, stdin, stdout) and calls into this
    package. This is the file that shows how the two halves fit together.
 4. `go/internal/cli/servicereport/render_contract_test.go` — `renderKeyContract`,
@@ -22,7 +22,7 @@
   process's actual `os.Stdin` (the wrapper passes `cmd.InOrStdin()` in as an
   `io.Reader` parameter). `go/cmd/eshu` is `package main`, so nothing can
   import it — any symbol that reads a flag or maps to an exit code has to
-  live in `service_report_cmd.go` instead.
+  live in `service.go` instead.
 
   `ReadInput` and `SupplyChainSection` both call `os.ReadFile` directly on a
   path parameter the caller supplies. That is not process wiring — it is
@@ -39,7 +39,7 @@
   package surface.)
 - **No printing from this package except through `RenderReport`'s
   `io.Writer` parameter.** There is no `fmt.Print*` here — and none in the
-  wrapper either: `service_report_cmd.go` writes through `cmd.OutOrStdout()`
+  wrapper either: `service.go` writes through `cmd.OutOrStdout()`
   so cobra's output stays capturable in a test. New output goes to a writer
   the caller passed in, on both sides of the boundary; neither file should
   reach for the process's real stdout.
@@ -67,7 +67,7 @@
 - **Add a new captured-input file the command reads** → follow the
   `SupplyChainSection` shape: a function taking the file path plus whatever
   context it needs, returning a `serviceintel` input type or `nil` when the
-  path is blank. Wire the new flag in `service_report_cmd.go` and pass the
+  path is blank. Wire the new flag in `service.go` and pass the
   flag's value in as a parameter.
 
 ## Failure modes and how to debug
@@ -121,7 +121,7 @@
 
 - Moving report composition (`serviceintel.Compose`) into this package. The
   current split keeps the JSON-vs-text branch, and the wrapper's own
-  `Compose` call, in `service_report_cmd.go`; this package stays out of
+  `Compose` call, in `service.go`; this package stays out of
   composition entirely. Pulling that call in would add a composition site
   here, alongside the wrapper, `internal/serviceintelhttp`, and
   `internal/answerquality` — a design decision, not an incidental refactor.

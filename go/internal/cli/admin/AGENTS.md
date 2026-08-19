@@ -8,7 +8,7 @@
 2. `go/internal/cli/admin/doc.go` — the godoc contract
 3. `go/cmd/eshu/admin.go` — the cobra wrapper: command tree, flags, flag
    reading, `apiClientFromCmd`, `printJSON`
-4. `go/cmd/eshu/admin_initial_credential.go` — the credential wrapper:
+4. `go/cmd/eshu/admin.go` — the credential wrapper:
    `openAdminCredentialDB` (reads `ESHU_POSTGRES_DSN`),
    `secretcrypto.KeyringFromEnv`, and the printing of the returned plaintext
 5. `go/internal/storage/postgres/identity_bootstrap_credential.go` —

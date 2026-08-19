@@ -21,8 +21,7 @@ and rendering to a writer.
 It does not own process wiring. Flag parsing, resolving the `auto` image-truth
 mode (that reads both flags and the environment), building the API client,
 walking the live cobra tree, opening Postgres from the environment, and mapping
-a result to an exit code all stay in `go/cmd/eshu/docs.go` and
-`go/cmd/eshu/docs_image_api.go`.
+a result to an exit code all stay in `go/cmd/eshu/docs.go`.
 
 ## Exported surface
 

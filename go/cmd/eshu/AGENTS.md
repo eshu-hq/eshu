@@ -85,8 +85,8 @@
   and neither goes in `repository_selector.go`.
 
   Not every `--repo` in this binary is that flag. `map.go:33`, `trace.go:43`
-  and `docs.go:65` declare a `--repo` they hand to the API unresolved, and
-  `hosted_onboard_cmd.go:40` takes exact `owner/name` values. Those never
+  and `docs.go:64` declare a `--repo` they hand to the API unresolved, and
+  `hosted.go:159` takes exact `owner/name` values. Those never
   reach `reposelector`; do not "fix" them to route through it without deciding
   that server-side resolution should move client-side.
 

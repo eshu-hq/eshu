@@ -21,7 +21,7 @@ results are formatted, and the `--verify` ritual check.
 
 It does not own process wiring. Reading cobra flags, resolving `--path` against
 the process working directory, resolving the output stream, and mapping errors
-to exit codes all stay in `go/cmd/eshu/assistant_guidance.go`, the cobra `RunE`
+to exit codes all stay in `go/cmd/eshu/assistant.go`, the cobra `RunE`
 wrapper, because `go/cmd/eshu` is `package main` and nothing can import it. The
 wrapper resolves process state and passes it in as plain values -- an absolute
 root, a `[]Platform`, and an `io.Writer`; this package returns data and errors

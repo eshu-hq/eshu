@@ -5,7 +5,7 @@
 1. `go/internal/cli/assistantguidance/README.md` — purpose, ownership
    boundary, the managed-block rules, and the file-write surface table
 2. `go/internal/cli/assistantguidance/doc.go` — the godoc contract
-3. `go/cmd/eshu/assistant_guidance.go` — the cobra `RunE` wrapper that
+3. `go/cmd/eshu/assistant.go` — the cobra `RunE` wrapper that
    resolves process state (flags, `--path` against the working directory,
    `cmd.OutOrStdout()`) and calls into this package. It shows how the two
    halves fit together.
@@ -33,7 +33,7 @@
   no `os.Getenv`/`os.Getwd`, no `os.Exit`, no `fmt.Print*`.
   `TestPackageStaysProcessNeutral` parses the directory and fails on any of
   them. `go/cmd/eshu` is `package main`, so nothing can import it — a symbol
-  that needs a flag or an exit code belongs in `assistant_guidance.go`.
+  that needs a flag or an exit code belongs in `assistant.go`.
 - **Printing happens only through the caller's `io.Writer`.** `writeSuccess`
   and `writeTable` in render.go are deliberate copies of `go/cmd/eshu`'s
   `printSuccess` and `printTable` (unimportable from here). Their literals —

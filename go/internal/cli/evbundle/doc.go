@@ -13,7 +13,7 @@
 // export decides when the clock is read (see ExportLive) --
 // and it reads and writes local files only behind explicit path parameters
 // (ReadBundleInput, WriteBundle) -- mechanical input and output handling, not
-// process wiring. go/cmd/eshu's evidence_bundle_cmd.go is the thin cobra
+// process wiring. go/cmd/eshu's evidence.go is the thin cobra
 // wrapper that resolves the flags (--scope, --out, --live, --from, plus the
 // shared remote flags), builds the API client, supplies time.Now, and maps
 // errors to the CLI's exit-code contract.

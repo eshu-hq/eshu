@@ -72,7 +72,7 @@ func TestPackageStaysProcessNeutral(t *testing.T) {
 			// A standard-library path's first segment carries no dot; every
 			// module path's does (github.com/..., gopkg.in/...).
 			if strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
-				t.Errorf("%s imports %q; README.md's Dependencies section allows the standard library plus internal/cli/firstrun and nothing else — cobra flags and process wiring belong in go/cmd/eshu's first_run_benchmark_cmd.go",
+				t.Errorf("%s imports %q; README.md's Dependencies section allows the standard library plus internal/cli/firstrun and nothing else — cobra flags and process wiring belong in go/cmd/eshu's first_run.go",
 					name, path)
 			}
 		}
