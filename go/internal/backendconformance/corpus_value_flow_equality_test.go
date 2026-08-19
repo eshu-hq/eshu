@@ -5,6 +5,7 @@ package backendconformance
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -63,6 +64,86 @@ func TestValueFlowReadCaseEqualsTheProductionStatement(t *testing.T) {
 	}
 }
 
+// readCaseParam extracts the $parameters the pinned read statement binds.
+var readCaseParam = regexp.MustCompile(`\$([a-z_][a-z0-9_]*)`)
+
+// TestValueFlowSeedWritesEveryValueTheReadCaseBinds asserts that every value the
+// read case binds is one the seed actually writes.
+//
+// Without this, binding function_uids to a uid the seed never creates passes every
+// hermetic test — and the live result is a read that matches nothing on BOTH
+// backends, which is indistinguishable from the NornicDB defect this case exists to
+// detect. That confusion is precisely what the stale-proof note in evidence-notes.md
+// warns about.
+func TestValueFlowSeedWritesEveryValueTheReadCaseBinds(t *testing.T) {
+	t.Setenv(valueFlowCasesEnv, "1")
+
+	var read ReadCase
+	for _, c := range DefaultReadCorpus() {
+		if c.Name == valueFlowReadCaseName {
+			read = c
+		}
+	}
+	if read.Name == "" {
+		t.Fatalf("read case %q is absent", valueFlowReadCaseName)
+	}
+
+	var seed string
+	for _, c := range DefaultWriteCorpus() {
+		if c.Name == valueFlowWriteCaseName {
+			for _, st := range c.Statements {
+				seed += st.Cypher + "\n"
+				for _, v := range st.Parameters {
+					seed += renderSeedValue(v) + "\n"
+				}
+			}
+		}
+	}
+	if seed == "" {
+		t.Fatalf("write case %q is absent or has no statements", valueFlowWriteCaseName)
+	}
+
+	for _, m := range readCaseParam.FindAllStringSubmatch(read.Cypher, -1) {
+		bound, ok := read.Parameters[m[1]]
+		if !ok {
+			t.Errorf("read case references $%s but binds no such parameter", m[1])
+			continue
+		}
+		for _, v := range flattenSeedValue(bound) {
+			if !strings.Contains(seed, v) {
+				t.Errorf("read case binds %s %q, which the seed never writes; "+
+					"the read would return zero rows on every backend", m[1], v)
+			}
+		}
+	}
+}
+
+func renderSeedValue(v any) string {
+	return strings.Join(flattenSeedValue(v), "\n")
+}
+
+func flattenSeedValue(v any) []string {
+	switch t := v.(type) {
+	case string:
+		return []string{t}
+	case []string:
+		return t
+	case []any:
+		var out []string
+		for _, e := range t {
+			out = append(out, flattenSeedValue(e)...)
+		}
+		return out
+	case map[string]any:
+		var out []string
+		for _, e := range t {
+			out = append(out, flattenSeedValue(e)...)
+		}
+		return out
+	}
+	return nil
+}
+
 // readCaseLabel and readCaseRelType extract the labels and relationship types
 // the pinned read statement matches on.
 var (
@@ -78,6 +159,15 @@ var (
 // hand-written list of expected shapes would be the same fragment-list failure
 // one layer down, so the expectation is computed from the query equality already
 // guarantees and cannot go stale independently of it.
+//
+// Known limit, stated so nobody over-trusts it: this checks that the shapes are
+// NAMED in the seed, not that they are WIRED. It cannot tell "creates" from
+// "matches" — deleting a node's MERGE leaves its label present in the later MATCH
+// clauses — and it does not check property targets. Three mutations pass it and
+// each turns the case into "returns zero rows on every backend", which is
+// indistinguishable from the defect it detects. The live Neo4j lane is what proves
+// the wiring, which is why #6192's positive control is load-bearing rather than
+// decorative.
 func TestValueFlowSeedWritesWhatTheReadCaseMatchesOn(t *testing.T) {
 	t.Setenv(valueFlowCasesEnv, "1")
 
