@@ -27,11 +27,21 @@ import (
 //   - `action.action IN sinkRel.actions` matches nothing when the list lives on
 //     a relationship, where Neo4j matches. The same predicate over a node list
 //     property works on both, and the relationship property reads back fine.
+//   - a MATCH clause with two or more relationship hops returns nothing when its
+//     anchor was bound by an earlier clause. The statement's
+//     `MATCH (workload)<-[:INSTANCE_OF]-(instance)-[:USES]->(principal)` is
+//     exactly that shape, following a WITH-bound `workload`.
 //
-// Any one of the three empties the query, which is why this case runs the whole
+// Any one of the four empties the query, which is why this case runs the whole
 // production statement rather than stopping at the first divergence. An earlier
 // version stopped after the subscript projection; it would have gone green once
-// the first two were fixed while production still returned nothing. The failure is silent: no error, no warning,
+// the first two were fixed while production still returned nothing.
+//
+// Do not read the list as exhaustive. It grew from two to three to four as
+// each round looked further along the statement, and every addition was found
+// by testing past where the previous round stopped. The case asserts that the
+// production statement returns a row on a conforming backend; it does not
+// assert that these four are all the reasons it might not. The failure is silent: no error, no warning,
 // and a graph that simply lacks the function-to-cloud-resource edges the query
 // exists to produce. A backend that cannot serve this case cannot serve cloud
 // value-flow reads, and this pair makes that fail loudly on the live

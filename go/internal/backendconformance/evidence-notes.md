@@ -9,7 +9,7 @@ resources a function's cloud action can reach, and its failure is silent — no
 error, just a graph missing that category of edge. Nothing in the repository
 detected it.
 
-Three independent backend divergences empty it, each measured against Neo4j 5.x
+Four independent backend divergences empty it, each measured against Neo4j 5.x
 community with the same fixture on `eshu-nornicdb-pr290:3722b483c02c` and on
 upstream `main`:
 
@@ -18,11 +18,25 @@ upstream `main`:
 | `collect()` after two `MATCH` clauses | one row | no rows |
 | `ws[0] AS w2` then `w2.name` | the property value | the literal text `"w2.name"` |
 | `x IN relationship.listProperty` | matches | matches nothing |
+| multi-hop `MATCH` whose anchor was bound by an earlier clause | one row | no rows |
 
 Controls: two `MATCH` clauses without aggregation, aggregation after one
-`MATCH`, `IN` over a *node* list property, and reading the relationship property
-directly all behave identically on both backends. Filed upstream as
-orneryd/NornicDB#297, #298 and #301.
+`MATCH`, `IN` over a *node* list property, reading the relationship property
+directly, the same multi-hop pattern as one clause with a fresh anchor, and the
+same bound anchor split into single-hop clauses all behave identically on both
+backends. Filed upstream as orneryd/NornicDB#297, #298, #301 and #302.
+
+**The list is not exhaustive, and its history says why.** It grew from two to
+three to four as each review looked further along the statement, and every
+addition was found by testing past where the previous round stopped. So this
+case asserts that the production statement returns a row on a conforming
+backend; it does not assert that these four are all the reasons it might not.
+Fixing all four upstream is necessary for the query to work and has not been
+shown to be sufficient.
+
+The fourth has a workaround needing no upstream change: decomposing the compound
+multi-hop `MATCH` into chained single-hop clauses works on both backends. That
+is available to the production query today, independently of #297/#298/#301.
 
 The conformance pair runs the complete production statement rather than stopping
 at the first divergence, because a case truncated at the first bug goes green as
