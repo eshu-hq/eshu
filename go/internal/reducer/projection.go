@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
+
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // EvidenceSourceWorkloads identifies workload finalization evidence emitted by
@@ -275,7 +277,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 			continue
 		}
 
-		workloadID := NewWorkloadID(candidate.RepoID, workloadName).String()
+		workloadID := workloadid.NewWorkloadID(candidate.RepoID, workloadName).String()
 		workloadKind := InferWorkloadKind(workloadName, candidate.ResourceKinds)
 		provenance := append([]string(nil), candidate.Provenance...)
 
@@ -323,7 +325,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 		platformKind := inferCandidateRuntimePlatformKind(candidate)
 
 		for _, environment := range environments {
-			instanceID := NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
+			instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
 
 			if _, ok := seenInstances[instanceID]; !ok {
 				seenInstances[instanceID] = struct{}{}

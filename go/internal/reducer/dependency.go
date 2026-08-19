@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/workloadid"
+
 // RepoDependencyRow is one canonical repository DEPENDS_ON edge payload.
 type RepoDependencyRow struct {
 	DependencyName string
@@ -71,7 +73,7 @@ func BuildWorkloadDependencyRows(
 			if targetRepoID == "" {
 				continue
 			}
-			targetWorkloadID := NewWorkloadID(targetRepoID, depName).String()
+			targetWorkloadID := workloadid.NewWorkloadID(targetRepoID, depName).String()
 			edgeKey := descriptor.WorkloadID + "|" + targetRepoID
 			if _, ok := seen[edgeKey]; ok {
 				continue

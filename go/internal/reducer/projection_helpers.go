@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 func addAPIEndpointRows(
@@ -106,7 +108,7 @@ func provisionedRuntimePlatformRows(
 				continue
 			}
 			for _, environment := range environments {
-				instanceID := NewWorkloadInstanceID(repoID, workloadName, environment).String()
+				instanceID := workloadid.NewWorkloadInstanceID(repoID, workloadName, environment).String()
 				rows = append(rows, RuntimePlatformRow{
 					Environment:      environment,
 					Confidence:       confidence,
