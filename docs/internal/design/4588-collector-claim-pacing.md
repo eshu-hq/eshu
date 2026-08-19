@@ -258,7 +258,33 @@ recomputed, a claimed row's slot does *not* collapse, so the next claim at that
 rank level goes to a different key. The measured pick order rotates —
 `burst → small2 → small3 → small4 → small1 → burst → …`.
 
-**Two things must be settled before this is a recommendation rather than a
+**And it has a failure of its own, measured.** My 8/8/8/8/8 result above gave
+every key a sequence starting at 1 — equal lifetime volume. Production will not.
+Sequence numbers are assigned per key and zeroed independently, so two keys are
+only comparable if they have processed similar cumulative volume over their
+entire history. An established key that has handled a million items carries
+current sequence numbers around 1,000,001; a newly onboarded key starts at 1. If
+both stay non-empty, the new key's rows compare smaller **forever**, purely as an
+artifact of lifetime volume rather than arrival time.
+
+Measured on the same harness — 50 pending rows each, established key at sequence
+1,000,001+ with *older* timestamps, new key at sequence 1 with newer ones:
+
+| Scenario | Established key | Newly-added key |
+| --- | ---: | ---: |
+| Fixed per-key sequence, unequal lifetime volume | **0 of 40** | **40 of 40** |
+
+That is indefinite starvation again, inverted — the long-running key gets nothing
+— and it needs no adversarial timing. It falls out of comparing independently
+zeroed counters whose growth rates differ, which any deployment with a mix of
+established and new sources has on day one.
+
+A fix would need the comparison to be relative rather than absolute: rebasing
+counters per epoch, or comparing turns taken within a window. Note that the
+second of those is explicitly a claim-history quantity, which **sharpens rather
+than resolves** the clause 3 question below.
+
+**Three things must be settled before this is a recommendation rather than a
 candidate.** First, whether a persisted per-key sequence is compatible with
 clause 3 in section 6. It is assigned at enqueue from arrival order, before any
 claim exists, and it never excludes an eligible key's head — but as a key drains,
@@ -270,8 +296,12 @@ a column, an assignment at enqueue, and an index, none of which this document ha
 priced.
 
 
-Measured at 50,100 pending using a loose index scan over distinct keys plus a
-lateral head per key — row C above, median **0.179 ms**:
+**The numbers below measure formulation #1 — the one this section opens by
+calling wrong.** "A loose index scan over distinct keys plus a lateral head per
+key" computes each key's current head; turning that into one winner still needs a
+final tiebreak across those heads, and that tiebreak was age. They are kept
+because they establish the **SQL-cost floor a real mechanism has to beat**, not
+because they measure a live candidate. Read them that way:
 
 | Claim shape | Median at 50,100 pending | vs shipped |
 | --- | ---: | ---: |
@@ -279,16 +309,25 @@ lateral head per key — row C above, median **0.179 ms**:
 | Shipped FIFO order, matching index | 0.064 ms | 169× faster |
 | **Fair per-key claim, supporting index** | **0.179 ms** | **61× faster** |
 
-Fair claiming costs about 2.8× the cheapest possible unfair claim and is still
-roughly **sixty times cheaper than what ships today**. The usual objection —
-that fairness costs throughput — is not true here, by a margin wide enough that
-sampling noise does not threaten it.
+That row lands at 2.8× the cheapest *unfair* claim, and in hindsight the
+closeness is a tell rather than a triumph: a query that always returns the row
+FIFO would have returned, computed through a slightly pricier plan, has no reason
+to cost much more. A mechanism doing real cross-key bookkeeping would not land
+that near the unfair baseline.
+
+What the row still supports is narrower and worth keeping: **claim cost at this
+scale is dominated by the missing index, not by fairness.** Even the pricier plan
+is roughly sixty times cheaper than what ships today. So "fairness costs
+throughput" is not the objection to worry about here — but that is a statement
+about the floor, not evidence that any fair mechanism has been built.
 
 **Fairness:** equal share per key, degrading to FIFO when only one key has work.
-**Starvation:** structurally impossible — every key with eligible work has its
-head in the candidate set on every claim, so no key can be passed over
-indefinitely. That is a property of the query shape, not of a tuning parameter,
-which is what makes it worth preferring.
+**Starvation:** the original claim here was "structurally impossible — a property
+of the query shape." **That claim is withdrawn.** Having every key's head in the
+candidate set is necessary but not sufficient: the tiebreak still decides, and if
+the tiebreak is age then the burst key wins every time, which is exactly what
+formulations #1 and #2 were measured doing. Presence in the candidate set was
+never the property that prevents starvation.
 
 **What is measured and what is not.** The 0.179 ms above was measured for a loose
 index scan over distinct keys with a lateral head per key — **not** for either
@@ -656,14 +695,22 @@ What does not survive: the specific ORDER BY that makes fairness load-bearing.
 Three formulations have now been proposed here. The first was age-based selection
 described as rotation. The second, a recomputed `row_number()`, is mathematically
 identical to FIFO and was measured claiming 40 of 40 items from the burst key.
-The third, a fixed per-key sequence, rotates in measurement but changes the
-schema and raises a genuine question about the invariant in section 6.
+The third, a fixed per-key sequence, rotates when every key starts from zero —
+but was then measured **starving an established key 40 to 0** against a newly
+onboarded one, because independently zeroed counters are not comparable across
+keys with different lifetime volumes. It also changes the schema and raises a
+genuine question about the invariant in section 6.
 
 I am recording this rather than quietly substituting a fourth candidate, because
-the pattern across all three is the same: a plausible ordering expression, an
-argument for why it rotates, and no measurement of whether it actually does. The
-next proposal should arrive with its rotation measured and its plan explained,
-not with a better argument.
+the pattern is now consistent across all three: a plausible ordering expression,
+an argument for why it rotates, and no measurement of the case that breaks it.
+The third is the sharpest lesson — it *was* measured, and it rotated, because the
+scenario I measured happened to be the one where it works. A measurement of the
+favourable case is not evidence.
+
+The next proposal should arrive with its rotation measured under **unequal
+lifetime volume and unequal arrival rates**, and its query plan explained, not
+with a better argument.
 
 ## 9. Sign-off request
 
