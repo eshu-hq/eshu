@@ -313,6 +313,14 @@ gates:
     triggers:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-ci-install-apt-packages.sh"
+      # The workflow is a trigger because the mirror asserts its own CI
+      # wiring. Seven gates share test.yml's go-core job, and the registry
+      # drift check skips per-gate CI attribution for a shared bucket, so
+      # deleting the step that runs this mirror would otherwise leave every
+      # check green while CI stopped enforcing the installer's guards. Without
+      # this trigger a workflow-only edit does not select the gate, and the
+      # assertion never runs in exactly the case it exists for.
+      - ".github/workflows/test.yml"
     local:
       # install-apt-packages.sh has no separate "verify" mode of its own --
       # it is an installer (it downloads a pinned ripgrep release, verifies
