@@ -34,7 +34,8 @@ until the proof clauses in the DONE section all hold.
 - **fresh base**: before opening or updating a PR, `git fetch origin`, rebase on
   `origin/main`, and rerun the focused proof affected by the rebase. Then follow
   the complete Steps 5-7 promotion sequence: preliminary full
-  `eshu-code-review` with `P0=0, P1=0, P2=0`, one late `make pre-pr`, final
+  `eshu-code-review` with `P0=0, P1=0, P2-blocking=0`, one late `make pre-pr`,
+  final
   full review of the exact post-preflight diff, and only then push. Never push
   directly after a rebase. Use `--force-with-lease` when the reviewed rebase
   rewrites an already-pushed branch. Do not create or update a PR from a branch
@@ -199,6 +200,14 @@ current turn, stop and ask — do not self-approve and proceed.
   and when all of them are, a PR silently drops to zero external review while
   every other gate stays green.
 
+  "Every external reviewer" means every reviewer actually requested on this PR,
+  not the full roster in Step 9. Verify it rather than assume it: for each
+  requested reviewer, the fallback triggers only when it has either posted a
+  quota/unavailable message or failed to produce a review. Cursor and Claude
+  emit no quota shape, so if either was requested and has not answered, chase
+  that review first — the fallback is for when no external reviewer can answer,
+  not for when the two GitHub-App bots happen to be the only ones asked.
+
   When every external reviewer is unavailable, the coverage MUST be replaced,
   not waived: dispatch a subagent in a separate context to run the full
   `eshu-code-review` against the final diff, prompted to FIND defects (default
@@ -208,15 +217,23 @@ current turn, stop and ask — do not self-approve and proceed.
   docs, private-data and evidence scans.
 
   The replacement must be **independent in a way the dispatching agent cannot
-  self-certify**. Independence here means a fresh context that did not write the
-  diff, and a model from a different lineage than the author's wherever the
-  harness offers one — state which model reviewed. "Delegation is unavailable"
-  is not a judgement call: it means the harness exposes no subagent capability
-  at all, and the verdict must name that harness limitation. An agent that
-  wrote the diff, reviewed it itself, and asserted that delegation was
-  unavailable has produced no independent review — self-review is the last
-  resort, must be labelled as such in the PR, and never satisfies this clause
-  merely because dispatching felt unnecessary.
+  self-certify**. It MUST run in a fresh context that did not write the diff and
+  on a **different model lineage than the authoring agent** — the
+  independent-verifier rule in
+  [Agent Orchestration Model](../../../docs/internal/agent-orchestration.md),
+  which exists because a different lineage catches what a single family
+  rationalizes away. A subagent sharing the author's model family and project
+  memory tends to rationalize away the same defects the external bot would have
+  caught, so "separate context" alone does not satisfy this. Name the reviewing
+  model in the verdict.
+
+  Self-review is the last resort, not a fallback of convenience. A `/goal`
+  harness can dispatch subagents by definition, so "delegation is unavailable"
+  is almost never true: it means the harness exposes no subagent capability at
+  all. Taking that branch requires stating the specific reason delegation
+  failed AND owner confirmation before proceeding — an agent that wrote the
+  diff, reviewed it itself, and self-certified that delegation was unavailable
+  has produced no independent review at all.
 
   State in the PR which reviewers were unavailable and what replaced them.
   Merging with "the bots were out of credit" and nothing in their place is a
@@ -266,10 +283,11 @@ current turn, stop and ask — do not self-approve and proceed.
      Step 6), and only routed to a separate issue when the fix cannot ride along
      AND the owner agreed.
 
-   Do not run `make pre-pr` if the verdict contains any finding. Fix every P0,
-   P1, and P2, rerun affected focused proof, and repeat the full review until
-   **P0=0, P1=0, and P2=0**. In self-review mode, explicitly say it was
-   self-review mode and list the evidence inspected.
+   Do not run `make pre-pr` while a blocking finding stands. Fix every P0, P1,
+   and blocking P2, rerun affected focused proof, and repeat the full review
+   until **P0=0, P1=0, and P2-blocking=0**, with every deferred P2 tracked and
+   named (`eshu-code-review/references/merge-bar.md`). In self-review mode,
+   explicitly say it was self-review mode and list the evidence inspected.
 6. **Promotion gate.** Once the preliminary review is clean and the branch is
    otherwise ready for its intended push, run `make pre-pr` exactly once. Do
    not spend its CPU cost as an early discovery loop. Then run a final full
@@ -352,8 +370,8 @@ it to the epic's follow-ups list at creation time.
   required, but leaving a PR unwatched between long gates is not acceptable).
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
-- Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2=0** with
-  re-review proof,
+- Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2-blocking=0**,
+  every deferred P2 tracked and named, with re-review proof,
   the selected proof tier, all required passes including hostile read,
   cross-pass contradiction check, generated-artifact/doc/private-data scan,
   verification evidence, and the disposition of every out-of-scope defect —
