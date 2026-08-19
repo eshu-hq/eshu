@@ -124,7 +124,9 @@ rows this pass has its existing instances **left untouched** rather than treated
 as superseded (`workload_instance_retraction.go:58-73`). Someone already thought
 about this shape.
 
-Whether mode two leaves any graph trace at all depends on the environments:
+Whether mode two leaves any graph trace at all depends on the environments.
+Both sub-cases below are **traced from source, not executed** — the same standard
+section 6a's tier 2 is held to:
 
 - **Same name, same environment.** Both the workload row and the instance row are
   dropped. Nothing is written for the losing repository, and the surviving node
@@ -305,26 +307,28 @@ node keeps both edges, so it is visible; a mode-two drop writes no edge for the
 losing repository at all, and what survives looks like an ordinary single-definer
 workload.
 
-The **instance-side detector is better than I first credited it.** Under mode two
-with differing environments, the losing repository's instance rows *are* written,
-carrying its own `repo_id` while attached to the shared workload — so
-"workloads whose instances span more than one `repo_id`" is a genuine mode-two
-detector for that sub-case, and it measured zero too.
+The **instance-side detector** would, by query shape, catch a differing-environment
+mode-two leak: those instance rows are written carrying the losing repository's
+`repo_id` while attached to the shared workload, so `i.repo_id <> w.repo_id`
+holds. Worth keeping as a design note for the counters in migration item 7.
 
-What neither detector can see is mode two where the environments also match: both
-rows are dropped, and no trace remains. For that sub-case this table cannot
-distinguish "no collision occurred" from "a collision occurred and one
-repository's evidence was silently discarded."
+**But its zero here is not evidence about mode two, and an earlier revision of
+this section wrongly credited it as such.** Mode two requires two colliding
+repositories in one scope-generation. This corpus was ingested entirely through
+git sync, which commits one repository per scope — so the precondition never
+occurred, anywhere in its history, for any workload name, in either sub-case. A
+detector reading zero against a condition that was never reachable is not
+measuring that condition. It is blind for a different reason than the `DEFINES`
+detector — structural unreachability rather than query insensitivity — but it is
+equally blind.
 
-And the whole corpus was ingested through git sync, which commits one repository
-per scope, so it never exercised the multi-repo scope path that produces mode two
-in the first place. The honest reading is **"zero cross-scope merges, and zero
-cross-repo instance spans, under single-repo-per-scope ingestion"** — not "zero
-collisions".
+So: **neither mode-two sub-case is measured by this corpus.** The honest reading
+of both zeroes is "no cross-scope merge and no cross-repo instance span, under an
+ingestion regime that only ever produced single-repo scopes" — not "zero
+collisions", and not "mode two checked and absent".
 
-None of this changes the recommendation. It makes the case for the `seenWorkloads`
-counter in migration item 7, which is the only thing that would see a same-name
-same-environment drop.
+None of this changes the recommendation. It is the case for both counters in
+migration item 7, which are the only things that would see **any** of mode two.
 
 ### 3.2 Why the population is so small
 
@@ -338,8 +342,7 @@ This is the crux of the timing decision, and it cuts both ways:
 - **Against acting now:** zero observed cross-scope merges and zero cross-repo
 instance spans, on the largest corpus there is — but see 3.1 for what that zero
 does and does not cover. It was measured under single-repo-per-scope ingestion,
-which never exercises mode two, and one mode-two sub-case leaves no trace for any
-detector to find.
+which never exercises mode two at all, so it bears on mode one only.
 - **For acting now:** 40 nodes and 33 instances is the cheapest this migration
   will ever be, and the admission gate is expected to widen, not narrow.
 
@@ -641,11 +644,11 @@ retracted and rebuilt rather than rewritten in place.
    `seenWorkloads` branch, comparing the incoming candidate's `RepoID` against
    the retained row's, which detects a same-scope drop at the moment it happens;
    and a graph-side detector for workloads carrying more than one `DEFINES` edge,
-   which is the only thing that sees a cross-scope merge. Section 3.1 has already
-   run both graph-side detectors and both read zero — under an ingestion regime
-   that only produces single-repo scopes, which is why those zeroes are a weaker
-   signal than they look, and why the one sub-case they cannot see at all is the
-   one the in-process counter exists for.
+   which is the only thing that sees a cross-scope merge. Section 3.1 ran both
+   graph-side detectors and both read zero, but under an ingestion regime that
+   never produced a multi-repo scope — so those zeroes say nothing about mode two
+   at all, in either sub-case. The in-process counter is what makes mode two
+   visible; the graph-side one is what makes mode one visible.
 
    After the re-key both become **regression guards**: two repositories defining
    one workload should be structurally impossible, and either counter firing
@@ -750,9 +753,10 @@ where environments differ, instances owned by a repository with no edge to the
 workload they hang off. Neither errors and neither increments anything.
 
 The case for waiting is that the corpus detectors read zero — with the scoping
-section 3.1 puts on that zero: measured under single-repo-per-scope ingestion,
-covering mode one and one of mode two's two sub-cases, and blind to the other.
-And this is a schema-risk change with cassette and B-12 impact.
+section 3.1 puts on that zero. They cover mode one. They say nothing about mode
+two in either sub-case, because the corpus was ingested through git sync and the
+multi-repo scope that mode two requires never occurred in it. And this is a
+schema-risk change with cassette and B-12 impact.
 
 | Item | Estimate |
 | --- | --- |
