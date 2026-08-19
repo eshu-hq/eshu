@@ -25,6 +25,144 @@
 9. `docs/public/guides/collector-authoring.md` - general collector fact
    contract.
 
+## This Directory Is Over The File Cap And Will Be Restructured
+
+The `dirgate` linter caps a package directory at 40 non-test `.go` files. This
+one holds **154** and is currently held open by a row in
+`scripts/lib/dirgate-grandfather.tsv` (the source of truth;
+`tools/golangci-lint-dirgate/grandfather.go` is generated from it). That row is
+a stopgap, not an endorsement — it exists so the gate could land green on the
+pre-existing sprawl it was written to stop. It is scheduled to be removed, not
+renewed: the target is zero grandfathered directories.
+
+The restructure is in scope under epic **#6053** (package restructure — flat
+thousand-file directories become a navigable tree), whose end state is that
+every package directory holds at most 40 non-test files, named so the directory
+tells you the domain and the prefix tells you the family. Nested directories are
+expected. This directory's layout will change; do not treat the current shape as
+settled. No child issue covers this directory yet — the epic's eleven
+workstreams are scoped elsewhere — so "in scope" is the accurate word, not
+"tracked".
+
+### Measurements a restructure needs
+
+Gathered while scoping this, and recorded here so the next person does not
+re-derive them. **Measured against `2af1e3567`**, the base this branch sits on.
+All commands run from the repository root.
+
+They do not all go stale together, and the difference decides which you can
+trust:
+
+- **Rows 1 and 2** move when a `constants_<service>.go` file is added — which
+  the Common Changes section actively invites — and **the `dirgate` row pinning
+  154 goes red at the same moment**. That is a tripwire you already own: when
+  you re-pin it, these two are stale too.
+- **Row 3** moves then as well, *and* on any edit to an existing constants file
+  — which is the more routine change, since adding a resource type to a service
+  that already has a file edits that file rather than creating one. `dirgate`
+  cannot see that: its digest is `sha256` over sorted **basenames**, not
+  contents, so the count stays 154, the digest is unchanged, and the gate stays
+  green while this number drifts.
+- **Row 4** is a difference between rows 1 and 2, so it holds at 21 until a
+  *non*-constants file appears in the root.
+- **Row 5 and the composition** move whenever a new **file** imports this
+  package — not a new package. The 1,312 files sit in 413 directories, so most
+  of them are second-or-later files in a package that already imports; one more
+  file under `services/ec2/` moves row 5 with nothing new importing anything.
+  **Nothing catches this**: `dirgate` watches this directory's file set, and a
+  new importer lives somewhere else entirely.
+
+So the tripwire covers rows 1, 2 and 4, half of row 3, and none of row 5.
+Re-derive row 3, row 5 and the composition before relying on them.
+
+Rows 2 and 3 filter `_test.go` out deliberately, and the filter is load-bearing
+rather than tidy. `dirgate` counts non-test files only, so row 1 excludes them
+— but the glob `constants_*.go` matches `constants_ec2_test.go`, because `*`
+matches `ec2_test`. Without the filter, rows 2 and 3 would count a population
+row 1 does not, and row 4 would subtract one population from another. No such
+file exists today, so every number here is the same with or without it; the
+filter is what stops that being luck. This package names its tests
+`envelope_test.go` and `resource_type_contract_test.go` rather than
+`constants_<service>_test.go`, which
+is a convention and not a rule — and the Common Changes section invites adding
+`constants_<service>.go`, so the first contributor who follows Go's default
+naming alongside it lands exactly here.
+
+| Measure | Value | How |
+| --- | ---: | --- |
+| Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/awscloud` |
+| `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
+| Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
+| Everything else in the root | 21 | 154 − 133 |
+| Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
+
+That 1,312 is not 1,312 external dependents, and the difference decides the
+restructure risk: **1,243 (94.7%) are inside this package's own subtree**, 69
+are outside it, and of those only **five are non-test** —
+`go/internal/coordinator/aws_scheduled_scheduler.go`,
+`go/cmd/collector-aws-cloud/config.go`,
+`go/cmd/collector-aws-cloud/status_committer.go`,
+`go/internal/collector/contracttest/contracttest.go`, and
+`go/internal/storage/postgres/aws_scan_status.go`.
+
+Three properties of that import surface matter for planning a move:
+
+- **Every dependent imports the package directly.** All 1,312 matching lines are
+  the identical bare import — zero dot-imports, zero blank imports, zero aliases
+  (`sort | uniq -c` over the extracted lines gives one form, 1312×). So the
+  import set *is* the dependent set.
+- **There is one package-level re-export, and it IS consumed — in-package.**
+  `awsruntime/types.go:27-36` re-exports `WarningAssumeRoleFailed`,
+  `WarningBudgetExhausted`, `WarningThrottleSustained`, and
+  `WarningOrganizationsOrgAccessSkipped` in a `const` block. No code outside
+  `awsruntime` uses the re-exported names — `rg -n 'awsruntime\.Warning[A-Z]' .`
+  exits 1 repo-wide — but `awsruntime/source.go:89` uses
+  `WarningAssumeRoleFailed` unqualified in production, with four more uses in
+  that package's tests. Find those with
+  `rg -n '\bWarning(AssumeRoleFailed|BudgetExhausted|ThrottleSustained|OrganizationsOrgAccessSkipped)\b' go/internal/collector/awscloud/awsruntime/`.
+  That returns eighteen lines, not five: eight are the `const` block and its
+  doc comments, and five are `awscloud.`-qualified references in
+  `scan_status.go` and one test — the leading `\b` sits between the `.` and the
+  `W`, so it matches the qualified form too. **The re-export uses are the five
+  unqualified ones.**
+
+  The qualified-selector search alone is not evidence of non-use, and reaching
+  for it is the trap here: by Go scoping, `awsruntime.Warning*` can never appear
+  inside package `awsruntime`, which is the one package where these names live
+  and are used, so that search exits 1 whether or not they are consumed. Do not
+  delete `types.go:27-36` as dead. The blast-radius count above is unaffected —
+  those uses are already among the 1,243 — but a move of the `Warning*`
+  constants has to carry that file.
+- **Cross-service references are common**, because these are cross-resource
+  relationship constants. `services/ec2/volume.go` references
+  `awscloud.ResourceTypeEC2Volume` (:42) and `awscloud.ResourceTypeKMSKey` (:88)
+  in the same file. A service-aligned move therefore is not a uniform rewrite:
+  same-service references become local, cross-service ones still need an import.
+  Plan for uneven churn.
+
+Count imports, not symbol references. `rg
+'awscloud\.(ResourceType|Service|Relationship)[A-Z]'` looks like the more direct
+measure and is wrong in both directions at once: without `--type go` it also
+matches ~280 package `README.md`/`AGENTS.md` files; restricted to Go it still
+counts **12** files under `go/` whose only mention is a comment or a string
+literal (seven under `go/internal/reducer/`, one under
+`go/internal/storage/postgres/`, and four inside this package's own subtree — of
+which `go/internal/collector/awscloud/internal/relguard/relguard.go:42` is a map
+value rather than a comment, and just as non-dependent), or 13 counting
+`sdk/go/factschema/aws/v1/resource_types.go`, which the command reaches when run
+from the repository root; and it *undercounts*, because it misses the
+`Warning*`, `TargetType*`, and `IAMPolicySource*` families along with the rest
+of the 50 exported constants outside the three prefixes it names.
+
+### Until then
+
+The `constants_<service>.go` convention below still governs new work: a new AWS
+service adds its own sibling file. Do not consolidate them ad hoc as a
+cap-reduction tactic — the restructure will move them deliberately, and an
+interim regrouping would have to be undone. What the seam actually is remains
+open: the cross-service references above mean a service-aligned split is uneven
+rather than clean, and #6053 carries no design for this directory yet.
+
 ## Invariants
 
 - AWS cloud data is reported source evidence. Do not materialize graph truth in
