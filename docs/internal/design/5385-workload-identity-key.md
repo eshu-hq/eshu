@@ -570,10 +570,19 @@ impact.
 3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?** It is
    keyed on repo basename, is the documented fallback for an unmaterialized
    workload, and a graph-only re-key leaves the two schemes disagreeing.
-4. **Now or later for the re-key?** Section 7 gives both cases. The reset fix
-   should go now either way.
-5. **Should the collision counter land first?** It is useful under every outcome
-   including do-nothing, and would turn question 4 into a measurement.
+4. **Now or later for the re-key?** Section 7 gives both cases. There is no
+   separable timing decision beside it: the RUNS_ON scoping fix needs the
+   identity answer, so it rides with the re-key either way.
+5. **Where does the collision counter belong?** Not before the re-key. Placed the
+   obvious way — beside the `seenWorkloads` dedup at `projection.go:289` — it
+   would be blind to the case that matters, because that map is created per
+   `Handle()` call and the cross-repo collision happens across separate calls. A
+   counter there would read zero forever while the real thing fired. The valid
+   detector is graph-side (workloads with more than one `DEFINES` edge), and
+   section 3.1 has already run it: zero. So the counter is not decision-support,
+   it is a **regression guard** — after the re-key, two repositories defining one
+   workload should be structurally impossible, and a counter that ever fires
+   means the key leaked. Build it with the re-key, not ahead of it.
 
 ## 9. Sign-off request
 
