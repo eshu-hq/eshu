@@ -220,6 +220,28 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # install-apt-packages.sh has no separate verify mode -- the test
+      # mirror is its only enforcement (bounded curl transfer, fail-closed
+      # checksum verify, arch-support guard). It is hermetic with respect to
+      # the INSTALLER under test: fixtures are file:// URLs and every case
+      # isolates PATH and bin_dir, so it neither reinstalls ripgrep nor
+      # disturbs the step above.
+      #
+      # It is NOT independent of that step, though, and the order matters:
+      # the mirror's own assertions shell out to `rg` dozens of times, and
+      # `rg` is exactly what "Install ripgrep" provides -- the runners log
+      # "Setting up ripgrep" on every job, so it is not preinstalled. Keep
+      # this step AFTER that one. Reordering fails loudly rather than
+      # silently (a missing rg exits 127, the `if rg -q` guards take their
+      # record_fail branch, and the gate goes red), but it fails for a
+      # confusing reason, so do not rely on that.
+      #
+      # See specs/ci-gates.v1.yaml's ci-install-apt-packages entry, which
+      # declares this job as its `ci.job`.
+      - name: Verify CI apt/ripgrep installer test mirror
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-ci-install-apt-packages.sh
+
       - name: Install golangci-lint
         if: ${{ !cancelled() }}
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2

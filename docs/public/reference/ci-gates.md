@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 104 gates. Local execution runs the primary
+The registry currently defines 105 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -34,6 +34,7 @@ Advisory rows remain visible but do not block merge.
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 3 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh |
+| `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 5 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh` | static-contract-gates.yml / Verify OpenAPI gate | 10 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/serviceintelhttp/**, … |
 | `route-coverage` | Verify Route Coverage | exactness | pre-pr | true | `bash scripts/verify-route-coverage.sh`<br>then self-test: `bash scripts/test-verify-route-coverage.sh` | static-contract-gates.yml / Verify route coverage gate | 4 path(s): go/internal/query/**, go/cmd/api/**, scripts/test-verify-route-coverage.sh, … |
 | `edge-source-tool-coverage` | Verify Edge Source-Tool Coverage | exactness | pre-pr | true | `bash scripts/verify-edge-source-tool-coverage.sh`<br>then self-test: `bash scripts/test-verify-edge-source-tool-coverage.sh` | static-contract-gates.yml / Verify edge source-tool coverage gate | 5 path(s): go/internal/relationships/**, go/internal/collector/**, specs/surface-inventory.v1.yaml, … |
