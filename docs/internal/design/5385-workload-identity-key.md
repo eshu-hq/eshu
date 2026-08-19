@@ -41,10 +41,13 @@ materialized last.**
 
 ### Measured, through the production dispatch shape
 
-The reducer materializes one `Intent` per call
-(`workload_materialization_handler.go:216`), and that intent's candidates are
-loaded for a single `(scope_id, generation_id)` pair
-(`correlated_workload_projection_input_loader.go:35-42`).
+The reducer materializes one `Intent` per call — the handler's signature is
+`Handle(ctx, intent Intent)`
+(`go/internal/reducer/workload_materialization_handler.go:127`) — and that
+intent's candidates are loaded for a single `(scope_id, generation_id)` pair
+(`go/internal/reducer/correlated_workload_projection_input_loader.go:35-42`).
+The projection build itself happens once per `Handle` call, at
+`workload_materialization_handler.go:216`.
 
 **One call is one scope-generation, not one repository.** An earlier revision of
 this document said "two unrelated repositories therefore arrive as two separate
@@ -86,11 +89,13 @@ P5385 instances           -> workload-instance:checkout:production (repo_id=prob
 
 Read as an operator would:
 
-- **One `Workload` node, two owners.** `MERGE (w:Workload {id: row.workload_id})
-  SET w.repo_id = row.repo_id` (`canonical.go:45-54`, batch form at
-  `workload_materializer.go:351-357`) unconditionally overwrites `repo_id`, so
-  alpha's workload is now attributed to beta. Nothing records that alpha ever
-  owned it.
+- **One `Workload` node, two owners.** The single-row form is
+  `MERGE (w:Workload {id: $workload_id}) SET … w.repo_id = $repo_id`
+  (`go/internal/storage/cypher/canonical.go:45-54`); the batch form binds the
+  same shape per row as `row.workload_id` / `row.repo_id`
+  (`go/internal/reducer/workload_materializer.go:351-357`). Either way `repo_id`
+  is set unconditionally, so alpha's workload is now attributed to beta. Nothing
+  records that alpha ever owned it.
 - **Both `DEFINES` edges persist**, because `MERGE (repo)-[rel:DEFINES]->(w)`
   adds each repository's own edge without touching the other's.
 - **Instances from both repositories hang off the shared node.** Ask what
@@ -356,7 +361,7 @@ which never exercises mode two at all, so it bears on mode one only.
 
 The B-12 snapshot's own node counts are floor/ceiling ranges rather than
 per-repository lists, so it cannot independently answer the collision question;
-the 45 literals above are the regeneration surface, not a second measurement.
+the 46 literals above are the regeneration surface, not a second measurement.
 
 ## 4. Edge families and identifier sites a re-key must carry
 
@@ -364,32 +369,32 @@ Relationships anchored on a `workload:`/`workload-instance:` identifier:
 
 | Edge | Anchor | Written at |
 | --- | --- | --- |
-| `(Repository)-[:DEFINES]->(Workload)` | `workload_id` | `workload_materializer.go:364`, `canonical.go:52` |
-| `(WorkloadInstance)-[:INSTANCE_OF]->(Workload)` | both | `workload_materializer.go:385`, `canonical.go:66` |
-| `(WorkloadInstance)-[:RUNS_ON]->(Platform)` | `instance_id` | `workload_materializer.go:413`, `canonical.go:82`; id built independently at `projection_helpers.go:110` |
-| `(WorkloadInstance)-[:DEPLOYMENT_SOURCE]->(Repository)` | `instance_id` | `workload_materializer.go:393`, `canonical.go:89` |
-| `(Workload)-[:DEPENDS_ON]->(Workload)` | `workload_id`, `target_workload_id` | `workload_materializer.go:429`, `canonical.go:114-116, 174-176` |
-| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `workload_cloud_relationship_writer.go:21` |
-| `(Function)-[:RUNS_IN]->(Workload)` | resolved via `(repo)-[:DEFINES]->(w)` | `canonical_runs_in_edges.go:24-31` |
-| documentation edge onto `Workload` | `target_entity_id` | `canonical_documentation_edges.go:35` |
-| `Endpoint` | `stableAPIEndpointID(repoID, workloadID, path)` | `projection_helpers.go:58` |
+| `(Repository)-[:DEFINES]->(Workload)` | `workload_id` | `go/internal/reducer/workload_materializer.go:364`, `go/internal/storage/cypher/canonical.go:52` |
+| `(WorkloadInstance)-[:INSTANCE_OF]->(Workload)` | both | `go/internal/reducer/workload_materializer.go:385`, `go/internal/storage/cypher/canonical.go:66` |
+| `(WorkloadInstance)-[:RUNS_ON]->(Platform)` | `instance_id` | `go/internal/reducer/workload_materializer.go:413`, `go/internal/storage/cypher/canonical.go:82`; id built independently at `go/internal/reducer/projection_helpers.go:110` |
+| `(WorkloadInstance)-[:DEPLOYMENT_SOURCE]->(Repository)` | `instance_id` | `go/internal/reducer/workload_materializer.go:393`, `go/internal/storage/cypher/canonical.go:89` |
+| `(Workload)-[:DEPENDS_ON]->(Workload)` | `workload_id`, `target_workload_id` | `go/internal/reducer/workload_materializer.go:429`, `go/internal/storage/cypher/canonical.go:114-116, 174-176` |
+| `(Workload)<-[:INSTANCE_OF]-(WorkloadInstance)-[:USES]->(CloudResource)` | `workload_id` | `go/internal/storage/cypher/workload_cloud_relationship_writer.go:21` |
+| `(Function)-[:RUNS_IN]->(Workload)` | resolved via `(repo)-[:DEFINES]->(w)` | `go/internal/storage/cypher/canonical_runs_in_edges.go:24-31` |
+| documentation edge onto `Workload` | `target_entity_id` | `go/internal/storage/cypher/canonical_documentation_edges.go:35` |
+| `Endpoint` | `stableAPIEndpointID(repoID, workloadID, path)` | `go/internal/reducer/projection_helpers.go:58` |
 
 **A second, non-graph identity subsystem also uses this prefix, and a graph-only
 re-key would leave it inconsistent.** `go/internal/collector/git_followup_facts.go:52,188`
 emits a `reducer_workload_identity` Postgres fact whose `entity_key` is
 `"workload:" + filepath.Base(repoPath)` — a *third* independent construction,
-keyed on repo basename. It is read back by `repository_read_model_summary.go:114`
-and `content_reader_repository_catalog.go:107`, and surfaced through
+keyed on repo basename. It is read back by `go/internal/query/repository_read_model_summary.go:114`
+and `go/internal/query/content_reader_repository_catalog.go:107`, and surfaced through
 `entity_workload_context.go` as the `materialization_status: "identity_only"`
 fallback (`:212`, `:269`) used precisely when a workload has no materialized
 graph node. The supply-chain impact domain also treats any `workload:`-prefixed
 `entity_key` as workload-identity evidence.
 
 **A third construction of the instance id lives outside `projection.go`.**
-`projection_helpers.go:110` builds `fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)`
+`go/internal/reducer/projection_helpers.go:110` builds `fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)`
 again, for `RuntimePlatformRow.InstanceID`, which feeds
 `MATCH (i:WorkloadInstance {id: row.instance_id})` in the `RUNS_ON` upsert
-(`workload_materializer.go:410-411`). A re-key that updates `projection.go:327`
+(`go/internal/reducer/workload_materializer.go:410-411`). A re-key that updates `projection.go:327`
 and the node id but misses this line leaves the `MATCH` looking for the old
 name-only format: it finds nothing, and `RUNS_ON` silently stops being written
 with no error. This is the precise failure class this inventory exists to
@@ -397,17 +402,17 @@ prevent, and it was missed on the first two passes over this section.
 
 Two further construction sites inside the reducer:
 
-- `dependency.go:76` — `targetWorkloadID := fmt.Sprintf("workload:%s", depName)`,
+- `go/internal/reducer/dependency.go:76` — `targetWorkloadID := fmt.Sprintf("workload:%s", depName)`,
   a second name-only reconstruction for the `DEPENDS_ON` target.
-- `dependency_domain.go:101,116` — `partitionKey = fmt.Sprintf("workload:%s->%s", ...)`,
+- `go/internal/reducer/dependency_domain.go:101,116` — `partitionKey = fmt.Sprintf("workload:%s->%s", ...)`,
   the reducer conflict domain for dependency edges. A re-key changes the shape of
   a concurrency partition key, which is a concurrency question, not a cosmetic one.
 
-Parse sites in the read path: `catalog.go:213-214,332`,
-`impact_change_surface_resolvers.go:102-108`, `entity_workload_context.go:261,280,286`,
-`repository_read_model_summary.go:114`, `content_reader_repository_catalog.go:107`,
-`service_workload_resolution.go:137`, `supply_chain_impact_path.go:145`,
-`supply_chain_impact_match.go:147`, `mcp/dispatch_args.go:61-66`.
+Parse sites in the read path: `go/internal/query/catalog.go:213-214,332`,
+`go/internal/query/impact_change_surface_resolvers.go:102-108`, `go/internal/query/entity_workload_context.go:261,280,286`,
+`go/internal/query/repository_read_model_summary.go:114`, `go/internal/query/content_reader_repository_catalog.go:107`,
+`go/internal/query/service_workload_resolution.go:137`, `go/internal/query/supply_chain_impact_path.go:145`,
+`go/internal/reducer/supply_chain_impact_match.go:147`, `mcp/dispatch_args.go:61-66`.
 `entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep working.
 
 Nothing parses a `workload-instance:<name>:<env>` identifier back apart — a
@@ -619,7 +624,7 @@ retracted and rebuilt rather than rewritten in place.
    needs its own verification rather than being assumed to match the other three.
 
 5. **Update the parse sites** in section 4, with a test per site. Two deserve
-   naming: `catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
+   naming: `go/internal/query/catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
    *name only*, so split siblings silently vanish from `/catalog`) and
    `mcp/dispatch_args.go:54-59` (`normalizeQualifiedIdentifier` cuts at the FIRST
    colon, so a three-part id becomes `<repo>:<name>` and 404s).
@@ -685,7 +690,7 @@ empty. MCP's `normalizeQualifiedIdentifier` cuts at the first colon
 Search documents persist `GraphHandles{Kind:"workload", ID}` in Postgres
 (`storage/postgres/eshu_search_index.go:216,300-312`) and stay stale until
 reindexed. The catalog read model *synthesizes* graph-shaped ids from the
-separate `reducer_workload_identity` scheme (`catalog.go:213`), so the Console is
+separate `reducer_workload_identity` scheme (`go/internal/query/catalog.go:213`), so the Console is
 handed ids that would 404 against `/workloads/{id}/context`.
 
 **Tier 3 — silent, and NOT alias-fixable.** `workload_id`/`workload_ids` are
@@ -725,7 +730,7 @@ exercises it.
 prefix spelled out — `GET /api/v0/workloads/workload:payments-api/context`
 (`docs/public/guides/shared-infra-trace.md:47,53`),
 `{workload_id: "workload:api-svc"}` (`getting-started/first-five-questions.md:67`),
-and `catalog-workload-selection.md:57` tells readers that pasted `workload:...`
+and `docs/public/reference/http-api/catalog-workload-selection.md:58` tells readers that pasted `workload:...`
 handles "remain canonical". The Console builds ids from names and puts them in
 bookmarkable URLs (`/workspace/services/<id>`), and prompts operators to paste
 `workload:…` directly.
