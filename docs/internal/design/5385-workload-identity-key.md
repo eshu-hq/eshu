@@ -227,7 +227,38 @@ after alpha pass:  beta_inst->beta_plat=0
                    gamma_inst->gamma_plat=1   (non-colliding control, untouched)
 ```
 
-Three things this shows that the retract-side framing above does not:
+**Correction, from the retract/rebuild proof: the statement above deletes
+nothing, so it cannot be what moved these edges.** Driving
+`retractSingleRepoRunsOnEdgesCypher` verbatim over Bolt — eshu's own session
+configuration, result consumed, and a 45-second settling loop because this
+backend has eventual-read consistency — leaves the edge in place: `before=1
+after=1`. Neo4j 5 deletes it. A bare relationship `DELETE` does not delete on the
+pinned build at all, which makes this retract a **silent no-op** rather than an
+over-broad delete.
+
+So the `beta_inst->beta_plat` transition from 1 to 0 above has a different cause,
+and the likely one is `batchWorkloadInstanceRetractCypher`
+(`workload_materializer_retract_instances.go:35-38`), which `DETACH DELETE`s the
+`WorkloadInstance` **node**. Node deletion does work on this backend, and its own
+comment says it "removes every relationship incident to the node — INSTANCE_OF,
+RUNS_ON". The instance is then rebuilt by whichever repository materialized last,
+carrying that repository's platform. Same observed end state, different mechanism.
+
+**What survives this correction, and what does not.** The end state is unchanged
+and still wrong: beta's instance ends up asserting it runs on alpha's platform.
+The two-sided framing below is also unaffected, because it never depended on the
+retract. What does not survive is the attribution — this is not an over-broad
+relationship delete crossing a repository boundary; it is a node being deleted
+and rebuilt under a shared identity.
+
+**And it surfaces a second defect worth its own attention.** If
+`retractSingleRepoRunsOnEdgesCypher` is inert, then stale `RUNS_ON` edges are
+never retracted by it on this backend. That is not an identity problem and it
+does not block the re-key, but it means the retract half of any
+retract-and-rebuild reasoning about `RUNS_ON` cannot be relied on until the
+backend deletes relationships.
+
+Three things the measurement shows that the retract-side framing above does not:
 
 - **The contamination is two-sided and does not need the retract at all.** Beta's
   plain *write* already attached beta's platform to alpha's instance, before any
@@ -659,6 +690,54 @@ retracted and rebuilt rather than rewritten in place.
    After the re-key both become **regression guards**: two repositories defining
    one workload should be structurally impossible, and either counter firing
    means the key leaked.
+
+## 5a. Retract/rebuild proof
+
+Run before any implementation, on a fresh single-purpose stack against the
+pinned backend, with Neo4j 5.x community as the control and a settling loop on
+every read.
+
+**Result: the retract half does not work, and the rebuild half is what actually
+moves edges.**
+
+| Operation | Neo4j 5 | NornicDB (pinned) |
+| --- | --- | --- |
+| bare relationship `DELETE` | 1 → 0 | **1 → 1**, still 1 after 43 s |
+| `retractSingleRepoRunsOnEdgesCypher` verbatim | 1 → 0 | **1 → 1**, still 1 after 46 s |
+| node `DETACH DELETE` (instance retract) | node and all incident edges gone | node and all incident edges gone |
+
+Two harness errors were made and corrected before these numbers were trusted,
+and both are worth recording because either would have produced a confident
+wrong answer:
+
+- The driver executes lazily. A write whose result is never consumed looks
+  exactly like a backend ignoring the write. Caught by the Neo4j control
+  failing identically.
+- This backend has eventual-read consistency. An immediate count after a delete
+  reads stale. A first run showed `RUNS_ON` surviving a `DETACH DELETE` — it had
+  not; the same query returned zero moments later. The relationship-`DELETE`
+  result was then re-checked with a settling loop, and that one is real.
+
+**What this means for the migration.** A re-key's retract-and-rebuild cannot lean
+on relationship retraction on this backend. What does work is node-level
+`DETACH DELETE`, which `batchWorkloadInstanceRetractCypher` already uses and which
+removes every incident edge — so instance-anchored families are carried by
+deleting and rebuilding the instance node.
+
+That statement is anchored on `instance_id`
+(`workload_materializer_retract_instances.go:36`), and the instance id **changes**
+under a re-key. So the migration must retract using the **old** ids before writing
+the new ones. Retracting after the new ids exist finds nothing and leaves the old
+instance nodes, with all their edges, orphaned under the previous key.
+
+**Still unproven, and it is the gap this section does not close.** The families
+not incident to a `WorkloadInstance` — `DEFINES` on the workload node itself,
+`DEPENDS_ON` between workloads, `RUNS_IN` from functions, documentation edges —
+are retracted by relationship `DELETE` statements, which are inert here. Whether
+those families can be migrated at all on the pinned backend, or whether the
+migration needs node-level deletion for the workload node too, is the next thing
+to measure. **Do not start implementation on the assumption that the existing
+retract statements will carry them.**
 
 ## 6a. What holds a `workload:<name>` identifier, measured
 
