@@ -30,6 +30,7 @@ run_ifa_fault_injection_generic_shared_intent_lock_cases() {
 	test_ifa_generic_intent_writer_empty_handler_file_fails
 	test_ifa_generic_intent_writer_missing_handler_file_fails
 	test_ifa_generic_intent_writer_absent_intent_writer_fails
+	test_ifa_generic_intent_writer_unavailable_rg_is_indeterminate
 	test_ifa_generic_intent_writer_mention_without_field_fails
 	test_ifa_generic_intent_writer_declared_intent_writer_passes
 	test_ifa_generic_intent_writer_precondition_is_wired_before_the_body
@@ -100,6 +101,35 @@ test_ifa_generic_intent_writer_absent_intent_writer_fails() (
 		|| fail "intent-writer precondition passed a handler that declares no IntentWriter (rc=${rc})"
 	[[ "${output}" == *"declares no IntentWriter"* ]] \
 		|| fail "intent-writer precondition did not name the absent IntentWriter"
+)
+
+# rg not being runnable is NOT a verdict about the handler. This reproduces
+# #6173's first CI failure: the fault-injection job had no ripgrep installed, rg
+# exited 127, and an `if ! rg ...` read that as "declares no IntentWriter" --
+# naming a handler that holds the field on line 47. The cell died on a diagnosis
+# of the wrong thing. A shadowing rg that exits 127 stands in for the missing
+# binary here; the assertion is that the message says INDETERMINATE and does not
+# claim anything about the handler.
+test_ifa_generic_intent_writer_unavailable_rg_is_indeterminate() (
+	# shellcheck source=scripts/lib/ifa_fault_generic_shared_intent_lock.sh
+	source "${generic_shared_intent_lock_lib}"
+	local rc=0 output tmp_dir handler
+	tmp_dir="$(mktemp -d)"
+	# shellcheck disable=SC2064
+	trap "rm -rf '${tmp_dir}'" EXIT
+	handler="${tmp_dir}/real_handler.go"
+	printf 'package reducer\n\ntype RealHandler struct {\n\tIntentWriter SomeIntentWriter\n}\n' >"${handler}"
+
+	ifa_family_handler_go_file() { printf '%s\n' "${handler}"; }
+	rg() { return 127; }
+
+	output="$(_ifa_generic_require_intent_writer testfamily 2>&1)" || rc=$?
+	[[ "${rc}" -eq 1 ]] \
+		|| fail "intent-writer precondition did not refuse when rg was unrunnable (rc=${rc})"
+	[[ "${output}" == *"INDETERMINATE"* ]] \
+		|| fail "an unrunnable rg must report INDETERMINATE, not a verdict: ${output}"
+	[[ "${output}" != *"declares no IntentWriter"* ]] \
+		|| fail "an unrunnable rg was reported as the handler declaring no IntentWriter -- the exact false diagnosis this case exists to prevent"
 )
 
 # The word "IntentWriter" appearing in the file is NOT the field. Every real

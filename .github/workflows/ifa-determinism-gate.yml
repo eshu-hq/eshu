@@ -260,6 +260,9 @@ on:
       - 'go/cmd/reducer/ifa_fault_wiring.go'
       - 'go/cmd/reducer/ifa_fault_wiring_off.go'
       - 'scripts/verify-ifa-fault-injection.sh'
+      # The fault job installs ripgrep through this before running the gate,
+      # and the gate's preconditions shell out to rg.
+      - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/test-verify-ifa-fault-injection.sh'
       - 'scripts/lib/test-ifa-fault-injection-assertions.sh'
       - 'scripts/lib/test-ifa-fault-injection-review-cases.sh'
@@ -545,6 +548,15 @@ jobs:
       # `go test ./...` never runs it. Run it explicitly here, alongside the
       # tagged decorator and reducer-wiring tests, so a revert of the
       # Retryable()/FailureClass() contract fails CI even before the Docker leg.
+      # The gate's own preconditions shell out to rg (the repo forbids grep), and
+      # the fault-injection job did not install it -- #6173's first CI run failed
+      # both codeowners-carrying shards with "rg: command not found" reported as
+      # "declares no IntentWriter", a confident false diagnosis of a file that
+      # holds the field. The static-mirror job above already installs it for the
+      # same reason.
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
       - name: Run tagged fault-classification unit tests
         working-directory: go
         run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/replay/faultreplay ./cmd/reducer -count=1

@@ -2722,6 +2722,10 @@ gates:
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"
       - "scripts/verify-ifa-fault-injection.sh"
+      # The job installs ripgrep through this script before running the gate;
+      # the gate's own preconditions shell out to rg. Without this trigger an edit
+      # to the installer would not select the gate it is a precondition for.
+      - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/test-ifa-fault-injection-assertions.sh"
       - "scripts/lib/test-ifa-fault-injection-review-cases.sh"

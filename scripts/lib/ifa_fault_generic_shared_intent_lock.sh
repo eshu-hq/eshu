@@ -56,7 +56,23 @@ _ifa_generic_require_intent_writer() {
 	# The declaration form is uniform across all five current writers
 	# (`rg -n '^\s+IntentWriter\s' go/internal/reducer/*.go`), so anchoring on
 	# it is not a guess.
-	if ! rg --quiet '^[[:space:]]+IntentWriter[[:space:]]' "${handler_file}"; then
+	# rg's exit code is THREE-valued and the difference matters: 0 match, 1 no
+	# match, anything else an error (127 when rg is not installed at all). An
+	# `if ! rg ...` collapses all of those into "no match", which is how #6173's
+	# first CI run reported "declares no IntentWriter" for a handler that holds
+	# the field on line 47 -- the fault-injection job simply had no ripgrep, and
+	# the precondition turned a missing tool into a confident false diagnosis of
+	# the code. A guard that cannot tell "I looked and it is absent" from "I
+	# could not look" is the defect class this whole mechanism exists to prevent,
+	# so it is spelled out rather than folded back into an if.
+	local rg_rc=0
+	rg --quiet '^[[:space:]]+IntentWriter[[:space:]]' "${handler_file}" || rg_rc=$?
+	if [[ "${rg_rc}" -gt 1 ]]; then
+		printf 'cell_killworker_family (%s): PRECONDITION INDETERMINATE: could not search %s (rg exit %s -- not installed, or unreadable). This is NOT a verdict about the handler; the cell refuses rather than guessing.\n' \
+			"${family}" "${handler_file}" "${rg_rc}" >&2
+		return 1
+	fi
+	if [[ "${rg_rc}" -eq 1 ]]; then
 		printf 'cell_killworker_family (%s): PRECONDITION FAILED: %s declares no IntentWriter. The shared_intent_lock blocker targets shared_projection_intents, a table this handler never writes to, so the lock cannot engage -- Handle would run to completion and ack before kill -9 lands, proving ordinary baseline recovery under a name that claims domain-scoped reclaim (the exact defect class ifa_fault_injection_deployable_unit_lock.sh:81-86 already documents for a different family and lock target). Register this family'"'"'s true blocker_kind in ifa_family_registry.sh instead of forcing shared_intent_lock.\n' \
 			"${family}" "${handler_file}" >&2
 		return 1
