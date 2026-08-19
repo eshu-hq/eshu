@@ -210,7 +210,8 @@ so nothing scopes the write side either.
 
 **Measured on a live NornicDB at the pinned revision**, driving the production
 dispatch (`EdgeWriter.RetractEdges` → `edge_writer_retract_repo.go`) for both the
-single-repo and UNWIND retract shapes. Identical across 6/6 runs:
+single-repo and UNWIND retract shapes.
+Identical across 6/6 runs (ledger:5385-runs-on-cross-repo-retract-leak):
 
 ```
 precondition:      workload_nodes=1 defines=2 instances=2
