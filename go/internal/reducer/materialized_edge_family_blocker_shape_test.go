@@ -497,8 +497,19 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 			// reason the moment the first runner-stage family lands, which is
 			// the explicit purpose of the enabler this test ships with.
 			// TestIfaFamilyRegistryWaitStageAndKeyCohere owns the runner half.
-			if waitStages[family] != "handler" {
-				t.Skipf("family %q declares wait_stage=%q; its wait_key lives in allProjectionDomains, not knownDomains, and is checked by TestIfaFamilyRegistryWaitStageAndKeyCohere", family, waitStages[family])
+			// A MISSING wait_stage must not take the runner-stage exit. Skipping
+			// on absence would leave such a row validated by nothing: it would
+			// be waved through here AND absent from
+			// TestIfaFamilyRegistryWaitStageAndKeyCohere, which ranges over
+			// waitStages. Unreachable while each row file declares exactly one
+			// family -- nothing enforces that -- so fail loudly rather than
+			// rely on a property no gate asserts.
+			stage, ok := waitStages[family]
+			if !ok {
+				t.Fatalf("family %q has an IFA_FAMILY_WAIT_KEY but no IFA_FAMILY_WAIT_STAGE row; it would then be checked by neither this test nor TestIfaFamilyRegistryWaitStageAndKeyCohere", family)
+			}
+			if stage != "handler" {
+				t.Skipf("family %q declares wait_stage=%q; its wait_key lives in allProjectionDomains, not knownDomains, and is checked by TestIfaFamilyRegistryWaitStageAndKeyCohere", family, stage)
 			}
 			if err := Domain(raw).Validate(); err != nil {
 				t.Fatalf("family %q: IFA_FAMILY_WAIT_KEY=%q is not a real reducer Domain constant (%v) -- scripts/lib/ifa_family_registry.sh's row and the fault-injection wait helper's hand-typed pin could rename together and still agree on a dead string here", family, raw, err)
