@@ -4,9 +4,9 @@ This page is the query-shape companion to
 [NornicDB Behavior and Pitfalls](nornicdb-pitfalls.md) (which covers
 storage, schema, constraint, and transaction behavior). It records Cypher
 **shapes** that the pinned NornicDB planner/interpreter mishandles — label
-disjunctions, empty-first-branch unions, outer aggregation over `CALL {}`, and
-multi-clause reads — so a read or retract that looks correct does not silently
-return wrong rows.
+disjunctions, empty-first-branch unions, outer aggregation over `CALL {}`,
+a `WHERE` attached to a `WITH`, and multi-clause reads — so a read or retract
+that looks correct does not silently return wrong rows.
 
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.
@@ -15,8 +15,8 @@ NornicDB source before patching.
 
 1. Read the matching section before writing or changing a Cypher read/retract
    shape that anchors on a label disjunction, unions per-branch, aggregates over
-   a `CALL {}` subquery, or places any clause between the anchor `MATCH` and the
-   final `RETURN`.
+   a `CALL {}` subquery, attaches a `WHERE` to a `WITH`, or places any clause
+   between the anchor `MATCH` and the final `RETURN`.
 2. Validate the behavior against the current `NornicDB-New` checkout that built
    the image under test.
 3. Check upstream docs and release notes for the pinned `NORNICDB_IMAGE`.
