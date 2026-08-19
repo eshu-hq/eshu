@@ -62,8 +62,8 @@ Poll with a **bounded background waiter that blocks until a condition holds**
 command — a foreground sleep is refused by the Claude Code harness — not by
 spending a turn per poll. One waiter per condition: duplicates racing on the
 same condition waste turns, and a waiter whose match pattern cannot occur —
-watching a log for a
-string that run never prints — spins to its cap while reporting nothing. Kill
+watching a log for a string that run never prints — spins to its cap while
+reporting nothing. Kill
 superseded waiters when the thing they watch is replaced. The cadence is a
 ceiling on staleness, not a requirement to burn a turn each minute.
 
@@ -323,8 +323,8 @@ current turn, stop and ask — do not self-approve and proceed.
    generated or tracked files, or the final review finds anything, fix the
    issue, rerun affected focused proof, and repeat from the preliminary review.
    If `make pre-pr` fails, do not immediately rerun it. Fix the failure, rerun
-   affected focused proof, repeat the preliminary full review to zero findings,
-   and only then begin a new promotion attempt.
+   affected focused proof, repeat the preliminary full review to
+   `P0=0, P1=0, P2-blocking=0`, and only then begin a new promotion attempt.
    Make no edits between the final clean review and push; any diff change
    invalidates the verdict.
 7. Push the reviewed rebased head.

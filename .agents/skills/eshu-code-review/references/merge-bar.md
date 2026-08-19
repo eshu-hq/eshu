@@ -50,10 +50,15 @@ which re-introduced exactly the self-judgement this bar is meant to bound.
 Two rules keep the judgement that DOES stay with the agent auditable:
 
 - **Every deferred P2 carries its severity-table category verbatim** in the PR
-  ("doc drift", "edge case", "genuine missing coverage", …). The blocking test
-  is auditable because the finding, the PR's claims and the diff all sit in the
-  PR; severity is the call that becomes load-bearing, so naming the category
-  stops a missed edge case being quietly filed as a naming nit.
+  ("doc drift", "edge case", "genuine missing coverage", …) **next to the
+  finding text**. The category alone is a label the agent chose; the pair is
+  checkable, because the owner reads what the finding actually says beside the
+  grade claimed for it. The blocking test is auditable for the same reason —
+  the finding, the PR's claims and the diff all sit in the PR.
+- **The owner may re-grade severity when they agree, and the re-grade stands.**
+  Without this the owner is agreeing to a deferral, not to a severity, and
+  P1-vs-P2 is the call that now decides push and merge. An agent whose "naming"
+  finding is re-graded P1 fixes it; it does not re-argue the grade.
 - **A PR that claims little does not thereby lower its own bar.** "Contradicts a
   claim the PR makes" is read against what the PR *should* assert for its
   change — the description-carries-the-evidence rule — not against a
