@@ -536,9 +536,25 @@ Two further construction sites inside the reducer:
 
 - `go/internal/reducer/dependency.go:76` — `targetWorkloadID := fmt.Sprintf("workload:%s", depName)`,
   a second name-only reconstruction for the `DEPENDS_ON` target.
-- `go/internal/reducer/dependency_domain.go:101,116` — `partitionKey = fmt.Sprintf("workload:%s->%s", ...)`,
-  the reducer conflict domain for dependency edges. A re-key changes the shape of
-  a concurrency partition key, which is a concurrency question, not a cosmetic one.
+- `go/internal/reducer/dependency_domain.go:101,116` — `partitionKey = fmt.Sprintf("workload:%s->%s", ...)`.
+  An earlier revision called this the reducer's conflict domain for dependency
+  edges and said a re-key changes the shape of a concurrency partition key. **That
+  production consequence does not exist, and the claim is withdrawn.**
+  `BuildWorkloadDependencyIntentRows` (`dependency_domain.go:88`) has zero
+  production callers — every call is from `dependency_domain_test.go:208,237,278`.
+  The live path is `BuildWorkloadDependencyIntentRowsFromEdges`
+  (`workload_dependency_reconciliation.go:181-204`), called once from
+  `workload_materialization_handler.go:328`, and it sets `RepositoryID` and
+  `Payload` and never `PartitionKey`.
+
+  What is real is smaller and still worth recording: both arguments already carry
+  a `workload:` prefix (`dependency.go:76` for the target;
+  `projection.go:279`→`:286`→`dependency.go:87` for the source), so the string
+  this builds is `workload:workload:a->workload:b`. The three tests pass
+  unprefixed fixture ids, so the doubling is invisible to the only code that runs
+  it — which also means those tests do not pin the production id shape. This is
+  the same unreached-code pattern section 2 withdrew for `mutations.go`, and this
+  document made the error twice.
 
 Parse sites in the read path: `go/internal/query/catalog.go:213-214,332`,
 `go/internal/query/impact_change_surface_resolvers.go:102-108`, `go/internal/query/entity_workload_context.go:261,280,286`,
@@ -562,8 +578,10 @@ prefix leaves it working; one that changes the prefix does not.
 This inventory is larger than it first appeared and should still be treated as a
 starting point. **The `reducer_workload_identity` subsystem in particular needs a
 decision before implementation** (section 8, question 3), because it is the
-documented fallback for exactly the scenario in section 2 and is keyed on repo
-basename rather than the candidate's workload name.
+documented fallback for exactly the scenario in section 2 and carries its own
+identity scheme: the fact is written by `workload_identity_writer.go` into
+`entity_keys`, a JSON array. The repo-basename key belongs to a *different* fact,
+`shared_followup` from `git_followup_facts.go` — see the two bullets above.
 
 ## 5. Options
 
@@ -766,9 +784,12 @@ retracted and rebuilt rather than rewritten in place.
      exactly the "trust it and stop looking" failure this step exists to
      prevent.
 
-1. **Rebuild, do not rewrite.** Retract every `Workload` and `WorkloadInstance`
-   plus their edges, then re-project from facts. At 40 nodes and 33 instances
-   this is cheap; the reducer already owns a correct rebuild path.
+1. **Rebuild, do not rewrite.** `DETACH DELETE` every `Workload` and
+   `WorkloadInstance` **node**, which removes their edges as a consequence, then
+   re-project from facts. Do not retract the edges themselves — section 5a
+   measured every relationship retract as inert on the pinned build, so an
+   edge-first rebuild silently does nothing. At 40 nodes and 33 instances this is
+   cheap; the reducer already owns a correct rebuild path.
 2. **Scope both halves of the RUNS_ON pair — the upsert is the live one.**
    `canonicalRunsOnUpsertCypher` (`canonical_relationships.go:322-330`) is
    `MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)` then
@@ -1104,8 +1125,11 @@ schema-risk change with cassette and B-12 impact.
    internal refactor.** See section 6a. No decision needed; the cost is now
    known and is the largest line item in section 7.
 3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?** It is
-   keyed on repo basename, is the documented fallback for an unmaterialized
-   workload, and a graph-only re-key leaves the two schemes disagreeing.
+   written by `workload_identity_writer.go` into an `entity_keys` array, is the
+   documented fallback for an unmaterialized workload, and a graph-only re-key
+   leaves the two schemes disagreeing. (The repo-basename key an earlier revision
+   attributed here belongs to the separate `shared_followup` fact; section 4 has
+   the split.)
 4. **Now or later for the re-key?** Section 7 gives both cases. There is no
    separable timing decision beside it: the RUNS_ON scoping fix needs the
    identity answer, so it rides with the re-key either way.
