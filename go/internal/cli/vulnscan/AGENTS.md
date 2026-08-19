@@ -12,9 +12,9 @@ Scoped rules for `go/internal/cli/vulnscan`. The root `AGENTS.md` and
    each outcome writes, and why `Result.Scan` is `any`.
 3. [`run.go`](run.go) and [`finish.go`](finish.go) — `RunRepo`, the repo
    subcommand end to end, and the output-selection rules behind it.
-4. [`go/cmd/eshu/vuln_scan.go`](../../../cmd/eshu/vuln_scan.go) and
-   [`vuln_scan_provider_parity.go`](../../../cmd/eshu/vuln_scan_provider_parity.go)
-   — the cobra wrappers, and the only consumers.
+4. [`go/cmd/eshu/vuln_scan.go`](../../../cmd/eshu/vuln_scan.go) — the cobra
+   wrappers for both `vuln-scan repo` and `vuln-scan provider-parity`, and the
+   only consumers.
 
 ## Invariants
 
