@@ -66,8 +66,12 @@ trust:
 - **Row 4** is a difference between rows 1 and 2, so it moves only on a file that
   matches row 1's glob but not row 2's: it holds at 21 until a **non-test `.go`
   file that does not match `constants_*.go`** appears in the root. A new
-  `*_test.go` matches neither glob, so it leaves row 1 and therefore row 4
-  untouched.
+  `*_test.go` file is excluded from both rows' **measures** — row 1 counts
+  non-test files, and rows 2 and 3 filter `_test.go` out (see below) — so it
+  leaves row 1 and therefore row 4 untouched. Stated by measure rather than by
+  glob deliberately: `constants_foo_test.go` *does* match the raw
+  `constants_*.go` glob, which is the case the filter paragraph below exists to
+  warn about.
 
   **The 21 are not all non-constants, and the row's label is not a bucket
   boundary.** `acm_types.go`, `cloudtrail_types.go` and `guardduty_types.go` hold
