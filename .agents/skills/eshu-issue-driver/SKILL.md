@@ -58,9 +58,11 @@ unattended. While a PR is open, poll conflicts, CI, and review comments about
 every 60 seconds; do not only wait for the check rollup.
 
 Poll with a **bounded background waiter that blocks until a condition holds**
-(`until <check>; do sleep 40; done`, with an iteration cap), not by spending a
-turn per poll. One waiter per condition: duplicates racing on the same condition
-waste turns, and a waiter whose match pattern cannot occur — watching a log for a
+(`until <check>; do sleep 40; done`, with an iteration cap), run as a background
+command — a foreground sleep is refused by the Claude Code harness — not by
+spending a turn per poll. One waiter per condition: duplicates racing on the
+same condition waste turns, and a waiter whose match pattern cannot occur —
+watching a log for a
 string that run never prints — spins to its cap while reporting nothing. Kill
 superseded waiters when the thing they watch is replaced. The cadence is a
 ceiling on staleness, not a requirement to burn a turn each minute.
@@ -161,7 +163,8 @@ current turn, stop and ask — do not self-approve and proceed.
   `make pre-pr`; dispatched executors run focused proof only (see
   [Orchestration, PR, And CI Discipline](../../../CLAUDE.md)).
 - **Cancelled is not failed, but a cancelled BLOCKING gate is not self-healing.**
-  Most cancelled jobs re-fire themselves; a cancelled required gate strands
+  A cancelled job does not re-run itself — only a new push or an explicit rerun
+  restarts one; a cancelled required gate strands
   `required-gates-complete` once every other check finishes, and nothing
   re-triggers it. Re-run those explicitly (`gh run rerun <run-id>`) and confirm
   the aggregate re-fires. An aggregate failure whose only cause is cancelled
@@ -174,9 +177,10 @@ current turn, stop and ask — do not self-approve and proceed.
   lost a 936s run this way and drew two wrong conclusions from it before a quiet
   re-run passed the identical diff in 451s; the same gate takes 139s unloaded.
   Serialize gate runs, and before treating any live-lane failure as real, check
-  what else was running during it. Detect a live run by the gate binary or the
-  bound port — `pgrep -f "make pre-pr"` has failed to match a running gate and
-  been misread as the process having died.
+  what else was running during it. Detect a live run by the lock in
+  `scripts/lib/live-gate-lock.sh`, by `pgrep -f verify-golden-corpus-gate`, or
+  by port 15432 being bound — `pgrep -f "make pre-pr"` has failed to match a
+  running gate and been misread as the process having died.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
@@ -192,7 +196,7 @@ current turn, stop and ask — do not self-approve and proceed.
   (reviewer re-requests use `gh pr edit`, not `gh pr review`) and poll again
   before proceeding. An empty first review is not a pass — it is a failed
   request that must be retried.
-- **If an external reviewer is quota-exhausted, dispatch a replacement reviewer.**
+- **If no external reviewer produces a review, dispatch a replacement.**
   A quota message is NOT a review and NOT a retryable failure — re-requesting it
   only burns polls. Recognise the shape rather than the exact wording: Copilot
   posts "reached their quota limit", `chatgpt-codex-connector[bot]` posts
@@ -208,13 +212,24 @@ current turn, stop and ask — do not self-approve and proceed.
   that review first — the fallback is for when no external reviewer can answer,
   not for when the two GitHub-App bots happen to be the only ones asked.
 
-  When every external reviewer is unavailable, the coverage MUST be replaced,
-  not waived: dispatch a subagent in a separate context to run the full
-  `eshu-code-review` against the final diff, prompted to FIND defects (default
-  to reject), and treat its verdict as the gating review — proof tier, all
-  required passes including hostile read, cross-pass contradiction check,
+  The trigger is the set of reviewers that actually produced a review being
+  empty after retries — whatever the reason, quota or silence. When it is, the
+  coverage MUST be replaced, not waived: dispatch a subagent in a separate
+  context to run the full `eshu-code-review` against the final diff, prompted to
+  FIND defects (default to reject), covering proof tier, all required passes
+  including hostile read, cross-pass contradiction check,
   severity/confidence/disposition per finding, and the generated-artifact,
   docs, private-data and evidence scans.
+
+  This replacement is **additional to the Step 5 review gate, never the same
+  verdict relabelled**. Step 5's separate-context review is the author-side gate
+  and is already required; re-pointing at it here would leave the PR with the
+  one review this clause exists to prevent.
+
+  The replacement verdict MUST be posted as a PR comment — full template, the
+  reviewing model named, and the base/head SHAs it covers — so the independence
+  claim lands in GitHub truth rather than in a PR body the dispatching agent
+  wrote about itself.
 
   The replacement must be **independent in a way the dispatching agent cannot
   self-certify**. It MUST run in a fresh context that did not write the diff and
@@ -262,8 +277,10 @@ current turn, stop and ask — do not self-approve and proceed.
 3. Runtime-affecting -> perf proof or no-regression measurement + operator
    telemetry (spans/metrics/logs).
 4. Ensure `gh` auth can push, then `git fetch origin`, rebase on `origin/main`,
-   run `go build ./...` (a textually clean rebase has produced a non-compiling
-   tree when a sibling PR moved a symbol — conflict-free is not compile-clean),
+   run `cd go && go vet ./...` (there is no root `go.mod`, and vet compiles the
+   test files too — a sibling PR moving a test helper breaks `go test`
+   compilation while `go build` still passes; conflict-free is not
+   compile-clean),
    rerun the focused gates affected by the rebase, confirm
    `git status --short` is clean, and inspect
    `git diff --stat origin/main..HEAD` for unrelated reversions or sibling-PR
@@ -271,7 +288,10 @@ current turn, stop and ask — do not self-approve and proceed.
 5. **Preliminary review gate.** Run `eshu-code-review` on the rebased final diff
    after focused proof and before `make pre-pr`. Prefer separate-context
    reviewers in PARALLEL when the harness permits delegation; otherwise run the
-   skill as an explicit self-review in the current agent. Either mode must be
+   skill as an explicit self-review in the current agent. "Permits delegation"
+   carries the strict meaning from the quota-exhaustion fallback above: the
+   harness exposes no subagent capability at all, not the agent judging
+   dispatch unnecessary. Either mode must be
    prompted to FIND defects (default to reject, not approve) and must include:
    - proof tier decision and required evidence,
    - all required passes including hostile-read verdict and cross-pass
@@ -370,6 +390,10 @@ it to the epic's follow-ups list at creation time.
   required, but leaving a PR unwatched between long gates is not acceptable).
 - `gh api repos/eshu-hq/eshu/pulls/<n>/comments` shows zero unresolved
   review/bot threads (codex / Copilot / Cursor / Claude / human).
+- If any external reviewer was unavailable,
+  `gh api repos/eshu-hq/eshu/issues/<n>/comments` shows the replacement
+  verdict comment, naming the reviewing model and which reviewers were
+  unavailable.
 - Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2-blocking=0**,
   every deferred P2 tracked and named, with re-review proof,
   the selected proof tier, all required passes including hostile read,
@@ -379,10 +403,10 @@ it to the epic's follow-ups list at creation time.
   cannot ride along and the owner agreed. If this was self-review mode, the
   verdict explicitly says so and lists the inspected evidence.
 - The promotion record names the preliminary review phase, reviewed head, and
-  P0/P1/P2 counts; the exact `make pre-pr` command and result; the
-  post-preflight head and clean-status result; and the final review phase and
-  P0/P1/P2 counts. The recorded order must show a zero-finding preliminary
-  review before preflight and a zero-finding final review afterward.
+  P0/P1/P2-blocking/P2-deferred counts; the exact `make pre-pr` command and
+  result; the post-preflight head and clean-status result; and the final review
+  phase and the same counts. The recorded order must show a preliminary review
+  with no blocking finding before preflight, and the same afterward.
 - **Before closing any issue as fixed**: run the full verification suite from
   `docs/public/reference/local-testing.md` with exact tool versions. Do NOT
   shortcut by verifying a pre-existing fix, trusting a prior CI run, or

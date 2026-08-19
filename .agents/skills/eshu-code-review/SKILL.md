@@ -51,7 +51,9 @@ Use this first as a preliminary full review after focused proof and before
 `make pre-pr`, then again on the exact post-preflight diff before every Eshu
 `git push`, PR create/update, and merge-readiness claim. `make pre-pr` may run
 only after a preliminary P0=0/P1=0/P2-blocking=0 verdict. Re-run review after any fix or
-diff/evidence change. Self-review is valid when no separate reviewer is available.
+diff/evidence change. Self-review is valid only when the harness exposes no
+way to reach a separate reviewer — not when dispatching one felt
+unnecessary — and the verdict must say so and name the limitation.
 
 Inputs required:
 

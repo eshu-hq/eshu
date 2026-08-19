@@ -21,9 +21,12 @@ Use this fixed promotion order before opening or updating a PR:
 1. Complete TDD and the focused proof for every touched surface, including any
    applicable frontend, security, runtime, or Ifa gates.
 2. Run a preliminary full `eshu-code-review` of the rebased diff. If it reports
-   any P0, P1, or P2 finding, fix every finding, rerun affected focused proof,
-   and repeat the full review. Do **not** run `make pre-pr` while findings remain.
-3. Once the preliminary verdict is `P0=0, P1=0, P2=0` and the branch is
+   any P0, P1, or blocking P2 finding, fix it, rerun affected focused proof,
+   and repeat the full review. Do **not** run `make pre-pr` while a blocking
+   finding remains.
+3. Once the preliminary verdict is `P0=0, P1=0, P2-blocking=0` — every
+   deferred P2 tracked and named, per
+   `.agents/skills/eshu-code-review/references/merge-bar.md` — and the branch is
    otherwise ready to push, run `make pre-pr` exactly once as the late promotion
    gate. Use `make pre-pr-full` here instead when the risk tier requires the
    whole-module race lane.
