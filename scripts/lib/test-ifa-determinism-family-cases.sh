@@ -46,7 +46,7 @@ require_fixture "SQL expected-edge set existence guard" 'SQL expected-edge set n
 require_fixture "SQL delta cassette existence guard" 'SQL delta cassette not found'
 require_fixture "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
 require_delta_lib "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
-require "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
+require_code "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
 require_delta_lib "SQL delta cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_delta_cassette}" -workers "${n}"'
 require_delta_lib "SQL delta populated guard" "SQL delta drive enqueued 0 new fact_work_items rows"
 require_delta_lib "rationale delta populated guard" "rationale delta drive enqueued 0 new fact_work_items rows"
@@ -78,8 +78,8 @@ require_fixture "deployable-unit cassette path" "testdata/cassettes/deployableun
 require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
 require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
 require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
-require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
-require "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
+require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
+require_code "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
 require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
 require_deployable_unit_lib "drive helper invocation inside the standalone cell" "ifa_deployable_unit_live_drive"
 require_deployable_unit_lib "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_drain pre"
@@ -116,7 +116,7 @@ require_fixture "rationale cassette existence guard" "rationale cassette not fou
 require_fixture "rationale expected-edge set existence guard" "rationale expected-edge set not found"
 require_fixture "rationale delta cassette existence guard" "rationale delta cassette not found"
 require_fixture "rationale delta expected-record existence guard" "rationale delta expected-record set not found"
-require "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"
+require_code "rationale durable-count helper invocation in every cell" "ifa_rationale_assert_work_counts"
 require_rationale_lib "rationale cassette drive" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_rationale_lib "rationale assert-edges domain" "-domain rationale_edges"
 require_rationale_lib "rationale expected-set argument" '-expected "${expected_edges}"'
@@ -157,8 +157,8 @@ require_documentation_lib "documentation cassette drive" 'eshu-ifa" drive -casse
 require_documentation_lib "documentation assert-edges domain" "-domain documentation_edges"
 require_documentation_lib "documentation expected-set argument" '-expected "${expected_edges}"'
 require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-require "post-delta rationale durable generation" '"${ifa_rationale_delta_generation_id}"'
-require "post-delta rationale durable tuple" '"${ifa_rationale_delta_expected_tuple}"'
+require_code "post-delta rationale durable generation" '"${ifa_rationale_delta_generation_id}"'
+require_code "post-delta rationale durable tuple" '"${ifa_rationale_delta_expected_tuple}"'
 delta_function="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_det_run_sql_delta_live\(\) \{.*?^\}' "${delta_lib}")"
 [[ "${delta_function}" != *"ifa_det_start_bg"* ]] \
 	|| fail "SQL+rationale delta helper must reuse the caller-owned projector/reducer lifecycle"

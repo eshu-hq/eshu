@@ -3,6 +3,15 @@
 # File-scoped assertion helpers for scripts/test-verify-ifa-fault-injection.sh.
 # The parent verifier owns strict mode, fail(), and all target path variables.
 
+# require pins a needle ANYWHERE in the gate, comments included. TEN call sites
+# still use it, and every one deliberately binds FRAMING -- overview text,
+# rationale, and the inventory comments that enumerate which cells a proof
+# covers. Those exist only as prose, so routing them through require_code could
+# never pass.
+#
+# The other 45 bind code and use require_code. The split was established
+# empirically, not by reading labels: every call site was converted, the mirror
+# run, and only the ones that genuinely could not pass were moved back.
 require() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
@@ -15,6 +24,16 @@ require() {
 # cannot satisfy it. Strict mode needs this: the gate script names
 # `set -euo pipefail` in its bash>=4.4 header comment as well as running it, so
 # the fixed-strings form still passed with the real line deleted.
+# require_code pins a needle that must be LIVE CODE in the gate, not prose about
+# it. Use it for anything asserting the gate DOES something; keep require for the
+# pins that deliberately bind framing. The determinism mirror carries the same
+# split, established the same way: convert everything, move back only what
+# genuinely cannot pass.
+require_code() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_count_code_matches "${needle}" "${script}")" -ge 1 ]] \
+		|| fail "missing ${label}, or it survives only inside a comment: ${needle}"
+}
 require_line() {
 	local label="$1" needle="$2"
 	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
@@ -83,7 +102,8 @@ require_code_call_cells() {
 # 500-line cap and this is a whole coherent unit -- the same reason, and the
 # same shape, as the other extractions this branch made.
 assert_no_private_data() {
-	local private_pattern f
+	local private_pattern f v
+	local -a targets
 	# Every alternative below brackets one character, so the pattern does not
 	# contain its own literals. A bracketed single-character class matches exactly
 	# the same text as the bare character, so detection is unchanged.
@@ -98,19 +118,53 @@ assert_no_private_data() {
 	# mirror, whose ${script} points at the GATE, so the mirror never scanned
 	# itself and never noticed.
 	private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
-	for f in "$@" $(compgen -v | rg '_lib$' | sort | while IFS= read -r v; do printf '%s\n' "${!v}"; done); do
+
+	# Built as an ARRAY, not an unquoted word list: a repo path containing a
+	# space or a glob character would otherwise split or expand and mis-scan.
+	targets=("$@")
+	while IFS= read -r v; do
+		targets+=("${!v}")
+	done < <(compgen -v | rg '_lib$' | sort)
+	# The registry, its row files and its hand-derived pins are the files this
+	# branch adds most of, and NONE of them is bound to a *_lib variable, so the
+	# derivation above cannot see them. Globbed explicitly rather than named, so
+	# a seventh row file is covered the day it lands.
+	for f in "${repo_root}"/scripts/lib/ifa_family_registry.sh \
+		"${repo_root}"/scripts/lib/ifa_family_registry/rows/*.sh \
+		"${repo_root}"/scripts/lib/ifa_family_registry_pins/*.sh; do
+		[[ -e "${f}" ]] && targets+=("${f}")
+	done
+
+	# A FLOOR on what was actually scanned. Without it the derivation is bound by
+	# nothing: changing `rg '_lib$'` to a pattern that matches no variable silently
+	# reduced the scan from 44 files to 1 and the mirror still passed, because an
+	# empty command substitution in a word list is not an error. The number is
+	# hand-written and deliberately below the current count -- it is a floor
+	# against collapse, not a pin on the exact set, so adding a lib does not
+	# require editing it. It must never be derived from the same expression it
+	# guards.
+	[[ "${#targets[@]}" -ge 40 ]] \
+		|| fail "assert_no_private_data scanned only ${#targets[@]} file(s); the *_lib derivation has collapsed and the scan is no longer covering the tree"
+
+	for f in "${targets[@]}"; do
 		[[ -f "${f}" ]] || fail "assert_no_private_data: ${f} does not exist -- a scan that skips a missing file proves nothing"
 		if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 			fail "$(basename "${f}") looks like it contains private data"
 		fi
 	done
+	printf 'private-data scan: %s file(s) scanned\n' "${#targets[@]}"
 }
 _ifa_count_code_matches() {
 	local needle="$1" file="$2" n=0 line stripped code
 	while IFS= read -r line || [[ -n "${line}" ]]; do
 		stripped="${line#"${line%%[![:space:]]*}"}"
 		[[ "${stripped}" == "#"* ]] && continue
-		code="${line%%#*}"
+		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
+		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
+		# and `${var#prefix}`, making any line using those unpinnable -- it silently
+		# broke the floor pin added this round, which is exactly the kind of guard
+		# that must stay pinnable.
+		code="${line%%[[:space:]]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"

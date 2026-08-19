@@ -22,7 +22,7 @@ run_ifa_documentation_live_static_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
@@ -112,8 +112,8 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_barrier "documentation producer shutdown joins after signaling" "ifa_documentation_join_ack_producers"
 	require_documentation_barrier "documentation ACK trigger cleanup is bounded" "SET LOCAL lock_timeout = '2s'"
 	require_documentation_barrier "documentation ACK function cleanup is independently bounded" "SET LOCAL statement_timeout = '5s'"
-	require "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
-	require "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
+	require_code "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
+	require_code "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
 	require_driver "per-cell teardown joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	rg -U --pcre2 --quiet -- 'ifa_documentation_stop_ack_producers \|\| \{ failed=1; holder_safe=0; \}[\s\S]*ifa_documentation_census_ack_waiter[\s\S]*ifa_documentation_census_ack_holder[\s\S]*ifa_documentation_drop_ack_trigger[\s\S]*ifa_documentation_drop_ack_function' \
@@ -169,8 +169,19 @@ run_ifa_documentation_live_static_cases() {
 	# the fail-closed guard that stops a missing file being skipped rather than
 	# reported. Both are pinned as live code, so a comment describing them
 	# cannot stand in for them.
-	local assertions_src
+	local assertions_src static_test
 	assertions_src="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
+	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
+	# Pin the CALL SITE as live code. The check this replaced extracted the scan
+	# block FROM the mirror, so deleting the block reddened it; reading only the
+	# assertions lib cannot see whether the mirror still CALLS the scan.
+	# Replacing `assert_no_private_data "${script}"` with `:` removed the entire
+	# private-data scan and the mirror passed. That was a trade, not an upgrade.
+	[[ "$(_ifa_count_code_matches 'assert_no_private_data' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_no_private_data -- the private-data scan is not running at all"
+	# And a floor on what it scans, so a derivation that resolves to nothing reds.
+	[[ "$(_ifa_count_code_matches 'the *_lib derivation has collapsed' "${assertions_src}")" -ge 1 ]] \
+		|| fail "assert_no_private_data no longer asserts a scanned-file floor -- a collapsed derivation would scan one file and pass"
 	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
 	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \
@@ -296,11 +307,11 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
+	require_code "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
 	# #6149 follow-up item 8: DocumentationEdgeMaterializationHandler.Handle
 	# has no Postgres write to lock (only two graph writes through the same
 	# EdgeWriter), so this family cannot make a kill-worker cell deterministic

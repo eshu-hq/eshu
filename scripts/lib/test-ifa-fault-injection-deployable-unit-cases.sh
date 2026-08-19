@@ -47,11 +47,11 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# here from the top-level preamble (mirroring the require_* relocation
 	# this whole split exists to demonstrate) to keep the parent structural
 	# verifier under the repository's 500-line cap.
-	require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
-	require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-	require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
-	require "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-	require "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+	require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+	require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+	require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+	require_code "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
+	require_code "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
 	# fault cells, run after a bootstrap-index maintenance pass
@@ -61,8 +61,8 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
 	require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
 	require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
-	require "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
-	require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
+	require_code "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
+	require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 	require_driver "deployable-unit drive in every cell" 'eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}"'
 	# Four checks against the LIVE LIB itself (ifa_deployable_unit_live.sh),
 	# mirroring the documentation family's require_documentation_lib set.

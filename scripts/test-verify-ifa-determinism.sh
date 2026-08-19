@@ -103,15 +103,30 @@ _ifa_det_count_code_matches() {
 	while IFS= read -r line || [[ -n "${line}" ]]; do
 		stripped="${line#"${line%%[![:space:]]*}"}"
 		[[ "${stripped}" == "#"* ]] && continue
-		code="${line%%#*}"
+		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
+		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
+		# and `${var#prefix}`, making any line using those unpinnable -- it silently
+		# broke the floor pin added this round, which is exactly the kind of guard
+		# that must stay pinnable.
+		code="${line%%[[:space:]]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
 }
-# require pins a needle ANYWHERE in the gate, comments included. That is correct
-# for the pins that deliberately bind FRAMING -- e.g. the contention
-# ledger-regression rationale, which exists only as prose. Do NOT route those
-# through require_code: a prose pin that demands the text be code can never pass.
+# require pins a needle ANYWHERE in the gate, comments included. Exactly THREE
+# call sites still use it, and all three deliberately bind FRAMING that exists
+# only as prose: the contention ledger-regression rationale, the combined
+# baseline drive inventory, and the optional contention drive inventory. Do NOT
+# route those through require_code -- a prose pin demanding the text be code can
+# never pass.
+#
+# Everything else binds code and uses require_code. An earlier version of this
+# comment claimed only one pin bound framing; a review counted 66 of 69 call
+# sites still binding code through this weaker form, and proved one live:
+# commenting out `trap ifa_det_cleanup EXIT` left `require "exit trap"`
+# satisfied. The split was established empirically -- every call site was moved
+# to require_code and only the three that genuinely could not pass were moved
+# back.
 require() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
@@ -184,33 +199,33 @@ require_codeowners_lib() {
 
 # Strict mode and self-cleanup.
 require_line "strict mode" "set -euo pipefail"
-require "exit trap" "trap ifa_det_cleanup EXIT"
+require_code "exit trap" "trap ifa_det_cleanup EXIT"
 # The bash>=4.4 precondition guard MUST stay: under bash 3.2 a nounset abort is
 # masked by the exit trap above as a false PASS. Pin the exact check so a
 # refactor cannot silently drop it.
-require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
-require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
-require "sources lifecycle lib" "scripts/lib/ifa_determinism_lifecycle.sh"
-require "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
-require "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
-require "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
-require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
-require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
-require "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
+require_code "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
+require_code "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
+require_code "sources lifecycle lib" "scripts/lib/ifa_determinism_lifecycle.sh"
+require_code "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
+require_code "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
+require_code "sources documentation live lib" "scripts/lib/ifa_documentation_live.sh"
+require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+require_code "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed.
 require_lifecycle_lib "failure log dump" "host binary logs (failure)"
-require "--no-compose flag" "--no-compose"
-require "--keep flag" "--keep"
+require_code "--no-compose flag" "--no-compose"
+require_code "--keep flag" "--keep"
 
 # Isolation: a Compose project name and non-default ports distinct from every
 # sibling verify-ifa-*.sh script and verify-golden-corpus-gate.sh's own
 # defaults, so a run of this script cannot collide with any of them.
-require "isolated compose project default" 'DETERMINISM_COMPOSE_PROJECT:=eshu-ifa-determinism-$$'
-require "compose -p flag on up" '-p "${DETERMINISM_COMPOSE_PROJECT}"'
+require_code "isolated compose project default" 'DETERMINISM_COMPOSE_PROJECT:=eshu-ifa-determinism-$$'
+require_code "compose -p flag on up" '-p "${DETERMINISM_COMPOSE_PROJECT}"'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \
@@ -222,34 +237,34 @@ done
 # The port overrides MUST be exported, not just set: docker-compose.yaml's
 # "ports" mapping interpolates them from the environment `docker compose`
 # inherits, not from this script's own shell variables.
-require "exported Postgres port override" 'export ESHU_POSTGRES_PORT='
-require "exported Neo4j bolt port override" 'export NEO4J_BOLT_PORT='
-require "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
+require_code "exported Postgres port override" 'export ESHU_POSTGRES_PORT='
+require_code "exported Neo4j bolt port override" 'export NEO4J_BOLT_PORT='
+require_code "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 
 # The determinism matrix itself: N in {1, 2, 4}, driven through the same
 # cassette every sibling Ifá P3 script uses.
-require "worker-count matrix N in {1,2,4}" "worker_counts=(1 2 4)"
-require "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
-require "drive verb invocation" 'eshu-ifa" drive -cassette'
-require "ifa binary build" "ifa_det_build_bin \"\${bin_dir}\" ifa"
-require "projector drain" "eshu-projector"
-require "reducer drain" "eshu-reducer"
-require "gate binary" "eshu-golden-corpus-gate"
-require "drains phase" "-phase=drains"
-require "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
+require_code "worker-count matrix N in {1,2,4}" "worker_counts=(1 2 4)"
+require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
+require_code "drive verb invocation" 'eshu-ifa" drive -cassette'
+require_code "ifa binary build" "ifa_det_build_bin \"\${bin_dir}\" ifa"
+require_code "projector drain" "eshu-projector"
+require_code "reducer drain" "eshu-reducer"
+require_code "gate binary" "eshu-golden-corpus-gate"
+require_code "drains phase" "-phase=drains"
+require_code "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
 
 # Synth-multiscope cassette (issue #4396 slice 6b): generated ONCE before the
 # cell loop via `ifa synth-cassette`, then driven into every cell via a
 # SECOND `ifa drive` call alongside the unmodified demo-org cassette — this is
 # what makes -workers N non-inert (a single-scope cassette gives the driver
 # exactly one work unit for any N).
-require "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
-require "synth-cassette seed flag" "-seed \"\${SYNTH_MULTISCOPE_SEED}\""
-require "synth-cassette projects flag" "-projects \"\${SYNTH_MULTISCOPE_PROJECTS}\""
-require "synth-cassette resources flag" "-resources \"\${SYNTH_MULTISCOPE_RESOURCES}\""
-require "synth-cassette generated before the cell loop" "synth_cassette=\"\${work_dir}/synth-multiscope.json\""
-require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
-require "combined-graph digest framing" "demo-org + synth-multiscope + SQL family + code-call family"
+require_code "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
+require_code "synth-cassette seed flag" "-seed \"\${SYNTH_MULTISCOPE_SEED}\""
+require_code "synth-cassette projects flag" "-projects \"\${SYNTH_MULTISCOPE_PROJECTS}\""
+require_code "synth-cassette resources flag" "-resources \"\${SYNTH_MULTISCOPE_RESOURCES}\""
+require_code "synth-cassette generated before the cell loop" "synth_cassette=\"\${work_dir}/synth-multiscope.json\""
+require_code "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
+require_code "combined-graph digest framing" "demo-org + synth-multiscope + SQL family + code-call family"
 
 # Per-family static structural cases (SQL relationship, code_calls,
 # deployable_unit_edges, rationale_edges, documentation_edges) live in a
@@ -288,12 +303,12 @@ run_ifa_family_registry_pins_cases
 # writers contend and the owner ledger must keep the digest identical across
 # N=1/2/4. Generated via `ifa synth-cassette -overlap -divergent` and driven as
 # an optional seventh drive, behind --contention so it cannot alter the default matrix.
-require "--contention flag" "--contention"
-require "contention overlap generation" '-overlap -divergent'
-require "contention seed flag" "-seed \"\${SYNTH_CONTENTION_SEED}\""
-require "contention projects flag" "-projects \"\${SYNTH_CONTENTION_PROJECTS}\""
-require "contention cassette generated once" 'contention_cassette="${work_dir}/contention.json"'
-require "optional seventh drive of the contention cassette" 'eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}"'
+require_code "--contention flag" "--contention"
+require_code "contention overlap generation" '-overlap -divergent'
+require_code "contention seed flag" "-seed \"\${SYNTH_CONTENTION_SEED}\""
+require_code "contention projects flag" "-projects \"\${SYNTH_CONTENTION_PROJECTS}\""
+require_code "contention cassette generated once" 'contention_cassette="${work_dir}/contention.json"'
+require_code "optional seventh drive of the contention cassette" 'eshu-ifa" drive -cassette "${contention_cassette}" -workers "${n}"'
 require "contention ledger-regression framing" "graph-level contention"
 contention_contract="$(rg -U --pcre2 --only-matching '(?ms)^# #5007 contention cassette.*?^require "contention ledger-regression framing"[^\n]*$' "${BASH_SOURCE[0]}")"
 if [[ "${contention_contract}" == *"THIRD drive"* \
@@ -303,41 +318,41 @@ fi
 
 # Populated-then-drained guard per cell: a 0/0 reading before anything was
 # ever enqueued would pass on a vacuous drain.
-require "drive-populated guard" "vacuous drain proof"
+require_code "drive-populated guard" "vacuous drain proof"
 require "combined baseline drive inventory" "After the six baseline drives"
 require "optional contention drive inventory" "the optional seventh contention drive"
 if rg --fixed-strings --quiet -- "Fourth drive" "${script}" \
 	|| rg --fixed-strings --quiet -- "Prove both drives" "${script}"; then
 	fail "determinism verifier still describes the pre-family drive count"
 fi
-require "fact_work_items populated check" "SELECT count(*) FROM fact_work_items;"
+require_code "fact_work_items populated check" "SELECT count(*) FROM fact_work_items;"
 
 # Fresh-DB-per-cell: every cell must tear its OWN stack down before the next
 # cell starts, not only once at the very end — this is what makes each N a
 # genuinely independent, fresh-database run rather than an incremental replay
 # onto the previous cell's data.
-require "per-cell fresh-stack teardown" "fresh stack for the next cell"
-require "per-cell down -v inside the loop" 'docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
+require_code "per-cell fresh-stack teardown" "fresh stack for the next cell"
+require_code "per-cell down -v inside the loop" 'docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
 
 # Graph-truth capture and the digest-equality assertion.
-require "graph-dump full-bytes capture" "graph-dump -out"
-require "graph-dump digest capture" "graph-dump -digest"
-require "digest storage per N" "digests[\${n}]="
-require "digest mismatch detection" "MISMATCH:"
-require "full-bytes diff on divergence" "diff -u"
-require "failure-artifact framing" "failure artifact"
+require_code "graph-dump full-bytes capture" "graph-dump -out"
+require_code "graph-dump digest capture" "graph-dump -digest"
+require_code "digest storage per N" "digests[\${n}]="
+require_code "digest mismatch detection" "MISMATCH:"
+require_code "full-bytes diff on divergence" "diff -u"
+require_code "failure-artifact framing" "failure artifact"
 # Pinned to the DIE plus the divergence-specific text, not the bare phrase.
 # "graph-determinism matrix FAILED" alone matches three places -- a comment,
 # the --teeth branch, and the real assertion -- so any two of them satisfied
 # it and downgrading the real `die` to `log`, message unchanged, kept the
 # mirror green. That is precisely the "do NOT normalize this away" drift the
 # asserted line itself warns against.
-require "hard failure on divergence" '|| die "graph-determinism matrix FAILED: digests diverged across worker counts'
-require "no-normalize-away directive" "do NOT lower N, retry, or otherwise normalize this away"
+require_code "hard failure on divergence" '|| die "graph-determinism matrix FAILED: digests diverged across worker counts'
+require_code "no-normalize-away directive" "do NOT lower N, retry, or otherwise normalize this away"
 
 # Per-cell wall time is reported.
-require "per-cell wall time capture" "cell_end - cell_start"
-require "wall time in PASS reporting" "wall=%ss"
+require_code "per-cell wall time capture" "cell_end - cell_start"
+require_code "wall time in PASS reporting" "wall=%ss"
 
 # The drain must be polled by the gate binary, not slept.
 if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${script}"; then
@@ -347,12 +362,12 @@ fi
 # --teeth (#4396 slice 6): the acceptance clause's negative-path proof that
 # the matrix catches a deliberately non-idempotent write, built behind a Go
 # build tag so it never ships in a normal/CI/production binary.
-require "--teeth flag" "--teeth"
-require "teeth build tag" "ifadeterminismteeth"
-require "teeth threads tags through every build call" 'ifa_det_build_bin "${bin_dir}" reducer "${build_tags}"'
-require "teeth caught framing" "TEETH: CAUGHT"
-require "teeth-not-caught is its own failure" "TEETH FAILED"
-require "teeth still forbids lowering N" "lower N, retry, or otherwise normalize this away"
+require_code "--teeth flag" "--teeth"
+require_code "teeth build tag" "ifadeterminismteeth"
+require_code "teeth threads tags through every build call" 'ifa_det_build_bin "${bin_dir}" reducer "${build_tags}"'
+require_code "teeth caught framing" "TEETH: CAUGHT"
+require_code "teeth-not-caught is its own failure" "TEETH FAILED"
+require_code "teeth still forbids lowering N" "lower N, retry, or otherwise normalize this away"
 require_lib "build_bin accepts an optional tags argument" 'local bin_dir="$1" cmd="$2" tags="${3:-}"'
 require_lib "tags become -tags args only when non-empty" 'tag_args=(-tags "${tags}")'
 
@@ -374,26 +389,44 @@ rg --fixed-strings --quiet -- '//go:build ifadeterminismteeth' "${teeth_cypher_o
 rg --fixed-strings --quiet -- '//go:build !ifadeterminismteeth' "${teeth_cypher_off}" \
 	|| fail "${teeth_cypher_off} must carry the !ifadeterminismteeth build tag"
 
-private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^printf .*test-verify-ifa-determinism: pass.*$' "${BASH_SOURCE[0]}")"
-[[ "${private_scan_block}" == *'"${documentation_lib}"'* ]] \
-	|| fail "private-data scan does not cover ifa_documentation_live.sh"
-
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
-	fail "verify-ifa-determinism.sh looks like it contains private data"
-fi
-if rg --pcre2 --quiet -- "${private_pattern}" "${lib}"; then
-	fail "ifa_determinism_common.sh looks like it contains private data"
-fi
-if rg --pcre2 --quiet -- "${private_pattern}" "${lifecycle_lib}"; then
-	fail "ifa_determinism_lifecycle.sh looks like it contains private data"
-fi
-if rg --pcre2 --quiet -- "${private_pattern}" "${documentation_lib}"; then
-	fail "ifa_documentation_live.sh looks like it contains private data"
-fi
-if rg --pcre2 --quiet -- "${private_pattern}" "${rationale_lib}"; then
-	fail "ifa_rationale_live.sh looks like it contains private data"
-fi
+#
+# DERIVED, not hand-typed. The previous form named five targets out of the
+# fourteen *_lib variables this mirror declares, and missed every one this
+# branch adds -- codeowners, fixtures, family-cases, registry-lockstep-cases,
+# pins and registry-family. A hand-typed scan does not grow when the tree does,
+# which is the same defect the sibling fault mirror carried until it was
+# derived; this is that fix applied here.
+#
+# The pattern brackets one character per alternative so it does not match its
+# own definition now that the scan covers this file too. A bracketed
+# single-character class matches exactly the text the bare character does, so
+# detection is unchanged -- verified alternative by alternative.
+private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
+declare -a private_targets=("${script}" "${BASH_SOURCE[0]}")
+while IFS= read -r private_lib_var; do
+	private_targets+=("${!private_lib_var}")
+done < <(compgen -v | rg '_lib$' | sort)
+# The registry, its rows and its hand-derived pins are not bound to *_lib vars,
+# so the derivation cannot see them. Globbed, so a seventh row is covered the
+# day it lands.
+for private_target in "${repo_root}"/scripts/lib/ifa_family_registry.sh \
+	"${repo_root}"/scripts/lib/ifa_family_registry/rows/*.sh \
+	"${repo_root}"/scripts/lib/ifa_family_registry_pins/*.sh; do
+	[[ -e "${private_target}" ]] && private_targets+=("${private_target}")
+done
+# Floor against a collapsed derivation: if the *_lib expression stops matching,
+# the loop silently scans almost nothing and passes. Hand-written, below the
+# current count, never derived from the expression it guards.
+[[ "${#private_targets[@]}" -ge 20 ]] \
+	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the *_lib derivation has collapsed"
+for private_target in "${private_targets[@]}"; do
+	[[ -f "${private_target}" ]] \
+		|| fail "private-data scan target ${private_target} does not exist -- a scan that skips a missing file proves nothing"
+	if rg --pcre2 --quiet -- "${private_pattern}" "${private_target}"; then
+		fail "$(basename "${private_target}") looks like it contains private data"
+	fi
+done
+printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
 
 printf 'test-verify-ifa-determinism: pass\n'

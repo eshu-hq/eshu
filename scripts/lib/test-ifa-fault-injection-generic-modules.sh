@@ -37,7 +37,7 @@ run_ifa_fault_injection_generic_modules() {
 	# silent-skip shape this file's header says these modules exist to close, so
 	# it must not be reachable through the runner itself. The sibling pins module
 	# carries the same guard for the same reason.
-	local on_disk expected=0 f
+	local expected=0 f
 	for f in "${repo_root}"/scripts/lib/test-ifa-fault-injection-generic-*-cases.sh; do
 		[[ -e "${f}" ]] || continue
 		expected=$((expected + 1))

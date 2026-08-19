@@ -130,8 +130,8 @@ run_ifa_fault_entrypoint_static_cases
 
 # Both GCP cassettes, generated synth-multiscope once, and the drive verb
 # (now in the driver lib's drive_all_cassettes helper).
-require "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
-require "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
+require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
+require_code "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
 require_driver "drive verb invocation" 'eshu-ifa" drive -cassette'
 require_driver "vacuous-drive guard" "vacuous drain proof"
 
@@ -156,9 +156,9 @@ require_cells "assert-edges non-vacuity framing" "non-vacuity"
 
 # Untagged binaries plus a SEPARATE tagged reducer build for the queue-retry /
 # graph-fault and restart cells.
-require "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
-require "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""
-require "gate binary build" "ifa_det_build_bin \"\${bin_dir}\" golden-corpus-gate"
+require_code "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
+require_code "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""
+require_code "gate binary build" "ifa_det_build_bin \"\${bin_dir}\" golden-corpus-gate"
 require_driver "gate binary invocation" "eshu-golden-corpus-gate"
 require_driver "drains phase" "-phase=drains"
 require_driver "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
@@ -258,7 +258,7 @@ require_delivery_cells "delta-retract asserts generation 1 landed first" "genera
 require_delivery_cells "delta-retract collateral success names every exact family" "outside exact SQL/code-call/rationale assertions"
 require "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
 require "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
-require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
+require_code "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
 require_fixture "gate defines the delta expected-edge set" "sql_delta_expected_edges="
 if rg --fixed-strings --quiet -- "ifa_fault_compare_non_sql_edges" "${delivery_cells_lib}"; then
 	fail "delta-retract must not compare whole non-SQL graph-dump endpoint hashes: SQL generation updates legitimately replace SQL-owned CONTAINS/REPO_CONTAINS hashes; assert unaffected covered families exactly instead"
@@ -291,7 +291,7 @@ require_cells "expire-lease targets claimed/running" "status IN ('claimed', 'run
 # check (Postgres attempt_count, not the reducer log -- see the helper doc for
 # why the log grep raced the buffered-stderr flush in CI).
 require_cells "once-then-succeed script writer" "ifa_fault_write_once_script"
-require "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
+require_code "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
 require_cells "queue-retry lane selected" '"queue-retry"'
 require_cells "ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script}"
 require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_fault_assert_retried_above"
@@ -319,7 +319,7 @@ require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\
 # read the reducer log: fact_work_items attempt_count does not exist for this
 # domain's async graph writes, and the log route raced the logger's flush,
 # which is what made this cell inert in CI while passing locally (#5974).
-require "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
+require_code "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
 if rg --pcre2 --quiet -- 'sql_edge_operation_match="[^"]*CloudResource' "${script}"; then
 	fail "sql_edge_operation_match must not be anchored to CloudResource -- that is issue #5555's exact complaint"
 fi
@@ -356,8 +356,8 @@ rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[code_calls]="MERGE (source)-[re
 require_driver "code-call drive in every cell" "ifa_code_call_drive"
 require_cells "code-call exact assertion in baseline" "ifa_code_call_assert"
 require_cells "code-call fault-free retry baseline" '"code_call_materialization"'
-require "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
-require "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
+require_code "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
+require_code "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
 require_code_call_lib "code-call drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
 # cell_killworker_code_calls/cell_failgraphwrite_code_calls now delegate to
@@ -376,7 +376,7 @@ require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
 # generic_cells_lib's own `projection_domain` intent-window diagnostic IS
 # restored (the old bespoke cell had it; the generic dispatcher now does too,
 # generically, driven by the family argument every cell already passes).
-require "generic-cell dispatcher sourced by the gate" 'source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"'
+require_code "generic-cell dispatcher sourced by the gate" 'source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"'
 require_generic_cells "generic kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 require_generic_cells "generic graph-write cell selects queue-retry" '"queue-retry"'
 require_generic_cells "generic graph-write cell targets the durable once-fired marker" "ifa_fault_assert_once_fault_marker"
@@ -444,7 +444,7 @@ require_lib "dead-letter count query" "SELECT count(*) FROM fact_work_items WHER
 # final summary.
 require_cells "per-cell wall time capture" "cell_start"
 require_sql_cells "per-cell wall time capture (sql cells)" "cell_start"
-require "wall time in summary" "wall=%ss"
+require_code "wall time in summary" "wall=%ss"
 
 # The lib functions this script depends on all exist with the expected shape.
 require_lib "once-script function signature" 'ifa_fault_write_once_script() {'
