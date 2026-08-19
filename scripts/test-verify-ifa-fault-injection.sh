@@ -116,7 +116,6 @@ source "${rationale_cases_lib}"
 source "${entrypoint_cases_lib}"
 run_ifa_fault_entrypoint_static_cases
 
-
 # Both GCP cassettes, generated synth-multiscope once, and the drive verb
 # (now in the driver lib's drive_all_cassettes helper).
 require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
