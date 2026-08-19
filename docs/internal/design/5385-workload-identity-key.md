@@ -257,13 +257,22 @@ reasons, either of which is sufficient:
   instance — which is exactly the scoping the same section credits it with.
 
 **What survives this correction, and what does not.** The observation survives:
-6/6 runs, beta's edge gone, measured and ledgered. The end state survives and is
-still wrong: beta's instance ends up asserting it runs on alpha's platform. The
-two-sided framing below is unaffected, because it never depended on the retract.
+6/6 runs (ledger:5385-runs-on-cross-repo-retract-leak), beta's edge gone,
+measured and ledgered. The end state survives and is still wrong: beta's instance
+ends up asserting it runs on alpha's platform. The two-sided framing below is
+unaffected, because it never depended on the retract.
 
-What does not survive is any mechanism. The relationship retract is inert on the
-pinned build and the node retract was never dispatched, so the 6/6 result
-currently has **no supported cause**. Do not build on the mechanism; the
+**The write-side mechanism survives and is the one this design rests on.**
+`canonicalRunsOnUpsertCypher` (`canonical_relationships.go:322-330`) is
+`MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)` followed by
+`MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)` — two hops with nothing scoping
+`i`, and `evidence_source` only `SET`, never filtered. That is a verified
+in-source path for one repository's platform attaching to another repository's
+instance, and it is what the two-sided bullet below reports.
+
+What does not survive is the *retract-side* mechanism. The relationship retract
+is inert on the pinned build and the node retract was never dispatched, so the
+`beta_inst->beta_plat` 1 → 0 transition specifically has **no supported cause**. Do not build on the mechanism; the
 observation is what this design relies on, and identifying the cause needs
 another probe run with per-statement dispatch logging rather than another
 reading of the code. That is a gap in this document, not a reason to doubt the
@@ -283,14 +292,18 @@ Three things the measurement shows that the retract-side framing above does not:
   retract ran.
 - **The end state asserts something false**, rather than merely losing an edge:
   beta's instance ends up claiming it runs on alpha's platform.
-- **The blast radius is bounded** to the `resolver/cross-repo` evidence source.
+- **The damage was observed only on** the `resolver/cross-repo` evidence source.
   The materializer's own `reducer/workloads` RUNS_ON edges survived every run,
-  and the non-colliding control was never touched.
+  and the non-colliding control was never touched. "Observed only on" rather than
+  "bounded to": bounding is a claim about which code path did the damage, and the
+  retract-side mechanism is unknown.
 
 What this does *not* show, stated plainly: that a collision exists in production.
 Section 3.1's detectors read zero on the largest corpus available, with the
-coverage limits recorded there. This proves the mechanism fires whenever one
-does.
+coverage limits recorded there. What it does show is that the *write* path
+contaminates whenever a collision exists — that half is mechanised in the upsert
+above and reproduced 6/6. It does not show why the retract-side transition
+happened, and nothing downstream should lean on that half.
 
 ### The authorization layer is already paying for this
 
@@ -445,9 +458,10 @@ attributed it to the wrong producer, fact kind, and field; the corrected reading
 - `go/internal/collector/git_followup_facts.go` is a *different* fact. It emits kind
   `"shared_followup"` (`:58`) with a singular `entity_key` of
   `"workload:" + filepath.Base(repoPath)` (`:52`) — keyed on repo basename, and
-  carrying `reducer_domain: "workload_identity"`. Line `:188` carries
-  `reducer_domain: "workload_materialization"`, a different domain again, so the
-  two lines are not one thing and must not be cited as one.
+  carrying `reducer_domain: "workload_identity"` (`:51`). A second envelope in the
+  same file carries `reducer_domain: "workload_materialization"` (`:187`) with its
+  own `entity_key` at `:188` — a different domain, so the two are not one thing
+  and must not be cited as one.
 
 Either way the prefix is surfaced through `entity_workload_context.go` as the
 `materialization_status: "identity_only"` fallback (`:212`, `:269`) used
@@ -479,7 +493,10 @@ Parse sites in the read path: `go/internal/query/catalog.go:213-214,332`,
 `go/internal/query/repository_read_model_summary.go:114`, `go/internal/query/content_reader_repository_catalog.go:107`,
 `go/internal/query/service_workload_resolution.go:137`, `go/internal/query/supply_chain_impact_path.go:145`,
 `go/internal/reducer/supply_chain_impact_match.go:147`, `go/internal/mcp/dispatch_args.go:61-66`.
-`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep working.
+`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep
+working — **but do not skip that file on the strength of this line.** Its
+`workload_instance` case at `:70-75` emits two further resolvers, anchored on
+`id` and on `workload_id`, and both break under the re-key. See migration item 4.
 
 Nothing parses a `workload-instance:<name>:<env>` identifier back apart — a
 verified negative, not an unsearched gap.
@@ -606,7 +623,8 @@ retracted and rebuilt rather than rewritten in place.
    through two revisions, and the withdrawn paragraph was itself incomplete — it
    named two files carrying the handle form, and the categories are not even
    the same shape: there are **three** non-test sites that build a
-   `{Kind: "workload", ID: …}` handle (`searchdocs/project.go:283`,
+   `{Kind, ID}` pair with kind `workload` — two graph handles and one `Scope`
+   (`searchdocs/project.go:283`,
    `searchdocs/semantic_context.go:52`, `cli/hookpreflight/preflight.go:251`) and
    a separate set that merely *joins or carries* one, of which
    `searchbench/evidence.go:354` is one among several. Giving a single number to
@@ -953,9 +971,14 @@ resolution step for tier 3, a search reindex, and doc updates in lockstep.
 
 An earlier revision recommended shipping a `mutations.go` fix immediately and
 independently. That recommendation is withdrawn: the path is unreachable
-(section 2). The live leak is the RUNS_ON upsert/retract pair, and scoping it
-needs to know which repository owns a workload — so it rides with the re-key
-rather than ahead of it.
+(section 2). The live leak is the RUNS_ON **upsert** — `canonicalRunsOnUpsertCypher`
+traverses `DEFINES` then `INSTANCE_OF` with nothing scoping the instance, which
+is the half section 2 mechanises and reproduces. The retract half is a latent
+hazard rather than a live leak: section 5a measured every relationship retract as
+inert on the pinned build, so scoping it fixes something that will matter when
+the backend starts applying those statements, not something happening today.
+Either way, scoping needs to know which repository owns a workload — so both ride
+with the re-key rather than ahead of it.
 
 The case for now is section 3.2: cost scales with the workload population, which
 is 40 nodes, 33 instances, and 46 golden literals today. **Both failure modes are
@@ -974,7 +997,7 @@ schema-risk change with cassette and B-12 impact.
 
 | Item | Estimate |
 | --- | --- |
-| Key change | Two format strings in `internal/workloadid`. Trivial in isolation. |
+| Key change | Two format strings, once the constructors are extracted (step zero). Trivial in isolation. |
 | Query-plan gate | `fetchWorkloadRuntimeTopology` is pinned by `source_sha256` with `WorkloadInstance.workload_id` as a required anchor and a retained 75x-regression caveat. Re-proving it is **not** trivial and was unpriced until now. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
 | RUNS_ON scoping | Small once the key is decided; cannot land before it. |
