@@ -40,4 +40,7 @@ IFA_FAMILY_RETRY_BASELINE_VAR[code_calls]="baseline_code_call_retried"
 
 IFA_FAMILY_HANDLER_GO_FILE[code_calls]="go/internal/reducer/code_call_materialization.go"
 
+# driven by drive_all_cassettes via ifa_code_call_drive (ifa_fault_injection_driver.sh:97).
+IFA_FAMILY_FAULT_SHARED_DRIVE[code_calls]="1"
+
 IFA_FAMILY_NAMES+=(code_calls)

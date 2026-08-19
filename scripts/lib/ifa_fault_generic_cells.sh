@@ -131,6 +131,49 @@ _ifa_generic_assert_edges() {
 	"${bin_dir}/eshu-ifa" assert-edges -domain "${family}" -expected "${expected}"
 }
 
+# _ifa_generic_drive_family drives a family's OWN cassette into the current cell
+# when drive_all_cassettes does not already produce it.
+#
+# drive_all_cassettes (ifa_fault_injection_driver.sh) carries a fixed set, and
+# the repo convention is that it is never extended for a new family -- its own
+# header records why: an extra family's succeeded reducer rows enlarge
+# cell_duplicatedelivery's redelivery UPDATE and other sibling cells' row sets.
+# So a family outside that set must drive itself, exactly as deployable_unit and
+# codeowners already do from their bespoke cells. This is the generic equivalent,
+# sourced from the registry rather than hand-written per family.
+#
+# The accessor rc is captured, never tested inline: `[[ "$(fn x)" == 1 ]]` cannot
+# distinguish "the row says 0" from "the accessor failed", and guessing either
+# way is a silent double-drive or a silent skip.
+_ifa_generic_drive_family() {
+	local family="$1" cell="$2" shared_drive
+	shared_drive="$(ifa_family_fault_shared_drive "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_fault_shared_drive accessor failed -- refusing to guess whether drive_all_cassettes already produced this family"
+	case "${shared_drive}" in
+	1) return 0 ;;
+	0) ;;
+	*) die "${cell}: ${family} declares IFA_FAMILY_FAULT_SHARED_DRIVE='${shared_drive}', which is neither 0 nor 1 -- the row must say plainly whether the shared drive covers this family" ;;
+	esac
+	ifa_family_registry_drive "${family}" "${drive_workers}" "${bin_dir}" "${log_dir}" \
+		|| die "${cell}: ${family}: driving its own cassette failed -- the cell would assert an empty graph against a non-empty expected set"
+}
+
+# _ifa_generic_baseline_key names the digest a family's recovery cells compare
+# against. A family the shared drive covers compares against the shared
+# cell_baseline; a family that drives itself must compare against its OWN
+# fault-free baseline, because the shared baseline never drove its cassette and
+# would differ by construction rather than by defect.
+_ifa_generic_baseline_key() {
+	local family="$1" cell="$2" shared_drive
+	shared_drive="$(ifa_family_fault_shared_drive "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_fault_shared_drive accessor failed -- refusing to guess which baseline digest to compare against"
+	case "${shared_drive}" in
+	1) printf 'baseline\n' ;;
+	0) printf 'baseline_%s\n' "${family}" ;;
+	*) die "${cell}: ${family} declares IFA_FAMILY_FAULT_SHARED_DRIVE='${shared_drive}', which is neither 0 nor 1" ;;
+	esac
+}
+
 # _ifa_generic_wait_for_claimed dispatches the non-vacuity wait predicate on
 # wait_stage: "handler" polls fact_work_items (ifa_fault_wait_for_claimed,
 # ifa_fault_injection_common.sh), "runner" polls shared_projection_intents
@@ -177,6 +220,10 @@ _ifa_generic_cell_killworker_body() {
 	log "cell generic-kill-worker-after-claim (${family}, blocker=${blocker_kind}${blocker_arg:+:${blocker_arg}}): fresh stack"
 	fresh_stack "${cell}"
 	drive_all_cassettes "${cell}"
+	# After the shared drive and BEFORE any blocker is taken: the generic
+	# shared_intent_lock path locks the table before the reducer starts, so this
+	# family's rows have to be enqueued already or the wait has nothing to latch.
+	_ifa_generic_drive_family "${family}" "${cell}"
 	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid="" claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
 	case "${blocker_kind}" in
@@ -205,7 +252,7 @@ _ifa_generic_cell_killworker_body() {
 	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
 	[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"
 	capture_digest "${cell}"
-	assert_matches_baseline "${cell}"
+	assert_matches_baseline "${cell}" "$(_ifa_generic_baseline_key "${family}" "${cell}")"
 	teardown_cell "${cell}"
 	wall_times[$cell]=$(( $(date +%s) - cell_start ))
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
@@ -277,6 +324,9 @@ _ifa_generic_cell_failgraphwrite() {
 		printf '%s: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n' "${cell}"
 	fi
 	drive_all_cassettes "${cell}"
+	# Before the fault script is written: the once-fault has to fire on THIS
+	# family's write, which only exists if its cassette was driven.
+	_ifa_generic_drive_family "${family}" "${cell}"
 	local anchor fault_once_script projector_pid reducer_pid marker_rc
 	anchor="$(ifa_family_anchor "${family}")" || die "${cell}: no anchor registered for ${family}"
 	fault_once_script="${work_dir}/fault-once-then-succeed-${family}.json"
@@ -307,7 +357,7 @@ _ifa_generic_cell_failgraphwrite() {
 	[[ "${marker_rc}" -eq 0 ]] \
 		|| die "${cell}: once-fired marker did not name the targeted MERGE (marker status ${marker_rc})"
 	capture_digest "${cell}"
-	assert_matches_baseline "${cell}"
+	assert_matches_baseline "${cell}" "$(_ifa_generic_baseline_key "${family}" "${cell}")"
 	teardown_cell "${cell}"
 	wall_times[$cell]=$(( $(date +%s) - cell_start ))
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
@@ -317,6 +367,78 @@ _ifa_generic_cell_failgraphwrite() {
 # public dispatchers -- the only two entry points this file expects a driver
 # to call.
 # ---------------------------------------------------------------------------
+
+# cell_baseline_family is the THIRD generic entry point, and the one without
+# which the other two cannot work for a self-driving family.
+#
+# The shared cell_baseline (ifa_fault_injection_cells.sh) never drives a
+# FAULT_SHARED_DRIVE=0 family's cassette, so digests[baseline] does not contain
+# that family's edges. A recovery cell that drove its own cassette would then
+# differ from the shared baseline BY CONSTRUCTION and die reporting a graph
+# divergence that is really a fixture difference -- the loudest possible way to
+# be wrong about what failed. It also establishes the family's fault-free retry
+# count, which _ifa_generic_require_retry_baseline dereferences by name and which
+# no other cell sets.
+#
+# This is the codeowners/deployable_unit trio shape, generalized: those two
+# families each hand-wrote this cell, and every family after them gets it from
+# the registry instead.
+#
+# Runs ONLY for FAULT_SHARED_DRIVE=0 families. A family the shared drive covers
+# already has its baseline in digests[baseline]; dispatching this for it would
+# double-drive its cassette and produce a second, redundant digest.
+cell_baseline_family() {
+	local family="$1" cell="baseline${1//_/}" cell_start shared_drive retry_var wait_key
+	cell_start=$(date +%s)
+	shared_drive="$(ifa_family_fault_shared_drive "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_fault_shared_drive accessor failed -- refusing to guess whether this family needs its own baseline"
+	[[ "${shared_drive}" == "0" ]] \
+		|| die "${cell}: ${family} declares FAULT_SHARED_DRIVE=${shared_drive}; a family the shared drive covers must compare against digests[baseline] and must not be given a second baseline cell"
+
+	log "cell generic-baseline (${family}): fresh stack"
+	fresh_stack "${cell}"
+	if [[ "${use_compose}" -eq 1 ]]; then
+		ifa_fault_require_fresh_domain_intents "${cell}" "${family}" \
+			"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+			|| die "${cell}: fresh-stack precondition failed"
+	else
+		printf '%s: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n' "${cell}"
+	fi
+	drive_all_cassettes "${cell}"
+	_ifa_generic_drive_family "${family}" "${cell}"
+	local projector_pid reducer_pid
+	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}" reducer_pid "${bin_dir}/eshu-reducer"
+	run_drain_gate "${cell}"
+	assert_no_dead_letters "${cell}"
+	# The baseline asserts the SAME exact edge set the recovery cells assert. A
+	# baseline that only captured a digest would let a fixture that materializes
+	# nothing establish an empty baseline that every recovery cell then matches.
+	_ifa_generic_assert_edges "${family}" \
+		|| die "${cell}: fault-free graph does not match the expected edge set -- the baseline itself is wrong, so every cell comparing against it would be meaningless"
+
+	# Establish the fault-free retry count the kill cell compares against.
+	# Only shared_intent_lock families have a retry-baseline var; for the rest
+	# the row is legitimately absent and there is nothing to capture.
+	retry_var="$(ifa_family_retry_baseline_var "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_retry_baseline_var accessor failed"
+	if [[ -n "${retry_var}" ]]; then
+		wait_key="$(ifa_family_wait_key "${family}")" \
+			|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- cannot scope the retry baseline to a domain"
+		[[ -n "${wait_key}" ]] \
+			|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- a retry baseline scoped to no domain proves nothing"
+		printf -v "${retry_var}" '%s' "$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}")" \
+			|| die "${cell}: could not establish ${retry_var} for ${family}"
+		printf '%s: fault-free %s retry baseline (%s): %s\n' "${cell}" "${wait_key}" "${retry_var}" "${!retry_var}"
+	fi
+
+	capture_digest "${cell}"
+	digests["baseline_${family}"]="${digests[${cell}]}"
+	cp "${work_dir}/graph-${cell}.dump" "${work_dir}/graph-baseline_${family}.dump" 2>/dev/null || true
+	teardown_cell "${cell}"
+	wall_times[$cell]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
+}
 
 # cell_killworker_family runs family's kill-worker-after-claim cell:
 # cell_kind=custom dispatches to that family's own hand-written function

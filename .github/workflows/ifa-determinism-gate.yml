@@ -57,6 +57,8 @@ on:
       # nothing at all.
       - 'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-generic-modules.sh'
       # The per-family pin files, sourced by variable path from the pins
       # module. Their governing rule is that pins are hand-derived and never
       # generated from the registry; editing one to "just make it match" has

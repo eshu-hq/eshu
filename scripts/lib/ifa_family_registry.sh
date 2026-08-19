@@ -206,6 +206,29 @@ declare -gA IFA_FAMILY_ASSERT_FN=()
 declare -gA IFA_FAMILY_CASSETTE_VAR=()
 declare -gA IFA_FAMILY_EXPECTED_VAR=()
 declare -gA IFA_FAMILY_RETRY_BASELINE_VAR=()
+# FAULT_SHARED_DRIVE answers the one question the generic fault cells cannot
+# answer for themselves: is this family already produced by drive_all_cassettes
+# (scripts/lib/ifa_fault_injection_driver.sh), or must the cell drive the
+# family's own cassette through DRIVE_FN/CASSETTE_VAR?
+#
+# 1 means the shared drive already covers it, and driving again would double the
+# family's fact_work_items rows and make the retry-above-baseline comparison
+# ill-defined. 0 means the cell must drive it, and that the family needs its own
+# fault-free baseline digest too -- the shared cell_baseline never drove its
+# cassette, so comparing against digests[baseline] would fail by construction.
+#
+# This is NOT the same question as SHARED_CELL and the two must never be
+# conflated: SHARED_CELL describes the DETERMINISM gate's shared N={1,2,4} cell,
+# and the answers already diverge -- codeowners_ownership_edges is SHARED_CELL=1
+# yet has never been part of drive_all_cassettes (see rows/06).
+#
+# No default, deliberately. A row that omits this makes _ifa_family_registry_get
+# return 1, and callers MUST capture that rc separately rather than testing the
+# value inline: `[[ "$(fn x)" == 1 ]]` cannot tell "the row says 0" from "the
+# accessor failed", which is the conflation verify-ifa-determinism.sh already
+# solves by capturing first. Forgetting the field is a hard stop, never a silent
+# drive-skip and never a silent double-drive.
+declare -gA IFA_FAMILY_FAULT_SHARED_DRIVE=()
 declare -gA IFA_FAMILY_HANDLER_GO_FILE=()
 
 # ----------------------------------------------------------------------------
@@ -295,6 +318,7 @@ ifa_family_cassette_var()          { _ifa_family_registry_get IFA_FAMILY_CASSETT
 ifa_family_expected_var()          { _ifa_family_registry_get IFA_FAMILY_EXPECTED_VAR          "$1" ifa_family_expected_var; }
 ifa_family_handler_go_file()       { _ifa_family_registry_get IFA_FAMILY_HANDLER_GO_FILE       "$1" ifa_family_handler_go_file; }
 ifa_family_retry_baseline_var()    { _ifa_family_registry_get IFA_FAMILY_RETRY_BASELINE_VAR    "$1" ifa_family_retry_baseline_var; }
+ifa_family_fault_shared_drive()     { _ifa_family_registry_get IFA_FAMILY_FAULT_SHARED_DRIVE   "$1" ifa_family_fault_shared_drive; }
 
 # ---------------------------------------------------------------------------
 # determinism-loop dispatchers (scripts/verify-ifa-determinism.sh's N-loop).

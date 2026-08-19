@@ -2787,6 +2787,8 @@ gates:
       - "scripts/lib/test-ifa-fault-injection-shard-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-modules.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"

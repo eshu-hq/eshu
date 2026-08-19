@@ -67,6 +67,8 @@ generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
 table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
 table_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
 shared_intent_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh"
+family_drive_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh"
+generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-modules.sh"
 # The dispatcher self-sources these two by variable path, so nothing else in
 # this mirror named them and the derived syntax loop below could not see them.
 # shared_intent_lock holds _ifa_generic_require_intent_writer, the mandatory
@@ -76,7 +78,7 @@ generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -470,7 +472,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
@@ -484,12 +486,9 @@ done
 # shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
 run_ifa_fault_injection_marker_cases
-# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh
-source "${table_lock_cases_lib}"
-run_ifa_fault_injection_generic_table_lock_cases
-# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh
-source "${shared_intent_lock_cases_lib}"
-run_ifa_fault_injection_generic_shared_intent_lock_cases
+# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-modules.sh
+source "${generic_modules_lib}"
+run_ifa_fault_injection_generic_modules
 
 # Shard selector: exact-cover proof, invalid-input rejection, and the
 # CI-wiring/matrix-cardinality cross-checks against the workflow -- module

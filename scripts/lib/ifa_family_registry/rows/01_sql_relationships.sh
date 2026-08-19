@@ -38,4 +38,7 @@ IFA_FAMILY_ASSERT_FN[sql_relationships]="ifa_det_assert_sql_baseline"
 IFA_FAMILY_CASSETTE_VAR[sql_relationships]="sql_cassette"
 IFA_FAMILY_EXPECTED_VAR[sql_relationships]="sql_expected_edges"
 
+# driven by drive_all_cassettes directly (ifa_fault_injection_driver.sh:94).
+IFA_FAMILY_FAULT_SHARED_DRIVE[sql_relationships]="1"
+
 IFA_FAMILY_NAMES+=(sql_relationships)

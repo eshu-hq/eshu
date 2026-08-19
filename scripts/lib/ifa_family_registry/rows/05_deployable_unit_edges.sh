@@ -43,4 +43,7 @@ IFA_FAMILY_CASSETTE_VAR[deployable_unit_edges]="deployable_unit_cassette"
 IFA_FAMILY_EXPECTED_VAR[deployable_unit_edges]="deployable_unit_expected_edges"
 
 
+# NOT in drive_all_cassettes: drive_deployable_unit_cassette (ifa_fault_injection_driver.sh:120) is called only by this family's own three cells.
+IFA_FAMILY_FAULT_SHARED_DRIVE[deployable_unit_edges]="0"
+
 IFA_FAMILY_NAMES+=(deployable_unit_edges)

@@ -28,4 +28,7 @@ IFA_FAMILY_EXPECTED_VAR[documentation_edges]="documentation_expected_edges"
 # cell_killworker_documentation and cell_failgraphwrite_documentation back
 # its manifest row's proof_gate claim."
 
+# driven by drive_all_cassettes via ifa_documentation_drive (ifa_fault_injection_driver.sh:99).
+IFA_FAMILY_FAULT_SHARED_DRIVE[documentation_edges]="1"
+
 IFA_FAMILY_NAMES+=(documentation_edges)

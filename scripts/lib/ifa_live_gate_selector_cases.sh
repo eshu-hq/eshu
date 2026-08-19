@@ -255,6 +255,8 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-documentation-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh|scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-modules.sh|scripts/lib/test-ifa-fault-injection-generic-modules.sh'
 	'scripts/lib/ifa_fault_generic_*.sh|scripts/lib/ifa_fault_generic_shared_intent_lock.sh'
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
