@@ -730,14 +730,40 @@ under a re-key. So the migration must retract using the **old** ids before writi
 the new ones. Retracting after the new ids exist finds nothing and leaves the old
 instance nodes, with all their edges, orphaned under the previous key.
 
-**Still unproven, and it is the gap this section does not close.** The families
-not incident to a `WorkloadInstance` — `DEFINES` on the workload node itself,
-`DEPENDS_ON` between workloads, `RUNS_IN` from functions, documentation edges —
-are retracted by relationship `DELETE` statements, which are inert here. Whether
-those families can be migrated at all on the pinned backend, or whether the
-migration needs node-level deletion for the workload node too, is the next thing
-to measure. **Do not start implementation on the assumption that the existing
-retract statements will carry them.**
+### Every family, measured both ways
+
+The four families not incident to a `WorkloadInstance` were then measured
+individually, each driven through its own production retract statement, with the
+same settling discipline and Neo4j as the control:
+
+| Family | Relationship retract, Neo4j | Relationship retract, NornicDB | Workload `DETACH DELETE`, both |
+| --- | --- | --- | --- |
+| `DEFINES` | 1 → 0 | **1 → 1** | cleared |
+| `DEPENDS_ON` | 1 → 0 | **1 → 1** | cleared |
+| `RUNS_IN` | 1 → 0 | **1 → 1** | cleared |
+| documentation `DOCUMENTS` | 1 → 0 | **1 → 1** | cleared |
+
+**Every relationship retract is inert on the pinned backend. Node-level
+`DETACH DELETE` clears every one of them, on both backends.**
+
+### What the migration must therefore do
+
+**Delete nodes, not relationships.** `DETACH DELETE` of the `Workload` node
+removes all four families above; `DETACH DELETE` of each `WorkloadInstance` node
+removes `INSTANCE_OF`, `RUNS_ON` and `DEPLOYMENT_SOURCE`. Between them that is
+every family in section 4, and both work identically on Neo4j and on the pinned
+build — so the migration is not betting on a backend fix.
+
+**Retract before writing the new ids, using the old ones.** Both retract
+statements are anchored on the id (`workload_materializer_retract_instances.go:36`
+for instances), and the id is what changes. Retract after the new nodes exist and
+the statement finds nothing, leaving the old nodes and all their edges orphaned
+under the previous key.
+
+**Do not rely on the existing relationship retract statements for any part of
+this.** They are correct Cypher and they work on Neo4j; they do nothing here.
+That is a backend defect rather than a design flaw, but the migration has to be
+written against the backend it runs on.
 
 ## 6a. What holds a `workload:<name>` identifier, measured
 
