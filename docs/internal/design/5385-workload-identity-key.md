@@ -129,11 +129,38 @@ WHERE rel.evidence_source = $evidence_source
 DELETE rel
 ```
 
-Same unfiltered `DEFINES` traversal, and nothing scopes `i` to the retracting repository.
-Under a collision, repo A's pass would retract repo B's instance→platform edges.
-**Flagged as not yet probed** — the merge mechanism above is measured, this specific
-retract is not, and after getting the reset path wrong I am not calling a second one live
-without running it.
+Same unfiltered `DEFINES` traversal, and nothing scopes `i` to the retracting
+repository. The matching upsert (`canonicalRunsOnUpsertCypher`, `:322-330`) has the
+identical two-hop shape, and there `evidence_source` is only *set*, never filtered —
+so nothing scopes the write side either.
+
+**Measured on a live NornicDB at the pinned revision**, driving the production
+dispatch (`EdgeWriter.RetractEdges` → `edge_writer_retract_repo.go`) for both the
+single-repo and UNWIND retract shapes. Identical across 6/6 runs:
+
+```
+precondition:      workload_nodes=1 defines=2 instances=2
+after beta pass:   beta_inst->beta_plat=1   alpha_inst->beta_plat=1
+after alpha pass:  beta_inst->beta_plat=0
+                   beta_inst->alpha_plat=1
+                   alpha_inst->alpha_plat=1
+                   gamma_inst->gamma_plat=1   (non-colliding control, untouched)
+```
+
+Three things this shows that the retract-side framing above does not:
+
+- **The contamination is two-sided and does not need the retract at all.** Beta's
+  plain *write* already attached beta's platform to alpha's instance, before any
+  retract ran.
+- **The end state asserts something false**, rather than merely losing an edge:
+  beta's instance ends up claiming it runs on alpha's platform.
+- **The blast radius is bounded** to the `resolver/cross-repo` evidence source.
+  The materializer's own `reducer/workloads` RUNS_ON edges survived every run,
+  and the non-colliding control was never touched.
+
+What this does *not* show, stated plainly: that a collision exists in production.
+Section 3.1 measures zero on the largest corpus available. This proves the
+mechanism fires whenever one does.
 
 ### The authorization layer is already paying for this
 
@@ -297,8 +324,12 @@ heuristic.
 - **Cost:** the identifier stops being human-readable; every parse site in
   section 4 needs revisiting.
 - **`DeploymentRepoIDs` must not be the key.** This was an open question and is
-  now settled. It fails three independent tests for key material: **plural** (the
-  corpus has one app repo with three to four deploying repos), **unstable** (the
+  now settled. It fails three independent tests for key material: **plural** (the golden
+  corpus carries deployment-typed evidence from three separate fixtures —
+  `helm-argocd-platform`, `kustomize-deployable-overlay`, `helm-umbrella-chart` —
+  all pointing at the same `deployable-source` repo; note one committed snapshot
+  note records a single-element resolved value, so treat "plural" as established
+  and the exact count as unverified), **unstable** (the
   primary is re-picked whenever higher-confidence evidence arrives,
   `workload_deployment_sources.go:232-234`, so node identity would churn on a
   confidence change), and **usually absent** — that file's own comment at
@@ -462,12 +493,19 @@ retracted and rebuilt rather than rewritten in place.
    the cassettes, moved in the same change per the golden-corpus rules.
 4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
    likely to be missed, and the only one that fails *silently*. It is a
-   denormalized scalar copy of the workload id on every instance node, and four
-   independent read paths filter on it: `workload_runtime_topology.go:90-97`,
-   `service_workload_resolution.go:249,284`, `compare.go:187-194`, and
-   `impact_resource_investigation_reads.go:71-85`. Re-key the node without this
-   and topology goes blank, environment compare degrades to "unsupported", and
-   nothing errors anywhere.
+   denormalized scalar copy of the workload id on every instance node, and
+   **three** read paths filter on it directly: `workload_runtime_topology.go:90-97`
+   (`i.workload_id = $workload_id`), `service_workload_resolution.go:249,284`
+   (`w.id = i.workload_id`), and `compare.go:187-194`. Re-key the node without
+   this and topology goes blank, environment compare degrades to "unsupported",
+   and nothing errors anywhere.
+
+   A fourth site, `impact_resource_investigation_reads.go:78`, only *projects*
+   the scalar and uses it as the last fallback in
+   `firstNonEmpty(resolved.id, workloadIDRaw, instanceID)` (`:151-161`), after a
+   live `INSTANCE_OF` traversal that would return the correctly re-keyed id. It
+   would most likely survive an unmigrated re-key, and its actual failure mode
+   needs its own verification rather than being assumed to match the other three.
 
 5. **Update the parse sites** in section 4, with a test per site. Two deserve
    naming: `catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
@@ -492,15 +530,15 @@ entry point survives; a stored full id does not.
 
 ## 7. Recommendation and cost
 
-**Option C. Fix the reset statement immediately and independently; take the
-re-key now rather than later, though that half is finely balanced.**
+**Option C, taken now rather than later. There is no separable quick fix.**
 
-The reset fix is not finely balanced. Section 2 shows repository A's reset
-destroys repository B's workload whenever a name collision exists. That is a
-data-loss path with a one-clause fix, and it should not wait for the identity
-decision.
+An earlier revision recommended shipping a `mutations.go` fix immediately and
+independently. That recommendation is withdrawn: the path is unreachable
+(section 2). The live leak is the RUNS_ON upsert/retract pair, and scoping it
+needs to know which repository owns a workload — so it rides with the re-key
+rather than ahead of it.
 
-For the re-key, the case for now is section 3.2: cost scales with the workload
+The case for now is section 3.2: cost scales with the workload
 population, which is 40 nodes, 33 instances, and 46 golden literals today. The
 failure is silent — a merged node, reassigned ownership, and cross-repo
 environments, with no error and no counter. The case for waiting is that measured
@@ -511,7 +549,7 @@ impact.
 | --- | --- |
 | Key change | Two format strings. Trivial. |
 | Edge/parse-site sweep | The section 4 inventory, now including a non-graph subsystem. **Moderate-to-large, and the main risk.** |
-| `mutations.go` fix | Small, and worth landing on its own. |
+| RUNS_ON scoping | Small once the key is decided; cannot land before it. |
 | Golden regeneration | 46 literals across the snapshot and one cassette. |
 | Retract/rebuild proof | Live replay-tier retract coverage per edge family. Moderate. |
 | Collision telemetry | Small. |
