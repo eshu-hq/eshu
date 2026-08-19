@@ -45,9 +45,14 @@ owner agreed.
 
 PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs.
 Before the expensive `make pre-pr` promotion gate, agents MUST run a preliminary
-full `eshu-code-review`. If that review reports any P0, P1, or P2 finding, fix
-it, rerun the affected focused verification, and repeat the full review;
-`make pre-pr` MUST NOT run until the verdict is P0=0, P1=0, and P2=0.
+full `eshu-code-review`. If that review reports any P0, P1, or blocking P2
+finding, fix it, rerun the affected focused verification, and repeat the full
+review; `make pre-pr` MUST NOT run until the verdict is P0=0, P1=0, and
+P2-blocking=0. A P2 blocks when it contradicts a claim the PR itself makes or is
+cheap and in the same edit; any other P2 is tracked in a linked issue with the
+owner's agreement quoted in the PR, and named there with its severity-table
+category, rather than blocking. The bar and the unbounded loop it prevents are in
+`.agents/skills/eshu-code-review/references/merge-bar.md`.
 
 Once the preliminary review is clean, run `make pre-pr` exactly when the branch
 is otherwise ready for its intended push or PR update, then run a final full
@@ -82,7 +87,7 @@ verification, run locally and cited: the docs build for docs/navigation
 changes, the tests exercising the new or refactored behavior for a feature or
 refactor, and the focused verification selected for the touched surface. The
 late `make pre-pr` promotion gate remains reserved for after a preliminary
-P0=0/P1=0/P2=0 review. This rule bars opening a PR to discover whether a change
+P0=0/P1=0/P2-blocking=0 review. This rule bars opening a PR to discover whether a change
 works; it does not require a failing reproduction where none exists.
 
 If the change cannot be proven locally, agents MUST stop and report exactly what
@@ -406,7 +411,7 @@ MUST use [Local Testing](docs/public/reference/local-testing.md) as the source
 of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
-P0/P1/P2 findings, run `make pre-pr` once, immediately before the intended push
+P0/P1/P2-blocking findings, run `make pre-pr` once, immediately before the intended push
 or PR update. It is the one-command local promotion preflight that selects and
 runs the credential-free gates required by changed paths; it is not an early
 discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,

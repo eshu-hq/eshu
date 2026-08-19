@@ -43,8 +43,11 @@ matrix when your changed paths select it and Docker is present:
 After focused proof is green:
 
 1. Run a preliminary full `eshu-code-review` of the rebased diff. Fix every P0,
-   P1, and P2 finding, rerun affected focused proof, and repeat the full review
-   until its verdict is `P0=0, P1=0, P2=0`. Do not run `make pre-pr` sooner.
+   P1, and blocking P2 finding, rerun affected focused proof, and repeat the
+   full review until its verdict is `P0=0, P1=0, P2-blocking=0`, with every
+   deferred P2 tracked in a linked issue with the owner's agreement quoted in
+   the PR, and named there with its severity-table category. Do not run
+   `make pre-pr` sooner.
 2. When the branch is otherwise ready to push, run `make pre-pr` exactly once
    as the late promotion gate.
 3. Run a final full `eshu-code-review` against the exact post-preflight diff.
