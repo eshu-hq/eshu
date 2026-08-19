@@ -126,7 +126,7 @@ func materializedEdgeScenarioRequirements(families []string) []replaycoverage.Sc
 // materialized_edges:<family> surfaces (#5351). Every entry it resolves must
 // use the odu scenario; resolution then dispatches to the family's own
 // vacuity guard.
-// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, and repository dependencies.
+// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, and inheritance edges.
 // A family with no registered vacuity guard cannot resolve covered even if a
 // manifest row names one — this is deliberate: "add a domain = DATA ONLY"
 // (design §3) covers the fixture and manifest rows, but a NEW family's first
@@ -169,6 +169,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveCodeCallMaterializedEdges(odu, codeCallFamilyExpectedEdgesPath(r.RepoRoot))
 	case "rationale_edges":
 		return resolveRationaleEdgeMaterializedEdges(odu, rationaleFamilyExpectedEdgesPath(r.RepoRoot))
+	case "inheritance_edges":
+		return resolveInheritanceMaterializedEdges(odu, inheritanceFamilyExpectedEdgesPath(r.RepoRoot))
 	case codeownersOwnershipFamily:
 		return resolveCodeownersOwnershipMaterializedEdges(odu, codeownersFamilyExpectedEdgesPath(r.RepoRoot))
 	case submodulePinEdgesFamily:
