@@ -86,7 +86,8 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	// current behaviour of apiClientFromCmd and NewAPIClient. The analyze family
 	// keeps the same guard in repository_selector.go.
 	if client == nil {
-		return fmt.Errorf("vuln-scan repo: missing API client")
+		return fmt.Errorf("resolve scanned repository: %w",
+			missingAPIClientError(opts.Scan.Target.Root))
 	}
 	deps := vulnscan.RepoDeps{
 		Client:            client,
