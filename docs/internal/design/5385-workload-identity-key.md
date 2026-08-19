@@ -273,8 +273,14 @@ reasons, either of which is sufficient:
     (`canonical_relationships.go:278`) over a dedicated id space
     (`repoEvidenceArtifactID`, `edge_writer_row_metadata.go:141`), and a
     single-label `MERGE` creates a distinct node rather than binding a
-    differently-labelled one even on an id collision. And nothing adds the label
-    afterwards: the only label-adding `SET` in production Go anywhere is
+    differently-labelled one even on an id collision. And the label never appears
+    on a node carrying another: `rg ':EvidenceArtifact:|:[A-Za-z]+:EvidenceArtifact'`
+    over `go/` and `sdk/` returns nothing, tests included. That is the search that
+    matters, because multi-label `MERGE` — not `SET` — is how this codebase builds
+    multi-label nodes, at ten production sites across `package_registry_*_writer.go`
+    and `oci_registry_canonical_writer.go`
+    (`MERGE (p:Package:PackageRegistryPackage {uid: row.uid})` and siblings). No
+    `SET` adds it either; the only label-adding `SET` in production Go is
     `SET r:TerraformStateResource` (`tfstate_canonical_writer_retract.go:56`).
 
     One limit worth stating, since this document separates what it traced from
