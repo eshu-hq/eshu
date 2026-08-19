@@ -324,30 +324,7 @@ $(cat "${out}")"
 }
 
 # ---------------------------------------------------------------------------
-# Case 7 (source-level regression, precedent: extractFuncBody in
-# go/cmd/reducer/neo4j_wiring_test.go): --connect-timeout alone bounds
-# connection SETUP only. If the GitHub release CDN accepts the connection and
-# then stalls mid-body -- the same failure mode as the apt hang this script
-# exists to remove, just on a different host -- curl blocks indefinitely, the
-# retry loop never gets a turn, and the job rides to its 15-25 minute timeout.
-# A behavioral test for "hangs forever" is impractical, so this reads the
-# script's own source and asserts the download's curl invocation still
-# carries a whole-transfer bound, not just --connect-timeout.
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Case 8: with NO sha256 tool on PATH, verification must fail closed and say
-# so. This is the case whose absence let a real defect through review:
-# sha256_command's `exit 1` runs inside a command substitution, so it exits
-# that subshell rather than the script, and `set -e` cannot rescue it because
-# verify_ripgrep_checksum is called in an `if !` condition. Execution used to
-# continue with an empty sha_cmd, which made the DOWNLOADED ARCHIVE the
-# command word -- bash attempting to execute the unverified download, blocked
-# only by curl -o creating it 0644. The archive must never be installed and
-# the message must name the missing tool rather than reporting an empty
-# "checksum mismatch".
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Case 9: a machine whose architecture the pin was not built for must fail at
+# Case 7: a machine whose architecture the pin was not built for must fail at
 # INSTALL time, loudly, rather than installing a binary that cannot execute.
 #
 # This case exists because the guard is otherwise unreachable from this
@@ -415,6 +392,18 @@ $(cat "${out}")"
 	fi
 }
 
+# ---------------------------------------------------------------------------
+# Case 8: with NO sha256 tool on PATH, verification must fail closed and say
+# so. This is the case whose absence let a real defect through review:
+# sha256_command's `exit 1` runs inside a command substitution, so it exits
+# that subshell rather than the script, and `set -e` cannot rescue it because
+# verify_ripgrep_checksum is called in an `if !` condition. Execution used to
+# continue with an empty sha_cmd, which made the DOWNLOADED ARCHIVE the
+# command word -- bash attempting to execute the unverified download, blocked
+# only by curl -o creating it 0644. The archive must never be installed and
+# the message must name the missing tool rather than reporting an empty
+# "checksum mismatch".
+# ---------------------------------------------------------------------------
 test_missing_sha256_tool_fails_closed() {
 	local case_dir="${tmp_root}/no-sha-tool"
 	local bin_dir="${case_dir}/dest"
@@ -488,6 +477,17 @@ $(cat "${out}")"
 	fi
 }
 
+# ---------------------------------------------------------------------------
+# Case 9 (source-level regression, precedent: extractFuncBody in
+# go/cmd/reducer/neo4j_wiring_test.go): --connect-timeout alone bounds
+# connection SETUP only. If the GitHub release CDN accepts the connection and
+# then stalls mid-body -- the same failure mode as the apt hang this script
+# exists to remove, just on a different host -- curl blocks indefinitely, the
+# retry loop never gets a turn, and the job rides to its 15-25 minute timeout.
+# A behavioral test for "hangs forever" is impractical, so this reads the
+# script's own source and asserts the download's curl invocation still
+# carries a whole-transfer bound, not just --connect-timeout.
+# ---------------------------------------------------------------------------
 test_download_bounds_transfer_not_just_connect() {
 	local curl_line
 	curl_line="$(rg -m1 '^[[:space:]]*if curl -fsSL' "${helper}")"
