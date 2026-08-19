@@ -313,6 +313,12 @@ gates:
     triggers:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-ci-install-apt-packages.sh"
+      # The fixtures/assertion-helper lib is a trigger for the same reason as
+      # the mirror itself: the mirror sources it, so a change confined to
+      # this file changes what the gate actually exercises even though the
+      # mirror's own file did not change. A gate must trigger on the files it
+      # reads (#6174 review).
+      - "scripts/lib/test-ci-install-apt-packages-fixtures.sh"
       # The workflow is a trigger because the mirror asserts its own CI
       # wiring. Seven gates share test.yml's go-core job, and the registry
       # drift check skips per-gate CI attribution for a shared bucket, so
@@ -321,12 +327,19 @@ gates:
       # this trigger a workflow-only edit does not select the gate, and the
       # assertion never runs in exactly the case it exists for.
       - ".github/workflows/test.yml"
+      # This registry file is this gate's other CI-wiring assertion input:
+      # test_mirror_is_wired_into_ci reads BOTH .github/workflows/test.yml and
+      # this file (it checks the registry references the mirror, the same way
+      # it checks the workflow runs it). A registry-only edit that drops or
+      # breaks that reference must select this gate for the same reason the
+      # workflow does.
+      - "specs/ci-gates.v1.yaml"
     local:
       # install-apt-packages.sh has no separate "verify" mode of its own --
       # it is an installer (it downloads a pinned ripgrep release, verifies
       # its checksum, and installs it, or shells out to apt-get for anything
       # else), and running it for real would mutate the machine it runs on
-      # (system-wide /usr/local/bin writes, sudo, apt-get). The 30-assertion
+      # (system-wide /usr/local/bin writes, sudo, apt-get). The 34-assertion
       # test mirror IS this gate's verification: it drives the same code
       # paths (bounded-transfer curl flags, fail-closed checksum verify,
       # arch-support guard, apt fallback) hermetically, off the network,

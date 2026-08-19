@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
-# test-ci-install-apt-packages.sh - hermetic checks for
-# scripts/ci/install-apt-packages.sh.
+# test-ci-install-apt-packages.sh - hermetic checks for scripts/ci/install-apt-packages.sh.
 #
 # ripgrep is installed from a pinned, checksum-verified GitHub release binary
 # instead of apt (apt-get intermittently hangs until job timeout on the
@@ -22,52 +21,9 @@ if [ ! -x "${helper}" ]; then
 	exit 1
 fi
 
-tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
-
-PASS=0
-FAIL=0
-
-record_pass() {
-	PASS=$((PASS + 1))
-	printf 'ok - %s\n' "$1"
-}
-
-record_fail() {
-	FAIL=$((FAIL + 1))
-	printf 'not ok - %s\n' "$1" >&2
-}
-
-# sha256_of prints the sha256 of $1 as a bare lowercase hex digest, using
-# whichever of sha256sum/shasum is on PATH -- the same detection order as
-# scripts/run-two-team-governance-proof.sh.
-sha256_of() {
-	local file="$1"
-	if command -v sha256sum >/dev/null 2>&1; then
-		sha256sum "${file}" | awk '{print $1}'
-	elif command -v shasum >/dev/null 2>&1; then
-		shasum -a 256 "${file}" | awk '{print $1}'
-	else
-		echo "test-ci-install-apt-packages: neither sha256sum nor shasum is available" >&2
-		exit 1
-	fi
-}
-
-# build_ripgrep_fixture writes a fake ripgrep release tarball at
-# "${1}/ripgrep.tar.gz" containing a single "<versioned-dir>/rg" member with
-# placeholder bytes (never executed -- the pinned binary targets
-# linux-x86_64-musl and these tests run on the macOS/arm64 dev machine, so the
-# extracted rg is only ever verified by presence and content, not run). Prints
-# the fixture's sha256 to stdout.
-build_ripgrep_fixture() {
-	local dir="$1"
-	local stage="${dir}/stage/ripgrep-14.1.1-x86_64-unknown-linux-musl"
-	mkdir -p "${stage}"
-	printf 'scratch fixture rg binary -- not a real executable\n' >"${stage}/rg"
-	local tarball="${dir}/ripgrep.tar.gz"
-	tar -czf "${tarball}" -C "${dir}/stage" "ripgrep-14.1.1-x86_64-unknown-linux-musl"
-	sha256_of "${tarball}"
-}
+# Fixtures + assertion helpers live in the sourced lib below (500-line cap).
+# shellcheck source=scripts/lib/test-ci-install-apt-packages-fixtures.sh
+source "${repo_root}/scripts/lib/test-ci-install-apt-packages-fixtures.sh"
 
 # ---------------------------------------------------------------------------
 # Case 1: an already-available package short-circuits -- no download, no apt.
@@ -86,28 +42,23 @@ STUB
 	chmod +x "${fake_path}/rg"
 
 	local out="${case_dir}/out.log"
-	if PATH="${fake_path}:${PATH}" \
+	local rc=0
+	PATH="${fake_path}:${PATH}" \
 		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
 		ESHU_CI_APT_NO_SUDO=1 \
-		"${helper}" ripgrep >"${out}" 2>&1; then
-		record_pass "already-available: exits 0 without installing"
-	else
-		record_fail "already-available: exited nonzero. output:
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+	assert_exit_zero "${rc}" "already-available: exits 0 without installing" \
+		"already-available: exited nonzero. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "ripgrep already available as rg" "${out}"; then
-		record_pass "already-available: reports the short-circuit"
-	else
-		record_fail "already-available: missing short-circuit message. output:
+	assert_output_has "${out}" "ripgrep already available as rg" \
+		"already-available: reports the short-circuit" \
+		"already-available: missing short-circuit message. output:
 $(cat "${out}")"
-	fi
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "already-available: no download/install was attempted"
-	else
-		record_fail "already-available: rg was installed even though it was already on PATH"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"already-available: no download/install was attempted" \
+		"already-available: rg was installed even though it was already on PATH"
 }
 
 # ---------------------------------------------------------------------------
@@ -122,24 +73,21 @@ test_pinned_ripgrep_installs_from_local_fixture() {
 	sha256="$(build_ripgrep_fixture "${case_dir}")"
 
 	local out="${case_dir}/out.log"
-	if ESHU_CI_APT_FORCE_INSTALL=1 \
+	local rc=0
+	ESHU_CI_APT_FORCE_INSTALL=1 \
 		ESHU_CI_APT_NO_SUDO=1 \
 		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
 		ESHU_CI_APT_RIPGREP_URL="file://${case_dir}/ripgrep.tar.gz" \
 		ESHU_CI_APT_RIPGREP_SHA256="${sha256}" \
-		"${helper}" ripgrep >"${out}" 2>&1; then
-		record_pass "pinned-install: exits 0"
-	else
-		record_fail "pinned-install: exited nonzero. output:
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+	assert_exit_zero "${rc}" "pinned-install: exits 0" \
+		"pinned-install: exited nonzero. output:
 $(cat "${out}")"
-	fi
 
-	if [ -f "${bin_dir}/rg" ]; then
-		record_pass "pinned-install: rg landed in the destination directory"
-	else
-		record_fail "pinned-install: ${bin_dir}/rg was not created. output:
+	assert_path_present "${bin_dir}/rg" \
+		"pinned-install: rg landed in the destination directory" \
+		"pinned-install: ${bin_dir}/rg was not created. output:
 $(cat "${out}")"
-	fi
 
 	if cmp -s "${bin_dir}/rg" "${case_dir}/stage/ripgrep-14.1.1-x86_64-unknown-linux-musl/rg"; then
 		record_pass "pinned-install: installed rg has the fixture's exact bytes"
@@ -185,27 +133,18 @@ test_checksum_mismatch_fails_closed() {
 		ESHU_CI_APT_RIPGREP_URL="file://${case_dir}/ripgrep.tar.gz" \
 		ESHU_CI_APT_RIPGREP_SHA256="${wrong_sha256}" \
 		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
-
-	if [ "${rc}" -ne 0 ]; then
-		record_pass "checksum-mismatch: exits nonzero (rc=${rc})"
-	else
-		record_fail "checksum-mismatch: exited 0, wanted a failure. output:
+	assert_exit_nonzero "${rc}" "checksum-mismatch: exits nonzero (rc=${rc})" \
+		"checksum-mismatch: exited 0, wanted a failure. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "checksum mismatch" "${out}" &&
-		rg -q --fixed-strings "expected ${wrong_sha256}" "${out}"; then
-		record_pass "checksum-mismatch: message names expected vs actual"
-	else
-		record_fail "checksum-mismatch: message missing expected/actual detail. output:
+	assert_output_has_all "${out}" "checksum mismatch" "expected ${wrong_sha256}" \
+		"checksum-mismatch: message names expected vs actual" \
+		"checksum-mismatch: message missing expected/actual detail. output:
 $(cat "${out}")"
-	fi
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "checksum-mismatch: no binary was installed"
-	else
-		record_fail "checksum-mismatch: rg was installed despite the checksum failure"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"checksum-mismatch: no binary was installed" \
+		"checksum-mismatch: rg was installed despite the checksum failure"
 }
 
 # ---------------------------------------------------------------------------
@@ -221,29 +160,24 @@ test_non_ripgrep_package_still_takes_apt_path() {
 	touch "${source_dir}/microsoft-prod.list"
 
 	local out="${case_dir}/out.log"
-	if ESHU_CI_APT_FORCE_INSTALL=1 \
+	local rc=0
+	ESHU_CI_APT_FORCE_INSTALL=1 \
 		ESHU_CI_APT_NO_SUDO=1 \
 		ESHU_CI_APT_SKIP_INSTALL=1 \
 		ESHU_CI_APT_SOURCES_DIR="${source_dir}" \
-		"${helper}" jq >"${out}" 2>&1; then
-		record_pass "apt-path: exits 0"
-	else
-		record_fail "apt-path: exited nonzero. output:
+		"${helper}" jq >"${out}" 2>&1 || rc=$?
+	assert_exit_zero "${rc}" "apt-path: exits 0" \
+		"apt-path: exited nonzero. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "Skipping apt install: jq" "${out}"; then
-		record_pass "apt-path: jq was routed to the apt install path"
-	else
-		record_fail "apt-path: missing apt-skip message for jq. output:
+	assert_output_has "${out}" "Skipping apt install: jq" \
+		"apt-path: jq was routed to the apt install path" \
+		"apt-path: missing apt-skip message for jq. output:
 $(cat "${out}")"
-	fi
 
-	if [ -e "${source_dir}/microsoft-prod.list.eshu-disabled" ]; then
-		record_pass "apt-path: unstable runner source was disabled before the (skipped) apt install"
-	else
-		record_fail "apt-path: unstable runner source was not disabled"
-	fi
+	assert_path_present "${source_dir}/microsoft-prod.list.eshu-disabled" \
+		"apt-path: unstable runner source was disabled before the (skipped) apt install" \
+		"apt-path: unstable runner source was not disabled"
 }
 
 # ---------------------------------------------------------------------------
@@ -256,32 +190,27 @@ test_skip_install_skips_pinned_ripgrep() {
 	mkdir -p "${case_dir}" "${bin_dir}"
 
 	local out="${case_dir}/out.log"
+	local rc=0
 	# No ESHU_CI_APT_RIPGREP_URL override: if the skip check did not fire this
 	# would try to reach the real GitHub release over the network and this
 	# test would hang or fail for the wrong reason.
-	if ESHU_CI_APT_FORCE_INSTALL=1 \
+	ESHU_CI_APT_FORCE_INSTALL=1 \
 		ESHU_CI_APT_NO_SUDO=1 \
 		ESHU_CI_APT_SKIP_INSTALL=1 \
 		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
-		"${helper}" ripgrep >"${out}" 2>&1; then
-		record_pass "skip-ripgrep: exits 0"
-	else
-		record_fail "skip-ripgrep: exited nonzero. output:
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+	assert_exit_zero "${rc}" "skip-ripgrep: exits 0" \
+		"skip-ripgrep: exited nonzero. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "ESHU_CI_APT_SKIP_INSTALL=1" "${out}"; then
-		record_pass "skip-ripgrep: reports the skip"
-	else
-		record_fail "skip-ripgrep: missing skip message. output:
+	assert_output_has "${out}" "ESHU_CI_APT_SKIP_INSTALL=1" \
+		"skip-ripgrep: reports the skip" \
+		"skip-ripgrep: missing skip message. output:
 $(cat "${out}")"
-	fi
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "skip-ripgrep: no binary was installed"
-	else
-		record_fail "skip-ripgrep: rg was installed despite ESHU_CI_APT_SKIP_INSTALL=1"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"skip-ripgrep: no binary was installed" \
+		"skip-ripgrep: rg was installed despite ESHU_CI_APT_SKIP_INSTALL=1"
 }
 
 # ---------------------------------------------------------------------------
@@ -304,32 +233,22 @@ test_download_failure_exhausts_retries_and_fails_loudly() {
 		ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS=2 \
 		ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY=0 \
 		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
-
-	if [ "${rc}" -ne 0 ]; then
-		record_pass "download-fails: exits nonzero (rc=${rc})"
-	else
-		record_fail "download-fails: exited 0, wanted a failure. output:
+	assert_exit_nonzero "${rc}" "download-fails: exits nonzero (rc=${rc})" \
+		"download-fails: exited 0, wanted a failure. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "failed after 2 attempt(s)" "${out}"; then
-		record_pass "download-fails: message names the exhausted attempt count"
-	else
-		record_fail "download-fails: missing attempt-count message. output:
+	assert_output_has "${out}" "failed after 2 attempt(s)" \
+		"download-fails: message names the exhausted attempt count" \
+		"download-fails: missing attempt-count message. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "apt-get" "${out}"; then
-		record_fail "download-fails: fell back to apt-get instead of failing loudly"
-	else
-		record_pass "download-fails: no silent apt-get fallback"
-	fi
+	assert_output_lacks "${out}" "apt-get" \
+		"download-fails: no silent apt-get fallback" \
+		"download-fails: fell back to apt-get instead of failing loudly"
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "download-fails: no binary was installed"
-	else
-		record_fail "download-fails: rg was installed despite the download failure"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"download-fails: no binary was installed" \
+		"download-fails: rg was installed despite the download failure"
 }
 
 # ---------------------------------------------------------------------------
@@ -369,36 +288,25 @@ STUB
 		ESHU_CI_APT_NO_SUDO=1 \
 		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
 		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
-
-	if [ "${rc}" -ne 0 ]; then
-		record_pass "unsupported-arch: exits nonzero (rc=${rc})"
-	else
-		record_fail "unsupported-arch: exited 0 on aarch64 -- an x86_64 binary that cannot execute would have been installed. output:
+	assert_exit_nonzero "${rc}" "unsupported-arch: exits nonzero (rc=${rc})" \
+		"unsupported-arch: exited 0 on aarch64 -- an x86_64 binary that cannot execute would have been installed. output:
 $(cat "${out}")"
-	fi
 
-	if rg -q --fixed-strings "aarch64" "${out}" &&
-		rg -q --fixed-strings "x86_64-unknown-linux-musl" "${out}"; then
-		record_pass "unsupported-arch: message names both the pin's arch and the machine's"
-	else
-		record_fail "unsupported-arch: message does not name the architecture mismatch. output:
+	assert_output_has_all "${out}" "aarch64" "x86_64-unknown-linux-musl" \
+		"unsupported-arch: message names both the pin's arch and the machine's" \
+		"unsupported-arch: message does not name the architecture mismatch. output:
 $(cat "${out}")"
-	fi
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "unsupported-arch: no binary was installed"
-	else
-		record_fail "unsupported-arch: rg was installed despite the architecture mismatch"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"unsupported-arch: no binary was installed" \
+		"unsupported-arch: rg was installed despite the architecture mismatch"
 
 	# The guard must fire BEFORE the download, both so this case stays offline
 	# and so the diagnostic is the architecture rather than a network error.
-	if rg -q --fixed-strings "installing ripgrep from pinned binary release" "${out}"; then
-		record_fail "unsupported-arch: reached the download stage before failing -- the arch guard must run before curl. output:
+	assert_output_lacks "${out}" "installing ripgrep from pinned binary release" \
+		"unsupported-arch: failed before attempting any download" \
+		"unsupported-arch: reached the download stage before failing -- the arch guard must run before curl. output:
 $(cat "${out}")"
-	else
-		record_pass "unsupported-arch: failed before attempting any download"
-	fi
 }
 
 # ---------------------------------------------------------------------------
@@ -439,19 +347,13 @@ test_missing_sha256_tool_fails_closed() {
 		ESHU_CI_APT_RIPGREP_URL="file://${case_dir}/ripgrep.tar.gz" \
 		ESHU_CI_APT_RIPGREP_SHA256="${sha256}" \
 		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
-
-	if [ "${rc}" -ne 0 ]; then
-		record_pass "no-sha-tool: exits nonzero (rc=${rc})"
-	else
-		record_fail "no-sha-tool: exited 0 with no sha256 tool available -- an unverified archive would have been installed. output:
+	assert_exit_nonzero "${rc}" "no-sha-tool: exits nonzero (rc=${rc})" \
+		"no-sha-tool: exited 0 with no sha256 tool available -- an unverified archive would have been installed. output:
 $(cat "${out}")"
-	fi
 
-	if [ ! -e "${bin_dir}/rg" ]; then
-		record_pass "no-sha-tool: no binary was installed"
-	else
-		record_fail "no-sha-tool: rg was installed without any checksum verification"
-	fi
+	assert_path_absent "${bin_dir}/rg" \
+		"no-sha-tool: no binary was installed" \
+		"no-sha-tool: rg was installed without any checksum verification"
 
 	# The assertions above pass with OR without the sha_cmd guards -- the script
 	# fails closed either way, so outcome alone cannot tell the two apart. These
@@ -461,20 +363,15 @@ $(cat "${out}")"
 	# download), and an empty digest is then reported as a bogus
 	# "checksum mismatch: got ". With the guards, verification returns before any
 	# of that happens.
-	if rg -q --fixed-strings "checksum mismatch" "${out}"; then
-		record_fail "no-sha-tool: reported a checksum mismatch when no sha256 tool exists -- verification compared against an empty digest instead of returning early. output:
+	assert_output_lacks "${out}" "checksum mismatch" \
+		"no-sha-tool: no bogus empty-digest checksum mismatch reported" \
+		"no-sha-tool: reported a checksum mismatch when no sha256 tool exists -- verification compared against an empty digest instead of returning early. output:
 $(cat "${out}")"
-	else
-		record_pass "no-sha-tool: no bogus empty-digest checksum mismatch reported"
-	fi
 
-	if rg -q --fixed-strings "ripgrep.tar.gz: command not found" "${out}" ||
-		rg -q --fixed-strings "ripgrep.tar.gz: Permission denied" "${out}"; then
-		record_fail "no-sha-tool: bash attempted to EXECUTE the downloaded archive as a command -- the sha_cmd guard did not fire. output:
+	assert_output_lacks_any "${out}" "ripgrep.tar.gz: command not found" "ripgrep.tar.gz: Permission denied" \
+		"no-sha-tool: never attempted to execute the downloaded archive" \
+		"no-sha-tool: bash attempted to EXECUTE the downloaded archive as a command -- the sha_cmd guard did not fire. output:
 $(cat "${out}")"
-	else
-		record_pass "no-sha-tool: never attempted to execute the downloaded archive"
-	fi
 
 	if rg -q --fixed-strings "neither sha256sum nor shasum is available" "${out}"; then
 		record_pass "no-sha-tool: message names the missing tool, not an empty checksum mismatch"
@@ -511,26 +408,22 @@ test_mirror_is_wired_into_ci() {
 		return
 	fi
 
-	if rg -q --fixed-strings "bash scripts/test-ci-install-apt-packages.sh" "${workflow}"; then
-		record_pass "ci-wiring: test.yml runs this mirror"
-	else
-		record_fail "ci-wiring: no step in .github/workflows/test.yml runs \"bash scripts/test-ci-install-apt-packages.sh\".
+	assert_output_has "${workflow}" "bash scripts/test-ci-install-apt-packages.sh" \
+		"ci-wiring: test.yml runs this mirror" \
+		"ci-wiring: no step in .github/workflows/test.yml runs \"bash scripts/test-ci-install-apt-packages.sh\".
 The ci-install-apt-packages registry row would still look correct and the drift
 check would still pass -- it skips per-gate CI attribution for the shared go-core
 job -- while CI silently stopped enforcing the installer's bounded-transfer,
 fail-closed-checksum, and arch guards. Re-add the step or move the gate to a
 dedicated ci.job."
-	fi
 
 	# The registry row is the other half: a workflow step with no row is not
 	# selected locally by make pre-pr, and a row pointing at a job that does not
 	# run the command is the same silence in the other direction.
 	local registry="${repo_root}/specs/ci-gates.v1.yaml"
-	if rg -q --fixed-strings "scripts/test-ci-install-apt-packages.sh" "${registry}"; then
-		record_pass "ci-wiring: ci-gates registry references this mirror"
-	else
-		record_fail "ci-wiring: specs/ci-gates.v1.yaml does not reference scripts/test-ci-install-apt-packages.sh, so make pre-pr will not select it"
-	fi
+	assert_output_has "${registry}" "scripts/test-ci-install-apt-packages.sh" \
+		"ci-wiring: ci-gates registry references this mirror" \
+		"ci-wiring: specs/ci-gates.v1.yaml does not reference scripts/test-ci-install-apt-packages.sh, so make pre-pr will not select it"
 }
 
 # ---------------------------------------------------------------------------
@@ -562,6 +455,27 @@ test_download_bounds_transfer_not_just_connect() {
 		record_pass "transfer-bound: ripgrep download curl invocation bounds the whole transfer (--max-time/--speed-limit/--speed-time), not just connection setup"
 	else
 		record_fail "transfer-bound: ripgrep download curl invocation only bounds connection setup (--connect-timeout) -- a stalled mid-transfer download (GitHub CDN accepts the connection then stalls, same failure mode as the apt hang this script removes) would hang to the job timeout instead of retrying. Found: ${curl_line}"
+	fi
+
+	# Presence alone is not enough: --speed-limit 0 disables the abort, and a
+	# --speed-time >= --max-time never gets a turn -- both keep every flag
+	# present. --max-time is the "${max_time}" variable, not a literal, so its
+	# value here is the script's default (ESHU_CI_APT_RIPGREP_DOWNLOAD_MAX_TIME:-120).
+	local speed_limit_value speed_time_value max_time_default
+	speed_limit_value="$(curl_flag_value "${curl_line}" '--speed-limit')"
+	speed_time_value="$(curl_flag_value "${curl_line}" '--speed-time')"
+	max_time_default="$(script_var_default "${helper}" 'local max_time=')"
+
+	if [ "${speed_limit_value}" -ne 0 ]; then
+		record_pass "transfer-bound: --speed-limit is nonzero (${speed_limit_value} bytes/s), so curl actually aborts a stalled-but-connected transfer"
+	else
+		record_fail "transfer-bound: --speed-limit is ${speed_limit_value} -- curl treats 0 as \"never abort on slow speed\", so the flag is present but inert and a stalled mid-transfer download would still hang to the job timeout. Found: ${curl_line}"
+	fi
+
+	if [ "${max_time_default}" -gt 0 ] && [ "${speed_time_value}" -lt "${max_time_default}" ]; then
+		record_pass "transfer-bound: --speed-time (${speed_time_value}s) is less than --max-time's default (${max_time_default}s), so the stall-abort fires before the whole-transfer ceiling would"
+	else
+		record_fail "transfer-bound: --speed-time (${speed_time_value}s) is not less than --max-time's default (${max_time_default}s) -- a stalled transfer would ride to the whole-transfer ceiling instead of the faster --speed-limit/--speed-time abort, defeating the guard those flags exist to provide. curl line: ${curl_line}"
 	fi
 }
 
