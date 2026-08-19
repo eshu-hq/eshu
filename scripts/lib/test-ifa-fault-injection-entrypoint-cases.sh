@@ -25,7 +25,11 @@ run_ifa_fault_entrypoint_static_cases() {
 		ifa_fault_generic_cells.sh \
 		ifa_fault_injection_codeowners_cells.sh \
 		ifa_fault_injection_repo_dependency_cells.sh \
-		ifa_fault_injection_submodule_pin_cells.sh; do
+		ifa_fault_injection_submodule_pin_cells.sh \
+		ifa_inheritance_live.sh \
+		ifa_fault_injection_inheritance_cells.sh \
+		ifa_shell_exec_live.sh \
+		ifa_fault_injection_shell_exec_cells.sh; do
 		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
 			|| fail "source-inventory lib does not source ${source_name}"
 	done

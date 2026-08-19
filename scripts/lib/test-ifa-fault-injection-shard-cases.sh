@@ -89,7 +89,15 @@ run_ifa_fault_injection_shard_cases() {
 		cell_baseline_repo_dependency
 		cell_killworker_repo_dependency
 		cell_failgraphwrite_repo_dependency
-		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin
+		cell_baseline_submodule_pin
+		cell_killworker_submodule_pin
+		cell_failgraphwrite_submodule_pin
+		cell_baseline_inheritance
+		cell_killworker_inheritance
+		cell_failgraphwrite_inheritance
+		cell_baseline_shell_exec
+		cell_killworker_shell_exec
+		cell_failgraphwrite_shell_exec
 	)
 
 	local actual_full
@@ -102,11 +110,12 @@ run_ifa_fault_injection_shard_cases() {
 		|| test_ifa_fault_shard_cases_fail "--list-cells output does not match the hand-authored literal list (see file header) -- actual:
 ${actual_full}"
 
-	# CELL-COUNT PIN (F-4). 27 = the
+	# CELL-COUNT PIN (F-4). 33 = the
 	# 15 cells the fault gate originally defined, plus the three
 	# deployable_unit-targeted cells (#5993), plus the three
-	# codeowners-targeted cells (#6160), plus the repo_dependency and
-	# submodule_pin_edges atomic trios. It is a COUNT pin, deliberately
+	# codeowners-targeted cells (#6160), plus the repo_dependency,
+	# submodule_pin_edges, inheritance_edges, and shell_exec_edges atomic
+	# trios. It is a COUNT pin, deliberately
 	# not weakened to an existence check, and it belongs beside the
 	# hand-authored cell list: the person who changes the number is the person
 	# adding cells, and they need to land in this file -- where the literal

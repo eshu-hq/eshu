@@ -456,6 +456,16 @@ ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin
+# inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
+# first in each trio (sole writer of that family's digest and retry baseline;
+# the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,
+# which is why each needs its own baseline -- see ifa_fault_generic_cells.sh.
+ifa_fault_shard_run cell_baseline_inheritance
+ifa_fault_shard_run cell_killworker_inheritance
+ifa_fault_shard_run cell_failgraphwrite_inheritance
+ifa_fault_shard_run cell_baseline_shell_exec
+ifa_fault_shard_run cell_killworker_shell_exec
+ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do
