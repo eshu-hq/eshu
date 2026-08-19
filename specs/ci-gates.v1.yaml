@@ -2802,8 +2802,13 @@ gates:
       # REMOVING a shard is caught that way. Adding a FIFTH shard is not: drift
       # validates check_names as a subset of the concrete names, and a new
       # concrete name nothing lists leaves it green. What catches an added shard
-      # is the mirror's matrix-cardinality pin, not drift.go. Same subset
-      # pattern as golden-corpus-gate's corpus-gate (nornicdb) above.
+      # is the CHECK_NAMES CARDINALITY PIN in
+      # scripts/lib/test-ifa-fault-injection-shard-cases.sh, which requires this
+      # list to have exactly IFA_FAULT_SHARD_DEFAULT_N entries and every entry
+      # to carry the /n denominator. Not the matrix-cardinality pin beside it --
+      # that one compares strategy.matrix.shard against N and never reads these
+      # names. Same subset pattern as golden-corpus-gate's corpus-gate
+      # (nornicdb) above.
       check_names:
         - "fault-injection (shard 1/4)"
         - "fault-injection (shard 2/4)"

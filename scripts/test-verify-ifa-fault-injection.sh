@@ -158,7 +158,7 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The eighteen-cell-shape anchored-invocation check and the SQL permanent-
+# The twenty-one-cell-shape anchored-invocation check and the SQL permanent-
 # member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
 # the sourced shard-cases module below, extracted to buy this file real
 # line-count headroom rather than trimming their comments in place.
@@ -211,7 +211,7 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 # The SQL permanent-member invocation pin also moved to the shard-cases
-# module (see the note above the eighteen-cell-shape comment).
+# module (see the note above the twenty-one-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.

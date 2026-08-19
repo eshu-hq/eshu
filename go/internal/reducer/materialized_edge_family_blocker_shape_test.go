@@ -146,7 +146,7 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 // registry landing a row for a family does not change whether that family's
 // handler is reachable through the one switch this test reflects over.
 var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
-	DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:285), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
+	DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:296), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
 	DomainHandlesRoute:        "no dedicated handler: rows are built by buildSymbolRuntimeIntentRows (symbol_runtime_refresh_intents.go:20) and written through CodeCallMaterializationHandler.IntentWriter, the same handler the code_calls family already covers -- not a distinct structural fact to assert",
 	DomainRunsIn:              "same as handles_route: piggybacks on CodeCallMaterializationHandler.IntentWriter with no dedicated handler type",
 	DomainInvokesCloudAction:  "same as handles_route: piggybacks on CodeCallMaterializationHandler.IntentWriter with no dedicated handler type",

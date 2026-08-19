@@ -213,7 +213,7 @@ func TestBackendRestartEngineClosedTransactionStartRemainsQueueRetryable(t *test
 		[]map[string]any{{"uid": "engine-closed-recovery-resource"}},
 		"reducer/gcp-resources",
 	)
-	handlerErr := fmt.Errorf("write canonical gcp relationship edges: %w", writerErr)
+	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
 
 	require.True(t, reducer.IsRetryable(handlerErr),
 		"engine-closed begin failure must reach the queue as retryable, not as a projection bug")

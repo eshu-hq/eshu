@@ -216,13 +216,23 @@ what does not.
 | Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
 
 Line-cap headroom is the constraint that will bite first. Several files grow per
-family and sit close to the hard 500-line limit — as of this writing
-`scripts/test-verify-ci-gates-registry.sh` (497), the Go
-`materialized_edge_family_blocker_shape_test.go` (495),
-`scripts/test-verify-ifa-fault-injection.sh` (492, which gains a `source` and a
-`run_*` call per new case module), and the fault gate itself (487, two dispatch
-lines plus this file's convention of a rationale comment). Check the real counts
-before adding to any of them rather than trusting this list, which ages.
+family and sit close to the hard 500-line limit. Measure before you add —
+deliberately no numbers here, because a count written into prose goes stale the
+moment anyone edits the file, and this paragraph was already wrong twice that
+way:
+
+```bash
+wc -l go/internal/reducer/materialized_edge_family_blocker_shape_test.go \
+  scripts/lib/test-ifa-fault-injection-shard-cases.sh \
+  scripts/test-verify-ifa-fault-injection.sh \
+  scripts/verify-ifa-fault-injection.sh \
+  scripts/verify-ifa-determinism.sh | sort -rn
+```
+
+Those five grow per family or per cell-list change: the blocker expectations
+entry plus its citation, the hand-authored cell literal, a `source` and a
+`run_*` call per new case module, two dispatch lines plus this file's convention
+of a rationale comment, and the determinism drive/assert wiring.
 Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
 `go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
 Go-only, so for every shell file above the limit is policy and nothing will stop

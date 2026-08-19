@@ -232,12 +232,15 @@ section == "ci" && /^      job: / && have_record {
 # workflow:/job: rules below clear it themselves (they `next`, so they never
 # reach the generic 6-space rule), the generic 6-space ci-key rule clears it and
 # deliberately does NOT `next`, and the 4-space-key rule that ends the whole ci
-# section clears it too -- that last one is what separates one gate record from
-# the next, since every gate opens with 4-space keys. reset_record()'s clear is
-# belt-and-braces on top of that and is NOT load-bearing: a mutation removing it
-# alone changes no output, which is why the guard case in
-# scripts/test-generate-ci-gates-doc.sh pins the item-rule guard and the
-# cross-gate behaviour rather than claiming to cover all four.
+# section clears it too -- that RULE is what separates one gate record from the
+# next, since every gate opens with 4-space keys. Be precise about which CLEARS
+# earn their keep, because mutation says only one does: removing the guard from
+# the item rule is caught, while removing the `in_check_names = 0` from either
+# reset_record() or the 4-space-key rule changes no output at all -- the latter
+# because `section = ""` on that same rule already disarms the item rule. Both
+# are belt-and-braces. The guard case in scripts/test-generate-ci-gates-doc.sh
+# pins the item-rule guard and the cross-gate behaviour, and does not pretend to
+# cover the two redundant assignments.
 section == "ci" && /^      check_names:/ && have_record {
 	in_check_names = 1
 	next

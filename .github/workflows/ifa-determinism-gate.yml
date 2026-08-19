@@ -495,34 +495,22 @@ jobs:
   # other cell compares against in-shell, so re-running it per shard is
   # deliberate rather than plumbing that digest between runners.
   #
-  # What that trade costs, stated plainly: there used to be ONE canonical
-  # baseline digest, written once and compared by every recovery cell that does
-  # not have a family-scoped baseline of its own
-  # in a single process. There are now four, one per runner, and nothing
-  # compares them to each other -- so a baseline that was nondeterministic
-  # ACROSS runs would produce four different reference digests and no cell
-  # would notice. That is acceptable here only because cross-run baseline
-  # determinism is the determinism-matrix job's whole purpose (it drives the
-  # same cassettes at N=1/2/4 and requires an identical digest); this job
-  # proves recovery converges to its own run's baseline, not that the baseline
-  # is stable run to run. If the determinism job is ever narrowed, this
-  # assumption has to be revisited.
+  # What that trade costs, stated plainly: before sharding, ONE process computed
+  # digests[baseline] once and every recovery cell without a family-scoped
+  # baseline of its own compared against it. There are now four, one per runner,
+  # computed independently, and nothing in this workflow compares them to each
+  # other -- a fault-free drive that produced a different digest on runner 2
+  # than on runner 1 would go unnoticed HERE.
   #
-  # What this drops, and why that is acceptable: before sharding, one process
-  # computed digests[baseline] once and every other cell in
-  # that SAME process compared against it. Now each of the four runners
-  # computes its own cell_baseline digest independently, and nothing in this
-  # workflow compares the four runners' baseline digests to each other -- a
-  # fault-free drive that produced a different digest on runner 2 than on
-  # runner 1 would go unnoticed here. That comparison is not this gate's job:
-  # proving that the same fault-free drive is byte-identical across separate
-  # processes and worker counts is exactly what the sibling
-  # determinism-matrix job above already asserts (N=1,2,4 against the demo-org
-  # and synth-multiscope cassettes). This job assumes that cross-run baseline
-  # determinism and instead proves recovery -- that each fault, injected
-  # against its OWN freshly-computed baseline, still converges to it. If
-  # cross-run baseline determinism itself regressed, the determinism-matrix
-  # job is where it would be caught, not here.
+  # That is acceptable because the comparison is not this gate's job. Proving
+  # the same fault-free drive is byte-identical across separate processes and
+  # worker counts is exactly what the sibling determinism-matrix job above
+  # asserts (N=1,2,4 against the demo-org and synth-multiscope cassettes). This
+  # job assumes cross-run baseline determinism and proves RECOVERY instead --
+  # that each fault, injected against its own freshly-computed baseline, still
+  # converges to it. If cross-run baseline determinism itself regressed, the
+  # determinism-matrix job is where it would be caught. If that job is ever
+  # narrowed, this assumption has to be revisited.
   #
   # The matrix.shard list below must stay in lockstep with
   # IFA_FAULT_SHARD_DEFAULT_N in that library;

@@ -22,10 +22,10 @@
 # Domain = "sql_relationship_materialization" -- handler stage), then kills
 # the reducer directly with NO lock acquisition anywhere in the function --
 # no call to ifa_fault_start_shared_intent_lock or any other blocker helper
-# appears in that file. The function's own header comment (:66-85, the quote
-# below at :78)
-# states this plainly: "What it does NOT prove: that the kill landed
-# mid-handler, [...] the restart exercises an already-finished unit;" a
+# appears in that file. The function's own header comment (:66-85) states this
+# plainly, at :78: "What it does NOT prove: that the kill landed mid-handler.
+# [...] the restart exercises an already-finished unit and the digest match
+# afterwards says nothing about SQL recovery specifically." A
 # SEPARATE cell, cell_failgraphwrite_sql (anchored to the QUERIES_TABLE
 # MERGE, a once-fault marker, not a queue lock), is what actually backs this
 # family's fault-coverage claim. => blocker_kind=none. (This corrected an

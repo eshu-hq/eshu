@@ -15,8 +15,11 @@
 # generated from, sourced from, or derived from the gate script or
 # scripts/lib/ifa_fault_shard.sh. A check whose expected side is enumerated
 # from the artifact under test compares the artifact to itself and can never
-# fail -- see scripts/test-verify-ifa-fault-injection.sh:177-186 for the
-# sibling literal this mirrors, and its own comment on the same rule.
+# fail. The sibling hand-authored literal is
+# ifa_det_family_cases_hand_authored (scripts/lib/test-ifa-determinism-family-
+# cases.sh:222), which carries the same rule for the determinism side; an
+# earlier version of this sentence pointed at a probe block in
+# test-verify-ifa-fault-injection.sh that states no such rule.
 # FUTURE MAINTAINERS: do not "simplify" this by calling
 # ifa_fault_shard_all_cells or by reading IFA_FAULT_ALL_CELLS /
 # IFA_FAULT_ATOMIC_GROUPS to build this list -- including after

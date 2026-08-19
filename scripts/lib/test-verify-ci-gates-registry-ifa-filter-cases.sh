@@ -1,60 +1,84 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash disable=SC2154
-# Registry-to-workflow lockstep for the Ifa dorny path filter in
+# Glob-trigger parity for the Ifa dorny path filter in
 # .github/workflows/static-contract-gates.yml. Sourced by
-# scripts/test-verify-ci-gates-registry.sh, which owns repo_root, fail(), and
-# the ${static_contract_workflow} / ${registry} path variables.
+# scripts/test-verify-ci-gates-registry.sh, which owns repo_root, fail(),
+# require(), ${registry} and ${static_contract_workflow}.
 #
-# WHY THIS EXISTS. The ifa-materialized-edge-coverage gate declares triggers in
-# specs/ci-gates.v1.yaml, and the job that runs it is scheduled by a dorny
-# filter in static-contract-gates.yml. Those are two independently hand-edited
-# lists, and NOTHING compared them: the registry-subset-of-workflow lockstep in
-# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh only reads
-# ifa-determinism-gate.yml. The workflow's own comment says "keep this glob and
-# the registry trigger in lockstep" -- an instruction with no gate behind it,
-# written from the memory of #5873 where exactly this drifted.
+# WHAT IS ALREADY COVERED, so this file does not claim it: checkPathFilterCoverage
+# (go/internal/cigates/pathfilter.go:333) walks every gate whose CI workflow uses
+# a dorny filter and asserts each registry trigger is selected by that gate's
+# filter key. Moving scripts/lib/ifa_family_registry.sh out of the ifa: filter
+# fails `verify-ci-gates-registry.sh --drift` today, without this module.
 #
-# The failure it closes is asymmetric and nasty. Narrow either copy (dorny `*`
-# does not cross `/`) and an edit to scripts/lib/ifa_family_registry/rows/*.sh --
-# the most common edit in this design -- either selects the gate as BLOCKING
-# while the workflow never schedules the job (required check MISSING forever,
-# PR unmergeable), or drops the gate silently. Same dark-gate class as #6164.
+# WHAT IS NOT: isLiteralTrigger (pathfilter.go:305) returns false for any
+# trigger containing "*", and drift skips those. So the GLOB triggers -- the
+# ones this design leans on hardest, because a family's row and pin files are
+# reached only through scripts/lib/ifa_family_registry/** and
+# scripts/lib/ifa_family_registry_pins/** -- are the half nothing checked.
+# Narrowing a "**" to a "*" in the workflow (dorny "*" does not cross "/") left
+# the whole registry test green: an edit to rows/NN_<family>.sh would then
+# select ifa-materialized-edge-coverage as BLOCKING while the job that runs it
+# is never scheduled, so the required check stays MISSING and the PR cannot
+# merge. Same dark-gate class as #6164, reached through the one door drift
+# leaves open.
 
 run_ci_gates_registry_ifa_filter_cases() {
-	local trigger
+	local gate_block workflow_filter trigger
+	gate_block="$(sed -n '/^  - id: ifa-materialized-edge-coverage$/,/^  - id: /p' "${registry}")"
+	[[ -n "${gate_block}" ]] \
+		|| fail "missing ifa-materialized-edge-coverage registry gate"
+	# Scope to the ifa: filter block, not the whole workflow. Searching the file
+	# would let a pattern living under some other filter key satisfy an
+	# assertion whose message says "the ifa filter".
+	workflow_filter="$(sed -n '/^[[:space:]]*ifa:$/,/^[[:space:]]*[a-z][a-z0-9]*:$/p' "${static_contract_workflow}")"
+	[[ -n "${workflow_filter}" ]] \
+		|| fail "missing ifa workflow filter in ${static_contract_workflow##*/}"
 
-	# The Ifa workflow shape checks, relocated here from
-	# scripts/test-verify-ci-gates-registry.sh so every assertion about
-	# static-contract-gates.yml's ifa job lives in one module (and to keep that
-	# file under the 500-line cap). Unabridged -- only the indentation changed.
-	require "Ifa workflow filter" \
-		"ifa:" \
-		"${static_contract_workflow}"
-	require "Ifa workflow path filter" \
-		"go/internal/ifa/**" \
-		"${static_contract_workflow}"
-	# The reducer leg is part of the pinned text on purpose. The registry's
-	# local.command for ifa-materialized-edge-coverage runs it, and the Go
-	# blocker-shape lockstep this gate's triggers exist for lives in that package --
-	# the CI job ran without it until #6147, so the gate's own comment claiming the
-	# triggers protected that lockstep in CI was false. Pinning the whole command
-	# keeps local and CI reading the same thing; dropping the leg here again should
-	# fail loudly.
-	require "Ifa workflow matrix entry" \
-		'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"' \
-		"${static_contract_workflow}"
+	# Triggers are READ OUT OF the gate block, never restated here. The sibling
+	# module (test-verify-ci-gates-registry-docs-cli-env-cases.sh) records why:
+	# a hand-maintained copy only ever proves the pairs someone remembered to
+	# add, and #6059's go/internal/cli/** reached the spec, never reached the
+	# workflow, and stayed green because the test's own list did not know about
+	# it either. A third family-registry glob added later is covered by this
+	# loop the moment it lands in the spec.
+	# Scoped to the shell family-registry globs. Two reasons, both load-bearing.
+	# First, this check asserts EXACT STRING presence, and that is only a valid
+	# test when no broader pattern in the filter already covers the glob:
+	# go/internal/ifa/materialized_edges*.go is a registry glob the filter does
+	# not name, and does not need to, because go/internal/ifa/** covers it.
+	# Asserting on every glob reports that as missing, which is a false positive.
+	# Second, the family-registry globs are the ones with no broader pattern
+	# above them -- nothing in the ifa filter covers scripts/lib/** -- so exact
+	# presence is exactly right for them and wrong for the rest.
+	#
+	# Still derived within that scope: a third scripts/lib/ifa_family_registry*
+	# glob added to the spec is picked up by this loop without editing here.
+	# A glob that DOES gain a broader covering pattern is out of scope by
+	# construction, and stating that is better than a check whose passes and
+	# failures both need interpreting.
+	local -a glob_triggers=()
+	while IFS= read -r trigger; do
+		[[ -n "${trigger}" ]] || continue
+		[[ "${trigger}" == *"*"* ]] || continue
+		[[ "${trigger}" == scripts/lib/ifa_family_registry* ]] || continue
+		glob_triggers+=("${trigger}")
+	done < <(
+		printf '%s\n' "${gate_block}" |
+			sed -n '/^[[:space:]]*triggers:$/,/^[[:space:]]*local:$/p' |
+			sed -n 's/^      - "\(.*\)"$/\1/p'
+	)
 
-	# Every registry trigger the ifa-materialized-edge-coverage gate declares for
-	# the shell family registry must also appear in the workflow's ifa filter.
-	# Listed literally rather than parsed out of the registry on purpose: a
-	# derived list would agree with the registry by construction, which is the
-	# thing this check exists not to do.
-	for trigger in \
-		'scripts/lib/ifa_family_registry.sh' \
-		'scripts/lib/ifa_family_registry/**'; do
-		rg --fixed-strings --quiet -- "${trigger}" "${registry}" \
-			|| fail "specs/ci-gates.v1.yaml no longer triggers on ${trigger}; either this pin is stale or the gate stopped watching the family registry"
-		rg --fixed-strings --quiet -- "${trigger}" "${static_contract_workflow}" \
-			|| fail "static-contract-gates.yml's ifa filter omits ${trigger}, which specs/ci-gates.v1.yaml triggers on -- the gate would be selected as blocking and the job never scheduled"
+	# Derivation cuts both ways: if the extraction above silently yields nothing
+	# (a reindent, a renamed key), every assertion below becomes vacuous. This
+	# gate has carried glob triggers since it was written, so zero means the
+	# parse broke, not that the spec changed.
+	[[ "${#glob_triggers[@]}" -gt 0 ]] \
+		|| fail "extracted zero scripts/lib/ifa_family_registry* glob triggers from the ifa-materialized-edge-coverage gate block -- the trigger parse broke, so the ifa filter parity check would pass vacuously"
+
+	for trigger in "${glob_triggers[@]}"; do
+		printf '%s\n' "${workflow_filter}" | rg --fixed-strings --quiet -- "${trigger}" \
+			|| fail "static-contract-gates.yml's ifa filter omits the glob trigger ${trigger}, which specs/ci-gates.v1.yaml declares for ifa-materialized-edge-coverage -- drift.go skips glob triggers, so nothing else catches this: the gate is selected as blocking and its job never scheduled"
 	done
+	printf 'test-verify-ci-gates-registry: ifa filter carries all %d family-registry glob trigger(s) the registry declares\n' "${#glob_triggers[@]}"
 }
