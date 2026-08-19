@@ -63,8 +63,17 @@ trust:
   cannot see that: its digest is `sha256` over sorted **basenames**, not
   contents, so the count stays 154, the digest is unchanged, and the gate stays
   green while this number drifts.
-- **Row 4** is a difference between rows 1 and 2, so it holds at 21 until a
-  *non*-constants file appears in the root.
+- **Row 4** is a difference between rows 1 and 2, so it holds at 21 until a file
+  that matches neither glob appears in the root.
+
+  **The 21 are not all non-constants, and the row's label is not a bucket
+  boundary.** `acm_types.go`, `cloudtrail_types.go` and `guardduty_types.go` hold
+  service and resource constants under the older `_types.go` naming, and land in
+  this row only because they do not match `constants_*.go`. Despite the name,
+  all three declare **zero** Go types — they are constants files whose name
+  predates the convention. A restructure planner reading "everything else" as
+  "infrastructure" would undercount the constants population to consolidate by
+  three and misclassify these as infra.
 - **Row 5 and the composition** move whenever a new **file** imports this
   package — not a new package. The 1,312 files sit in 413 directories, so most
   of them are second-or-later files in a package that already imports; one more
@@ -93,7 +102,7 @@ naming alongside it lands exactly here.
 | Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/awscloud` |
 | `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
 | Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
-| Everything else in the root | 21 | 154 − 133 |
+| Root files not matching `constants_*.go` (**not** all non-constants — see row 4 below) | 21 | 154 − 133 |
 | Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
 
 That 1,312 is not 1,312 external dependents, and the difference decides the
