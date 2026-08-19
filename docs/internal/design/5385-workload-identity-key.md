@@ -550,7 +550,9 @@ of the row.** `wl:` has exactly one source in the console:
 fixture, whose header states that private mode "never falls back to these rows".
 The guard at `:376` therefore cannot fire on live data — a live
 `workload:<repo_id>:<name>` does not start with `wl:`, so the branch is skipped
-and `:379` returns the id unchanged. The consequence of a re-key here is "update
+and `:379` returns `workload.label || workload.id` — the value unmodified by the
+`wl:` slice, which is the point here, though for a node carrying a display label
+that value is the label rather than the id. The consequence of a re-key here is "update
 the demo fixture", not "production breaks", and it is listed beside five
 production constructions only because it is a construction, not because it
 carries their risk.
@@ -689,7 +691,8 @@ generator" is the accurate statement, and saying so is stronger than picking one
 Small enough to list, and the members are **not** homogeneous — a `HasPrefix`
 test, a first-colon cut and an idempotent re-prefix each break differently — so
 this is rows rather than a criterion. Enumerated by hand across `go/` **and the
-console** — the table carries seven console rows, and an earlier revision's
+console** — the table carries five console rows covering seven sites (two rows
+cite two lines each), and an earlier revision's
 `go/`-only scope line understated them.
 
 | Site | Shape |
