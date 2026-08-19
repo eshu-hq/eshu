@@ -264,6 +264,24 @@ reasons, either of which is sufficient:
     `(source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact)`, and a
     `WorkloadInstance`→`Platform` edge is not incident to an `EvidenceArtifact`,
     so `DETACH DELETE` on that node cannot touch `beta_inst->beta_plat`.
+
+    Non-incidence alone does not close this, because labels are per-node and
+    additive: a node carrying both `:EvidenceArtifact` and `:Platform` would be
+    bound by that `MATCH` and would take its `RUNS_ON` edges with it. Two facts
+    rule that out. `EvidenceArtifact` nodes have exactly one write site, a
+    single-label `MERGE (artifact:EvidenceArtifact {id: row.artifact_id})`
+    (`canonical_relationships.go:278`) over a dedicated id space
+    (`repoEvidenceArtifactID`, `edge_writer_row_metadata.go:141`), and a
+    single-label `MERGE` creates a distinct node rather than binding a
+    differently-labelled one even on an id collision. And nothing adds the label
+    afterwards: the only label-adding `SET` in production Go anywhere is
+    `SET r:TerraformStateResource` (`tfstate_canonical_writer_retract.go:56`).
+
+    One limit worth stating, since this document separates what it traced from
+    what it ran elsewhere: that argument is about the production graph model,
+    while the thing being explained is a throwaway probe fixture whose node
+    labels cannot be checked from this tree. It holds if the fixture used the
+    production label model, which is what the probe was built to exercise.
 - **Its own guard forbids the behaviour attributed to it.** The statement is
   `MATCH (i:WorkloadInstance {id: row.instance_id}) WHERE i.repo_id IN $repo_ids
   AND i.evidence_source = $evidence_source`. During alpha's pass, beta's repo id
@@ -735,7 +753,7 @@ retracted and rebuilt rather than rewritten in place.
    and the same repo-scoped key makes that traversal safe by construction. Worth
    fixing, but do not treat it as the leak.
 
-   **Section 5a measured these statements as inert on the pinned build**: every
+   **Section 5a measured these retract statements as inert on the pinned build**: every
    relationship retract came back 1 → 1, a silent no-op, where Neo4j gives
    1 → 0. So scoping them fixes a latent hazard that will matter when the
    backend starts applying them; it does not fix anything observable today, and
@@ -836,8 +854,8 @@ Run before any implementation, on a fresh single-purpose stack against the
 pinned backend, with Neo4j 5.x community as the control and a settling loop on
 every read.
 
-**Result: the retract half does not work, and the rebuild half is what actually
-moves edges.**
+**Result: relationship retraction does not work on the pinned build; node-level
+`DETACH DELETE` does.**
 
 | Operation | Neo4j 5 | NornicDB (pinned) |
 | --- | --- | --- |
