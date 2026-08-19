@@ -211,4 +211,23 @@ test_ifa_generic_intent_writer_precondition_is_wired_before_the_body() {
 
 	[[ "${precondition_line}" -lt "${body_line}" ]] \
 		|| fail "the shared_intent_lock precondition runs at or after the kill-worker body (precondition line ${precondition_line}, body line ${body_line}); it must gate the cell, not follow it"
+
+	# CALL-SITE pins, not body pins. The parent mirror already pins
+	# "ifa_fault_assert_retried_above" and the assert-edges invocation, but both
+	# needles live INSIDE _ifa_generic_require_retry_baseline and
+	# _ifa_generic_assert_edges themselves, so they went on passing when the only
+	# INVOCATION was deleted. Proven by mutation: removing the retry-baseline call
+	# site left the fault mirror AND test-verify-ifa-determinism.sh at exit 0, and
+	# the live gate green -- the kill cell still drove, locked, killed, drained and
+	# asserted edges, it just stopped proving the interrupted unit re-executed above
+	# its fault-free retry baseline. That is the "kill cell downgraded to ordinary
+	# baseline recovery" failure _ifa_generic_require_retry_baseline's own header
+	# says it exists to close, arriving through the pin instead of the row.
+	#
+	# A pin naming a function body proves the function EXISTS; only a pin naming
+	# the invocation proves it RUNS. These two name the invocations.
+	require_generic_cells "generic kill cell WIRES the retry-baseline proof (call site, not body)" \
+		'[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"'
+	require_generic_cells "generic recovery cells WIRE the per-family edge assertion (call site, not body)" \
+		'_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"'
 }

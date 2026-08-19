@@ -33,6 +33,9 @@ run_ifa_fault_injection_generic_family_drive_cases() {
 _ifa_generic_family_drive_case_setup() {
 	# shellcheck source=scripts/lib/ifa_fault_generic_cells.sh
 	source "${generic_cells_lib}" 2>/dev/null || true
+	# cell_baseline_family lives in its own file since the 500-line split.
+	# shellcheck source=scripts/lib/ifa_fault_generic_baseline_cell.sh
+	source "${generic_baseline_lib}" 2>/dev/null || true
 	drive_workers=1
 	bin_dir="/nonexistent"
 	log_dir="/nonexistent"

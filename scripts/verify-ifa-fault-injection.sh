@@ -209,6 +209,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 # cell_killworker_family/cell_failgraphwrite_family below are what the
 # code_calls and rationale_edges cell bodies delegate to.
 source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_generic_baseline_cell.sh
+source "${repo_root}/scripts/lib/ifa_fault_generic_baseline_cell.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_call_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_rationale_cells.sh
