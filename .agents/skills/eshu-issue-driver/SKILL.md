@@ -313,7 +313,7 @@ current turn, stop and ask — do not self-approve and proceed.
    until **P0=0, P1=0, and P2-blocking=0**, with every deferred P2 tracked
    (linked issue, owner agreement quoted in the PR), named, and carrying its
    severity-table category verbatim
-   (`eshu-code-review/references/merge-bar.md`). In self-review mode,
+   (`../eshu-code-review/references/merge-bar.md`). In self-review mode,
    explicitly say it was self-review mode and list the evidence inspected.
 6. **Promotion gate.** Once the preliminary review is clean and the branch is
    otherwise ready for its intended push, run `make pre-pr` exactly once. Do
@@ -403,7 +403,8 @@ it to the epic's follow-ups list at creation time.
   verdict comment, naming the reviewing model and which reviewers were
   unavailable.
 - Latest `eshu-code-review` verdict shows **P0=0, P1=0, and P2-blocking=0**,
-  every deferred P2 tracked and named, with re-review proof,
+  every deferred P2 tracked (linked issue, owner agreement quoted in the PR)
+  and named with its severity-table category, with re-review proof,
   the selected proof tier, all required passes including hostile read,
   cross-pass contradiction check, generated-artifact/doc/private-data scan,
   verification evidence, and the disposition of every out-of-scope defect —

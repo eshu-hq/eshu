@@ -213,7 +213,9 @@ for a branch that has already survived design review. The order is:
 1. Executor completes TDD implementation and focused local proof.
 2. Run a preliminary full `eshu-code-review` on the final rebased diff. Fix every
    P0, P1, and blocking P2 finding and repeat until the verdict is
-   `P0=0, P1=0, P2-blocking=0`, with every deferred P2 tracked and named.
+   `P0=0, P1=0, P2-blocking=0`, with every deferred P2 tracked in a linked
+   issue with the owner's agreement quoted in the PR, and named there with its
+   severity-table category.
 3. Only when the branch is otherwise ready to push, run `make pre-pr` once.
 4. Run a final full `eshu-code-review` on the exact post-preflight diff. Any
    tracked/generated change or finding restarts the affected proof and review.

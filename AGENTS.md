@@ -411,7 +411,7 @@ MUST use [Local Testing](docs/public/reference/local-testing.md) as the source
 of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
-P0/P1/P2 findings, run `make pre-pr` once, immediately before the intended push
+P0/P1/P2-blocking findings, run `make pre-pr` once, immediately before the intended push
 or PR update. It is the one-command local promotion preflight that selects and
 runs the credential-free gates required by changed paths; it is not an early
 discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,

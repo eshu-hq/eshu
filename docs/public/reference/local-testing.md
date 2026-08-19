@@ -25,7 +25,8 @@ Use this fixed promotion order before opening or updating a PR:
    and repeat the full review. Do **not** run `make pre-pr` while a blocking
    finding remains.
 3. Once the preliminary verdict is `P0=0, P1=0, P2-blocking=0` — every
-   deferred P2 tracked and named, per
+   deferred P2 tracked in a linked issue with the owner's agreement quoted in
+   the PR and named there with its severity-table category, per
    `.agents/skills/eshu-code-review/references/merge-bar.md` — and the branch is
    otherwise ready to push, run `make pre-pr` exactly once as the late promotion
    gate. Use `make pre-pr-full` here instead when the risk tier requires the

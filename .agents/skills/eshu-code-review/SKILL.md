@@ -139,7 +139,7 @@ Review target:
 - PR:
 - no PR exists yet: yes|no
 - review phase: preliminary|final
-- preliminary review head and P0/P1/P2 counts:
+- preliminary review head and P0/P1/P2-blocking/P2-deferred counts:
 - pre-pr command and result:
 - post-preflight head and clean-status result:
 
@@ -480,8 +480,9 @@ The verdict is `blocked` when any of these are true:
 - proof tier is missing, wrong, or not actually run for in-scope behavior;
 - an applicable adversarial probe is missing or only checks a helper instead of the production subject;
 - any P0 or P1 finding, or any blocking P2 (`references/merge-bar.md`), remains
-  unresolved before preflight or push; a deferred P2 must be tracked and named,
-  never silently dropped;
+  unresolved before preflight or push; a deferred P2 must be tracked (linked
+  issue, owner agreement quoted in the PR), named with its severity-table
+  category, and never silently dropped;
 - generated artifacts or cassettes changed without source-of-truth proof;
 - root `AGENTS.md` and `CLAUDE.md` drift;
 - public text contains private data, credentials, internal identifiers, or AI attribution;
