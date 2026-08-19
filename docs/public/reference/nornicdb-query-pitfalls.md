@@ -581,6 +581,30 @@ This is about clause position, not about any particular function. `coalesce` is
 not special; `toUpper` and `size` fail the same way, and `coalesce(a.v, b.v)`
 with no literal argument fails too.
 
+### Which builds this was measured on
+
+Two different images are called "pinned" in this repository, and this shape was
+checked on both:
+
+- `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
+  (`docker-compose.yaml:10`), the local lane. The comparison table above was
+  measured here against Neo4j 2026.05.0.
+- `timothyswt/nornicdb-cpu-bge:v1.1.11` — the Helm chart's pin
+  (`deploy/helm/eshu/values.yaml:1102-1103`), the deployed lane, and the image
+  most of this page's other entries name. The ignored-label-filter behaviour
+  **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
+  `WITH` still admitted a `File` row.
+
+So the defect spans both lanes. One related question was settled only on the
+deployed pin: `length(path)` and `labels()` **are** projected correctly inside a
+`CALL {}` subquery on v1.1.11 (`depth` returned 1 and 2, not 0; `labels` returned
+real arrays). That matters because the adjacent
+[multi-clause read pitfall](#pitfall-multi-clause-read-queries-silently-corrupt-the-projection)
+reports `length(path)` collapsing to `0` — that failure was measured at the top
+level, outside any `CALL {}`, and the subquery scope is exempt. **The same check
+has not been run against the Compose `pr290` build**, so treat the exemption as
+established for the deployed pin only.
+
 ### Eshu implications
 
 Do not express a filter in a `WHERE` attached to a `WITH`. Put the predicate in
