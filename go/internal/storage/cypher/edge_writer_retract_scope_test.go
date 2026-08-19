@@ -51,9 +51,14 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 
 	const repoID = "repo-disjoint-6165"
 	// Mirrors reducer.repoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges, repoID).
-	// Keep this literal in lockstep with that unexported helper: if the
-	// production key scheme ever starts varying by delta/generation, this
-	// mirrored literal (and the disjointness it proves) goes stale too.
+	// The helper is unexported, so this cross-package mirror is unavoidable, and
+	// a mirror cannot police itself: if the production key scheme ever started
+	// varying by delta or generation, both rows below would still share this
+	// stale literal, still collapse, and this test would stay green while
+	// proving nothing. reducer's TestRepoWideRetractRefreshPartitionKeyShapeIsPinned
+	// is the guard for that -- it compares the generator against the same
+	// literal in the package that owns it, so a scheme change fails there and
+	// names this mirror as needing the lockstep update (#6171 review).
 	const wholeScopePartitionKey = "rationale_edges:refresh:v1:whole:" + repoID
 	// One accepted generation's acceptance key, shared by both rows: this is
 	// what FilterAuthoritativeIntents guarantees about every row that reaches
