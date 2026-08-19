@@ -195,8 +195,9 @@ current turn, stop and ask — do not self-approve and proceed.
   A quota message is NOT a review and NOT a retryable failure — re-requesting it
   only burns polls. Recognise the shape rather than the exact wording: Copilot
   posts "reached their quota limit", `chatgpt-codex-connector[bot]` posts
-  "reached your Codex usage limits". Both can be down at once, which is the case
-  that silently drops a PR to zero external review.
+  "reached your Codex usage limits". More than one can be down at the same time,
+  and when all of them are, a PR silently drops to zero external review while
+  every other gate stays green.
 
   When every external reviewer is unavailable, the coverage MUST be replaced,
   not waived: dispatch a subagent in a separate context to run the full
@@ -204,8 +205,18 @@ current turn, stop and ask — do not self-approve and proceed.
   to reject), and treat its verdict as the gating review — proof tier, all
   required passes including hostile read, cross-pass contradiction check,
   severity/confidence/disposition per finding, and the generated-artifact,
-  docs, private-data and evidence scans. Only when delegation is genuinely
-  unavailable does self-review substitute, and then it must say so explicitly.
+  docs, private-data and evidence scans.
+
+  The replacement must be **independent in a way the dispatching agent cannot
+  self-certify**. Independence here means a fresh context that did not write the
+  diff, and a model from a different lineage than the author's wherever the
+  harness offers one — state which model reviewed. "Delegation is unavailable"
+  is not a judgement call: it means the harness exposes no subagent capability
+  at all, and the verdict must name that harness limitation. An agent that
+  wrote the diff, reviewed it itself, and asserted that delegation was
+  unavailable has produced no independent review — self-review is the last
+  resort, must be labelled as such in the PR, and never satisfies this clause
+  merely because dispatching felt unnecessary.
 
   State in the PR which reviewers were unavailable and what replaced them.
   Merging with "the bots were out of credit" and nothing in their place is a
@@ -280,9 +291,10 @@ current turn, stop and ask — do not self-approve and proceed.
    AND the review gate above both land AND all their findings resolve. CI green
    is necessary, not sufficient. If every external reviewer is quota-exhausted,
    this clause is satisfied by the dispatched replacement reviewer in Step 4,
-   never by proceeding with no external review at all. During CI waiting, poll mergeability and review
-   threads about every 60 seconds. If `origin/main` advances, mergeability
-   changes, or the PR head changes for any reason, rebase on `origin/main`,
+   never by proceeding with no external review at all. During CI waiting, poll
+   mergeability and review threads about every 60 seconds. If `origin/main`
+   advances, mergeability changes, or the PR head changes for any reason,
+   rebase on `origin/main`,
    rerun affected focused proof, and repeat the complete Steps 5-7 sequence on
    the new base/head: clean preliminary review, one late `make pre-pr`, final
    exact-diff review, then push the reviewed head and continue the CI wait. Do
