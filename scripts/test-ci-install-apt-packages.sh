@@ -147,9 +147,18 @@ $(cat "${out}")"
 		record_fail "pinned-install: installed rg content does not match the fixture"
 	fi
 
-	local mode
-	mode="$(stat -f '%Lp' "${bin_dir}/rg" 2>/dev/null || stat -c '%a' "${bin_dir}/rg" 2>/dev/null)"
-	if [ "${mode}" = "755" ]; then
+	# GNU stat first, BSD second, and the order is load-bearing. On GNU/Linux
+	# `stat -f` is --file-system: it SUCCEEDS and prints filesystem info, so a
+	# BSD-first probe never falls through to the GNU form and compares that
+	# text against "755". The reverse order fails cleanly on each platform --
+	# GNU's -c is rejected by BSD stat, and vice versa.
+	local mode=""
+	mode="$(stat -c '%a' "${bin_dir}/rg" 2>/dev/null)" ||
+		mode="$(stat -f '%Lp' "${bin_dir}/rg" 2>/dev/null)" ||
+		mode=""
+	if ! [[ "${mode}" =~ ^[0-7]{3,4}$ ]]; then
+		record_fail "pinned-install: could not read a file mode for ${bin_dir}/rg (got \"${mode}\") -- neither GNU nor BSD stat produced one, so the 0755 assertion never ran"
+	elif [ "${mode#0}" = "755" ]; then
 		record_pass "pinned-install: installed rg is mode 0755"
 	else
 		record_fail "pinned-install: installed rg mode is ${mode}, wanted 755"
