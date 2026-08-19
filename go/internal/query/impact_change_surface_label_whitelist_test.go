@@ -94,17 +94,27 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	t.Parallel()
 
-	// Pin the quantifier as well as the list. An earlier revision parsed only the
-	// bracketed labels, so rewriting any() to all() passed -- and all() drops every
-	// node carrying a label outside the list, which would gut the unscoped path
-	// while this guard stayed green.
-	if !strings.Contains(changeSurfaceLegacyCypher, "any(label IN labels(impacted) WHERE label IN [") {
-		t.Error("legacy cypher no longer uses any(label IN labels(impacted) WHERE label IN [...]); " +
-			"all() would drop every node with a label outside the whitelist")
+	// One whitelist, and the quantifier anchored to the same occurrence as the list.
+	//
+	// Two earlier revisions failed here in the same way. Checking the quantifier with
+	// a whole-constant Contains let a decoy `any(...)` satisfy it while the real
+	// filter used all(); and parsing only the first `label IN [` let a second
+	// disjunct -- `... OR any(label IN labels(impacted) WHERE label IN ['File'])`,
+	// which is how someone naturally widens this list -- admit a label the Go map
+	// does not. Requiring exactly one occurrence of the full literal closes both.
+	quantified := "any(label IN labels(impacted) WHERE label IN ["
+	if n := strings.Count(changeSurfaceLegacyCypher, quantified); n != 1 {
+		t.Fatalf("legacy cypher carries %d `%s` clauses, want exactly 1; "+
+			"all() would drop every node with a label outside the whitelist, and a second "+
+			"disjunct would admit labels this guard never sees", n, quantified)
+	}
+	if n := strings.Count(changeSurfaceLegacyCypher, "label IN ["); n != 1 {
+		t.Fatalf("legacy cypher carries %d `label IN [` lists, want exactly 1; "+
+			"this guard parses one and would not see the others", n)
 	}
 
 	clause := changeSurfaceLegacyCypher
-	start := strings.Index(clause, "label IN [")
+	start := strings.Index(clause, quantified) + len(quantified) - len("label IN [")
 	if start < 0 {
 		t.Fatal("legacy cypher no longer carries a label whitelist; update this guard")
 	}
@@ -168,7 +178,15 @@ func TestChangeSurfaceScopedCypherWhitelistMatchesGoMap(t *testing.T) {
 	// its whitelist entirely and arm 2 gained a label test no Repository node can
 	// satisfy, which would return nothing the moment upstream fixes clause
 	// evaluation.
-	if armTwo := strings.Index(changeSurfaceScopedOutgoingCypher, "(impacted:Repository)"); armTwo >= 0 && start > armTwo {
+	// Fail, do not skip, when the anchor is gone. An earlier revision guarded this
+	// with `armTwo >= 0 &&`, so a single whitespace edit -- `(impacted :Repository)`
+	// -- set the index to -1 and silently disarmed the arm check for every edit
+	// after it, with nothing red.
+	armTwo := strings.Index(changeSurfaceScopedOutgoingCypher, "(impacted:Repository)")
+	if armTwo < 0 {
+		t.Fatal("arm 2 no longer matches (impacted:Repository); update this guard rather than leaving it inert")
+	}
+	if start > armTwo {
 		t.Fatal("the WITH-attached label whitelist has moved into the Repository arm; it belongs in arm 1")
 	}
 
