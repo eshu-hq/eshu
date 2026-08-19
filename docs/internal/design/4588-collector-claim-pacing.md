@@ -656,10 +656,16 @@ a change to what the unit *is*, not to how it is written down.
 
 It also explains the rest of the sentence. `SPLIT_PART(fairness_key, ':', 4)`
 (`status_registry.go:97,108`) reads the fourth segment, which is the ecosystem.
-Drop the class and the ecosystem moves to position three, so a positional parse
-does not merely become ugly — it silently reads the wrong field. That is why the
-option pairs the removal with "real ecosystem column retiring the `SPLIT_PART`
-parse" rather than leaving the parse to be re-indexed.
+Drop the class and there is no fourth segment at all — and the failure that
+produces is worse than reading the wrong field. Postgres `SPLIT_PART` returns an
+empty string for a part that does not exist, the query wraps it in
+`NULLIF(BTRIM(...), '')`, and its `WHERE` clause then requires that to be
+`IS NOT NULL`. So every `package_registry` row fails the predicate and the status
+surface returns **zero rows for that collector**, silently and completely, rather
+than mislabelling anything. That is why the option pairs the removal with "real
+ecosystem column retiring the `SPLIT_PART` parse" rather than leaving the parse
+to be re-indexed, and why the regression test pinning that status output is not
+optional.
 
 And "sets up fair claiming as priority-then-round-robin later" names the ordering
 model: an explicit priority column ordered first, then round-robin across
