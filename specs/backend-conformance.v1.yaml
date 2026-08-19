@@ -1,5 +1,5 @@
 version: v1
-updated_at: 2026-05-04
+updated_at: 2026-08-19
 owners:
   - platform-engineering
 backends:
@@ -23,12 +23,20 @@ backends:
           - compose_e2e: live-backend-conformance
         notes: Served through the shared Bolt GraphQuery port with backend-aware query builders where needed.
       path_traversal:
-        status: supported
+        status: experimental
         verification:
           - go_test: ./internal/backendconformance
           - go_test: ./internal/query
           - compose_e2e: live-backend-conformance
-        notes: Bounded call-chain and transitive relationship reads use NornicDB-safe query shapes.
+        notes: >-
+          A representative multi-clause production shape returns zero rows on NornicDB
+          where Neo4j returns the correct row -- see the "value-flow cloud sink aggregation
+          and subscript projection" read case in go/internal/backendconformance/corpus_value_flow.go,
+          with the shape-by-shape comparison and controls in that package's evidence-notes.md.
+          Simpler bounded traversal and label/property reads do pass. Filed upstream as
+          orneryd/NornicDB#297, #298, #301, #302; a rewrite avoiding all four runs into a
+          fifth, #303. Not promotable to supported until upstream lands or a workaround is
+          proven against the whole production statement.
       full_text_support:
         status: not_required
         verification: []
