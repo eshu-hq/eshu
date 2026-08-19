@@ -38,6 +38,16 @@ The fourth has a workaround needing no upstream change: decomposing the compound
 multi-hop `MATCH` into chained single-hop clauses works on both backends. That
 is available to the production query today, independently of #297/#298/#301.
 
+**A full rewrite avoiding all of them has been attempted and does not exist
+yet.** Replacing `collect()`+subscript with a correlated
+`WHERE NOT EXISTS { ... }` — the natural way to assert "exactly one workload"
+without aggregation — runs straight into a fifth defect: correlated subqueries
+ignore their inner predicate, so `EXISTS` admits every row and `NOT EXISTS`
+admits none (orneryd/NornicDB#303, reproduced here with an uncorrelated control
+and both polarities). Every alternative reached for so far has avoided one
+defect by hitting another. Upstream is the path; a workaround-only rewrite would
+need its own live-backend proof pass and that proof does not exist.
+
 The conformance pair runs the complete production statement rather than stopping
 at the first divergence, because a case truncated at the first bug goes green as
 soon as that bug is fixed while the query stays broken on a later clause.
