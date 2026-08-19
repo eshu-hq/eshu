@@ -89,7 +89,7 @@ two production paths *do* consult the key:
 **The second one is a live constraint on any change here.** It reads the
 *fourth colon-delimited segment* of the key, which only means "ecosystem" for the
 `package_registry:<instance>:<class>:<ecosystem>` shape. Restructuring the key,
-or making other schedulers emit a different segment count, silently changes what
+or changing the package_registry key's segment count, silently changes what
 that status query reports. Nothing declares this coupling; it is positional.
 
 What is genuinely absent is any use of the key **in claim ordering**, and any
@@ -214,13 +214,35 @@ write conflict.
 
 ### Option B — extend round-robin to the fairness key, in the selector
 
-Change the ORDER BY so the claim takes the oldest item *per fairness key* rather
-than the oldest overall. Round-robin across keys falls out of choosing the oldest
-among the per-key heads.
+Change the ORDER BY so the claim rotates across fairness keys instead of draining
+the global-oldest first.
 
-This is the same algorithm the scheduler already applies one level up, which is
-its main appeal: one fairness model, applied at two levels, rather than two
-different mechanisms to reason about.
+**An earlier revision of this section said "round-robin falls out of choosing the
+oldest among the per-key heads." That is wrong, and it matters.** Choosing the
+oldest per-key head is age-based selection, not rotation. Under the section 3
+skew workload the 3,000 burst rows are created at `t=0` and the four small keys'
+rows at `t=1s`, so the burst key's head *is* the global-oldest on every claim; it
+drains first and the small keys still wait ~25 s. That reproduces the exact
+defect this design exists to fix.
+
+The rotation has to be structural. Breadth-first by per-key rank does it, and
+does it without any per-key claim-history state, which is what section 6 clause 3
+forbids:
+
+```sql
+ORDER BY row_number() OVER (
+             PARTITION BY fairness_key
+             ORDER BY COALESCE(visible_at, created_at)),
+         COALESCE(visible_at, created_at), work_item_id
+```
+
+Every key gets its first item before any key gets its second. Rank is computed
+from the rows themselves, so nothing records how often a key has claimed or how
+recently — the invariant survives.
+
+This is still the same fairness idea the scheduler applies one level up, but the
+mechanism is a rank, not an age comparison, and the difference is the whole
+result.
 
 Measured at 50,100 pending using a loose index scan over distinct keys plus a
 lateral head per key — row C above, median **0.179 ms**:
@@ -241,6 +263,14 @@ sampling noise does not threaten it.
 head in the candidate set on every claim, so no key can be passed over
 indefinitely. That is a property of the query shape, not of a tuning parameter,
 which is what makes it worth preferring.
+
+**What is measured and what is not.** The 0.179 ms above is per-claim SQL cost at
+50,100 pending. It is *not* time-to-first-claim under skew, and this design does
+not measure the tail latency of the rank-based ordering at all — the 25.26 s
+figure in section 3 is the shipped FIFO behaviour. **Implementation must report
+small-key time-to-first-claim for the rank shape under the section 3 skew
+workload before the ORDER BY change is accepted.** Without it, the claim that
+this fixes the measured starvation is an argument, not a result.
 
 Cost scales with the number of *distinct keys*, not the backlog.
 
@@ -275,7 +305,8 @@ measured under the skewed backlog, at the same worker count.**
 | Metric | Baseline (measured) | Requirement |
 | --- | ---: | --- |
 | Aggregate drain, 3,100 items, 8 workers, skewed | 119 claims/s | **≥ 119 claims/s** |
-| Small-key time to first claim | 25.26 s | materially lower; the even-distribution 30 ms is the floor |
+| Small-key time to first claim, single priority class | 25.26 s | materially lower; the even-distribution 30 ms is the floor |
+| Small-key time to first claim, mixed priority classes | not yet measured | **required before acceptance** — priority is ordered before rotation, so a lower-priority key can still starve behind a higher-priority burst |
 | Small-key time to first claim, even distribution | 20–35 ms | unchanged |
 | Claim statement at 50,100 pending | 10.832 ms (median of 5) | **≤ 10.832 ms** |
 
@@ -485,8 +516,18 @@ verifier, X3 CI gate, X4 dashboard — not a metric alone.
 section recommended two separately *shipped* steps; per section 10 it is three
 steps in one PR, each keeping its own commit and its own proof.
 
-**Step 1 — index the claim path (no behavior change).** Add an index matching the
-current ORDER BY. Claims stop scanning the backlog: 10.832 ms → 0.064 ms median
+**Step 1 — index the claim path (no behavior change).** The shipped ordering is
+`ORDER BY COALESCE(visible_at, created_at), created_at, work_item_id`
+(`go/internal/storage/postgres/workflow_control_sql.go:63`), so a plain column
+index cannot serve it — this needs an **expression index on
+`COALESCE(visible_at, created_at)`**. And the visibility predicate
+`(visible_at IS NULL OR visible_at <= $3)` is an `OR`, which cannot become a
+range scan on that expression, so it stays a **residual filter**: the index
+serves the sort, not the filter. The `LIMIT 1` early stop is what keeps this flat
+in backlog size, and that holds for the all-eligible backlog measured here — it
+can degrade once future-`visible_at` rows interleave with eligible ones. Both
+facts belong in the implementation, so nobody reaches for a plain column index
+and is surprised. Claims stop scanning the backlog: 10.832 ms → 0.064 ms median
 at 50,100 pending, claim order byte-identical to today. Provable by exact
 row-order equivalence plus the plan change. Worth landing alone: it is a real
 defect, independent of fairness, carrying none of its risk.
@@ -656,13 +697,26 @@ a change to what the unit *is*, not to how it is written down.
 
 It also explains the rest of the sentence. `SPLIT_PART(fairness_key, ':', 4)`
 (`status_registry.go:97,108`) reads the fourth segment, which is the ecosystem.
-Drop the class and there is no fourth segment at all — and the failure that
-produces is worse than reading the wrong field. Postgres `SPLIT_PART` returns an
-empty string for a part that does not exist, the query wraps it in
-`NULLIF(BTRIM(...), '')`, and its `WHERE` clause then requires that to be
-`IS NOT NULL`. So every `package_registry` row fails the predicate and the status
-surface returns **zero rows for that collector**, silently and completely, rather
-than mislabelling anything. That is why the option pairs the removal with "real
+Drop the class and there is no fourth segment at all. Postgres `SPLIT_PART`
+returns an empty string for a part that does not exist, the query wraps it in
+`NULLIF(BTRIM(...), '')`, and its `WHERE` clause requires that to be
+`IS NOT NULL` — so every `package_registry` work row fails the predicate.
+
+Being precise about what that costs, because this sentence has now been wrong
+twice in opposite directions: the **planned/completed/stale/failed/rate-limited
+counts silently collapse to zero**, not a mislabelled ecosystem. The row set is
+not necessarily empty, because the query ends in
+`FROM work_counts FULL OUTER JOIN warning_counts`
+(`go/internal/storage/postgres/status_registry.go:143-145`) and `warning_counts`
+reads `fact_records` (`:111-117`), which `fairness_key` does not touch. So
+warning-derived ecosystem rows still appear with every work count at zero; absent
+warning facts, the result is empty. The regression test should pin the collapsed
+counts, not an empty result set.
+
+Note also that this surface is **narrower than an earlier revision implied**. The
+query filters `WHERE collector_kind = 'package_registry'`, so only that key
+reaches the extraction — `vulnerability_intelligence` emits a 4-segment key too
+but never reaches this query. That is why the option pairs the removal with "real
 ecosystem column retiring the `SPLIT_PART` parse" rather than leaving the parse
 to be re-indexed, and why the regression test pinning that status output is not
 optional.
@@ -671,6 +725,22 @@ And "sets up fair claiming as priority-then-round-robin later" names the orderin
 model: an explicit priority column ordered first, then round-robin across
 fairness keys. That is how the priority contract survives — it stops being
 microseconds of spacing inside `created_at` and becomes a column.
+
+**That ordering also relocates the starvation rather than eliminating it, and the
+design must say so.** Priority ordered first means head-of-line blocking *across*
+priority tiers: if the 3,000-item burst key is `configured_direct` and the four
+small keys are `broad`, the priority column drains the burst first and the small
+keys wait exactly as long as they do today. The rotation only rotates *within* a
+priority class.
+
+This is not an argument against the model — cross-tier precedence is the owner's
+stated constraint, and a priority column that could be starved by a lower tier
+would not be a priority column. It is an argument against how section 6 states
+its result. "Small-key time to first claim: materially lower" is unscoped and
+therefore overclaims; it holds **within a priority class** and nowhere else. The
+proof table needs a **mixed-priority skew workload** alongside the single-class
+one, so the anti-serialization gate cannot pass while low-priority keys still
+starve. Without that row, the gate measures the easy case and calls it fixed.
 
 **The one thing this does not settle** is whether class disappearing from the key
 is intended to change rotation behaviour or is a side effect of wanting it in a
