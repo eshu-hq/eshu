@@ -152,13 +152,32 @@ download_ripgrep_archive() {
   return 1
 }
 
-# verify_ripgrep_checksum fails closed: any mismatch (including a tool that
-# cannot even be found, handled by sha256_command above) is a non-zero
-# return, and the caller must not extract or install an unverified archive.
+# verify_ripgrep_checksum fails closed: a mismatch, or the absence of any
+# sha256 tool, is a non-zero return, and the caller must not extract or
+# install an unverified archive.
+#
+# The `|| return 1` on sha_cmd is load-bearing, not defensive padding.
+# sha256_command's `exit 1` runs inside a command substitution, so it exits
+# that SUBSHELL, not the script, and `set -e` cannot rescue it because this
+# function is called in an `if !` condition, which suppresses errexit for the
+# whole body. Without the guards, execution continues with sha_cmd empty and
+# `${sha_cmd} "${archive}"` makes the DOWNLOADED ARCHIVE the command word --
+# bash tries to execute the unverified download. That currently fails only
+# because curl -o creates the file 0644, which is far too thin a thing to
+# rest on in the one function whose job is to not trust the download. The
+# `|| return 1` is what actually fires: sha256_command reports "neither
+# sha256sum nor shasum is available" and its subshell exit becomes a non-zero
+# substitution status, turning a misleading empty "checksum mismatch: got "
+# into an accurate diagnostic. The -z check below is belt-and-braces for a
+# future sha256_command that returns empty WITHOUT a non-zero status.
 verify_ripgrep_checksum() {
   local archive="$1" expected="$2"
   local sha_cmd actual
-  sha_cmd="$(sha256_command)"
+  sha_cmd="$(sha256_command)" || return 1
+  if [ -z "${sha_cmd}" ]; then
+    echo "install-apt-packages: no sha256 tool available to verify ripgrep; refusing to install unverified" >&2
+    return 1
+  fi
   actual="$(${sha_cmd} "${archive}" | awk '{print $1}')"
   if [ "${actual}" != "${expected}" ]; then
     echo "install-apt-packages: ripgrep checksum mismatch: expected ${expected}, got ${actual}" >&2
@@ -172,6 +191,33 @@ verify_ripgrep_checksum() {
 # the pinned ripgrep release. It never falls back to apt on any failure --
 # a silent apt fallback would reintroduce the exact hang this function
 # exists to remove -- it always exits non-zero instead.
+# assert_ripgrep_arch_supported fails at INSTALL time if the machine is not
+# the architecture the pin is built for. The default pin is
+# x86_64-unknown-linux-musl and every caller runs on ubuntu-latest today, so
+# this never fires now. It exists because the failure it prevents is
+# expensive to read: on an arm64 runner the install would SUCCEED, and the
+# breakage would surface later as "cannot execute binary file" at whatever
+# unrelated `rg` call ran first -- a confusing failure far from its cause, in
+# a change whose whole point is making CI failures mean something. Skipped
+# when the URL is overridden, since a caller pointing at their own artifact
+# (a test fixture, or an arm64 build) knows what they are fetching.
+assert_ripgrep_arch_supported() {
+  if [ -n "${ESHU_CI_APT_RIPGREP_URL:-}" ]; then
+    return 0
+  fi
+
+  local machine
+  machine="$(uname -m)"
+  case "${machine}" in
+    x86_64 | amd64) ;;
+    *)
+      echo "install-apt-packages: pinned ripgrep is x86_64-unknown-linux-musl but this machine is ${machine};" >&2
+      echo "install-apt-packages: installing it would place a binary that cannot execute. Set ESHU_CI_APT_RIPGREP_URL and ESHU_CI_APT_RIPGREP_SHA256 to a matching build for this architecture." >&2
+      return 1
+      ;;
+  esac
+}
+
 install_ripgrep_pinned_binary() {
   local url="${ESHU_CI_APT_RIPGREP_URL:-${ESHU_CI_APT_PINNED_RIPGREP_URL}}"
   local expected_sha256="${ESHU_CI_APT_RIPGREP_SHA256:-${ESHU_CI_APT_PINNED_RIPGREP_SHA256}}"
@@ -179,6 +225,10 @@ install_ripgrep_pinned_binary() {
 
   RIPGREP_WORK_DIR="$(mktemp -d)"
   local archive="${RIPGREP_WORK_DIR}/ripgrep.tar.gz"
+
+  if ! assert_ripgrep_arch_supported; then
+    exit 1
+  fi
 
   echo "install-apt-packages: installing ripgrep from pinned binary release (${url})" >&2
   if ! download_ripgrep_archive "${url}" "${archive}"; then

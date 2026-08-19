@@ -10,7 +10,7 @@
 # original apt path unchanged. These tests run entirely off the network: the
 # ripgrep cases build their own fixture tarball and point the script at it via
 # ESHU_CI_APT_RIPGREP_URL (curl fetches file:// URLs locally, no network
-# needed), and the apt-path cases use ESHU_CI_APT_APT_SKIP_INSTALL /
+# needed), and the apt-path cases use ESHU_CI_APT_SKIP_INSTALL /
 # ESHU_CI_APT_NO_SUDO so apt-get and sudo are never invoked.
 set -euo pipefail
 
@@ -334,9 +334,94 @@ $(cat "${out}")"
 # script's own source and asserts the download's curl invocation still
 # carries a whole-transfer bound, not just --connect-timeout.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Case 8: with NO sha256 tool on PATH, verification must fail closed and say
+# so. This is the case whose absence let a real defect through review:
+# sha256_command's `exit 1` runs inside a command substitution, so it exits
+# that subshell rather than the script, and `set -e` cannot rescue it because
+# verify_ripgrep_checksum is called in an `if !` condition. Execution used to
+# continue with an empty sha_cmd, which made the DOWNLOADED ARCHIVE the
+# command word -- bash attempting to execute the unverified download, blocked
+# only by curl -o creating it 0644. The archive must never be installed and
+# the message must name the missing tool rather than reporting an empty
+# "checksum mismatch".
+# ---------------------------------------------------------------------------
+test_missing_sha256_tool_fails_closed() {
+	local case_dir="${tmp_root}/no-sha-tool"
+	local bin_dir="${case_dir}/dest"
+	local stub_bin="${case_dir}/stubbin"
+	mkdir -p "${case_dir}" "${bin_dir}" "${stub_bin}"
+	local sha256
+	sha256="$(build_ripgrep_fixture "${case_dir}")"
+
+	# A PATH holding only the utilities the script needs BEFORE hashing, with
+	# sha256sum and shasum deliberately absent.
+	local tool
+	for tool in bash env curl tar mktemp rm mkdir install awk sed grep cat uname chmod cp seq sleep dirname basename tr head tail sort ln touch; do
+		if command -v "${tool}" >/dev/null 2>&1; then
+			ln -sf "$(command -v "${tool}")" "${stub_bin}/${tool}"
+		fi
+	done
+
+	local out="${case_dir}/out.log"
+	local rc=0
+	PATH="${stub_bin}" \
+		ESHU_CI_APT_FORCE_INSTALL=1 \
+		ESHU_CI_APT_NO_SUDO=1 \
+		ESHU_CI_APT_BIN_DIR="${bin_dir}" \
+		ESHU_CI_APT_RIPGREP_URL="file://${case_dir}/ripgrep.tar.gz" \
+		ESHU_CI_APT_RIPGREP_SHA256="${sha256}" \
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+
+	if [ "${rc}" -ne 0 ]; then
+		record_pass "no-sha-tool: exits nonzero (rc=${rc})"
+	else
+		record_fail "no-sha-tool: exited 0 with no sha256 tool available -- an unverified archive would have been installed. output:
+$(cat "${out}")"
+	fi
+
+	if [ ! -e "${bin_dir}/rg" ]; then
+		record_pass "no-sha-tool: no binary was installed"
+	else
+		record_fail "no-sha-tool: rg was installed without any checksum verification"
+	fi
+
+	# The assertions above pass with OR without the sha_cmd guards -- the script
+	# fails closed either way, so outcome alone cannot tell the two apart. These
+	# two pin the MECHANISM, which is what the guards actually change: without
+	# them, execution continues past the missing tool, `${sha_cmd} "${archive}"`
+	# makes the archive the command word (bash tries to EXECUTE the unverified
+	# download), and an empty digest is then reported as a bogus
+	# "checksum mismatch: got ". With the guards, verification returns before any
+	# of that happens.
+	if rg -q --fixed-strings "checksum mismatch" "${out}"; then
+		record_fail "no-sha-tool: reported a checksum mismatch when no sha256 tool exists -- verification compared against an empty digest instead of returning early. output:
+$(cat "${out}")"
+	else
+		record_pass "no-sha-tool: no bogus empty-digest checksum mismatch reported"
+	fi
+
+	if rg -q --fixed-strings "ripgrep.tar.gz: command not found" "${out}" ||
+		rg -q --fixed-strings "ripgrep.tar.gz: Permission denied" "${out}"; then
+		record_fail "no-sha-tool: bash attempted to EXECUTE the downloaded archive as a command -- the sha_cmd guard did not fire. output:
+$(cat "${out}")"
+	else
+		record_pass "no-sha-tool: never attempted to execute the downloaded archive"
+	fi
+
+	if rg -q --fixed-strings "neither sha256sum nor shasum is available" "${out}"; then
+		record_pass "no-sha-tool: message names the missing tool, not an empty checksum mismatch"
+	elif rg -q --fixed-strings "no sha256 tool available" "${out}"; then
+		record_pass "no-sha-tool: message names the missing tool (belt-and-braces guard fired)"
+	else
+		record_fail "no-sha-tool: message reports something other than the missing sha256 tool (an empty \"checksum mismatch: got \" here would mean the guards did not fire). output:
+$(cat "${out}")"
+	fi
+}
+
 test_download_bounds_transfer_not_just_connect() {
 	local curl_line
-	curl_line="$(rg -m1 --fixed-strings 'curl -fsSL' "${helper}")"
+	curl_line="$(rg -m1 '^[[:space:]]*if curl -fsSL' "${helper}")"
 
 	if [ -z "${curl_line}" ]; then
 		record_fail "transfer-bound: could not find the ripgrep download curl invocation in ${helper}"
@@ -362,6 +447,7 @@ test_non_ripgrep_package_still_takes_apt_path
 test_skip_install_skips_pinned_ripgrep
 test_download_failure_exhausts_retries_and_fails_loudly
 test_download_bounds_transfer_not_just_connect
+test_missing_sha256_tool_fails_closed
 
 if [ "${FAIL}" -ne 0 ]; then
 	printf 'test-ci-install-apt-packages: FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
