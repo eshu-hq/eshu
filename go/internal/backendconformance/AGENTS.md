@@ -46,7 +46,23 @@
 - **Add a new write case** → append to `DefaultWriteCorpus` in
   `corpus.go`, run the local default tests, then run the live opt-in via
   `scripts/verify_backend_conformance_live.sh` against both Neo4j and
-  NornicDB Compose lanes.
+  NornicDB Compose lanes. **Add a matching retract to `cleanupLiveCorpus`
+  in `live_test.go` in the same change** — a write case with no cleanup
+  leaks its fixtures permanently on a persistent developer database.
+
+- **Both corpora are `append(...)` calls**, so a related read/write pair
+  that is large or has its own rationale can live in its own
+  `corpus_<name>.go` and be appended by a helper, as
+  `corpus_value_flow.go` does. Prefer that once inlining would push
+  `corpus.go` past the 500-line cap, or once the pair needs more comment
+  than case.
+
+- **A case that reproduces a backend defect** should run the *whole*
+  production statement rather than stopping at the first clause that
+  diverges. A case truncated at the first known bug goes green the moment
+  that one bug is fixed, while the real query stays broken on a later
+  clause — and pin the load-bearing Cypher fragments in a hermetic test so
+  the query cannot be quietly reduced later.
 
 - **Add or change a backend capability** → update
   `specs/backend-conformance.v1.yaml`, then update the

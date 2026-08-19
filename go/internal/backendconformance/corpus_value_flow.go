@@ -24,8 +24,14 @@ import (
 //   - `workloads[0] AS workload` followed by `workload.name` returns the
 //     literal string "workload.name" on NornicDB, where Neo4j returns the
 //     property value.
+//   - `action.action IN sinkRel.actions` matches nothing when the list lives on
+//     a relationship, where Neo4j matches. The same predicate over a node list
+//     property works on both, and the relationship property reads back fine.
 //
-// Either alone empties the query. The failure is silent: no error, no warning,
+// Any one of the three empties the query, which is why this case runs the whole
+// production statement rather than stopping at the first divergence. An earlier
+// version stopped after the subscript projection; it would have gone green once
+// the first two were fixed while production still returned nothing. The failure is silent: no error, no warning,
 // and a graph that simply lacks the function-to-cloud-resource edges the query
 // exists to produce. A backend that cannot serve this case cannot serve cloud
 // value-flow reads, and this pair makes that fail loudly on the live
@@ -44,9 +50,14 @@ MATCH (fn)-[:RUNS_IN]->(workload:Workload)
 WITH fn, action, collect(DISTINCT workload) AS workloads
 WHERE size(workloads) = 1
 WITH fn, action, workloads[0] AS workload
+MATCH (workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[:USES]->(principal:CloudResource)
+MATCH (principal)-[sinkRel:CAN_PERFORM]->(sinkNode:CloudResource)
+WHERE action.action IN sinkRel.actions
 RETURN fn.uid AS function_uid,
-       action.action AS action,
-       workload.name AS workload_name`,
+       type(sinkRel) AS sink_rel,
+       labels(sinkNode) AS sink_labels,
+       sinkNode.is_internet AS sink_is_internet
+ORDER BY function_uid, sink_rel`,
 			Parameters: map[string]any{
 				"function_uid": valueFlowFunctionUID,
 			},
@@ -65,7 +76,7 @@ func valueFlowWriteCases() []WriteCase {
 			Name:                  "value-flow cloud sink seed",
 			Capability:            CapabilityCanonicalWrites,
 			RequireAtomicGroup:    true,
-			TransactionVisibility: "function, cloud action, workload and both edges must commit together",
+			TransactionVisibility: "the whole function-to-sink chain must commit together",
 			Statements: []sourcecypher.Statement{
 				{
 					Operation: sourcecypher.OperationCanonicalUpsert,
@@ -114,6 +125,61 @@ MERGE (fn)-[:RUNS_IN]->(w)`,
 						"workload_id":  valueFlowWorkloadID,
 					},
 				},
+				{
+					Operation: sourcecypher.OperationCanonicalUpsert,
+					Cypher: `MERGE (i:WorkloadInstance {id: $instance_id})
+SET i.repo_id = $repo_id`,
+					Parameters: map[string]any{
+						"instance_id": valueFlowInstanceID,
+						"repo_id":     valueFlowRepoID,
+					},
+				},
+				{
+					Operation:  sourcecypher.OperationCanonicalUpsert,
+					Cypher:     `MERGE (p:CloudResource {id: $principal_id})`,
+					Parameters: map[string]any{"principal_id": valueFlowPrincipalID},
+				},
+				{
+					Operation: sourcecypher.OperationCanonicalUpsert,
+					Cypher: `MERGE (s:CloudResource {id: $sink_id})
+SET s.is_internet = false`,
+					Parameters: map[string]any{"sink_id": valueFlowSinkID},
+				},
+				{
+					Operation: sourcecypher.OperationCanonicalUpsert,
+					Cypher: `MATCH (i:WorkloadInstance {id: $instance_id})
+MATCH (w:Workload {id: $workload_id})
+MERGE (i)-[:INSTANCE_OF]->(w)`,
+					Parameters: map[string]any{
+						"instance_id": valueFlowInstanceID,
+						"workload_id": valueFlowWorkloadID,
+					},
+				},
+				{
+					Operation: sourcecypher.OperationCanonicalUpsert,
+					Cypher: `MATCH (i:WorkloadInstance {id: $instance_id})
+MATCH (p:CloudResource {id: $principal_id})
+MERGE (i)-[:USES]->(p)`,
+					Parameters: map[string]any{
+						"instance_id":  valueFlowInstanceID,
+						"principal_id": valueFlowPrincipalID,
+					},
+				},
+				{
+					// The actions list lives on the relationship, which is the
+					// shape the third divergence needs: `IN` over a list held on
+					// an edge matches nothing on NornicDB.
+					Operation: sourcecypher.OperationCanonicalUpsert,
+					Cypher: `MATCH (p:CloudResource {id: $principal_id})
+MATCH (s:CloudResource {id: $sink_id})
+MERGE (p)-[rel:CAN_PERFORM]->(s)
+SET rel.actions = $actions`,
+					Parameters: map[string]any{
+						"principal_id": valueFlowPrincipalID,
+						"sink_id":      valueFlowSinkID,
+						"actions":      []any{valueFlowAction},
+					},
+				},
 			},
 		},
 	}
@@ -127,4 +193,7 @@ const (
 	valueFlowWorkloadID  = "workload:backend-conformance:cloud-sink"
 	valueFlowRepoID      = "repo:backend-conformance"
 	valueFlowAction      = "backend-conformance:GetObject"
+	valueFlowInstanceID  = "workload-instance:backend-conformance:cloud-sink"
+	valueFlowPrincipalID = "cloudresource:backend-conformance:principal"
+	valueFlowSinkID      = "cloudresource:backend-conformance:sink"
 )
