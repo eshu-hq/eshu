@@ -512,7 +512,11 @@ section 4 would move.
 
 ### 4.1 Identifier constructions
 
-Enumerated by hand; two for the instance id, three for the workload id.
+Enumerated by hand; two for the instance id, five for the workload id. These are
+the **pure** constructions. Three further sites construct as part of a parse and
+are listed in 4.5 rather than double-listed here, and one is in the console; the
+paragraph after the table names all four so the count cannot be read as the whole
+population.
 
 | Builds | At |
 | --- | --- |
@@ -520,7 +524,27 @@ Enumerated by hand; two for the instance id, three for the workload id.
 | `workload-instance:<name>:<env>`, again | `go/internal/reducer/projection_helpers.go:110` |
 | `workload:<name>` | `go/internal/reducer/projection.go:279` |
 | `workload:<name>` for the `DEPENDS_ON` target | `go/internal/reducer/dependency.go:76` |
-| `workload:<basename>` for the `shared_followup` fact | `go/internal/collector/git_followup_facts.go:52` |
+| `workload:<basename>` for the `shared_followup` fact, `reducer_domain: "workload_identity"` | `go/internal/collector/git_followup_facts.go:52` |
+| `workload:<basename>` for the `shared_followup` fact **again**, `reducer_domain: "workload_materialization"` | `go/internal/collector/git_followup_facts.go:188` |
+| `"workload:" + workloadName` for the returned row's `id` | `go/internal/query/entity_workload_context.go:261` |
+
+**The two `git_followup_facts.go` rows are the same expression in the same file
+under two different reducer domains** (`:51` and `:187`), and an earlier revision
+of this table counted them as one. That is precisely the failure the next
+subsection exists to warn about, committed by the table doing the warning — which
+is the strongest argument in this document for item 0's generated criterion over
+a hand-kept count. Section 4.7 named both envelopes correctly while this table
+named one; a generator cannot disagree with itself that way.
+
+**Constructing sites that also parse, and so live in 4.5:**
+`go/internal/query/catalog.go:213` (idempotent re-prefix),
+`go/internal/query/impact_change_surface_resolvers.go:107` (construct guarded by
+a prefix test at `:104`), and `go/internal/query/entity_workload_context.go:286`
+(an equality chain whose third arm constructs). Outside `go/`,
+`apps/console/src/pages/VulnerabilitiesReachable.tsx:377` builds
+`` `workload:${workload.id.slice("wl:".length)}` `` — a console-side construction
+that also re-keys off a *different* prefix, and the only construction this
+document has found outside `go/`.
 
 
 #### The second instance-id construction, and why it is easy to miss
@@ -656,34 +680,60 @@ this is rows rather than a criterion. Enumerated by hand across `go/`.
 | `go/internal/query/catalog.go:213` | **Both** a parse and a construct: an idempotent re-prefix, `"workload:" + TrimPrefix(name, "workload:")`. |
 | `go/internal/query/catalog.go:214,332` | Pure parses. |
 | `go/internal/query/impact_change_surface_resolvers.go:102-108` | Construct guarded by a prefix test at `:104`; the construct itself is at `:107`. |
-| `go/internal/query/entity_workload_context.go:280,286` | Prefix parses. (`:261` is a construction — see 4.1.) |
+| `go/internal/query/entity_workload_context.go:280` | Prefix parse — `strings.TrimPrefix(selector, "workload:")`, the only `TrimPrefix` in the function. |
+| `go/internal/query/entity_workload_context.go:286` | **Both.** `selector == normalized \|\| plainSelector == normalized \|\| selector == "workload:"+normalized` — the third arm constructs. An earlier revision filed this as a pure parse. |
 | `go/internal/query/repository_read_model_summary.go:114` | Prefix parse. |
 | `go/internal/query/content_reader_repository_catalog.go:107` | Prefix parse. |
 | `go/internal/query/service_workload_resolution.go:137` | `HasPrefix(selector.ServiceName, "workload:")` gates whether an id-equality read fires at all — so it breaks twice over. |
 | `go/internal/query/supply_chain_impact_path.go:145` | Prefix parse. |
-| `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse. |
-| `go/internal/mcp/dispatch_args.go:54-59` | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. |
+| `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse — `supplyChainWorkloadIDsFromPayload`. |
+| `go/internal/query/supply_chain_impact_runtime_context_store.go:193` | The **query-side half of that pair**: `strings.HasPrefix(workloadID, "workload:")`, whose comment at `:184-188` says it mirrors the reducer's extraction. A re-key breaks both halves; an earlier revision listed only the reducer half. |
+| `go/internal/query/entity_map_resolver.go:62`, `:135` | Both call `canonicalWorkloadIDCandidate(from)` (defined at `impact_change_surface_resolvers.go:102`) and append a prefix-constructed resolver when it differs from the input. |
+| `go/internal/mcp/dispatch_args.go:54-59` | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. It **is** applied to workload selectors in production: `dispatch_service_selector.go:44,74` and `dispatch.go:411`, and `go/internal/mcp/README.md:524` describes it as stripping the `workload:` prefix. |
 | `go/internal/mcp/dispatch_args.go:61-66` | `canonicalWorkloadIdentifier` also cuts at the first colon but returns the **whole value** when the head is `workload`, so it survives a re-key intact. Listed because it sits beside the previous row and an earlier revision cited it as the truncating one. |
-| `apps/console/src/api/impactDeploymentGraph.ts:453` | `startsWith("workload-instance:")`. Outside `go/`, which the enumeration above does not cover. |
+| `apps/console/src/api/impactDeploymentGraph.ts:453`, `:455` | `startsWith("workload-instance:")` and `startsWith("workload:")`. Outside `go/`, which the enumeration above does not cover. |
+| `apps/console/src/api/eshuGraphDeploymentTopology.ts:298,300` | `startsWith("workload:")`, deciding a column and a node kind. |
+| `apps/console/src/pages/ExplorerPage.tsx:380` | `needle.startsWith("workload:")` short-circuits query rewriting. |
+| `apps/console/src/api/exposureServiceSelection.ts:172` | **Strips**, not tests: `value.startsWith("workload:") ? value.slice("workload:".length) : value`. |
+| `apps/console/src/api/eshuGraphRelationships.ts:192` | **Strips** too: `trimmed.slice(prefix.length)` after a case-insensitive `startsWith`. |
 
-**Construct and parse are not disjoint** — `catalog.go:213` and
-`impact_change_surface_resolvers.go:102-108` are both — which is one more reason
-this could not have been fixed by adding rows to a flat "parse sites" list. Three
-sites an earlier revision filed here are constructions and now live in 4.1.
+**Construct and parse are not disjoint** — `catalog.go:213`,
+`impact_change_surface_resolvers.go:102-108` and `entity_workload_context.go:286`
+are all three — which is one more reason this could not have been fixed by adding
+rows to a flat "parse sites" list. Those hybrids stay here and are cross-referenced
+from 4.1 rather than moved, because a reader auditing parse behaviour needs to see
+them. Only `entity_workload_context.go:261`, a pure construction an earlier
+revision filed here, actually moved.
 
 `go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep
 working — **but do not skip that file on the strength of this line.** Its
-`workload_instance` case at `:70-75` emits two further resolvers, anchored on
-`id` and on `workload_id`, and both break under the re-key. See migration item 4.
+`workload_instance` case at `:70-75` emits **three** resolvers, and the file also
+holds the two `canonicalWorkloadIDCandidate` callers in the table above.
+
+The signature is
+`entityMapNodeResolverQuery(label, matchProperty, from, anchorProperty, rank, limit)`
+(`:159-165`), so *match* property and *anchor* property are different parameters
+and must not be conflated: the three resolvers differ in **match** property
+(`:72` `id`, `:73` `workload_id`, `:74` `name`) while the **anchor** property is
+`id` for all three. The rank-0 `id` and rank-1 `workload_id` resolvers match on
+values the re-key moves and break; the rank-2 `name` resolver survives. Migration
+item 4 states this correctly and is the version to trust if these two ever
+disagree again.
 
 Nothing decomposes a `workload-instance:<name>:<env>` identifier back into its
-name and environment. That strict negative holds and is a verified one rather
-than an unsearched gap — but the search covered `go/` only, and the console does
-test the prefix:
-`apps/console/src/api/impactDeploymentGraph.ts:453` is
-`if (id.startsWith("instance:") || id.startsWith("workload-instance:")) return "instance";`,
-which this document files as a parse site elsewhere. A re-key that keeps the
-prefix leaves it working; one that changes the prefix does not.
+name and environment — not in `go/`, and not in the console either: none of the
+console strippers below splits an instance id. That strict negative holds and is
+verified rather than an unsearched gap.
+
+The `go/`-only scope of the enumeration above, however, understated the console.
+It is **seven** sites, in the table, and they are not all the same kind. Five
+*test* the prefix, and a re-key that keeps the prefix leaves those working. Two
+**strip** it — `exposureServiceSelection.ts:172` and `eshuGraphRelationships.ts:192`
+— and stripping is a different break: a stripper hands downstream code a bare
+name where a three-part id would yield `<repo_id>:<name>`, so it fails by
+producing a plausible wrong value rather than by not matching. The console is
+therefore in scope for the re-key in a way an earlier revision's single cited
+line did not convey.
 
 **The `reducer_workload_identity` subsystem needs a decision before
 implementation** (section 8, question 3). Section 4.7 has the detail; do not
