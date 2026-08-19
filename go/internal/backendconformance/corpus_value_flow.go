@@ -13,12 +13,9 @@ import (
 //
 // valueFlowCloudSinkTargetsCypher
 // (go/internal/reducer/value_flow_cloud_sink_loader.go) resolves which cloud
-// resources a function's cloud action can reach. It chains several query
-// shapes -- multiple MATCH clauses, an aggregation over them, a WITH-attached
-// WHERE on the aggregate, a subscript projection of a collected node, a
-// multi-hop traversal from a bound anchor, and a predicate over a list held on
-// a relationship. Measured against Neo4j 5.x community and NornicDB (pinned
-// build and upstream main), these diverge:
+// resources a function's cloud action can reach. Measured against Neo4j 5.x
+// community and NornicDB (pinned build and upstream main), the statement
+// diverges from Neo4j in the following ways:
 //
 //   - collect() after two MATCH clauses returns no rows at all on NornicDB,
 //     where Neo4j returns the group.
@@ -44,10 +41,11 @@ import (
 // production statement returns a row on a conforming backend; it does not
 // assert that these four are all the reasons it might not.
 //
-// The failure is silent: no error, no warning, and a graph that simply lacks
-// the function-to-cloud-resource edges the query exists to produce. A backend that cannot serve this case cannot serve cloud
-// value-flow reads, and this pair makes that fail loudly on the live
-// conformance run instead of silently in projection.
+// The failure is silent: no error, no warning, and a graph that simply
+// lacks the function-to-cloud-resource edges the query exists to produce. A
+// backend that cannot serve this case cannot serve cloud value-flow reads, and
+// this pair makes that fail loudly on the live conformance run instead of
+// silently in projection.
 
 // valueFlowReadCases returns the read half of the value-flow cloud sink
 // conformance pair. It reproduces the production query's shape rather than
