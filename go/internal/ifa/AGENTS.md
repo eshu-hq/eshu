@@ -16,12 +16,13 @@
    wholesale.
 9. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
    `demoOrgRoundtripOdu` depends on.
-10. `materialized_edges.go`, `materialized_edges_manifest.go`,
-    `materialized_edges_sql.go` (#5351) - the `materialized_edges:<domain>`
-    exhaustiveness gate: binds an Odù expectation to a reducer-materialized
-    graph edge family so a materialization silently ceasing to produce an
-    edge family is caught. `sql_relationship_odu.go` is the first family's
-    fixture.
+10. `go/internal/ifa/materializededges/AGENTS.md` (#5351, split out #6163) -
+    the `materialized_edges:<domain>` exhaustiveness gate: binds an Odù
+    expectation to a reducer-materialized graph edge family so a
+    materialization silently ceasing to produce an edge family is caught.
+    `*_family_odu.go`/`*_family_catalog.go` in this package still seed each
+    family's fixture (`sql_relationship_odu.go` was the first); the guards
+    and dispatch that consume them moved to that sibling package.
 
 ## Invariants
 
