@@ -182,6 +182,18 @@ func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
 // whitelist (see changeSurfaceImpactedLabels), the environment match, the
 // repository grant, and the per-branch edge direction.
 //
+// This filter is shared by the scoped/governed path and the unscoped
+// legacy/investigate path (changeSurfaceImpactRows, findChangeSurfaceImpactRows
+// both route through changeSurfaceTraversalRows), so the label check now runs
+// on the unscoped path too. That is a no-op there today: the unscoped Cypher's
+// whitelist sits in a MATCH-attached WHERE, the clause position the pinned
+// backend evaluates correctly, and TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher
+// keeps that list and changeSurfaceImpactedLabels equal. It stays a no-op only
+// as long as StringSliceVal(row, "labels") parses the "labels" value both
+// backends hand back; if it ever returned nil for a legitimately-labelled row,
+// the fail-closed changeSurfaceRowLabelAdmitted would silently drop every
+// unscoped row, not just ones outside the whitelist.
+//
 // The label check cannot recover rows the server-side LIMIT already discarded.
 // The pinned backend applies LIMIT to the unfiltered set, so a scoped read whose
 // first page is dominated by non-whitelisted nodes can return fewer impacts than

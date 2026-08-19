@@ -112,3 +112,52 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 		}
 	}
 }
+
+// TestChangeSurfaceScopedCypherWhitelistMatchesGoMap guards the third copy of
+// the impacted-label whitelist: the WITH-attached WHERE in
+// changeSurfaceScopedOutgoingCypher. That clause is inert today -- the pinned
+// NornicDB build does not evaluate a label test attached to a WITH, so
+// changeSurfaceImpactedLabels is where the whitelist actually runs -- but it
+// stops being inert the moment upstream fixes clause evaluation. If it has
+// drifted from the Go map by then (a label added to one and not the other),
+// the server filter and the Go filter disagree: a label the Go map admits but
+// the scoped Cypher does not would be dropped server-side before LIMIT,
+// silently under-reporting impacted nodes. This guard keeps that from
+// happening unnoticed.
+//
+// The scoped Cypher's list omits Repository, which the second CALL arm admits
+// through its own id-based branch rather than through this label test, so the
+// comparison is against changeSurfaceImpactedLabels minus Repository.
+func TestChangeSurfaceScopedCypherWhitelistMatchesGoMap(t *testing.T) {
+	t.Parallel()
+
+	marker := "WITH path, impacted\n  WHERE impacted:"
+	start := strings.Index(changeSurfaceScopedOutgoingCypher, marker)
+	if start < 0 {
+		t.Fatal("scoped cypher no longer carries a WITH-attached label whitelist; update this guard")
+	}
+	start += len(marker)
+	end := strings.Index(changeSurfaceScopedOutgoingCypher[start:], "\n")
+	if end < 0 {
+		t.Fatal("could not find the end of the scoped cypher's label whitelist clause")
+	}
+	clause := changeSurfaceScopedOutgoingCypher[start : start+end]
+
+	got := map[string]struct{}{}
+	for _, label := range strings.Split(clause, " OR impacted:") {
+		got[strings.TrimSpace(label)] = struct{}{}
+	}
+
+	want := map[string]struct{}{}
+	for label := range changeSurfaceImpactedLabels {
+		if label == "Repository" {
+			continue
+		}
+		want[label] = struct{}{}
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scoped cypher WITH-attached whitelist = %v, want %v (changeSurfaceImpactedLabels minus "+
+			"Repository) -- keep the inert Cypher list in sync with the Go filter it stands in for", got, want)
+	}
+}
