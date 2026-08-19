@@ -93,43 +93,67 @@ same-scope path and concluded the losing repository was silently dropped. Driven
 through the production shape, the opposite happens. **The failure is a merge, not
 a drop.**
 
-### The reset path makes it destructive
+### The reset path: I called this live, and it is not
 
-`go/internal/graph/mutations.go:113-129` builds a repository's delete set from
-four collections, the first being:
+An earlier revision of this document called `go/internal/graph/mutations.go:113-129`
+a live data-loss path. **That was wrong**, and the correction matters more than the
+original claim did.
 
-```cypher
-OPTIONAL MATCH (r)-[:DEFINES]->(defined_workload:Workload)
+```
+rg -n --type go 'ResetRepositorySubtreeInGraph' . | rg -v 'internal/graph/mutations'
 ```
 
-with no `repo_id` filter, unioned with the `repo_id`-scoped ones and then
-`DETACH DELETE`d. Because a collided workload genuinely carries `DEFINES` edges
-from both repositories — measured above, not hypothesised — **resetting
-repository A destroys shared state that belongs to repository B.**
+returns nothing. All three functions in that file have **zero callers** outside their
+own file and test. It is a port of `graph/persistence/mutations.py`, which no longer
+exists here. No CLI subcommand, admin route, or ingester path reaches it. What
+production does on re-ingest is `canonicalNodeRepositoryIDCleanupCypher` —
+`MATCH (r:Repository {id: $repo_id}) DETACH DELETE r` — which removes the Repository
+node and its incident edges only; a shared `Workload` survives that and merely loses one
+`DEFINES` edge, which the reducer re-MERGEs.
 
-Precisely what happens, since this is the one item asking for an independent fix:
+The proposed one-clause fix would not have worked either. The delete set has four
+collections, and collection 3 is `OPTIONAL MATCH (owned_workload:Workload {repo_id: r.id})`.
+Since `w.repo_id` is overwritten by whichever repository materializes last, resetting the
+*last writer* deletes the shared node through collection 3 regardless of what the `DEFINES`
+clause says.
 
-- Repository B's **`Workload` node is deleted outright**, along with its
-  `DEPENDS_ON` edges, which sit directly on the removed node.
-- Repository B's **`WorkloadInstance` nodes survive but are orphaned.**
-  `DETACH DELETE` removes only the relationships touching the deleted node, so
-  the instances lose their `INSTANCE_OF` edge and with it their only path back to
-  a workload. The rows remain, with `repo_id` still correct, and instance-rooted
-  queries still find them — `infra_ecosystem_overview.go:58` counts platforms via
-  `MATCH (i:WorkloadInstance)-[:RUNS_ON]->(p:Platform)` and never touches
-  `INSTANCE_OF`. What breaks is every Workload-rooted traversal, which is the
-  shape most consumers use (`catalog_workload_environments.go:69`,
-  `entity_workload_platform.go:68`, `workload_runtime_topology.go:103`, and
-  others, all `MATCH (w:Workload)...<-[:INSTANCE_OF]-(i)`).
-- **Endpoints are partially severed.** There are two `EXPOSES_ENDPOINT` writers
-  (`workload_materializer.go:452` from the repository, `:459` from the workload).
-  Only the workload-sourced edge touches the deleted node, so an endpoint that
-  also carries repository B's own edge stays reachable through B directly.
+**There is a real cross-repo leak, and it is elsewhere.** `retractRepoRunsOnEdgesCypher`
+and `retractSingleRepoRunsOnEdgesCypher` (`canonical_relationships.go:352-364`) are
+dispatched in production from `edge_writer_retract_repo.go:112,114`:
 
-B does not get the deleted node back until B is re-ingested.
+```cypher
+MATCH (repo:Repository {id: repo_id})-[:DEFINES]->(w:Workload)
+MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
+MATCH (i)-[rel:RUNS_ON]->(:Platform)
+WHERE rel.evidence_source = $evidence_source
+DELETE rel
+```
 
-This is a live defect gated only on a name collision existing, not a latent one.
-Any option below must fix this statement.
+Same unfiltered `DEFINES` traversal, and nothing scopes `i` to the retracting repository.
+Under a collision, repo A's pass would retract repo B's instance→platform edges.
+**Flagged as not yet probed** — the merge mechanism above is measured, this specific
+retract is not, and after getting the reset path wrong I am not calling a second one live
+without running it.
+
+### The authorization layer is already paying for this
+
+This is the strongest evidence that the defect is real and current, and it was in the tree
+the whole time. `relationships_catalog_cypher.go:437-456` documents the exact mechanism —
+"two repositories that define same-named workloads collapse to a single Workload node with
+last-writer-wins repo_id" — and then deliberately **under-authorizes** to contain it:
+
+> admitting a collision Workload via DEFINES would expose every edge attached to it,
+> including edges a DIFFERENT tenant's ingestion wrote, purely because the two tenants'
+> workloads share a name … under-authorization is the fail-closed, acceptable outcome
+> here, never a leak.
+
+`infra_scope_grant.go:247-251` adds disjunct 5 for the same reason: "a name-collision
+Workload defined by two repositories materializes only ONE repo_id, so a grant for its
+OTHER defining repository is missed by the flat compare."
+
+So the cost of this defect is already being paid, in two places, as deliberate
+under-authorization and an extra grant disjunct. A repo-scoped key makes `w.repo_id`
+exact and retires both.
 
 ## 3. Measured blast radius
 
@@ -272,11 +296,31 @@ heuristic.
 - **Removes the reset hazard**, since `DEFINES` can no longer span repositories.
 - **Cost:** the identifier stops being human-readable; every parse site in
   section 4 needs revisiting.
-- **Open question it raises:** a service defined in a source repository and
-  deployed from a config repository becomes two workloads where today it is one.
-  Whether that is a fix or a regression depends on which repository `RepoID`
-  carries — and `DeploymentRepoIDs` existing separately suggests the model
-  already distinguishes them.
+- **`DeploymentRepoIDs` must not be the key.** This was an open question and is
+  now settled. It fails three independent tests for key material: **plural** (the
+  corpus has one app repo with three to four deploying repos), **unstable** (the
+  primary is re-picked whenever higher-confidence evidence arrives,
+  `workload_deployment_sources.go:232-234`, so node identity would churn on a
+  confidence change), and **usually absent** — that file's own comment at
+  `:135-145` calls having no deployment evidence "the overwhelmingly common and
+  entirely expected outcome". `RepoID` has none of these; empty-`RepoID`
+  candidates are skipped outright at `projection.go:260`.
+
+  Keying on the deployment repo would also make the node self-contradictory: the
+  id would claim the config repo while `repo_id` and the `DEFINES` edge — both
+  written from `WorkloadRow.RepoID` — claim the defining one. The
+  `DEPLOYMENT_SOURCE` edge's own reason string says what that relationship is:
+  "Deployment manifests for workload instance live in deployment repository."
+  That is provenance, and the correlation rules keep deployment repos
+  provenance-only.
+
+- **"One workload or two" was largely a false premise.** In the golden corpus the
+  split-repo family already materializes as *three separately named* workloads —
+  `deployable-source`, `deployable-config`, `kustomize-deployable-overlay` —
+  because names come from repo names, not manifest names. Their unity is carried
+  by `DEPLOYS_FROM` / `CORRELATES_DEPLOYABLE_UNIT` / `DEPLOYMENT_SOURCE`, none of
+  which a re-key touches. The name-only collapse merges only when repo *names*
+  coincide, which is this defect rather than a feature.
 
 ### Option B — namespace or cluster-scoped: `workload:<cluster>/<namespace>:<name>`
 
@@ -406,14 +450,39 @@ retracted and rebuilt rather than rewritten in place.
 1. **Rebuild, do not rewrite.** Retract every `Workload` and `WorkloadInstance`
    plus their edges, then re-project from facts. At 40 nodes and 33 instances
    this is cheap; the reducer already owns a correct rebuild path.
-2. **Fix `mutations.go:119` in the same change.** Its unfiltered `DEFINES` match
-   is destructive *today* (section 2), so this is worth doing on its own merits
-   regardless of which key wins.
+2. **Scope the RUNS_ON retract in the same change.**
+   `retractRepoRunsOnEdgesCypher` / `retractSingleRepoRunsOnEdgesCypher`
+   (`canonical_relationships.go:352-364`, dispatched from
+   `edge_writer_retract_repo.go:112,114`) traverse `DEFINES` unfiltered and never
+   scope the instance to the retracting repository. A repo-scoped key makes that
+   traversal safe by construction. `mutations.go` needs no fix — it is
+   unreachable (section 2) and its correct disposition is deletion under the
+   repo's own dead-code precedent, separately from this work.
 3. **Regenerate the golden artifacts** — 45 literals in the B-12 snapshot, 1 in
    the cassettes, moved in the same change per the golden-corpus rules.
-4. **Update the parse sites** in section 4, with a test per site.
-5. **Decide the `reducer_workload_identity` question** (section 8, question 3).
-6. **Add the collision counter that does not exist.** Nothing today reports two
+4. **Re-key `WorkloadInstance.workload_id` in the same change.** The item most
+   likely to be missed, and the only one that fails *silently*. It is a
+   denormalized scalar copy of the workload id on every instance node, and four
+   independent read paths filter on it: `workload_runtime_topology.go:90-97`,
+   `service_workload_resolution.go:249,284`, `compare.go:187-194`, and
+   `impact_resource_investigation_reads.go:71-85`. Re-key the node without this
+   and topology goes blank, environment compare degrades to "unsupported", and
+   nothing errors anywhere.
+
+5. **Update the parse sites** in section 4, with a test per site. Two deserve
+   naming: `catalog.go:328-333` (`catalogWorkloadKey` merges catalog rows by
+   *name only*, so split siblings silently vanish from `/catalog`) and
+   `mcp/dispatch_args.go:54-59` (`normalizeQualifiedIdentifier` cuts at the FIRST
+   colon, so a three-part id becomes `<repo>:<name>` and 404s).
+
+   The loud breaks are safer and already have error types: name-selector surfaces
+   go ambiguous for collision names —
+   `impact_trace_workload_selection.go:52-54` (`errAmbiguousTraceWorkloadSelector`)
+   and `service_workload_resolution.go:93-104` (`serviceWorkloadAmbiguousError`).
+   The `repo`/`environment` narrowing arguments those surfaces already accept
+   become mandatory for collision names.
+6. **Decide the `reducer_workload_identity` question** (section 8, question 3).
+7. **Add the collision counter that does not exist.** Nothing today reports two
    candidates contending for one identity.
 
 **Compatibility:** any consumer holding a stored `workload:<name>` identifier —
@@ -451,8 +520,13 @@ impact.
 ## 8. Open questions
 
 1. **Which repository owns a workload deployed from a different repository?**
-   `RepoID` and `DeploymentRepoIDs` are separate fields; the key must use the
-   right one. **Load-bearing — the design cannot be accepted without it.**
+   **Recommended answer: the defining repository, `WorkloadCandidate.RepoID`.**
+   Section 5 gives the evidence — `DeploymentRepoIDs` is plural, unstable and
+   usually absent, and keying on it makes the node contradict its own `repo_id`
+   and `DEFINES` edge. Every `DEFINES`-paired query tightens under source keying
+   and goes silently false under deployment keying. This is presented as a
+   recommendation rather than a decision: it is the one answer the whole design
+   rests on, so it should be confirmed rather than assumed.
 2. **Do stored `workload:<name>` identifiers exist outside the graph** — saved
    queries, dashboards, external callers?
 3. **Does the `reducer_workload_identity` Postgres fact get re-keyed too?** It is
@@ -470,8 +544,13 @@ Before any code is written I need:
 - **A decision on Option C over A**, and on timing.
 - **An answer to question 1** — it determines the key.
 - **A decision on question 3**, the non-graph identity subsystem.
-- **Agreement that the `mutations.go` fix can go ahead independently**, since it
-  is a live data-loss path and does not depend on the identity decision.
+- **Confirmation of the recommended answer to question 1**, since everything else
+  in this design follows from it.
+
+There is no longer an independent fix to approve. An earlier revision asked to fix
+`mutations.go:119` on its own; that path is unreachable (section 2), and the real
+leak — the RUNS_ON retract — cannot be scoped without the identity answer, so it
+belongs to this issue rather than beside it.
 
 No production code has been written for this issue and none will be until the
 above is settled. The probe files are throwaway and are not in this branch.
