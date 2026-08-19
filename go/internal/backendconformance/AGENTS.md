@@ -46,7 +46,9 @@
 - **Add a new write case** → append to `DefaultWriteCorpus` in
   `corpus.go`, run the local default tests, then run the live opt-in via
   `scripts/verify_backend_conformance_live.sh` against both Neo4j and
-  NornicDB Compose lanes. **Add a matching retract to `cleanupLiveCorpus`
+  NornicDB Compose lanes. Add `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1` to
+  that run when you need the value-flow pair too; it is absent from the
+  corpora without it, so a green run does not cover it. **Add a matching retract to `cleanupLiveCorpus`
   in `live_test.go` in the same change** — a write case with no cleanup
   leaks its fixtures permanently on a persistent developer database.
 

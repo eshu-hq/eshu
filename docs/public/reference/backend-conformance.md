@@ -42,7 +42,7 @@ family unless a current reference page formalizes a narrower interface.
 
 ## Live Backend Check
 
-The live check runs the same corpus against a real Bolt endpoint. It is opt-in
+The live check runs the shared corpus against a real Bolt endpoint. It is opt-in
 so normal unit tests stay fast:
 
 ```bash
@@ -66,6 +66,25 @@ ESHU_NEO4J_DATABASE=nornic \
 GitHub Actions runs this live check in the end-to-end matrix before
 `bootstrap-index`, so both official backends prove the shared read/write corpus
 against a clean graph service.
+
+### One pair is opt-in
+
+The value-flow cloud sink read and seed reproduce defects that are open upstream
+in NornicDB, so they are **not** in the corpus by default — left in, they would
+red-line the blocking live gate on every unrelated change. Set
+`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1` to include them:
+
+```bash
+ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1 \
+  ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
+```
+
+The pair is absent from the corpus when the variable is unset, not skipped, so
+a default run proves strictly less than a run with it. The script prints
+`value-flow cloud sink pair: INCLUDED` or `OMITTED` before it runs anything —
+read that line before treating a green live check as full coverage. The pair
+passes on Neo4j, so setting the variable there is a regression detector rather
+than a known failure.
 
 ## Profile Matrix
 

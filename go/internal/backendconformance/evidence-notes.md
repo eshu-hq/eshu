@@ -65,7 +65,7 @@ ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1 ESHU_BACKEND_CONFORMANCE_LIVE=1 \
 It is opt-in because it fails against NornicDB **by design** — that is what it is
 for — and the live-conformance gate blocks merges. Left in the default corpora it
 would red-line every unrelated change in the repo until upstream lands a fix,
-which is a heavy toll for a defect already documented in six upstream issues and
+which is a heavy toll for a defect already documented in five upstream issues and
 in this note.
 
 Nothing about the pair is weakened by the gate. Measured both ways against a live
@@ -90,8 +90,17 @@ same order as every other case in the corpus.
 Observability Evidence: failure is reported by the existing live-conformance
 runner, which names the failing case and the row shortfall — `read case
 "value-flow cloud sink aggregation and subscript projection" returned 0 rows,
-want at least 1`. No new metric, span, log field or environment variable is
-introduced.
+want at least 1`.
+
+One environment variable is introduced, `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW`,
+and *omission* is reported as deliberately as failure. Because the pair is
+absent from the corpora rather than skipped, a run without the variable would
+otherwise pass silently while proving strictly less. Two signals prevent that:
+`scripts/verify_backend_conformance_live.sh` prints whether the pair is
+INCLUDED or OMITTED before it runs anything, and `TestLiveBackendConformance`
+logs the same fact — which is why that script now passes `-v`, without which
+the log would be invisible on a pass. No metric or span is added; this is a
+test-lane surface with no runtime component.
 
 Verified both directions on live backends: `ESHU_GRAPH_BACKEND=neo4j` passes
 `TestLiveBackendConformance` with exit 0; `ESHU_GRAPH_BACKEND=nornicdb` fails

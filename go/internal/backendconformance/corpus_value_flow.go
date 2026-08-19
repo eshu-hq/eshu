@@ -16,7 +16,7 @@ import (
 // NornicDB by design — that is the whole point of it. Left in the default
 // corpora it would red-line the blocking live-conformance gate on every
 // unrelated change until upstream lands a fix, which is a heavy toll for a
-// defect already documented in six upstream issues and this package's
+// defect already documented in five upstream issues and this package's
 // evidence note.
 //
 // Off by default the pair is absent from the corpora entirely rather than
@@ -94,7 +94,8 @@ func valueFlowReadCases() []ReadCase {
 		{
 			Name:       "value-flow cloud sink aggregation and subscript projection",
 			Capability: CapabilityPathTraversal,
-			Cypher: `MATCH (fn:Function {uid: $function_uid})-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+			Cypher: `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
 WITH fn, action, collect(DISTINCT workload) AS workloads
 WHERE size(workloads) = 1
@@ -108,7 +109,7 @@ RETURN fn.uid AS function_uid,
        sinkNode.is_internet AS sink_is_internet
 ORDER BY function_uid, sink_rel`,
 			Parameters: map[string]any{
-				"function_uid": valueFlowFunctionUID,
+				"function_uids": []any{valueFlowFunctionUID},
 			},
 			MinRows: 1,
 		},
@@ -243,7 +244,7 @@ SET rel.actions = $actions`,
 const (
 	valueFlowFunctionUID = "function:backend-conformance:cloud-caller"
 	valueFlowWorkloadID  = "workload:backend-conformance:cloud-sink"
-	valueFlowRepoID      = "repo:backend-conformance"
+	valueFlowRepoID      = "repo:backend-conformance-valueflow"
 	valueFlowAction      = "backend-conformance:GetObject"
 	valueFlowInstanceID  = "workload-instance:backend-conformance:cloud-sink"
 	valueFlowPrincipalID = "cloudresource:backend-conformance:principal"

@@ -59,17 +59,27 @@ func TestValueFlowPairIsWiredIntoDefaults(t *testing.T) {
 			if c.MinRows < 1 {
 				t.Fatalf("value-flow read case MinRows = %d, want >= 1 so an empty result fails", c.MinRows)
 			}
-			// Pin the three shapes this case exists to exercise. Without this
-			// the query could be reduced to something trivial that keeps the
-			// name and MinRows, and both this guard and every default CI run
-			// would stay green while detecting nothing.
+			// Pin every shape this case exists to exercise, plus the list
+			// predicate the production statement opens with. Without this the
+			// query could be reduced to something trivial that keeps the name
+			// and MinRows, and both this guard and every default CI run would
+			// stay green while detecting nothing.
+			//
+			// The multi-hop fragment is load-bearing in a way the others are
+			// not: decomposing it into chained single-hop clauses is a real
+			// workaround that works on both backends (see evidence-notes.md),
+			// so it is the one shape a well-meaning fix is most likely to
+			// remove. An earlier revision of this guard omitted it, and that
+			// exact decomposition passed.
 			for _, fragment := range []string{
+				"IN $function_uids",
 				"collect(DISTINCT workload)",
 				"workloads[0] AS workload",
+				"<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[:USES]->",
 				"IN sinkRel.actions",
 			} {
 				if !strings.Contains(c.Cypher, fragment) {
-					t.Errorf("value-flow read case no longer contains %q; it must keep exercising all three divergent shapes", fragment)
+					t.Errorf("value-flow read case no longer contains %q; it must keep exercising every divergent shape", fragment)
 				}
 			}
 		}

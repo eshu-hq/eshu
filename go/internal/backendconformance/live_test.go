@@ -32,6 +32,18 @@ func TestLiveBackendConformance(t *testing.T) {
 		t.Skipf("set %s=1 to run live backend conformance", liveConformanceEnv)
 	}
 
+	// A green run must never be mistaken for full coverage. The value-flow pair
+	// is absent from the corpora unless its own opt-in is set, so say so in the
+	// run output -- otherwise this test passes while a capability it is
+	// supposed to prove was never exercised, and nothing anywhere records it.
+	if valueFlowCasesEnabled() {
+		t.Logf("value-flow cloud sink pair: INCLUDED (%s is set)", valueFlowCasesEnv)
+	} else {
+		t.Logf("value-flow cloud sink pair: OMITTED -- %s is not set, so this run does "+
+			"NOT prove the value-flow cloud sink query. Set %s=1 to include it.",
+			valueFlowCasesEnv, valueFlowCasesEnv)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), liveTestTimeout)
 	defer cancel()
 
