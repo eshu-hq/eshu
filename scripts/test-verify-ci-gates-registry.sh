@@ -457,8 +457,15 @@ require "Ifa workflow filter" \
 require "Ifa workflow path filter" \
 	"go/internal/ifa/**" \
 	"${static_contract_workflow}"
+# The reducer leg is part of the pinned text on purpose. The registry's
+# local.command for ifa-materialized-edge-coverage runs it, and the Go
+# blocker-shape lockstep this gate's triggers exist for lives in that package --
+# the CI job ran without it until #6147, so the gate's own comment claiming the
+# triggers protected that lockstep in CI was false. Pinning the whole command
+# keeps local and CI reading the same thing; dropping the leg here again should
+# fail loudly.
 require "Ifa workflow matrix entry" \
-	'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1"' \
+	'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"' \
 	"${static_contract_workflow}"
 
 # #4263 workflow shape: Build Test must expose separately timed verdict
