@@ -95,6 +95,13 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 		t.Fatalf("parse %s: %v", file, err)
 	}
 	count := -1
+	// found counts every QueryContext call, not just the last one. ast.Inspect's
+	// `return false` prunes only the matched call's own subtree; the walk
+	// continues past it. Without this count a second QueryContext added to the
+	// function later would overwrite count and the guard would assert the wrong
+	// call -- a false green whenever that call happened to take the same number
+	// of arguments.
+	found := 0
 	for _, decl := range parsed.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Name.Name != fnName {
@@ -111,11 +118,15 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 			}
 			// minus ctx and the query itself
 			count = len(call.Args) - 2
+			found++
 			return false
 		})
 	}
-	if count < 0 {
+	if found == 0 {
 		t.Fatalf("no QueryContext call found in %s of %s; if it was renamed or the query moved, update this test with it", fnName, file)
+	}
+	if found != 1 {
+		t.Fatalf("expected exactly one QueryContext call in %s of %s, found %d; this guard binds one query to one argument list, so split the assertion per call before adding another", fnName, file, found)
 	}
 	return count
 }
