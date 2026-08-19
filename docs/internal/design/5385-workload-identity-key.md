@@ -534,32 +534,42 @@ retracted and rebuilt rather than rewritten in place.
 
 0. **Make the identifier type-safe, as step zero.** Section 4's list is
    hand-maintained and has been wrong three times: it missed
-   `projection_helpers.go:110` through two revisions, and then missed an entire
-   structural category described below. Do not fix it by hand a fourth time.
+   `projection_helpers.go:110` through two revisions. Do not fix it by hand a
+   fourth time.
 
-   **Text search cannot close this.** Two grep shapes find most constructions:
+   **An earlier revision of this item claimed text search *cannot* close this,
+   and that claim is withdrawn.** It offered two grep shapes and then argued a
+   third construction form defeats them — `GraphHandle{Kind: "workload", ID: …}`
+   in one file, joined by `handle.Kind + ":" + handle.ID` in another, with no
+   `workload:` substring in either.
 
-   ```bash
-   rg -n 'fmt\.Sprintf\("workload(-instance)?:' go/ --glob '!*_test.go'
-   rg -n '"workload:"\s*\+|"workload-instance:"\s*\+' go/ --glob '!*_test.go'
-   ```
+   Those are not construction sites. The `ID` handed to `GraphHandle` is
+   **already a full graph identifier**: `searchdocs/project_test.go:108` sets
+   `WorkloadID: "workload:payments-api"` and asserts the handle carries it
+   through unchanged. So that join produces `workload:workload:<name>` — a
+   doubled prefix, and a *handle key*, not a workload id. It is pinned as such by
+   `searchnornicdb/backend_test.go:196`, `searchnornicdb/benchmark_test.go:102`,
+   and a committed evidence suite. `searchbench/retrieval_proof_test.go:210` goes further and
+   **fails the suite** if a workload handle's id does not already start with
+   `workload:` — the search layer requires a pre-built id rather than assembling
+   one. `cli/hookpreflight/preflight.go:251` is a user-typed selector forwarded
+   as a tool argument, not an identifier either.
 
-   They return 12 sites, and they are provably not exhaustive. A third form
-   builds the same string with no `workload:` substring anywhere in the source:
+   They are carriers, and forcing them through a `WorkloadID` would be wrong.
+   A re-key touches them the way it touches every string carrier — reindex, and
+   callers pass the new value — which section 6a already covers as tier 2.
 
-   ```go
-   // searchdocs/project.go:283 — the kind literal, no colon
-   GraphHandle{Kind: "workload", ID: clean(input.WorkloadID)}
-
-   // searchbench/evidence.go:358 — the colon, in a different file
-   return handle.Kind + ":" + handle.ID
-   ```
-
-   Both greps return zero on all three files involved. This is an ordinary Go
-   refactor — hoisting a join into a generic helper — not an exotic evasion, and
-   it defeats text matching by construction rather than by bad luck. Any guard
-   built on grep has a **false-negative** blind spot, which is the worst property
-   for something meant to be trusted as complete.
+   **The weaker argument that survives is still sufficient.** Grep does find the
+   real construction sites. What it does not do is keep a *human-maintained list*
+   correct: this document's own inventory missed `projection_helpers.go:110`
+   through two revisions, and the withdrawn paragraph was itself incomplete — it
+   named two files carrying the handle form when four do (`searchdocs/project.go`,
+   `searchdocs/semantic_context.go`, `cli/hookpreflight/preflight.go`, and
+   `searchbench/evidence.go`). The failure mode
+   is not that the search cannot see the sites; it is that someone has to run the
+   right search, read every hit, and transcribe them without error, repeatedly,
+   as the tree moves. A type removes that step rather than making a search
+   sharper.
 
    **So make the compiler do it.** Introduce `type WorkloadID string` and
    `type WorkloadInstanceID string`, give each exactly one constructor, and have
