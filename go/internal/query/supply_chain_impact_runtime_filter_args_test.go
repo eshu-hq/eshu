@@ -4,6 +4,9 @@
 package query
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"regexp"
 	"strconv"
 	"testing"
@@ -70,6 +73,81 @@ func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 						"a placeholder was added to the query without adding its argument here, "+
 						"which fails the live plan proof at bind time before any plan is produced",
 					len(args), name, want,
+				)
+			}
+		})
+	}
+}
+
+// productionQueryArgCount returns how many arguments the QueryContext call
+// inside fnName passes after ctx and the query, read from the source rather
+// than executed.
+//
+// It is read statically because the production list is built inline in the call
+// expression, so there is no value to measure at run time without executing the
+// query -- which needs a database, which is what put this drift beyond CI's
+// reach in the first place.
+func productionQueryArgCount(t *testing.T, file, fnName string) int {
+	t.Helper()
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", file, err)
+	}
+	count := -1
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != fnName {
+			continue
+		}
+		ast.Inspect(fn, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "QueryContext" {
+				return true
+			}
+			// minus ctx and the query itself
+			count = len(call.Args) - 2
+			return false
+		})
+	}
+	if count < 0 {
+		t.Fatalf("no QueryContext call found in %s of %s; if it was renamed or the query moved, update this test with it", fnName, file)
+	}
+	return count
+}
+
+// TestListSupplyChainImpactFindingsBindsEveryPlaceholder guards the PRODUCTION
+// argument list, not just the EXPLAIN helper.
+//
+// The sibling test above ties supplyChainRuntimeFilterListArgs to the query, but
+// that helper only feeds the live plan proof. ListSupplyChainImpactFindings
+// builds its own list inline, and no ordinary test checks it: the tests that
+// call it use recording or failing fakes that return before the query executes,
+// so the only thing that binds the real list is a DSN-gated live run.
+//
+// A placeholder added to the query and mirrored into the helper alone would
+// therefore leave production broken and green in CI -- the same silent drift
+// this pair of tests exists to remove, one file over.
+func TestListSupplyChainImpactFindingsBindsEveryPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	got := productionQueryArgCount(t, "supply_chain_impact_findings.go", "ListSupplyChainImpactFindings")
+
+	for name, query := range map[string]string{
+		"list direct":       listSupplyChainImpactFindingsQuery,
+		"list materialized": listSupplyChainImpactFindingsFromWinnersQuery,
+	} {
+		t.Run(name, func(t *testing.T) {
+			want := highestPlaceholder(t, query)
+			if got != want {
+				t.Fatalf(
+					"ListSupplyChainImpactFindings passes %d arguments to QueryContext, but %s uses $%d; "+
+						"the production list and the query drifted apart, which only a live run would catch",
+					got, name, want,
 				)
 			}
 		})
