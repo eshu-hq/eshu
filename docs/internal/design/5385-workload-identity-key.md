@@ -391,7 +391,9 @@ it is zero as well. Neither covers mode two where the environments also match.
 Every count was re-derived from an unfiltered `GROUP BY` distribution rather
 than a `WHERE`-filtered aggregate, because a filtered predicate silently lied
 during this probe (`coalesce(a.x,'lit') <> coalesce(b.x,'lit')` returns zero
-rows even when the values differ, reproduced 3/3 on NornicDB 1.2.1 and 1.2.2). A
+rows even when the values differ, reproduced on every attempt across NornicDB
+1.2.1 and 1.2.2 — three attempts, no ledger row, so read it as "consistently"
+rather than as a rate). A
 false finding was nearly published from it. The distributions used were:
 
 ```cypher
