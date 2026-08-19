@@ -43,7 +43,7 @@ func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 	var rows []map[string]any
 	for start := 0; start < len(functionUIDs); start += valueFlowCloudSinkTargetBatchLimit {
 		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(functionUIDs))
-		chunkRows, err := l.Graph.Run(ctx, valueFlowCloudSinkTargetsCypher, map[string]any{
+		chunkRows, err := l.Graph.Run(ctx, ValueFlowCloudSinkTargetsCypher, map[string]any{
 			"function_uids": functionUIDs[start:end],
 		})
 		if err != nil {
@@ -170,7 +170,15 @@ func valueFlowScalarString(raw any) (string, bool) {
 	}
 }
 
-const valueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+// ValueFlowCloudSinkTargetsCypher resolves which cloud resources a function's
+// cloud action can reach.
+//
+// It is exported so the backend-conformance corpus can pin its read case to this
+// exact statement by equality rather than by a list of fragments. That case
+// exists to detect this query returning zero rows on a non-conforming backend,
+// so any difference between the two means the case is proving something else.
+// See go/internal/backendconformance/corpus_value_flow.go.
+const ValueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
 WITH fn, action, collect(DISTINCT workload) AS workloads

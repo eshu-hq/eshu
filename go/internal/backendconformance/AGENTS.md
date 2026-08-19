@@ -69,8 +69,11 @@
   MATCH, by dropping a `WHERE size(...) = 1` filter, and by truncating the
   `RETURN` — each of which keeps the case name and `MinRows` and still returns
   a row on a conforming backend. See
-  `TestValueFlowReadCaseEqualsTheProductionStatement` for the shape, including
-  how to reach an unexported constant in a package this one cannot import.
+  `TestValueFlowReadCaseEqualsTheProductionStatement` for the shape. Mind the
+  import direction: this package may import `internal/reducer` — it already
+  does, transitively, through `internal/storage/cypher` — so the equality lives
+  here and the production constant is exported. The reverse, a reducer-side test
+  importing this package, IS a cycle.
 
 - **Add or change a backend capability** → update
   `specs/backend-conformance.v1.yaml`, then update the

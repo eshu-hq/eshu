@@ -29,11 +29,14 @@ import (
 //
 // Nothing about the pair is weakened by this. With the variable set it runs
 // exactly as before, and its failure still names the case.
-// valueFlowReadCaseName identifies the read case in the shared corpus. It is a
-// constant because two guards look the case up by name.
-const valueFlowReadCaseName = "value-flow cloud sink aggregation and subscript projection"
-
 const valueFlowCasesEnv = "ESHU_BACKEND_CONFORMANCE_VALUE_FLOW"
+
+// valueFlowReadCaseName and valueFlowWriteCaseName identify the pair in the
+// shared corpus. They are constants because the guards look the cases up by name.
+const (
+	valueFlowReadCaseName  = "value-flow cloud sink aggregation and subscript projection"
+	valueFlowWriteCaseName = "value-flow cloud sink seed"
+)
 
 // valueFlowCasesEnabled reports whether the value-flow pair should be included
 // in the shared corpora. It accepts the same truthy spellings as the live
@@ -140,7 +143,7 @@ func valueFlowWriteCases() []WriteCase {
 	}
 	return []WriteCase{
 		{
-			Name:                  "value-flow cloud sink seed",
+			Name:                  valueFlowWriteCaseName,
 			Capability:            CapabilityCanonicalWrites,
 			RequireAtomicGroup:    true,
 			TransactionVisibility: "the whole function-to-sink chain must commit together",

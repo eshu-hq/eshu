@@ -60,9 +60,9 @@ func TestValueFlowPairIsWiredIntoDefaults(t *testing.T) {
 				t.Fatalf("value-flow read case MinRows = %d, want >= 1 so an empty result fails", c.MinRows)
 			}
 			// The Cypher itself is pinned by equality, not by fragments:
-			// TestValueFlowConformanceCaseRunsTheProductionStatement in
-			// go/internal/reducer asserts this case's statement equals
-			// valueFlowCloudSinkTargetsCypher outright. An earlier fragment list
+			// TestValueFlowReadCaseEqualsTheProductionStatement in this package
+			// asserts this case's statement equals reducer.ValueFlowCloudSinkTargetsCypher
+			// outright. An earlier fragment list
 			// lived here and was defeated three times by mutations it did not
 			// enumerate -- decomposing the multi-hop MATCH, dropping the
 			// WHERE size(workloads) = 1 filter, and truncating the RETURN -- each
