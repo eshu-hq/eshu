@@ -4,7 +4,6 @@
 package reducer
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -276,7 +275,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 			continue
 		}
 
-		workloadID := fmt.Sprintf("workload:%s", workloadName)
+		workloadID := NewWorkloadID(candidate.RepoID, workloadName).String()
 		workloadKind := InferWorkloadKind(workloadName, candidate.ResourceKinds)
 		provenance := append([]string(nil), candidate.Provenance...)
 
@@ -324,7 +323,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 		platformKind := inferCandidateRuntimePlatformKind(candidate)
 
 		for _, environment := range environments {
-			instanceID := fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)
+			instanceID := NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
 
 			if _, ok := seenInstances[instanceID]; !ok {
 				seenInstances[instanceID] = struct{}{}

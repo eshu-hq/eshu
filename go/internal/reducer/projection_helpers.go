@@ -6,7 +6,6 @@ package reducer
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
@@ -107,7 +106,7 @@ func provisionedRuntimePlatformRows(
 				continue
 			}
 			for _, environment := range environments {
-				instanceID := fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)
+				instanceID := NewWorkloadInstanceID(repoID, workloadName, environment).String()
 				rows = append(rows, RuntimePlatformRow{
 					Environment:      environment,
 					Confidence:       confidence,

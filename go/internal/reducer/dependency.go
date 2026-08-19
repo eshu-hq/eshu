@@ -3,8 +3,6 @@
 
 package reducer
 
-import "fmt"
-
 // RepoDependencyRow is one canonical repository DEPENDS_ON edge payload.
 type RepoDependencyRow struct {
 	DependencyName string
@@ -73,7 +71,7 @@ func BuildWorkloadDependencyRows(
 			if targetRepoID == "" {
 				continue
 			}
-			targetWorkloadID := fmt.Sprintf("workload:%s", depName)
+			targetWorkloadID := NewWorkloadID(targetRepoID, depName).String()
 			edgeKey := descriptor.WorkloadID + "|" + targetRepoID
 			if _, ok := seen[edgeKey]; ok {
 				continue
