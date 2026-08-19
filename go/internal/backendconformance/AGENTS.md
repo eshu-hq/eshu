@@ -63,8 +63,14 @@
   production statement rather than stopping at the first clause that
   diverges. A case truncated at the first known bug goes green the moment
   that one bug is fixed, while the real query stays broken on a later
-  clause — and pin the load-bearing Cypher fragments in a hermetic test so
-  the query cannot be quietly reduced later.
+  clause. **Pin it by equality to the production constant, not by a list of
+  fragments.** A fragment list bounds only the mutations someone thought of;
+  the one here was defeated three separate times — by decomposing a multi-hop
+  MATCH, by dropping a `WHERE size(...) = 1` filter, and by truncating the
+  `RETURN` — each of which keeps the case name and `MinRows` and still returns
+  a row on a conforming backend. See
+  `TestValueFlowReadCaseEqualsTheProductionStatement` for the shape, including
+  how to reach an unexported constant in a package this one cannot import.
 
 - **Add or change a backend capability** → update
   `specs/backend-conformance.v1.yaml`, then update the

@@ -54,34 +54,22 @@ func TestValueFlowPairIsWiredIntoDefaults(t *testing.T) {
 	t.Setenv(valueFlowCasesEnv, "1")
 	var readFound bool
 	for _, c := range DefaultReadCorpus() {
-		if c.Name == "value-flow cloud sink aggregation and subscript projection" {
+		if c.Name == valueFlowReadCaseName {
 			readFound = true
 			if c.MinRows < 1 {
 				t.Fatalf("value-flow read case MinRows = %d, want >= 1 so an empty result fails", c.MinRows)
 			}
-			// Pin every shape this case exists to exercise, plus the list
-			// predicate the production statement opens with. Without this the
-			// query could be reduced to something trivial that keeps the name
-			// and MinRows, and both this guard and every default CI run would
-			// stay green while detecting nothing.
-			//
-			// The multi-hop fragment is load-bearing in a way the others are
-			// not: decomposing it into chained single-hop clauses is a real
-			// workaround that works on both backends (see evidence-notes.md),
-			// so it is the one shape a well-meaning fix is most likely to
-			// remove. An earlier revision of this guard omitted it, and that
-			// exact decomposition passed.
-			for _, fragment := range []string{
-				"IN $function_uids",
-				"collect(DISTINCT workload)",
-				"workloads[0] AS workload",
-				"<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[:USES]->",
-				"IN sinkRel.actions",
-			} {
-				if !strings.Contains(c.Cypher, fragment) {
-					t.Errorf("value-flow read case no longer contains %q; it must keep exercising every divergent shape", fragment)
-				}
-			}
+			// The Cypher itself is pinned by equality, not by fragments:
+			// TestValueFlowConformanceCaseRunsTheProductionStatement in
+			// go/internal/reducer asserts this case's statement equals
+			// valueFlowCloudSinkTargetsCypher outright. An earlier fragment list
+			// lived here and was defeated three times by mutations it did not
+			// enumerate -- decomposing the multi-hop MATCH, dropping the
+			// WHERE size(workloads) = 1 filter, and truncating the RETURN -- each
+			// of which keeps the name and MinRows and still returns a row on a
+			// conforming backend. A list can only bound the mutations someone
+			// thought of. This test keeps only the wiring checks that do not need
+			// the production constant, which is unexported in that package.
 		}
 	}
 	if !readFound {

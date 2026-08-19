@@ -105,3 +105,14 @@ test-lane surface with no runtime component.
 Verified both directions on live backends: `ESHU_GRAPH_BACKEND=neo4j` passes
 `TestLiveBackendConformance` with exit 0; `ESHU_GRAPH_BACKEND=nornicdb` fails
 with exit 1 naming this case.
+
+**That run predates the current read case and has NOT been repeated.** A later
+revision restored the production statement's opening clause
+(`WHERE fn.uid IN $function_uids`, replacing an inline map predicate) and changed
+the bound parameter from `function_uid` to `function_uids`. The Cypher and the
+parameters both moved after the measurement, so the exit codes above are a
+memory of an earlier query rather than evidence for this one. It matters
+concretely: a wrong parameter key empties the result on *both* backends, so the
+recorded NornicDB red would no longer distinguish a backend defect from a broken
+fixture. Re-run both lanes at this revision and replace this paragraph with the
+observed exit codes before treating the pair as proven.

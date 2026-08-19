@@ -29,6 +29,10 @@ import (
 //
 // Nothing about the pair is weakened by this. With the variable set it runs
 // exactly as before, and its failure still names the case.
+// valueFlowReadCaseName identifies the read case in the shared corpus. It is a
+// constant because two guards look the case up by name.
+const valueFlowReadCaseName = "value-flow cloud sink aggregation and subscript projection"
+
 const valueFlowCasesEnv = "ESHU_BACKEND_CONFORMANCE_VALUE_FLOW"
 
 // valueFlowCasesEnabled reports whether the value-flow pair should be included
@@ -55,9 +59,14 @@ func valueFlowCasesEnabled() bool {
 //
 //   - collect() after two MATCH clauses returns no rows at all on NornicDB,
 //     where Neo4j returns the group.
-//   - `workloads[0] AS workload` followed by `workload.name` returns the
-//     literal string "workload.name" on NornicDB, where Neo4j returns the
-//     property value.
+//   - a subscript projection, `workloads[0] AS workload`, does not carry the
+//     node through on NornicDB. It was measured by dereferencing a property --
+//     `workload.name` returns the literal string "workload.name" there, where
+//     Neo4j returns the value. The production statement does not dereference a
+//     property off that binding; it uses it as the anchor of the next MATCH, so
+//     the measured probe and the production use are related but not identical,
+//     and "any one of these four empties the query" is established for the
+//     other three rather than for this one.
 //   - `action.action IN sinkRel.actions` matches nothing when the list lives on
 //     a relationship, where Neo4j matches. The same predicate over a node list
 //     property works on both, and the relationship property reads back fine.
@@ -92,7 +101,7 @@ func valueFlowReadCases() []ReadCase {
 	}
 	return []ReadCase{
 		{
-			Name:       "value-flow cloud sink aggregation and subscript projection",
+			Name:       valueFlowReadCaseName,
 			Capability: CapabilityPathTraversal,
 			Cypher: `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
@@ -109,7 +118,12 @@ RETURN fn.uid AS function_uid,
        sinkNode.is_internet AS sink_is_internet
 ORDER BY function_uid, sink_rel`,
 			Parameters: map[string]any{
-				"function_uids": []any{valueFlowFunctionUID},
+				// []string, not []any: the production call site binds
+				// functionUIDs[start:end], and divergence #3 is precisely that
+				// IN over a list can match nothing on a non-conforming backend.
+				// Handing the driver a different Go list type than production
+				// would paraphrase the one thing this case exists to prove.
+				"function_uids": []string{valueFlowFunctionUID},
 			},
 			MinRows: 1,
 		},

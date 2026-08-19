@@ -21,7 +21,14 @@ backends:
           - go_test: ./internal/backendconformance
           - go_test: ./internal/query
           - compose_e2e: live-backend-conformance
-        notes: Served through the shared Bolt GraphQuery port with backend-aware query builders where needed.
+        notes: >-
+          Served through the shared Bolt GraphQuery port with backend-aware query builders
+          where needed. Three narrow exceptions are measured and recorded rather than
+          implied: collect() after two MATCH clauses, a subscript projection used as a
+          later anchor, and IN over a relationship list property each return no rows on
+          NornicDB where Neo4j returns the row -- see the value-flow read case in
+          go/internal/backendconformance/corpus_value_flow.go and that package's
+          evidence-notes.md. Filed upstream as orneryd/NornicDB#297, #298 and #301.
       path_traversal:
         status: supported
         verification:
@@ -32,8 +39,11 @@ backends:
           Bounded call-chain and transitive relationship reads use NornicDB-safe query
           shapes, validated at deployed tier on both backends -- see
           docs/internal/remote-validation/prod-call-chain-path.md,
-          prod-transitive-callers.md, prod-transitive-callees.md, prod-route-to-caller.md,
-          and prod-trace-exposure-path.md. One narrow exception is measured and does not
+          prod-transitive-callers.md, prod-transitive-callees.md, and
+          prod-route-to-caller.md -- prod-trace-exposure-path.md is deliberately not
+          cited here, because its recorded observation is zero paths returned, an honest
+          negative that cannot substantiate a traversal returning rows. One narrow
+          exception is measured and does not
           generalise: a compound multi-hop MATCH anchored on a WITH-bound variable returns
           zero rows on NornicDB where Neo4j returns the row, filed upstream as
           orneryd/NornicDB#302. Decomposing it into chained single-hop clauses works, and

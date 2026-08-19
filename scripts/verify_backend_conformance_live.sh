@@ -38,9 +38,16 @@ echo "Running live backend conformance for $ESHU_GRAPH_BACKEND on $ESHU_NEO4J_UR
 # Say which run this is, at the top, so a green result is never read as full
 # coverage. The test logs the same fact -- hence -v below, without which the
 # omission would be invisible on a pass.
-if [ "${ESHU_BACKEND_CONFORMANCE_VALUE_FLOW:-}" = "1" ] \
-    || [ "${ESHU_BACKEND_CONFORMANCE_VALUE_FLOW:-}" = "true" ] \
-    || [ "${ESHU_BACKEND_CONFORMANCE_VALUE_FLOW:-}" = "yes" ]; then
+# Fold case and strip surrounding whitespace before comparing, so this banner
+# agrees with valueFlowCasesEnabled in Go, which lowercases and trims. Exact
+# string comparison here would print OMITTED for TRUE, Yes, or " 1 " while the
+# test actually ran the pair -- a banner contradicting its own run.
+value_flow_opt_in="$(printf '%s' "${ESHU_BACKEND_CONFORMANCE_VALUE_FLOW:-}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -d '[:space:]')"
+if [ "$value_flow_opt_in" = "1" ] \
+    || [ "$value_flow_opt_in" = "true" ] \
+    || [ "$value_flow_opt_in" = "yes" ]; then
     echo "  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)"
 else
     echo "  value-flow cloud sink pair: OMITTED -- ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is not set."
