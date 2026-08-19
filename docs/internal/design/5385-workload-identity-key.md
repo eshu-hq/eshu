@@ -1137,6 +1137,26 @@ retracted and rebuilt rather than rewritten in place.
    one workload should be structurally impossible, and either counter firing
    means the key leaked.
 
+8. **Retire the old `service_evidence_key` rows, and do it with the old ids.**
+   This is a Postgres migration, not a graph one, and section 4.6 is the only
+   place it appears — it is neither an edge write nor a parse site, so a sweep of
+   the graph surfaces will not find it.
+
+   `ServiceRuntimeEvidenceKey` (`go/internal/reducer/service_materialization_runtime.go:101-103`,
+   shape stated in its own doc comment at `:98-99`) builds
+   `runtime:<service_id>:<platform_kind>:<environment>:<workload_ref>` via
+   `ServiceRuntimeEvidenceKeyFromIdentity` (`:108-114`), and `WorkloadRef` is the
+   `WorkloadInstance` id. So a re-key changes a **durable persisted key**, not an
+   in-memory identity.
+
+   Nothing retires the old one. `runtimeInstanceHasDurableIdentity` (`:150-155`)
+   only drops empty refs, and the delta classifies by identity — so after a
+   re-key the pre-re-key row looks **absent** rather than **retired**, and is
+   left behind under the previous key with no tombstone path. That is the same
+   failure section 5a warns about for instance nodes, reappearing in a table
+   section 6 did not mention until now: retract with the old ids **before** the
+   new ones exist, or the statement matches nothing and orphans the row.
+
 ## 6a. What holds a `workload:<name>` identifier, measured
 
 This was an open question. It is answered, and the answer is the largest cost in
