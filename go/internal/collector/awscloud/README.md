@@ -374,6 +374,14 @@ covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
   Non-org-aware credentials emit an `organizations_org_access_skipped` warning
   instead of fabricating partial organization truth.
 
+## Why The Constants Are One File Per Service
+
+This layout puts the directory above the `dirgate` 40-non-test-file cap, which a
+grandfather row holds open on purpose. Consolidating these files to get under the
+cap has been considered and rejected; the reasoning, and what the real candidates
+would be, are in `AGENTS.md` under "Why This Package Sits Above The Directory
+File Cap".
+
 ## Refactor Evidence (types.go Constants Split)
 
 The PR that splits the per-service `Service<X>`, `ResourceType<X>...`, and

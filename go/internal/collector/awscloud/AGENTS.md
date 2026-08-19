@@ -25,6 +25,64 @@
 9. `docs/public/guides/collector-authoring.md` - general collector fact
    contract.
 
+## Why This Package Sits Above The Directory File Cap
+
+The `dirgate` linter caps a package directory at 40 non-test `.go` files. This
+directory holds 154 and is held open by a grandfather row in
+`tools/golangci-lint-dirgate/grandfather.go`
+(`"internal/collector/awscloud": {FileCount: 154, ...}`). That is deliberate, and
+the gap grows by one file every time an AWS service is added, because the
+`constants_<service>.go` convention above requires exactly that.
+
+**Consolidating the `constants_*.go` files to get under the cap is not the fix,
+and has been considered and rejected.** Grouping the 133 files (7,283 lines) into
+roughly seventeen ~430-line files would bring the directory to about 38 non-test
+files, but it would:
+
+- reverse the deliberate split recorded in `README.md` under "Refactor Evidence
+  (types.go Constants Split)", which exists to keep files under the 500-line cap;
+- contradict the "Common Changes" rule below, which requires a new service's
+  constants to land in their own sibling file; and
+- turn additive per-service work into edits on shared files, so parallel service
+  additions start colliding where today they cannot.
+
+Moving the constants into the per-service packages under `services/` is also not
+available at a sane cost. Every dependent takes a plain, direct import — there
+are no dot-imports, blank imports, aliased imports, or package-level re-exports
+of these constants — so the dependent set is exactly the set of files importing
+the package:
+
+```bash
+rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/
+```
+
+**1,312 files**: 1,243 inside this directory's own subpackages (`services/`,
+`awsruntime/`, …) and 69 elsewhere, of which 5 are non-test. Go forbids a
+duplicate import, so `rg -c` totals 1,312 as well — the file count and the
+occurrence count agree, which is the cheapest available check that this number
+is not counting something else.
+
+Count imports, not symbol references. `rg 'awscloud\.(ResourceType|Service|Relationship)[A-Z]'`
+looks like the more direct measure and is not: without `--type go` it also
+matches ~280 package `README.md`/`AGENTS.md` files, and even restricted to Go it
+counts files whose only mention is a doc comment — eight of them, seven under
+`go/internal/reducer/` and one under `go/internal/storage/postgres/`, which
+deliberately mirror a constant's value and name it in prose without importing
+the package at all.
+
+A service-aligned move would not be a uniform rewrite of all 1,312: a
+`services/ec2` file referencing `awscloud.ResourceTypeEC2Instance` would find it
+locally afterwards, while the same file's reference to
+`awscloud.ResourceTypeKMSKey` still needs an import, because these are
+cross-resource relationship constants and cross-service references are common.
+The cost is large and unevenly distributed, which is enough to reject it — the
+precise figure is not what carries the argument.
+
+If the file count needs to come down, the candidate is the 21 non-constants
+files, or splitting the package along an ownership seam — not the per-service
+constants. Re-pin the grandfather row when the count legitimately changes; see
+`tools/golangci-lint-dirgate/README.md`.
+
 ## Invariants
 
 - AWS cloud data is reported source evidence. Do not materialize graph truth in
