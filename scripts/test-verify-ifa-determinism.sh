@@ -114,7 +114,7 @@ _ifa_det_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# shellcheck does not flag it, `bash -n` passes, and no gate runs shellcheck
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>]#*}"
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -433,7 +433,13 @@ done
 # the loop silently scans almost nothing and passes. Hand-written, below the
 # current count, never derived from the expression it guards.
 [[ "${#private_targets[@]}" -ge 20 ]] \
-	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the *_lib derivation has collapsed"
+	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the derivation has collapsed"
+# The glob block above is otherwise bound only by the floor, and only by a 3-file
+# margin -- three more *_lib declarations and deleting it would stop reddening,
+# which is the exact silent revert the sibling mirror was fixed for. Pin it
+# directly so the margin stops mattering.
+[[ "$(_ifa_det_count_code_matches 'ifa_family_registry_pins' "${BASH_SOURCE[0]}")" -ge 1 ]] \
+	|| fail "the determinism private-data scan no longer covers the registry rows and pins"
 for private_target in "${private_targets[@]}"; do
 	[[ -f "${private_target}" ]] \
 		|| fail "private-data scan target ${private_target} does not exist -- a scan that skips a missing file proves nothing"

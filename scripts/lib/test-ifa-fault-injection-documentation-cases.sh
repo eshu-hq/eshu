@@ -185,8 +185,21 @@ run_ifa_documentation_live_static_cases() {
 	# silently reverts and loses exactly the 13 files it was added to cover.
 	[[ "$(_ifa_count_code_matches 'ifa_family_registry_pins' "${assertions_src}")" -ge 1 ]] \
 		|| fail "assert_no_private_data no longer scans the registry rows and pins -- 13 files this branch adds would go unscanned while the floor still passes"
-	[[ "$(_ifa_count_code_matches 'the *_lib derivation has collapsed' "${assertions_src}")" -ge 1 ]] \
-		|| fail "assert_no_private_data no longer asserts a scanned-file floor -- a collapsed derivation would scan one file and pass"
+	# EXACTLY ONE, and on a needle unique to this floor. The previous needle was
+	# `the *_lib derivation has collapsed`, which this commit's own assert_libs_parse
+	# floor also says -- so the guard was satisfied by the SIBLING's message and
+	# deleting the private-data floor passed. A guard-of-a-guard must pin a string
+	# only its subject can produce, and count it, or the next function that borrows
+	# the phrasing silently adopts the guard.
+	[[ "$(_ifa_count_code_matches 'assert_no_private_data scanned only' "${assertions_src}")" -eq 1 ]] \
+		|| fail "assert_no_private_data no longer asserts its own scanned-file floor (or the message is no longer unique) -- a collapsed derivation would scan one file and pass"
+	[[ "$(_ifa_count_code_matches 'syntax check covered only' "${assertions_src}")" -eq 1 ]] \
+		|| fail "assert_libs_parse no longer asserts its own floor -- a collapsed derivation would parse nothing and pass"
+	# And its CALL SITE, for the same reason assert_no_private_data's is pinned:
+	# the relocation turned 32 straight-line `bash -n` statements into one call
+	# that a single-character edit can delete.
+	[[ "$(_ifa_count_code_matches 'assert_libs_parse' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_libs_parse -- nothing would parse the libs at all"
 	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
 	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \

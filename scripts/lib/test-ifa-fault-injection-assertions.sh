@@ -9,7 +9,10 @@
 # covers. Those exist only as prose, so routing them through require_code could
 # never pass.
 #
-# The other 45 bind code and use require_code. The split was established
+# The rest bind code and use require_code. The exact number is deliberately
+# not spelled here: it drifted twice (45 vs 44) because a prose count in a
+# comment has no gate, which is the same trap three public docs hit with
+# "twenty-one cells". The split was established
 # empirically, not by reading labels: every call site was converted, the mirror
 # run, and only the ones that genuinely could not pass were moved back.
 require() {
@@ -137,6 +140,54 @@ require_code_call_cells() {
 # count. Lives here rather than in the mirror for the same reason the
 # private-data scan does: that file sits against the 500-line cap, and a scan
 # plus its floor is one coherent unit.
+# assert_pin_helpers_bind_code is a META-GATE: it asserts that every pin helper
+# in either mirror routes through a code-portion matcher, unless it is on the
+# hand-written prose allowlist below.
+#
+# It exists because the alternative -- converting helpers from a hand-enumerated
+# list -- missed 266 pins in one review round and 52 in the next, and nothing in
+# the tree noticed either time. A list that must be kept complete by hand is the
+# same defect class these mirrors exist to catch, one level up. This gate makes
+# a forgotten helper a RED instead of a finding.
+#
+# PROSE_PIN_HELPERS is deliberately hand-written and deliberately short. Adding a
+# name here is a claim that the helper binds documentation, not behaviour, and
+# every current entry was verified by measuring code-portion matches = 0 for all
+# of its needles. If you add one, do that measurement first -- a pin aimed at the
+# wrong FILE also measures zero, and that is how --no-compose came to be
+# misfiled as prose while its parser went unpinned.
+assert_pin_helpers_bind_code() {
+	local f name body allow found=0
+	local -a prose=(require require_framing)
+	# Structurally comment-immune, but not via the matcher or --line-regexp:
+	# require_delivery_cells_multiline pins a WHOLE multi-line invocation with
+	# `rg -U`, braces included, so commenting any inner line breaks the match.
+	# Listed by name with that reason rather than loosening the rule for every
+	# `-U` pin, since -U alone proves nothing about comments.
+	local -a structural=(require_delivery_cells_multiline)
+	for f in "${repo_root}"/scripts/test-verify-ifa-*.sh "${repo_root}"/scripts/lib/test-ifa-*.sh; do
+		[[ -f "${f}" ]] || continue
+		while IFS= read -r name; do
+			found=$((found + 1))
+			allow=0
+			for p in "${prose[@]}" "${structural[@]}"; do
+				[[ "${name}" == "${p}" ]] && allow=1
+			done
+			[[ "${allow}" -eq 1 ]] && continue
+			body="$(rg -U --only-matching "(?s)^${name}\\(\\) \\{.*?^\\}" "${f}" || true)"
+			[[ -n "${body}" ]] \
+				|| fail "assert_pin_helpers_bind_code: could not read the body of ${name}() in ${f##*/}"
+			# --line-regexp is comment-immune BY CONSTRUCTION: it pins a whole
+			# line, and a commented-out line is not that line. It is the stronger
+			# form, so it counts as binding code without going through the matcher.
+			[[ "${body}" == *_count_code_matches* || "${body}" == *--line-regexp* ]] \
+				|| fail "${name}() in ${f##*/} pins with a plain rg and is neither line-anchored nor on the prose allowlist -- a comment quoting its needle would satisfy it, so a commented-out call site would pass"
+		done < <(rg --only-matching --replace '$1' -- '^(require[a-z_]*)\(\) \{' "${f}" || true)
+	done
+	[[ "${found}" -ge 25 ]] \
+		|| fail "assert_pin_helpers_bind_code found only ${found} pin helper(s); the discovery glob has collapsed and this gate is checking nothing"
+	printf 'pin-helper bind check: %s helper(s)\n' "${found}"
+}
 assert_libs_parse() {
 	local lib_var lib_path syntax_checked
 	syntax_checked=0
@@ -156,7 +207,7 @@ assert_libs_parse() {
 		bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
 	done
 	# Floor: this derivation can resolve to NOTHING (an empty `for` word list is not
-	# an error), so one pattern edit would silently skip every lib where the 37
+	# an error), so one pattern edit would silently skip every lib where the 32
 	# explicit `bash -n` lines it replaced each cost only one. Hand-written, below
 	# the current count, never derived from the expression it guards.
 	[[ "${syntax_checked}" -ge 35 ]] \
@@ -231,7 +282,7 @@ _ifa_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# shellcheck does not flag it, `bash -n` passes, and no gate runs shellcheck
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>]#*}"
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"

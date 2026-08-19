@@ -21,19 +21,23 @@
 
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_live_lib}" || fail "missing ${label} (deployable-unit live lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_live_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit live lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_diagnostics_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_diagnostics_lib}" || fail "missing ${label} (deployable-unit diagnostics lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_diagnostics_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit diagnostics lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_lock_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lock_lib}" || fail "missing ${label} (deployable-unit lock lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_lock_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit lock lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_cells_lib}" || fail "missing ${label} (deployable-unit cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit cells lib), or it survives only inside a comment: ${needle}"
 }
 
 # run_ifa_fault_injection_deployable_unit_cases asserts the family-scoped
@@ -430,7 +434,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# The header must state honestly which recovery case this proves: a
 	# kill AFTER the graph write (the lock lands after step 1 of Handle), not
 	# before it -- do not let this cell claim the stronger pre-write case.
-	require_deployable_unit_lock_lib "lock helper states the post-write-death consequence honestly" "a POST-write death, not a PRE-write death"
+	require_framing "lock helper states the post-write-death consequence honestly" "a POST-write death, not a PRE-write death" "${deployable_unit_lock_lib}"
 	# The permanent precondition gate (#6149): replaces a one-off manual
 	# pre-check with an assertion that runs every time, in the baseline cell,
 	# proving admission_decisions genuinely receives a row for this domain

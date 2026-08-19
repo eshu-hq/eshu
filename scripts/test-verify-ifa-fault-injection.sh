@@ -110,6 +110,9 @@ source "${assertions_lib}"
 # Parses every declared *_lib and floors the count; defined in the assertions
 # lib, so it must run after that source.
 assert_libs_parse
+# META-GATE: every pin helper in either mirror must bind code, or be an explicit
+# prose entry. Catches a helper that was missed when the others were converted.
+assert_pin_helpers_bind_code
 # shellcheck source=scripts/lib/test-ifa-fault-injection-rationale-cases.sh
 source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
