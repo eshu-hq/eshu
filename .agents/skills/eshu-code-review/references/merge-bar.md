@@ -74,6 +74,18 @@ findings are fix-induced **P2s** means the diff is converged: land it and track
 the remainder. A fix-induced P0 or P1 is never covered by this — those stay
 absolute.
 
+## Sweeping rule text
+
+Any claim that a phrase is gone everywhere is a claim about the whole corpus,
+and rule text is line-wrapped. `rg` matches per line, so **run every sweep with
+`-U`**: a clause broken across a wrap is invisible to a single-line pattern at
+any breadth. Positive-control the pattern against the base first — if it finds
+fewer sites there than you are about to edit, it is blind before its zero on
+HEAD means anything — then read a deliberately over-broad net, also with `-U`,
+because a per-line loose net inherits the exact blindness it exists to
+compensate for. State how the claim was established beside it: a labelled count
+invites correction, "I swept it" asks for trust.
+
 ## Repeat findings
 
 A finding restated across rounds is one finding, not a new one. Reference the
@@ -87,6 +99,7 @@ underneath it.
 ## Stating it
 
 The verdict carries `P0`, `P1`, `P2-blocking`, and `P2-deferred` counts.
-"Ready" means `P0=0`, `P1=0`, `P2-blocking=0`, every deferred P2 tracked and
-named, and the owner able to see what was deferred and why. Never report a
-deferred finding as absent.
+"Ready" means `P0=0`, `P1=0`, `P2-blocking=0`, and every deferred P2 tracked in
+a linked issue with the owner's agreement quoted in the PR, named there with its
+severity-table category, so the owner can see what was deferred and why. Never
+report a deferred finding as absent.

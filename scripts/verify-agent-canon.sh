@@ -122,6 +122,46 @@ if [ -d "$skills_root" ]; then
     printf 'verify-agent-canon: performance workflow contract is complete.\n'
 fi
 
+# Retired-phrasing guard for the review bar (#6175). These phrasings were all
+# removed when the bar became P2-blocking, and each one re-introduced would put
+# the canon back into the self-contradiction that survived seven review rounds:
+# a document demanding every P2 fixed while its neighbour allows a tracked
+# deferral, with an agent free to follow whichever it read last.
+#
+# -U is load-bearing, not stylistic. Rule text is line-wrapped, and rg matches
+# per line, so a single-line pattern cannot see a clause broken across a wrap.
+# Both live escapes this guard was built for were wrapped, at DIFFERENT points
+# ("tracked\nand named" and "tracked and\nnamed"), and a per-line sweep -- run
+# by hand, twice, by two different readers -- reported them clean.
+#
+# Scope honestly: this catches RE-INTRODUCTION of phrasings already known to be
+# wrong. It cannot catch a phrasing nobody has imagined; six such sites were
+# found only by reading a deliberately over-broad net, which is still required
+# and which must itself be run with -U.
+canon_rule_files=(
+  "$repo_root/AGENTS.md"
+  "$repo_root/CLAUDE.md"
+  "$repo_root/docs/public/reference/local-testing.md"
+  "$repo_root/docs/public/guides/run-the-proof-suite.md"
+  "$repo_root/docs/internal/agent-orchestration.md"
+)
+retired_bar_pattern='P2=0|P0=0,[[:space:]]*P1=0,[[:space:]]*P2=0|zero[[:space:]]+P0/P1/P2[[:space:]]+findings|tracked[[:space:]]+and[[:space:]]+named|P0=<n>,[[:space:]]*P1=<n>,[[:space:]]*P2=<n>'
+canon_rule_targets=()
+for f in "${canon_rule_files[@]}"; do
+  [ -f "$f" ] && canon_rule_targets+=("$f")
+done
+[ -d "$repo_root/.agents/skills" ] && canon_rule_targets+=("$repo_root/.agents/skills")
+if [ "${#canon_rule_targets[@]}" -gt 0 ]; then
+  if rg -nU "$retired_bar_pattern" "${canon_rule_targets[@]}" >&2; then
+    printf 'verify-agent-canon: retired review-bar phrasing re-introduced above.\n' >&2
+    printf '  The bar is P0=0, P1=0, P2-blocking=0, with every deferred P2 tracked in a\n' >&2
+    printf '  linked issue, the owner agreement quoted in the PR, and its severity-table\n' >&2
+    printf '  category named. See .agents/skills/eshu-code-review/references/merge-bar.md\n' >&2
+    exit 1
+  fi
+  printf 'verify-agent-canon: no retired review-bar phrasing in the canon or skills.\n'
+fi
+
 opencode_agents="$repo_root/.opencode/agent"
 if [ -d "$opencode_agents" ]; then
   conflict_pattern='Push over HTTPS|Always .*--no-verify|https://github[.]com/eshu-hq/eshu[.]git'
