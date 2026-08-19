@@ -293,6 +293,13 @@ require_codeowners_lib "codeowners assert is exact-set, not a digest" '-expected
 require_submodule_pin_lib "submodule-pin assert-edges domain" "-domain submodule_pin_edges"
 require_submodule_pin_lib "submodule-pin drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_submodule_pin_lib "submodule-pin assert is exact-set, not a digest" '-expected "${expected_edges}"'
+require_inheritance_lib "inheritance assert-edges domain" "-domain inheritance_edges"
+require_inheritance_lib "inheritance drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_inheritance_lib "inheritance assert is exact-set, not a digest" '-expected "${expected_edges}"'
+
+require_shell_exec_lib "shell-exec assert-edges domain" "-domain shell_exec"
+require_shell_exec_lib "shell-exec drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected "${expected_edges}"'
 
 declare -A ifa_det_family_cases_hand_authored=(
 	[sql_relationships]="-domain sql_relationships"
@@ -301,6 +308,8 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[rationale_edges]="-domain rationale_edges"
 	[codeowners_ownership_edges]="-domain codeowners_ownership_edges"
 	[submodule_pin_edges]="-domain submodule_pin_edges"
+	[inheritance_edges]="-domain inheritance_edges"
+	[shell_exec]="-domain shell_exec"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -324,7 +333,8 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	[[ "${domain_needle}" == "${expected_needle}" ]] \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with value '${domain_needle}', which is not this family's own '${expected_needle}' assert-edges flag -- the value must be the family's real domain needle, never a bare acknowledgement or a value copied from another family"
 	rg --fixed-strings --quiet -- "${domain_needle}" \
-		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" "${submodule_pin_lib}" \
+		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
+		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

@@ -27,6 +27,8 @@ deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 codeowners_lib="${repo_root}/scripts/lib/ifa_codeowners_live.sh"
 submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
+inheritance_lib="${repo_root}/scripts/lib/ifa_inheritance_live.sh"
+shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
@@ -206,6 +208,16 @@ require_fixture() {
 # above and the *_lib path variables declared at the top of this file.
 # shellcheck source=scripts/lib/test-ifa-determinism-require-helpers.sh
 source "${require_helpers_lib}"
+
+require_inheritance_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${inheritance_lib}" || fail "missing ${label} (inheritance lib): ${needle}"
+}
+
+require_shell_exec_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${shell_exec_lib}" || fail "missing ${label} (shell-exec lib): ${needle}"
+}
 
 # Strict mode and self-cleanup.
 require_line "strict mode" "set -euo pipefail"
