@@ -28,6 +28,7 @@ the exact environment this package does read.
 | `Execute` | Run one scan end to end |
 | `Runtime`, `Client` | The process seams `Execute` needs, and the API read surface |
 | `Options`, `Target` | The resolved request; `BootstrapArgs`/`BootstrapEnv` build the child's argv and environment |
+| `WaitFlag` | The `--wait` flag's name, registered by `go/cmd/eshu/scan.go` and printed by `internal/cli/vulnscan` in its not-ready message, so the string has one owner |
 | `Result`, `Timings`, `Evidence` | The result envelope |
 | `PipelineStatus` and its `Health`, `Queue`, `GenerationHistory`, `StageSummary`, `DomainBacklog`, `ScopeActivity` | The status report shape |
 | `EvaluateReadiness`, `ReadinessVerdict` | The readiness rule, reused by first-run and hosted verification |

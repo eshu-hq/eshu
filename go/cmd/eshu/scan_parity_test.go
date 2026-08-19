@@ -182,3 +182,31 @@ func TestScanPathExistsCopyIsTokenIdentical(t *testing.T) {
 		})
 	}
 }
+
+// TestVulnScanJSONWriterCopyIsTokenIdentical pins writeJSONEnvelope in
+// internal/cli/vulnscan against writeScanJSON here, the same way
+// TestScanPathExistsCopyIsTokenIdentical pins pathExists.
+//
+// The two writers must agree byte for byte because they produce the same
+// operator-facing document: indent two spaces, HTML escaping off. Nothing else
+// enforced it. The vuln-scan JSON golden pins writeJSONEnvelope's output only,
+// so an edit to writeScanJSON -- which has other callers in scan, first-run,
+// hosted-setup, provider-parity and the benchmark commands -- could change one
+// side with no test failing, and the drift would show up as a diff in operator
+// output rather than as a red build.
+//
+// The right long-term fix is one writer in an importable package. Until then
+// this is the guard, and it fails loudly rather than leaving the lockstep to a
+// comment.
+func TestVulnScanJSONWriterCopyIsTokenIdentical(t *testing.T) {
+	lockCommandTree(t)
+
+	original := scanParityFuncBody(t, "scan.go", "writeScanJSON")
+	copied := scanParityFuncBody(t, "../../internal/cli/vulnscan/finish.go", "writeJSONEnvelope")
+	if original != copied {
+		t.Fatalf(
+			"writeJSONEnvelope (internal/cli/vulnscan/finish.go) drifted from writeScanJSON (cmd/eshu/scan.go); change both or neither\noriginal:\n%s\ncopy:\n%s",
+			original, copied,
+		)
+	}
+}

@@ -87,7 +87,8 @@ pin. It has one now:
 byte for byte by `TestRunVulnScanRepoJSONReportPreservesScannerContractAndFindingsExit`.
 The same test names `data.scan` on its own, because that member had no assertion
 anywhere and `Result.Scan` is typed `any` — dropping its assignment in
-`runVulnScanRepo` still compiles and ships `"scan": null`. Both halves were
+`runVulnScanRepo` (since moved to `vulnscan.RunRepo`, `run.go`) still compiles
+and ships `"scan": null`. Both halves were
 broken and restored: removing the assignment fails on the named member, and
 changing `findings_endpoint` fails on the golden.
 

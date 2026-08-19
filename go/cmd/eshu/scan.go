@@ -66,7 +66,7 @@ func init() {
 func addScanFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("force", "f", false, "Force re-index")
 	cmd.Flags().Bool("json", false, "Write the canonical scan result envelope as JSON")
-	cmd.Flags().Bool("wait", true, "Wait for indexing readiness after bootstrap completes")
+	cmd.Flags().Bool(scan.WaitFlag, true, "Wait for indexing readiness after bootstrap completes")
 	cmd.Flags().Bool("allow-partial", false, "Return success for partial or degraded readiness with warnings")
 	cmd.Flags().Duration("timeout", 30*time.Minute, "Maximum time to spend proving readiness")
 	cmd.Flags().Duration("poll-interval", 3*time.Second, "Readiness polling interval")
@@ -112,7 +112,7 @@ func scanOptionsFromCommand(cmd *cobra.Command, args []string) (scan.Options, er
 	}
 	force, _ := cmd.Flags().GetBool("force")
 	jsonOutput, _ := cmd.Flags().GetBool("json")
-	wait, _ := cmd.Flags().GetBool("wait")
+	wait, _ := cmd.Flags().GetBool(scan.WaitFlag)
 	allowPartial, _ := cmd.Flags().GetBool("allow-partial")
 	timeout, _ := cmd.Flags().GetDuration("timeout")
 	pollInterval, _ := cmd.Flags().GetDuration("poll-interval")
