@@ -5,11 +5,11 @@
 1. `go/internal/cli/freshness/README.md` — purpose, ownership boundary,
    exported surface, and the five invariants under "Gotchas / invariants"
 2. `go/internal/cli/freshness/doc.go` — the godoc contract
-3. `go/cmd/eshu/freshness.go` — the cobra wrapper. It shows how the two halves
-   fit: flags in, `RunGenerations` called, `freshnessExitError` converting a
-   `*Failure` into `commandExitError`. The other two wrappers
-   (`freshness_changed_since.go`, `freshness_service_changed_since.go`) are the
-   same shape.
+3. `go/cmd/eshu/freshness.go` — the cobra wrapper for all three commands. It
+   shows how the two halves fit: flags in, `RunGenerations` called,
+   `freshnessExitError` converting a `*Failure` into `commandExitError`. The
+   `changed-since` and `service-changed-since` wrappers live in the same file
+   and are the same shape.
 4. `go/cmd/eshu/freshness_parity_test.go` — drives this package against the
    real `internal/query.FreshnessHandler`, so a change to the rendered fields
    is checked against the canonical envelope, not a stub.

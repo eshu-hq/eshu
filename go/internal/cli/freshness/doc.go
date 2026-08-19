@@ -28,10 +28,9 @@
 //
 // The package reads no cobra flags, no process environment, and no command
 // line, and it never calls os.Exit or touches os.Stdout. go/cmd/eshu's
-// freshness.go, freshness_changed_since.go, and
-// freshness_service_changed_since.go are the thin cobra wrappers that resolve
-// that process state and convert a *Failure into the CLI's exit-code error
-// type. The split is mechanical: go/cmd/eshu is package main, so nothing can
-// import it, and any symbol that reads a flag or names commandExitError has to
-// stay there.
+// freshness.go holds the thin cobra wrappers for all three commands; they
+// resolve that process state and convert a *Failure into the CLI's
+// exit-code error type. The split is mechanical: go/cmd/eshu is package
+// main, so nothing can import it, and any symbol that reads a flag or names
+// commandExitError has to stay there.
 package freshness
