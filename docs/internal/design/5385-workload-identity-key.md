@@ -1302,8 +1302,9 @@ differently.**
 `entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
 `POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
-containing `:` (`isShareSafeLabel` at `cli/opdigest/digest.go:245`, reached via
-`normalizeScope` at `:223`; note `:91` is the `Scope` doc comment, which lists
+containing `:` (`isShareSafeLabel` at `go/internal/cli/opdigest/digest.go:244`,
+reached via `normalizeScope` at `:200`, whose guard at `:223` is the call site;
+note `:91` is the `Scope` doc comment, which lists
 `workload:name` as a *valid* target rather than a rejection), so
 `workload:<repo_id>:<name>`
 would be unusable for `eshu report --scope` until that parser changes. These break
@@ -1328,9 +1329,22 @@ separate `reducer_workload_identity` scheme (`go/internal/query/catalog.go:213`)
 handed ids that would 404 against `/workloads/{id}/context`.
 
 **Tier 3 — silent, and NOT alias-fixable.** The **provider-asserted** wording
-belongs to one fact and one only: `servicecatalog/v1/repository_link.go:72`, "a
-provider-asserted Eshu workload id", on the `service_catalog.repository_link`
-fact. An earlier revision also attributed it to
+appears on **two** facts, both in the service-catalog schema and both consumed:
+
+| Fact | Field | Consumed at |
+| --- | --- | --- |
+| `service_catalog.repository_link` | `sdk/go/factschema/servicecatalog/v1/repository_link.go:72` | `go/internal/reducer/service_catalog_correlation_index.go:306` |
+| `service_catalog.entity` | `sdk/go/factschema/servicecatalog/v1/entity.go:60` | `go/internal/reducer/service_catalog_correlation_index.go:239` |
+
+Both carry the identical comment, "a provider-asserted Eshu workload id,
+mirroring ServiceID", and both reach the correlation index through
+`stringPtrValue`. An earlier revision of this section said the wording "belongs
+to one fact and one only" and named only `repository_link`, which understated
+the tier-3 surface by half: a re-key has to carry both, and an out-of-tree
+collector emitting `service_catalog.entity` is as affected as one emitting
+`service_catalog.repository_link`.
+
+An earlier revision also attributed it to
 `sdk/go/factschema/aws/v1/attribute_shapes.go:56-63`, which does not contain the
 phrase at all — `:45-49` calls those fields "collector-side
 workload-correlation tags", close to the opposite characterization. The tier-3
