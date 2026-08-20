@@ -35,6 +35,7 @@ on:
       - 'scripts/lib/test-ifa-determinism-family-cases.sh'
       - 'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
       - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
+      - 'scripts/lib/test-ifa-determinism-require-helpers.sh'
       - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
       - 'scripts/lib/ifa_fault_shard.sh'
       # Glob, not one literal: the dispatcher sources its three mechanism files

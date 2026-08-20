@@ -2445,7 +2445,7 @@ gates:
       - "scripts/lib/ifa_deployable_unit_live_converge.sh"
       # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection
       # below (sourced directly by verify-ifa-determinism.sh, transitively by
-      # verify-ifa-fault-injection.sh), plus this mirror's own three sourced
+      # verify-ifa-fault-injection.sh), plus this mirror's own five sourced
       # case modules -- determinism-only, since none of them execute inside
       # the fault-injection gate.
       - "scripts/lib/ifa_family_registry.sh"
@@ -2456,6 +2456,7 @@ gates:
       - "scripts/lib/test-ifa-determinism-family-cases.sh"
       - "scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
       - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
+      - "scripts/lib/test-ifa-determinism-require-helpers.sh"
       - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
       # The per-family pin files the module above sources by variable path.
       # Their hard rule is that pins are hand-derived and never generated
