@@ -15,9 +15,10 @@ sits where it does.
 
 ## Ownership Boundary
 
-This package split out of `go/internal/ifa` (#6053) to keep that package
-under the repository's directory file-count gate (`go-dir-gate`, 40
-non-test `.go` files). It owns:
+This package split out of `go/internal/ifa` (#6053) preemptively, to buy
+headroom under the repository's directory file-count gate (`go-dir-gate`)
+before the families still queued consumed it. ifa was under the cap when the
+split was taken, not over it. It owns:
 
 - The six family guards: SQL relationships (`materialized_edges_sql.go`),
   documentation edges (`materialized_edges_documentation.go`), code calls
@@ -133,12 +134,13 @@ surface through the CI proof gates' own reporting (`ifa-determinism`,
 
 ## Family vacuity guards and their live-gate proof
 
-Restored verbatim from `go/internal/ifa/README.md` when these guards moved into
-this subpackage. The text describes the guards themselves, so it belongs beside
-them; it was dropped rather than moved during the extraction, and only the
-doc-lockstep test in `go/internal/ifa/code_call_live_documentation_test.go`
-caught the loss. If you change what a guard proves, change this text in the same
-commit -- that test pins these passages by exact wording.
+Restored from `go/internal/ifa/README.md` when these guards moved into this
+subpackage. The text describes the guards themselves, so it belongs beside them;
+it was dropped rather than moved during the extraction and had to be restored in
+a later commit. If you change what a guard proves, change this text in the same
+commit -- `TestMaterializedEdgeLiveProofDocumentationMatchesWiring` in
+`go/internal/ifa/code_call_live_documentation_test.go` pins these passages by
+exact wording and fails if they drift.
 
 - `RegistryMaterializedEdges`, `MaterializedEdgeSurfacePrefix`,
   `MaterializedEdgeManifestFileName`, `EnumerateMaterializedEdgeSurfaces`,

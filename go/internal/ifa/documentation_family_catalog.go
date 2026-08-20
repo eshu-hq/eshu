@@ -29,7 +29,12 @@ import (
 const (
 	documentationFamilyOduName      = "odu:ifa-documentation-family"
 	documentationFamilyCassettePath = "testdata/cassettes/documentation/ifa-documentation-family.json"
-	documentationFamilyScopeID      = "scope-ifa-documentation-family"
+	// DocumentationFamilyScopeID is the documentation family's ingestion scope.
+	// Exported (#6053) so the moved guard reads one value: it is passed to
+	// ExtractDocumentationEdgeRowsWithQuarantine, which STAMPS the scope onto
+	// rows without filtering on it, so a duplicated copy is silently accepted
+	// rather than failing closed like the other copied identities.
+	DocumentationFamilyScopeID      = "scope-ifa-documentation-family"
 	documentationFamilyGenerationID = "gen-ifa-documentation-family-1"
 	documentationFamilyRepoID       = "repo-ifa-documentation-family"
 	documentationFamilyDocID        = "doc-platform-guide"
@@ -208,7 +213,7 @@ func documentationFamilyOdu() CatalogOdu {
 // and generation, mirroring codeCallCatalogFact's shape.
 func documentationCatalogFact(kind, stableKey string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		ScopeID: documentationFamilyScopeID, GenerationID: documentationFamilyGenerationID, FactKind: kind,
+		ScopeID: DocumentationFamilyScopeID, GenerationID: documentationFamilyGenerationID, FactKind: kind,
 		StableFactKey: stableKey, SchemaVersion: "1.0.0", CollectorKind: "git",
 		SourceConfidence: "observed", Payload: payload,
 	}

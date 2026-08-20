@@ -42,7 +42,7 @@ func documentationFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, documentationExpectedEdgesRelPath)
 }
 
-// documentationFamilyOduName and documentationFamilyScopeID duplicate the
+// documentationFamilyOduName duplicates the
 // documentation family's Odù name and scope ID from ifa's
 // documentation_family_catalog.go: this package cannot reach those unexported
 // constants across the package boundary, and documentation_family_catalog.go
@@ -50,7 +50,6 @@ func documentationFamilyExpectedEdgesPath(repoRoot string) string {
 // their own copies to stay in ifa, so this is a copy, not a move.
 const (
 	documentationFamilyOduName = "odu:ifa-documentation-family"
-	documentationFamilyScopeID = "scope-ifa-documentation-family"
 )
 
 // resolveDocumentationEdgeMaterializedEdges is the documentation_edges family's
@@ -92,7 +91,7 @@ func resolveDocumentationEdgeMaterializedEdges(odu ifa.Odu, expectedEdgesPath st
 		return false, fmt.Sprintf("odù %q: expected-edge set does not cover all registry types, missing: %v", odu.Name, missing)
 	}
 
-	rows, quarantined, extractErr := reducer.ExtractDocumentationEdgeRowsWithQuarantine(odu.Facts, documentationFamilyScopeID)
+	rows, quarantined, extractErr := reducer.ExtractDocumentationEdgeRowsWithQuarantine(odu.Facts, ifa.DocumentationFamilyScopeID)
 	if extractErr != nil {
 		return false, fmt.Sprintf("odù %q: ExtractDocumentationEdgeRowsWithQuarantine failed: %v", odu.Name, extractErr)
 	}

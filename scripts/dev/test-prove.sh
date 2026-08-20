@@ -56,13 +56,10 @@ rg --pcre2 --quiet '^prove:.*## ' "${makefile}" || fail "Makefile prove target m
 require_makefile "prove target invokes prove.sh" "scripts/dev/prove.sh"
 
 # Credential-free common path: always runs, in this exact order. These pin what
-# prove.sh actually invokes, which COVERS the ci-gates registry command for each
-# gate id without being byte-identical to it: prove.sh uses the recursive
-# ./internal/ifa/... form, while specs/ci-gates.v1.yaml's ifa-contract-layer
-# local.command names the packages explicitly. Recursive is the safer of the two
-# to pin -- it cannot silently stop covering a new subpackage the way an explicit
-# list can, which is exactly how the materializededges split (#6053) broke every
-# package-exact copy of this command elsewhere in the repo.
+# prove.sh actually invokes. That is NOT the same as the ci-gates registry
+# command for the matching gate id -- ifa-contract-layer's local.command also
+# runs ./internal/reducer, which step_contract_layer does not. `make prove` is a
+# fast local sweep, not a stand-in for the blocking gate.
 require "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd/ifa -count=1"
 require "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
 require "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"

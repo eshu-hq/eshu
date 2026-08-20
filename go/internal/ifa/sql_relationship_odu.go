@@ -18,6 +18,9 @@ const (
 	sqlFamilyDeltaOduName = "odu:ifa-sql-family-delta"
 	sqlFamilyRepoID       = "repo-ifa-sql-family"
 	sqlFamilyScopeID      = "scope-ifa-sql-family"
+	// SQLFamilyGenerationID is the SQL family's generation ID. Exported (#6053)
+	// for the same reason as SQLFamilyLocalPath below: the collision guards in
+	// materializededges compare against it, and a copy there fails open.
 	SQLFamilyGenerationID = "gen-1"
 	sqlFamilyDeltaGenID   = "gen-2"
 	sqlFamilySchemaPath   = "db/schema.sql"

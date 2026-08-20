@@ -19,6 +19,10 @@ import (
 // fail open before this was noticed.
 const CodeCallFamilyLocalPath = "/repo-code-calls"
 
+// CodeCallFamilyGenerationID is the code-call family's generation ID. Exported
+// (#6053) so the sibling-identity collision guards in materializededges compare
+// against one value: a copy there sits on the reference side of the assertion
+// and stops detecting the collision it exists to catch.
 const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 
 // codeCallFamilyOdu returns the binary-portable catalog representation of the

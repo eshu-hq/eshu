@@ -28,8 +28,10 @@
 //
 // # Package boundary (#6053)
 //
-// This package was split out of go/internal/ifa to keep that package under
-// the repository's directory file-count gate. It depends on ifa (Odu,
+// This package was split out of go/internal/ifa preemptively, to buy headroom
+// under the repository's directory file-count gate before the families still
+// queued consumed it -- ifa was under the cap when the split was taken, not
+// over it. It depends on ifa (Odu,
 // Catalog, CatalogByName, DiscoveredEvidence, and several exported per-family
 // catalog identifiers and cassette loaders) but ifa's production code does
 // not import this package back — the dependency is one-directional.
