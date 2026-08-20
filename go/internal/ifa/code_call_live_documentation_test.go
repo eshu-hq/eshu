@@ -61,7 +61,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"six families carries a waiver.",
+				"eight families carries a waiver.",
 				"Both live gates drive the rationale cassette and exact-assert its full\n  # EXPLAINS records.",
 			},
 			prohibited: []string{
