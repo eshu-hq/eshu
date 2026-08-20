@@ -3,7 +3,7 @@
 # The shared_intent_lock generic blocker mechanism (split out of
 # ifa_fault_generic_cells.sh, scripts/lib/ifa_family_registry.sh's companion
 # library, to keep each mechanism file well under the 500-line cap with room
-# for the eight more families still to land). This is the ONE mechanism this
+# for the families still to land). This is the ONE mechanism this
 # PR actually wires to a live consumer: code_calls and rationale_edges both
 # migrate their kill-worker cell to this generic shape (see
 # ifa_fault_generic_cells.sh's cell_killworker_family dispatcher and the
