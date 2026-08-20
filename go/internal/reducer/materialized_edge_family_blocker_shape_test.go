@@ -439,13 +439,6 @@ func TestMaterializedEdgeFamilyBlockerLockstepCoversAllFamilies(t *testing.T) {
 // once committed for this family; #5992 removed it and #6160 replaced it with
 // a fact_records table lock, so the input here is now constructed rather than
 // quoted from a live file. Keeping it costs nothing and the bug class it
-// guards is what any future family can still hit. The end-to-end version of this same proof, run through the real
-// scripts/lib/ifa_family_registry.sh parse against a mutated scratch copy of
-// that file, is not committed here (mutating a file this test does not own
-// is not something a unit test should do on every run) but was run manually
-// to confirm TestMaterializedEdgeFamilyBlockerLockstep goes red the same way
-// when the registry itself, not just this function's input, declares the
-// wrong kind.
 func TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration(t *testing.T) {
 	t.Parallel()
 

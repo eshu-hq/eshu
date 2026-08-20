@@ -1,6 +1,6 @@
 <!-- docs-catalog
 title: Debug A Failing Ifá Gate
-description: Per-gate triage for the six Ifá CI gates, with the exact local execution needed to reproduce each one.
+description: Per-gate triage for the Ifá CI gates, with the exact local execution needed to reproduce each one.
 type: how-to
 audience: practitioner
 entrypoint: true

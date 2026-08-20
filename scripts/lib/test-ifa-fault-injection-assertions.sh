@@ -148,7 +148,7 @@ require_code_call_cells() {
 # hand-written prose allowlist below.
 #
 # It exists because the alternative -- converting helpers from a hand-enumerated
-# list -- missed 266 pins in one review round and 52 in the next, and nothing in
+# list -- missed pins in two consecutive review rounds, and nothing in
 # the tree noticed either time. A list that must be kept complete by hand is the
 # same defect class these mirrors exist to catch, one level up. This gate makes
 # a forgotten helper a RED instead of a finding.
@@ -258,7 +258,7 @@ assert_libs_parse() {
 		bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
 	done
 	# Floor: this derivation can resolve to NOTHING (an empty `for` word list is not
-	# an error), so one pattern edit would silently skip every lib where the 32
+	# an error), so one pattern edit would silently skip every lib where the
 	# explicit `bash -n` lines it replaced each cost only one. Hand-written, below
 	# the current count, never derived from the expression it guards.
 	[[ "${syntax_checked}" -ge 35 ]] \

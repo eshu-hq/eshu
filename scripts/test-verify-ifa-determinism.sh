@@ -461,11 +461,6 @@ done
 # Floor against a collapsed derivation: if the *_lib expression stops matching,
 # the loop silently scans almost nothing and passes. Hand-written, below the
 # current count, never derived from the expression it guards.
-# Counted, and measured against THIS file with the pin's own line excluded --
-# the previous form pinned the needle against ${BASH_SOURCE[0]}, which is the
-# file the pin lives in, so the pin line satisfied itself and deleting the glob
-# block left it green. Two occurrences are expected: the glob block and the
-# unrelated run_ifa_family_registry_pins_cases call.
 # EXACTLY TWO: the glob block itself, and this pin's own line. An at-least-one
 # form is useless here -- a pin whose needle lives in the same file is always
 # satisfied by itself, which is how the previous version stayed green with the
@@ -490,5 +485,12 @@ printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
 # shellcheck source=scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
 run_ifa_determinism_pin_behaviour_cases
+# Pin this gate's OWN call site: deleting the three lines above would otherwise
+# remove the whole behavioural pin check with this mirror still green, and the
+# sourced->triggered drift check cannot see a module that stops being sourced.
+# EXACTLY THREE (call, this needle, the name in the message below) because an
+# in-file pin is always satisfied by its own line.
+[[ "$(_ifa_det_count_code_matches 'run_ifa_determinism_pin_behaviour_cases' "${BASH_SOURCE[0]}")" -eq 3 ]] \
+	|| fail "this mirror no longer calls run_ifa_determinism_pin_behaviour_cases (expected the call, this pin, and the name in this message) -- nothing would check that its pin helpers bind code"
 
 printf 'test-verify-ifa-determinism: pass\n'

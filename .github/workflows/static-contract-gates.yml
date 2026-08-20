@@ -173,6 +173,11 @@ jobs:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
               - 'go/internal/ifa/**'
+              # This job's command runs ./internal/reducer too (the registry
+              # parse and blocker-lockstep tests live there), so a reducer-only
+              # change must start it -- otherwise the gate is selected as
+              # blocking and never runs on the change it is meant to cover.
+              - 'go/internal/reducer/**'
               - 'go/internal/synth/gcp/**'
               - 'go/cmd/ifa/**'
               - 'docs/internal/design/4389-ifa-conformance-platform.md'

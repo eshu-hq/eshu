@@ -9,7 +9,6 @@
 run_ifa_determinism_pin_behaviour_cases() {
 	local det_probe_dir det_needle det_fn det_probe det_pin_checked=0
 	local IFA_DET_PROSE_HELPERS="require"
-	IFA_DET_PROSE_HELPERS="require"
 	det_probe_dir="$(mktemp -d -t ifa-det-pin-probe.XXXXXX)"
 	det_needle='__ifa_det_pin_probe__'
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${det_needle}" >"${det_probe_dir}/comment_only.sh"

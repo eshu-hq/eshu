@@ -2086,6 +2086,7 @@ gates:
     blocking: true
     triggers:
       - "go/internal/ifa/**"
+      - "go/internal/reducer/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"
       - "docs/internal/design/4389-ifa-conformance-platform.md"
@@ -2095,8 +2096,8 @@ gates:
       - "specs/replay-coverage-manifest.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"

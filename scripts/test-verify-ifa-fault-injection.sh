@@ -287,7 +287,12 @@ require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_
 require_cells "fault-free baseline retry snapshot in cell 1" "baseline_retried="
 require_lib "durable retry-signal query" "SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1"
 require_lib "baseline-differential assert helper" "ifa_fault_assert_retried_above"
-require_framing "once-script JSON kind" "fail-graph-write-once-then-succeed" "${fault_lib}"
+# Anchored on the emitted `"kind":` line, not the bare string. Both kind names
+# also appear in this lib's PROSE, and require_framing is a whole-file match, so
+# the bare needle was satisfied by comments -- renaming the real emission left
+# the mirror green. With the prefix each occurs exactly once, on the heredoc
+# line that actually writes the script.
+require_framing "once-script JSON kind" "\"kind\": \"fail-graph-write-once-then-succeed\"" "${fault_lib}"
 
 # Cell 5 (restart-backend-between-phase-groups): sentinel-driven backend
 # restart, --no-compose skip, and a non-vacuity fired check.
@@ -296,7 +301,7 @@ require_cells "sentinel suffix matches Go wiring" '.restart-sentinel"'
 require_cells "sentinel watcher invocation" "ifa_fault_watch_restart_sentinel"
 require_cells "no-compose skips cell 5" "SKIPPED (--no-compose cannot restart a backend it does not own)"
 require_cells "non-vacuity fired check for cell 5" '"${restart_fired}" == "fired"'
-require_framing "restart script JSON kind" "restart-backend-between-phase-groups" "${fault_lib}"
+require_framing "restart script JSON kind" "\"kind\": \"restart-backend-between-phase-groups\"" "${fault_lib}"
 require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\" -f \"\${compose_file}\" restart nornicdb"
 
 # Cell 6 (kill-worker-after-claim-sql, #5555): see the Cell 2 checks above --
