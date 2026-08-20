@@ -28,8 +28,22 @@ lines="$(wc -l <"${script}" | tr -d '[:space:]')"
 [[ "${lines}" -lt 500 ]] || fail "prove.sh must stay under 500 lines (has ${lines})"
 
 require() {
+	# Prose-tolerant: several pins below assert that a HAZARD IS DOCUMENTED
+	# (e.g. the SIGPIPE note), and those legitimately live only in a comment.
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_code() {
+	# Code-binding: the needle must appear as LIVE CODE. Commenting out
+	# step_contract_layer used to leave this mirror green while make prove
+	# stopped running it, so the pins that name what prove.sh EXECUTES use this.
+	local label="$1" needle="$2" line stripped
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${line}" == *"${needle}"* ]] && return 0
+	done < "${script}"
+	fail "missing ${label}: ${needle} (as live code; a commented-out occurrence does not count)"
 }
 forbid() {
 	local label="$1" needle="$2"
@@ -60,10 +74,10 @@ require_makefile "prove target invokes prove.sh" "scripts/dev/prove.sh"
 # command for the matching gate id -- ifa-contract-layer's local.command also
 # runs ./internal/reducer, which step_contract_layer does not. `make prove` is a
 # fast local sweep, not a stand-in for the blocking gate.
-require "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd/ifa -count=1"
-require "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
-require "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
-require "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
+require_code "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd/ifa -count=1"
+require_code "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
+require_code "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
+require_code "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
 require "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
 require "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
 # This step runs `ifa coverage` in its default advisory mode, never with
@@ -75,13 +89,13 @@ forbid "coverage must not pass -blocking" " -blocking"
 # Layer 2 selection: via `ci-gates select`, never `ci-gates run` (whose own
 # local.command for these two gate ids is the hermetic mirror above, not the
 # real Docker matrix).
-require "path selection via ci-gates select" "run ./cmd/ci-gates select"
+require_code "path selection via ci-gates select" "run ./cmd/ci-gates select"
 forbid "must not delegate the Docker matrix to ci-gates run" "cmd/ci-gates run"
 require "explain-based SELECTED parsing" "^SELECTED"
 require "ifa-determinism gate id read from selection" '"ifa-determinism"'
 require "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
-require "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
-require "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
+require_code "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
+require_code "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
 
 # Select-failure guard: if `ci-gates select` itself exits non-zero (e.g. a
 # shallow/fork checkout where origin/main shares no merge-base with HEAD), the

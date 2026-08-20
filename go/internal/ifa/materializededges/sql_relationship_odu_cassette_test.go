@@ -4,14 +4,12 @@
 package materializededges
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
 // TestSQLFamilyCassetteMatchesGoOdu guards against drift between the
@@ -83,22 +81,9 @@ func TestSQLFamilyDeltaCassetteMatchesGoOdu(t *testing.T) {
 
 func loadCassetteEnvelopes(t *testing.T, path string) []facts.Envelope {
 	t.Helper()
-	src, err := cassette.NewSource(path)
+	out, err := ifa.LoadCassetteEnvelopes(path)
 	if err != nil {
-		t.Fatalf("cassette.NewSource(%s): %v", path, err)
-	}
-	var out []facts.Envelope
-	for {
-		gen, ok, err := src.Next(context.Background())
-		if err != nil {
-			t.Fatalf("cassette Next: %v", err)
-		}
-		if !ok {
-			break
-		}
-		for env := range gen.Facts {
-			out = append(out, env)
-		}
+		t.Fatalf("%v", err)
 	}
 	return out
 }

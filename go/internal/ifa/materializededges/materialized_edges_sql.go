@@ -53,13 +53,11 @@ const (
 // collision assertions in this package, and a copied reference silently stops
 // detecting the collision it exists to catch: freeze the value here and a real
 // collision introduced in ifa compares equal to the stale literal and passes.
-// Identities copied into this package that feed a catalog LOOKUP or an extractor
-// input fail CLOSED (a stale copy yields an empty derived set and a loud
-// mismatch). Only the ones on the REFERENCE side of a collision assertion fail
-// OPEN, which is why those are exported from ifa and read through instead. Note
-// a review pass found a FOURTH such reference (the code-call local_path) after
-// the first three were fixed: treat "which identities have this shape" as
-// something to re-derive by mutation, not a settled list to trust.
+// Whether any other copied identity is safe is not asserted here. Successive
+// review passes each found one more that was not, including one whose extractor
+// stamps the value through without filtering on it. Re-derive it by mutation --
+// append "-STALE" to a copy and run the package's tests -- rather than trusting
+// a list in a comment.
 
 // repositoryFactKind and contentEntityFactKind duplicate the raw fact-kind
 // literals from ifa's catalog_seed.go for the same cross-boundary reason:

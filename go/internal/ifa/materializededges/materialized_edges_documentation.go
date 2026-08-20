@@ -42,12 +42,11 @@ func documentationFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, documentationExpectedEdgesRelPath)
 }
 
-// documentationFamilyOduName duplicates the
-// documentation family's Odù name and scope ID from ifa's
-// documentation_family_catalog.go: this package cannot reach those unexported
-// constants across the package boundary, and documentation_family_catalog.go
-// / documentation_family_odu.go / documentation_family_odu_test.go still need
-// their own copies to stay in ifa, so this is a copy, not a move.
+// documentationFamilyOduName duplicates the documentation family's Odù name
+// from ifa's documentation_family_catalog.go, which still needs its own copy to
+// seed the compiled catalog. The copy is safe because it feeds a catalog
+// LOOKUP: a stale value resolves to a zero Odù and the guard fails loudly.
+// The family's scope ID is NOT copied -- see ifa.DocumentationFamilyScopeID.
 const (
 	documentationFamilyOduName = "odu:ifa-documentation-family"
 )

@@ -46,6 +46,11 @@ const (
 	// RationaleFamilyCassetteRelPath is the repo-root-relative path to this
 	// family's committed cassette.
 	RationaleFamilyCassetteRelPath = "testdata/cassettes/rationale/ifa-rationale-family.json"
+	// RationaleFamilyDeltaCassetteRelPath is the repo-root-relative path to this
+	// family's delta cassette. Exported for the same reason as the baseline path
+	// above: two tests in different packages need it, and a copy in either is
+	// free to drift into a path that still exists, which no assertion catches.
+	RationaleFamilyDeltaCassetteRelPath = "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
 	// RationaleFamilySourceRunID is the collector SourceRunID stamped onto
 	// this Odù's repository fact.
 	RationaleFamilySourceRunID = "run-ifa-rationale-family-1"

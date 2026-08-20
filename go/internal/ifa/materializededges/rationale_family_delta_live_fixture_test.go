@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	rationaleFamilyDeltaCassetteRelPath = "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
 	rationaleFamilyDeltaExpectedRelPath = "go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json"
 )
 
@@ -46,7 +45,7 @@ func TestRationaleDeltaExpectedFixtureIsLiveReadable(t *testing.T) {
 
 func TestRationaleDeltaCassettePinsFourFactRefreshAndSurvivors(t *testing.T) {
 	t.Parallel()
-	envelopes := loadCassetteEnvelopes(t, filepath.Join(repoRootDir(t), rationaleFamilyDeltaCassetteRelPath))
+	envelopes := loadCassetteEnvelopes(t, filepath.Join(repoRootDir(t), ifa.RationaleFamilyDeltaCassetteRelPath))
 	if len(envelopes) != 4 {
 		t.Fatalf("rationale delta cassette facts = %d, want exact 4", len(envelopes))
 	}
