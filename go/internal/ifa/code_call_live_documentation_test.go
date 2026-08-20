@@ -162,7 +162,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 				// every test stayed green. The list now reads the same-package
 				// const, so pin the const name -- the drift it guarded against
 				// is unrepresentable rather than merely detected.
-				"\n\t\tdocumentationFamilyCassettePath,\n",
+				"\n\t\tdocumentationFamilyCassettePath,",
 			},
 		},
 		{
