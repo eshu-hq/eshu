@@ -941,6 +941,11 @@ rather than taken once. Note also that this document records one earlier run on
 this backend giving a confident wrong answer from read staleness (see below), so
 a single unsettled read would not have been enough.
 
+Ledger: `ledger:5385-retract-rebuild-relationship-inert` and
+`ledger:5385-retract-rebuild-node-detach-delete` carry these outcomes, their trial
+count and the two harness errors; the tables below are the readable form, not the
+source of truth.
+
 | Operation | Neo4j 5 | NornicDB (pinned) |
 | --- | --- | --- |
 | bare relationship `DELETE` | 1 → 0 | **1 → 1**, still 1 after 43 s |
