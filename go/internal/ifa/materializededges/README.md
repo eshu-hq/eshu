@@ -107,10 +107,14 @@ surface through the CI proof gates' own reporting (`ifa-determinism`,
   cautionary tale.
 - **Duplicated small pure constants are marked, not accidental.** Several
   family guard files carry a one-off duplicate of an `ifa`-package unexported
-  constant (e.g. `sqlFamilyOduName`, `documentationFamilyScopeID`,
-  `repositoryFactKind`) with a doc comment naming the `ifa` source and why it
-  could not simply be exported and imported instead. When editing one of
-  those values in `ifa`, grep this package for the duplicate too.
+  constant (e.g. `sqlFamilyOduName`, `repositoryFactKind`) with a doc comment
+  naming the `ifa` source and why it could not simply be exported and imported
+  instead. When editing one of those values in `ifa`, grep this package for the
+  duplicate too. A duplicate is only safe where a stale copy fails CLOSED --
+  identities on the reference side of an assertion, and extractor inputs the
+  extractor stamps through without filtering on, fail OPEN and are exported
+  from `ifa` instead. Successive review passes each found one more of those, so
+  re-derive it by mutation rather than trusting this list.
 - **Never duplicate guard, loader, or assertion logic itself** — only pure
   data constants. A second copy of a family's cassette decoder, catalog
   builder, or extraction comparison would drift from the original silently,

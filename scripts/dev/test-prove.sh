@@ -56,7 +56,7 @@ forbid() {
 # recipe resolves via PATH is not guaranteed to be bash 4+ (macOS ships
 # /bin/bash 3.2 as the system default), matching scripts/dev/pre-pr.sh's own
 # portability choice.
-require "strict mode" "set -uo pipefail"
+require_code "strict mode" "set -uo pipefail"
 forbid "bash-4-only associative array" "declare -A"
 
 # Makefile wiring: a documented `prove` target in .PHONY, invoking this script.
@@ -78,8 +78,8 @@ require_code "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd
 require_code "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
 require_code "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
 require_code "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
-require "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
-require "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
+require_code "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
+require_code "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
 # This step runs `ifa coverage` in its default advisory mode, never with
 # -blocking: an uncovered surface is the expected P2+ backfill worklist, not a
 # defect, so forcing -blocking would fail every run against the still-growing
@@ -91,9 +91,9 @@ forbid "coverage must not pass -blocking" " -blocking"
 # real Docker matrix).
 require_code "path selection via ci-gates select" "run ./cmd/ci-gates select"
 forbid "must not delegate the Docker matrix to ci-gates run" "cmd/ci-gates run"
-require "explain-based SELECTED parsing" "^SELECTED"
-require "ifa-determinism gate id read from selection" '"ifa-determinism"'
-require "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
+require_code "explain-based SELECTED parsing" "^SELECTED"
+require_code "ifa-determinism gate id read from selection" '"ifa-determinism"'
+require_code "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
 require_code "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
 require_code "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
 
@@ -104,10 +104,10 @@ require_code "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead
 # captures the select exit status, and on failure records both matrices as a hard
 # FAIL and exits non-zero. Pin that contract so a refactor cannot regress it back
 # to the status-discarding `explain="$(...)"` shape.
-require "select exit status is captured, not discarded" 'if ! explain="$('
-require "select-failure sets the guard flag" "select_ok=0"
-require "Layer 2 run is guarded by select_ok" 'if [[ "${select_ok}" -eq 1 ]]'
-require "select failure records a hard FAIL, not SKIP" "FAIL (ci-gates select errored)"
+require_code "select exit status is captured, not discarded" 'if ! explain="$('
+require_code "select-failure sets the guard flag" "select_ok=0"
+require_code "Layer 2 run is guarded by select_ok" 'if [[ "${select_ok}" -eq 1 ]]'
+require_code "select failure records a hard FAIL, not SKIP" "FAIL (ci-gates select errored)"
 forbid "select failure must not be recorded as a SKIP" "SKIP (ci-gates select"
 
 # No new gate id is registered anywhere in this diff: prove.sh is a thin
@@ -120,11 +120,11 @@ fi
 # Loud-defer-when-no-docker: mirrors scripts/dev/trivy-fs-local.sh's pattern
 # (print guidance, exit non-fatally, never silently pass as if the matrix
 # ran).
-require "docker detection" "command -v docker"
-require "defer status distinct from pass" "DEFER (docker unavailable)"
-require "operator guidance on defer" "install Docker"
-require "CI-remains-authoritative framing" "CI runs the authoritative Docker matrix"
-require "defer is not a silent pass" "this defer is informational, not a pass"
+require_code "docker detection" "command -v docker"
+require_code "defer status distinct from pass" "DEFER (docker unavailable)"
+require_code "operator guidance on defer" "install Docker"
+require_code "CI-remains-authoritative framing" "CI runs the authoritative Docker matrix"
+require_code "defer is not a silent pass" "this defer is informational, not a pass"
 
 # gate_selected must read rg's own PIPESTATUS, not the pipefail-tainted
 # overall pipeline status: `rg --quiet` exits as soon as it confirms a
@@ -134,7 +134,7 @@ require "defer is not a silent pass" "this defer is informational, not a pass"
 # gate into a false "not selected" (verified against a real repro on this
 # box: a real ifa-dead-letter-matrix selection was reported SKIP without
 # this fix). Regression-tested here, not just asserted.
-require "gate_selected reads rg's own exit code via PIPESTATUS" "PIPESTATUS[1]"
+require_code "gate_selected reads rg's own exit code via PIPESTATUS" "PIPESTATUS[1]"
 require "SIGPIPE/pipefail hazard documented" "SIGPIPE"
 
 # Same repro as above, executed directly against this script's own
@@ -176,12 +176,12 @@ fi
 # EXIT` handler's `$?` capture read 0, not the crash) — a false green worse
 # than deferring. prove.sh must verify a bash >= 4 before trusting this
 # layer's result, not assume the ambient PATH is safe.
-require "safe_bash resolves a bash >= 4 before running the real matrix" "safe_bash()"
-require "safe_bash checks BASH_VERSINFO" "BASH_VERSINFO[0]"
-require "safe_bash tries known Homebrew locations" "/opt/homebrew/bin/bash"
-require "bash-too-old defer status distinct from pass" "DEFER (bash too old)"
-require "bash-too-old guidance" "needs bash 4+"
-require "real matrix invoked through the resolved safe bash, not ambient PATH bash" '"${bash_bin}" "${repo_root}/${script_rel}"'
+require_code "safe_bash resolves a bash >= 4 before running the real matrix" "safe_bash()"
+require_code "safe_bash checks BASH_VERSINFO" "BASH_VERSINFO[0]"
+require_code "safe_bash tries known Homebrew locations" "/opt/homebrew/bin/bash"
+require_code "bash-too-old defer status distinct from pass" "DEFER (bash too old)"
+require_code "bash-too-old guidance" "needs bash 4+"
+require_code "real matrix invoked through the resolved safe bash, not ambient PATH bash" '"${bash_bin}" "${repo_root}/${script_rel}"'
 
 # Flake policy: stated, and not contradicted by an actual retry-to-green
 # loop. Each real gate is invoked exactly once: the two hermetic mirrors each
@@ -208,10 +208,10 @@ forbid "no until-retry loop" "until bash"
 # Deterministic report: fixed vocabulary, no wall-time/PID/tmpdir token
 # inside the report block itself (those live only in the separate TIMING
 # block).
-require "deterministic report marker" "PROVE REPORT (deterministic)"
-require "report end marker" "END PROVE REPORT"
-require "timing block is a separate section" "PROVE TIMING"
-require "timing excluded from the deterministic report framing" "not part of the deterministic report"
+require_code "deterministic report marker" "PROVE REPORT (deterministic)"
+require_code "report end marker" "END PROVE REPORT"
+require_code "timing block is a separate section" "PROVE TIMING"
+require_code "timing excluded from the deterministic report framing" "not part of the deterministic report"
 # The wall-time variable must never be PRINTED inside the deterministic
 # report block itself (computing it earlier, to have the value ready, is
 # fine) — extract the lines between the two report markers and assert none
@@ -226,8 +226,8 @@ fi
 # Prove-latency budget: read from the doc via rg, not hardcoded as a second
 # source of truth, so the shell and go/internal/perfcontract's doc-lockstep
 # test can never silently disagree.
-require "budget read from the envelope doc, not hardcoded" "local-performance-envelope.md"
-require "budget extraction pattern" "common path stays under"
+require_code "budget read from the envelope doc, not hardcoded" "local-performance-envelope.md"
+require_code "budget extraction pattern" "common path stays under"
 forbid "no bare numeric literal masquerading as a hardcoded budget" "prove_budget_seconds=\"90\""
 
 # The referenced envelope doc must actually carry the phrase prove.sh looks

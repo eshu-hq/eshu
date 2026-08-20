@@ -10,11 +10,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// loadCassetteEnvelopes duplicates materializededges'
-// sql_relationship_odu_cassette_test.go helper of the same name (#6053): a
-// generic cassette-to-envelope reader with no family-specific knowledge, for
-// the same cross-family reason RationaleFamilyDeltaCassetteRelPath above is
-// duplicated rather than exported.
 func loadCassetteEnvelopes(t *testing.T, path string) []facts.Envelope {
 	t.Helper()
 	out, err := LoadCassetteEnvelopes(path)

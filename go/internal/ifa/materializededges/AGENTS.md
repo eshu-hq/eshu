@@ -30,10 +30,16 @@
   that production cycle. If a change seems to need it, it does not; find the
   seam through an exported `ifa` accessor instead (see the next point).
 - When a moved test needs something from `ifa` that is unexported:
-  - **Pure constant** (a plain string/int literal with no logic): duplicate
-    it locally, with a doc comment naming the `ifa` source, why it could not
-    be exported-and-imported instead (usually: the original is still needed
-    unexported by other `ifa` files), and what must stay in sync. This
+  - **Pure constant** (a plain string/int literal with no logic): duplicate it
+    locally ONLY if a stale copy fails CLOSED. Test that before you copy:
+    append `-STALE` to the candidate and run this package's tests. If they
+    still pass, the copy fails OPEN -- export it from `ifa` and read it
+    through instead. Reference-side identities in collision assertions, and
+    extractor inputs the extractor stamps through without filtering on, are
+    both fail-open; four were found that way, one per review round. When the
+    copy is genuinely safe, give it a doc comment naming the `ifa` source, why
+    it could not be exported-and-imported instead (usually: the original is
+    still needed unexported by other `ifa` files), and what must stay in sync. This
     package already carries examples in every family guard file — follow
     their shape.
   - **Loader, builder, or assertion logic** (anything with a body beyond

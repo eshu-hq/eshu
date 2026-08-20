@@ -40,9 +40,10 @@
 // a moved guard, because they also prove a genuinely cross-family invariant
 // (e.g. TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes spans every
 // family's live cassette, including ones outside this package's move set).
-// Those files duplicate the one or two small pure constants or generic test
-// helpers they need rather than importing this package, documented at each
-// duplication site; see AGENTS.md.
+// Those files read what they need from ifa rather than importing this package.
+// A generic helper they share is exported from ifa (LoadCassetteEnvelopes); a
+// constant is duplicated only where a stale copy fails closed, which AGENTS.md
+// requires be tested by mutation rather than assumed.
 //
 // RunMaterializedEdgeCoverage derives reducer edge-family requirements and
 // resolves them against hand-derived Odù expectations. SQL relationships
