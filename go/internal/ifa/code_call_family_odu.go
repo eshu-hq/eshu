@@ -29,7 +29,10 @@ import (
 const (
 	codeCallFamilyOduName      = "odu:ifa-code-call-family"
 	codeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
-	codeCallExpectedEdgesPath  = "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+	// codeCallExpectedEdgesPath moved to materializededges alongside the guard
+	// that was its only consumer (#6053); the fixture itself stays under
+	// go/internal/ifa/testdata/ because the offline cassette validator globs
+	// testdata/cassettes/*/*.json and this file is a gate ASSERTION, not a cassette.
 )
 
 // codeCallFamilyCassetteFile declares the cassette's COMPLETE envelope
@@ -83,7 +86,7 @@ type codeCallFamilyCassetteFile struct {
 }
 
 // CodeCallFamilyCassetteFullPath joins repoRoot onto the cassette path.
-// Exported (#6163) so materializededges' moved code-call-family tests can
+// Exported (#6053) so materializededges' moved code-call-family tests can
 // locate the same committed cassette LoadCodeCallFamilyOdu reads.
 func CodeCallFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeCallFamilyCassettePath)
@@ -94,7 +97,7 @@ func CodeCallFamilyCassetteFullPath(repoRoot string) string {
 //
 // It is the test-side lockstep loader for the committed cassette. Production
 // registers the compiled codeCallFamilyOdu in catalogSeed;
-// TestCodeCallFamilyIsCatalogedAndResolvable in materializededges (#6163,
+// TestCodeCallFamilyIsCatalogedAndResolvable in materializededges (#6053,
 // moved with the rest of the code_calls guard) compares that registered Odù
 // with this strict cassette projection and exercises the code_calls resolver
 // guard. Exported so that moved test can reach it across the package

@@ -43,7 +43,7 @@ type deployableUnitFamilyCassetteFile struct {
 }
 
 // DeployableUnitFamilyCassetteFullPath joins repoRoot onto the cassette path.
-// Exported (#6163) so materializededges' moved deployable-unit-family tests
+// Exported (#6053) so materializededges' moved deployable-unit-family tests
 // can locate the same committed cassette LoadDeployableUnitFamilyOdu reads.
 func DeployableUnitFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, deployableUnitFamilyCassettePath)
@@ -54,7 +54,7 @@ func DeployableUnitFamilyCassetteFullPath(repoRoot string) string {
 //
 // It is the test-side lockstep loader for the committed cassette. Production
 // registers the compiled deployableUnitFamilyOdu() in catalogSeed; a lockstep
-// test in materializededges (#6163, moved with the rest of the
+// test in materializededges (#6053, moved with the rest of the
 // deployable_unit_edges guard) compares that registered Odù with this strict
 // cassette projection so a one-sided edit fails the focused suite. Exported so
 // that moved test can reach it across the package boundary.

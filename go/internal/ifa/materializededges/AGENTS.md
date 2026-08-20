@@ -44,7 +44,7 @@
     prevent. Give the newly-exported identifier a real godoc comment, not a
     restatement of its name; see the codeowners/rationale/code-calls/
     documentation/deployable-unit family files in `ifa` for the pattern
-    (each names #6163 and explains which moved test needs it).
+    (each names #6053 and explains which moved test needs it).
 - A staying `ifa` test that spans multiple families (or a fixture outside
   this package's family list, like the `gcpcloud` cassette
   `TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes` also reads) cannot
@@ -84,17 +84,27 @@
   `ifa-fault-injection`) fails on the same family: the guard proves the
   extractor, not the live MERGE write — check for a missing endpoint node on
   the live graph before assuming the guard's exact-set comparison is wrong.
-- `go test ./internal/ifa/materializededges/...` passes but CI never ran it:
-  check `specs/ci-gates.v1.yaml`'s `ifa-determinism`/`ifa-fault-injection`
-  local commands are package-exact (`go test ./internal/ifa ./cmd/ifa`) and
-  must name this package too, or a moved test silently stops running in CI
-  while every gate still reports green.
+- `go test ./internal/ifa/materializededges/...` passes but CI never ran it.
+  TWO different wirings can cause this and they fail differently:
+  1. `ifa-contract-layer` and `ifa-materialized-edge-coverage` run PACKAGE-EXACT
+     `go test` commands (`./internal/ifa ./internal/ifa/materializededges
+     ./cmd/ifa`). A package missing from that list is simply not run, and every
+     gate still reports green. Note the command is ALSO hardcoded in
+     `.github/workflows/static-contract-gates.yml` -- editing only the registry
+     changes local behaviour and nothing in CI.
+  2. `ifa-determinism` and `ifa-fault-injection` are the live gates; their local
+     commands are the static mirrors (`scripts/test-verify-ifa-*.sh`), and what
+     matters for them is the SOURCED GLOBS plus this package appearing in
+     `.github/workflows/ifa-determinism-gate.yml`'s `on.paths`. A registry
+     trigger with no matching workflow path selects the gate as blocking and
+     GitHub then never starts it -- the determinism mirror's
+     registry-subset-of-workflow loop is the only check that catches it.
 
 ## Do not change without ADR review
 
 - The package boundary itself (moving a family guard back into `ifa`, or
   moving a `*_family_catalog.go`/`*_family_odu.go` fixture builder here) --
-  #6163's two proofs (the in-package-test import cycle, and the
+  #6053's two proofs (the in-package-test import cycle, and the
   `catalog_seed.go` production cycle) are why the boundary sits exactly
   here; re-litigating it needs the same rigor those proofs used, not
   intuition.

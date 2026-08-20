@@ -15,7 +15,7 @@ sits where it does.
 
 ## Ownership Boundary
 
-This package split out of `go/internal/ifa` (#6163) to keep that package
+This package split out of `go/internal/ifa` (#6053) to keep that package
 under the repository's directory file-count gate (`go-dir-gate`, 40
 non-test `.go` files). It owns:
 

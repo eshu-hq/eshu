@@ -53,7 +53,7 @@ type documentationFamilyCassetteFile struct {
 }
 
 // DocumentationFamilyCassetteFullPath joins repoRoot onto the cassette path.
-// Exported (#6163) so materializededges' moved documentation-family tests can
+// Exported (#6053) so materializededges' moved documentation-family tests can
 // locate the same committed cassette LoadDocumentationFamilyOdu reads.
 func DocumentationFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, documentationFamilyCassettePath)
@@ -65,7 +65,7 @@ func DocumentationFamilyCassetteFullPath(repoRoot string) string {
 //
 // It is the test-side lockstep loader for the committed cassette. Production
 // registers the compiled documentationFamilyOdu in catalogSeed;
-// TestDocumentationFamilyIsCatalogedAndResolvable in materializededges (#6163,
+// TestDocumentationFamilyIsCatalogedAndResolvable in materializededges (#6053,
 // moved with the rest of the documentation_edges guard) compares that
 // registered Odù with this strict cassette projection and exercises the
 // documentation_edges resolver guard. Exported so that moved test can reach it

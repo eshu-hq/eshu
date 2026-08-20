@@ -14,7 +14,7 @@ import (
 
 // rationaleFamilyDeltaCassetteRelPath duplicates the rationale-family delta
 // cassette path from materializededges' rationale_family_delta_live_fixture_test.go
-// (#6163): this test spans every family's live cassette (including the
+// (#6053): this test spans every family's live cassette (including the
 // unrelated gcpcloud fixture above) to prove a cross-family database
 // constraint, so it cannot move into materializededges with any single
 // family's guard, and an in-package ifa test cannot import a package that
@@ -23,7 +23,7 @@ import (
 const rationaleFamilyDeltaCassetteRelPath = "testdata/cassettes/rationale/ifa-rationale-family-delta.json"
 
 // loadCassetteEnvelopes duplicates materializededges'
-// sql_relationship_odu_cassette_test.go helper of the same name (#6163): a
+// sql_relationship_odu_cassette_test.go helper of the same name (#6053): a
 // generic cassette-to-envelope reader with no family-specific knowledge, for
 // the same cross-family reason rationaleFamilyDeltaCassetteRelPath above is
 // duplicated rather than exported.

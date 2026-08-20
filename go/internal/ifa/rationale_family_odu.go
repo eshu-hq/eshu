@@ -22,7 +22,7 @@ import (
 // well-formed comments proves the extractor emits edges without proving it
 // emits the right ones — and the set is asserted exactly, so an edge nobody
 // derived fails as loudly as a missing one.
-// Every constant below is exported (#6163): the rationale_edges guard and its
+// Every constant below that the moved guard needs is exported (#6053): the rationale_edges guard and its
 // two live-fixture tests (rationale_family_live_fixture_test.go,
 // rationale_family_delta_live_fixture_test.go) moved to materializededges
 // because they exercise the moved guard, and that package can only rebuild
@@ -190,7 +190,7 @@ func rationaleFamilyContentEntity(entityID, name, relativePath string, startLine
 
 // RationaleFamilyRepositoryFact builds one typed "repository" fact from
 // repository, stamped with this family's scope/generation coordinates and
-// carrying the fixture's imports_map. Exported (#6163) so materializededges'
+// carrying the fixture's imports_map. Exported (#6053) so materializededges'
 // moved rationale-family live-fixture tests can build the same repository
 // fact this Odù's own builder uses, rather than a second, driftable copy.
 func RationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
@@ -209,7 +209,7 @@ func RationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Enve
 }
 
 // RationaleFamilyFileFact builds one typed "file" fact from file, stamped
-// with this family's scope/generation coordinates. Exported (#6163) for the
+// with this family's scope/generation coordinates. Exported (#6053) for the
 // same reason as RationaleFamilyRepositoryFact.
 func RationaleFamilyFileFact(file codegraphv1.File) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphFile(file)

@@ -26,7 +26,7 @@
 // proof gates close that half, and the manifest's committed baseline row is
 // what justifies trusting them together.
 //
-// # Package boundary (#6163)
+// # Package boundary (#6053)
 //
 // This package was split out of go/internal/ifa to keep that package under
 // the repository's directory file-count gate. It depends on ifa (Odu,

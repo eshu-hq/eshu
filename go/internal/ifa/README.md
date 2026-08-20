@@ -76,7 +76,7 @@ authoring; it does not build a second coverage framework.
   `MaterializedEdgeSurfacePrefix`, `MaterializedEdgeOduResolver`,
   `RunMaterializedEdgeCoverage`, `ExpectedEdge`, `LoadExpectedEdges`, and every
   per-family vacuity guard, #5351) moved to the sibling package
-  `go/internal/ifa/materializededges` (#6163), to keep this package under the
+  `go/internal/ifa/materializededges` (#6053), to keep this package under the
   repository's directory file-count gate. See that package's `README.md` and
   `doc.go` for the exhaustiveness-gate design, the waiver semantics, the SQL/
   code-calls/documentation/rationale/codeowners/deployable-unit family

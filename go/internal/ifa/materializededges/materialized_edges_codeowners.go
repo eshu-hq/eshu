@@ -23,7 +23,7 @@ const codeownersOwnershipFamily = "codeowners_ownership_edges"
 
 // codeownersExpectedEdgesRelPath is the codeowners_ownership_edges expected-edge
 // fixture, repoRoot-anchored. Moved from ifa's codeowners_family_odu.go
-// (#6163): nothing else in ifa referenced it once
+// (#6053): nothing else in ifa referenced it once
 // MaterializedEdgeOduResolver.Resolve's dispatch moved to this package.
 const codeownersExpectedEdgesRelPath = "go/internal/ifa/testdata/codeowners/ifa-codeowners-family-expected-edges.json"
 

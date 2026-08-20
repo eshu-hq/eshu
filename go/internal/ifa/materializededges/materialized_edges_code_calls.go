@@ -14,14 +14,19 @@ import (
 )
 
 // codeCallExpectedEdgesRelPath is the code_calls expected-edge fixture,
-// repoRoot-anchored. Duplicated from ifa's code_call_family_odu.go
-// (codeCallExpectedEdgesPath): this package cannot reach that unexported
-// constant across the package boundary, so this is a copy, not a move.
+// repoRoot-anchored. MOVED here from ifa's code_call_family_odu.go (#6053)
+// along with the guard that was its only consumer; ifa carries a tombstone
+// where it used to sit. It is not a duplicate -- nothing in ifa reads it any
+// more, so leaving a copy behind would have been two values free to drift.
+//
+// The fixture itself stays under go/internal/ifa/testdata/ rather than
+// testdata/cassettes/: the offline cassette validator globs every
+// testdata/cassettes/*/*.json as a replay cassette, and this file is a gate
+// ASSERTION, not a cassette.
 const codeCallExpectedEdgesRelPath = "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 
 // codeCallFamilyExpectedEdgesPath joins repoRoot onto the expected-edge
-// fixture. Duplicated from ifa's code_call_family_odu.go for the same reason
-// as codeCallExpectedEdgesRelPath above.
+// fixture. Moved with codeCallExpectedEdgesRelPath above.
 func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeCallExpectedEdgesRelPath)
 }

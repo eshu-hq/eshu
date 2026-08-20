@@ -29,7 +29,7 @@ import (
 const (
 	// CodeownersFamilyOduName is this Odù's catalog name, the ref a
 	// materialized_edges:codeowners_ownership_edges coverage-manifest row
-	// names to resolve through it. Exported (#6163) so
+	// names to resolve through it. Exported (#6053) so
 	// materializededges' moved codeowners-family tests, which build and
 	// resolve against this exact Odù, can name and look it up by that ref
 	// without duplicating the literal.
@@ -84,7 +84,7 @@ type codeownersFamilyCassetteFile struct {
 }
 
 // CodeownersFamilyCassetteFullPath joins repoRoot onto the cassette path.
-// Exported (#6163) so materializededges' moved codeowners-family tests can
+// Exported (#6053) so materializededges' moved codeowners-family tests can
 // locate the same committed cassette LoadCodeownersFamilyOdu reads.
 func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeownersFamilyCassettePath)
@@ -92,7 +92,7 @@ func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 
 // codeownersFamilyExpectedEdgesPath moved to
 // materializededges/materialized_edges_codeowners.go with the rest of the
-// codeowners_ownership_edges vacuity guard (#6163): it was called only from
+// codeowners_ownership_edges vacuity guard (#6053): it was called only from
 // MaterializedEdgeOduResolver.Resolve's dispatch, which moved there too.
 
 // LoadCodeownersFamilyOdu reads the committed cassette and projects it onto
@@ -102,7 +102,7 @@ func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 // registers the compiled CodeownersFamilyOdu in catalogSeed;
 // TestCodeownersFamilyIsCatalogedAndResolvable (still in this package) compares
 // that registered Odù with this strict cassette projection, and
-// materializededges' moved codeowners-family tests (#6163) call it directly to
+// materializededges' moved codeowners-family tests (#6053) call it directly to
 // exercise the codeowners_ownership_edges resolver guard against the same
 // cassette. Exported so both sides of that package boundary can reach it
 // without a second copy of the cassette decoder.
