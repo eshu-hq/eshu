@@ -142,6 +142,43 @@ this fixture and matched digests across every codeowners cell and every N,
 which is the operator-equivalent proof for a fixture-only change on this
 surface.
 
+No-Regression Evidence (#6002): the two changes are different in kind, not
+just in family name. `submodule_pin_family_catalog.go` adds
+`submodulePinFamilyOdu`, a compiled Odù literal — the binary-portable catalog
+representation of the checked-in cassette — with no Cypher, worker claim,
+batching, or concurrency code of its own;
+`TestSubmodulePinFamilyIsCatalogedAndResolvable` pins it against that cassette
+via `reflect.DeepEqual`. `materialized_edges_submodule_pin.go` adds
+`resolveSubmodulePinMaterializedEdges`, a pure offline vacuity guard: it loads
+the hand-derived expected-edge fixture, asserts it covers every relationship
+type `submodule_pin_edges`' writer registry accepts, then runs
+`reducer.ExtractSubmodulePinEdgeRowsWithQuarantine` — the same pure,
+backend-free extraction seam every sibling family's guard uses — and compares
+the result to the fixture by exact multiset (`compareSubmodulePinExpectedEdges`).
+It mentions `canonical_submodule_edges.go`'s `MERGE` template only in a
+comment, to name the `{path: row.submodule_path}` identity property the
+comparison keys on; it contains no Cypher, graph write, or dispatch code of
+its own. The production write path
+(`SubmodulePinEdgeMaterializationHandler`,
+`go/internal/reducer/submodule_pin_materialization.go`, and
+`canonical_submodule_edges.go`) is unchanged by this PR.
+No-Observability-Change: same reasoning — no runtime path, worker, queue, or
+graph write is added or altered; the observable behavior is entirely in the
+already-existing handler and `canonical_submodule_edges.go`. Both live gates
+were run fresh against this fixture at commit e232782f0:
+`scripts/verify-ifa-determinism.sh` exited 0 with the combined graph digest
+`b7b9893e117347536655c8c7dd4f96b14788ffc4c64dea16b7bc1034385af90b` identical
+across N=1/2/4, and `scripts/verify-ifa-fault-injection.sh` shard 1/4 (8
+cells, including all three submodule_pin cells) exited 0 with
+`baseline_submodule_pin`, `killworkersubmodulepin`, and
+`failgraphwritesubmodulepin` all converging to digest
+`ddc993e36e2a09eb87b8c7d1e6383e424cbb06998fa29a7e30050f109ef20ab0`. This is
+the operator-equivalent proof for a fixture/guard-only change on this
+surface. The commits after e232782f0 (0faa8eeaf, 46407fa43, and this one)
+touch only gate trigger-list metadata, a generated doc, and prose/pin
+comments — no cell dispatch logic, blocker semantics, or write-template
+code — so those live-gate results still hold for the current head.
+
 ## Gotchas / Invariants
 
 - The canonical form is produced by `replay.CanonicalizeValue`, not by a new Ifá
