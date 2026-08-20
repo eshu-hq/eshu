@@ -95,9 +95,16 @@ func TestSubmodulePinDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 // repo-ifa-submodule-pin-target-baz repository. PIN A-DUP deliberately
 // produces NO additional edge: it repeats PIN A's exact (parent_repo_id,
 // submodule_path) key, and the extractor's rowIndexByKey dedup collapses it
-// into PIN A's row (keeping the later envelope's pinned_sha) rather than
-// emitting a second edge -- proving the last-match-wins contract, not just
-// adding a fourth entry here. PIN C (vendor/libunresolved) also produces NO
+// into one row rather than emitting a second edge -- proving the dedup COUNT
+// half of the last-match-wins contract, not just adding a fourth entry here.
+// This test's comparison goes through submodulePinRowsToExpectedEdges, which
+// deliberately drops pinned_sha (a SET-only property, not part of the MERGE
+// key), so it cannot see WHICH duplicate's pinned_sha survived -- a
+// first-match-wins regression would pass here unnoticed.
+// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA below reads the raw
+// row map directly to prove that half.
+//
+// PIN C (vendor/libunresolved) also produces NO
 // edge: it carries a submodule_url but no resolved_repo_id, and the
 // extractor must never guess a target Repository id for an unresolved
 // submodule. Each edge's identity object carries path, the one property
@@ -171,6 +178,67 @@ func TestSubmodulePinFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 }
 
+// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA closes a gap the test
+// above does not cover: it proves edge COUNT (PIN A-DUP collapses into one
+// row, not two), never the WINNING VALUE. submodulePinRowsToExpectedEdges
+// (materialized_edges_submodule_pin.go) deliberately drops pinned_sha from
+// ExpectedEdge.Identity -- correctly, since it is a SET-only relationship
+// property, not part of canonical_submodule_edges.go's MERGE key -- but that
+// means the offline guard's set-exact comparison never inspects pinned_sha
+// at all. A last-match-wins regression (keeping PIN A's original row instead
+// of PIN A-DUP's) or a corrupted pinned_sha would still produce the same
+// edge count, same identity, same Key() -- and pass invisibly. This test
+// reads the raw row map ExtractSubmodulePinEdgeRowsWithQuarantine returns,
+// bypassing the ExpectedEdge abstraction entirely, to assert the winning
+// value directly.
+func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+
+	odu, err := loadSubmodulePinFamilyOdu(submodulePinFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("loadSubmodulePinFamilyOdu: %v", err)
+	}
+
+	generationID := submodulePinFamilyGenerationIDFromFacts(odu.Facts)
+	rows, quarantined, err := reducer.ExtractSubmodulePinEdgeRowsWithQuarantine(odu.Facts, generationID)
+	if err != nil {
+		t.Fatalf("ExtractSubmodulePinEdgeRowsWithQuarantine: %v", err)
+	}
+	if len(quarantined) > 0 {
+		t.Fatalf("%d fact(s) quarantined; the cassette no longer validates against the submodule.pin contract", len(quarantined))
+	}
+
+	// PIN A and PIN A-DUP share this (parent_repo_id, submodule_path) key.
+	// PIN A's envelope carries pinned_sha "sha-libfoo-pin-a"; PIN A-DUP's,
+	// which appears LATER in submodulePinFamilyOdu's envelope slice, carries
+	// "sha-libfoo-pin-a-dup-newer". Last-match-wins means the surviving row
+	// must carry PIN A-DUP's SHA, never PIN A's.
+	const (
+		wantParent = submodulePinFamilyRepoID
+		wantPath   = "vendor/libfoo"
+		wantSHA    = "sha-libfoo-pin-a-dup-newer"
+		loserSHA   = "sha-libfoo-pin-a"
+	)
+	var winner map[string]any
+	for _, row := range rows {
+		if row["parent_repo_id"] == wantParent && row["submodule_path"] == wantPath {
+			winner = row
+			break
+		}
+	}
+	if winner == nil {
+		t.Fatalf("no row for (parent_repo_id=%q, submodule_path=%q); PIN A/PIN A-DUP's key produced nothing", wantParent, wantPath)
+	}
+	got, _ := winner["pinned_sha"].(string)
+	if got == loserSHA {
+		t.Fatalf("pinned_sha = %q: this is PIN A's ORIGINAL value -- last-match-wins kept the earlier envelope instead of PIN A-DUP's later one", got)
+	}
+	if got != wantSHA {
+		t.Fatalf("pinned_sha = %q, want %q (PIN A-DUP's, the later envelope)", got, wantSHA)
+	}
+}
+
 // TestSubmodulePinFamilyIsCatalogedAndResolvable pins the production
 // coverage seam, not just the extractor helper used by the test above. A
 // manifest row cannot honestly resolve unless the installed binary carries
@@ -212,11 +280,11 @@ func TestSubmodulePinFamilyIsCatalogedAndResolvable(t *testing.T) {
 	}
 }
 
-// TestSubmodulePinFamilyOduBuildsSixFacts exercises submodulePinFamilyOdu
+// TestSubmodulePinFamilyOduBuildsSevenFacts exercises submodulePinFamilyOdu
 // directly rather than through CatalogByName(), so a catalog_seed.go
 // regression fails one test with a clear cause instead of taking the whole
 // family-specific stack down with it.
-func TestSubmodulePinFamilyOduBuildsSixFacts(t *testing.T) {
+func TestSubmodulePinFamilyOduBuildsSevenFacts(t *testing.T) {
 	t.Parallel()
 	catalogOdu := submodulePinFamilyOdu()
 	if catalogOdu.Odu.Name != submodulePinFamilyOduName {
