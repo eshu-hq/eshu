@@ -15,13 +15,17 @@ ifa_repo_dependency_live_assert() {
 }
 
 ifa_repo_dependency_live_materialize_platform_prerequisite() {
-	local bin_dir="$1" output expected_id
-	expected_id="platform:kubernetes:none:cluster/prod-cluster:none:none"
+	local bin_dir="$1" output
 	output="$("${bin_dir}/eshu-ifa" materialize-platform-prerequisite \
 		-repo-id repo-ifa-repo-dependency-source -kind kubernetes \
 		-name prod-cluster -locator cluster/prod-cluster)" || return 1
 	printf '%s\n' "${output}"
-	[[ "${output}" == *"platform_id=${expected_id}"* && "${output}" == *"verified=1"* ]]
+	ifa_repo_dependency_live_prerequisite_output_is_exact "${output}"
+}
+
+ifa_repo_dependency_live_prerequisite_output_is_exact() {
+	local output="$1"
+	[[ "${output}" == 'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none verified=1' ]]
 }
 
 # ifa_repo_dependency_live_assert_gated requires zero resolver-owned edges
@@ -67,10 +71,10 @@ ifa_repo_dependency_live_drain() {
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM || return 1
 }
 
-# Args: bin_dir cassette expected log_dir compose_project use_compose dsn file timeout.
+# Args: bin_dir cassette expected log_dir compose_project use_compose file timeout.
 ifa_repo_dependency_live_run_standalone_cell() {
 	local bin_dir="$1" cassette="$2" expected_edges="$3" log_dir="$4"
-	local compose_project="$5" use_compose="$6" postgres_dsn="$7" compose_file="$8" timeout="$9"
+	local compose_project="$5" use_compose="$6" compose_file="$7" timeout="$8"
 	local cell_start
 	cell_start=$(date +%s)
 	if [[ "${use_compose}" -eq 1 ]]; then

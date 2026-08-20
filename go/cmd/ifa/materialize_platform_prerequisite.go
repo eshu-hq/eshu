@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -44,6 +45,31 @@ type platformPrerequisiteVerifier interface {
 type platformPrerequisiteBackend interface {
 	reducer.CypherExecutor
 	platformPrerequisiteVerifier
+}
+
+type platformPrerequisiteBackendError struct {
+	stage string
+	cause error
+}
+
+func (e *platformPrerequisiteBackendError) Error() string {
+	return fmt.Sprintf("%s: %v", e.stage, e.cause)
+}
+
+func (e *platformPrerequisiteBackendError) Unwrap() error {
+	return e.cause
+}
+
+func newPlatformPrerequisiteBackendError(stage string, cause error) error {
+	return &platformPrerequisiteBackendError{stage: stage, cause: cause}
+}
+
+func safePlatformPrerequisiteCommandError(err error) error {
+	var backendErr *platformPrerequisiteBackendError
+	if errors.As(err, &backendErr) {
+		return fmt.Errorf("ifa materialize-platform-prerequisite: %s: check graph backend configuration and reachability (connection details redacted)", backendErr.stage)
+	}
+	return fmt.Errorf("ifa materialize-platform-prerequisite: %w", err)
 }
 
 var openPlatformPrerequisiteBackend = func(ctx context.Context) (platformPrerequisiteBackend, func(), error) {
@@ -120,7 +146,7 @@ func runMaterializePlatformPrerequisiteCommand(
 
 	backend, closeFn, err := openPlatformPrerequisiteBackend(ctx)
 	if err != nil {
-		return fmt.Errorf("ifa materialize-platform-prerequisite: open graph backend: %w", err)
+		return safePlatformPrerequisiteCommandError(newPlatformPrerequisiteBackendError("open graph backend", err))
 	}
 	defer closeFn()
 
@@ -131,9 +157,11 @@ func runMaterializePlatformPrerequisiteCommand(
 		backend,
 	)
 	if err != nil {
-		return fmt.Errorf("ifa materialize-platform-prerequisite: %w", err)
+		return safePlatformPrerequisiteCommandError(err)
 	}
-	_, _ = fmt.Fprintf(stdout, "platform_id=%s verified=%d\n", platformID, count)
+	if _, err := fmt.Fprintf(stdout, "platform_id=%s verified=%d\n", platformID, count); err != nil {
+		return fmt.Errorf("ifa materialize-platform-prerequisite: write verified prerequisite result: check output destination")
+	}
 	return nil
 }
 
@@ -157,7 +185,7 @@ func materializePlatformPrerequisite(
 
 	repositoryCount, err := verifier.CountRepository(ctx, options.repoID)
 	if err != nil {
-		return "", 0, fmt.Errorf("verify source Repository %q: %w", options.repoID, err)
+		return "", 0, newPlatformPrerequisiteBackendError("verify source Repository", err)
 	}
 	if repositoryCount != 1 {
 		return "", 0, fmt.Errorf("source Repository %q prerequisite count = %d, want 1", options.repoID, repositoryCount)
@@ -174,7 +202,7 @@ func materializePlatformPrerequisite(
 		PlatformLocator:     options.locator,
 	}})
 	if err != nil {
-		return "", 0, fmt.Errorf("materialize Platform prerequisite: %w", err)
+		return "", 0, newPlatformPrerequisiteBackendError("materialize Platform prerequisite", err)
 	}
 	if result.PlatformEdgesWritten != 1 {
 		return "", 0, fmt.Errorf("materializer reported %d rows, want 1", result.PlatformEdgesWritten)
@@ -182,7 +210,7 @@ func materializePlatformPrerequisite(
 
 	platformCount, err := verifier.CountPlatform(ctx, platformID)
 	if err != nil {
-		return "", 0, fmt.Errorf("verify Platform %q: %w", platformID, err)
+		return "", 0, newPlatformPrerequisiteBackendError("verify Platform", err)
 	}
 	if platformCount != 1 {
 		return "", 0, fmt.Errorf("verified %d Platform nodes for %q, want 1", platformCount, platformID)

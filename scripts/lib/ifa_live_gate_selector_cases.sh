@@ -245,8 +245,15 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/repodependency/**|testdata/cassettes/repodependency/ifa-repo-dependency-family.json'
 	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
 	'go/internal/ifa/repo_dependency_family_*.go|go/internal/ifa/repo_dependency_family_odu.go'
+	'go/internal/reducer/repo_dependency*.go|go/internal/reducer/repo_dependency_projection_runner.go'
+	'go/internal/reducer/cross_repo_intent_row.go|go/internal/reducer/cross_repo_intent_row.go'
 	'go/internal/reducer/cross_repo_resolution.go|go/internal/reducer/cross_repo_resolution.go'
+	'go/internal/reducer/projection.go|go/internal/reducer/projection.go'
+	'go/internal/reducer/workload_materialization_handler.go|go/internal/reducer/workload_materialization_handler.go'
+	'go/internal/reducer/platforms.go|go/internal/reducer/platforms.go'
+	'go/internal/reducer/infrastructure_platform_materializer.go|go/internal/reducer/infrastructure_platform_materializer.go'
 	'go/internal/storage/cypher/materialized_edge_repo_dependency.go|go/internal/storage/cypher/materialized_edge_repo_dependency.go'
+	'go/internal/storage/cypher/canonical_relationships.go|go/internal/storage/cypher/canonical_relationships.go'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
 	# #6147 PR-0: sourced directly by verify-ifa-determinism.sh and
 	# transitively by verify-ifa-fault-injection.sh (via

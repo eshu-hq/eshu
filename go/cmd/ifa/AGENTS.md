@@ -18,6 +18,10 @@
    `go/internal/ifa/materializededges.LoadExpectedEdges`/`MaterializedEdgeDomainEdgeTypes`. Wired
    into the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline)
    live gate scripts.
+5c. `materialize_platform_prerequisite.go` - fixture-only setup for the
+   `repo_dependency` live proof. It is the only write-capable graph verb in
+   this command and passes one row through the production infrastructure
+   platform materializer before verifying the exact Platform node.
 6. `mutate_cassette.go` - P3 failure-path-determinism fixture generator verb
    (ADR step 3a, issue #4396): wraps `go/internal/ifa.MutateCassette`.
 7. `dead_letters.go` - P3 failure-path-determinism read verb (ADR step 3a,
@@ -91,6 +95,13 @@
 - `ifa graph-dump` is read-only: it applies no schema DDL and issues only the
   two `MATCH` reads in `graphdump_reader.go` (`boltNodesCypher`/
   `boltEdgesCypher`). Do not add a write statement to this verb.
+- `ifa materialize-platform-prerequisite` validates all flags before opening
+  the backend, requires exactly one source Repository, writes exactly one
+  Platform through `reducer.InfrastructurePlatformMaterializer`, and verifies
+  exactly one resulting Platform node. It redacts connection targets from
+  backend-open errors; do not return a raw driver error from the command
+  boundary. Keep this narrow fixture setup as the only write-capable graph verb
+  in this command.
 - `ifa assert-edges` is the non-vacuity check the P2 digest cannot make: it
   MUST fail on a family that materialized zero edges (an empty family passes a
   digest comparison vacuously). Its `edgeTypes` filter is registry-derived via

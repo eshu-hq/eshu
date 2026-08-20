@@ -63,10 +63,9 @@
 # cell_baseline (the SHARED, non-family baseline) is the sole writer of
 # digests[baseline] (scripts/lib/ifa_fault_injection_driver.sh's
 # assert_matches_baseline), which every recovery cell reads UNLESS it reads
-# a family-scoped baseline digest instead. Today that carve-out is the
-# deployable_unit family (#5993): its two recovery cells read
-# digests[baseline_deployable_unit], written only by
-# cell_baseline_deployable_unit, because that family's fault cells run an
+# a family-scoped baseline digest instead. Today those carve-outs are deployable_unit, codeowners, and repo_dependency;
+# each recovery pair reads the digest written by its own family baseline.
+# The deployable_unit family (#5993) additionally runs an
 # extra bootstrap-index maintenance pass the shared baseline never runs (see
 # scripts/lib/ifa_fault_injection_deployable_unit_cells.sh's header). A cell
 # reading a family-scoped baseline digest MUST land in the same shard as the
@@ -134,7 +133,7 @@ IFA_FAULT_ALL_CELLS=(
 # exists. An earlier version of this comment said the real matrix "has only ever
 # had one" group and credited a
 # test_ifa_fault_shard_multi_group_colocation for covering the multi-group case;
-# there are two groups, immediately below, and no function by that name exists
+# there are three groups, immediately below, and no function by that name exists
 # anywhere in the repo. What DOES check these groups is
 # run_ifa_fault_injection_atomic_group_ordering_cases in
 # scripts/lib/test-ifa-fault-injection-shard-cases.sh, which asserts each

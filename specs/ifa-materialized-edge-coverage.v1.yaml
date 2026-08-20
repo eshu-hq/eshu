@@ -76,8 +76,9 @@
 # The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls
 # BASELINE and FAULT rows, the documentation_edges BASELINE and FAULT rows, the
 # deployable_unit_edges BASELINE and FAULT rows (#5993/#6158), and the
-# rationale_edges BASELINE and FAULT rows (#5998) are proven; none of those
-# five families carries a waiver. #5555
+# rationale_edges BASELINE and FAULT rows (#5998), and the
+# repo_dependency BASELINE and FAULT rows (#5999) are proven; none of those
+# six families carries a waiver. #5555
 # rebuilt both SQL cells in
 # scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a
@@ -239,7 +240,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 21-cell fault
+  # the exact one-edge survivor. The 24-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.

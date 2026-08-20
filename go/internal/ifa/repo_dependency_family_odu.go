@@ -40,8 +40,9 @@ type repoDependencyFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// repoDependencyFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func repoDependencyFamilyCassetteFullPath(repoRoot string) string {
+// RepoDependencyFamilyCassetteFullPath joins repoRoot onto the committed
+// cassette path for materializededges' moved family lockstep tests.
+func RepoDependencyFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, repoDependencyFamilyCassettePath)
 }
 
@@ -57,7 +58,9 @@ func repoDependencyFamilyCassetteFullPath(repoRoot string) string {
 // loadDeployableUnitFamilyOdu: a multi-scope fixture would make the
 // expected-edge set ambiguous about which scope produced an edge, and an
 // empty Odù would make every downstream assertion vacuous.
-func loadRepoDependencyFamilyOdu(cassettePath string) (Odu, error) {
+// LoadRepoDependencyFamilyOdu projects the committed multi-scope cassette into
+// the Odù shape consumed by the materializededges package's vacuity guard.
+func LoadRepoDependencyFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read repo-dependency cassette %s: %w", cassettePath, err)

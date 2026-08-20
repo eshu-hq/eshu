@@ -3,12 +3,12 @@
 # slice S5, extended by #5555's SQL-targeted cells, #5991's code-call cells,
 # and #5998's rationale cells). The gate
 # itself needs Docker + a built toolchain and takes significantly longer
-# than the sibling determinism matrix (twenty-one fresh Postgres + NornicDB
+# than the sibling determinism matrix (twenty-four fresh Postgres + NornicDB
 # stacks, six of them running a -tags ifafaultinjection
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# twenty-one-cell shape (baseline + twenty live cells; fail-terminal
+# twenty-four-cell shape (baseline + twenty-three live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -157,7 +157,7 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The twenty-one-cell-shape anchored-invocation check and the SQL permanent-
+# The twenty-four-cell-shape anchored-invocation check and the SQL permanent-
 # member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
 # the sourced shard-cases module below, extracted to buy this file real
 # line-count headroom rather than trimming their comments in place.
@@ -210,7 +210,7 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 # The SQL permanent-member invocation pin also moved to the shard-cases
-# module (see the note above the twenty-one-cell-shape comment).
+# module (see the note above the twenty-four-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
@@ -259,7 +259,7 @@ if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${deliv
 	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 fi
 
-require "fail-terminal explicitly excluded with rationale" "fail-terminal (a nineteenth possible cell) is deliberately NOT included"
+require "fail-terminal explicitly excluded with rationale" "fail-terminal (a twenty-fifth possible cell) is deliberately NOT included"
 
 # Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 # documentation, and rationale):

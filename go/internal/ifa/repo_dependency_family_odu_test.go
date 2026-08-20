@@ -4,97 +4,109 @@
 package ifa
 
 import (
+	"context"
 	"encoding/json"
 	"os"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
-// TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet is the offline
-// vacuity guard for #5999: the production evidence/resolution/extraction
-// seams, over the committed cassette, reproduce the hand-derived expected set
-// EXACTLY.
-//
-// This is deliberately NOT called coverage. It proves the extractor, not the
-// gate: the live edge write is a MATCH-MATCH-MERGE on both endpoint ids, so a
-// missing endpoint Repository node makes the write a silent no-op this test
-// cannot see. The live ifa-determinism assertion closes that half by replaying
-// the same cassette and querying the materialized graph.
-func TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
+// TestRepoDependencyFamilyCassetteSatisfiesProductionContract loads the exact
+// committed fixture through the production replay validator before the
+// family-specific Odù projection sees it. This prevents the offline proof from
+// accepting a reduced JSON shape that the drive command rejects.
+func TestRepoDependencyFamilyCassetteSatisfiesProductionContract(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
+	path := RepoDependencyFamilyCassetteFullPath(repoRoot)
 
-	odu, err := loadRepoDependencyFamilyOdu(repoDependencyFamilyCassetteFullPath(repoRoot))
+	file, err := cassette.LoadFile(path)
+	if err != nil {
+		t.Fatalf("cassette.LoadFile: %v", err)
+	}
+	if got, want := file.SchemaVersion, cassette.SchemaVersionV1; got != want {
+		t.Errorf("schema_version = %q, want %q", got, want)
+	}
+	if got, want := file.Collector, "git"; got != want {
+		t.Errorf("collector = %q, want %q", got, want)
+	}
+	if got, want := len(file.Scopes), 1; got != want {
+		t.Fatalf("scope count = %d, want %d", got, want)
+	}
+	scope := file.Scopes[0]
+	if got, want := scope.SourceSystem, "git"; got != want {
+		t.Errorf("source_system = %q, want %q", got, want)
+	}
+	if got, want := scope.ScopeKind, "repo"; got != want {
+		t.Errorf("scope_kind = %q, want %q", got, want)
+	}
+	if got, want := scope.CollectorKind, "git"; got != want {
+		t.Errorf("collector_kind = %q, want %q", got, want)
+	}
+	if scope.ObservedAt.IsZero() {
+		t.Error("observed_at is zero")
+	}
+	if got, want := len(scope.Facts), 16; got != want {
+		t.Fatalf("production cassette fact count = %d, want %d", got, want)
+	}
+
+	odu, err := LoadRepoDependencyFamilyOdu(path)
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
-
-	ok, detail := resolveRepoDependencyMaterializedEdges(odu, repoDependencyFamilyExpectedEdgesPath(repoRoot))
-	if !ok {
-		t.Fatalf("resolveRepoDependencyMaterializedEdges(cassette odù) = (false, %q), want (true, ...)", detail)
+	if got, want := len(odu.Facts), 16; got != want {
+		t.Fatalf("Odù fact count = %d, want %d", got, want)
 	}
-	t.Log(detail)
 }
 
-// TestRepoDependencyFamilyCoversEveryRegisteredType stops the fixture
-// degrading into a vacuous proof. Every registered repo_dependency type must
-// appear in the expected-edge set; an expected set that quietly dropped one
-// would still parse as valid JSON with fewer edges asserted for the family.
-func TestRepoDependencyFamilyCoversEveryRegisteredType(t *testing.T) {
+func TestRepoDependencyFamilyCassetteEmitsProductionGeneration(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-
-	expectedEdges, err := LoadExpectedEdges(repoDependencyFamilyExpectedEdgesPath(repoRoot), repoDependencyEdgesFamily)
+	source, err := cassette.NewSource(RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("LoadExpectedEdges: %v", err)
+		t.Fatalf("cassette.NewSource: %v", err)
 	}
 
-	present := map[string]struct{}{}
-	for _, e := range expectedEdges {
-		present[e.RelationshipType] = struct{}{}
+	generation, ok, err := source.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("Source.Next() = (_, %v, %v), want generation", ok, err)
 	}
-	registered, err := MaterializedEdgeDomainEdgeTypes(repoDependencyEdgesFamily)
-	if err != nil {
-		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%s): %v", repoDependencyEdgesFamily, err)
+	if got, want := generation.Scope.ScopeID, "scope-ifa-repo-dependency-family"; got != want {
+		t.Errorf("scope id = %q, want %q", got, want)
 	}
-	var uncovered []string
-	for edgeType := range registered {
-		if _, ok := present[edgeType]; !ok {
-			uncovered = append(uncovered, edgeType)
+	if got, want := string(generation.Scope.ScopeKind), "repo"; got != want {
+		t.Errorf("scope kind = %q, want %q", got, want)
+	}
+	if got, want := generation.Scope.SourceSystem, "git"; got != want {
+		t.Errorf("source system = %q, want %q", got, want)
+	}
+	if got, want := string(generation.Scope.CollectorKind), "git"; got != want {
+		t.Errorf("collector kind = %q, want %q", got, want)
+	}
+	if got, want := generation.Generation.GenerationID, "gen-ifa-repo-dependency-family-1"; got != want {
+		t.Errorf("generation id = %q, want %q", got, want)
+	}
+	if generation.Generation.ObservedAt.IsZero() {
+		t.Error("generation observed_at is zero")
+	}
+
+	count := 0
+	for envelope := range generation.Facts {
+		count++
+		if envelope.ScopeID != generation.Scope.ScopeID || envelope.GenerationID != generation.Generation.GenerationID {
+			t.Errorf("envelope %d scope/generation = %q/%q, want %q/%q", count, envelope.ScopeID, envelope.GenerationID, generation.Scope.ScopeID, generation.Generation.GenerationID)
+		}
+		if envelope.CollectorKind != "git" || envelope.ObservedAt.IsZero() {
+			t.Errorf("envelope %d collector/observed_at = %q/%v, want git/nonzero", count, envelope.CollectorKind, envelope.ObservedAt)
 		}
 	}
-	sort.Strings(uncovered)
-	if len(uncovered) > 0 {
-		t.Errorf("the expected-edge set exercises no %v edge; the family registers them, so the fixture proves exhaustiveness over less than this guard claims", uncovered)
+	if got, want := count, 16; got != want {
+		t.Fatalf("emitted envelopes = %d, want %d", got, want)
 	}
-}
-
-// TestRepoDependencyFamilyCassetteMatchesCompiledCatalog pins the compiled,
-// binary-portable Odù (repoDependencyFamilyOdu, registered in catalog_seed.go)
-// to the committed cassette's strict projection, so a one-sided edit to
-// either fails this focused suite.
-//
-// WHAT THIS DOES NOT PROVE (#5993 postmortem, deployable_unit_family_odu_test.go).
-// reflect.DeepEqual only detects DRIFT between the two sides -- it can never
-// catch an error baked into shared source both sides derive the same way
-// from. Catching that class needs an assertion against an INDEPENDENT source
-// of truth, which for this family is the evidence-kind-specific parser and
-// typed workload-projection coverage already committed under
-// go/internal/relationships and go/internal/reducer, not a tighter equality
-// check between the two things that would share the same defect.
-func TestRepoDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
-	t.Parallel()
-	repoRoot := repoRootDir(t)
-
-	compiled := repoDependencyFamilyOdu().Odu
-	fromCassette, err := loadRepoDependencyFamilyOdu(repoDependencyFamilyCassetteFullPath(repoRoot))
-	if err != nil {
-		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
-	}
-	if !reflect.DeepEqual(compiled, fromCassette) {
-		t.Fatalf("compiled catalog Odù drifted from strict cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
+	if _, ok, err := source.Next(context.Background()); err != nil || ok {
+		t.Fatalf("Source.Next() after sole scope = (_, %v, %v), want EOF-like (_, false, nil)", ok, err)
 	}
 }
 
@@ -107,7 +119,7 @@ func TestRepoDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
 func TestRepoDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu, err := loadRepoDependencyFamilyOdu(repoDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := LoadRepoDependencyFamilyOdu(RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
@@ -117,7 +129,11 @@ func TestRepoDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 		if fact.FactKind != repositoryFactKind {
 			continue
 		}
-		repoID := strings.TrimSpace(anyToStringValue(fact.Payload["repo_id"]))
+		repoID, ok := fact.Payload["repo_id"].(string)
+		if !ok {
+			t.Fatalf("repository fact %q repo_id has type %T, want string", fact.StableFactKey, fact.Payload["repo_id"])
+		}
+		repoID = strings.TrimSpace(repoID)
 		if repoID == "" {
 			t.Fatalf("repository fact %q has no repo_id", fact.StableFactKey)
 		}
@@ -152,7 +168,7 @@ func TestRepoDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
 		t.Fatal("repo_dependency-family Odù has no generation ID; active-generation publication would be unidentifiable")
 	}
-	for _, sibling := range []string{sqlFamilyGenerationID, codeCallFamilyGenerationID, deployableUnitFamilyGenerationID} {
+	for _, sibling := range []string{"gen-1", "gen-ifa-code-call-family-1", "gen-ifa-deployable-unit-family-1"} {
 		if odu.Facts[0].GenerationID == sibling {
 			t.Fatalf("repo_dependency-family generation ID %q collides with a sibling family's generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
 		}
@@ -170,14 +186,14 @@ func TestRepoDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := loadRepoDependencyFamilyOdu(repoDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := LoadRepoDependencyFamilyOdu(RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
 
 	// Read the cassette independently so the comparison is against the file,
 	// not against the loader's own view of it.
-	raw, err := os.ReadFile(repoDependencyFamilyCassetteFullPath(repoRoot))
+	raw, err := os.ReadFile(RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("read cassette: %v", err)
 	}

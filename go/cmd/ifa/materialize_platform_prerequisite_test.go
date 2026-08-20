@@ -6,11 +6,121 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+func TestRunMaterializePlatformPrerequisiteRedactsBackendConnectionTarget(t *testing.T) {
+	original := openPlatformPrerequisiteBackend
+	openPlatformPrerequisiteBackend = func(context.Context) (platformPrerequisiteBackend, func(), error) {
+		return nil, nil, errors.New("dial tcp graph.private.corp.example:7687: connection refused")
+	}
+	t.Cleanup(func() { openPlatformPrerequisiteBackend = original })
+
+	var stdout, stderr bytes.Buffer
+	err := runMaterializePlatformPrerequisiteCommand(
+		context.Background(),
+		[]string{"-repo-id", "repo:test", "-kind", "kubernetes", "-name", "prod", "-locator", "cluster/prod"},
+		&stdout,
+		&stderr,
+	)
+	if err == nil {
+		t.Fatal("runMaterializePlatformPrerequisiteCommand() error = nil, want backend-open error")
+	}
+	if strings.Contains(err.Error(), "graph.private.corp.example") || strings.Contains(err.Error(), ":7687") {
+		t.Fatalf("error leaks private connection target: %q", err)
+	}
+	if !strings.Contains(err.Error(), "open graph backend") || !strings.Contains(err.Error(), "configuration and reachability") {
+		t.Fatalf("error = %q, want useful redacted backend-open guidance", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestRunMaterializePlatformPrerequisiteRedactsBackendStageErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		stage         string
+		sensitiveHost string
+		sensitivePort string
+		configure     func(*recordingPlatformPrerequisiteBackend, error)
+	}{
+		{
+			name:          "repository count",
+			stage:         "verify source Repository",
+			sensitiveHost: "repository.private.corp.example",
+			sensitivePort: "7441",
+			configure: func(backend *recordingPlatformPrerequisiteBackend, err error) {
+				backend.repositoryErr = err
+			},
+		},
+		{
+			name:          "platform materializer",
+			stage:         "materialize Platform prerequisite",
+			sensitiveHost: "writer.private.corp.example",
+			sensitivePort: "7552",
+			configure: func(backend *recordingPlatformPrerequisiteBackend, err error) {
+				backend.executeErr = err
+			},
+		},
+		{
+			name:          "platform count",
+			stage:         "verify Platform",
+			sensitiveHost: "platform.private.corp.example",
+			sensitivePort: "7663",
+			configure: func(backend *recordingPlatformPrerequisiteBackend, err error) {
+				backend.platformErr = err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := &recordingPlatformPrerequisiteBackend{repositoryCount: 1, platformCount: 1}
+			backendCause := errors.New("dial tcp " + test.sensitiveHost + ":" + test.sensitivePort + ": connection refused")
+			test.configure(backend, backendCause)
+			original := openPlatformPrerequisiteBackend
+			closed := false
+			openPlatformPrerequisiteBackend = func(context.Context) (platformPrerequisiteBackend, func(), error) {
+				return backend, func() { closed = true }, nil
+			}
+			t.Cleanup(func() { openPlatformPrerequisiteBackend = original })
+
+			var stdout, stderr bytes.Buffer
+			err := runMaterializePlatformPrerequisiteCommand(
+				context.Background(),
+				[]string{"-repo-id", "repo:test", "-kind", "kubernetes", "-name", "prod", "-locator", "cluster/prod"},
+				&stdout,
+				&stderr,
+			)
+			if err == nil {
+				t.Fatal("runMaterializePlatformPrerequisiteCommand() error = nil, want backend-stage error")
+			}
+			if strings.Contains(err.Error(), test.sensitiveHost) || strings.Contains(err.Error(), test.sensitivePort) {
+				t.Fatalf("error leaks private connection target: %q", err)
+			}
+			if errors.Is(err, backendCause) {
+				t.Fatalf("command error preserves sensitive backend cause across the redaction boundary: %q", err)
+			}
+			if !strings.Contains(err.Error(), test.stage) {
+				t.Fatalf("error = %q, want safe stage label %q", err, test.stage)
+			}
+			if !strings.Contains(err.Error(), "configuration and reachability") {
+				t.Fatalf("error = %q, want useful redacted backend guidance", err)
+			}
+			if stdout.Len() != 0 || stderr.Len() != 0 {
+				t.Fatalf("stdout=%q stderr=%q, want both empty", stdout.String(), stderr.String())
+			}
+			if !closed {
+				t.Fatal("backend close function was not called")
+			}
+		})
+	}
+}
 
 func TestPlatformPrerequisiteBuildsExactProductionRow(t *testing.T) {
 	materializer := &recordingPlatformPrerequisiteMaterializer{}
@@ -219,8 +329,42 @@ func TestRunMaterializePlatformPrerequisiteUsesProductionMaterializer(t *testing
 	}
 }
 
+func TestRunMaterializePlatformPrerequisiteReportsOutputFailureSafely(t *testing.T) {
+	backend := &recordingPlatformPrerequisiteBackend{repositoryCount: 1, platformCount: 1}
+	original := openPlatformPrerequisiteBackend
+	openPlatformPrerequisiteBackend = func(context.Context) (platformPrerequisiteBackend, func(), error) {
+		return backend, func() {}, nil
+	}
+	t.Cleanup(func() { openPlatformPrerequisiteBackend = original })
+
+	const sensitiveCause = "write unix /private/runner/socket: broken pipe"
+	err := runMaterializePlatformPrerequisiteCommand(
+		context.Background(),
+		[]string{"-repo-id", "repo:test", "-kind", "kubernetes", "-name", "prod", "-locator", "cluster/prod"},
+		failingPlatformPrerequisiteWriter{err: errors.New(sensitiveCause)},
+		&bytes.Buffer{},
+	)
+	if err == nil {
+		t.Fatal("runMaterializePlatformPrerequisiteCommand() error = nil, want output failure")
+	}
+	if strings.Contains(err.Error(), sensitiveCause) || strings.Contains(err.Error(), "/private/runner/socket") {
+		t.Fatalf("error leaks output destination details: %q", err)
+	}
+	if !strings.Contains(err.Error(), "write verified prerequisite result") || !strings.Contains(err.Error(), "output destination") {
+		t.Fatalf("error = %q, want safe actionable output guidance", err)
+	}
+}
+
 type recordingPlatformPrerequisiteMaterializer struct {
 	calls [][]reducer.InfrastructurePlatformRow
+}
+
+type failingPlatformPrerequisiteWriter struct {
+	err error
+}
+
+func (w failingPlatformPrerequisiteWriter) Write([]byte) (int, error) {
+	return 0, w.err
 }
 
 func (m *recordingPlatformPrerequisiteMaterializer) Materialize(
@@ -240,6 +384,9 @@ type recordingPlatformPrerequisiteBackend struct {
 	repositoryCount int
 	platformCount   int
 	executeParams   []map[string]any
+	repositoryErr   error
+	executeErr      error
+	platformErr     error
 }
 
 func (b *recordingPlatformPrerequisiteBackend) ExecuteCypher(
@@ -248,15 +395,15 @@ func (b *recordingPlatformPrerequisiteBackend) ExecuteCypher(
 	params map[string]any,
 ) error {
 	b.executeParams = append(b.executeParams, params)
-	return nil
+	return b.executeErr
 }
 
 func (b *recordingPlatformPrerequisiteBackend) CountRepository(context.Context, string) (int, error) {
-	return b.repositoryCount, nil
+	return b.repositoryCount, b.repositoryErr
 }
 
 func (b *recordingPlatformPrerequisiteBackend) CountPlatform(context.Context, string) (int, error) {
-	return b.platformCount, nil
+	return b.platformCount, b.platformErr
 }
 
 func (v *stubPlatformPrerequisiteVerifier) CountRepository(context.Context, string) (int, error) {

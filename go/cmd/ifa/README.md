@@ -133,9 +133,10 @@ session.
   an expected endpoint identity. Cross-repository attachments and repository
   property drift are therefore extras rather than hidden as foreign data.
   The live matrices invoke this verb for `sql_relationships`, `code_calls`,
-  `documentation_edges`, and `rationale_edges`. They require nine SQL edges,
-  five code-call edges, three documentation edges, and three full rationale
-  records exactly in every applicable baseline or recovery cell.
+  `documentation_edges`, `rationale_edges`, and `repo_dependency`. They require
+  nine SQL edges, five code-call edges, three documentation edges, three full
+  rationale records, and seven repository-dependency edges exactly in every
+  applicable baseline or recovery cell.
   Families sharing a relationship type with another family are
   additionally scoped by endpoint label, so repo_dependency and
   workload_dependency do not count each other's DEPENDS_ON edges. This is the
@@ -154,6 +155,8 @@ session.
   uses `ifa-fault-injection`.
   `rationale_edges` has two rows: baseline uses `ifa-determinism`; fault uses
   `ifa-fault-injection`.
+  `repo_dependency` has two rows: baseline uses `ifa-determinism`; fault uses
+  `ifa-fault-injection`.
 
   The `ifa-determinism` live gate invokes it in every worker-count cell for the
   baseline families, then asserts the generation-2 SQL and rationale sets and
@@ -165,6 +168,11 @@ session.
   Both documentation recovery cells repeat the exact three-edge assertion.
   The rationale recovery cells repeat the exact three-record assertion and
   require zero dead letters.
+  `repo_dependency` runs once as a standalone determinism cell after the worker
+  matrix because its Platform prerequisite is maintenance-backed, not a worker
+  count variable. Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle
+  for baseline, killed-worker recovery, and a once-then-succeed graph-write
+  fault.
   In the SQL delta-retract cell, the generation-2 SQL assertion runs first. The
   post-delta code-call and one-record rationale assertions follow before the
   collateral comparison; that full-record comparison keeps documentation graph

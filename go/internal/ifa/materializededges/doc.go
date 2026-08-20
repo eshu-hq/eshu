@@ -60,4 +60,6 @@
 // exact-assert full EXPLAINS records with the complete source, relationship,
 // and target properties carried by the expected fixture. The determinism
 // matrix also proves the generation-2 exact-one survivor.
+// Repository dependencies require baseline and fault dimensions. The live
+// gates exact-assert the six repository relationships and one RUNS_ON edge.
 package materializededges

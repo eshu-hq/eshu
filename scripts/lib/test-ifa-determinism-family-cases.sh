@@ -121,6 +121,8 @@ repo_standalone_function="$(rg -U --pcre2 --only-matching -- \
 	"${repo_dependency_live_lib}")"
 [[ -n "${repo_standalone_function}" ]] \
 	|| fail "repo_dependency standalone function could not be isolated for ordering checks"
+[[ "${repo_standalone_function}" != *"postgres_dsn"* ]] \
+	|| fail "repo_dependency standalone helper carries an unused postgres_dsn parameter"
 repo_drive_line="$(printf '%s\n' "${repo_standalone_function}" | rg -n --fixed-strings -- 'ifa_repo_dependency_live_drive' | cut -d: -f1)"
 repo_pre_drain_line="$(printf '%s\n' "${repo_standalone_function}" | rg -n --fixed-strings -- 'ifa_repo_dependency_live_drain pre' | cut -d: -f1)"
 repo_gated_log_line="$(printf '%s\n' "${repo_standalone_function}" | rg -n --fixed-strings -- '"reducer-repo-dependency-pre" 1' | cut -d: -f1)"

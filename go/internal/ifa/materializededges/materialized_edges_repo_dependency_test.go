@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -24,7 +27,7 @@ import (
 func TestResolveRepoDependencyMaterializedEdgesReproducesExpectedSet(t *testing.T) {
 	t.Parallel()
 
-	odu := repoDependencyFamilyOdu().Odu
+	odu := ifa.RepoDependencyFamilyOdu().Odu
 	ok, detail := resolveRepoDependencyMaterializedEdges(odu, repoDependencyFamilyExpectedEdgesPath(repoRootDir(t)))
 	if !ok {
 		t.Fatalf("resolveRepoDependencyMaterializedEdges() = (false, %q), want (true, ...)", detail)
@@ -45,13 +48,13 @@ func TestResolveRepoDependencyMaterializedEdgesReproducesExpectedSet(t *testing.
 func TestRepoDependencyFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+	resolver := MaterializedEdgeOduResolver{Catalog: ifa.CatalogByName(), RepoRoot: repoRoot}
 
 	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
 		Surface:      MaterializedEdgeSurfacePrefix + repoDependencyEdgesFamily,
 		Scenario:     replaycoverage.ScenarioOdu,
 		ScenarioType: replaycoverage.ScenarioTypeBaseline,
-		Ref:          repoDependencyFamilyOduName,
+		Ref:          ifa.RepoDependencyFamilyOduName,
 	})
 	if !ok {
 		t.Fatalf("resolver.Resolve for %s: %s", repoDependencyEdgesFamily, detail)
@@ -65,16 +68,16 @@ func TestRepoDependencyFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testing.T) {
 	t.Parallel()
 
-	odu := repoDependencyFamilyOdu().Odu
+	odu := ifa.RepoDependencyFamilyOdu().Odu
 	wrongPath := filepath.Join(t.TempDir(), "wrong-expected-edges.json")
 	writeRepoDependencyExpectedEdgesFixture(t, wrongPath, []map[string]string{
-		{"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": "not-the-real-target"},
-		{"relationship_type": "USES_MODULE", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetUsesModuleRepoID},
-		{"relationship_type": "DISCOVERS_CONFIG_IN", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDiscoversConfigRepoID},
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDependsOnRepoID},
-		{"relationship_type": "DEPLOYS_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDeploysFromRepoID},
-		{"relationship_type": "READS_CONFIG_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetReadsConfigRepoID},
-		{"relationship_type": "RUNS_ON", "source_entity_id": "workload-instance:" + repoDependencyFamilySourceName + ":" + repoDependencyFamilyEnvironment, "target_entity_id": "platform:kubernetes:none:cluster/" + repoDependencyFamilyDestinationName + ":none:none"},
+		{"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": "not-the-real-target"},
+		{"relationship_type": "USES_MODULE", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": ifa.RepoDependencyFamilyTargetUsesModuleRepoID},
+		{"relationship_type": "DISCOVERS_CONFIG_IN", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": ifa.RepoDependencyFamilyTargetDiscoversConfigRepoID},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": ifa.RepoDependencyFamilyTargetDependsOnRepoID},
+		{"relationship_type": "DEPLOYS_FROM", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": ifa.RepoDependencyFamilyTargetDeploysFromRepoID},
+		{"relationship_type": "READS_CONFIG_FROM", "source_entity_id": ifa.RepoDependencyFamilySourceRepoID, "target_entity_id": ifa.RepoDependencyFamilyTargetReadsConfigRepoID},
+		{"relationship_type": "RUNS_ON", "source_entity_id": "workload-instance:" + ifa.RepoDependencyFamilySourceName + ":" + ifa.RepoDependencyFamilyEnvironment, "target_entity_id": "platform:kubernetes:none:cluster/" + ifa.RepoDependencyFamilyDestinationName + ":none:none"},
 	})
 
 	ok, detail := resolveRepoDependencyMaterializedEdges(odu, wrongPath)
@@ -86,15 +89,15 @@ func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testin
 func TestRepoDependencyFamilyRunsOnPrerequisites(t *testing.T) {
 	t.Parallel()
 
-	odu := repoDependencyFamilyOdu().Odu
+	odu := ifa.RepoDependencyFamilyOdu().Odu
 	instanceID, platformID, err := repoDependencyFamilyRunsOnPrerequisites(odu)
 	if err != nil {
 		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want nil", err)
 	}
-	if want := "workload-instance:" + repoDependencyFamilySourceName + ":" + repoDependencyFamilyEnvironment; instanceID != want {
+	if want := "workload-instance:" + ifa.RepoDependencyFamilySourceName + ":" + ifa.RepoDependencyFamilyEnvironment; instanceID != want {
 		t.Fatalf("instance id = %q, want %q", instanceID, want)
 	}
-	if want := "platform:kubernetes:none:cluster/" + repoDependencyFamilyDestinationName + ":none:none"; platformID != want {
+	if want := "platform:kubernetes:none:cluster/" + ifa.RepoDependencyFamilyDestinationName + ":none:none"; platformID != want {
 		t.Fatalf("platform id = %q, want %q", platformID, want)
 	}
 }
@@ -102,9 +105,9 @@ func TestRepoDependencyFamilyRunsOnPrerequisites(t *testing.T) {
 func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsMissingGraphID(t *testing.T) {
 	t.Parallel()
 
-	odu := repoDependencyFamilyOdu().Odu
+	odu := ifa.RepoDependencyFamilyOdu().Odu
 	for i := range odu.Facts {
-		if odu.Facts[i].FactKind == repositoryFactKind && anyToStringValue(odu.Facts[i].Payload["repo_id"]) == repoDependencyFamilySourceRepoID {
+		if odu.Facts[i].FactKind == repositoryFactKind && anyToStringValue(odu.Facts[i].Payload["repo_id"]) == ifa.RepoDependencyFamilySourceRepoID {
 			delete(odu.Facts[i].Payload, "graph_id")
 		}
 	}
@@ -117,9 +120,9 @@ func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsMissingGraphID(t *testing
 func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsAmbiguousInstances(t *testing.T) {
 	t.Parallel()
 
-	odu := repoDependencyFamilyOdu().Odu
+	odu := ifa.RepoDependencyFamilyOdu().Odu
 	for i := range odu.Facts {
-		if odu.Facts[i].StableFactKey != "file:"+repoDependencyFamilySourceRepoID+":deploy/application.yaml" {
+		if odu.Facts[i].StableFactKey != "file:"+ifa.RepoDependencyFamilySourceRepoID+":deploy/application.yaml" {
 			continue
 		}
 		parsed, ok := odu.Facts[i].Payload["parsed_file_data"].(map[string]any)
@@ -127,13 +130,63 @@ func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsAmbiguousInstances(t *tes
 			t.Fatalf("fixture parsed_file_data has type %T, want map[string]any", odu.Facts[i].Payload["parsed_file_data"])
 		}
 		parsed["k8s_resources"] = []any{
-			map[string]any{"kind": "Deployment", "namespace": repoDependencyFamilyEnvironment},
+			map[string]any{"kind": "Deployment", "namespace": ifa.RepoDependencyFamilyEnvironment},
 			map[string]any{"kind": "Deployment", "namespace": "stage"},
 		}
 	}
 	_, _, err := repoDependencyFamilyRunsOnPrerequisites(odu)
 	if err == nil || !strings.Contains(err.Error(), "got 2") || !strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want deterministic ambiguity failure naming 2 instances", err)
+	}
+}
+
+func TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu, err := ifa.LoadRepoDependencyFamilyOdu(ifa.RepoDependencyFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("ifa.LoadRepoDependencyFamilyOdu: %v", err)
+	}
+	if ok, detail := resolveRepoDependencyMaterializedEdges(odu, repoDependencyFamilyExpectedEdgesPath(repoRoot)); !ok {
+		t.Fatalf("resolveRepoDependencyMaterializedEdges(cassette odù) = (false, %q), want true", detail)
+	}
+}
+
+func TestRepoDependencyFamilyCoversEveryRegisteredType(t *testing.T) {
+	t.Parallel()
+	expected, err := LoadExpectedEdges(repoDependencyFamilyExpectedEdgesPath(repoRootDir(t)), repoDependencyEdgesFamily)
+	if err != nil {
+		t.Fatalf("LoadExpectedEdges: %v", err)
+	}
+	present := make(map[string]struct{}, len(expected))
+	for _, edge := range expected {
+		present[edge.RelationshipType] = struct{}{}
+	}
+	registered, err := MaterializedEdgeDomainEdgeTypes(repoDependencyEdgesFamily)
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes: %v", err)
+	}
+	var missing []string
+	for edgeType := range registered {
+		if _, ok := present[edgeType]; !ok {
+			missing = append(missing, edgeType)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) != 0 {
+		t.Fatalf("expected-edge fixture misses registered repo_dependency types: %v", missing)
+	}
+}
+
+func TestRepoDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
+	t.Parallel()
+	compiled := ifa.RepoDependencyFamilyOdu().Odu
+	fromCassette, err := ifa.LoadRepoDependencyFamilyOdu(ifa.RepoDependencyFamilyCassetteFullPath(repoRootDir(t)))
+	if err != nil {
+		t.Fatalf("ifa.LoadRepoDependencyFamilyOdu: %v", err)
+	}
+	if !reflect.DeepEqual(compiled, fromCassette) {
+		t.Fatalf("compiled catalog Odù drifted from cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
 	}
 }
 
@@ -201,7 +254,7 @@ func writeRepoDependencyExpectedEdgesFixture(t *testing.T, path string, edges []
 			TargetEntityID   string `json:"target_entity_id"`
 		} `json:"edges"`
 	}{
-		Odu: repoDependencyFamilyOduName,
+		Odu: ifa.RepoDependencyFamilyOduName,
 	}
 	for _, edge := range edges {
 		fixture.Edges = append(fixture.Edges, struct {

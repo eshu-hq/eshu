@@ -19,7 +19,7 @@ run_ifa_fault_entrypoint_static_cases() {
 	require_code "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 	require_code "sources rationale cells lib" "scripts/lib/ifa_fault_injection_rationale_cells.sh"
 	require_code "sources collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, and rationale family cassettes"
+	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, rationale, and repository-dependency family cassettes"
 	require_code "failure log dump" "host binary logs (failure)"
 	# The container-log tail alone cannot name a dead-lettered row: its
 	# failure_message lives only in Postgres, and one real CI failure spent

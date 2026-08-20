@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -99,7 +100,7 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // Kubernetes workload facts. What it does NOT catch: anything downstream of
 // the live Cypher writer (that is `eshu-ifa assert-edges`' job once the live
 // determinism/fault-injection cells exist for this family).
-func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
+func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, repoDependencyEdgesFamily)
 	if err != nil {
 		return false, err.Error()
@@ -120,7 +121,7 @@ func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (
 		return false, err.Error()
 	}
 
-	evidence := DiscoveredEvidence(odu)
+	evidence := ifa.DiscoveredEvidence(odu)
 	if len(evidence) != len(expected) {
 		return false, fmt.Sprintf("odù %q: DiscoveredEvidence produced %d evidence facts, want exactly %d; the self-reference and near-miss-alias negative-case content facts must each produce zero evidence", odu.Name, len(evidence), len(expected))
 	}
@@ -168,13 +169,13 @@ func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (
 // instances fail closed. The Platform side pins the identity the live harness
 // must materialize through InfrastructurePlatformMaterializer before executing
 // the repo_dependency writer.
-func repoDependencyFamilyRunsOnPrerequisites(odu Odu) (string, string, error) {
+func repoDependencyFamilyRunsOnPrerequisites(odu ifa.Odu) (string, string, error) {
 	candidates, deploymentEnvironments := reducer.ExtractWorkloadCandidates(odu.Facts)
 	projection := reducer.BuildProjectionRows(candidates, deploymentEnvironments)
 
 	workloadIDs := make(map[string]struct{})
 	for _, row := range projection.WorkloadRows {
-		if row.RepoID == repoDependencyFamilySourceRepoID {
+		if row.RepoID == ifa.RepoDependencyFamilySourceRepoID {
 			workloadIDs[row.WorkloadID] = struct{}{}
 		}
 	}
@@ -184,7 +185,7 @@ func repoDependencyFamilyRunsOnPrerequisites(odu Odu) (string, string, error) {
 
 	instanceIDs := make([]string, 0, len(projection.InstanceRows))
 	for _, row := range projection.InstanceRows {
-		if row.RepoID != repoDependencyFamilySourceRepoID {
+		if row.RepoID != ifa.RepoDependencyFamilySourceRepoID {
 			continue
 		}
 		if _, ok := workloadIDs[row.WorkloadID]; !ok {
@@ -199,10 +200,10 @@ func repoDependencyFamilyRunsOnPrerequisites(odu Odu) (string, string, error) {
 
 	platformID := reducer.CanonicalPlatformID(reducer.CanonicalPlatformInput{
 		Kind:    "kubernetes",
-		Locator: "cluster/" + repoDependencyFamilyDestinationName,
+		Locator: "cluster/" + ifa.RepoDependencyFamilyDestinationName,
 	})
 	if platformID == "" {
-		return "", "", fmt.Errorf("odù %q: RUNS_ON destination %q did not produce a canonical Platform id", odu.Name, repoDependencyFamilyDestinationName)
+		return "", "", fmt.Errorf("odù %q: RUNS_ON destination %q did not produce a canonical Platform id", odu.Name, ifa.RepoDependencyFamilyDestinationName)
 	}
 	return instanceIDs[0], platformID, nil
 }

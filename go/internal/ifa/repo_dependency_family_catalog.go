@@ -105,6 +105,22 @@ const (
 	repoDependencyFamilyArgoCDRepoURL   = "https://github.com/ifa-org/repo-dependency-family-source.git"
 )
 
+// Exported repository-dependency family identities let the materializededges
+// package exercise the compiled catalog through the production resolver
+// without duplicating reference-side values that could drift open.
+const (
+	RepoDependencyFamilyOduName                     = repoDependencyFamilyOduName
+	RepoDependencyFamilySourceRepoID                = repoDependencyFamilySourceRepoID
+	RepoDependencyFamilySourceName                  = repoDependencyFamilySourceName
+	RepoDependencyFamilyTargetUsesModuleRepoID      = repoDependencyFamilyTargetUsesModuleRepoID
+	RepoDependencyFamilyTargetDiscoversConfigRepoID = repoDependencyFamilyTargetDiscoversConfigRepoID
+	RepoDependencyFamilyTargetDependsOnRepoID       = repoDependencyFamilyTargetDependsOnRepoID
+	RepoDependencyFamilyTargetDeploysFromRepoID     = repoDependencyFamilyTargetDeploysFromRepoID
+	RepoDependencyFamilyTargetReadsConfigRepoID     = repoDependencyFamilyTargetReadsConfigRepoID
+	RepoDependencyFamilyEnvironment                 = repoDependencyFamilyEnvironment
+	RepoDependencyFamilyDestinationName             = repoDependencyFamilyDestinationName
+)
+
 // repoDependencyFamilyOdu returns the binary-portable catalog representation
 // of the repo_dependency family fixture.
 func repoDependencyFamilyOdu() CatalogOdu {
@@ -186,6 +202,12 @@ func repoDependencyFamilyOdu() CatalogOdu {
 			"plus a self-reference and a near-miss-alias content fact that must produce zero evidence -- " +
 			"proving the production discovery, resolution, workload projection, and repo_dependency extraction seams reproduce exactly the seven-edge set.",
 	}
+}
+
+// RepoDependencyFamilyOdu returns the compiled family fixture used by the
+// catalog and by the materializededges package's moved vacuity-guard tests.
+func RepoDependencyFamilyOdu() CatalogOdu {
+	return repoDependencyFamilyOdu()
 }
 
 // repoDependencyFamilyRepositoryFact builds one raw "repository" fact in the

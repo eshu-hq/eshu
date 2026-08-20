@@ -1,6 +1,19 @@
 {
+  "collector": "git",
+  "schema_version": "1",
   "scopes": [
     {
+      "scope_id": "scope-ifa-repo-dependency-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-family",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family"
+      },
+      "generation_id": "gen-ifa-repo-dependency-family-1",
+      "observed_at": "2026-08-20T00:00:00Z",
+      "trigger_kind": "snapshot",
       "facts": [
         {
           "fact_kind": "repository",
@@ -251,9 +264,7 @@
             "repo_id": "repo-ifa-repo-dependency-source"
           }
         }
-      ],
-      "generation_id": "gen-ifa-repo-dependency-family-1",
-      "scope_id": "scope-ifa-repo-dependency-family"
+      ]
     }
   ]
 }

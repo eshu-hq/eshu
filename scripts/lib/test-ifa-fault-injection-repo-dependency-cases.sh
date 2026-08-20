@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # Hermetic structural proof for repo_dependency's maintenance-backed trio.
+ifa_repo_dependency_body_has_order() {
+	local body="$1" previous=0 needle line
+	shift
+	for needle in "$@"; do
+		line="$(printf '%s\n' "${body}" | rg -n --fixed-strings -- "${needle}" | head -1 | cut -d: -f1)"
+		[[ "${line}" =~ ^[0-9]+$ && "${line}" -gt "${previous}" ]] || return 1
+		previous="${line}"
+	done
+}
+
 run_ifa_fault_injection_repo_dependency_cases() {
 	local root script shard cells live fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
+	local gated_body gated_query_line terminal_body kill_body graph_body prerequisite_body edge_type needle
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
 	shard="${root}/scripts/lib/ifa_fault_shard.sh"
-	cells="${root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
-	live="${root}/scripts/lib/ifa_repo_dependency_live.sh"
+	cells="${IFA_REPO_DEPENDENCY_CELLS_UNDER_TEST:-${root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh}"
+	live="${IFA_REPO_DEPENDENCY_LIVE_UNDER_TEST:-${root}/scripts/lib/ifa_repo_dependency_live.sh}"
 	fixtures="${root}/scripts/lib/ifa_family_fixtures.sh"
 	expected_cassette="${root}/testdata/cassettes/repodependency/ifa-repo-dependency-family.json"
 	expected_edges="${root}/go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json"
@@ -15,18 +26,70 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	[[ "${repo_dependency_cassette}" == "${expected_cassette}" && -f "${repo_dependency_cassette}" ]] || return 1
 	[[ "${repo_dependency_expected_edges}" == "${expected_edges}" && -f "${repo_dependency_expected_edges}" ]] || return 1
 	[[ -f "${cells}" ]] || { printf 'repo_dependency cells missing: %s\n' "${cells}" >&2; return 1; }
+	# shellcheck source=scripts/lib/ifa_repo_dependency_live.sh
+	source "${live}"
 	for cell in cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency; do
 		rg --line-regexp --quiet -- "ifa_fault_shard_run ${cell}" "${script}" || return 1
 		rg --fixed-strings --quiet -- "${cell}" "${shard}" || return 1
 	done
 	rg --fixed-strings --quiet -- 'cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency' "${shard}" || return 1
 	rg --fixed-strings --quiet -- 'materialize-platform-prerequisite' "${live}" || return 1
+	prerequisite_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_live_materialize_platform_prerequisite\(\) \{.*?^\}' "${live}")"
+	[[ -n "${prerequisite_body}" ]] || return 1
+	[[ "${prerequisite_body}" == *'ifa_repo_dependency_live_prerequisite_output_is_exact "${output}"'* ]] || return 1
+	[[ "${prerequisite_body}" != *"expected_id"* ]] || return 1
+	for output in \
+		'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none verified=10' \
+		'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none-suffix verified=1' \
+		$'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none verified=1\nextra'; do
+		! ifa_repo_dependency_live_prerequisite_output_is_exact "${output}" || return 1
+	done
+	ifa_repo_dependency_live_prerequisite_output_is_exact \
+		'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none verified=1' || return 1
+	gated_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_live_assert_gated\(\) \{.*?^\}' "${live}")"
+	[[ -n "${gated_body}" ]] || return 1
+	gated_query_line="$(printf '%s\n' "${gated_body}" | rg --fixed-strings -- 'count="$(jq ' | head -1)"
+	[[ -n "${gated_query_line}" ]] || return 1
+	for edge_type in PROVISIONS_DEPENDENCY_FOR USES_MODULE DISCOVERS_CONFIG_IN DEPENDS_ON DEPLOYS_FROM READS_CONFIG_FROM RUNS_ON; do
+		[[ "${gated_query_line}" == *"\"${edge_type}\""* ]] || return 1
+	done
+	terminal_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_fault_assert_terminal\(\) \{.*?^\}' "${cells}")"
+	kill_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_killworker_repo_dependency\(\) \{.*?^\}' "${cells}")"
+	graph_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_failgraphwrite_repo_dependency\(\) \{.*?^\}' "${cells}")"
+	[[ -n "${terminal_body}" && -n "${kill_body}" && -n "${graph_body}" ]] || return 1
+	for needle in assert_no_dead_letters ifa_repo_dependency_live_assert_readiness_state ifa_repo_dependency_live_assert; do
+		[[ "${terminal_body}" == *"${needle}"* ]] || return 1
+	done
+	ifa_repo_dependency_body_has_order "${terminal_body}" \
+		assert_no_dead_letters ifa_repo_dependency_live_assert_readiness_state \
+		'ifa_repo_dependency_live_assert "${bin_dir}" "${repo_dependency_expected_edges}"' || return 1
+	for needle in ifa_repo_dependency_fault_prepare ifa_fault_start_shared_intent_lock ifa_fault_wait_for_claimed 'deployment_mapping' ' KILL ' ifa_fault_release_shared_intent_lock 'reducer-${cell}-after' run_drain_gate ifa_repo_dependency_fault_assert_terminal ifa_fault_assert_retried_above capture_digest assert_matches_baseline teardown_cell; do
+		[[ "${kill_body}" == *"${needle}"* ]] || return 1
+	done
+	ifa_repo_dependency_body_has_order "${kill_body}" \
+		ifa_repo_dependency_fault_prepare \
+		'ifa_det_start_bg "${log_dir}" "projector-${cell}"' \
+		ifa_fault_start_shared_intent_lock \
+		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-before"' \
+		ifa_fault_wait_for_claimed \
+		'ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL' \
+		ifa_fault_release_shared_intent_lock \
+		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-after"' \
+		run_drain_gate ifa_repo_dependency_fault_assert_terminal \
+		ifa_fault_assert_retried_above capture_digest assert_matches_baseline teardown_cell || return 1
+	for needle in ifa_repo_dependency_fault_prepare 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' ifa_fault_write_once_script ESHU_IFA_FAULT_SCRIPT run_drain_gate ifa_fault_assert_once_fault_marker ifa_repo_dependency_fault_assert_terminal capture_digest assert_matches_baseline teardown_cell; do
+		[[ "${graph_body}" == *"${needle}"* ]] || return 1
+	done
+	ifa_repo_dependency_body_has_order "${graph_body}" \
+		ifa_repo_dependency_fault_prepare \
+		'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' \
+		ifa_fault_write_once_script \
+		'ESHU_IFA_FAULT_SCRIPT=${fault_script}' \
+		run_drain_gate ifa_fault_assert_once_fault_marker \
+		ifa_repo_dependency_fault_assert_terminal capture_digest assert_matches_baseline teardown_cell || return 1
 	rg --fixed-strings --quiet -- 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'baseline_deployment_mapping_retried' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'ifa_repo_dependency_pre_gate_dump_path' "${live}" || return 1
-	rg --fixed-strings --quiet -- 'PROVISIONS_DEPENDENCY_FOR' "${live}" || return 1
-	rg --fixed-strings --quiet -- 'READS_CONFIG_FROM' "${live}" || return 1
-	rg --fixed-strings --quiet -- 'RUNS_ON' "${live}" || return 1
 	rg --fixed-strings --quiet -- 'cross-repo relationship resolution started' "${live}" || return 1
 	rg --fixed-strings --quiet -- 'cross-repo resolution gated' "${live}" || return 1
 	rg --fixed-strings --quiet -- '-domain repo_dependency -expected "${expected_edges}"' "${live}" || return 1

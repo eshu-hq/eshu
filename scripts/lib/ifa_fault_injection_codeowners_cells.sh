@@ -13,7 +13,7 @@
 # assert_matches_baseline / teardown_cell helpers from
 # ifa_fault_injection_driver.sh).
 #
-# LIVE-PROVEN: all three cells pass in the 21-cell fault matrix, matching
+# LIVE-PROVEN: all three cells pass in the 24-cell fault matrix, matching
 # digest across baseline/killworker/failgraphwrite. codeowners_expected_edges
 # and codeowners_edge_operation_match are declared in
 # verify-ifa-fault-injection.sh; codeowners_expected_edges is also declared in

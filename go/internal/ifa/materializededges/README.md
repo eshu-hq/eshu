@@ -20,12 +20,13 @@ headroom under the repository's directory file-count gate (`go-dir-gate`)
 before the families still queued consumed it. ifa was under the cap when the
 split was taken, not over it. It owns:
 
-- The six family guards: SQL relationships (`materialized_edges_sql.go`),
+- The seven family guards: SQL relationships (`materialized_edges_sql.go`),
   documentation edges (`materialized_edges_documentation.go`), code calls
   (`materialized_edges_code_calls.go`), rationale edges
   (`materialized_edges_rationale.go`), codeowners ownership
   (`materialized_edges_codeowners.go`), and deployable-unit edges
-  (`materialized_edges_deployable_unit.go`).
+  (`materialized_edges_deployable_unit.go`), and repository dependencies
+  (`materialized_edges_repo_dependency.go`).
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture
