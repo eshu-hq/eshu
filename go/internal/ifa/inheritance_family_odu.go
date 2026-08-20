@@ -27,13 +27,25 @@ import (
 // entities). This fixture exercises every one of those five derivation paths
 // so the exact-set expected-edges fixture cannot pass by asserting only a
 // coincidentally-matching subset.
+//
+// InheritanceFamilyOduName, InheritanceFamilyRepoID, and
+// InheritanceFamilyCassetteRelPath are exported (#6053/#6199): the
+// materialized_edges_inheritance.go guard and its test moved to
+// go/internal/ifa/materializededges because they exercise this Odù, and that
+// package can only look up this catalog entry, cross-check the fixture's
+// repository identity, and locate the committed cassette by reading these
+// identifiers from here, not a second copy of them.
 const (
-	inheritanceFamilyOduName         = "odu:ifa-inheritance-family"
-	inheritanceFamilyScopeID         = "scope-ifa-inheritance-family"
-	inheritanceFamilyGenerationID    = "gen-ifa-inheritance-family-1"
-	inheritanceFamilyRepoID          = "repository:r_c3a17f92"
-	inheritanceFamilyRemoteURL       = "https://github.com/eshu-hq/ifa-inheritance-fixture"
-	inheritanceFamilyCassetteRelPath = "testdata/cassettes/inheritance/ifa-inheritance-family.json"
+	// InheritanceFamilyOduName is this Odù's catalog name.
+	InheritanceFamilyOduName      = "odu:ifa-inheritance-family"
+	inheritanceFamilyScopeID      = "scope-ifa-inheritance-family"
+	inheritanceFamilyGenerationID = "gen-ifa-inheritance-family-1"
+	// InheritanceFamilyRepoID is this Odù's repository ID.
+	InheritanceFamilyRepoID    = "repository:r_c3a17f92"
+	inheritanceFamilyRemoteURL = "https://github.com/eshu-hq/ifa-inheritance-fixture"
+	// InheritanceFamilyCassetteRelPath is the repo-root-relative path to this
+	// family's committed live-drive cassette.
+	InheritanceFamilyCassetteRelPath = "testdata/cassettes/inheritance/ifa-inheritance-family.json"
 	inheritanceFamilySourceRunID     = "run-ifa-inheritance-family-1"
 	inheritanceFamilyLocalPath       = "/repo-inheritance"
 
@@ -142,7 +154,7 @@ func inheritanceFamilyOdu() CatalogOdu {
 	factsForOdu = append(factsForOdu, inheritanceFamilyFollowupFact())
 
 	return CatalogOdu{
-		Odu: Odu{Name: inheritanceFamilyOduName, Facts: factsForOdu},
+		Odu: Odu{Name: InheritanceFamilyOduName, Facts: factsForOdu},
 		Detail: "one typed repository, seven typed Python files, and nine valid content entities " +
 			"deriving one INHERITS, one IMPLEMENTS, one OVERRIDES, and two ALIASES edges " +
 			"(class-to-trait and method-to-method) across all five ExtractInheritanceRows derivation paths",
@@ -156,7 +168,7 @@ func inheritanceFamilyOdu() CatalogOdu {
 // (repo_id, relative_path, entity_type, entity_name, start_line), never from a
 // producer-supplied id.
 func inheritanceFamilyEntityID(relativePath, entityType, entityName string, startLine int) string {
-	return content.CanonicalEntityID(inheritanceFamilyRepoID, relativePath, entityType, entityName, startLine)
+	return content.CanonicalEntityID(InheritanceFamilyRepoID, relativePath, entityType, entityName, startLine)
 }
 
 // inheritanceFamilyContentEntity builds one live content_entity envelope. The
@@ -182,7 +194,7 @@ func inheritanceFamilyContentEntity(entityID, name, relativePath, entityType str
 	payload := map[string]any{
 		"graph_id":      entityID,
 		"graph_kind":    "content_entity",
-		"repo_id":       inheritanceFamilyRepoID,
+		"repo_id":       InheritanceFamilyRepoID,
 		"entity_id":     entityID,
 		"entity_type":   entityType,
 		"entity_name":   name,
@@ -203,11 +215,11 @@ func inheritanceFamilyContentEntity(entityID, name, relativePath, entityType str
 func inheritanceFamilyRepositoryFact() facts.Envelope {
 	sourceRunID := inheritanceFamilySourceRunID
 	localPath := inheritanceFamilyLocalPath
-	graphID, graphKind, repoName, parsedCount := inheritanceFamilyRepoID, "repository", "repo-inheritance", "7"
+	graphID, graphKind, repoName, parsedCount := InheritanceFamilyRepoID, "repository", "repo-inheritance", "7"
 	repoSlug, remoteURL := "eshu-hq/ifa-inheritance-fixture", inheritanceFamilyRemoteURL
 	isDependency := false
 	repository := codegraphv1.Repository{
-		RepoID: inheritanceFamilyRepoID, SourceRunID: &sourceRunID, LocalPath: &localPath,
+		RepoID: InheritanceFamilyRepoID, SourceRunID: &sourceRunID, LocalPath: &localPath,
 		GraphID: &graphID, GraphKind: &graphKind, Name: &repoName,
 		ParsedFileCount: &parsedCount, IsDependency: &isDependency,
 		RepoSlug: &repoSlug, RemoteURL: &remoteURL,
@@ -220,10 +232,10 @@ func inheritanceFamilyRepositoryFact() facts.Envelope {
 }
 
 func inheritanceFamilyFileFact(relativePath string) facts.Envelope {
-	fileGraphID, fileGraphKind, language := inheritanceFamilyRepoID+":"+relativePath, "file", "python"
+	fileGraphID, fileGraphKind, language := InheritanceFamilyRepoID+":"+relativePath, "file", "python"
 	isDependency := false
 	file := codegraphv1.File{
-		RepoID: inheritanceFamilyRepoID, RelativePath: relativePath,
+		RepoID: InheritanceFamilyRepoID, RelativePath: relativePath,
 		ParsedFileData: inheritanceFamilyParsedFile(relativePath),
 		GraphID:        &fileGraphID, GraphKind: &fileGraphKind,
 		IsDependency: &isDependency, Language: &language,
@@ -293,11 +305,11 @@ var inheritanceFamilyNilParserKeys = []string{
 // this mirrors exactly (#5992 measured the codeowners/documentation analog of
 // this same omission producing zero reducer intents against a live stack).
 func inheritanceFamilyFollowupFact() facts.Envelope {
-	return inheritanceFamilyFact("shared_followup", "shared_followup:"+inheritanceFamilyRepoID+":inheritance_materialization", map[string]any{
+	return inheritanceFamilyFact("shared_followup", "shared_followup:"+InheritanceFamilyRepoID+":inheritance_materialization", map[string]any{
 		"reducer_domain": "inheritance_materialization",
 		"entity_key":     "inheritance:" + strings.TrimPrefix(inheritanceFamilyLocalPath, "/"),
 		"reason":         "repository snapshot emitted inheritance materialization follow-up",
-		"repo_id":        inheritanceFamilyRepoID,
+		"repo_id":        InheritanceFamilyRepoID,
 	})
 }
 

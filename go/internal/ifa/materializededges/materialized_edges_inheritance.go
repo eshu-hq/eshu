@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -130,7 +131,7 @@ func inheritanceEdgeLabel(e ExpectedEdge) string {
 // reducer.ExtractInheritanceRows seam reproduces that expected set EXACTLY
 // (the vacuity half) -- a fixture that merely looks right (a bound Odù name)
 // but whose facts don't actually derive the claimed edges cannot pass.
-func resolveInheritanceMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
+func resolveInheritanceMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, "inheritance_edges")
 	if err != nil {
 		return false, err.Error()

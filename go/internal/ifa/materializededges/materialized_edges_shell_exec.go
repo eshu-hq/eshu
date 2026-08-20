@@ -1,15 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+// shellExecFamily is the materialized-edge family key this guard asserts,
+// mirroring codeownersOwnershipFamily's role for its own family: it names the
+// fixture's identity contract as well as its edge-type registry, so
+// MaterializedEdgeOduResolver.Resolve's dispatch and this file's own
+// LoadExpectedEdges/MaterializedEdgeDomainEdgeTypes calls can never be
+// pointed at different families by a typo in one of them. Moved here
+// entirely (not duplicated) from ifa's shell_exec_family_odu.go: nothing in
+// ifa needs this identifier any more.
+const shellExecFamily = "shell_exec"
 
 // resolveShellExecMaterializedEdges is the shell_exec family's vacuity guard
 // (#6001), mirroring resolveDocumentationEdgeMaterializedEdges's three-step
@@ -29,7 +40,7 @@ import (
 // the live `eshu-ifa assert-edges -domain shell_exec` gate reads through
 // LoadExpectedEdges -- no family-specific node-record schema like rationale
 // needs.
-func resolveShellExecMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
+func resolveShellExecMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, shellExecFamily)
 	if err != nil {
 		return false, err.Error()
@@ -56,7 +67,7 @@ func resolveShellExecMaterializedEdges(odu Odu, expectedEdgesPath string) (bool,
 	// the one repository the fixture's file facts declare. A stale or empty
 	// list would scope the emitted durable intents to the wrong repositories
 	// while the edge set itself looked correct.
-	wantRepos := map[string]struct{}{shellExecFamilyRepoID: {}}
+	wantRepos := map[string]struct{}{ifa.ShellExecFamilyRepoID: {}}
 	gotRepos := map[string]struct{}{}
 	for _, r := range repoIDs {
 		gotRepos[r] = struct{}{}

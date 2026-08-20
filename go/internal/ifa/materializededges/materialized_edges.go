@@ -180,7 +180,7 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 	case repoDependencyEdgesFamily:
 		return resolveRepoDependencyMaterializedEdges(odu, repoDependencyFamilyExpectedEdgesPath(r.RepoRoot))
 	case shellExecFamily:
-		return resolveShellExecMaterializedEdges(odu, shellExecFamilyExpectedEdgesPath(r.RepoRoot))
+		return resolveShellExecMaterializedEdges(odu, ifa.ShellExecFamilyExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

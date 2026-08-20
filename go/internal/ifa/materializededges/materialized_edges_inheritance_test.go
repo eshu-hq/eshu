@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
@@ -30,9 +31,9 @@ import (
 func TestInheritanceFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 	if odu.Name == "" {
-		t.Fatalf("Odù %q is not in the catalog", inheritanceFamilyOduName)
+		t.Fatalf("Odù %q is not in the catalog", ifa.InheritanceFamilyOduName)
 	}
 
 	ok, detail := resolveInheritanceMaterializedEdges(odu, inheritanceFamilyExpectedEdgesPath(repoRoot))
@@ -85,13 +86,13 @@ func TestInheritanceFamilyCoversAllFourEdgeTypes(t *testing.T) {
 func TestInheritanceFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+	resolver := MaterializedEdgeOduResolver{Catalog: ifa.CatalogByName(), RepoRoot: repoRoot}
 
 	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
 		Surface:      MaterializedEdgeSurfacePrefix + "inheritance_edges",
 		Scenario:     replaycoverage.ScenarioOdu,
 		ScenarioType: replaycoverage.ScenarioTypeBaseline,
-		Ref:          inheritanceFamilyOduName,
+		Ref:          ifa.InheritanceFamilyOduName,
 	})
 	if !ok {
 		t.Fatalf("resolver.Resolve for inheritance_edges: %s", detail)
@@ -105,14 +106,14 @@ func TestInheritanceFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 func TestInheritanceFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 
 	expected, err := LoadExpectedEdges(inheritanceFamilyExpectedEdgesPath(repoRoot), "inheritance_edges")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 	short := sqlRelationshipExpectedEdgesFile{
-		Odu:   inheritanceFamilyOduName,
+		Odu:   ifa.InheritanceFamilyOduName,
 		Edges: toSQLRelationshipExpectedEdges(expected[:len(expected)-1]),
 	}
 	path := writeSQLRelationshipExpectedEdges(t, short)
@@ -134,14 +135,14 @@ func TestInheritanceFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 func TestInheritanceFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 
 	expected, err := LoadExpectedEdges(inheritanceFamilyExpectedEdgesPath(repoRoot), "inheritance_edges")
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 	padded := sqlRelationshipExpectedEdgesFile{
-		Odu: inheritanceFamilyOduName,
+		Odu: ifa.InheritanceFamilyOduName,
 		Edges: append(toSQLRelationshipExpectedEdges(expected), sqlRelationshipExpectedEdge{
 			RelationshipType: "INHERITS",
 			SourceEntityID:   "content-entity:e_deadbeefdead",
@@ -164,9 +165,9 @@ func TestInheritanceFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 // must fail to load rather than silently pass every comparison.
 func TestInheritanceFamilyVacuityGuardRejectsAnEmptyExpectedSet(t *testing.T) {
 	t.Parallel()
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 
-	empty := sqlRelationshipExpectedEdgesFile{Odu: inheritanceFamilyOduName, Edges: nil}
+	empty := sqlRelationshipExpectedEdgesFile{Odu: ifa.InheritanceFamilyOduName, Edges: nil}
 	path := writeSQLRelationshipExpectedEdges(t, empty)
 
 	ok, detail := resolveInheritanceMaterializedEdges(odu, path)
@@ -184,7 +185,7 @@ func TestInheritanceFamilyVacuityGuardRejectsAnEmptyExpectedSet(t *testing.T) {
 // observation time, and SourceRef.
 func TestInheritanceCatalogMatchesReplayCassette(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join(repoRootDir(t), inheritanceFamilyCassetteRelPath)
+	path := filepath.Join(repoRootDir(t), ifa.InheritanceFamilyCassetteRelPath)
 	source, err := cassette.NewSource(path)
 	if err != nil {
 		t.Fatalf("cassette.NewSource: %v", err)
@@ -201,9 +202,9 @@ func TestInheritanceCatalogMatchesReplayCassette(t *testing.T) {
 	for envelope := range generation.Facts {
 		cassetteFacts = append(cassetteFacts, envelope)
 	}
-	compiled := CatalogByName()[inheritanceFamilyOduName]
+	compiled := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 	if compiled.Name == "" {
-		t.Fatalf("CatalogByName omits %q", inheritanceFamilyOduName)
+		t.Fatalf("CatalogByName omits %q", ifa.InheritanceFamilyOduName)
 	}
 	if len(cassetteFacts) != len(compiled.Facts) {
 		t.Fatalf("cassette has %d facts, compiled catalog Odù has %d", len(cassetteFacts), len(compiled.Facts))
@@ -230,7 +231,7 @@ func TestInheritanceCatalogMatchesReplayCassette(t *testing.T) {
 // silently drops every entity in the batch against a live backend.
 func TestInheritanceFamilyOduHasAFileFactForEveryContentEntity(t *testing.T) {
 	t.Parallel()
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 
 	filePaths := map[string]struct{}{}
 	for _, env := range odu.Facts {
@@ -273,7 +274,7 @@ func TestInheritanceFamilyOduHasAFileFactForEveryContentEntity(t *testing.T) {
 // the content_entity facts are.
 func TestInheritanceFamilyOduCarriesTheFollowupFact(t *testing.T) {
 	t.Parallel()
-	odu := CatalogByName()[inheritanceFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
 
 	for _, env := range odu.Facts {
 		if env.FactKind != "shared_followup" {
@@ -282,8 +283,8 @@ func TestInheritanceFamilyOduCarriesTheFollowupFact(t *testing.T) {
 		if got := anyToStringValue(env.Payload["reducer_domain"]); got != "inheritance_materialization" {
 			t.Fatalf("shared_followup reducer_domain = %q, want inheritance_materialization", got)
 		}
-		if got := anyToStringValue(env.Payload["repo_id"]); got != inheritanceFamilyRepoID {
-			t.Fatalf("shared_followup repo_id = %q, want %q", got, inheritanceFamilyRepoID)
+		if got := anyToStringValue(env.Payload["repo_id"]); got != ifa.InheritanceFamilyRepoID {
+			t.Fatalf("shared_followup repo_id = %q, want %q", got, ifa.InheritanceFamilyRepoID)
 		}
 		return
 	}

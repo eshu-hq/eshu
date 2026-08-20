@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"crypto/sha256"
@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -22,12 +23,12 @@ import (
 func TestShellExecFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[shellExecFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
 	if odu.Name == "" {
-		t.Fatalf("Odù %q is not in the catalog", shellExecFamilyOduName)
+		t.Fatalf("Odù %q is not in the catalog", ifa.ShellExecFamilyOduName)
 	}
 
-	ok, detail := resolveShellExecMaterializedEdges(odu, shellExecFamilyExpectedEdgesPath(repoRoot))
+	ok, detail := resolveShellExecMaterializedEdges(odu, ifa.ShellExecFamilyExpectedEdgesPath(repoRoot))
 	if !ok {
 		t.Fatalf("shell exec family Odù does not resolve: %s", detail)
 	}
@@ -43,13 +44,13 @@ func TestShellExecFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 func TestShellExecFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+	resolver := MaterializedEdgeOduResolver{Catalog: ifa.CatalogByName(), RepoRoot: repoRoot}
 
 	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
 		Surface:      MaterializedEdgeSurfacePrefix + "shell_exec",
 		Scenario:     replaycoverage.ScenarioOdu,
 		ScenarioType: replaycoverage.ScenarioTypeBaseline,
-		Ref:          shellExecFamilyOduName,
+		Ref:          ifa.ShellExecFamilyOduName,
 	})
 	if !ok {
 		t.Fatalf("resolver.Resolve for shell_exec: %s", detail)
@@ -63,9 +64,9 @@ func TestShellExecFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 func TestShellExecFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[shellExecFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
 
-	expected, err := LoadExpectedEdges(shellExecFamilyExpectedEdgesPath(repoRoot), shellExecFamily)
+	expected, err := LoadExpectedEdges(ifa.ShellExecFamilyExpectedEdgesPath(repoRoot), shellExecFamily)
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
@@ -86,15 +87,15 @@ func TestShellExecFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 func TestShellExecFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu := CatalogByName()[shellExecFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
 
-	expected, err := LoadExpectedEdges(shellExecFamilyExpectedEdgesPath(repoRoot), shellExecFamily)
+	expected, err := LoadExpectedEdges(ifa.ShellExecFamilyExpectedEdgesPath(repoRoot), shellExecFamily)
 	if err != nil {
 		t.Fatalf("LoadExpectedEdges: %v", err)
 	}
 	padded := append(append([]ExpectedEdge{}, expected...), ExpectedEdge{
 		RelationshipType: "EXECUTES_SHELL",
-		SourceEntityID:   shellExecFamilyDeployFunctionUID,
+		SourceEntityID:   ifa.ShellExecFamilyDeployFunctionUID,
 		TargetEntityID:   "shell-command:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 	})
 	path := writeShellExecExpectedEdgesFixture(t, padded)
@@ -117,7 +118,7 @@ func TestShellExecFamilyExpectedSetRejectsAMissingEdge(t *testing.T) {
 // merely that the loader has the check.
 func TestShellExecFamilyExpectedSetIsVacuityGuarded(t *testing.T) {
 	t.Parallel()
-	odu := CatalogByName()[shellExecFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
 
 	path := filepath.Join(t.TempDir(), "empty-expected-edges.json")
 	if err := os.WriteFile(path, []byte(`{"odu":"odu:ifa-shell-exec-family","edges":[]}`), 0o600); err != nil {
@@ -139,7 +140,7 @@ func TestShellExecFamilyExpectedSetIsVacuityGuarded(t *testing.T) {
 // only registry type -- the exhaustiveness check, not the exact-set check.
 func TestShellExecFamilyMissingRegistryTypeIsCaught(t *testing.T) {
 	t.Parallel()
-	odu := CatalogByName()[shellExecFamilyOduName]
+	odu := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
 
 	path := filepath.Join(t.TempDir(), "wrong-type-expected-edges.json")
 	raw := `{"odu":"odu:ifa-shell-exec-family","edges":[{"relationship_type":"NOT_EXECUTES_SHELL","source_entity_id":"a","target_entity_id":"b"}]}`
@@ -172,15 +173,15 @@ func TestShellExecCanonicalEntityIDLiterals(t *testing.T) {
 		line int
 		want string
 	}{
-		{shellExecFamilyDeployPath, shellExecFamilyDeployFunctionName, shellExecFamilyDeployFunctionLine, shellExecFamilyDeployFunctionUID},
-		{shellExecFamilyCleanupPath, shellExecFamilyCleanupFunctionName, shellExecFamilyCleanupFunctionLine, shellExecFamilyCleanupFunctionUID},
-		{shellExecFamilyOrphanPath, shellExecFamilyOrphanFunctionName, shellExecFamilyOrphanFunctionLine, shellExecFamilyOrphanFunctionUID},
-		{shellExecFamilySilentPath, shellExecFamilySilentFunctionName, shellExecFamilySilentFunctionLine, shellExecFamilySilentFunctionUID},
+		{ifa.ShellExecFamilyDeployPath, ifa.ShellExecFamilyDeployFunctionName, ifa.ShellExecFamilyDeployFunctionLine, ifa.ShellExecFamilyDeployFunctionUID},
+		{ifa.ShellExecFamilyCleanupPath, ifa.ShellExecFamilyCleanupFunctionName, ifa.ShellExecFamilyCleanupFunctionLine, ifa.ShellExecFamilyCleanupFunctionUID},
+		{ifa.ShellExecFamilyOrphanPath, ifa.ShellExecFamilyOrphanFunctionName, ifa.ShellExecFamilyOrphanFunctionLine, ifa.ShellExecFamilyOrphanFunctionUID},
+		{ifa.ShellExecFamilySilentPath, ifa.ShellExecFamilySilentFunctionName, ifa.ShellExecFamilySilentFunctionLine, ifa.ShellExecFamilySilentFunctionUID},
 	}
 	for _, test := range tests {
-		got := content.CanonicalEntityID(shellExecFamilyRepoID, test.path, "Function", test.name, test.line)
+		got := content.CanonicalEntityID(ifa.ShellExecFamilyRepoID, test.path, "Function", test.name, test.line)
 		if got != test.want {
-			t.Errorf("CanonicalEntityID(%q, %q, Function, %q, %d) = %q, want %q", shellExecFamilyRepoID, test.path, test.name, test.line, got, test.want)
+			t.Errorf("CanonicalEntityID(%q, %q, Function, %q, %d) = %q, want %q", ifa.ShellExecFamilyRepoID, test.path, test.name, test.line, got, test.want)
 		}
 	}
 }
@@ -217,17 +218,17 @@ func TestShellExecTargetIDLiteralsMatchTheWriterFunction(t *testing.T) {
 		api        string
 		want       string
 	}{
-		{"line5 os.system", 5, "os.system", shellExecFamilyDeployTarget1},
-		{"line6 subprocess.run", 6, "subprocess.run", shellExecFamilyDeployTarget2},
+		{"line5 os.system", 5, "os.system", ifa.ShellExecFamilyDeployTarget1},
+		{"line6 subprocess.run", 6, "subprocess.run", ifa.ShellExecFamilyDeployTarget2},
 	}
 	// sourcePath is parsed_file_data.path (the full local-path-prefixed
 	// path), not the file fact's relative_path -- see
-	// shellExecFamilyDeployTarget1's doc comment (shell_exec_family_odu.go)
+	// ifa.ShellExecFamilyDeployTarget1's doc comment (shell_exec_family_odu.go)
 	// for why ExtractShellExecRows's fallback always resolves to this value
 	// for this fixture.
-	sourcePath := shellExecFamilyLocalPath + "/" + shellExecFamilyDeployPath
+	sourcePath := ifa.ShellExecFamilyLocalPath + "/" + ifa.ShellExecFamilyDeployPath
 	for _, test := range tests {
-		got := shellExecTargetIDReference(shellExecFamilyRepoID, sourcePath, shellExecFamilyDeployFunctionUID, test.lineNumber, test.api)
+		got := shellExecTargetIDReference(ifa.ShellExecFamilyRepoID, sourcePath, ifa.ShellExecFamilyDeployFunctionUID, test.lineNumber, test.api)
 		if got != test.want {
 			t.Errorf("%s: shellExecTargetID(...) = %q, want %q", test.name, got, test.want)
 		}
