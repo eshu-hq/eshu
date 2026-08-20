@@ -138,6 +138,33 @@ surface through the CI proof gates' own reporting (`ifa-determinism`,
 - `specs/ci-gates.v1.yaml` - the `ifa-determinism`/`ifa-fault-injection` gate
   definitions this package's coverage rows back.
 
+## Performance and observability
+
+No-Regression Evidence (#6053): this change relocates offline vacuity guards
+between packages, exports identifiers so a single value is read rather than
+copied, and repoints gate wiring. It adds no runtime path. The moved guards
+execute no Cypher and open no graph session -- they READ the writer registries
+(`cypher.MaterializedEdgeIdentityProperties`,
+`cypher.SQLRelationshipMaterializedEdgeTypes`) to derive what a family must
+produce, then compare a hand-derived fixture against rows extracted through the
+pure reducer seams. The only production `.go` file in the diff is
+`go/internal/reducer/deployable_unit_correlation_edges.go`, and its diff is one
+comment line repointing a moved path; every other reducer and storage entry is
+a `.md`.
+
+No-Observability-Change: no worker, queue, lease, batch size, transaction
+boundary, emitted query, span, metric or log is added or altered, so there is
+nothing new for an operator to see and nothing existing that changes shape. The
+handlers these guards describe are untouched.
+
+The evidence that the guards still work is behavioural rather than numeric, and
+it is the point of the change: each relocated guard was proven able to FAIL by
+mutating the tree and observing the red, then restored and re-verified
+byte-identical. Several were found to have stopped being able to fail when their
+constants were copied alongside them -- a copy on the reference side of an
+equality assertion is a disabled check, not a duplicate. Reading a guard does
+not establish that it can fail.
+
 ## Family vacuity guards and their live-gate proof
 
 Restored from `go/internal/ifa/README.md` when these guards moved into this
