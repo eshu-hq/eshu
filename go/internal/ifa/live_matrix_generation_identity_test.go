@@ -30,10 +30,25 @@ func TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes(t *testing.T) {
 		"testdata/cassettes/gcpcloud/supply-chain-demo.json",
 		"testdata/cassettes/sqlrelationships/ifa-sql-family.json",
 		"testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json",
-		"testdata/cassettes/codecalls/ifa-code-call-family.json",
-		"testdata/cassettes/documentation/ifa-documentation-family.json",
+		codeCallFamilyCassettePath,
+		documentationFamilyCassettePath,
 		RationaleFamilyCassetteRelPath,
 		RationaleFamilyDeltaCassetteRelPath,
+	}
+
+	// A duplicate entry is the fail-open mode this list is prone to: two entries
+	// naming the same cassette re-register one generation/scope pair, so the
+	// family that was displaced drops out of the proof below while the test
+	// still reports green. Caught here rather than trusted, because reading the
+	// paths from consts does not prevent one const's VALUE from being pointed
+	// at another's (#6053).
+	seenPath := map[string]int{}
+	for i, fixturePath := range fixturePaths {
+		if prior, exists := seenPath[fixturePath]; exists {
+			t.Fatalf("fixture list entries %d and %d both name %q; a duplicate silently drops the displaced family from this proof",
+				prior, i, fixturePath)
+		}
+		seenPath[fixturePath] = i
 	}
 
 	generationScopes := map[string]string{}

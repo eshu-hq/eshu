@@ -152,7 +152,15 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "live_matrix_generation_identity_test.go"),
 			required: []string{
-				"testdata/cassettes/documentation/ifa-documentation-family.json",
+				// Pins that the documentation family is in the cross-scope
+				// uniqueness list. It used to pin the raw path literal, which
+				// meant this gate REQUIRED the duplication that made the entry
+				// silently droppable (#6053): re-pointing a copied literal at a
+				// cassette that exists removed the family from the proof while
+				// every test stayed green. The list now reads the same-package
+				// const, so pin the const name -- the drift it guarded against
+				// is unrepresentable rather than merely detected.
+				"documentationFamilyCassettePath",
 			},
 		},
 		{

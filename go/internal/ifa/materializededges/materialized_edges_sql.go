@@ -56,8 +56,9 @@ const (
 // Whether any other copied identity is safe is not asserted here. Successive
 // review passes each found one more that was not, including one whose extractor
 // stamps the value through without filtering on it. Re-derive it by mutation --
-// append "-STALE" to a copy and run the package's tests -- rather than trusting
-// a list in a comment.
+// mutate a copy two ways and run the package's tests: append "-STALE", and
+// re-point it at a value that already exists in the corpus. A suffix alone only
+// probes absence, so for a path it always reds and always answers "safe".
 
 // repositoryFactKind and contentEntityFactKind duplicate the raw fact-kind
 // literals from ifa's catalog_seed.go for the same cross-boundary reason:

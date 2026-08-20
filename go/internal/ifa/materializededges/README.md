@@ -114,7 +114,9 @@ surface through the CI proof gates' own reporting (`ifa-determinism`,
   identities on the reference side of an assertion, and extractor inputs the
   extractor stamps through without filtering on, fail OPEN and are exported
   from `ifa` instead. Successive review passes each found one more of those, so
-  re-derive it by mutation rather than trusting this list.
+  re-derive it by mutation rather than trusting this list -- BOTH directions,
+  suffix and substitution, as AGENTS.md spells out. A suffix alone cannot see a
+  path re-pointed at a file that exists.
 - **Never duplicate guard, loader, or assertion logic itself** — only pure
   data constants. A second copy of a family's cassette decoder, catalog
   builder, or extraction comparison would drift from the original silently,

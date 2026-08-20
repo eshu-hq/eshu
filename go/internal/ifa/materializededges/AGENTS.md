@@ -32,9 +32,15 @@
 - When a moved test needs something from `ifa` that is unexported:
   - **Pure constant** (a plain string/int literal with no logic): duplicate it
     locally ONLY if a stale copy fails CLOSED. Test that before you copy:
-    append `-STALE` to the candidate and run this package's tests. If they
-    still pass, the copy fails OPEN -- export it from `ifa` and read it
-    through instead. Reference-side identities in collision assertions, and
+    mutate the candidate TWO ways and run this package's tests after each.
+    (1) Append `-STALE`. (2) Re-point it at another value that already exists
+    in the corpus -- a sibling cassette, another family's scope. If the tests
+    still pass after EITHER, the copy fails OPEN: export it from `ifa` and read
+    it through instead. Direction (2) is not optional: for a path-valued
+    constant, appending a suffix only makes the file missing, so that probe
+    always reds and always answers "safe" even for a copy that is not. The
+    real defect found twice on this package was a path silently re-pointed at
+    a sibling that exists. Reference-side identities in collision assertions, and
     extractor inputs the extractor stamps through without filtering on, are
     both fail-open; four were found that way, one per review round. When the
     copy is genuinely safe, give it a doc comment naming the `ifa` source, why
@@ -55,9 +61,12 @@
   this package's family list, like the `gcpcloud` cassette
   `TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes` also reads) cannot
   move here even though it touches a moved guard's cassette — it does not
-  belong to any single family. Such a test duplicates the one or two small
-  pure identifiers it needs (see `ifa/live_matrix_generation_identity_test.go`)
-  rather than importing this package.
+  belong to any single family. Such a test stays in `ifa`, where it is in the
+  same package as the identifiers it needs and can read them directly (see
+  `ifa/live_matrix_generation_identity_test.go`, which reads
+  `codeCallFamilyCassettePath` and `documentationFamilyCassettePath`). Do not
+  duplicate them: a staying test needs no copy, and a copied path re-pointed at
+  a cassette that exists drops that family from the proof silently.
 - `repoRootDir` (this package's test helper) walks up FOUR directories, not
   three: this package sits one level deeper than `ifa`
   (`go/internal/ifa/materializededges/` vs `go/internal/ifa/`). If you copy a

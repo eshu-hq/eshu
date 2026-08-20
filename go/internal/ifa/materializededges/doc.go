@@ -43,7 +43,8 @@
 // Those files read what they need from ifa rather than importing this package.
 // A generic helper they share is exported from ifa (LoadCassetteEnvelopes); a
 // constant is duplicated only where a stale copy fails closed, which AGENTS.md
-// requires be tested by mutation rather than assumed.
+// requires be tested by mutation -- in both directions, suffix and
+// substitution -- rather than assumed.
 //
 // RunMaterializedEdgeCoverage derives reducer edge-family requirements and
 // resolves them against hand-derived Odù expectations. SQL relationships
