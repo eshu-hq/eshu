@@ -1,0 +1,440 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2154,SC2004
+# SC2004 is a false positive here: wall_times is driver-owned (`declare -A
+# wall_times` in the sourcing script, invisible to shellcheck when this file
+# is linted alone), so `wall_times[$cell]=...` is an ASSOCIATIVE subscript --
+# word-expanded, not arithmetic -- and needs $cell precisely because a bare
+# `cell` would look up the literal key "cell", not this variable's value.
+# Every sibling *_cells.sh file hits the identical cross-file blindness for
+# SC2034/SC2154; this file adds the one more shellcheck already can't resolve
+# without seeing the caller.
+#
+# Generic, registry-driven fault-injection cells (companion to
+# scripts/lib/ifa_family_registry.sh). Before this file, adding a family's
+# kill-worker and fail-graph-write proof meant hand-copying one of
+# ifa_fault_injection_{sql,code_call,rationale}_cells.sh's cell functions and
+# retargeting its lock/wait/anchor by hand.
+#
+# THIS FILE is the dispatcher only: cell_killworker_family and
+# cell_failgraphwrite_family, the shared kill/reclaim/drain/assert skeleton
+# every blocker_kind reuses, the uniform fail-graph-write cell, and the
+# wait_stage lookup. Per-mechanism logic lives in its own file so each stays
+# well under the 500-line cap with room for the eight more families still to
+# land, and so it is obvious which mechanism a new family opts into:
+#   - ifa_fault_generic_shared_intent_lock.sh -- the shared_intent_lock
+#     blocker (precondition + acquire/release). The ONE mechanism this PR
+#     wires to a real consumer (code_calls, rationale_edges).
+#   - ifa_fault_generic_table_lock.sh -- the table_lock:<name> blocker
+#     (precondition + acquire/release). Built and unit-tested; UNEXERCISED in
+#     this PR (deployable_unit_edges stays cell_kind=custom on its own
+#     already-proven cell -- see ifa_family_registry.sh's IFA_FAMILY_CELL_KIND
+#     comment for that scoping call).
+#   - ifa_fault_generic_runner_wait.sh -- the wait_stage=runner non-vacuity
+#     predicate. UNPROVEN: no family declares wait_stage=runner today.
+#
+# cell_kind=custom families (documentation_edges' ACK barrier,
+# deployable_unit_edges' table_lock kept on its bespoke cell,
+# codeowners_ownership_edges' table_lock:fact_records, landed and kept on its
+# own bespoke cell) are NOT
+# forced into the generic shape. cell_killworker_family and
+# cell_failgraphwrite_family below dispatch straight to that family's own
+# hand-written cell function (custom_killworker_fn / custom_failgraphwrite_fn
+# in the registry) instead -- see ifa_family_registry.sh's schema comment for
+# why cell_kind exists.
+#
+# This file is a plain function library, not a script (no `set -euo
+# pipefail`; sourcing it would rebind the caller's shell options -- same note
+# every sibling *_cells.sh file carries). It is meant to be sourced by
+# scripts/verify-ifa-fault-injection.sh, which owns strict mode and every
+# global read below (bin_dir, tagged_bin_dir, log_dir, work_dir, use_compose,
+# compose_file, FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN,
+# CLAIMED_ROW_WAIT_TIMEOUT, wall_times, bg_pids, log, die, plus the
+# fresh_stack / drive_all_cassettes / run_drain_gate / assert_no_dead_letters
+# / capture_digest / assert_matches_baseline / teardown_cell helpers from
+# ifa_fault_injection_driver.sh).
+#
+# WIRED. scripts/verify-ifa-fault-injection.sh sources this file at line 211
+# (`source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"`; this file
+# self-sources its own three mechanism files and ifa_family_registry.sh, so
+# that one source line is enough). code_calls and rationale_edges are the two
+# families actually swapped onto this dispatcher:
+# scripts/lib/ifa_fault_injection_code_call_cells.sh's
+# cell_killworker_code_calls / cell_failgraphwrite_code_calls, and
+# scripts/lib/ifa_fault_injection_rationale_cells.sh's
+# cell_killworker_rationale / cell_failgraphwrite_rationale, are now one-line
+# delegations to cell_killworker_family / cell_failgraphwrite_family. The
+# `ifa_fault_shard_run cell_killworker_code_calls` etc. call sites in
+# verify-ifa-fault-injection.sh did not change and do not need to: that
+# wrapper ($1=cell, then `"${cell}"` with no further args) is a SHARD FILTER,
+# not an argument forwarder, so the family binding lives inside each
+# now-one-line cell function's own body, not on the dispatch line.
+#
+# ADDING THE NEXT FAMILY onto this dispatcher (rather than leaving it
+# cell_kind=custom) takes three steps once its blocker_kind is proven live:
+#   1. Add or correct its row in scripts/lib/ifa_family_registry/rows/ --
+#      blocker_kind, wait_stage/wait_key, and (for blocker_kind=
+#      shared_intent_lock) an IFA_FAMILY_RETRY_BASELINE_VAR entry so the kill
+#      cell can prove a durable retry above baseline instead of dying with
+#      "declares no IFA_FAMILY_RETRY_BASELINE_VAR row" (see
+#      _ifa_generic_require_retry_baseline below).
+#   2. Flip that row's cell_kind to generic only after proving the matching
+#      mechanism file's precondition (_ifa_generic_require_intent_writer for
+#      shared_intent_lock, _ifa_generic_require_table_domain_written for
+#      table_lock:<table>) against that family's live cell -- table_lock and
+#      wait_stage=runner are UNEXERCISED/UNPROVEN as of this file's own
+#      mechanism-file headers; do not flip cell_kind on an unproven mechanism.
+#   3. Replace that family's own cell_killworker_<family> /
+#      cell_failgraphwrite_<family> bodies with the same one-line delegation
+#      shape code_calls and rationale_edges use above. The
+#      ifa_fault_shard_run dispatch line in verify-ifa-fault-injection.sh
+#      does not change.
+_ifa_generic_cells_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -F ifa_fault_require_fresh_domain_intents >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_fault_injection_common.sh"
+fi
+if ! declare -F ifa_family_registry_names >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_family_registry.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_family_registry.sh"
+fi
+if ! declare -F _ifa_generic_require_intent_writer >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_fault_generic_shared_intent_lock.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_fault_generic_shared_intent_lock.sh"
+fi
+if ! declare -F _ifa_generic_table_lock_start >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_fault_generic_table_lock.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_fault_generic_table_lock.sh"
+fi
+if ! declare -F ifa_fault_wait_for_claimed_projection_intent >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_fault_generic_runner_wait.sh"
+fi
+
+# ---------------------------------------------------------------------------
+# shared helpers
+# ---------------------------------------------------------------------------
+
+# _ifa_generic_assert_edges runs `eshu-ifa assert-edges` for family, reading
+# its -domain (the family name itself -- every registered family's assert-
+# edges domain equals its registry key, verified against
+# scripts/verify-ifa-fault-injection.sh's existing per-family cells) and
+# -expected (the registry's cassette_var/expected_var indirection) from the
+# registry rather than a hardcoded per-family call.
+_ifa_generic_assert_edges() {
+	local family="$1" expected_var expected
+	expected_var="$(ifa_family_expected_var "${family}")" || return 1
+	if [[ -z "${expected_var}" ]]; then
+		printf '_ifa_generic_assert_edges: no expected_var registered for family %s\n' "${family}" >&2
+		return 1
+	fi
+	expected="${!expected_var}"
+	"${bin_dir}/eshu-ifa" assert-edges -domain "${family}" -expected "${expected}"
+}
+
+# _ifa_generic_drive_family drives a family's OWN cassette into the current cell
+# when drive_all_cassettes does not already produce it.
+#
+# drive_all_cassettes (ifa_fault_injection_driver.sh) carries a fixed set, and
+# the repo convention is that it is never extended for a new family -- its own
+# header records why: an extra family's succeeded reducer rows enlarge
+# cell_duplicatedelivery's redelivery UPDATE and other sibling cells' row sets.
+# So a family outside that set must drive itself, exactly as deployable_unit and
+# codeowners already do from their bespoke cells. This is the generic equivalent,
+# sourced from the registry rather than hand-written per family.
+#
+# The accessor rc is captured, never tested inline: `[[ "$(fn x)" == 1 ]]` cannot
+# distinguish "the row says 0" from "the accessor failed", and guessing either
+# way is a silent double-drive or a silent skip.
+_ifa_generic_drive_family() {
+	local family="$1" cell="$2" shared_drive
+	shared_drive="$(ifa_family_fault_shared_drive "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_fault_shared_drive accessor failed -- refusing to guess whether drive_all_cassettes already produced this family"
+	case "${shared_drive}" in
+	1) return 0 ;;
+	0) ;;
+	*) die "${cell}: ${family} declares IFA_FAMILY_FAULT_SHARED_DRIVE='${shared_drive}', which is neither 0 nor 1 -- the row must say plainly whether the shared drive covers this family" ;;
+	esac
+	ifa_family_registry_drive "${family}" "${drive_workers}" "${bin_dir}" "${log_dir}" \
+		|| die "${cell}: ${family}: driving its own cassette failed -- the cell would assert an empty graph against a non-empty expected set"
+}
+
+# _ifa_generic_baseline_key names the digest a family's recovery cells compare
+# against. A family the shared drive covers compares against the shared
+# cell_baseline; a family that drives itself must compare against its OWN
+# fault-free baseline, because the shared baseline never drove its cassette and
+# would differ by construction rather than by defect.
+_ifa_generic_baseline_key() {
+	local family="$1" cell="$2" shared_drive
+	shared_drive="$(ifa_family_fault_shared_drive "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_fault_shared_drive accessor failed -- refusing to guess which baseline digest to compare against"
+	case "${shared_drive}" in
+	1) printf 'baseline\n' ;;
+	0) printf 'baseline_%s\n' "${family}" ;;
+	*) die "${cell}: ${family} declares IFA_FAMILY_FAULT_SHARED_DRIVE='${shared_drive}', which is neither 0 nor 1" ;;
+	esac
+}
+
+# _ifa_generic_wait_for_claimed dispatches the non-vacuity wait predicate on
+# wait_stage: "handler" polls fact_work_items (ifa_fault_wait_for_claimed,
+# ifa_fault_injection_common.sh), "runner" polls shared_projection_intents
+# (ifa_fault_wait_for_claimed_projection_intent,
+# ifa_fault_generic_runner_wait.sh -- UNPROVEN, see that file's header).
+_ifa_generic_wait_for_claimed() {
+	local family="$1" budget="$2" wait_stage wait_key
+	wait_stage="$(ifa_family_wait_stage "${family}")" || return 1
+	wait_key="$(ifa_family_wait_key "${family}")" || return 1
+	case "${wait_stage}" in
+	handler)
+		ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}"
+		;;
+	runner)
+		ifa_fault_wait_for_claimed_projection_intent "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}"
+		;;
+	*)
+		printf '_ifa_generic_wait_for_claimed: %s has unknown wait_stage %q\n' "${family}" "${wait_stage}" >&2
+		return 1
+		;;
+	esac
+}
+
+# ---------------------------------------------------------------------------
+# _ifa_generic_cell_killworker_body is THE MANDATORY PRECONDITION ASSERTS'
+# caller-facing skeleton: the ONE kill/reclaim/drain/assert sequence every
+# blocker_kind shares -- only blocker acquisition/release differs, and that
+# is a two-line case here rather than three ~35-line near-duplicate
+# functions. blocker_kind is "none" | "shared_intent_lock" | "table_lock";
+# blocker_arg is the namespace (family) or table name -- ignored for "none".
+#
+# Callers (the per-mechanism thin wrappers in the sibling files above) run
+# their own precondition BEFORE calling this: a blocker aimed at a
+# table/queue a family's handler never touches does not engage, so Handle
+# runs to completion and acks before kill -9 lands, proving ordinary
+# baseline recovery under a name that claims domain-scoped reclaim
+# (ifa_fault_injection_deployable_unit_lock.sh:81-86 records this happening
+# once already, in CI). The precondition must fire before any lock is even
+# attempted, not buried inside this shared body.
+# ---------------------------------------------------------------------------
+_ifa_generic_cell_killworker_body() {
+	local family="$1" cell="$2" blocker_kind="$3" blocker_arg="$4" cell_start
+	cell_start=$(date +%s)
+	log "cell generic-kill-worker-after-claim (${family}, blocker=${blocker_kind}${blocker_arg:+:${blocker_arg}}): fresh stack"
+	fresh_stack "${cell}"
+	drive_all_cassettes "${cell}"
+	# After the shared drive and BEFORE any blocker is taken: the generic
+	# shared_intent_lock path locks the table before the reducer starts, so this
+	# family's rows have to be enqueued already or the wait has nothing to latch.
+	_ifa_generic_drive_family "${family}" "${cell}"
+	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid="" claimed_before
+	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
+	case "${blocker_kind}" in
+	shared_intent_lock)
+		ifa_fault_start_shared_intent_lock "${cell}" "${blocker_arg}" lock_holder_pid \
+			|| die "${cell}: could not acquire the deterministic shared_projection_intents blocker"
+		;;
+	table_lock)
+		_ifa_generic_table_lock_start "${cell}" "${blocker_arg}" lock_holder_pid \
+			|| die "${cell}: could not acquire the deterministic ${blocker_arg} blocker"
+		;;
+	esac
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_pid_before "${bin_dir}/eshu-reducer"
+	claimed_before="$(_ifa_generic_wait_for_claimed "${family}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
+		|| die "${cell}: no ${family} row was claimed before the kill -- non-vacuous precondition failed"
+	printf '%s: non-vacuous: %s claimed/running %s row(s) observed before kill\n' "${cell}" "${claimed_before}" "${family}"
+	ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL \
+		|| die "${cell}: could not stop, join, and untrack the killed reducer"
+	case "${blocker_kind}" in
+	shared_intent_lock) ifa_fault_release_shared_intent_lock "${cell}" "${blocker_arg}" "${lock_holder_pid}" ;;
+	table_lock) _ifa_generic_table_lock_release "${cell}" "${blocker_arg}" "${lock_holder_pid}" ;;
+	esac
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_pid_after "${bin_dir}/eshu-reducer"
+	run_drain_gate "${cell}"
+	assert_no_dead_letters "${cell}"
+	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
+	[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"
+	capture_digest "${cell}"
+	# Captured, NOT inlined into the call. Inside "$(...)" the helper's die exits
+	# only the substitution subshell: set -e does not fire on a failing
+	# substitution in argument position, because the simple command's status is
+	# assert_matches_baseline's. The cell would then be handed an empty key, and
+	# assert_matches_baseline's "${2:-baseline}" default would silently compare a
+	# self-driving family against the SHARED baseline -- dying with "graph
+	# diverged from the fault-free baseline" when the real fault is a registry
+	# row. A fail-closed guard that cannot abort its caller is the guard-that-
+	# does-not-guard class this whole mechanism exists to close.
+	local baseline_key
+	baseline_key="$(_ifa_generic_baseline_key "${family}" "${cell}")" \
+		|| die "${cell}: ${family}: could not resolve which baseline digest to compare against"
+	assert_matches_baseline "${cell}" "${baseline_key}"
+	teardown_cell "${cell}"
+	wall_times[$cell]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
+}
+
+# _ifa_generic_require_retry_baseline proves a shared_intent_lock family's
+# kill cell genuinely re-executed the interrupted work ABOVE its fault-free
+# retry baseline. F-5(b): a missing IFA_FAMILY_RETRY_BASELINE_VAR row must
+# DIE here, not print a notice and pass. The old code printed
+# "no retry-baseline variable registered ... this cell does NOT prove a
+# durable retry above baseline" and returned success -- so a family that
+# forgot the row got a kill cell silently downgraded to ordinary baseline
+# recovery, which is exactly the vacuous-cell class the whole precondition
+# machinery exists to prevent, arriving through a different door. Only
+# shared_intent_lock families reach this (the sole caller guards on it);
+# blocker_kind=none has no retry to prove, and the bespoke/custom families
+# do not use this dispatcher.
+_ifa_generic_require_retry_baseline() {
+	local cell="$1" family="$2" retry_var
+	retry_var="$(ifa_family_retry_baseline_var "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_retry_baseline_var accessor failed -- refusing to silently skip the retry-above-baseline proof"
+	[[ -n "${retry_var}" ]] \
+		|| die "${cell}: ${family} is a shared_intent_lock family but declares no IFA_FAMILY_RETRY_BASELINE_VAR row -- its kill cell cannot prove a durable retry above baseline and must not pass claiming it did (register the row in ifa_family_registry/rows/)"
+	# Captured, not inlined into the call. An unchecked
+	# "$(ifa_family_wait_key ...)" yields empty on accessor failure and hands
+	# ifa_fault_assert_retried_above an empty domain, which still fails the cell
+	# but blames "did not re-execute above baseline" -- a statement about the
+	# reducer -- when the real fault is a missing registry row. Same fail-closed
+	# shape the drive/assert loops already use; this one call had been left out.
+	local wait_key
+	wait_key="$(ifa_family_wait_key "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- refusing to run the retry-above-baseline proof against an unknown domain"
+	[[ -n "${wait_key}" ]] \
+		|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- the retry-above-baseline proof would be scoped to no domain and could not fail on this family"
+	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+		"${!retry_var}" 15 "${wait_key}" \
+		|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
+}
+
+# _ifa_generic_cell_killworker_none is blocker_kind=none's thin wrapper --
+# too small to earn its own mechanism file. No precondition: there is no
+# blocker to fail to engage.
+_ifa_generic_cell_killworker_none() {
+	local family="$1" cell="genkillworker${1//_/}"
+	_ifa_generic_cell_killworker_body "${family}" "${cell}" none ""
+}
+
+# ---------------------------------------------------------------------------
+# generic fail-graph-write cell. Uniform across every blocker_kind: the
+# once-fault decorator intercepts at the Cypher layer directly (see
+# ifa_fault_write_once_script), so no lock/wait blocker is needed here even
+# for a family whose kill-worker cell needs one -- verified against every
+# existing example (cell_failgraphwrite_sql/code_calls/rationale/
+# documentation all share this exact shape regardless of that family's
+# kill-worker blocker_kind). This is why it stays in the dispatcher file
+# rather than any one mechanism file -- it is not mechanism-specific.
+# ---------------------------------------------------------------------------
+
+_ifa_generic_cell_failgraphwrite() {
+	local family="$1" cell="genfailgraphwrite${1//_/}" cell_start
+	cell_start=$(date +%s)
+	log "cell generic-fail-graph-write-once-then-succeed (${family}): fresh stack"
+	fresh_stack "${cell}"
+	if [[ "${use_compose}" -eq 1 ]]; then
+		ifa_fault_require_fresh_domain_intents "${cell}" "${family}" \
+			"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
+			|| die "${cell}: fresh-stack precondition failed"
+	else
+		printf '%s: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n' "${cell}"
+	fi
+	drive_all_cassettes "${cell}"
+	# Before the fault script is written: the once-fault has to fire on THIS
+	# family's write, which only exists if its cassette was driven.
+	_ifa_generic_drive_family "${family}" "${cell}"
+	local anchor fault_once_script projector_pid reducer_pid marker_rc
+	anchor="$(ifa_family_anchor "${family}")" || die "${cell}: no anchor registered for ${family}"
+	fault_once_script="${work_dir}/fault-once-then-succeed-${family}.json"
+	ifa_fault_write_once_script "${fault_once_script}" "${anchor}" "queue-retry"
+	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}" reducer_pid \
+		env "ESHU_IFA_FAULT_SCRIPT=${fault_once_script}" "${tagged_bin_dir}/eshu-reducer"
+	run_drain_gate "${cell}"
+	assert_no_dead_letters "${cell}"
+	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
+	# Operator-facing diagnostic (informational only -- gates nothing): which
+	# domain's intent window this cell was actually watching. shared_projection_
+	# intents.projection_domain is keyed by the family/registry name itself
+	# (verified against every bespoke cell this replaced: the old code_calls and
+	# rationale_edges cells both filtered on their own family name here, not
+	# their wait_key), so this generalizes with no registry lookup beyond the
+	# family argument this function already has. At 3am when a generic cell
+	# fails, this is how an operator tells whether it was watching the right
+	# domain at all.
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT count(*) AS total, count(*) FILTER (WHERE completed_at IS NULL) AS pending FROM shared_projection_intents WHERE projection_domain = '${family}';" \
+		"${compose_file}" | sed "s/^/  ${family} intent window: /"
+	marker_rc=0
+	ifa_fault_assert_once_fault_marker "${fault_once_script}" "${anchor}" || marker_rc=$?
+	if [[ "${marker_rc}" -eq 2 ]]; then
+		die "${cell}: the fault FIRED but on a different write than ${anchor} (marker contents above); the injection works, the anchor is pointed at the wrong statement"
+	fi
+	[[ "${marker_rc}" -eq 0 ]] \
+		|| die "${cell}: once-fired marker did not name the targeted MERGE (marker status ${marker_rc})"
+	capture_digest "${cell}"
+	# Captured, NOT inlined into the call. Inside "$(...)" the helper's die exits
+	# only the substitution subshell: set -e does not fire on a failing
+	# substitution in argument position, because the simple command's status is
+	# assert_matches_baseline's. The cell would then be handed an empty key, and
+	# assert_matches_baseline's "${2:-baseline}" default would silently compare a
+	# self-driving family against the SHARED baseline -- dying with "graph
+	# diverged from the fault-free baseline" when the real fault is a registry
+	# row. A fail-closed guard that cannot abort its caller is the guard-that-
+	# does-not-guard class this whole mechanism exists to close.
+	local baseline_key
+	baseline_key="$(_ifa_generic_baseline_key "${family}" "${cell}")" \
+		|| die "${cell}: ${family}: could not resolve which baseline digest to compare against"
+	assert_matches_baseline "${cell}" "${baseline_key}"
+	teardown_cell "${cell}"
+	wall_times[$cell]=$(( $(date +%s) - cell_start ))
+	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
+}
+
+# ---------------------------------------------------------------------------
+# public dispatchers -- the only two entry points this file expects a driver
+# to call.
+# ---------------------------------------------------------------------------
+
+
+# cell_killworker_family runs family's kill-worker-after-claim cell:
+# cell_kind=custom dispatches to that family's own hand-written function
+# (failing loudly, never silently, when none is registered or defined yet);
+# cell_kind=generic builds the shape from blocker_kind, delegating to the
+# matching mechanism file's thin wrapper.
+cell_killworker_family() {
+	local family="$1" cell_kind blocker_kind
+	cell_kind="$(ifa_family_cell_kind "${family}")" || die "cell_killworker_family: unknown family ${family}"
+	# cell_kind=custom families are dispatched BY NAME from the gate
+	# (ifa_fault_shard_run cell_killworker_documentation, and so on), never
+	# through this function -- so a custom branch here would be unreachable.
+	# It existed briefly and was removed: a guard whose only purpose is to
+	# catch a case that cannot arrive reads like protection and provides
+	# none. If a custom family ever needs registry dispatch, add the branch
+	# back together with the caller that exercises it.
+	[[ "${cell_kind}" == "generic" ]] \
+		|| die "${FUNCNAME[0]}: ${family} is cell_kind=${cell_kind}; only generic families dispatch through this function (custom families are invoked by name from the gate)"
+	blocker_kind="$(ifa_family_blocker_kind "${family}")" || die "cell_killworker_family: unknown family ${family}"
+	case "${blocker_kind}" in
+	none) _ifa_generic_cell_killworker_none "${family}" ;;
+	shared_intent_lock) _ifa_generic_cell_killworker_shared_intent_lock "${family}" ;;
+	table_lock:*) _ifa_generic_cell_killworker_table_lock "${family}" "${blocker_kind#table_lock:}" ;;
+	*) die "cell_killworker_family: ${family} has unsupported blocker_kind '${blocker_kind}' for cell_kind=generic (ack_barrier requires cell_kind=custom)" ;;
+	esac
+}
+
+# cell_failgraphwrite_family runs family's fail-graph-write-once-then-succeed
+# cell: cell_kind=custom dispatches the same way cell_killworker_family does;
+# cell_kind=generic always builds the uniform anchor-based shape regardless
+# of blocker_kind (see the section header above for why blocker_kind is
+# irrelevant to this cell).
+cell_failgraphwrite_family() {
+	local family="$1" cell_kind
+	cell_kind="$(ifa_family_cell_kind "${family}")" || die "cell_failgraphwrite_family: unknown family ${family}"
+	# cell_kind=custom families are dispatched BY NAME from the gate
+	# (ifa_fault_shard_run cell_killworker_documentation, and so on), never
+	# through this function -- so a custom branch here would be unreachable.
+	# It existed briefly and was removed: a guard whose only purpose is to
+	# catch a case that cannot arrive reads like protection and provides
+	# none. If a custom family ever needs registry dispatch, add the branch
+	# back together with the caller that exercises it.
+	[[ "${cell_kind}" == "generic" ]] \
+		|| die "${FUNCNAME[0]}: ${family} is cell_kind=${cell_kind}; only generic families dispatch through this function (custom families are invoked by name from the gate)"
+	_ifa_generic_cell_failgraphwrite "${family}"
+}

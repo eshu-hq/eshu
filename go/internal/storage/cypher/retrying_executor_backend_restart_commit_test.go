@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,4 +138,111 @@ func TestBackendRestartCommitBlockedWritesClassificationFailsClosedForNearMisses
 			require.False(t, reducer.IsRetryable(wrapped))
 		})
 	}
+}
+
+// Point 3 above was only PARTLY classified. isNornicDBRestartTransactionStartFailure
+// matched the begin-side teardown on an exact message, "failed to write WAL tx
+// begin: wal: closed" -- but NornicDB reports the same condition a second way
+// when the engine is already closed rather than only its WAL:
+//
+//	write canonical gcp relationship edges: Neo4jError:
+//	Neo.ClientError.Transaction.TransactionStartFailed
+//	(failed to start transaction: engine is closed)
+//
+// Observed live on 2026-08-18 in the same restart-backend-between-phase-groups
+// cell, dead-lettering a gcp_relationship_materialization write as
+// failure_class=projection_bug and failing the drain at residual=1. Both
+// spellings mean the transaction never began, so replay is equally safe; only
+// the wording differs. This test pins the second spelling so narrowing the
+// match back to one message fails here rather than intermittently in a
+// twenty-minute Docker cell, which is how both halves of this were found.
+func TestBackendRestartEngineClosedTransactionStartIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	// Code and Msg are RAW LITERALS, copied from the observed NornicDB errors
+	// above, never the constants under test. Building the input out of
+	// nornicDBEngineClosedTransactionStartMsg would make this assert only that
+	// the classifier references the same constant it is compared against -- it
+	// would stay green through a typo or a truncation in that constant, while
+	// the real backend message went back to dead-lettering as
+	// failure_class=projection_bug. That is the co-derivation ban the shell
+	// side of this change states in capitals for its own pins
+	// (scripts/lib/test-ifa-fault-injection-shard-cases.sh), applied here.
+	engineClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionStartFailed",
+		Msg:  "failed to start transaction: engine is closed",
+	}
+	require.True(t, isNornicDBRestartTransactionStartFailure(engineClosed),
+		"engine-closed begin failure must classify as a backend restart, not a projection bug")
+
+	walClosed := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionStartFailed",
+		Msg:  "failed to write WAL tx begin: wal: closed",
+	}
+	require.True(t, isNornicDBRestartTransactionStartFailure(walClosed),
+		"the original WAL-closed spelling must keep classifying")
+
+	// Same code, unrelated body: must stay terminal. Without this the fix would
+	// be a widening that swallows genuine begin-time faults.
+	unrelated := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionStartFailed",
+		Msg:  "failed to start transaction: constraint violation",
+	}
+	require.False(t, isNornicDBRestartTransactionStartFailure(unrelated),
+		"an unrelated TransactionStartFailed body must remain terminal")
+}
+
+// TestBackendRestartEngineClosedTransactionStartRemainsQueueRetryable is the
+// end-to-end twin of the predicate test above, and it is the one that asserts
+// the change's actual user-visible claim: an engine-closed begin failure no
+// longer reaches the queue as failure_class=projection_bug.
+//
+// The predicate test alone cannot say that. It proves
+// isNornicDBRestartTransactionStartFailure returns true, not that the value
+// reducer.IsRetryable sees on a real writer error is retryable -- the WAL
+// spelling has had this walk (TestBackendRestartTransactionStartFailureRemains-
+// QueueRetryable, retrying_executor_backend_restart_test.go:130) since #6142 and
+// the second spelling shipped without it.
+func TestBackendRestartEngineClosedTransactionStartRemainsQueueRetryable(t *testing.T) {
+	t.Parallel()
+
+	inner := &backendRestartEngineClosedGroupExecutor{}
+	writer := NewCloudResourceNodeWriter(inner, 0)
+	writerErr := writer.WriteCloudResourceNodes(
+		context.Background(),
+		[]map[string]any{{"uid": "engine-closed-recovery-resource"}},
+		"reducer/gcp-resources",
+	)
+	handlerErr := fmt.Errorf("write canonical cloud resource nodes: %w", writerErr)
+
+	require.True(t, reducer.IsRetryable(handlerErr),
+		"engine-closed begin failure must reach the queue as retryable, not as a projection bug")
+	var classified interface{ FailureClass() string }
+	require.ErrorAs(t, handlerErr, &classified)
+	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
+	var driverErr *neo4jdriver.Neo4jError
+	require.ErrorAs(t, handlerErr, &driverErr)
+	require.Equal(t, "Neo.ClientError.Transaction.TransactionStartFailed", driverErr.Code)
+	require.Equal(t, "failed to start transaction: engine is closed", driverErr.Msg)
+}
+
+// backendRestartEngineClosedGroupExecutor fails its first ExecuteGroup with the
+// engine-closed spelling and succeeds afterwards, mirroring
+// backendRestartGroupExecutor's WAL-spelling shape.
+type backendRestartEngineClosedGroupExecutor struct {
+	calls atomic.Int32
+}
+
+func (e *backendRestartEngineClosedGroupExecutor) Execute(context.Context, Statement) error {
+	return nil
+}
+
+func (e *backendRestartEngineClosedGroupExecutor) ExecuteGroup(context.Context, []Statement) error {
+	if e.calls.Add(1) == 1 {
+		return newNeo4jError(
+			"Neo.ClientError.Transaction.TransactionStartFailed",
+			"failed to start transaction: engine is closed",
+		)
+	}
+	return nil
 }

@@ -6,6 +6,14 @@
 
 ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_live_gate_selector_cases.sh|scripts/lib/ifa_live_gate_selector_cases.sh'
+	# Wildcard fixtures. The literals above cannot exercise a glob, and this
+	# file's own contract is one representative PATH per pattern -- a
+	# string-only registry/workflow comparison agrees just as happily on a
+	# broken glob as on a working one. Concrete paths under each new wildcard
+	# so a narrowed pattern (e.g. '**' quietly becoming '*', which does not
+	# cross '/') fails here instead of silently selecting no gate for the most
+	# common edit in the tree.
+	'scripts/lib/ifa_family_registry/**|scripts/lib/ifa_family_registry/rows/01_sql_relationships.sh'
 	'go/internal/storage/postgres/migrations/**|go/internal/storage/postgres/migrations/001_ingestion_scopes.sql'
 	'go/internal/storage/postgres/migrations/**|go/internal/storage/postgres/migrations/096_provenance_edge_identity_upgrade_seed.sql'
 	'go/internal/graphschemacompat/**|go/internal/graphschemacompat/compatibility.go'
@@ -232,6 +240,11 @@ ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_rationale_live.sh|scripts/lib/ifa_rationale_live.sh'
 	'scripts/lib/ifa_family_fixtures.sh|scripts/lib/ifa_family_fixtures.sh'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
+	# #6147 PR-0: sourced directly by verify-ifa-determinism.sh and
+	# transitively by verify-ifa-fault-injection.sh (via
+	# ifa_fault_generic_cells.sh); a wrong row changes what both live gates
+	# actually drive/assert or which blocker a kill cell takes.
+	'scripts/lib/ifa_family_registry.sh|scripts/lib/ifa_family_registry.sh'
 )
 
 ifa_live_gate_fault_only_seams=(
@@ -240,6 +253,11 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh|scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh'
 	'scripts/lib/ifa_fault_injection_documentation_ack_setup.sh|scripts/lib/ifa_fault_injection_documentation_ack_setup.sh'
 	'scripts/lib/test-ifa-fault-injection-documentation-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh|scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh|scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-generic-modules.sh|scripts/lib/test-ifa-fault-injection-generic-modules.sh'
+	'scripts/lib/ifa_fault_generic_*.sh|scripts/lib/ifa_fault_generic_shared_intent_lock.sh'
 	'scripts/lib/ifa_fault_injection_codeowners_cells.sh|scripts/lib/ifa_fault_injection_codeowners_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
@@ -264,4 +282,29 @@ ifa_live_gate_fault_only_seams=(
 	'go/internal/storage/postgres/graph_node_owner_store.go|go/internal/storage/postgres/graph_node_owner_store.go'
 	'scripts/lib/ifa_fault_injection_rationale_cells.sh|scripts/lib/ifa_fault_injection_rationale_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-rationale-cases.sh|scripts/lib/test-ifa-fault-injection-rationale-cases.sh'
+	# #6147 PR-0 family-registry extraction: the generic per-family fault
+	# cells, the shard-dispatch mechanism verify-ifa-fault-injection.sh uses,
+	# and that mechanism's own static mirror module. All three execute only
+	# inside the fault-injection gate/mirror.
+	'scripts/lib/ifa_fault_shard.sh|scripts/lib/ifa_fault_shard.sh'
+	'scripts/lib/ifa_fault_generic_cells.sh|scripts/lib/ifa_fault_generic_cells.sh'
+	'scripts/lib/test-ifa-fault-injection-shard-cases.sh|scripts/lib/test-ifa-fault-injection-shard-cases.sh'
+)
+
+# Determinism-only case data is the mirror image of ifa_live_gate_fault_only_seams
+# above: these inputs must retrigger ifa-determinism but never
+# ifa-fault-injection, so the matcher proves a determinism-only test module
+# cannot silently broaden the fault registry (a real cost -- the fault gate
+# runs a four-shard, ~22-minute Docker matrix per shard). Classify by WHERE a
+# file executes, not what its content is about: test-ifa-family-registry-
+# derived-pins-cases.sh's subject matter is fault-cell blocker semantics, but
+# it only ever runs inside test-verify-ifa-determinism.sh (the mirror that
+# sources and calls it), so ifa-determinism is the gate that must re-run when
+# it changes.
+ifa_live_gate_determinism_only_seams=(
+	'scripts/lib/test-ifa-determinism-family-cases.sh|scripts/lib/test-ifa-determinism-family-cases.sh'
+	'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh|scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
+	'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
+	'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
+	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
 )

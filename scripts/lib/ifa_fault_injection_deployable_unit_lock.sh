@@ -166,7 +166,9 @@ ifa_deployable_unit_start_admission_decisions_lock() {
 
 # ifa_deployable_unit_release_admission_decisions_lock terminates the named
 # lock-holder backend and joins its local psql/docker process, mirroring
-# ifa_code_call_release_intent_lock.
+# ifa_fault_release_shared_intent_lock (ifa_fault_injection_common.sh), which is
+# what the generic shared_intent_lock cells call now that the per-family
+# wrappers are gone.
 ifa_deployable_unit_release_admission_decisions_lock() {
 	local cell="$1" holder_pid="$2"
 	local app_name="ifa_deployable_unit_lock_${cell}"

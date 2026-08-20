@@ -181,6 +181,46 @@ else
 	record_fail "identical command/test_command pair rendered more than once: ${dedupe_row}"
 fi
 
+# Case 13b: a gate declaring ci.check_names must render THOSE names, not the
+# `job:` key. For a matrix job the key is not what GitHub publishes -- a job
+# keyed "shardjob" with a 2-way matrix emits "shardjob (shard 1/2)" and a
+# sibling -- so rendering the key sends a reader looking for a check that never
+# appears on their PR. Both halves are asserted: the concrete names present AND
+# the bare key absent, since printing "shardjob / shardjob (shard 1/2)" would
+# satisfy a presence-only check while still naming the wrong thing.
+checknames_registry="${tmp_root}/check-names-registry.yaml"
+printf 'version: v1\ngates:\n  - id: shardgate\n    name: Shard Gate\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo shard"\n    ci:\n      workflow: shard.yml\n      job: shardjob\n      check_names:\n        - "shardjob (shard 1/2)"\n        - "shardjob (shard 2/2)"\n' >"${checknames_registry}"
+checknames_row="$(awk -f "${parser}" "${checknames_registry}")"
+if printf '%s' "${checknames_row}" | rg -Fq 'shard.yml / shardjob (shard 1/2), shardjob (shard 2/2)' \
+	&& ! printf '%s' "${checknames_row}" | rg -Fq '/ shardjob |'; then
+	record_pass "generated reference renders ci.check_names instead of the matrix job key"
+else
+	record_fail "check_names gate rendered the job key or dropped the concrete names: ${checknames_row}"
+fi
+
+# Case 13c: the in_check_names guard. Case 13b only exercises the OPEN path --
+# its fixture puts check_names: last under ci:, which is also true of all three
+# real gates that declare it today, so every CLOSE path in the parser is dead
+# input and deleting one keeps 13b green. Mutation testing found exactly that.
+# This fixture closes it from both sides: gate 1 has another 6-space ci key
+# carrying an 8-space list AFTER check_names (its item must not be absorbed),
+# and gate 2 declares check_names of its own (it must not inherit gate 1's).
+guard_registry="${tmp_root}/check-names-guard-registry.yaml"
+printf 'version: v1\ngates:\n  - id: guardone\n    name: Guard One\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo one"\n    ci:\n      workflow: guard.yml\n      check_names:\n        - "guardone (shard 1/1)"\n      other_list:\n        - "NOT_A_CHECK_NAME"\n  - id: guardtwo\n    name: Guard Two\n    category: exactness\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo two"\n    ci:\n      workflow: guard.yml\n      check_names:\n        - "guardtwo (only)"\n' >"${guard_registry}"
+guard_rows="$(awk -f "${parser}" "${guard_registry}")"
+guard_one_row="$(printf '%s\n' "${guard_rows}" | rg -F '`guardone`')"
+guard_two_row="$(printf '%s\n' "${guard_rows}" | rg -F '`guardtwo`')"
+if printf '%s' "${guard_one_row}" | rg -Fq 'guardone (shard 1/1)' \
+	&& ! printf '%s' "${guard_one_row}" | rg -Fq 'NOT_A_CHECK_NAME' \
+	&& printf '%s' "${guard_two_row}" | rg -Fq 'guardtwo (only)' \
+	&& ! printf '%s' "${guard_two_row}" | rg -Fq 'guardone'; then
+	record_pass "the in_check_names guard closes on the next ci key and per gate record"
+else
+	record_fail "check_names guard absorbed a foreign list item or leaked across gates:
+  gate one: ${guard_one_row}
+  gate two: ${guard_two_row}"
+fi
+
 # Case 14: a gate with a real self-test but NO primary local.command and no
 # ci_only_reason (a permanently local-only gate whose enforcement mechanism
 # cannot be a `local.command` at all -- prepr-stamp-verify-selftest, whose

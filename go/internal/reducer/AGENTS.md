@@ -5,6 +5,12 @@ before touching any file in this directory.
 
 ## Read first
 
+- This package's tests parse shell files under
+  `scripts/lib/ifa_family_registry/`, and its Ifá CI gate runs the whole
+  package with no `-run` filter. Both are recorded under "Gotchas /
+  invariants" in `README.md`; read them before renaming that shell directory or
+  adding a slow test here.
+
 1. `CLAUDE.md` **entirely** — especially "Facts-First Bootstrap Ordering",
    "Correlation Truth Gates", "Concurrency Workflow", and "Golden Rules 1–4".
 2. `docs/public/architecture.md` — service boundaries and data flow.

@@ -21,19 +21,23 @@
 
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_live_lib}" || fail "missing ${label} (deployable-unit live lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_live_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit live lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_diagnostics_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_diagnostics_lib}" || fail "missing ${label} (deployable-unit diagnostics lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_diagnostics_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit diagnostics lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_lock_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_lock_lib}" || fail "missing ${label} (deployable-unit lock lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_lock_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit lock lib), or it survives only inside a comment: ${needle}"
 }
 require_deployable_unit_cells() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${deployable_unit_cells_lib}" || fail "missing ${label} (deployable-unit cells lib): ${needle}"
+	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_cells_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (deployable-unit cells lib), or it survives only inside a comment: ${needle}"
 }
 
 # run_ifa_fault_injection_deployable_unit_cases asserts the family-scoped
@@ -47,11 +51,11 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# here from the top-level preamble (mirroring the require_* relocation
 	# this whole split exists to demonstrate) to keep the parent structural
 	# verifier under the repository's 500-line cap.
-	require "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
-	require "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-	require "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
-	require "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-	require "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+	require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
+	require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
+	require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
+	require_code "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
+	require_code "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
 	# fault cells, run after a bootstrap-index maintenance pass
@@ -61,8 +65,8 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	require_fixture "deployable-unit expected-edge set path" "go/internal/ifa/testdata/deployableunit/ifa-deployable-unit-family-expected-edges.json"
 	require_fixture "deployable-unit cassette existence guard" "deployable-unit cassette not found"
 	require_fixture "deployable-unit expected-edge set existence guard" "deployable-unit expected-edge set not found"
-	require "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
-	require "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
+	require_code "deployable-unit MERGE operation_match anchor" 'deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"'
+	require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 	require_driver "deployable-unit drive in every cell" 'eshu-ifa" drive -cassette "${deployable_unit_cassette}" -workers "${drive_workers}"'
 	# Four checks against the LIVE LIB itself (ifa_deployable_unit_live.sh),
 	# mirroring the documentation family's require_documentation_lib set.
@@ -382,17 +386,18 @@ run_ifa_fault_injection_deployable_unit_cases() {
 		[[ "${du_fn_at_line[${du_reopen_line}]:-}" == "${du_cell}" ]] \
 			|| fail "${du_cell}'s correlation-reopen call (line ${du_reopen_line}) is not inside ${du_cell} in ${deployable_unit_cells_lib}"
 	done
-	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
-		rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
-	done
-	# The baseline cell must dispatch before both fault cells.
-	local baseline_du_line killworker_du_line failgraphwrite_du_line
-	baseline_du_line="$(rg -n --line-regexp -- 'cell_baseline_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	killworker_du_line="$(rg -n --line-regexp -- 'cell_killworker_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	failgraphwrite_du_line="$(rg -n --line-regexp -- 'cell_failgraphwrite_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	[[ "${baseline_du_line}" =~ ^[0-9]+$ && "${killworker_du_line}" =~ ^[0-9]+$ && "${failgraphwrite_du_line}" =~ ^[0-9]+$ \
-		&& "${baseline_du_line}" -lt "${killworker_du_line}" && "${baseline_du_line}" -lt "${failgraphwrite_du_line}" ]] \
-		|| fail "cell_baseline_deployable_unit must be dispatched before both deployable-unit fault cells"
+	# The dispatch-anchor loop (ifa_fault_shard_run-wrapped invocation of the
+	# trio) and the baseline-dispatches-first ordering check moved to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh
+	# (run_ifa_fault_injection_deployable_unit_ordering_cases) to keep this
+	# file under the line cap -- extraction, not deletion; every comment
+	# there is the full, unabridged rationale, including why the ordering
+	# check matters to the shard partitioner's one atomic group.
+	run_ifa_fault_injection_deployable_unit_ordering_cases "${script}"
+	# The generalized twin: proves the same baseline-before-members ordering for
+	# EVERY atomic group, so a family that declares one (codeowners today, more
+	# later) is covered without editing this file.
+	run_ifa_fault_injection_atomic_group_ordering_cases "${script}"
 	require_deployable_unit_cells "baseline cell captures digests[baseline_deployable_unit]" "capture_digest baseline_deployable_unit"
 	require_deployable_unit_cells "baseline cell captures the retry baseline" "baseline_deployable_unit_retried="
 	require_deployable_unit_cells "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_assert_empty_before_maintenance"
@@ -429,7 +434,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# The header must state honestly which recovery case this proves: a
 	# kill AFTER the graph write (the lock lands after step 1 of Handle), not
 	# before it -- do not let this cell claim the stronger pre-write case.
-	require_deployable_unit_lock_lib "lock helper states the post-write-death consequence honestly" "a POST-write death, not a PRE-write death"
+	require_framing "lock helper states the post-write-death consequence honestly" "a POST-write death, not a PRE-write death" "${deployable_unit_lock_lib}"
 	# The permanent precondition gate (#6149): replaces a one-off manual
 	# pre-check with an assertion that runs every time, in the baseline cell,
 	# proving admission_decisions genuinely receives a row for this domain

@@ -22,14 +22,18 @@ run_ifa_documentation_live_static_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	rg --quiet --line-regexp -- 'cell_killworker_documentation' "${script}" \
-		|| fail "verifier does not invoke cell_killworker_documentation on its own line"
-	rg --quiet --line-regexp -- 'cell_failgraphwrite_documentation' "${script}" \
-		|| fail "verifier does not invoke cell_failgraphwrite_documentation on its own line"
+	# Needles carry the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh):
+	# every dispatch line routes through that wrapper for --shard skip support,
+	# and the check is strictly stronger for it -- an unwrapped cell would
+	# silently ignore --shard and run in every shard instead of just its own.
+	rg --quiet --line-regexp -- 'ifa_fault_shard_run cell_killworker_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_killworker_documentation via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
+	rg --quiet --line-regexp -- 'ifa_fault_shard_run cell_failgraphwrite_documentation' "${script}" \
+		|| fail "verifier does not invoke cell_failgraphwrite_documentation via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
@@ -45,7 +49,7 @@ run_ifa_documentation_live_static_cases() {
 	# thing rather than the thing.
 	require_documentation_cells "graph-write cell probes fresh DOCUMENTS edges" 'ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation"'
 	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
-	require_documentation_cells "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline"
+	require_framing "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline" "${documentation_cells_lib}"
 	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 	require_documentation_cells "documentation kill cell installs its ACK barrier" "ifa_documentation_start_ack_barrier"
 	require_documentation_barrier_setup "documentation ACK barrier is a before-update trigger" "BEFORE UPDATE ON public.fact_work_items"
@@ -108,8 +112,8 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_barrier "documentation producer shutdown joins after signaling" "ifa_documentation_join_ack_producers"
 	require_documentation_barrier "documentation ACK trigger cleanup is bounded" "SET LOCAL lock_timeout = '2s'"
 	require_documentation_barrier "documentation ACK function cleanup is independently bounded" "SET LOCAL statement_timeout = '5s'"
-	require "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
-	require "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
+	require_code "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
+	require_code "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
 	require_driver "per-cell teardown joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	rg -U --pcre2 --quiet -- 'ifa_documentation_stop_ack_producers \|\| \{ failed=1; holder_safe=0; \}[\s\S]*ifa_documentation_census_ack_waiter[\s\S]*ifa_documentation_census_ack_holder[\s\S]*ifa_documentation_drop_ack_trigger[\s\S]*ifa_documentation_drop_ack_function' \
@@ -144,17 +148,68 @@ run_ifa_documentation_live_static_cases() {
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
-	require_driver "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound"
-	rg --fixed-strings --quiet -- "Run Ifa fault-injection matrix (21 cells, fresh stack per cell)" \
-		"${repo_root}/.github/workflows/ifa-determinism-gate.yml" \
-		|| fail "fault workflow job label does not name all twenty-one cells"
-	local private_scan_block static_test
+	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other twenty cells remain bound" "${driver_lib}"
+	# The literal-label pin that used to live here ("Run Ifa fault-injection
+	# matrix (18 cells, fresh stack per cell)") was migrated to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh once the
+	# fault-injection job was sharded across parallel runners and that step
+	# label no longer exists. The replacement proves the same
+	# "coverage cannot silently drop" intent behaviorally (IFA_FAULT_SHARD is
+	# wired from matrix.shard into the gate's --shard flag) and adds a
+	# matrix-cardinality cross-check (workflow shard count vs.
+	# IFA_FAULT_SHARD_DEFAULT_N) that a single label string never could.
+	# This used to extract the scan's hand-typed file list and assert six
+	# documentation libs appeared in it. That check is obsolete BY UPGRADE, not
+	# by deletion: the scan now derives its list from every declared *_lib via
+	# compgen, so naming individual libs proves less than the derivation does.
+	# The hand-typed list was also wrong -- it covered 36 of 42 libs and had
+	# silently lost the file the 500-line split created.
+	#
+	# So assert the DERIVATION instead, which is what makes coverage total, plus
+	# the fail-closed guard that stops a missing file being skipped rather than
+	# reported. Both are pinned as live code, so a comment describing them
+	# cannot stand in for them.
+	local assertions_src static_test
+	assertions_src="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 	static_test="${repo_root}/scripts/test-verify-ifa-fault-injection.sh"
-	private_scan_block="$(rg -U --pcre2 --only-matching '(?ms)^# No private data:.*?^done$' "${static_test}")"
-	for target in '"${documentation_lib}"' '"${documentation_cells_lib}"' '"${documentation_barrier_lib}"' '"${documentation_cases_lib}"' '"${documentation_barrier_cases_lib}"' '"${documentation_barrier_cleanup_cases_lib}"'; do
-		[[ "${private_scan_block}" == *"${target}"* ]] \
-			|| fail "fault verifier private-data scan omits ${target}"
-	done
+	# Pin the CALL SITE as live code. The check this replaced extracted the scan
+	# block FROM the mirror, so deleting the block reddened it; reading only the
+	# assertions lib cannot see whether the mirror still CALLS the scan.
+	# Replacing `assert_no_private_data "${script}"` with `:` removed the entire
+	# private-data scan and the mirror passed. That was a trade, not an upgrade.
+	[[ "$(_ifa_count_code_matches 'assert_no_private_data' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_no_private_data -- the private-data scan is not running at all"
+	# And a floor on what it scans, so a derivation that resolves to nothing reds.
+	# The registry/rows/pins glob block is bound by nothing otherwise: deleting it
+	# drops the scan 57 -> 44, which still clears the floor of 40, so coverage
+	# silently reverts and loses exactly the 13 files it was added to cover.
+	[[ "$(_ifa_count_code_matches 'ifa_family_registry_pins' "${assertions_src}")" -ge 1 ]] \
+		|| fail "assert_no_private_data no longer scans the registry rows and pins -- 13 files this branch adds would go unscanned while the floor still passes"
+	# EXACTLY ONE, and on a needle unique to this floor. The previous needle was
+	# `the *_lib derivation has collapsed`, which this commit's own assert_libs_parse
+	# floor also says -- so the guard was satisfied by the SIBLING's message and
+	# deleting the private-data floor passed. A guard-of-a-guard must pin a string
+	# only its subject can produce, and count it, or the next function that borrows
+	# the phrasing silently adopts the guard.
+	[[ "$(_ifa_count_code_matches 'assert_no_private_data scanned only' "${assertions_src}")" -eq 1 ]] \
+		|| fail "assert_no_private_data no longer asserts its own scanned-file floor (or the message is no longer unique) -- a collapsed derivation would scan one file and pass"
+	[[ "$(_ifa_count_code_matches 'syntax check covered only' "${assertions_src}")" -eq 1 ]] \
+		|| fail "assert_libs_parse no longer asserts its own floor -- a collapsed derivation would parse nothing and pass"
+	# And its CALL SITE, for the same reason assert_no_private_data's is pinned:
+	# the relocation turned 32 straight-line `bash -n` statements into one call
+	# that a single-character edit can delete.
+	[[ "$(_ifa_count_code_matches 'assert_libs_parse' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_libs_parse -- nothing would parse the libs at all"
+	# And the meta-gate's own call site. It shipped without this pin while both
+	# of its siblings had one -- the same asymmetry it was written to stop, in
+	# the gate meant to stop it. `:` in place of the call removed every
+	# pin-binding check with the mirror still green.
+	[[ "$(_ifa_count_code_matches 'assert_pin_helpers_bind_code' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_pin_helpers_bind_code -- nothing would check that pin helpers bind code"
+	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
+		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
+	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \
+		|| fail "private-data scan no longer fails closed on a missing file"
 }
 
 test_ifa_documentation_fresh_stack_edge_guard_is_typed_and_fail_closed() (
@@ -276,11 +331,11 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	require_fixture "documentation expected-edge set path" "go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json"
 	require_fixture "documentation cassette existence guard" "documentation cassette not found"
 	require_fixture "documentation expected-edge set existence guard" "documentation expected-edge set not found"
-	require "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
+	require_code "documentation DOCUMENTS MERGE operation_match anchor" 'documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"'
 	require_driver "documentation drive in every cell" "ifa_documentation_drive"
 	require_cells "documentation exact assertion in baseline" "ifa_documentation_assert"
 	require_cells "documentation fault-free retry baseline" '"documentation_materialization"'
-	require "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
+	require_code "documentation graph-write cell invocation" "cell_failgraphwrite_documentation"
 	# #6149 follow-up item 8: DocumentationEdgeMaterializationHandler.Handle
 	# has no Postgres write to lock (only two graph writes through the same
 	# EdgeWriter), so this family cannot make a kill-worker cell deterministic
@@ -316,12 +371,12 @@ run_ifa_fault_injection_documentation_registry_cases() {
 	# explaining the mechanism instead of recording a gap. It must also keep
 	# the scope of the pre-adoption probe, so a reader cannot mistake a
 	# mechanism proof for the live-matrix proof.
-	require_documentation_cells "documentation cells header states the family regained a mid-handler cell" "MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER"
-	require_documentation_cells "documentation cells header names the superseded gap ruling" "superseding the gap #6149 follow-up item 8 recorded here"
-	require_documentation_cells "documentation cells header keeps the measured handler duration that defeated both earlier triggers" "duration_seconds 0.0073"
-	require_documentation_cells "documentation cells header names the ACK-barrier mechanism" "pg_advisory_xact_lock(5998, 5994)"
-	require_documentation_cells "documentation cells header explains why handler width no longer matters" "handler width is irrelevant"
-	require_documentation_cells "documentation cells header bounds what the pre-adoption probe did not cover" "not the real"
+	require_framing "documentation cells header states the family regained a mid-handler cell" "MID-HANDLER INTERRUPTION IS PROVEN FOR THIS FAMILY, BY AN ACK BARRIER" "${documentation_cells_lib}"
+	require_framing "documentation cells header names the superseded gap ruling" "superseding the gap #6149 follow-up item 8 recorded here" "${documentation_cells_lib}"
+	require_framing "documentation cells header keeps the measured handler duration that defeated both earlier triggers" "duration_seconds 0.0073" "${documentation_cells_lib}"
+	require_framing "documentation cells header names the ACK-barrier mechanism" "pg_advisory_xact_lock(5998, 5994)" "${documentation_cells_lib}"
+	require_framing "documentation cells header explains why handler width no longer matters" "handler width is irrelevant" "${documentation_cells_lib}"
+	require_framing "documentation cells header bounds what the pre-adoption probe did not cover" "not the real" "${documentation_cells_lib}"
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"

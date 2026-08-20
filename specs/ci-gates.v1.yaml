@@ -2086,6 +2086,7 @@ gates:
     blocking: true
     triggers:
       - "go/internal/ifa/**"
+      - "go/internal/reducer/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"
       - "docs/internal/design/4389-ifa-conformance-platform.md"
@@ -2095,8 +2096,8 @@ gates:
       - "specs/replay-coverage-manifest.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2156,13 +2157,39 @@ gates:
       - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      # The Go blocker-shape lockstep test PARSES these shell files: it reads
+      # each family's declared blocker_kind from the registry rows and binds
+      # it to the real handler's write shape. Without these triggers a row
+      # could be flipped to shared_intent_lock for an EdgeWriter-only handler,
+      # its hand-derived pin updated to agree, and the check able to prove that
+      # blocker architecturally vacuous would not be selected for this gate.
+      #
+      # "not selected for this gate" is the accurate scope, and it is narrower
+      # than it looks. The reducer leg below is what runs that lockstep, and it
+      # was absent from the CI job's command until this change added it -- so
+      # before, these triggers bought local `make pre-pr` selection only, while
+      # in CI the lockstep rode along on test.yml's go-core lane (whose `code:`
+      # filter is '**' minus docs, and therefore already matched any
+      # scripts/lib/** edit). Local and CI now run the same command for this
+      # gate id. Said plainly because the earlier wording claimed the triggers
+      # were the only thing standing between a vacuous blocker and CI, which
+      # was not true of any lane.
+      - "scripts/lib/ifa_family_registry.sh"
+      - "scripts/lib/ifa_family_registry/**"
       - "testdata/cassettes/sqlrelationships/**"
       - "testdata/cassettes/codecalls/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      # The reducer leg runs the WHOLE package rather than a -run filter.
+      # A hand-maintained test-name regex went stale twice here: it listed
+      # TestMaterializedEdgeFamilies|TestMaterializedEdgeFamilyBlockerLockstep,
+      # which silently did not select TestIfaFamilyRegistryWaitKeyIsKnownDomain
+      # when that landed -- a check present in the tree and never run by the
+      # gate meant to run it. The package takes ~5s; that buys a selection
+      # that cannot rot as tests are added.
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2404,6 +2431,25 @@ gates:
       - "scripts/lib/ifa_deployable_unit_live.sh"
       - "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
       - "scripts/lib/ifa_deployable_unit_live_converge.sh"
+      # #6147 PR-0 family-registry extraction: shared with ifa-fault-injection
+      # below (sourced directly by verify-ifa-determinism.sh, transitively by
+      # verify-ifa-fault-injection.sh), plus this mirror's own three sourced
+      # case modules -- determinism-only, since none of them execute inside
+      # the fault-injection gate.
+      - "scripts/lib/ifa_family_registry.sh"
+      # The row files carry every family's data; the orchestrator carries
+      # none. Triggering only on the parent would leave a row correction
+      # -- the most common edit -- selecting no gate at all.
+      - "scripts/lib/ifa_family_registry/**"
+      - "scripts/lib/test-ifa-determinism-family-cases.sh"
+      - "scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
+      - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
+      - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
+      # The per-family pin files the module above sources by variable path.
+      # Their hard rule is that pins are hand-derived and never generated
+      # from the registry; editing one to "just make it match" must re-run
+      # the gate that would object.
+      - "scripts/lib/ifa_family_registry_pins/**"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -2678,6 +2724,10 @@ gates:
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"
       - "scripts/verify-ifa-fault-injection.sh"
+      # The job installs ripgrep through this script before running the gate;
+      # the gate's own preconditions shell out to rg. Without this trigger an edit
+      # to the installer would not select the gate it is a precondition for.
+      - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/test-ifa-fault-injection-assertions.sh"
       - "scripts/lib/test-ifa-fault-injection-review-cases.sh"
@@ -2715,12 +2765,63 @@ gates:
       # shared helper has to select BOTH gates, not just determinism.
       - "scripts/lib/ifa_sql_delta_live.sh"
       - "scripts/lib/ifa_determinism_common.sh"
+      # #6147 PR-0 family-registry extraction: shared with ifa-determinism
+      # above (sourced directly by verify-ifa-determinism.sh, transitively by
+      # verify-ifa-fault-injection.sh via ifa_fault_generic_cells.sh), plus
+      # the generic per-family fault cells, the shard-dispatch mechanism, and
+      # that mechanism's own static mirror module -- fault-only, since none
+      # of the latter three execute inside the determinism gate.
+      - "scripts/lib/ifa_family_registry.sh"
+      # The row files carry every family's data; the orchestrator carries
+      # none. Triggering only on the parent would leave a row correction
+      # -- the most common edit -- selecting no gate at all.
+      - "scripts/lib/ifa_family_registry/**"
+      - "scripts/lib/ifa_fault_shard.sh"
+      # The generic cells dispatcher sources these three mechanism files
+      # through a VARIABLE path, so internal/cigates/scripttrigger.go cannot
+      # see the dependency (it only resolves a literal "scripts/" in a source
+      # line). ifa_fault_generic_shared_intent_lock.sh holds
+      # _ifa_generic_require_intent_writer -- the mandatory non-vacuity
+      # precondition this whole change rests on -- so without this glob,
+      # weakening it would re-run no gate at all.
+      - "scripts/lib/ifa_fault_generic_*.sh"
+      - "scripts/lib/ifa_fault_generic_cells.sh"
+      - "scripts/lib/test-ifa-fault-injection-shard-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-generic-modules.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
     ci:
       workflow: ifa-determinism-gate.yml
       job: "fault-injection"
+      # The job runs as a four-shard matrix, so GitHub never emits a check
+      # literally named "fault-injection" -- only "fault-injection (shard N/4)".
+      # cmd/ci-gates/await.go falls back to the job name when check_names is
+      # empty and then matches on exact string equality, so leaving this out
+      # resolves the required check to MISSING forever: every PR touching an
+      # ifa-fault-injection trigger path would be unmergeable, and worse, the
+      # four shard checks that DO run would belong to no gate, so a red shard
+      # would be invisible to required-gates-complete. Each name below is
+      # validated against the expanded matrix by internal/cigates/drift.go, so a
+      # name here that the matrix does not produce fails the drift check --
+      # REMOVING a shard is caught that way. Adding a FIFTH shard is not: drift
+      # validates check_names as a subset of the concrete names, and a new
+      # concrete name nothing lists leaves it green. What catches an added shard
+      # is the CHECK_NAMES CARDINALITY PIN in
+      # scripts/lib/test-ifa-fault-injection-shard-cases.sh, which requires this
+      # list to have exactly IFA_FAULT_SHARD_DEFAULT_N entries and every entry
+      # to carry the /n denominator. Not the matrix-cardinality pin beside it --
+      # that one compares strategy.matrix.shard against N and never reads these
+      # names. Same subset pattern as golden-corpus-gate's corpus-gate
+      # (nornicdb) above.
+      check_names:
+        - "fault-injection (shard 1/4)"
+        - "fault-injection (shard 2/4)"
+        - "fault-injection (shard 3/4)"
+        - "fault-injection (shard 4/4)"
     requirements:
       - go
     ci_only_reason: ""
@@ -3164,6 +3265,7 @@ gates:
       - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
       - "scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
+      - "scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"

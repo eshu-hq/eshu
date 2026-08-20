@@ -347,7 +347,7 @@ test_ifa_stop_join_failures_preserve_ownership() (
 )
 
 run_ifa_rationale_live_static_cases() {
-	local needle invocation_count
+	local needle
 
 	for needle in \
 		"scripts/lib/ifa_rationale_live.sh" \
@@ -355,11 +355,16 @@ run_ifa_rationale_live_static_cases() {
 		'testdata/cassettes/rationale/ifa-rationale-family.json' \
 		'testdata/cassettes/rationale/ifa-rationale-family-delta.json' \
 		'go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json' \
-		'go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json' \
-		'rationale_edge_operation_match="MERGE (rationale)-[rel:EXPLAINS]->(target)"'; do
+		'go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'; do
 		rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" \
 			|| fail "fault verifier missing rationale wiring: ${needle}"
 	done
+	# The rationale anchor moved into the registry when this family migrated onto
+	# the generic cell. The gate variable this loop used to pin had no readers
+	# left, so that needle guarded a dead string.
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[rationale_edges]="MERGE (rationale)-[rel:EXPLAINS]->(target)"' \
+		"${repo_root}/scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh" \
+		|| fail "rationale_edges registry row does not carry the EXPLAINS MERGE anchor the fail-graph-write cell targets"
 
 	for needle in \
 		'ifa_rationale_drive "${cell}"' \
@@ -388,33 +393,31 @@ run_ifa_rationale_live_static_cases() {
 		rg --fixed-strings --quiet -- "${needle}" "${fault_lib}" \
 			|| fail "fault common library missing generalized shared-intent helper: ${needle}"
 	done
-	rg --fixed-strings --quiet -- 'ifa_fault_start_shared_intent_lock "killworkercodecalls"' "${code_call_cells_lib}" \
-		|| fail "code-call kill cell did not move onto the generalized shared-intent lock"
-	rg --fixed-strings --quiet -- 'ifa_fault_require_fresh_domain_intents' "${code_call_cells_lib}" \
-		|| fail "code-call graph-fault cell did not move onto the generalized fresh-domain guard"
+	# code_calls' and rationale_edges' kill/graph-fault cells moved onto the
+	# generic, registry-driven dispatcher (scripts/lib/ifa_fault_generic_cells.sh)
+	# instead of calling the generalized shared-intent-lock/fresh-domain-guard
+	# helpers directly. The anchored delegation and registry-binding proof for
+	# both families lives in scripts/lib/test-ifa-fault-injection-shard-cases.sh
+	# (run_ifa_fault_injection_shard_cases), alongside the shard partitioner's
+	# own dispatch-anchor checks -- not duplicated here, extracted there to
+	# keep this file under the line cap without shortening either proof.
 
-	for needle in \
-		'cell_killworker_rationale() {' \
-		'"rationale_materialization")' \
-		'"${baseline_rationale_retried}"' \
-		'cell_failgraphwrite_rationale() {' \
-		'rationale_edges' \
-		'"queue-retry"' \
-		'ifa_fault_assert_once_fault_marker'; do
-		rg --fixed-strings --quiet -- "${needle}" "${rationale_cells_lib}" \
-			|| fail "rationale fault cells missing targeted recovery proof: ${needle}"
-	done
-
+	# Needles carry the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh):
+	# every dispatch line routes through that wrapper for --shard skip support,
+	# and the check is strictly stronger for it -- an unwrapped cell would
+	# silently ignore --shard and run in every shard instead of just its own.
 	for needle in cell_killworker_rationale cell_failgraphwrite_rationale; do
-		rg --line-regexp --quiet -- "${needle}" "${script}" \
-			|| fail "fault verifier does not invoke ${needle} on its own line"
+		rg --line-regexp --quiet -- "ifa_fault_shard_run ${needle}" "${script}" \
+			|| fail "fault verifier does not invoke ${needle} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
 	done
-	# 21 = the 15 cells this family's gate defined, plus the three
-	# deployable_unit-targeted cells (#5993) that landed alongside it, plus the
-	# three codeowners-targeted cells (#5992).
-	invocation_count="$(rg --count --line-regexp -- 'cell_[a-z_]+' "${script}")"
-	[[ "${invocation_count}" == "21" ]] \
-		|| fail "fault verifier invokes ${invocation_count} cells, want 21"
+	# The cell-count pin that used to live here MOVED to
+	# scripts/lib/test-ifa-fault-injection-shard-cases.sh, next to the
+	# hand-authored cell list and the dispatch/list set-equality check (F-4).
+	# It was never about rationale_edges: it guarded the total number of
+	# dispatched cells, so parking it in one family's case module meant a
+	# family author adding cells hit a failure in an unrelated file, bumped
+	# the number, and never saw the checks that actually prove their cells
+	# reach a shard.
 	rg --fixed-strings --quiet -- 'assert_rationale_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \
 		&& fail "delta-retract incorrectly demands baseline rationale truth after driving its delta generation"
 	rg --fixed-strings --quiet -- 'assert_rationale_delta_truth "deltaretract-post-delta"' "${delivery_cells_lib}" \
@@ -457,7 +460,14 @@ run_ifa_rationale_live_static_cases() {
 		|| fail "delta helper starts a duplicate projector/reducer pair instead of reusing caller-owned workers"
 	[[ "${delta_function}" == *"caller-owned running projector + reducer"* ]] \
 		|| fail "delta helper does not document its one-lifecycle worker ownership"
-	for target in "${cells_lib}" "${sql_cells_lib}" "${code_call_cells_lib}" "${documentation_cells_lib}" "${rationale_cells_lib}"; do
+	# code_call_cells_lib and rationale_cells_lib dropped out of this list:
+	# their kill/join/untrack sequence moved into the generic dispatcher's
+	# shared skeleton (_ifa_generic_cell_killworker_body,
+	# scripts/lib/ifa_fault_generic_cells.sh) along with the rest of the
+	# kill-worker cell body, so generic_cells_lib stands in for both --
+	# checked once, not duplicated per family, since the join/untrack call
+	# itself is family-agnostic there.
+	for target in "${cells_lib}" "${sql_cells_lib}" "${generic_cells_lib}" "${documentation_cells_lib}"; do
 		rg --fixed-strings --quiet -- 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL' "${target}" \
 			|| fail "$(basename "${target}") does not join/untrack the killed candidate-adjacent reducer"
 	done

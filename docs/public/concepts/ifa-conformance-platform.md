@@ -82,11 +82,14 @@ oversubscribed backend used to dead-letter perfectly recoverable work.
 
 **Fault injection** proves the platform's three recovery mechanisms —
 lease-expiry reclaim, retry with backoff, and idempotent replay — actually
-converge together, not just in isolation. Five scripted fault classes (killing
-a worker mid-claim, forcing a lease expiry, failing one graph write then
-succeeding, restarting the backend mid-drain) each run against a live reducer
-and must reach the identical fault-free canonical graph with zero durable
-dead letters.
+converge together, not just in isolation. Twenty-one cells; the twenty cells other than the shared fault-free baseline are sharded four ways in
+CI, each run against a live reducer with zero durable dead letters. Most inject
+a fault — killing a worker mid-claim, forcing a lease expiry, failing one graph
+write then succeeding, restarting the backend mid-drain, redelivering a
+completed unit, plus per-family variants of those — and must recover to the
+identical fault-free canonical graph. The rest are the fault-free baselines
+those cells compare against, and the delta-retract cell, which asserts an exact
+edge set instead because generation 2 deliberately changes the graph.
 
 ## Odù and cassettes
 

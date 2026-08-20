@@ -180,16 +180,25 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'testdata/golden/e2e-20repo-snapshot.json'
+              # The shell family registry. The Go blocker-shape lockstep test
+              # parses these rows and binds each family's declared blocker_kind
+              # to its real handler's write shape, so a row edit must select
+              # this gate's CI check. A single '*' does not cross '/' in a
+              # dorny filter, hence the explicit '**' on the rows directory.
+              - 'scripts/lib/ifa_family_registry.sh'
+              - 'scripts/lib/ifa_family_registry/**'
               # #5351 materialized-edge exhaustiveness gate: the SQL relationship
               # family's write path (edge_writer_sql.go, sql_relationship_*.go)
               # and its fixtures/manifest. A write-path-only regression here is
               # exactly the silent-no-op class the gate exists for and the pure
               # seam cannot catch, so it MUST retrigger the Ifa contract-layer
               # gate (which runs the pure ifa-materialized-edge-coverage go test).
-              # The gate runs `go test ./internal/reducer -run
-              # TestMaterializedEdgeFamilies`, which COMPILES the whole package,
-              # so any sibling file can change its verdict. specs/ci-gates.v1.yaml
-              # was broadened to 'go/internal/reducer/**' for exactly that reason
+              # The gate runs `go test ./internal/reducer` for the WHOLE package,
+              # so any sibling file can change its verdict. It ran a
+              # `-run TestMaterializedEdgeFamilies` filter until that regex went
+              # stale twice, silently not selecting tests that had landed since.
+              # specs/ci-gates.v1.yaml was broadened to 'go/internal/reducer/**'
+              # for exactly that reason
               # (#5873) but this filter was not, so the registry could select the
               # gate as required while this workflow never scheduled it. The
               # aggregator then waited out its 55m timeout on a MISSING job and
@@ -361,7 +370,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.envdoc }}" "envdoc" "Verify environment registry reference gate" "scripts/test-generate-env-registry-doc.sh" "scripts/verify-env-registry-doc.sh"
           append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/contracttest/contract_data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md"
           append_gate "${{ steps.filter.outputs.bucketsync }}" "bucketsync" "Verify content-entity bucket sync gate" "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1" "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
-          append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1"
+          append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
           append_gate "${{ steps.filter.outputs.ifaload }}" "ifaload" "Verify Ifa P5 load/saturation gate" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
           append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "bash scripts/test-verify-ifa-replay-drive.sh" "bash scripts/test-verify-ifa-replay-drive.sh"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"

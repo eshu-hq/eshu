@@ -58,49 +58,43 @@ rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cell
 rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"
 entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
+# shellcheck disable=SC2034  # read indirectly as "${!lib_var}" by the
+# syntax-check loop below, which shellcheck cannot follow.
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
+shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
+shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
+generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
+generic_baseline_lib="${repo_root}/scripts/lib/ifa_fault_generic_baseline_cell.sh"
+table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
+table_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh"
+shared_intent_lock_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh"
+family_drive_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh"
+generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-modules.sh"
+# The dispatcher self-sources these two by variable path, so nothing else in
+# this mirror named them and the derived syntax loop below could not see them.
+# shared_intent_lock holds _ifa_generic_require_intent_writer, the mandatory
+# non-vacuity precondition this change rests on.
+generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
+generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
 
-bash -n "${script}" || fail "verify-ifa-fault-injection.sh has a syntax error"
-bash -n "${fault_lib}" || fail "ifa_fault_injection_common.sh has a syntax error"
-bash -n "${driver_lib}" || fail "ifa_fault_injection_driver.sh has a syntax error"
-bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
-bash -n "${cells_lib}" || fail "ifa_fault_injection_cells.sh has a syntax error"
-bash -n "${sql_cells_lib}" || fail "ifa_fault_injection_sql_cells.sh has a syntax error"
-bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh has a syntax error"
-bash -n "${collateral_nodes_lib}" || fail "ifa_fault_injection_collateral_nodes.sh has a syntax error"
-bash -n "${code_call_lib}" || fail "ifa_code_call_live.sh has a syntax error"
-bash -n "${code_call_cells_lib}" || fail "ifa_fault_injection_code_call_cells.sh has a syntax error"
-bash -n "${code_call_cases_lib}" || fail "test-ifa-fault-injection-code-call-cases.sh has a syntax error"
-bash -n "${documentation_lib}" || fail "ifa_documentation_live.sh has a syntax error"
-bash -n "${documentation_cells_lib}" || fail "ifa_fault_injection_documentation_cells.sh has a syntax error"
-bash -n "${documentation_barrier_lib}" || fail "ifa_fault_injection_documentation_ack_barrier.sh has a syntax error"
-bash -n "${documentation_barrier_setup_lib}" || fail "ifa_fault_injection_documentation_ack_setup.sh has a syntax error"
+# Syntax-check every declared library, derived from the *_lib variables above
+# rather than a hand-typed list. The hand-typed form was 37 names and had the
+# exact failure it was meant to prevent: ifa_fault_generic_shared_intent_lock.sh
+# and ifa_fault_generic_runner_wait.sh -- the first of which holds the mandatory
+# non-vacuity precondition this whole change rests on -- were introduced by this
+# same branch and never added to it, so a syntax error or a truncating edit in
+# either surfaced only in the ~22-minute live Docker shard. Deriving the list
+# from the declarations makes the coverage total for real, instead of a comment
+# claiming it is.
 rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "${documentation_barrier_lib}" \
 	|| fail "documentation ACK barrier must source its setup/holder helper"
-bash -n "${documentation_cases_lib}" || fail "test-ifa-fault-injection-documentation-cases.sh has a syntax error"
-bash -n "${deployable_unit_live_lib}" || fail "ifa_deployable_unit_live.sh has a syntax error"
-bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_diagnostics.sh has a syntax error"
-bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
-bash -n "${deployable_unit_lock_lib}" || fail "ifa_fault_injection_deployable_unit_lock.sh has a syntax error"
-bash -n "${deployable_unit_cells_lib}" || fail "ifa_fault_injection_deployable_unit_cells.sh has a syntax error"
-bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
-bash -n "${deployable_unit_cases_lib}" || fail "test-ifa-fault-injection-deployable-unit-cases.sh has a syntax error"
-bash -n "${documentation_barrier_cases_lib}" || fail "test-ifa-fault-injection-documentation-ack-barrier-cases.sh has a syntax error"
-bash -n "${documentation_barrier_cleanup_cases_lib}" || fail "test-ifa-fault-injection-documentation-ack-cleanup-cases.sh has a syntax error"
-bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
-bash -n "${rationale_cells_lib}" || fail "ifa_fault_injection_rationale_cells.sh has a syntax error"
-bash -n "${rationale_cases_lib}" || fail "test-ifa-fault-injection-rationale-cases.sh has a syntax error"
-bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
-bash -n "${review_cases_lib}" || fail "test-ifa-fault-injection-review-cases.sh has a syntax error"
-bash -n "${entrypoint_cases_lib}" || fail "test-ifa-fault-injection-entrypoint-cases.sh has a syntax error"
-bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has a syntax error"
 [[ "$(wc -l <"${BASH_SOURCE[0]}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "test-verify-ifa-fault-injection.sh must stay under 500 lines"
 # The GATE script needs the same guard as this mirror. Its determinism sibling
@@ -113,6 +107,9 @@ bash -n "${assertions_lib}" || fail "test-ifa-fault-injection-assertions.sh has 
 
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
 source "${assertions_lib}"
+# Parses every declared *_lib and floors the count; defined in the assertions
+# lib, so it must run after that source.
+assert_libs_parse
 # shellcheck source=scripts/lib/test-ifa-fault-injection-rationale-cases.sh
 source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
@@ -122,8 +119,8 @@ run_ifa_fault_entrypoint_static_cases
 
 # Both GCP cassettes, generated synth-multiscope once, and the drive verb
 # (now in the driver lib's drive_all_cassettes helper).
-require "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
-require "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
+require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
+require_code "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
 require_driver "drive verb invocation" 'eshu-ifa" drive -cassette'
 require_driver "vacuous-drive guard" "vacuous drain proof"
 
@@ -148,9 +145,9 @@ require_cells "assert-edges non-vacuity framing" "non-vacuity"
 
 # Untagged binaries plus a SEPARATE tagged reducer build for the queue-retry /
 # graph-fault and restart cells.
-require "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
-require "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""
-require "gate binary build" "ifa_det_build_bin \"\${bin_dir}\" golden-corpus-gate"
+require_code "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
+require_code "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""
+require_code "gate binary build" "ifa_det_build_bin \"\${bin_dir}\" golden-corpus-gate"
 require_driver "gate binary invocation" "eshu-golden-corpus-gate"
 require_driver "drains phase" "-phase=drains"
 require_driver "snapshot contract" "testdata/golden/e2e-20repo-snapshot.json"
@@ -160,31 +157,10 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The twenty-one-cell shape: baseline plus twenty cells with a live seam --
-# four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
-# (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
-# two rationale-targeted (#5998), and a family-scoped baseline plus two
-# recovery cells for deployable_unit_edges (#5993). All twenty-one run by
-# default.
-# Every cell is anchored to its own invocation line, never matched by bare name.
-# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
-# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
-# the cell_baseline dispatch line left the mirror green -- and cell_baseline is
-# the sole writer of digests[baseline], so all sixteen assert_matches_baseline
-# calls would then compare against an unset key. The anchored form was
-# previously applied to only five of the twenty-one; it now covers all of them.
-# rg without --fixed-strings so ^...$ binds.
-for cell in \
-	cell_baseline cell_killworker cell_expirelease cell_failgraphwrite cell_restartbackend \
-	cell_killworker_sql cell_killworker_code_calls cell_killworker_documentation \
-	cell_killworker_rationale cell_duplicatedelivery cell_deltaretract \
-	cell_failgraphwrite_sql cell_failgraphwrite_code_calls \
-	cell_failgraphwrite_documentation cell_failgraphwrite_rationale \
-	cell_baseline_deployable_unit cell_killworker_deployable_unit \
-	cell_failgraphwrite_deployable_unit cell_baseline_codeowners \
-	cell_killworker_codeowners cell_failgraphwrite_codeowners; do
-	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
-done
+# The twenty-one-cell-shape anchored-invocation check and the SQL permanent-
+# member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
+# the sourced shard-cases module below, extracted to buy this file real
+# line-count headroom rather than trimming their comments in place.
 # #5974 probes. A missing marker had two explanations and the gate had to guess
 # between them, which is how this issue stayed open on a wrong root cause. These
 # three close the gap: the stack is provably fresh, the edge provably exists,
@@ -215,7 +191,7 @@ require_sql_cells "a missing marker sends the reader to probe 2 rather than gues
 # "command not found" exit read as "the marker does not name the operation", so
 # a fault that fired correctly was reported as inert for weeks. A checker that
 # cannot run must never be readable as a negative result.
-require_lib "the marker assertion matches in bash, not via an external binary" "Bash substring match, NOT an external tool"
+require_framing "the marker assertion matches in bash, not via an external binary" "Bash substring match, NOT an external tool" "${fault_lib}"
 if rg --fixed-strings --quiet -- 'rg --quiet' "${fault_lib}"; then
 	fail "the marker assertion shells out to rg again; it is absent on the fault-injection runner and its failure is indistinguishable from a negative match (#5974)"
 fi
@@ -233,11 +209,8 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
-# The SQL cell is a permanent matrix member, not a temporary experiment. Pin
-# both the invocation and the reason, so re-holding it out is a deliberate edit
-# to a stated rule rather than a quiet deletion on a red run (#5974).
-rg --quiet --line-regexp -- 'cell_failgraphwrite_sql' "${script}" \
-	|| fail "cell_failgraphwrite_sql is no longer invoked in the default matrix; it fires correctly and holding it out again needs a stated reason (#5974)"
+# The SQL permanent-member invocation pin also moved to the shard-cases
+# module (see the note above the twenty-one-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
@@ -274,7 +247,7 @@ require_delivery_cells "delta-retract asserts generation 1 landed first" "genera
 require_delivery_cells "delta-retract collateral success names every exact family" "outside exact SQL/code-call/rationale assertions"
 require "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
 require "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
-require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
+require_code "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
 require_fixture "gate defines the delta expected-edge set" "sql_delta_expected_edges="
 if rg --fixed-strings --quiet -- "ifa_fault_compare_non_sql_edges" "${delivery_cells_lib}"; then
 	fail "delta-retract must not compare whole non-SQL graph-dump endpoint hashes: SQL generation updates legitimately replace SQL-owned CONTAINS/REPO_CONTAINS hashes; assert unaffected covered families exactly instead"
@@ -307,14 +280,19 @@ require_cells "expire-lease targets claimed/running" "status IN ('claimed', 'run
 # check (Postgres attempt_count, not the reducer log -- see the helper doc for
 # why the log grep raced the buffered-stderr flush in CI).
 require_cells "once-then-succeed script writer" "ifa_fault_write_once_script"
-require "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
+require_code "CloudResource MERGE operation_match anchor" 'cloud_resource_operation_match="MERGE (r:CloudResource"'
 require_cells "queue-retry lane selected" '"queue-retry"'
 require_cells "ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script}"
 require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_fault_assert_retried_above"
 require_cells "fault-free baseline retry snapshot in cell 1" "baseline_retried="
 require_lib "durable retry-signal query" "SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1"
 require_lib "baseline-differential assert helper" "ifa_fault_assert_retried_above"
-require_lib "once-script JSON kind" "fail-graph-write-once-then-succeed"
+# Anchored on the emitted `"kind":` line, not the bare string. Both kind names
+# also appear in this lib's PROSE, and require_framing is a whole-file match, so
+# the bare needle was satisfied by comments -- renaming the real emission left
+# the mirror green. With the prefix each occurs exactly once, on the heredoc
+# line that actually writes the script.
+require_framing "once-script JSON kind" "\"kind\": \"fail-graph-write-once-then-succeed\"" "${fault_lib}"
 
 # Cell 5 (restart-backend-between-phase-groups): sentinel-driven backend
 # restart, --no-compose skip, and a non-vacuity fired check.
@@ -323,7 +301,7 @@ require_cells "sentinel suffix matches Go wiring" '.restart-sentinel"'
 require_cells "sentinel watcher invocation" "ifa_fault_watch_restart_sentinel"
 require_cells "no-compose skips cell 5" "SKIPPED (--no-compose cannot restart a backend it does not own)"
 require_cells "non-vacuity fired check for cell 5" '"${restart_fired}" == "fired"'
-require_lib "restart script JSON kind" "restart-backend-between-phase-groups"
+require_framing "restart script JSON kind" "\"kind\": \"restart-backend-between-phase-groups\"" "${fault_lib}"
 require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\" -f \"\${compose_file}\" restart nornicdb"
 
 # Cell 6 (kill-worker-after-claim-sql, #5555): see the Cell 2 checks above --
@@ -335,7 +313,7 @@ require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\
 # read the reducer log: fact_work_items attempt_count does not exist for this
 # domain's async graph writes, and the log route raced the logger's flush,
 # which is what made this cell inert in CI while passing locally (#5974).
-require "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
+require_code "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
 if rg --pcre2 --quiet -- 'sql_edge_operation_match="[^"]*CloudResource' "${script}"; then
 	fail "sql_edge_operation_match must not be anchored to CloudResource -- that is issue #5555's exact complaint"
 fi
@@ -343,9 +321,9 @@ require_sql_cells "SQL-targeted once-then-succeed script writer" "ifa_fault_writ
 require_sql_cells "SQL-targeted queue-retry lane selected" '"queue-retry"'
 require_sql_cells "SQL-targeted ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script_sql}"
 require_sql_cells "SQL fired-fault proof reads the durable marker" "ifa_fault_assert_once_fault_marker"
-require_sql_cells "SQL fired-fault proof non-vacuity framing" "non-vacuity"
+require_framing "SQL fired-fault proof non-vacuity framing" "non-vacuity" "${sql_cells_lib}"
 require_lib "once-fired marker function signature" 'ifa_fault_assert_once_fault_marker() {'
-require_lib "marker assertion names the retired log route and why" "races the logger's flush"
+require_framing "marker assertion names the retired log route and why" "races the logger's flush" "${fault_lib}"
 # The log-poll helper is retired, not merely unused: leaving a mechanism that
 # is known to go inert in CI invites the next cell to reach for it.
 if rg --fixed-strings --quiet -- "ifa_fault_assert_sql_graph_write_fired" "${fault_lib}" "${sql_cells_lib}" "${script}"; then
@@ -362,25 +340,46 @@ require_fixture "code-call cassette path" "testdata/cassettes/codecalls/ifa-code
 require_fixture "code-call expected-edge set path" "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
 require_fixture "code-call cassette existence guard" "code-call cassette not found"
 require_fixture "code-call expected-edge set existence guard" "code-call expected-edge set not found"
-require "code-call MERGE operation_match anchor" 'code_call_edge_operation_match="MERGE (source)-[rel:CALLS]->(target)"'
+# The anchor moved into the registry when code_calls migrated onto the generic
+# cell: the gate variable this used to pin had no readers left, so the pin was
+# guarding a dead string -- change the real anchor and it stayed green. Pin the
+# live source instead.
+rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[code_calls]="MERGE (source)-[rel:CALLS]->(target)"' \
+	"${repo_root}/scripts/lib/ifa_family_registry/rows/02_code_calls.sh" \
+	|| fail "code_calls registry row does not carry the CALLS MERGE anchor the fail-graph-write cell targets"
 require_driver "code-call drive in every cell" "ifa_code_call_drive"
 require_cells "code-call exact assertion in baseline" "ifa_code_call_assert"
 require_cells "code-call fault-free retry baseline" '"code_call_materialization"'
-require "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
-require "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
+require_code "code-call kill-reclaim cell invocation" "cell_killworker_code_calls"
+require_code "code-call graph-write cell invocation" "cell_failgraphwrite_code_calls"
 require_code_call_lib "code-call drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
-require_code_call_cells "claimed row targets code-call materialization" '"code_call_materialization"'
-require_code_call_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
-require_code_call_cells "graph-write cell selects queue-retry" '"queue-retry"'
-require_code_call_cells "graph-write cell targets durable code-call marker" "ifa_fault_assert_once_fault_marker"
-require_code_call_cells "graph-write cell probes code-call intents" "projection_domain = 'code_calls'"
+# cell_killworker_code_calls/cell_failgraphwrite_code_calls now delegate to
+# the generic, registry-driven dispatcher (scripts/lib/ifa_fault_generic_cells.sh)
+# instead of hand-writing the kill/reclaim/drain/assert and fail-graph-write
+# skeleton per family, per that file's own WIRING header. The five literal-
+# text pins this replaces moved with the behavior, not away -- they now check
+# the mechanism's new, family-agnostic home instead of the (now one-line)
+# per-family cell body. The anchored per-family delegation proof (both
+# code_calls and rationale_edges) and the registry-row wait_key/retry-
+# baseline bindings live in scripts/lib/test-ifa-fault-injection-shard-cases.sh
+# instead of here or in test-ifa-fault-injection-rationale-cases.sh, to keep
+# every file under the line cap without a bare, prose-satisfiable needle
+# anywhere -- see that module for why a bare `cell_killworker_family
+# code_calls` substring check is not anchored enough on its own. The
+# generic_cells_lib's own `projection_domain` intent-window diagnostic IS
+# restored (the old bespoke cell had it; the generic dispatcher now does too,
+# generically, driven by the family argument every cell already passes).
+require_code "generic-cell dispatcher sourced by the gate" 'source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"'
+require_generic_cells "generic kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+require_generic_cells "generic graph-write cell selects queue-retry" '"queue-retry"'
+require_generic_cells "generic graph-write cell targets the durable once-fired marker" "ifa_fault_assert_once_fault_marker"
+require_generic_cells "generic graph-write cell asserts edges by the registry's per-family domain" 'assert-edges -domain "${family}" -expected "${expected}"'
 require_lib "shared-domain precondition preserves query failure" "precondition query FAILED (exit"
 require_lib "shared-domain precondition distinguishes empty output" "returned empty output"
 require_lib "shared-domain precondition rejects non-numeric output" "returned non-numeric output"
 require_lib "shared-domain precondition reports stale intents" "survived fresh_stack"
 require_lib "shared lock preserves code-call log naming" 'log_namespace="${namespace//_/-}"'
-require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_assert"
 
 # documentation_edges (#5994) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the deployable-unit
@@ -390,6 +389,12 @@ require_code_call_cells "both cells exact-assert five edges" "ifa_code_call_asse
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-cases.sh
 source "${documentation_cases_lib}"
 run_ifa_fault_injection_documentation_registry_cases
+
+# Sourced ahead of deployable_unit_cases_lib below: that module calls
+# run_ifa_fault_injection_deployable_unit_ordering_cases (defined here),
+# so this file's function definitions must exist before that call runs.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-shard-cases.sh
+source "${shard_cases_lib}"
 
 # deployable_unit_edges (#5993) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the review-cases
@@ -421,7 +426,7 @@ run_ifa_fault_injection_codeowners_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
-require_driver "baseline digest capture" "digests[baseline]"
+require_framing "baseline digest capture" "digests[baseline]" "${driver_lib}"
 require_driver "digest comparison helper" "assert_matches_baseline"
 require_driver "mismatch framing" "MISMATCH:"
 require_driver "full-bytes diff on divergence" "diff -u"
@@ -433,7 +438,7 @@ require_lib "dead-letter count query" "SELECT count(*) FROM fact_work_items WHER
 # final summary.
 require_cells "per-cell wall time capture" "cell_start"
 require_sql_cells "per-cell wall time capture (sql cells)" "cell_start"
-require "wall time in summary" "wall=%ss"
+require_code "wall time in summary" "wall=%ss"
 
 # The lib functions this script depends on all exist with the expected shape.
 require_lib "once-script function signature" 'ifa_fault_write_once_script() {'
@@ -461,12 +466,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 	|| fail "${reducer_wiring} must read ESHU_IFA_FAULT_SCRIPT"
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}"; do
-	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
-		fail "$(basename "${f}") looks like it contains private data"
-	fi
-done
+assert_no_private_data "${script}"
 
 # Claimed-wait SQL-budget validation, domain-scoping (#5555), and the
 # once-fired-marker three-way discrimination (#5974/#5555) are functional
@@ -476,5 +476,19 @@ done
 # shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
 run_ifa_fault_injection_marker_cases
+# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-modules.sh
+source "${generic_modules_lib}"
+run_ifa_fault_injection_generic_modules
+
+# Shard selector: exact-cover proof, invalid-input rejection, and the
+# CI-wiring/matrix-cardinality cross-checks against the workflow -- module
+# already sourced above (deployable_unit_cases_lib needs it earlier).
+run_ifa_fault_injection_shard_cases
+
+# META-GATE, run LAST so every case module has been sourced and bash can see the
+# helpers they define. Discovery is `compgen -A function`, so it sees exactly
+# what is loaded -- running it earlier silently exercised 18 helpers instead of
+# all of them, which the floor caught.
+assert_pin_helpers_bind_code
 
 printf 'test-verify-ifa-fault-injection: pass\n'

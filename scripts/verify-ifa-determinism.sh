@@ -48,24 +48,11 @@
 # synth scopes are not actually disjoint — fix the ProjectID derivation in
 # go/internal/synth/gcp, do not "fix" this script by normalizing the digest.
 #
-# Slice scope (#4396 slice 6, "the teeth"): this file also owns --teeth, the
-# acceptance clause's negative-path proof that the matrix actually catches "a
-# deliberately non-idempotent write" instead of passing vacuously. --teeth
-# builds every host binary with `-tags ifadeterminismteeth`, which links in
-# exactly one build-tag-gated fault: go/internal/reducer/gcp_resource_
-# materialization_teeth.go stamps TWO properties onto each CloudResource row —
-# `ifa_teeth_seq` (a process-global monotonic sequence number, reintroduced in
-# slice 6b now that the multi-scope cassette above makes it interleaving-
-# sensitive again instead of inert) and `ifa_teeth_write_order` (wall-clock
-# nanoseconds, the guaranteed-red floor) — and go/internal/storage/cypher/
-# cloud_resource_node_writer_teeth.go appends the two matching SET clauses
-# that persist them. At least one of those values depends on this run's own
-# commit/processing order, so it genuinely differs across independent N=1/
-# N=2/N=4 cells, changing `ifa graph-dump`'s canonical digest and failing the
-# SAME comparison this script already runs unmodified. No normal, CI, or
-# production build ever compiles that fault: cloud_resource_node_writer_
-# teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
-# !ifadeterminismteeth) are its zero-cost, zero-behavior default.
+# Slice scope (#4396 slice 6, "the teeth"): this file owns --teeth, the
+# acceptance clause's negative-path proof that the matrix catches a
+# deliberately non-idempotent write instead of passing vacuously. How the
+# build-tag-gated fault works, and why it is zero-cost in every normal
+# build, is in go/internal/ifa/README.md's "--teeth" section.
 #
 # --teeth reuses every other line of this script's matrix logic unchanged;
 # the only difference is the build tag and the final message. Per the
@@ -127,7 +114,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
-source "${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
+source "${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"; source "${repo_root}/scripts/lib/ifa_family_registry.sh"  # two sources, one line: this file is at the 500-line cap and a genuinely new line here is not free
 source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
@@ -335,17 +322,22 @@ for n in "${worker_counts[@]}"; do
 	fi
 	cat "${log_dir}/ifa-drive-synth-n${n}.log"
 
-	# Add the committed nine-edge SQL family to the same durable cell.
-	ifa_det_drive_sql_baseline "${n}" "${bin_dir}" "${sql_cassette}" "${log_dir}" \
-		|| die "N=${n}: SQL relationship baseline drive failed"
-	ifa_code_call_drive "n${n}" "${bin_dir}" "${code_call_cassette}" "${n}" "${log_dir}" \
-		|| die "N=${n}: code-call family drive failed"
-	ifa_documentation_drive "n${n}" "${bin_dir}" "${documentation_cassette}" "${n}" "${log_dir}" \
-		|| die "N=${n}: documentation family drive failed"
-	ifa_rationale_drive "n${n}" "${bin_dir}" "${rationale_cassette}" "${n}" "${log_dir}" \
-		|| die "N=${n}: rationale family drive failed"
-	ifa_codeowners_drive "n${n}" "${bin_dir}" "${codeowners_cassette}" "${n}" "${log_dir}" \
-		|| die "N=${n}: codeowners family drive failed"
+	# Drive every registered shared_cell family (ifa_family_registry.sh) into
+	# this cell; a new family costs one registry row, not a new inline block.
+	# F-5(a): capture the accessor's own success/failure separately from its
+	# value -- `[[ "$(cmd)" == "1" ]]` alone cannot tell "shared_cell is 0"
+	# apart from "the accessor failed" (a row missing IFA_FAMILY_SHARED_CELL),
+	# since a failed command substitution still yields empty stdout and the
+	# comparison is simply false either way. That silently treated a
+	# malformed row as "not a shared-cell family" -- never driven, never
+	# asserted, gate green -- exactly the failure this loop must not have.
+	while IFS= read -r family; do
+		family_shared_cell="$(ifa_family_shared_cell "${family}")" \
+			|| die "N=${n}: family=${family}: ifa_family_shared_cell accessor failed (row missing IFA_FAMILY_SHARED_CELL) -- refusing to silently skip this family"
+		[[ "${family_shared_cell}" == "1" ]] || continue
+		ifa_family_registry_drive "${family}" "${n}" "${bin_dir}" "${log_dir}" \
+			|| die "N=${n}: ${family} family drive failed"
+	done < <(ifa_family_registry_names)
 
 	# Optional seventh drive (--contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -386,16 +378,17 @@ for n in "${worker_counts[@]}"; do
 		tail -30 "${log_dir}/projector-n${n}.log" || true
 		die "N=${n}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
-	ifa_det_assert_sql_baseline "${n}" "${bin_dir}" "${sql_expected_edges}" \
-		|| die "N=${n}: SQL relationship baseline assertion failed"
-	ifa_code_call_assert "N=${n}" "${bin_dir}" "${code_call_expected_edges}" \
-		|| die "N=${n}: code-call family assertion failed"
-	ifa_documentation_assert "N=${n}" "${bin_dir}" "${documentation_expected_edges}" \
-		|| die "N=${n}: documentation family assertion failed"
-	ifa_rationale_assert "N=${n}" "${bin_dir}" "${rationale_expected_edges}" \
-		|| die "N=${n}: rationale family assertion failed"
-	ifa_codeowners_assert "N=${n}" "${bin_dir}" "${codeowners_expected_edges}" \
-		|| die "N=${n}: codeowners family assertion failed"
+	# Assert every registered shared_cell family, same order as the drive loop
+	# above. rationale_edges' durable lifecycle tuple below has no equivalent
+	# elsewhere, so it stays a targeted call, not a registry hook. Same F-5(a)
+	# fail-closed accessor check as the drive loop above -- see its comment.
+	while IFS= read -r family; do
+		family_shared_cell="$(ifa_family_shared_cell "${family}")" \
+			|| die "N=${n}: family=${family}: ifa_family_shared_cell accessor failed (row missing IFA_FAMILY_SHARED_CELL) -- refusing to silently skip this family"
+		[[ "${family_shared_cell}" == "1" ]] || continue
+		ifa_family_registry_assert "${family}" "${n}" "${bin_dir}" \
+			|| die "N=${n}: ${family} family assertion failed"
+	done < <(ifa_family_registry_names)
 	ifa_rationale_assert_work_counts "N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" \
 		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${ifa_rationale_generation_id}" "${ifa_rationale_expected_tuple}" \

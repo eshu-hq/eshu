@@ -1,4 +1,26 @@
 #!/usr/bin/env bash
+# Relocated from scripts/verify-ifa-fault-injection.sh when #6160's codeowners
+# cells pushed that file past its 500-line cap. It documents THIS file's
+# cell, so it reads better here anyway.
+# cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
+#
+# It spent months held out under three successive diagnoses -- a stderr-flush
+# race, then "the fault does not fire in CI", then "the emitted Cypher does not
+# contain the anchor" -- and all three were wrong. When the marker was finally
+# read correctly it was present, naming the anchored statement: the injection
+# worked and the reading of it did not. What failed was the assertion:
+# it matched the marker with `rg`, which is not installed on this runner, so
+# "command not found" was read as "the marker does not name the operation".
+# The fix lives in ifa_fault_injection_common.sh.
+#
+# The lesson outlives the cell: a checker that cannot run must never look like a
+# checker that ran and said no. The assertion now matches in bash and returns
+# three distinct verdicts -- 0 the targeted write, 2 a different write, 1 no
+# marker -- so no single exit code carries two meanings.
+#
+# Do not hold this cell out again on a red run without first proving the
+# assertion itself can execute.
+
 # shellcheck disable=SC2034  # The reducer_/projector_pid locals are
 # filled indirectly by ifa_det_start_bg via printf -v, so shellcheck
 # sees the declaration but not the write.

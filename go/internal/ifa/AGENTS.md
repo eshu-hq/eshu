@@ -186,3 +186,99 @@ fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
 cd go && go test ./internal/ifa/... -count=1   # core + saturation + throughput
 make prove   # credential-free coverage + determinism mirror (Docker matrix when present)
 ```
+
+## Adding A Family To The Live Gates
+
+The coverage-row contract above is only half of what a new family needs. The
+live gates are driven by a shell family registry
+(`scripts/lib/ifa_family_registry.sh`, one row file per family under
+`ifa_family_registry/rows/`), and a family that skips any of the artifacts
+below is silently not proven rather than loudly missing. Work the list in
+order; the gate column tells you what catches a mistake and, more usefully,
+what does not.
+
+| Artifact | Where | Enforced by |
+|---|---|---|
+| Registry row file | `scripts/lib/ifa_family_registry/rows/NN_<family>.sh` | Loader fails closed on a missing/empty rows directory; the derived-pins module fails on a row with no pin |
+| Hand-derived pin file | `scripts/lib/ifa_family_registry_pins/<family>.sh` + an `IFA_FAMILY_PINS_NAMES` entry | `test-ifa-family-registry-derived-pins-cases.sh`, both directions |
+| Determinism hand-authored section | `scripts/lib/test-ifa-determinism-family-cases.sh` | Bidirectional totality against the registry |
+| Fault cells in the dispatch block | `scripts/verify-ifa-fault-injection.sh` | `test-ifa-fault-injection-shard-cases.sh` — set-equality against `--list-cells`, plus the cell-count pin |
+| Cell names in `IFA_FAULT_ALL_CELLS` | `scripts/lib/ifa_fault_shard.sh` | Same set-equality check; a dispatched-but-unlisted cell runs in NO shard |
+| Triggers in both gate blocks | `specs/ci-gates.v1.yaml` | `TestEveryCoveredFamilyTriggersBothLiveGates` |
+| Workflow `paths:` entries | `.github/workflows/ifa-determinism-gate.yml` | Registry-subset-of-workflow lockstep |
+| Blocker declaration vs handler shape | registry row `IFA_FAMILY_BLOCKER_KIND` | `TestMaterializedEdgeFamilyBlockerLockstep` — a family whose handler holds no `IntentWriter` may not declare `shared_intent_lock` |
+| Cassette + expected-edge path globals | `scripts/lib/ifa_family_fixtures.sh` (`<family>_cassette`, `<family>_expected_edges`) | `ifa_family_fixtures_require` fails before any Compose stack starts. The registry's `CASSETTE_VAR`/`EXPECTED_VAR` hold only the NAMES of these globals, so a row can look complete while the paths do not exist |
+| Atomic-group entry for a family-scoped trio | `IFA_FAULT_ATOMIC_GROUPS` in `scripts/lib/ifa_fault_shard.sh` | The shard partitioner co-locates the group. Without an entry the baseline lands in a different shard from its recovery cells, which then read an unset `digests` key |
+| Dispatch ORDER within that trio | `scripts/verify-ifa-fault-injection.sh` | `run_ifa_fault_injection_atomic_group_ordering_cases` — the baseline must dispatch before every other member. Co-location alone does not give you order |
+| Cell names in the hand-authored literal list | `ifa_full_cell_list_literal` in `scripts/lib/test-ifa-fault-injection-shard-cases.sh` | Nothing but you. It is typed by hand ON PURPOSE — deriving it from the arrays it checks would make the check agree with itself |
+| Coverage row (what makes the family COUNT as covered) | `specs/ifa-materialized-edge-coverage.v1.yaml` | The coverage-row contract above. Add it only once both gates really drive and assert the family — a row added earlier claims a proof that is not being run |
+| Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
+| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
+
+Line-cap headroom is the constraint that will bite first. Several files grow per
+family and sit close to the hard 500-line limit. Measure before you add —
+deliberately no numbers here, because a count written into prose goes stale the
+moment anyone edits the file, and this paragraph was already wrong twice that
+way:
+
+```bash
+wc -l go/internal/reducer/materialized_edge_family_blocker_shape_test.go \
+  scripts/lib/test-ifa-fault-injection-shard-cases.sh \
+  scripts/test-verify-ifa-fault-injection.sh \
+  scripts/verify-ifa-fault-injection.sh \
+  scripts/verify-ifa-determinism.sh | sort -rn
+```
+
+Those five grow per family or per cell-list change: the blocker expectations
+entry plus its citation, the hand-authored cell literal, a `source` and a
+`run_*` call per new case module, two dispatch lines plus this file's convention
+of a rationale comment, and — in the determinism gate — the post-delta
+generation-2 per-family assertions, roughly two lines each. NOT its drive/assert
+wiring: that is the registry loop this design replaced the inline blocks with,
+and a new family costs a row there, not a new block.
+Note also that the 500-line cap is enforced only for Go: `.pre-commit-config.yaml`'s
+`go-file-cap` hook declares `types: [go]` and the `filelength` linter plugin is
+Go-only (it also skips `_test.go`), so for every shell file above, for the Go
+test file, and for YAML, the limit is policy and nothing will stop you crossing
+it. `.github/workflows/ifa-determinism-gate.yml` is over it deliberately (the
+sharding trade-off, the baseline-per-shard argument and the trigger
+justifications are the kind of rationale this repo would rather keep than trim,
+and `test.yml` has been over it on main for longer) — a considered exception,
+not an oversight, and the place to split if it grows again is the sharding
+rationale into the library it documents. When
+headroom runs out, extract — move a self-contained block of
+rationale to the library it actually documents, the way the `cell_failgraphwrite_sql`
+history and the deployable-unit ordering note were moved. Do not trim comments
+to fit; the rationale in these files is what lets a reviewer catch a cell whose
+stated intent has drifted from what it does, which is the defect class this
+whole program exists to close.
+
+Not enforced by any gate — get these right by hand:
+
+- **`IFA_FAMILY_RETRY_BASELINE_VAR` and `IFA_FAMILY_HANDLER_GO_FILE`.** Both are
+  required only for `shared_intent_lock` families — other rows may record
+  `handler_go_file` deliberately, and `rows/06` does — both are read only at
+  live-run time, and neither is one of the pinned fields. A family missing either one dies rather
+  than passing — but it dies part-way into a four-shard CI run, not statically,
+  which is the expensive place to find out. `handler_go_file` has exactly one
+  consumer, `_ifa_generic_require_intent_writer`; the Go blocker lockstep does
+  not read it (it reflects on the real handler struct instead, which is a
+  stronger check of a different property).
+- **Triggers for the family's own new lib files.** The sourced-to-triggered
+  drift walk only resolves a `source` line whose literal text contains
+  `scripts/`; anything sourced through a variable is invisible to it, so a new
+  mechanism file needs its trigger added by hand.
+- **Regenerating `docs/public/reference/ci-gates.md`** after any trigger change.
+  `verify-ci-gates-registry.sh` does not check that artifact;
+  `test-generate-ci-gates-doc.sh` does, and CI runs it.
+- **`ci.check_names`** if a job's shape changes. A matrix job emits
+  `<job> (shard N/4)`, never `<job>`, and the required-check resolver matches on
+  exact equality — so a renamed job with no `check_names` resolves to MISSING
+  forever and the checks that do run belong to no gate.
+
+The dangerous artifact is the expected-edge set. It is derived by hand from the
+family's materialization semantics and asserted exactly, so a wrong derivation
+does not fail loudly — it certifies the wrong graph truth, which is worse than
+the uncovered state it replaced. Derive it from the reducer's real extraction
+path and the writer's actual MERGE, and prove it against a live backend before
+seeding the coverage rows.

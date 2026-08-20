@@ -53,6 +53,7 @@ BEGIN {
 function reset_record() {
 	id = ""; name = ""; category = ""; tier = ""; blocking = ""
 	command = ""; test_command = ""; workflow = ""; job = ""; reason = ""; ci_only_reason = ""
+	check_names = ""; check_name_count = 0; in_check_names = 0
 	trigger_count = 0
 	delete triggers
 	section = ""
@@ -96,7 +97,18 @@ function render_row() {
 		}
 		if (workflow != "") {
 			ci_cell = workflow
-			if (job != "") {
+			# Prefer ci.check_names when the gate declares them. For a matrix
+			# job the `job:` key is NOT what GitHub emits -- a job keyed
+			# "fault-injection" with a 4-way matrix publishes
+			# "fault-injection (shard 1/4)" and three siblings, so rendering
+			# the key alone names a check that never appears on a pull
+			# request. check_names is the gate's own list of the concrete
+			# names, validated against the expanded matrix by
+			# internal/cigates/drift.go, so it is the accurate thing to show
+			# a reader who is looking for the check on their PR.
+			if (check_name_count > 0) {
+				ci_cell = ci_cell " / " escape_pipe(check_names)
+			} else if (job != "") {
 				ci_cell = ci_cell " / " escape_pipe(job)
 			}
 		} else {
@@ -187,7 +199,7 @@ function render_row() {
 	# Any other 4-space-indented key (ci_only_reason, hook_id, …) closes
 	# whichever list/section was open, so trigger accumulation cannot leak
 	# past its own block.
-	section = ""; next
+	section = ""; in_check_names = 0; next
 }
 
 section == "triggers" && /^      - "/ && have_record {
@@ -203,10 +215,57 @@ section == "local" && /^      test_command: / && have_record {
 	test_command = $0; sub(/^      test_command: /, "", test_command); gsub(/^"|"$/, "", test_command); next
 }
 section == "ci" && /^      workflow: / && have_record {
+	in_check_names = 0
 	workflow = $0; sub(/^      workflow: /, "", workflow); gsub(/^"|"$/, "", workflow); next
 }
 section == "ci" && /^      job: / && have_record {
+	in_check_names = 0
 	job = $0; sub(/^      job: /, "", job); gsub(/^"|"$/, "", job); next
+}
+
+# ci.check_names entries are `        - "name"` list items under the
+# `      check_names:` key. Gated on an explicit in_check_names flag rather than
+# on the 8-space indent alone: indent alone is true of every 8-space list item
+# in the ci section, and today check_names is the only such sequence, so a
+# future nested list under `ci:` would silently be read as check names. The flag
+# is set by the key. What CLOSES it, in the order a line hits these rules: the
+# workflow:/job: rules below clear it themselves (they `next`, so they never
+# reach the generic 6-space rule), the generic 6-space ci-key rule clears it and
+# deliberately does NOT `next`, and the 4-space-key rule that ends the whole ci
+# section clears it too -- that RULE is what separates one gate record from the
+# next, since every gate opens with 4-space keys. Be precise about which CLEARS
+# earn their keep, because mutation says only one does: removing the guard from
+# the item rule is caught, while removing the `in_check_names = 0` from either
+# reset_record() or the 4-space-key rule changes no output at all -- the latter
+# because `section = ""` on that same rule already disarms the item rule. Both
+# are belt-and-braces. The guard case in scripts/test-generate-ci-gates-doc.sh
+# pins the item-rule guard and the cross-gate behaviour, and does not pretend to
+# cover the two redundant assignments.
+section == "ci" && /^      check_names:/ && have_record {
+	in_check_names = 1
+	next
+}
+
+# Any OTHER 6-space key inside ci closes the check_names list. Ordering matters:
+# this sits after the check_names: rule (which `next`s) and before the item
+# rule, so the key that opens the list is not the key that closes it. The
+# workflow:/job: rules above also `next`, so they clear the flag themselves
+# rather than falling through to here -- which is why the assignment appears in
+# three places and not one.
+section == "ci" && /^      [a-z_]+:/ && have_record {
+	in_check_names = 0
+}
+
+section == "ci" && in_check_names && /^        - "/ && have_record {
+	check_name = $0
+	sub(/^        - /, "", check_name)
+	gsub(/^"|"$/, "", check_name)
+	if (check_name_count > 0) {
+		check_names = check_names ", "
+	}
+	check_names = check_names check_name
+	check_name_count++
+	next
 }
 
 END {

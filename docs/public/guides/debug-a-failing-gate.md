@@ -1,6 +1,6 @@
 <!-- docs-catalog
 title: Debug A Failing Ifá Gate
-description: Per-gate triage for the six Ifá CI gates, with the exact local execution needed to reproduce each one.
+description: Per-gate triage for the Ifá CI gates, with the exact local execution needed to reproduce each one.
 type: how-to
 audience: practitioner
 entrypoint: true
@@ -74,14 +74,48 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives nine cells — a fault-free
-baseline, a killed worker, a forced lease expiry, one failed graph write, a
-mid-drain backend restart, a SQL-scoped killed worker, a duplicate delivery, a
-generation-2 delta retract, and a SQL-anchored failed graph write — with zero
-durable dead letters throughout.
+(`bash scripts/verify-ifa-fault-injection.sh`) drives twenty-one cells — a
+fault-free baseline, a killed worker, a forced lease expiry, one failed graph
+write, a mid-drain backend restart, a duplicate delivery, a generation-2 delta
+retract, and per-family killed-worker and failed-graph-write cells for
+sql_relationships, code_calls, documentation_edges and rationale_edges, plus a
+scoped baseline and two recovery cells each for deployable_unit_edges and
+codeowners_ownership_edges — with zero durable dead letters throughout.
 
-The baseline cell establishes the canonical digest. Seven of the eight
-remaining cells assert recovery to that *identical* graph. The delta-retract
+In CI the twenty cells other than the shared fault-free baseline are split
+across four shards that run in
+parallel, and the fault-free baseline is repeated in every shard rather than
+partitioned into one — every recovery cell compares its graph against a
+baseline captured on the same runner, so CI executes twenty-four cells for a
+twenty-one-cell matrix. Locally the command above runs all of them in one
+pass. `--shard k/4` runs one shard, and `--list-cells` prints the partition
+without starting anything.
+
+### Reading a red check, and reproducing it
+
+CI runs this gate as **four parallel shards**, so a failure shows up as
+`fault-injection (shard N/4)` rather than a single `fault-injection` check. The
+shard number in the check name is the one you need:
+
+List the cells a shard owns, reproduce that shard alone, or print the whole
+matrix:
+
+```bash
+bash scripts/verify-ifa-fault-injection.sh --list-cells --shard 3/4
+bash scripts/verify-ifa-fault-injection.sh --shard 3/4
+bash scripts/verify-ifa-fault-injection.sh --list-cells
+```
+
+Both `--list-cells` forms are hermetic: no Docker, no compose, no build. Run
+them freely while something else holds the gate's ports.
+
+Note that `cell_baseline` runs in *every* shard — it writes the canonical
+digest each of the other cells in that shard compares against, so it is
+repeated per runner rather than plumbed between them. Both `k` and `n` are
+required; a bare `--shard 2` is rejected as malformed.
+
+The baseline cell establishes the canonical digest, and the recovery cells
+assert recovery to that *identical* graph. The delta-retract
 cell is the exception and asserts something
 different on purpose: generation 2 changes the graph, so its proof is the
 exact expected edge set rather than digest equality. If you are tempted to

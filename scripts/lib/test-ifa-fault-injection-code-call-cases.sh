@@ -77,7 +77,16 @@ test_ifa_fault_released_lock_holder_is_not_torn_down_twice() (
 	kill() { printf '%s\n' "$@" >>"${case_dir}/kill.log"; }
 	log() { :; }
 
-	ifa_code_call_release_intent_lock test "${holder_pid}"
+	# Drives the LIVE primitive, not the family wrapper. This family's kill cell
+	# now goes through the generic dispatcher, which calls
+	# ifa_fault_release_shared_intent_lock itself (ifa_fault_generic_cells.sh:246)
+	# with the family name as the lock namespace; the old
+	# ifa_code_call_release_intent_lock wrapper had no callers left and was
+	# deleted. Testing the wrapper would have been a helper-only probe over an
+	# unexercised subject -- the invariant below (a joined lock-holder PID must
+	# stop being tracked, so teardown cannot signal a reused PID) is worth
+	# keeping, but only against the code path that actually runs.
+	ifa_fault_release_shared_intent_lock test code_calls "${holder_pid}"
 	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
 		|| fail "joined code-call lock-holder PID remained in tracked ownership"
 	teardown_cell test

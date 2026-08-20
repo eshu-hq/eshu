@@ -15,6 +15,18 @@ const malformedNeo4jConnectivityErrorMessage = "neo4j connectivity error is miss
 const (
 	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
 	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
+	// nornicDBEngineClosedTransactionStartMsg is the SECOND spelling NornicDB
+	// uses for the same begin-side teardown, reported when the engine itself is
+	// already closed rather than only its WAL. Observed live in the
+	// restart-backend-between-phase-groups cell:
+	//   Neo.ClientError.Transaction.TransactionStartFailed
+	//   (failed to start transaction: engine is closed)
+	// dead-lettered a gcp_relationship_materialization write as
+	// failure_class=projection_bug. Both spellings mean no transaction body has
+	// run, so replay is equally safe; matching only the WAL wording made the
+	// restart cell intermittently fail on the very fault it injects, and did so
+	// as a terminal classification rather than a retry.
+	nornicDBEngineClosedTransactionStartMsg = "failed to start transaction: engine is closed"
 	// nornicDBStoreClosingCommitMsg is the body NornicDB reports under
 	// nornicDBTransactionCommitFailedCode when its embedded Badger store has
 	// already blocked writes for shutdown, so the commit is refused rather than
@@ -139,16 +151,20 @@ func isMalformedNeo4jConnectivityError(err error) bool {
 	return errors.As(err, &connectivityErr) && connectivityErr.Inner == nil
 }
 
-// isNornicDBRestartTransactionStartFailure recognizes the exact error emitted
-// when a backend restart closes the WAL before a new transaction can begin.
-// No transaction body has run, so both immediate and durable queue replay are
-// safe. Keep the message guard alongside the code because NornicDB currently
-// reports this backend-unavailable condition under a ClientError prefix.
+// isNornicDBRestartTransactionStartFailure recognizes the begin-side failures a
+// backend restart produces. NornicDB reports the same condition under two
+// message spellings -- the WAL closing ahead of a new transaction, and the
+// engine already being closed -- and this accepts both. No transaction body has
+// run in either case, so immediate and durable queue replay are equally safe.
+// Keep the message guard alongside the code because NornicDB reports this
+// backend-unavailable condition under a ClientError prefix, which would
+// otherwise classify as a terminal projection bug.
 func isNornicDBRestartTransactionStartFailure(err error) bool {
 	var neo4jErr *neo4jdriver.Neo4jError
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBRestartTransactionStartCode &&
-		neo4jErr.Msg == nornicDBRestartTransactionStartMsg
+		(neo4jErr.Msg == nornicDBRestartTransactionStartMsg ||
+			neo4jErr.Msg == nornicDBEngineClosedTransactionStartMsg)
 }
 
 // isNornicDBStoreClosingCommitFailure recognizes the commit-side twin of
