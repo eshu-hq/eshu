@@ -374,6 +374,19 @@ covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
   Non-org-aware credentials emit an `organizations_org_access_skipped` warning
   instead of fabricating partial organization truth.
 
+## This Directory Is Over The File Cap And Will Be Restructured
+
+The one-file-per-service constants layout puts this directory well above the
+`dirgate` cap, held open by a stopgap grandfather row rather than by a decision
+that the shape is right. It is in scope for restructure under epic #6053, which
+targets zero grandfathered directories. Do not read the current layout as
+settled.
+
+`AGENTS.md`, under the heading of the same name, carries the measurements a
+restructure needs — the file counts, the import surface and its composition, and
+what is and is not yet decided about the seam. The numbers live there rather than
+here so there is one place to correct when they move.
+
 ## Refactor Evidence (types.go Constants Split)
 
 The PR that splits the per-service `Service<X>`, `ResourceType<X>...`, and
