@@ -28,6 +28,7 @@ rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 codeowners_lib="${repo_root}/scripts/lib/ifa_codeowners_live.sh"
 submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
+require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
@@ -54,6 +55,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${deployable_unit_converge_lib}" ]] || fail "missing ${deployable_unit_converge_lib}"
 [[ -f "${rationale_lib}" ]] || fail "missing ${rationale_lib}"
 [[ -f "${fixtures_lib}" ]] || fail "missing ${fixtures_lib}"
+[[ -f "${require_helpers_lib}" ]] || fail "missing ${require_helpers_lib}"
 [[ -f "${family_cases_lib}" ]] || fail "missing ${family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
@@ -73,6 +75,7 @@ bash -n "${deployable_unit_diagnostics_lib}" || fail "ifa_deployable_unit_live_d
 bash -n "${deployable_unit_converge_lib}" || fail "ifa_deployable_unit_live_converge.sh has a syntax error"
 bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
 bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
+bash -n "${require_helpers_lib}" || fail "test-ifa-determinism-require-helpers.sh has a syntax error"
 bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
@@ -194,57 +197,15 @@ require_fixture() {
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
 }
-require_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (lib): ${needle}, or it survives only inside a comment"
-}
-require_lifecycle_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${lifecycle_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (lifecycle lib): ${needle}, or it survives only inside a comment"
-}
-require_delta_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${delta_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (delta lib): ${needle}, or it survives only inside a comment"
-}
-require_code_call_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${code_call_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (code-call lib): ${needle}, or it survives only inside a comment"
-}
-require_documentation_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${documentation_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (documentation lib): ${needle}, or it survives only inside a comment"
-}
-require_deployable_unit_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${deployable_unit_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (deployable-unit lib): ${needle}, or it survives only inside a comment"
-}
-
-require_rationale_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${rationale_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (rationale lib): ${needle}, or it survives only inside a comment"
-}
-
-# Code-binding, so it goes through the same code-portion matcher as require_code:
-# every needle it carries asserts the codeowners live lib DOES something (its
-# assert-edges domain, its labeled signature, its exact-set framing), and a
-# comment quoting any of them must not stand in for the call.
-require_codeowners_lib() {
-	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${codeowners_lib}")" -ge 1 ]] \
-		|| fail "missing ${label} (codeowners lib), or it survives only inside a comment: ${needle}"
-}
-
-require_submodule_pin_lib() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${submodule_pin_lib}" || fail "missing ${label} (submodule-pin lib): ${needle}"
-}
+# Per-family require_*_lib() helpers (require_lib, require_lifecycle_lib,
+# require_delta_lib, require_code_call_lib, require_documentation_lib,
+# require_deployable_unit_lib, require_rationale_lib, require_codeowners_lib,
+# require_submodule_pin_lib) live in a sourced module so this structural
+# verifier stays below 500 lines (mirroring the fault-injection sibling's
+# per-mechanism case-module split). They call _ifa_det_count_code_matches
+# above and the *_lib path variables declared at the top of this file.
+# shellcheck source=scripts/lib/test-ifa-determinism-require-helpers.sh
+source "${require_helpers_lib}"
 
 # Strict mode and self-cleanup.
 require_line "strict mode" "set -euo pipefail"
