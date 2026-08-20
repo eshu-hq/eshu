@@ -679,8 +679,27 @@ count covers them. They are rows because each needs its own decision:
 | --- | --- | --- |
 | Property name from a Go variable | `go/internal/query/impact_change_surface_resolvers.go:113,131,142`, callers at `:29,32,41,42,80,83,88,93` | Builders carry no literal `id`; call sites carry no `$`. Neither end matches. |
 | Label, variable and parameter all dynamic | `go/internal/query/impact_anchor_resolve.go:31,46-48` | **A generator, not a site** — it emits one anchor per label per property, and `Workload`/`WorkloadInstance` are in the label list. There is no count to state. |
-| Label-less `impacted.id <> $target_id` | `go/internal/query/impact_change_surface_traversal.go:18,34,42`, `impact_change_surface_legacy.go:126` | Each has a surrounding label predicate naming `Workload` and `WorkloadInstance`. |
+| Label-less `impacted.id <> $target_id`, can bind a Workload | `go/internal/query/impact_change_surface_traversal.go:34`, `impact_change_surface_legacy.go:126` | `:34` matches unlabelled `(impacted)` with the label predicate at `:36`; the legacy statement names both labels inside `any(label IN labels(impacted) …)`. **`:36` is textually present and operationally inert** — see below. |
+| Same `impacted.id <> $target_id` shape, but **`Repository`-anchored** | `go/internal/query/impact_change_surface_traversal.go:18`, `:42` | Both label `impacted` inline on the MATCH as `(impacted:Repository)`, so neither is label-less and neither names `Workload` or `WorkloadInstance`. `:18` is a `(start:Repository)<-[:DEPENDS_ON*]-(impacted:Repository)` traversal and cannot bind a workload at all. Listed only because they share the shape a reader would grep for. |
 | Label-less by-id anchors that can resolve a Workload | `go/internal/query/infra_relationship_filter.go:88`, `go/internal/query/entity.go:283` | `MATCH (n) WHERE n.id = $entity_id` and similar. |
+
+**On `:36` being inert.** `impact_change_surface_traversal.go:150-156` states that the
+pinned NornicDB build "does not evaluate that clause position as a filter -- label tests
+there are silently dropped and every reachable node comes back", and that combining the
+`repo_id` and label predicates into one `WHERE` empties the traversal on the same build,
+so no clause arrangement filters correctly server-side today. Enforcement therefore lives
+in Go (`changeSurfaceImpactedLabels`, `changeSurfaceRowLabelAdmitted`, #6186). A re-key
+must treat that row's label predicate as documentation of intent, not as a filter that
+runs.
+
+**What this row's history says about the table.** An earlier revision called all four
+citations label-less and claimed each carried a `Workload`/`WorkloadInstance` predicate;
+two of the four are `Repository`-anchored and carry neither. The criterion's count stayed
+27 throughout and would have stayed 27 through the drift, because `impacted` is not in its
+variable allowlist and these lines were never among the 27. So this table's failure mode is
+**characterisation drift**, which no count detects — the second axis section 4.1's
+enforcement rungs do not cover, and the reason this table is the one to re-read rather than
+re-count.
 
 So there is no single honest number for this category. "27 statically greppable
 sites at `bdd4f6768`, plus the runtime-composed anchors above, one of which is a
