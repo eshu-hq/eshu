@@ -32,31 +32,31 @@ func TestRepoDependencyFamilyCassetteSatisfiesProductionContract(t *testing.T) {
 	if got, want := file.Collector, "git"; got != want {
 		t.Errorf("collector = %q, want %q", got, want)
 	}
-	if got, want := len(file.Scopes), 1; got != want {
+	if got, want := len(file.Scopes), 7; got != want {
 		t.Fatalf("scope count = %d, want %d", got, want)
 	}
-	scope := file.Scopes[0]
-	if got, want := scope.SourceSystem, "git"; got != want {
-		t.Errorf("source_system = %q, want %q", got, want)
+	totalFacts := 0
+	for index, scope := range file.Scopes {
+		if scope.SourceSystem != "git" || scope.ScopeKind != "repo" || scope.CollectorKind != "git" {
+			t.Errorf("scope %d source/scope/collector = %q/%q/%q, want git/repo/git", index, scope.SourceSystem, scope.ScopeKind, scope.CollectorKind)
+		}
+		if scope.ObservedAt.IsZero() || scope.Metadata["repo_id"] == "" || scope.Metadata["repo_path"] == "" {
+			t.Errorf("scope %d has incomplete production metadata: %+v", index, scope)
+		}
+		totalFacts += len(scope.Facts)
 	}
-	if got, want := scope.ScopeKind, "repo"; got != want {
-		t.Errorf("scope_kind = %q, want %q", got, want)
-	}
-	if got, want := scope.CollectorKind, "git"; got != want {
-		t.Errorf("collector_kind = %q, want %q", got, want)
-	}
-	if scope.ObservedAt.IsZero() {
-		t.Error("observed_at is zero")
-	}
-	if got, want := len(scope.Facts), 16; got != want {
+	if got, want := totalFacts, 18; got != want {
 		t.Fatalf("production cassette fact count = %d, want %d", got, want)
+	}
+	if got := file.Scopes[len(file.Scopes)-1].Metadata["repo_id"]; got != repoDependencyFamilySourceRepoID {
+		t.Fatalf("last scope repo_id = %q, want evidence-bearing source %q", got, repoDependencyFamilySourceRepoID)
 	}
 
 	odu, err := LoadRepoDependencyFamilyOdu(path)
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
-	if got, want := len(odu.Facts), 16; got != want {
+	if got, want := len(odu.Facts), 18; got != want {
 		t.Fatalf("Odù fact count = %d, want %d", got, want)
 	}
 }
@@ -69,44 +69,42 @@ func TestRepoDependencyFamilyCassetteEmitsProductionGeneration(t *testing.T) {
 		t.Fatalf("cassette.NewSource: %v", err)
 	}
 
-	generation, ok, err := source.Next(context.Background())
-	if err != nil || !ok {
-		t.Fatalf("Source.Next() = (_, %v, %v), want generation", ok, err)
-	}
-	if got, want := generation.Scope.ScopeID, "scope-ifa-repo-dependency-family"; got != want {
-		t.Errorf("scope id = %q, want %q", got, want)
-	}
-	if got, want := string(generation.Scope.ScopeKind), "repo"; got != want {
-		t.Errorf("scope kind = %q, want %q", got, want)
-	}
-	if got, want := generation.Scope.SourceSystem, "git"; got != want {
-		t.Errorf("source system = %q, want %q", got, want)
-	}
-	if got, want := string(generation.Scope.CollectorKind), "git"; got != want {
-		t.Errorf("collector kind = %q, want %q", got, want)
-	}
-	if got, want := generation.Generation.GenerationID, "gen-ifa-repo-dependency-family-1"; got != want {
-		t.Errorf("generation id = %q, want %q", got, want)
-	}
-	if generation.Generation.ObservedAt.IsZero() {
-		t.Error("generation observed_at is zero")
-	}
-
-	count := 0
-	for envelope := range generation.Facts {
-		count++
-		if envelope.ScopeID != generation.Scope.ScopeID || envelope.GenerationID != generation.Generation.GenerationID {
-			t.Errorf("envelope %d scope/generation = %q/%q, want %q/%q", count, envelope.ScopeID, envelope.GenerationID, generation.Scope.ScopeID, generation.Generation.GenerationID)
+	total := 0
+	for generationIndex := 0; generationIndex < 7; generationIndex++ {
+		generation, ok, err := source.Next(context.Background())
+		if err != nil || !ok {
+			t.Fatalf("Source.Next(%d) = (_, %v, %v), want generation", generationIndex, ok, err)
 		}
-		if envelope.CollectorKind != "git" || envelope.ObservedAt.IsZero() {
-			t.Errorf("envelope %d collector/observed_at = %q/%v, want git/nonzero", count, envelope.CollectorKind, envelope.ObservedAt)
+		if generation.Scope.ScopeKind != "repo" || generation.Scope.SourceSystem != "git" || generation.Scope.CollectorKind != "git" {
+			t.Errorf("generation %d has invalid scope metadata: %+v", generationIndex, generation.Scope)
+		}
+		if generation.Generation.ObservedAt.IsZero() {
+			t.Errorf("generation %d observed_at is zero", generationIndex)
+		}
+		count := 0
+		for envelope := range generation.Facts {
+			count++
+			if envelope.ScopeID != generation.Scope.ScopeID || envelope.GenerationID != generation.Generation.GenerationID || envelope.FactID == "" {
+				t.Errorf("generation %d envelope %d has invalid production coordinates: %+v", generationIndex, count, envelope)
+			}
+		}
+		total += count
+		wantCount := 1
+		if generationIndex == 6 {
+			wantCount = 12
+			if generation.Scope.Metadata["repo_id"] != repoDependencyFamilySourceRepoID {
+				t.Errorf("last generation is not evidence-bearing source: %+v", generation.Scope.Metadata)
+			}
+		}
+		if count != wantCount {
+			t.Errorf("generation %d fact count = %d, want %d", generationIndex, count, wantCount)
 		}
 	}
-	if got, want := count, 16; got != want {
-		t.Fatalf("emitted envelopes = %d, want %d", got, want)
+	if total != 18 {
+		t.Fatalf("emitted envelopes = %d, want 18", total)
 	}
 	if _, ok, err := source.Next(context.Background()); err != nil || ok {
-		t.Fatalf("Source.Next() after sole scope = (_, %v, %v), want EOF-like (_, false, nil)", ok, err)
+		t.Fatalf("Source.Next() after seven scopes = (_, %v, %v), want EOF-like (_, false, nil)", ok, err)
 	}
 }
 
@@ -165,12 +163,14 @@ func TestRepoDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 		}
 	}
 
-	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
-		t.Fatal("repo_dependency-family Odù has no generation ID; active-generation publication would be unidentifiable")
-	}
-	for _, sibling := range []string{"gen-1", "gen-ifa-code-call-family-1", "gen-ifa-deployable-unit-family-1"} {
-		if odu.Facts[0].GenerationID == sibling {
-			t.Fatalf("repo_dependency-family generation ID %q collides with a sibling family's generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
+	for _, fact := range odu.Facts {
+		if strings.TrimSpace(fact.GenerationID) == "" {
+			t.Fatal("repo_dependency-family Odù has a blank generation ID; active-generation publication would be unidentifiable")
+		}
+		for _, sibling := range []string{"gen-1", "gen-ifa-code-call-family-1", "gen-ifa-deployable-unit-family-1"} {
+			if fact.GenerationID == sibling {
+				t.Fatalf("repo_dependency-family generation ID %q collides with a sibling family's generation", fact.GenerationID)
+			}
 		}
 	}
 }
@@ -210,12 +210,21 @@ func TestRepoDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	if err := json.Unmarshal(raw, &onDisk); err != nil {
 		t.Fatalf("parse cassette: %v", err)
 	}
-	if len(onDisk.Scopes) != 1 || len(onDisk.Scopes[0].Facts) != len(odu.Facts) {
-		t.Fatalf("fact count mismatch: cassette has %d, Odù has %d", len(onDisk.Scopes[0].Facts), len(odu.Facts))
+	var diskFacts []struct {
+		FactKind      string `json:"fact_kind"`
+		SchemaVersion string `json:"schema_version"`
+		StableFactKey string `json:"stable_fact_key"`
+		CollectorKind string `json:"collector_kind"`
+	}
+	for _, scope := range onDisk.Scopes {
+		diskFacts = append(diskFacts, scope.Facts...)
+	}
+	if len(onDisk.Scopes) != 7 || len(diskFacts) != len(odu.Facts) {
+		t.Fatalf("fact count mismatch: cassette has %d scopes/%d facts, Odù has %d", len(onDisk.Scopes), len(diskFacts), len(odu.Facts))
 	}
 
 	checked := 0
-	for i, want := range onDisk.Scopes[0].Facts {
+	for i, want := range diskFacts {
 		got := odu.Facts[i]
 		if want.SchemaVersion == "" {
 			t.Fatalf("fact %d (%s) declares no schema_version; this guard would be vacuous", i, want.FactKind)
@@ -253,5 +262,9 @@ func TestRepoDependencyFamilyOduInCatalogSeed(t *testing.T) {
 	}
 	if len(odu.Facts) == 0 {
 		t.Fatalf("cataloged %q carries no facts", repoDependencyFamilyOduName)
+	}
+	detail := repoDependencyFamilyOdu().Detail
+	if !strings.Contains(detail, "seven repository scopes and 18 facts") {
+		t.Fatalf("cataloged %q detail does not pin the multi-scope production shape: %q", repoDependencyFamilyOduName, detail)
 	}
 }

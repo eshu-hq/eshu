@@ -36,6 +36,13 @@ split was taken, not over it. It owns:
   `ifa/<family>_family_odu_test.go` for the same reason: it can only reach
   the guard's unexported internals from this side of the package boundary).
 
+`repoDependencyFamilyOdu` (`repo_dependency_family_catalog.go`) carries seven
+unique repository scopes and 18 facts: six target-only scopes first and the
+evidence-bearing source scope last. The source includes the
+`workload_materialization and deployment_mapping scheduling followups` used by
+production admission. Together the two live gates prove all seven
+repo-dependency writer-registry types.
+
 It does NOT own: the Odù catalog itself (`Odu`, `Catalog`, `CatalogByName`,
 `DiscoveredEvidence` all stay in `ifa`), the per-family fixture builders that
 seed the catalog (`*_family_catalog.go`, `*_family_odu.go` stay in `ifa`

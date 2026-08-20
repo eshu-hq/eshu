@@ -64,8 +64,8 @@ import (
 //     match.
 const (
 	repoDependencyFamilyOduName      = "odu:ifa-repo-dependency-family"
-	repoDependencyFamilyScopeID      = "scope-ifa-repo-dependency-family"
-	repoDependencyFamilyGenerationID = "gen-ifa-repo-dependency-family-1"
+	repoDependencyFamilyScopeID      = "scope-ifa-repo-dependency-repo-dependency-family-source"
+	repoDependencyFamilyGenerationID = "gen-ifa-repo-dependency-repo-dependency-family-source-1"
 	repoDependencyFamilySourceRunID  = "run-ifa-repo-dependency-family-1"
 
 	repoDependencyFamilySourceRepoID = "repo-ifa-repo-dependency-source"
@@ -125,13 +125,13 @@ const (
 // of the repo_dependency family fixture.
 func repoDependencyFamilyOdu() CatalogOdu {
 	factsForOdu := []facts.Envelope{
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilySourceRepoID, repoDependencyFamilySourceName, repoDependencyFamilySourceSlug),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetProvisionsRepoID, repoDependencyFamilyTargetProvisionsName, "ifa-org/"+repoDependencyFamilyTargetProvisionsName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetUsesModuleRepoID, repoDependencyFamilyTargetUsesModuleName, "ifa-org/"+repoDependencyFamilyTargetUsesModuleName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDiscoversConfigRepoID, repoDependencyFamilyTargetDiscoversConfigName, "ifa-org/"+repoDependencyFamilyTargetDiscoversConfigName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDependsOnRepoID, repoDependencyFamilyTargetDependsOnName, "ifa-org/"+repoDependencyFamilyTargetDependsOnName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDeploysFromRepoID, repoDependencyFamilyTargetDeploysFromName, "ifa-org/"+repoDependencyFamilyTargetDeploysFromName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetReadsConfigRepoID, repoDependencyFamilyTargetReadsConfigName, "ifa-org/"+repoDependencyFamilyTargetReadsConfigName),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilySourceRepoID, repoDependencyFamilySourceName, repoDependencyFamilySourceSlug),
 		repoDependencyFamilyFileFact(codegraphv1.File{
 			RepoID:       repoDependencyFamilySourceRepoID,
 			RelativePath: "deploy/application.yaml",
@@ -193,10 +193,12 @@ func repoDependencyFamilyOdu() CatalogOdu {
 			"env/ifa-repo-dependency/prefix.tf", "terraform_hcl",
 			`app_repo = "`+repoDependencyFamilyNearMissAlias+`"`+"\n",
 		),
+		repoDependencyFamilyFollowupFact("workload_materialization", "workload:"+repoDependencyFamilySourceName),
+		repoDependencyFamilyFollowupFact("deployment_mapping", "deployment:"+repoDependencyFamilySourceName),
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: repoDependencyFamilyOduName, Facts: factsForOdu},
-		Detail: "one source repository with six content facts each producing exactly one repo-to-repo dependency type against a distinct target repository " +
+		Detail: "seven repository scopes and 18 facts, with six target-only scopes first and one evidence-bearing source scope last; the source has six content facts each producing exactly one repo-to-repo dependency type against a distinct target repository " +
 			"(PROVISIONS_DEPENDENCY_FOR, USES_MODULE, DISCOVERS_CONFIG_IN, DEPENDS_ON, DEPLOYS_FROM, READS_CONFIG_FROM), " +
 			"plus one ArgoCD/Kubernetes file fact producing a RUNS_ON relationship from the source repository's prod WorkloadInstance to the prod-cluster Platform, " +
 			"plus a self-reference and a near-miss-alias content fact that must produce zero evidence -- " +
@@ -220,13 +222,24 @@ func RepoDependencyFamilyOdu() CatalogOdu {
 // discovery needs only the untyped alias fields, not a full codegraph
 // Repository contract.
 func repoDependencyFamilyRepositoryFact(repoID, name, repoSlug string) facts.Envelope {
-	return repoDependencyFamilyFact(repositoryFactKind, "repository:"+repoID, map[string]any{
-		"graph_id":      repoID,
-		"name":          name,
-		"repo_id":       repoID,
-		"repo_slug":     repoSlug,
-		"source_run_id": repoDependencyFamilySourceRunID,
-	})
+	scopeID, generationID := repoDependencyFamilyRepoCoordinates(name)
+	payload := map[string]any{
+		"graph_id":          repoID,
+		"graph_kind":        "repository",
+		"name":              name,
+		"repo_id":           repoID,
+		"repo_slug":         repoSlug,
+		"remote_url":        "https://github.com/ifa-org/" + name + ".git",
+		"local_path":        "/fixtures/ifa/" + name,
+		"parsed_file_count": "0",
+		"is_dependency":     repoID != repoDependencyFamilySourceRepoID,
+		"source_run_id":     repoDependencyFamilySourceRunID,
+	}
+	return repoDependencyFamilyFactAt(scopeID, generationID, repositoryFactKind, "repository:"+repoID, payload)
+}
+
+func repoDependencyFamilyRepoCoordinates(name string) (string, string) {
+	return "scope-ifa-repo-dependency-" + name, "gen-ifa-repo-dependency-" + name + "-1"
 }
 
 // repoDependencyFamilyFileFact builds a typed file fact and adds the raw
@@ -260,16 +273,30 @@ func repoDependencyFamilyContentFact(path, artifactType, body string) facts.Enve
 	})
 }
 
-// repoDependencyFamilyFact stamps the family's single scope/generation onto
-// one fact envelope. Deliberately mirrors deployableUnitCatalogFact's field
+func repoDependencyFamilyFollowupFact(domain, entityKey string) facts.Envelope {
+	return repoDependencyFamilyFact("shared_followup", "shared_followup:"+repoDependencyFamilySourceRepoID+":"+domain, map[string]any{
+		"reducer_domain": domain,
+		"entity_key":     entityKey,
+		"reason":         "repository snapshot emitted " + domain + " follow-up",
+		"repo_id":        repoDependencyFamilySourceRepoID,
+	})
+}
+
+// repoDependencyFamilyFact stamps the family's evidence-bearing source
+// coordinates onto one fact envelope. Deliberately mirrors
+// deployableUnitCatalogFact's field
 // set exactly (no FactID, ObservedAt, or SourceRef): both the compiled Odù
 // and its cassette-loaded projection must render identical zero-value
 // envelopes on those fields for
 // TestRepoDependencyFamilyCassetteMatchesCompiledCatalog's reflect.DeepEqual
 // to hold.
 func repoDependencyFamilyFact(kind, stableKey string, payload map[string]any) facts.Envelope {
+	return repoDependencyFamilyFactAt(repoDependencyFamilyScopeID, repoDependencyFamilyGenerationID, kind, stableKey, payload)
+}
+
+func repoDependencyFamilyFactAt(scopeID, generationID, kind, stableKey string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		ScopeID: repoDependencyFamilyScopeID, GenerationID: repoDependencyFamilyGenerationID, FactKind: kind,
+		ScopeID: scopeID, GenerationID: generationID, FactKind: kind,
 		StableFactKey: stableKey, SchemaVersion: "1.0.0", CollectorKind: "git",
 		SourceConfidence: "observed", Payload: payload,
 	}

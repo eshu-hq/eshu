@@ -12,7 +12,7 @@ ifa_repo_dependency_body_has_order() {
 
 run_ifa_fault_injection_repo_dependency_cases() {
 	local root script shard cells live fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
-	local gated_body gated_query_line terminal_body kill_body graph_body prerequisite_body edge_type needle
+	local gated_body terminal_body kill_body graph_body prerequisite_body edge_type needle
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
 	shard="${root}/scripts/lib/ifa_fault_shard.sh"
@@ -25,6 +25,13 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	source "${fixtures}"
 	[[ "${repo_dependency_cassette}" == "${expected_cassette}" && -f "${repo_dependency_cassette}" ]] || return 1
 	[[ "${repo_dependency_expected_edges}" == "${expected_edges}" && -f "${repo_dependency_expected_edges}" ]] || return 1
+	jq -e '
+		(.scopes | length) == 7 and
+		([.scopes[].facts | length] | add) == 18 and
+		([.scopes[0:6][].facts | length] | all(. == 1)) and
+		.scopes[6].metadata.repo_id == "repo-ifa-repo-dependency-source" and
+		([.scopes[6].facts[] | select(.fact_kind == "shared_followup") | .payload.reducer_domain] | sort) == ["deployment_mapping", "workload_materialization"]
+	' "${expected_cassette}" >/dev/null || return 1
 	[[ -f "${cells}" ]] || { printf 'repo_dependency cells missing: %s\n' "${cells}" >&2; return 1; }
 	# shellcheck source=scripts/lib/ifa_repo_dependency_live.sh
 	source "${live}"
@@ -48,11 +55,25 @@ run_ifa_fault_injection_repo_dependency_cases() {
 		'platform_id=platform:kubernetes:none:cluster/prod-cluster:none:none verified=1' || return 1
 	gated_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_live_assert_gated\(\) \{.*?^\}' "${live}")"
 	[[ -n "${gated_body}" ]] || return 1
-	gated_query_line="$(printf '%s\n' "${gated_body}" | rg --fixed-strings -- 'count="$(jq ' | head -1)"
-	[[ -n "${gated_query_line}" ]] || return 1
+	[[ "${gated_body}" == *'count="$(jq '* ]] || return 1
+	[[ "${gated_body}" == *'.props.evidence_source == "resolver/cross-repo"'* ]] || return 1
 	for edge_type in PROVISIONS_DEPENDENCY_FOR USES_MODULE DISCOVERS_CONFIG_IN DEPENDS_ON DEPLOYS_FROM READS_CONFIG_FROM RUNS_ON; do
-		[[ "${gated_query_line}" == *"\"${edge_type}\""* ]] || return 1
+		[[ "${gated_body}" == *"\"${edge_type}\""* ]] || return 1
 	done
+	local fake_bin fixture edge_json
+	fake_bin="$(mktemp -d)" || return 1
+	fixture="${fake_bin}/graph.json"
+	printf '%s\n' '#!/usr/bin/env bash' 'cp "${IFA_REPO_DEPENDENCY_GRAPH_FIXTURE}" "$3"' >"${fake_bin}/eshu-ifa"
+	chmod +x "${fake_bin}/eshu-ifa"
+	edge_json='{"type":"RUNS_ON","from":"workload","to":"platform","props":{"evidence_source":"reducer/workload-materialization"}}'
+	printf '{"edges":[%s],"nodes":[]}\n' "${edge_json}" >"${fixture}"
+	IFA_REPO_DEPENDENCY_GRAPH_FIXTURE="${fixture}" ifa_repo_dependency_live_assert_gated "${fake_bin}" || return 1
+	for edge_type in PROVISIONS_DEPENDENCY_FOR USES_MODULE DISCOVERS_CONFIG_IN DEPENDS_ON DEPLOYS_FROM READS_CONFIG_FROM RUNS_ON; do
+		edge_json="{\"type\":\"${edge_type}\",\"from\":\"source\",\"to\":\"target\",\"props\":{\"evidence_source\":\"resolver/cross-repo\"}}"
+		printf '{"edges":[%s],"nodes":[]}\n' "${edge_json}" >"${fixture}"
+		! IFA_REPO_DEPENDENCY_GRAPH_FIXTURE="${fixture}" ifa_repo_dependency_live_assert_gated "${fake_bin}" || return 1
+	done
+	rm -rf "${fake_bin}"
 	terminal_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_fault_assert_terminal\(\) \{.*?^\}' "${cells}")"
 	kill_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_killworker_repo_dependency\(\) \{.*?^\}' "${cells}")"
 	graph_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_failgraphwrite_repo_dependency\(\) \{.*?^\}' "${cells}")"

@@ -36,7 +36,9 @@ ifa_repo_dependency_live_assert_gated() {
 	trap 'rm -f "${ifa_repo_dependency_pre_gate_dump_path:-}"' RETURN
 	command -v jq >/dev/null 2>&1 || { echo "repo_dependency: jq is required for the pre-maintenance zero-edge proof" >&2; return 1; }
 	"${bin_dir}/eshu-ifa" graph-dump -out "${ifa_repo_dependency_pre_gate_dump_path}" || return 1
-	count="$(jq '[.edges[] | select(.type == "PROVISIONS_DEPENDENCY_FOR" or .type == "USES_MODULE" or .type == "DISCOVERS_CONFIG_IN" or .type == "DEPENDS_ON" or .type == "DEPLOYS_FROM" or .type == "READS_CONFIG_FROM" or .type == "RUNS_ON")] | length' "${ifa_repo_dependency_pre_gate_dump_path}")" || return 1
+	count="$(jq '[.edges[]
+		| select(.props.evidence_source == "resolver/cross-repo")
+		| select(.type == "PROVISIONS_DEPENDENCY_FOR" or .type == "USES_MODULE" or .type == "DISCOVERS_CONFIG_IN" or .type == "DEPENDS_ON" or .type == "DEPLOYS_FROM" or .type == "READS_CONFIG_FROM" or .type == "RUNS_ON")] | length' "${ifa_repo_dependency_pre_gate_dump_path}")" || return 1
 	[[ "${count}" =~ ^[0-9]+$ && "${count}" == "0" ]]
 }
 

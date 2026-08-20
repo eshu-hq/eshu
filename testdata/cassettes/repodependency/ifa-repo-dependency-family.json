@@ -3,16 +3,240 @@
   "schema_version": "1",
   "scopes": [
     {
-      "scope_id": "scope-ifa-repo-dependency-family",
+      "scope_id": "scope-ifa-repo-dependency-target-provisions",
       "source_system": "git",
       "scope_kind": "repo",
       "collector_kind": "git",
-      "partition_key": "scope-ifa-repo-dependency-family",
+      "partition_key": "scope-ifa-repo-dependency-target-provisions",
       "metadata": {
-        "fixture": "ifa-repo-dependency-family"
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-provisions",
+        "repo_path": "/fixtures/ifa/target-provisions"
       },
-      "generation_id": "gen-ifa-repo-dependency-family-1",
-      "observed_at": "2026-08-20T00:00:00Z",
+      "generation_id": "gen-ifa-repo-dependency-target-provisions-1",
+      "observed_at": "2026-08-20T00:00:01Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-provisions",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-provisions",
+            "name": "target-provisions",
+            "repo_id": "repo-ifa-repo-dependency-target-provisions",
+            "repo_slug": "ifa-org/target-provisions",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-provisions",
+            "remote_url": "https://github.com/ifa-org/target-provisions.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-target-usesmodule",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-target-usesmodule",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-usesmodule",
+        "repo_path": "/fixtures/ifa/target-usesmodule"
+      },
+      "generation_id": "gen-ifa-repo-dependency-target-usesmodule-1",
+      "observed_at": "2026-08-20T00:00:02Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-usesmodule",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-usesmodule",
+            "name": "target-usesmodule",
+            "repo_id": "repo-ifa-repo-dependency-target-usesmodule",
+            "repo_slug": "ifa-org/target-usesmodule",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-usesmodule",
+            "remote_url": "https://github.com/ifa-org/target-usesmodule.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-target-discoversconfig",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-target-discoversconfig",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-discoversconfig",
+        "repo_path": "/fixtures/ifa/target-discoversconfig"
+      },
+      "generation_id": "gen-ifa-repo-dependency-target-discoversconfig-1",
+      "observed_at": "2026-08-20T00:00:03Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-discoversconfig",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-discoversconfig",
+            "name": "target-discoversconfig",
+            "repo_id": "repo-ifa-repo-dependency-target-discoversconfig",
+            "repo_slug": "ifa-org/target-discoversconfig",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-discoversconfig",
+            "remote_url": "https://github.com/ifa-org/target-discoversconfig.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-target-dependson",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-target-dependson",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-dependson",
+        "repo_path": "/fixtures/ifa/target-dependson"
+      },
+      "generation_id": "gen-ifa-repo-dependency-target-dependson-1",
+      "observed_at": "2026-08-20T00:00:04Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-dependson",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-dependson",
+            "name": "target-dependson",
+            "repo_id": "repo-ifa-repo-dependency-target-dependson",
+            "repo_slug": "ifa-org/target-dependson",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-dependson",
+            "remote_url": "https://github.com/ifa-org/target-dependson.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-target-deploysfrom",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-target-deploysfrom",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-deploysfrom",
+        "repo_path": "/fixtures/ifa/target-deploysfrom"
+      },
+      "generation_id": "gen-ifa-repo-dependency-target-deploysfrom-1",
+      "observed_at": "2026-08-20T00:00:05Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-deploysfrom",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-deploysfrom",
+            "name": "target-deploysfrom",
+            "repo_id": "repo-ifa-repo-dependency-target-deploysfrom",
+            "repo_slug": "ifa-org/target-deploysfrom",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-deploysfrom",
+            "remote_url": "https://github.com/ifa-org/target-deploysfrom.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-target-readsconfig",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-target-readsconfig",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-target-readsconfig",
+        "repo_path": "/fixtures/ifa/target-readsconfig"
+      },
+      "generation_id": "gen-ifa-repo-dependency-target-readsconfig-1",
+      "observed_at": "2026-08-20T00:00:06Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-readsconfig",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-readsconfig",
+            "name": "target-readsconfig",
+            "repo_id": "repo-ifa-repo-dependency-target-readsconfig",
+            "repo_slug": "ifa-org/target-readsconfig",
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": true,
+            "local_path": "/fixtures/ifa/target-readsconfig",
+            "remote_url": "https://github.com/ifa-org/target-readsconfig.git"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-repo-dependency-repo-dependency-family-source",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-repo-dependency-repo-dependency-family-source",
+      "metadata": {
+        "fixture": "ifa-repo-dependency-family",
+        "repo_id": "repo-ifa-repo-dependency-source",
+        "repo_path": "/fixtures/ifa/repo-dependency-family-source"
+      },
+      "generation_id": "gen-ifa-repo-dependency-repo-dependency-family-source-1",
+      "observed_at": "2026-08-20T00:00:07Z",
       "trigger_kind": "snapshot",
       "facts": [
         {
@@ -27,97 +251,12 @@
             "name": "repo-dependency-family-source",
             "repo_id": "repo-ifa-repo-dependency-source",
             "repo_slug": "ifa-org/repo-dependency-family-source",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-provisions",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-provisions",
-            "name": "target-provisions",
-            "repo_id": "repo-ifa-repo-dependency-target-provisions",
-            "repo_slug": "ifa-org/target-provisions",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-usesmodule",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-usesmodule",
-            "name": "target-usesmodule",
-            "repo_id": "repo-ifa-repo-dependency-target-usesmodule",
-            "repo_slug": "ifa-org/target-usesmodule",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-discoversconfig",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-discoversconfig",
-            "name": "target-discoversconfig",
-            "repo_id": "repo-ifa-repo-dependency-target-discoversconfig",
-            "repo_slug": "ifa-org/target-discoversconfig",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-dependson",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-dependson",
-            "name": "target-dependson",
-            "repo_id": "repo-ifa-repo-dependency-target-dependson",
-            "repo_slug": "ifa-org/target-dependson",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-deploysfrom",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-deploysfrom",
-            "name": "target-deploysfrom",
-            "repo_id": "repo-ifa-repo-dependency-target-deploysfrom",
-            "repo_slug": "ifa-org/target-deploysfrom",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
-          }
-        },
-        {
-          "fact_kind": "repository",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "repository:repo-ifa-repo-dependency-target-readsconfig",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "graph_id": "repo-ifa-repo-dependency-target-readsconfig",
-            "name": "target-readsconfig",
-            "repo_id": "repo-ifa-repo-dependency-target-readsconfig",
-            "repo_slug": "ifa-org/target-readsconfig",
-            "source_run_id": "run-ifa-repo-dependency-family-1"
+            "source_run_id": "run-ifa-repo-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/repo-dependency-family-source",
+            "remote_url": "https://github.com/ifa-org/repo-dependency-family-source.git"
           }
         },
         {
@@ -261,6 +400,34 @@
             "commit_sha": "0123456789abcdef0123456789abcdef01234567",
             "content_body": "app_repo = \"target-provisions-extra\"\n",
             "content_path": "env/ifa-repo-dependency/prefix.tf",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-repo-dependency-source:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:repo-dependency-family-source",
+            "reason": "repository snapshot emitted workload_materialization follow-up",
+            "repo_id": "repo-ifa-repo-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-repo-dependency-source:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "deployment_mapping",
+            "entity_key": "deployment:repo-dependency-family-source",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
             "repo_id": "repo-ifa-repo-dependency-source"
           }
         }

@@ -170,7 +170,9 @@ session.
   require zero dead letters.
   `repo_dependency` runs once as a standalone determinism cell after the worker
   matrix because its Platform prerequisite is maintenance-backed, not a worker
-  count variable. Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle
+  count variable. Its cassette carries seven unique repository scopes and 18 facts, with six target-only scopes first and the evidence-bearing source scope last, plus
+  `workload_materialization and deployment_mapping scheduling followups` on
+  that source. Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle
   for baseline, killed-worker recovery, and a once-then-succeed graph-write
   fault.
   In the SQL delta-retract cell, the generation-2 SQL assertion runs first. The

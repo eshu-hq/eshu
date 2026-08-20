@@ -131,8 +131,11 @@ func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 		return false, fmt.Sprintf("odù %q: the production evidence/resolution seams (DiscoveredEvidence -> relationships.Resolve) found zero resolved relationships in its own facts; repo_dependency cannot admit any edge without at least one resolved relationship", odu.Name)
 	}
 
-	first := odu.Facts[0]
-	rows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, first.ScopeID, repoDependencyGuardSourceRunID, first.GenerationID, repoDependencyGuardClock)
+	sourceScopeID, sourceGenerationID, err := ifa.RepoDependencyFamilySourceCoordinates(odu)
+	if err != nil {
+		return false, err.Error()
+	}
+	rows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, sourceScopeID, repoDependencyGuardSourceRunID, sourceGenerationID, repoDependencyGuardClock)
 	if len(rows) != len(resolved) {
 		return false, fmt.Sprintf("odù %q: reducer.ExtractRepoDependencyIntentRows dropped %d of %d resolved relationships (a dropped row means its resolved relationship carried no target_repo_id/platform_id); every relationship this Odù resolves is expected to route to a row", odu.Name, len(resolved)-len(rows), len(resolved))
 	}

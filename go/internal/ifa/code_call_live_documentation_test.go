@@ -28,6 +28,11 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"`codeCallFamilyOdu` (`code_call_family_catalog.go`",
 				"repository dependencies\n  (`materialized_edges_repo_dependency.go`)",
+				"`repoDependencyFamilyOdu` (`repo_dependency_family_catalog.go`)",
+				"carries seven\nunique repository scopes and 18 facts",
+				"18 facts: six target-only scopes first and the\nevidence-bearing source scope last",
+				"workload_materialization and deployment_mapping scheduling followups",
+				"Together the two live gates prove all seven\nrepo-dependency writer-registry types",
 				"`materialized_edges:documentation_edges`",
 				"Both live matrices drive the documentation cassette and\n  exact-assert its three DOCUMENTS edges",
 				"Both live matrices drive the rationale cassette\n  and exact-assert its full EXPLAINS records",
@@ -77,6 +82,11 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"`sql_relationships`, `code_calls`,\n  `documentation_edges`, `rationale_edges`, and `repo_dependency`",
 				"nine SQL edges, five code-call edges, three documentation edges, three full\n  rationale records, and seven repository-dependency edges exactly",
+				"seven unique repository scopes and 18 facts",
+				"six target-only scopes first and the evidence-bearing source scope last",
+				"workload_materialization and deployment_mapping scheduling followups",
+				"`repo_dependency` runs once as a standalone determinism cell",
+				"Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle",
 				"`ifa-determinism` live gate invokes it in every worker-count cell",
 				"one row per (surface, scenario) under two proof-gate IDs",
 				"`sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;\n  fault uses `ifa-fault-injection`.",
