@@ -458,15 +458,15 @@ for private_target in "${repo_root}"/scripts/lib/ifa_family_registry.sh \
 	"${repo_root}"/scripts/lib/ifa_family_registry_pins/*.sh; do
 	[[ -e "${private_target}" ]] && private_targets+=("${private_target}")
 done
-# Floor against a collapsed derivation: if the *_lib expression stops matching,
-# the loop silently scans almost nothing and passes. Hand-written, below the
-# current count, never derived from the expression it guards.
 # EXACTLY TWO: the glob block itself, and this pin's own line. An at-least-one
 # form is useless here -- a pin whose needle lives in the same file is always
 # satisfied by itself, which is how the previous version stayed green with the
 # whole glob block deleted. Counting is what makes an in-file pin able to fail.
 [[ "$(_ifa_det_count_code_matches 'ifa_family_registry_pins/*.sh' "${BASH_SOURCE[0]}")" -eq 2 ]] \
 	|| fail "the determinism private-data scan no longer globs the registry rows and pins (expected the glob block plus this pin line)"
+# Floor against a collapsed derivation: if the *_lib expression stops matching,
+# the loop silently scans almost nothing and passes. Hand-written, below the
+# current count, never derived from the expression it guards.
 [[ "${#private_targets[@]}" -ge 20 ]] \
 	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the derivation has collapsed"
 # The glob block above is otherwise bound only by the floor, and only by a 3-file

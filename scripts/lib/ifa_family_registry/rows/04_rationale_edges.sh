@@ -4,7 +4,7 @@
 # rationale_edges row. See ../../ifa_family_registry.sh for the schema and
 # every array declaration this file assigns into.
 
-# ifa_fault_generic_cells.sh:184: the generic kill cell calls
+# ifa_fault_generic_cells.sh's _ifa_generic_cell_killworker_body calls
 # ifa_fault_start_shared_intent_lock for any family whose row declares this
 # kind, and releases it in the same function. cell_killworker_rationale is now a one-line
 # delegation to cell_killworker_family, so the lock is taken there, not in this

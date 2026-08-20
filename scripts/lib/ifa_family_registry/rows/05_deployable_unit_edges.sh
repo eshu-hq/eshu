@@ -19,7 +19,8 @@ IFA_FAMILY_WAIT_KEY[deployable_unit_edges]="deployable_unit_correlation"
 # a bootstrap-index maintenance pass this family alone needs would move
 # every OTHER family's digest terminal for an unrelated reason).
 IFA_FAMILY_SHARED_CELL[deployable_unit_edges]=0
-# scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh
+# Pinned by the deployable-unit MERGE operation_match anchor in
+# scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh.
 IFA_FAMILY_ANCHOR[deployable_unit_edges]="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"
 
 # SCOPING CALL: this family's blocker_kind (table_lock:admission_decisions)

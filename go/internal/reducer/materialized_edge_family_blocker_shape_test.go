@@ -439,6 +439,7 @@ func TestMaterializedEdgeFamilyBlockerLockstepCoversAllFamilies(t *testing.T) {
 // once committed for this family; #5992 removed it and #6160 replaced it with
 // a fact_records table lock, so the input here is now constructed rather than
 // quoted from a live file. Keeping it costs nothing and the bug class it
+// guards is what any future family can still hit.
 func TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration(t *testing.T) {
 	t.Parallel()
 

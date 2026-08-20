@@ -258,8 +258,9 @@ assert_libs_parse() {
 		bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
 	done
 	# Floor: this derivation can resolve to NOTHING (an empty `for` word list is not
-	# an error), so one pattern edit would silently skip every lib where the
-	# explicit `bash -n` lines it replaced each cost only one. Hand-written, below
+	# an error), so one pattern edit would silently skip every lib, where the
+	# explicit `bash -n` lines it replaced could only ever lose one at a time.
+	# Hand-written, below
 	# the current count, never derived from the expression it guards.
 	[[ "${syntax_checked}" -ge 35 ]] \
 		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"

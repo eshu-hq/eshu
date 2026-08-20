@@ -48,7 +48,7 @@ IFA_FAMILY_PIN_WAIT_KEY="deployable_unit_correlation"
 # alone needs) => shared_cell=0. cell_kind: blocker_kind=table_lock:
 # admission_decisions IS one of the generic dispatcher's supported shapes
 # (scripts/lib/ifa_fault_generic_cells.sh's `cell_killworker_family` case
-# statement's `table_lock:*)` arm, :331) -- but the live driver has NOT been
+# statement's `table_lock:*)` arm) -- but the live driver has NOT been
 # migrated to dispatch this family through it:
 # scripts/verify-ifa-fault-injection.sh still calls
 # cell_killworker_deployable_unit / cell_failgraphwrite_deployable_unit
