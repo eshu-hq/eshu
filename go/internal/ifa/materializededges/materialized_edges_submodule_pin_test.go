@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"os"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -112,16 +113,16 @@ func TestSubmodulePinDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 // both this pure guard and the live assert-edges verb prove per-path
 // property truth rather than only the edge count between a (parent, target)
 // pair. The fixture's top-level "odu" field is NOT validated against
-// Catalog()/CatalogByName() or anything else -- ifa.LoadExpectedEdges decodes
+// Catalog()/ifa.CatalogByName() or anything else -- ifa.LoadExpectedEdges decodes
 // it and never reads it back -- so "odu:ifa-submodule-pin-family" here is a
 // human label, not a resolvable identity.
 func TestSubmodulePinFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := loadSubmodulePinFamilyOdu(submodulePinFamilyCassetteFullPath(repoRoot))
+	odu, err := ifa.LoadSubmodulePinFamilyOdu(ifa.SubmodulePinFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadSubmodulePinFamilyOdu: %v", err)
+		t.Fatalf("ifa.LoadSubmodulePinFamilyOdu: %v", err)
 	}
 
 	expectedEdges, err := LoadExpectedEdges(submodulePinFamilyExpectedEdgesPath(repoRoot), submodulePinEdgesFamily)
@@ -195,9 +196,9 @@ func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := loadSubmodulePinFamilyOdu(submodulePinFamilyCassetteFullPath(repoRoot))
+	odu, err := ifa.LoadSubmodulePinFamilyOdu(ifa.SubmodulePinFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadSubmodulePinFamilyOdu: %v", err)
+		t.Fatalf("ifa.LoadSubmodulePinFamilyOdu: %v", err)
 	}
 
 	generationID := submodulePinFamilyGenerationIDFromFacts(odu.Facts)
@@ -215,7 +216,7 @@ func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
 	// "sha-libfoo-pin-a-dup-newer". Last-match-wins means the surviving row
 	// must carry PIN A-DUP's SHA, never PIN A's.
 	const (
-		wantParent = submodulePinFamilyRepoID
+		wantParent = ifa.SubmodulePinFamilyRepoID
 		wantPath   = "vendor/libfoo"
 		wantSHA    = "sha-libfoo-pin-a-dup-newer"
 		loserSHA   = "sha-libfoo-pin-a"
@@ -246,21 +247,21 @@ func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
 // own exact guard.
 //
 // Two shared files carry the splices this depends on, both landed here:
-// catalog_seed.go's catalogSeed slice adds submodulePinFamilyOdu(), and
+// catalog_seed.go's catalogSeed slice adds ifa.SubmodulePinFamilyOdu(), and
 // materialized_edges.go's Resolve switch adds the family's arm. They follow
 // codeowners_ownership_edges exactly. Removing either is what this test
 // catches.
 func TestSubmodulePinFamilyIsCatalogedAndResolvable(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	catalog := CatalogByName()
-	compiled, ok := catalog[submodulePinFamilyOduName]
+	catalog := ifa.CatalogByName()
+	compiled, ok := catalog[ifa.SubmodulePinFamilyOduName]
 	if !ok {
-		t.Fatalf("CatalogByName omits %q -- restore `submodulePinFamilyOdu(),` in catalog_seed.go's catalogSeed; without it the installed binary cannot resolve this family's manifest row", submodulePinFamilyOduName)
+		t.Fatalf("CatalogByName omits %q -- restore `ifa.SubmodulePinFamilyOdu(),` in catalog_seed.go's catalogSeed; without it the installed binary cannot resolve this family's manifest row", ifa.SubmodulePinFamilyOduName)
 	}
-	fromCassette, err := loadSubmodulePinFamilyOdu(submodulePinFamilyCassetteFullPath(repoRoot))
+	fromCassette, err := ifa.LoadSubmodulePinFamilyOdu(ifa.SubmodulePinFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadSubmodulePinFamilyOdu: %v", err)
+		t.Fatalf("ifa.LoadSubmodulePinFamilyOdu: %v", err)
 	}
 	if !reflect.DeepEqual(compiled, fromCassette) {
 		t.Fatalf("compiled catalog Odù drifted from strict cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
@@ -270,7 +271,7 @@ func TestSubmodulePinFamilyIsCatalogedAndResolvable(t *testing.T) {
 		Surface:      MaterializedEdgeSurfacePrefix + submodulePinEdgesFamily,
 		Scenario:     replaycoverage.ScenarioOdu,
 		ScenarioType: replaycoverage.ScenarioTypeBaseline,
-		Ref:          submodulePinFamilyOduName,
+		Ref:          ifa.SubmodulePinFamilyOduName,
 	})
 	if !ok2 {
 		t.Fatalf("%s resolver rejected the cataloged Odù: %s -- restore the `case submodulePinEdgesFamily:` arm in materialized_edges.go's Resolve", submodulePinEdgesFamily, detail)
@@ -281,14 +282,14 @@ func TestSubmodulePinFamilyIsCatalogedAndResolvable(t *testing.T) {
 }
 
 // TestSubmodulePinFamilyOduBuildsSevenFacts exercises submodulePinFamilyOdu
-// directly rather than through CatalogByName(), so a catalog_seed.go
+// directly rather than through ifa.CatalogByName(), so a catalog_seed.go
 // regression fails one test with a clear cause instead of taking the whole
 // family-specific stack down with it.
 func TestSubmodulePinFamilyOduBuildsSevenFacts(t *testing.T) {
 	t.Parallel()
-	catalogOdu := submodulePinFamilyOdu()
-	if catalogOdu.Odu.Name != submodulePinFamilyOduName {
-		t.Fatalf("submodulePinFamilyOdu().Odu.Name = %q, want %q", catalogOdu.Odu.Name, submodulePinFamilyOduName)
+	catalogOdu := ifa.SubmodulePinFamilyOdu()
+	if catalogOdu.Odu.Name != ifa.SubmodulePinFamilyOduName {
+		t.Fatalf("ifa.SubmodulePinFamilyOdu().Odu.Name = %q, want %q", catalogOdu.Odu.Name, ifa.SubmodulePinFamilyOduName)
 	}
 	// 1 repository fact + 5 submodule.pin facts (PIN A, B, A-DUP, E, C) + the
 	// shared_followup fact that enqueues this family's reducer work item. The
@@ -297,7 +298,7 @@ func TestSubmodulePinFamilyOduBuildsSevenFacts(t *testing.T) {
 	// cannot drive the handler at all (mirroring codeowners_ownership_edges,
 	// #5992). See submodulePinFamilySharedFollowupFact's doc comment.
 	if len(catalogOdu.Odu.Facts) != 7 {
-		t.Fatalf("submodulePinFamilyOdu() carries %d facts, want 7 (1 repository + 5 pins + 1 shared_followup)", len(catalogOdu.Odu.Facts))
+		t.Fatalf("ifa.SubmodulePinFamilyOdu() carries %d facts, want 7 (1 repository + 5 pins + 1 shared_followup)", len(catalogOdu.Odu.Facts))
 	}
 }
 
@@ -310,7 +311,7 @@ func TestSubmodulePinFamilyOduBuildsSevenFacts(t *testing.T) {
 func TestResolveSubmodulePinMaterializedEdgesAcceptsTheCompiledOdu(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	ok, detail := resolveSubmodulePinMaterializedEdges(submodulePinFamilyOdu().Odu, submodulePinFamilyExpectedEdgesPath(repoRoot))
+	ok, detail := resolveSubmodulePinMaterializedEdges(ifa.SubmodulePinFamilyOdu().Odu, submodulePinFamilyExpectedEdgesPath(repoRoot))
 	if !ok {
 		t.Fatalf("resolveSubmodulePinMaterializedEdges(compiled Odù) = false: %s", detail)
 	}
@@ -339,10 +340,10 @@ func TestResolveSubmodulePinMaterializedEdgesReturnsZeroRowsFalse(t *testing.T) 
 	repoRoot := repoRootDir(t)
 	// An Odù with a repository fact but NO submodule.pin facts: the extractor
 	// returns zero rows even though decoding succeeds cleanly.
-	emptyOdu := Odu{
+	emptyOdu := ifa.Odu{
 		Name: "odu:ifa-submodule-pin-empty-probe",
 		Facts: []facts.Envelope{
-			submodulePinFamilyRepositoryFact(submodulePinFamilyRepoID, "/repo-submodule-pin-parent"),
+			ifa.SubmodulePinFamilyRepositoryFact(ifa.SubmodulePinFamilyRepoID, "/repo-submodule-pin-parent"),
 		},
 	}
 	ok, detail := resolveSubmodulePinMaterializedEdges(emptyOdu, submodulePinFamilyExpectedEdgesPath(repoRoot))
@@ -423,7 +424,7 @@ func TestResolveSubmodulePinMaterializedEdgesRejectsMalformedFixtures(t *testing
 			if err := os.WriteFile(path, []byte(tc.fixture), 0o600); err != nil {
 				t.Fatalf("write fixture: %v", err)
 			}
-			ok, detail := resolveSubmodulePinMaterializedEdges(submodulePinFamilyOdu().Odu, path)
+			ok, detail := resolveSubmodulePinMaterializedEdges(ifa.SubmodulePinFamilyOdu().Odu, path)
 			if ok {
 				t.Fatalf("resolveSubmodulePinMaterializedEdges(%s) = true; a malformed fixture must fail the guard, not load through a permissive decoder", tc.name)
 			}

@@ -377,12 +377,15 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
       # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
       # reducer stage, and live/fault helpers are all inputs to what the live
-      # lanes assert, so each one must retrigger them. materialized_edges*.go
-      # and factschema_decode_*.go are already triggers above (generic globs
-      # a prior family added); this family's REDUCER-side decode file
+      # lanes assert, so each one must retrigger them. The family's guard
+      # (materialized_edges_submodule_pin.go) lives in
+      # go/internal/ifa/materializededges/, already a trigger above (the
+      # #6199 split's directory glob) -- not repeated here. factschema_decode_*.go
+      # is also already a trigger above (a generic glob a prior family
+      # added); this family's REDUCER-side decode file
       # (go/internal/reducer/factschema_decode_submodule.go) already matches
-      # factschema_decode_*.go, but the SDK-side decoder and fact-kind
-      # constant it calls into (sdk/go/factschema/decode_submodule.go,
+      # it, but the SDK-side decoder and fact-kind constant it calls into
+      # (sdk/go/factschema/decode_submodule.go,
       # sdk/go/factschema/fact_kinds_submodule.go) matched nothing: neither
       # sits under submodule/v1/, and only that subtree is covered below. A
       # change that quarantined or mis-decoded every cassette pin at that

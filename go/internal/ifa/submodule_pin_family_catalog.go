@@ -14,12 +14,19 @@ import (
 
 const (
 	submodulePinFamilyGenerationID = "gen-ifa-submodule-pin-family-1"
-	submodulePinFamilyRepoID       = "repo-ifa-submodule-pin-family"
-	submodulePinFamilyTargetFooID  = "repo-ifa-submodule-pin-target-foo"
-	submodulePinFamilyTargetBazID  = "repo-ifa-submodule-pin-target-baz"
+	// SubmodulePinFamilyRepoID is the parent repository ID every pin in this
+	// Odù is scoped against. Exported so materializededges' moved
+	// submodule-pin-family tests can build a synthetic Odù against this same
+	// repository (TestResolveSubmodulePinMaterializedEdgesReturnsZeroRowsFalse's
+	// empty-probe) and identify PIN A's row by parent_repo_id
+	// (TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA) without
+	// duplicating the literal.
+	SubmodulePinFamilyRepoID      = "repo-ifa-submodule-pin-family"
+	submodulePinFamilyTargetFooID = "repo-ifa-submodule-pin-target-foo"
+	submodulePinFamilyTargetBazID = "repo-ifa-submodule-pin-target-baz"
 )
 
-// submodulePinFamilyOdu returns the binary-portable catalog representation of
+// SubmodulePinFamilyOdu returns the binary-portable catalog representation of
 // the submodule_pin_edges cassette (#6002, under the #5543 umbrella). The
 // checked-in cassette remains the live replay source;
 // TestSubmodulePinFamilyIsCatalogedAndResolvable deeply pins this compiled
@@ -63,46 +70,46 @@ const (
 // Total: 3 PINS_SUBMODULE edges -- 2 from repo-ifa-submodule-pin-family to
 // repo-ifa-submodule-pin-target-foo (PIN A, PIN B), 1 to
 // repo-ifa-submodule-pin-target-baz (PIN E).
-func submodulePinFamilyOdu() CatalogOdu {
+func SubmodulePinFamilyOdu() CatalogOdu {
 	factsForOdu := []facts.Envelope{
-		submodulePinFamilyRepositoryFact(submodulePinFamilyRepoID, "/repo-submodule-pin-parent"),
+		SubmodulePinFamilyRepositoryFact(SubmodulePinFamilyRepoID, "/repo-submodule-pin-parent"),
 		// PIN A.
 		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: submodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
+			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
 			PinnedSHA:      strPtr("sha-libfoo-pin-a"),
 		}, "pin-a"),
 		// PIN B: same target as PIN A, a different path.
 		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: submodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo-mirror",
+			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo-mirror",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo-mirror.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
 			PinnedSHA:      strPtr("sha-libfoo-mirror-pin-b"),
 		}, "pin-b"),
 		// PIN A-DUP: last-match-wins duplicate of PIN A's (parent, path) key.
 		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: submodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
+			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
 			PinnedSHA:      strPtr("sha-libfoo-pin-a-dup-newer"),
 		}, "pin-a-dup"),
 		// PIN E: a second, distinct target repository.
 		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: submodulePinFamilyRepoID, SubmodulePath: "vendor/libbaz",
+			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libbaz",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libbaz.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetBazID),
 			PinnedSHA:      strPtr("sha-libbaz-pin-e"),
 		}, "pin-e"),
 		// PIN C: unresolved submodule URL -- no edge must project.
 		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: submodulePinFamilyRepoID, SubmodulePath: "vendor/libunresolved",
+			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libunresolved",
 			SubmoduleURL: strPtr("https://git.example.invalid/org/libunresolved.git"),
 		}, "pin-c"),
 		submodulePinFamilySharedFollowupFact(),
 	}
 	return CatalogOdu{
-		Odu: Odu{Name: submodulePinFamilyOduName, Facts: factsForOdu},
+		Odu: Odu{Name: SubmodulePinFamilyOduName, Facts: factsForOdu},
 		Detail: "one parent repository pinning two distinct target repositories across three " +
 			"live paths (a same-target two-path collision PIN A/B, a last-match-wins " +
 			"duplicate PIN A-DUP, and a second-target PIN E), plus an unresolved " +
@@ -128,22 +135,26 @@ func submodulePinFamilySharedFollowupFact() facts.Envelope {
 		ScopeID:          "scope-ifa-submodule-pin-family",
 		GenerationID:     submodulePinFamilyGenerationID,
 		FactKind:         "shared_followup",
-		StableFactKey:    "shared_followup:" + submodulePinFamilyRepoID + ":submodule_pin",
+		StableFactKey:    "shared_followup:" + SubmodulePinFamilyRepoID + ":submodule_pin",
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "git",
 		SourceConfidence: "observed",
 		Payload: map[string]any{
 			"reducer_domain": "submodule_pin",
-			"entity_key":     "submodule:" + submodulePinFamilyRepoID,
+			"entity_key":     "submodule:" + SubmodulePinFamilyRepoID,
 			"reason":         "repository snapshot emitted submodule pin follow-up",
-			"repo_id":        submodulePinFamilyRepoID,
+			"repo_id":        SubmodulePinFamilyRepoID,
 		},
 	}
 }
 
-// submodulePinFamilyRepositoryFact builds a typed "repository" fact for
+// SubmodulePinFamilyRepositoryFact builds a typed "repository" fact for
 // repoID. Used for the parent repository this Odù's pins are scoped against.
-func submodulePinFamilyRepositoryFact(repoID, localPath string) facts.Envelope {
+// Exported so materializededges' moved
+// TestResolveSubmodulePinMaterializedEdgesReturnsZeroRowsFalse can build a
+// synthetic repository-only Odù (no pin facts) without duplicating the
+// repository-fact-building logic.
+func SubmodulePinFamilyRepositoryFact(repoID, localPath string) facts.Envelope {
 	sourceRunID := "run-ifa-submodule-pin-family-1"
 	repository := codegraphv1.Repository{
 		RepoID: repoID, SourceRunID: &sourceRunID, LocalPath: &localPath,

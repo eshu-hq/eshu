@@ -152,7 +152,7 @@ ifa_live_gate_common_seams=(
 	# codeowners_ownership_edges' block above.
 	'go/internal/ifa/submodule_pin_family_odu.go|go/internal/ifa/submodule_pin_family_odu.go'
 	'go/internal/ifa/submodule_pin_family_catalog.go|go/internal/ifa/submodule_pin_family_catalog.go'
-	'go/internal/ifa/materialized_edges*.go|go/internal/ifa/materialized_edges_submodule_pin.go'
+	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_submodule_pin.go'
 	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_materialization.go'
 	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_delta_scope.go'
 	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_submodule.go'

@@ -17,23 +17,29 @@ import (
 
 // The submodule_pin_edges family Odù (#6002, under the #5543 umbrella).
 //
-// submodulePinFamilyOdu in submodule_pin_family_catalog.go is the
+// SubmodulePinFamilyOdu in submodule_pin_family_catalog.go is the
 // binary-portable compiled catalog representation. This file projects the
 // committed cassette through the same strict envelope boundary for
-// TestSubmodulePinFamilyIsCatalogedAndResolvable, which deeply compares the
-// two representations so a one-sided edit fails the focused suite.
+// materializededges' TestSubmodulePinFamilyIsCatalogedAndResolvable, which
+// deeply compares the two representations so a one-sided edit fails the
+// focused suite.
 //
 // submodule_pin_edges mirrors codeowners_ownership_edges structurally
 // (single-stage, EdgeWriter-only, no IntentWriter — see
 // SubmodulePinEdgeMaterializationHandler,
 // go/internal/reducer/submodule_pin_materialization.go), so this loader is
-// codeownersFamilyOdu's loader (codeowners_family_odu.go) with the family
+// CodeownersFamilyOdu's loader (codeowners_family_odu.go) with the family
 // name swapped: same strict-decode rationale, same DisallowUnknownFields
 // contract, same single-scope/non-empty-facts fail-closed checks.
 const (
-	submodulePinFamilyOduName      = "odu:ifa-submodule-pin-family"
+	// SubmodulePinFamilyOduName is this Odù's catalog name, the ref a
+	// materialized_edges:submodule_pin_edges coverage-manifest row names to
+	// resolve through it. Exported so materializededges' moved
+	// submodule-pin-family tests, which build and resolve against this exact
+	// Odù, can name and look it up by that ref without duplicating the
+	// literal.
+	SubmodulePinFamilyOduName      = "odu:ifa-submodule-pin-family"
 	submodulePinFamilyCassettePath = "testdata/cassettes/submodulepin/ifa-submodule-pin-family.json"
-	submodulePinExpectedEdgesPath  = "go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json"
 )
 
 // submodulePinFamilyCassetteFile declares the cassette's FULL envelope shape,
@@ -65,35 +71,36 @@ type submodulePinFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// submodulePinFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func submodulePinFamilyCassetteFullPath(repoRoot string) string {
+// SubmodulePinFamilyCassetteFullPath joins repoRoot onto the cassette path.
+// Exported so materializededges' moved submodule-pin-family tests can locate
+// the same committed cassette LoadSubmodulePinFamilyOdu reads.
+func SubmodulePinFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, submodulePinFamilyCassettePath)
 }
 
-// submodulePinFamilyExpectedEdgesPath joins repoRoot onto the expected-edge
-// fixture. It lives under go/internal/ifa/testdata/ rather than
-// testdata/cassettes/ for the same reason codeownersFamilyExpectedEdgesPath
-// does: the offline cassette validator globs every testdata/cassettes/*/*.json
-// as a replay cassette, and this file is a gate ASSERTION, not a cassette.
-func submodulePinFamilyExpectedEdgesPath(repoRoot string) string {
-	return filepath.Join(repoRoot, submodulePinExpectedEdgesPath)
-}
+// submodulePinFamilyExpectedEdgesPath moved to
+// materializededges/materialized_edges_submodule_pin.go with the rest of the
+// submodule_pin_edges vacuity guard: it was called only from
+// MaterializedEdgeOduResolver.Resolve's dispatch, which moved there too.
 
-// loadSubmodulePinFamilyOdu reads the committed cassette and projects it onto
+// LoadSubmodulePinFamilyOdu reads the committed cassette and projects it onto
 // the fact envelopes the reducer's extractor consumes.
 //
-// Unexported because it is the test-side lockstep loader for the committed
-// cassette. Production registers the compiled submodulePinFamilyOdu in
-// catalogSeed; TestSubmodulePinFamilyIsCatalogedAndResolvable compares that
-// registered Odù with this strict cassette projection and exercises the
-// submodule_pin_edges resolver guard.
+// It is the test-side lockstep loader for the committed cassette. Production
+// registers the compiled SubmodulePinFamilyOdu in catalogSeed;
+// TestSubmodulePinFamilyIsCatalogedAndResolvable (still in this package)
+// compares that registered Odù with this strict cassette projection, and
+// materializededges' moved submodule-pin-family tests call it directly to
+// exercise the submodule_pin_edges resolver guard against the same cassette.
+// Exported so both sides of that package boundary can reach it without a
+// second copy of the cassette decoder.
 //
 // It fails closed on an empty scope or fact list, and disallows unknown
 // fields so a typo in the envelope fails loudly at load time instead of
 // silently decoding to a zero value (see codeownersFamilyCassetteFile's doc
 // comment for the #5994 false-attestation incident this pattern exists to
 // prevent). The second Decode call closes the same trailing-content gap.
-func loadSubmodulePinFamilyOdu(cassettePath string) (Odu, error) {
+func LoadSubmodulePinFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read submodule-pin cassette %s: %w", cassettePath, err)
@@ -129,5 +136,5 @@ func loadSubmodulePinFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: submodulePinFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: SubmodulePinFamilyOduName, Facts: envelopes}, nil
 }

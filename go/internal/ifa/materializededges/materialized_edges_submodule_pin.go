@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -20,6 +22,19 @@ import (
 // for this same key, so the two lookups can never be pointed at different
 // families by a typo in one of them.
 const submodulePinEdgesFamily = "submodule_pin_edges"
+
+// submodulePinExpectedEdgesRelPath is the submodule_pin_edges expected-edge
+// fixture, repoRoot-anchored. Moved from ifa's submodule_pin_family_odu.go
+// (#6053 convention): nothing else in ifa referenced it once
+// MaterializedEdgeOduResolver.Resolve's dispatch moved to this package.
+const submodulePinExpectedEdgesRelPath = "go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json"
+
+// submodulePinFamilyExpectedEdgesPath joins repoRoot onto the expected-edge
+// fixture. Moved from ifa's submodule_pin_family_odu.go for the same reason
+// as submodulePinExpectedEdgesRelPath above.
+func submodulePinFamilyExpectedEdgesPath(repoRoot string) string {
+	return filepath.Join(repoRoot, submodulePinExpectedEdgesRelPath)
+}
 
 // resolveSubmodulePinMaterializedEdges is submodule_pin_edges' named vacuity
 // guard (#6002), mirroring resolveCodeownersOwnershipMaterializedEdges's
@@ -51,7 +66,7 @@ const submodulePinEdgesFamily = "submodule_pin_edges"
 // decodes cleanly against the submodule.pin contract cannot honestly claim
 // to prove the edge set it names, so proceeding on the survivors would
 // understate the fixture's own claim rather than catch the regression.
-func resolveSubmodulePinMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
+func resolveSubmodulePinMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, submodulePinEdgesFamily)
 	if err != nil {
 		return false, err.Error()
