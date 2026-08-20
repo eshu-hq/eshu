@@ -2333,6 +2333,14 @@ gates:
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
+      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
+      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
+      # decode seam reducer.decodeSubmodulePin dispatches into
+      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
+      # under submodule/v1/, so the glob above misses them; a decode/quarantine
+      # regression there would leave #6002's coverage rows backed by stale
+      # results with no gate re-running to notice.
+      - "sdk/go/factschema/*submodule*.go"
       - "go/internal/reducer/service*.go"
       - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"
@@ -2658,6 +2666,14 @@ gates:
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
+      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
+      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
+      # decode seam reducer.decodeSubmodulePin dispatches into
+      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
+      # under submodule/v1/, so the glob above misses them; a decode/quarantine
+      # regression there would leave #6002's coverage rows backed by stale
+      # results with no gate re-running to notice.
+      - "sdk/go/factschema/*submodule*.go"
       - "go/internal/reducer/service*.go"
       - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"

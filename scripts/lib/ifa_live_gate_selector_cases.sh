@@ -157,6 +157,11 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_delta_scope.go'
 	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_submodule.go'
 	'sdk/go/factschema/submodule/v1/**|sdk/go/factschema/submodule/v1/pin.go'
+	# The SDK-side decode seam (DecodeSubmodulePin, FactKindSubmodulePin)
+	# sits directly under sdk/go/factschema/, not submodule/v1/, so the glob
+	# above misses it -- verified dark (SKIPPED both gates) before this row.
+	'sdk/go/factschema/*submodule*.go|sdk/go/factschema/decode_submodule.go'
+	'sdk/go/factschema/*submodule*.go|sdk/go/factschema/fact_kinds_submodule.go'
 	'go/internal/storage/cypher/*submodule*.go|go/internal/storage/cypher/canonical_submodule_edges.go'
 	'testdata/cassettes/submodulepin/**|testdata/cassettes/submodulepin/ifa-submodule-pin-family.json'
 	'go/internal/ifa/testdata/submodulepin/**|go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json'

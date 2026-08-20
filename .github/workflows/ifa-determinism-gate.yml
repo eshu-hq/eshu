@@ -379,12 +379,20 @@ on:
       # reducer stage, and live/fault helpers are all inputs to what the live
       # lanes assert, so each one must retrigger them. materialized_edges*.go
       # and factschema_decode_*.go are already triggers above (generic globs
-      # a prior family added); this family's files already match them, so
-      # they are not repeated here.
+      # a prior family added); this family's REDUCER-side decode file
+      # (go/internal/reducer/factschema_decode_submodule.go) already matches
+      # factschema_decode_*.go, but the SDK-side decoder and fact-kind
+      # constant it calls into (sdk/go/factschema/decode_submodule.go,
+      # sdk/go/factschema/fact_kinds_submodule.go) matched nothing: neither
+      # sits under submodule/v1/, and only that subtree is covered below. A
+      # change that quarantined or mis-decoded every cassette pin at that
+      # seam would leave the coverage rows #6002 unwaived backed by stale
+      # results, with no gate re-running to notice.
       - 'go/internal/ifa/submodule_pin_family_odu.go'
       - 'go/internal/ifa/submodule_pin_family_catalog.go'
       - 'go/internal/reducer/submodule_pin*.go'
       - 'sdk/go/factschema/submodule/v1/**'
+      - 'sdk/go/factschema/*submodule*.go'
       - 'go/internal/storage/cypher/*submodule*.go'
       - 'testdata/cassettes/submodulepin/**'
       - 'go/internal/ifa/testdata/submodulepin/**'
