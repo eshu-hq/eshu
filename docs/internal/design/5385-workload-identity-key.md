@@ -494,6 +494,14 @@ Where it is large and the action is the same for every member, it is a criterion
 you can run, with the count it returned and the commit it returned it at — so
 staleness is falsifiable in one command rather than implied.
 
+The stamp is a **`main`** commit deliberately. The criterion searches `go/` only and
+this branch changes no Go file, so the count is a property of main's tree rather than
+of this branch — and a branch sha does not survive the branch. An earlier revision
+stamped `bdd4f6768`, which three rebases and a message rewrite left reachable from no
+ref at all; `git checkout` of it fails with `reference is not a tree`, so the count
+became unverifiable. A stamp that cannot be checked is worse than none, because the
+stamp is what invites the check.
+
 **What this does and does not buy.** Criterion plus count makes staleness
 *detectable*, not *detected*: nothing re-runs a count that lives in prose. There
 are three rungs, and this section is on the first — falsifiable by hand, enforced
@@ -643,7 +651,7 @@ rg -nP -g '*.go' -g '!*_test.go' \
   go/internal/query go/internal/reducer go/cmd
 ```
 
-**27 lines across 16 files at `bdd4f6768`** (28 anchors —
+**27 lines across 16 files at `2b9cca96d`** (28 anchors —
 `entity_workload_platform.go:69` carries two). `-P` is load-bearing: the
 `^(?!\s*//)` comment guard needs PCRE2. That guard also suppresses four doc
 comments describing the shape, so a comment-only edit to those lines does not
@@ -702,7 +710,7 @@ enforcement rungs do not cover, and the reason this table is the one to re-read 
 re-count.
 
 So there is no single honest number for this category. "27 statically greppable
-sites at `bdd4f6768`, plus the runtime-composed anchors above, one of which is a
+sites at `2b9cca96d`, plus the runtime-composed anchors above, one of which is a
 generator" is the accurate statement, and saying so is stronger than picking one.
 
 ### 4.5 Reads that prefix-parse or decompose the identifier
