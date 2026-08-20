@@ -106,13 +106,32 @@ Verified both directions on live backends: `ESHU_GRAPH_BACKEND=neo4j` passes
 `TestLiveBackendConformance` with exit 0; `ESHU_GRAPH_BACKEND=nornicdb` fails
 with exit 1 naming this case.
 
-**That run predates the current read case and has NOT been repeated.** A later
-revision restored the production statement's opening clause
-(`WHERE fn.uid IN $function_uids`, replacing an inline map predicate) and changed
-the bound parameter from `function_uid` to `function_uids`. The Cypher and the
-parameters both moved after the measurement, so the exit codes above are a
-memory of an earlier query rather than evidence for this one. It matters
-concretely: a wrong parameter key empties the result on *both* backends, so the
-recorded NornicDB red would no longer distinguish a backend defect from a broken
-fixture. Re-run both lanes at this revision and replace this paragraph with the
-observed exit codes before treating the pair as proven.
+**Re-run at the current revision, both lanes, on this machine.** An earlier
+revision of this note recorded exit codes from a run that predated the restored
+opening clause (`WHERE fn.uid IN $function_uids`) and the parameter rename from
+`function_uid` to `function_uids`. Those were a memory of an earlier query, and a
+wrong parameter key empties the result on *both* backends — so that red could not
+distinguish a backend defect from a broken fixture. Both lanes have now been re-run
+against the statement and parameters in this branch:
+
+```
+Running live backend conformance for neo4j on bolt://localhost:7687 database neo4j
+  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)
+  ok  github.com/eshu-hq/eshu/go/internal/backendconformance  3.703s      exit 0
+
+Running live backend conformance for nornicdb on bolt://localhost:7687 database nornic
+  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)
+  read case "value-flow cloud sink aggregation and subscript projection"
+    returned 0 rows, want at least 1                                      exit 1
+```
+
+Same fixture, same statement, same bound parameters, one backend apart. **Neo4j
+green is what makes the NornicDB red mean something**: it rules out the broken-fixture
+explanation, which the hermetic guards cannot do on their own. Images:
+`neo4j:5-community` and `eshu-nornicdb-pr290:3722b483c02c` (the commit-pinned build
+this repo's compose default builds), each in its own throwaway Compose project, torn
+down with `down -v` after the run.
+
+This is the positive control #6192 exists to make permanent. Run by hand it proves the
+pair today; wired into CI it stops the next person having to take this paragraph on
+trust.

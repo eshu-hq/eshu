@@ -23,12 +23,18 @@ backends:
           - compose_e2e: live-backend-conformance
         notes: >-
           Served through the shared Bolt GraphQuery port with backend-aware query builders
-          where needed. Three narrow exceptions are measured and recorded rather than
-          implied: collect() after two MATCH clauses, a subscript projection used as a
-          later anchor, and IN over a relationship list property each return no rows on
-          NornicDB where Neo4j returns the row -- see the value-flow read case in
+          where needed. Four narrow divergences are measured and recorded rather than
+          implied, and they do not all fail the same way: collect() after two MATCH
+          clauses returns no rows; a property dereference off a subscripted alias
+          (ws[0] AS w2, then w2.name) returns the literal text "w2.name" rather than the
+          property value; IN over a relationship list property matches nothing; and a
+          multi-hop MATCH whose anchor was bound by an earlier clause returns no rows.
+          Neo4j 5 returns the row in every case. The list is not asserted to be
+          exhaustive -- it grew from two to four as successive reviews tested further
+          along the statement. See the value-flow read case in
           go/internal/backendconformance/corpus_value_flow.go and that package's
-          evidence-notes.md. Filed upstream as orneryd/NornicDB#297, #298 and #301.
+          evidence-notes.md, which carries the controls and the live exit codes for both
+          backends. Filed upstream as orneryd/NornicDB#297, #298, #301 and #302.
       path_traversal:
         status: supported
         verification:
