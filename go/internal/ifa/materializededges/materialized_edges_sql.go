@@ -48,15 +48,14 @@ const (
 	sqlFamilyDeltaOduName = "odu:ifa-sql-family-delta"
 )
 
-// sqlFamilyLocalPath and sqlFamilyGenerationID duplicate the SQL family's
-// repository local_path and generation-ID identity from ifa's
-// sql_relationship_odu.go for the same cross-boundary reason: they are asserted
-// against sibling families' identities (deployable_unit_family_odu_test.go,
-// code_call_family_odu_test.go) to prove the live-matrix scopes never collide.
-const (
-	sqlFamilyLocalPath    = "/repo"
-	sqlFamilyGenerationID = "gen-1"
-)
+// The SQL family's local_path and generation ID are read from ifa rather than
+// copied here (#6053). They sit on the REFERENCE side of the sibling-identity
+// collision assertions in this package, and a copied reference silently stops
+// detecting the collision it exists to catch: freeze the value here and a real
+// collision introduced in ifa compares equal to the stale literal and passes.
+// Every other identity copied into this package fails CLOSED (a stale copy
+// yields an empty derived set and a loud mismatch); these do not, which is why
+// they are exported from ifa and read through instead.
 
 // repositoryFactKind and contentEntityFactKind duplicate the raw fact-kind
 // literals from ifa's catalog_seed.go for the same cross-boundary reason:

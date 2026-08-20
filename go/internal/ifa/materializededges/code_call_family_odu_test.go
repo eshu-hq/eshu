@@ -190,13 +190,13 @@ func TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily(t *testing.
 	if localPath == "" {
 		t.Fatal("code-call repository has no local_path; canonical file and entity paths would be unanchored")
 	}
-	if localPath == sqlFamilyLocalPath {
+	if localPath == ifa.SQLFamilyLocalPath {
 		t.Fatalf("code-call local_path %q collides with SQL-family repository path; canonical path cleanup can delete the other live-matrix repository", localPath)
 	}
 	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
 		t.Fatal("code-call Odù has no generation ID; active-generation publication would be unidentifiable")
 	}
-	if odu.Facts[0].GenerationID == sqlFamilyGenerationID {
+	if odu.Facts[0].GenerationID == ifa.SQLFamilyGenerationID {
 		t.Fatalf("code-call generation ID %q collides with SQL-family generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
 	}
 }

@@ -1881,7 +1881,7 @@ internal/storage/cypher/` touches no Cypher template text — every `MERGE`,
 `MATCH`, `UNWIND` and `DELETE` string in this package is byte-identical, and the
 only occurrences of those words in the diff are inside comments. What the change
 adds is four package-level `map[string]string` literals and their copy
-accessors. Their sole callers are `internal/ifa/materialized_edges_assert.go`
+accessors. Their sole callers are `internal/ifa/materializededges/materialized_edges_assert.go`
 and `cmd/ifa/assert_edges.go`; `rg` finds no consumer in the ingester, reducer,
 projector, API, or MCP binaries. `cmd/ifa` is the Ifá gate tool
 (`graph-dump`, `assert-edges`, `mutate-cassette`, `dead-letters`), so the one
@@ -1909,7 +1909,7 @@ callers are `ifa.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
 `assertMaterializedEdges`, both `cmd/ifa` gate-tool read paths, same as the
 edge-type and endpoint-label registries above: no fact is emitted, no work
 item enqueued, no graph statement written or retracted by this lookup.
-`BenchmarkExpectedEdgeKey` (`go/internal/ifa/materialized_edges_assert_test.go`)
+`BenchmarkExpectedEdgeKey` (`go/internal/ifa/materializededges/materialized_edges_assert_test.go`)
 measures the one place this identity is consulted per-edge: an edge whose
 type declares no identity (twelve of the fourteen families) takes the
 byte-identical pre-identity `Key()` path (21.6 ns/op, 1 alloc); an edge whose

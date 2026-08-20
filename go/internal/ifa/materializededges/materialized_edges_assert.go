@@ -91,7 +91,7 @@ func (e ExpectedEdge) Key() string {
 // injectivity property Key() relies on for its Identity-bearing keys.
 // strconv.Itoa plus direct Builder writes, not fmt.Fprintf: profiling showed
 // fmt's reflection-based formatting roughly quadrupling this path's cost
-// (BenchmarkExpectedEdgeKey, go/internal/ifa/materialized_edges_assert_test.go).
+// (BenchmarkExpectedEdgeKey, go/internal/ifa/materializededges/materialized_edges_assert_test.go).
 func writeLengthPrefixedField(b *strings.Builder, s string) {
 	b.WriteString(strconv.Itoa(len(s)))
 	b.WriteByte(':')

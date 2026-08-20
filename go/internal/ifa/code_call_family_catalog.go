@@ -11,7 +11,7 @@ import (
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
-const codeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
+const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 
 // codeCallFamilyOdu returns the binary-portable catalog representation of the
 // code_calls cassette. The checked-in cassette remains the live replay source;
@@ -84,7 +84,7 @@ func codeCallFamilyOdu() CatalogOdu {
 
 func codeCallCatalogFact(kind, stableKey string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		ScopeID: "scope-ifa-code-call-family", GenerationID: codeCallFamilyGenerationID, FactKind: kind,
+		ScopeID: "scope-ifa-code-call-family", GenerationID: CodeCallFamilyGenerationID, FactKind: kind,
 		StableFactKey: stableKey, SchemaVersion: "1.0.0", CollectorKind: "git",
 		SourceConfidence: "observed", Payload: payload,
 	}

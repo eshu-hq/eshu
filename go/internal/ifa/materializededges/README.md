@@ -140,6 +140,40 @@ doc-lockstep test in `go/internal/ifa/code_call_live_documentation_test.go`
 caught the loss. If you change what a guard proves, change this text in the same
 commit -- that test pins these passages by exact wording.
 
+- `RegistryMaterializedEdges`, `MaterializedEdgeSurfacePrefix`,
+  `MaterializedEdgeManifestFileName`, `EnumerateMaterializedEdgeSurfaces`,
+  `MaterializedEdgeOduResolver`, `MaterializedEdgeWaiver`,
+  `LoadMaterializedEdgeWaivers`, `MaterializedEdgeCoverageInputs`,
+  `RunMaterializedEdgeCoverage` (`materialized_edges.go`,
+  `materialized_edges_manifest.go`, #5351) - the `materialized_edges:<domain>`
+  exhaustiveness gate: binds an Odù expectation to each
+  `reducer.MaterializedEdgeFamilies()` entry, mirroring `RunCoverage`'s shape
+  with one addition — a `waivers:` section (parsed separately from the
+  standard `replaycoverage.Manifest` `coverage:`/`scenario_requirements:`
+  rows) that softens an otherwise-required uncovered row into an advisory
+  finding naming a tracked child issue, instead of silently exempting it.
+  Waivers are keyed per `(surface, proof_gate)` — equal to the reconciled row
+  key — so waiving a family's `fault` (`ifa-fault-injection`) row never revokes
+  credit for a proven `baseline` (`ifa-determinism`) row. The manifest is a
+  CLAIMS LEDGER, not a roadmap: each required `(surface × scenario_type)` row
+  must name the proof gate that runs it. SQL relationships has proven baseline
+  and `delta_tombstone` rows under `ifa-determinism`; the matrix drives gen 2
+  after gen 1 and checks the accumulated exact edge set. Its `fault` row is
+  also proven (#5555 closed): `scripts/lib/ifa_fault_injection_sql_cells.sh`'s
+  `cell_killworker_sql` and `cell_failgraphwrite_sql` provably target the
+  `sql_relationship_materialization` / `sql_relationships` work item (a
+  domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
+  `CloudResource`).
+- `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
+  the first family vacuity guard (`sql_relationships`): it asserts the
+  hand-derived expected-edge-set fixture covers every
+  `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
+  exactly by running the Odù's facts through the pure
+  `reducer.ExtractSQLRelationshipRows` seam. The SQL-family Odù now proves all
+  nine writer-registry types, including table-to-table `REFERENCES_TABLE` and
+  routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
+  Because the expected type inventory is registry-derived, adding a tenth type
+  without extending the Odù fails closed instead of preserving a stale count.
 - `codeCallFamilyOdu` (`code_call_family_catalog.go`, #5991, unexported) - is the
   compiled, binary-portable Odù for the code-call family. Its facts and five
   hand-derived expected edges are pinned to the committed

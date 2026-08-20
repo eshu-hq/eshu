@@ -216,6 +216,26 @@ what does not.
 | Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
 | Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materializededges/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
 
+A new family's `materialized_edges_<family>.go` guard belongs in the
+`materializededges` subpackage, NOT here. Its `<family>_family_odu.go` and
+`<family>_family_catalog.go` stay in this package. Nothing enforces that split:
+`dirgate` only counts files per directory, so a guard written into the wrong
+package compiles, passes every gate, and is only caught in review.
+
+Two caps bite, and only one of them is enforced. `dirgate` caps each package at
+40 non-test `.go` files -- that is what forced this subpackage to exist. The
+500-line cap is the other. Measure both before you add, and deliberately no
+numbers here, because a count written into prose goes stale the moment anyone
+edits the file, and this section's line-cap paragraph was already wrong twice
+that way:
+
+```bash
+for d in go/internal/ifa go/internal/ifa/materializededges; do
+  printf '%s: ' "$d"
+  ls "$d"/*.go | rg -v '_test\.go$' | wc -l
+done
+```
+
 Line-cap headroom is the constraint that will bite first. Several files grow per
 family and sit close to the hard 500-line limit. Measure before you add —
 deliberately no numbers here, because a count written into prose goes stale the

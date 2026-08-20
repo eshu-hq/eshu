@@ -190,7 +190,11 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 			"go/internal/ifa/catalog_seed.go",
 			"go/internal/ifa/code_call_family_catalog.go",
 			"go/internal/ifa/testdata/rationale/**",
-			"go/internal/ifa/materialized_edges*.go",
+			// The guards moved out of ifa (#6053), so the old per-file glob
+			// matched nothing. This asserts the trigger that actually covers
+			// them now -- dropping the dead glob without repointing here would
+			// have left both live gates un-retriggered by a guard change.
+			"go/internal/ifa/materializededges/**",
 			"go/internal/reducer/code_call*.go",
 			"go/internal/storage/cypher/*code_call*.go",
 			"sdk/go/factschema/codegraph/v1/repository.go",

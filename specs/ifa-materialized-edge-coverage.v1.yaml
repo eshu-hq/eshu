@@ -39,14 +39,14 @@
 #   - a `coverage:` row with scenario_type: delta_tombstone and proof_gate:
 #     ifa-determinism. The matrix drives gen 2 after the known-good baseline and
 #     asserts the accumulated exact edge set before computing its digest.
-# go/internal/ifa/materialized_edges.go computes these requirements directly
+# go/internal/ifa/materializededges/materialized_edges.go computes these requirements directly
 # from reducer.MaterializedEdgeFamilies(), not from a scenario_requirements:
 # section in this file.
 #
 # scenario is always "odu": every coverage entry's ref must name an Odù
 # returned by Catalog()/CatalogByName() in go/internal/ifa/catalog_seed.go.
 #
-# Resolution semantics (go/internal/ifa/materialized_edges.go's
+# Resolution semantics (go/internal/ifa/materializededges/materialized_edges.go's
 # MaterializedEdgeOduResolver, materialized_edges_sql.go's
 # resolveSQLRelationshipMaterializedEdges for the sql_relationships family):
 # true iff (1) ref names a cataloged Odù, (2) the family's hand-derived
@@ -59,7 +59,7 @@
 #
 # WAIVER GRANULARITY — per (surface × proof_gate), NOT per family.
 # `waivers:` is a small addition on top of replaycoverage's generic Manifest
-# schema (parsed separately by go/internal/ifa/materialized_edges_manifest.go
+# schema (parsed separately by go/internal/ifa/materializededges/materialized_edges_manifest.go
 # LoadMaterializedEdgeWaivers): a waiver softens an otherwise-required
 # uncovered finding into an advisory one that still names the issue in every
 # report, mirroring the C-13/C-14/F-6 gates' waiver-with-tracked-issue pattern.

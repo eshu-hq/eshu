@@ -143,7 +143,7 @@ func TestDeployableUnitFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 		}
 		seen[localPath] = struct{}{}
 	}
-	for _, sibling := range []string{sqlFamilyLocalPath, "/repo-code-calls"} {
+	for _, sibling := range []string{ifa.SQLFamilyLocalPath, "/repo-code-calls"} {
 		for _, localPath := range localPaths {
 			if localPath == sibling {
 				t.Fatalf("deployable-unit local_path %q collides with a sibling family's repository path; canonical path cleanup can delete the other live-matrix repository", localPath)
@@ -154,7 +154,7 @@ func TestDeployableUnitFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
 		t.Fatal("deployable-unit Odù has no generation ID; active-generation publication would be unidentifiable")
 	}
-	for _, sibling := range []string{sqlFamilyGenerationID, codeCallFamilyGenerationID} {
+	for _, sibling := range []string{ifa.SQLFamilyGenerationID, ifa.CodeCallFamilyGenerationID} {
 		if odu.Facts[0].GenerationID == sibling {
 			t.Fatalf("deployable-unit generation ID %q collides with a sibling family's generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
 		}

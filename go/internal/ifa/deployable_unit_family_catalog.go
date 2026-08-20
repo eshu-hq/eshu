@@ -92,7 +92,7 @@ const (
 func deployableUnitFamilyOdu() CatalogOdu {
 	sourceRunID := "run-ifa-deployable-unit-family-1"
 	// LocalPath values are distinct from every other cataloged family's
-	// (sqlFamilyLocalPath "/repo", code_calls' "/repo-code-calls") so the
+	// (SQLFamilyLocalPath "/repo", code_calls' "/repo-code-calls") so the
 	// live determinism matrix's canonical path cleanup for one family cannot
 	// delete this family's repository, mirroring
 	// TestCodeCallFamilyRepositoryIdentityDoesNotCollideWithSQLFamily's proof.

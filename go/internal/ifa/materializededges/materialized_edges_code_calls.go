@@ -31,16 +31,16 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeCallExpectedEdgesRelPath)
 }
 
-// codeCallFamilyOduName and codeCallFamilyGenerationID duplicate the code_calls
-// family's Odù name and generation-ID identity from ifa's code_call_family_odu.go
-// / code_call_family_catalog.go: this package cannot reach those unexported
-// constants across the package boundary, and code_call_family_odu.go /
-// code_call_family_catalog.go still need their own copies to stay in ifa (they
-// seed the compiled catalog), so this is a copy, not a move.
-const (
-	codeCallFamilyOduName      = "odu:ifa-code-call-family"
-	codeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
-)
+// codeCallFamilyOduName duplicates the code_calls family's Odù name from ifa's
+// code_call_family_odu.go, which still needs its own copy to seed the compiled
+// catalog. That copy is safe: it feeds a catalog LOOKUP, so a stale value
+// resolves to a zero Odù and the guard fails closed and loudly.
+//
+// The generation ID is NOT copied -- it is read from ifa (#6053). It sits on the
+// REFERENCE side of the sibling-identity collision assertion, where a copy goes
+// vacuous instead of failing closed: freeze it here and a real collision
+// introduced in ifa compares equal to the stale literal and passes silently.
+const codeCallFamilyOduName = "odu:ifa-code-call-family"
 
 // resolveCodeCallMaterializedEdges is code_calls' named vacuity guard. It
 // invokes the production extractor, requires the hand-derived expected set to

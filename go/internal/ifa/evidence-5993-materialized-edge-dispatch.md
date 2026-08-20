@@ -7,7 +7,7 @@ had no `deployable_unit_edges` case, and two waiver rows kept the coverage gate
 from asking either question. This change wires all three and drops the waivers.
 
 `perf-evidence` selects this change because
-`go/internal/ifa/materialized_edges_deployable_unit.go` is on its hot-file list.
+`go/internal/ifa/materializededges/materialized_edges_deployable_unit.go` is on its hot-file list.
 This note records why that file's change carries no runtime cost, and does so by
 derivation rather than by measurement, because a measurement here would be
 weaker than the derivation.
@@ -32,8 +32,8 @@ resolves it at compile time, so the emitted code is unchanged. Verify with the
 operation rather than trusting this sentence:
 
 ```
-rg -n 'deployableUnitEdgesFamily\s*=' go/internal/ifa/materialized_edges_deployable_unit.go
-rg -n 'deployableUnitEdgesFamily|"deployable_unit_edges"' go/internal/ifa/materialized_edges_deployable_unit.go
+rg -n 'deployableUnitEdgesFamily\s*=' go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
+rg -n 'deployableUnitEdgesFamily|"deployable_unit_edges"' go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
 ```
 
 Both call sites take the const; no literal remains in that file.

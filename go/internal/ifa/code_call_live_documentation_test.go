@@ -135,7 +135,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "doc.go"),
+			// The per-family proof wording moved with the guards it describes
+			// (#6053); ifa's own doc.go now only points at the subpackage, so
+			// the wording is pinned where it actually lives. Pinning it here
+			// after the move would have demanded text of a file that no longer
+			// documents these families.
+			path: filepath.Join("go", "internal", "ifa", "materializededges", "doc.go"),
 			required: []string{
 				"Documentation edges require baseline and fault dimensions. Both live matrices\n// exact-assert their three DOCUMENTS edges",
 				"Rationale edges require baseline and fault dimensions. Both live matrices\n// exact-assert full EXPLAINS records",

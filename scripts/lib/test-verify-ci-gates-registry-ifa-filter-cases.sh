@@ -59,7 +59,7 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# triggers protected that lockstep in CI was false. Pinning the whole command
 	# keeps local and CI reading the same thing; dropping the leg here again should
 	# fail loudly.
-	require "Ifa workflow matrix entry" \
+	require_code "Ifa workflow matrix entry" \
 		'append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1" "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"' \
 		"${static_contract_workflow}"
 

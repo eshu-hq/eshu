@@ -41,4 +41,19 @@
 // Those files duplicate the one or two small pure constants or generic test
 // helpers they need rather than importing this package, documented at each
 // duplication site; see AGENTS.md.
+//
+// RunMaterializedEdgeCoverage derives reducer edge-family requirements and
+// resolves them against hand-derived Odù expectations. SQL relationships
+// require baseline, delta-tombstone, and fault dimensions; the live matrices
+// prove all three across the nine SQL writer-registry types. Code calls require
+// baseline and fault dimensions; the live matrices exact-assert their five
+// edges at N=1/2/4 and after domain-scoped worker and graph-write failures.
+// Documentation edges require baseline and fault dimensions. Both live matrices
+// exact-assert their three DOCUMENTS edges in baseline and domain-scoped
+// recovery cells; the fault delta cell protects them through its full-record
+// collateral comparison.
+// Rationale edges require baseline and fault dimensions. Both live matrices
+// exact-assert full EXPLAINS records with the complete source, relationship,
+// and target properties carried by the expected fixture. The determinism
+// matrix also proves the generation-2 exact-one survivor.
 package materializededges

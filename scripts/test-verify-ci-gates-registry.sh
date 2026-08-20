@@ -30,6 +30,27 @@ require() {
 		fail "missing ${label} (${needle}) in ${file}"
 }
 
+# require_code is require() for a needle that must appear as LIVE CODE.
+#
+# require() above matches anywhere in the file, so a commented-out line
+# satisfies it: comment out the pinned workflow step and the pin still passes
+# while the step stops running. That is not hypothetical -- this file pins the
+# ifa contract-layer append_gate literal, and commenting that one line in CI
+# would silence 185 tests with every gate still green.
+#
+# require() is kept as-is because several of its call sites pin PROSE, the same
+# split the ifa mirrors encode via IFA_DET_PROSE_HELPERS / IFA_PIN_PROSE_HELPERS.
+# Use require_code whenever the needle names something that has to EXECUTE.
+require_code() {
+	local label="$1" needle="$2" file="$3" line stripped
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${line}" == *"${needle}"* ]] && return 0
+	done < "${file}"
+	fail "missing ${label} (${needle}) in ${file} as live code (a commented-out occurrence does not count)"
+}
+
 # ── 1. Verify script structural checks ─────────────────────────────────────
 
 [[ -f "${script}" ]] || fail "missing ${script}"
