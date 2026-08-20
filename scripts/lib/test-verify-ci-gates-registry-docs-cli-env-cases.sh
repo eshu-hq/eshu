@@ -79,7 +79,7 @@ check_docs_cli_env_refs_trigger_parity() {
       fail "docsclienvrefs workflow filter omits ${input}, which specs/ci-gates.v1.yaml lists as a docs-cli-env-refs trigger: a PR touching only that path would select the gate locally and skip it in CI"
   done
 
-  require "docs-cli-env-refs workflow matrix entry" 'append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh"' "${static_contract_workflow}"
+  require_code "docs-cli-env-refs workflow matrix entry" 'append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh"' "${static_contract_workflow}"
 
   for input in 'docs/public/reference/cli-reference.md' 'go/cmd/eshu/docs.go' 'go/internal/cli/firstrun/classify.go' 'go/internal/envregistry/entries.go' 'scripts/test-verify-docs-cli-env-refs.sh'; do
     selection="$(printf '%s\n' "${input}" | (cd "${repo_root}/go" && go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain))"

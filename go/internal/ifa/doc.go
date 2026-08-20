@@ -41,7 +41,7 @@
 // Its per-family coverage dimensions are documented in that package's doc.go;
 // they are not restated here, because two copies of a proof description drift
 // and only one of them is next to the code it describes.
-// Other unproven family dimensions remain explicitly waived in the manifest.
+// Unproven family dimensions remain explicitly waived in the manifest.
 // Registry-derived inventories fail closed when a writer type is added without
 // a matching Odù expectation.
 //

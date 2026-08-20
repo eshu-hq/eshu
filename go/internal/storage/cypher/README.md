@@ -752,8 +752,8 @@ repository ids, node ids, and statements stay out of metric labels.
   from it, so a declared identity can never drift from what the writer
   actually keys on.
 
-All of these are read by `ifa.MaterializedEdgeDomainEdgeTypes` (edge types and
-endpoint constraints) or `ifa.LoadExpectedEdges` (identity properties) to scope
+All of these are read by `materializededges.MaterializedEdgeDomainEdgeTypes` (edge types and
+endpoint constraints) or `materializededges.LoadExpectedEdges` (identity properties) to scope
 the live `assert-edges` check, and each is pinned against what its production
 write and retract templates actually do.
 
@@ -1905,7 +1905,7 @@ there is nothing to add to the telemetry contract or the operator dashboard.
 `MaterializedEdgeIdentityProperties` reads the same kind of package-level map
 literal `SingleTypeMaterializedEdgeTypes` already reads, folded into
 `singleTypeMaterializedEdgeFamilies` in `materialized_edge_families.go`. Its
-callers are `ifa.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
+callers are `materializededges.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
 `assertMaterializedEdges`, both `cmd/ifa` gate-tool read paths, same as the
 edge-type and endpoint-label registries above: no fact is emitted, no work
 item enqueued, no graph statement written or retracted by this lookup.

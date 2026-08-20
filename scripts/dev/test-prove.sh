@@ -55,11 +55,15 @@ rg --pcre2 --quiet '^\.PHONY:.*\bprove\b' "${makefile}" || fail "Makefile .PHONY
 rg --pcre2 --quiet '^prove:.*## ' "${makefile}" || fail "Makefile prove target must carry '## ' help text"
 require_makefile "prove target invokes prove.sh" "scripts/dev/prove.sh"
 
-# Credential-free common path: always runs, in this exact order, with the
-# exact commands the ci-gates registry already pins for these gate ids
-# (specs/ci-gates.v1.yaml: ifa-contract-layer, ifa-determinism,
-# ifa-dead-letter-matrix local.command).
-require "ifa contract-layer test command" "go test ./internal/ifa ./cmd/ifa -count=1"
+# Credential-free common path: always runs, in this exact order. These pin what
+# prove.sh actually invokes, which COVERS the ci-gates registry command for each
+# gate id without being byte-identical to it: prove.sh uses the recursive
+# ./internal/ifa/... form, while specs/ci-gates.v1.yaml's ifa-contract-layer
+# local.command names the packages explicitly. Recursive is the safer of the two
+# to pin -- it cannot silently stop covering a new subpackage the way an explicit
+# list can, which is exactly how the materializededges split (#6053) broke every
+# package-exact copy of this command elsewhere in the repo.
+require "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd/ifa -count=1"
 require "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
 require "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
 require "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"

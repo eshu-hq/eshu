@@ -222,12 +222,16 @@ A new family's `materialized_edges_<family>.go` guard belongs in the
 `dirgate` only counts files per directory, so a guard written into the wrong
 package compiles, passes every gate, and is only caught in review.
 
-Two caps bite, and only one of them is enforced. `dirgate` caps each package at
-40 non-test `.go` files -- that is what forced this subpackage to exist. The
-500-line cap is the other. Measure both before you add, and deliberately no
-numbers here, because a count written into prose goes stale the moment anyone
-edits the file, and this section's line-cap paragraph was already wrong twice
-that way:
+Two caps bite, and both are blocking pre-commit gates: `dirgate` caps each
+package at 40 non-test `.go` files (`go-dir-gate`), and the 500-line file cap is
+the other (`go-file-cap`). The 500-line cap is NOT enforced on `_test.go` --
+the linter skips them -- so a test file can drift past it silently; `dirgate`
+does not count them at all. This subpackage was not created because ifa breached
+the directory cap; it was under it, and the split was taken preemptively to buy
+headroom for the families still queued. Measure both before you add, and
+deliberately no numbers here, because a count written into prose goes stale the
+moment anyone edits the file, and this section's line-cap paragraph was already
+wrong twice that way:
 
 ```bash
 for d in go/internal/ifa go/internal/ifa/materializededges; do

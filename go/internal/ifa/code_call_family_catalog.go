@@ -11,6 +11,14 @@ import (
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
+// CodeCallFamilyLocalPath is the code-call family's repository local_path.
+// Exported (#6053) because sibling-identity collision guards in the
+// materializededges subpackage compare against it: a frozen copy there sits on
+// the REFERENCE side of the assertion and stops detecting the collision it
+// exists to catch, which is the shape that made three neighbouring constants
+// fail open before this was noticed.
+const CodeCallFamilyLocalPath = "/repo-code-calls"
+
 const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 
 // codeCallFamilyOdu returns the binary-portable catalog representation of the
@@ -19,7 +27,7 @@ const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 // to the same strict projection.
 func codeCallFamilyOdu() CatalogOdu {
 	sourceRunID := "run-ifa-code-call-family-1"
-	localPath := "/repo-code-calls"
+	localPath := CodeCallFamilyLocalPath
 	factsForOdu := []facts.Envelope{
 		codeCallCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID: "repo-ifa-code-call-family", SourceRunID: &sourceRunID, LocalPath: &localPath,

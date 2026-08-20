@@ -80,7 +80,7 @@ run_ci_gates_registry_ifa_filter_cases() {
 	# "the half nothing checked".
 	#
 	# What made scoping look necessary was a real false positive:
-	# go/internal/ifa/materialized_edges*.go is a trigger the filter does not
+	# go/internal/ifa/materializededges/** is a trigger the filter does not
 	# name and does not need to, because go/internal/ifa/** already covers it.
 	# The fix is to model that coverage rather than to duck it. A dorny entry
 	# "P/**" covers a trigger T when T starts with "P/", so a trigger is

@@ -143,7 +143,7 @@ func TestDeployableUnitFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *tes
 		}
 		seen[localPath] = struct{}{}
 	}
-	for _, sibling := range []string{ifa.SQLFamilyLocalPath, "/repo-code-calls"} {
+	for _, sibling := range []string{ifa.SQLFamilyLocalPath, ifa.CodeCallFamilyLocalPath} {
 		for _, localPath := range localPaths {
 			if localPath == sibling {
 				t.Fatalf("deployable-unit local_path %q collides with a sibling family's repository path; canonical path cleanup can delete the other live-matrix repository", localPath)
