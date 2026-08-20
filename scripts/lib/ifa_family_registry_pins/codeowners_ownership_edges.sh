@@ -62,7 +62,7 @@
 # `LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE` (:79).
 # Derived here from those call sites, NOT read back out of the registry row.
 # checkFamilyBlockerLockstep
-# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283)
+# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go)
 # accepts either ack_barrier or a table_lock:<name> for an EdgeWriter-only
 # handler, so this is not a value the Go side could have disambiguated.
 IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"

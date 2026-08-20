@@ -53,7 +53,7 @@ _ifa_generic_require_intent_writer() {
 	# refactor that drops the struct field but keeps the interface -- or that
 	# leaves the word in a comment -- passed. Proven by feeding it a handler
 	# whose only occurrence was in a comment: rc=0, "precondition confirmed".
-	# The declaration form is uniform across all five current writers
+	# The declaration form is uniform across every current writer
 	# (`rg -n '^\s+IntentWriter\s' go/internal/reducer/*.go`), so anchoring on
 	# it is not a guess.
 	# rg's exit code is THREE-valued and the difference matters: 0 match, 1 no

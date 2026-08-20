@@ -36,7 +36,7 @@ IFA_FAMILY_PIN_WAIT_KEY="deployable_unit_correlation"
 # go/internal/storage/cypher/canonical_deployable_unit_edges.go:6-9
 # (batchCanonicalDeployableUnitCorrelationUpsertCypher) is the family's only
 # CORRELATES_DEPLOYABLE_UNIT write template (matches
-# scripts/verify-ifa-fault-injection.sh:318
+# scripts/verify-ifa-fault-injection.sh's deployable_unit_edge_operation_match
 # deployable_unit_edge_operation_match). shared_cell: NOT driven by
 # drive_all_cassettes -- scripts/lib/ifa_fault_injection_driver.sh:111-119's
 # own header states drive_deployable_unit_cassette is called only by this
@@ -50,7 +50,7 @@ IFA_FAMILY_PIN_WAIT_KEY="deployable_unit_correlation"
 # (scripts/lib/ifa_fault_generic_cells.sh's `cell_killworker_family` case
 # statement's `table_lock:*)` arm, :331) -- but the live driver has NOT been
 # migrated to dispatch this family through it:
-# scripts/verify-ifa-fault-injection.sh:471-472 still calls
+# scripts/verify-ifa-fault-injection.sh still calls
 # cell_killworker_deployable_unit / cell_failgraphwrite_deployable_unit
 # directly (its own hand-written, already-proven cell functions in
 # ifa_fault_injection_deployable_unit_cells.sh), not

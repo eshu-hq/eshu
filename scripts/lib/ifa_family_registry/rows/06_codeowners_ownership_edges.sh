@@ -17,13 +17,14 @@
 # a function named ifa_codeowners_start_intent_lock, and told the reader not to
 # "fix" the cell to match. Both were true of a shape that #5992 removed and
 # #6160 replaced: that function name exists nowhere in scripts/ today, and
-# `rg 'shared_projection_intents' scripts/lib/ifa_fault_injection_codeowners_cells.sh`
-# returns nothing. The instruction was the dangerous part -- following it meant
+# the only mentions of shared_projection_intents in
+# scripts/lib/ifa_fault_injection_codeowners_cells.sh are comments recording why
+# this family does not touch that table. The instruction was the dangerous part -- following it meant
 # reintroducing the vacuous lock the fix removed.
 #
 # shared_intent_lock is the one kind this family genuinely cannot use, and that
 # is enforced rather than merely written down: checkFamilyBlockerLockstep
-# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go:283)
+# (go/internal/reducer/materialized_edge_family_blocker_shape_test.go)
 # rejects it for a handler with no IntentWriter, and names ack_barrier or a
 # table_lock:<name> the handler really touches as the alternatives. This row
 # takes the second, because that is what the cell actually engages.
@@ -67,7 +68,7 @@ IFA_FAMILY_ASSERT_FN[codeowners_ownership_edges]="ifa_codeowners_assert"
 IFA_FAMILY_CASSETTE_VAR[codeowners_ownership_edges]="codeowners_cassette"
 IFA_FAMILY_EXPECTED_VAR[codeowners_ownership_edges]="codeowners_expected_edges"
 # The live cell reads codeowners_edge_operation_match
-# (scripts/verify-ifa-fault-injection.sh:303), not this field -- this family is
+# (scripts/verify-ifa-fault-injection.sh's codeowners_edge_operation_match), not this field -- this family is
 # cell_kind=custom, so the generic dispatcher never calls ifa_family_anchor for
 # it. Both strings are byte-exact substrings of the real Cypher statement,
 # go/internal/storage/cypher/canonical_codeowners_edges.go:35, but they are not

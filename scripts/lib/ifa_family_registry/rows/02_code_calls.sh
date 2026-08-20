@@ -6,7 +6,7 @@
 
 # ifa_fault_generic_cells.sh:184: the generic kill cell calls
 # ifa_fault_start_shared_intent_lock for any family whose row declares this
-# kind, and :199 releases it. This family reaches that path through
+# kind, and releases it in the same function. This family reaches that path through
 # cell_killworker_family (cell_kind=generic below).
 #
 # The wrapper this row used to cite, ifa_code_call_start_intent_lock, was
@@ -14,7 +14,7 @@
 # points at an unexecuted helper is not proof.
 IFA_FAMILY_BLOCKER_KIND[code_calls]="shared_intent_lock"
 IFA_FAMILY_WAIT_STAGE[code_calls]="handler"
-# Consumed by ifa_fault_generic_cells.sh:145, which reads this row through
+# Consumed by ifa_fault_generic_cells.sh's _ifa_generic_wait_for_claimed, which reads this row through
 # ifa_family_wait_key and scopes ifa_fault_wait_for_claimed to it.
 IFA_FAMILY_WAIT_KEY[code_calls]="code_call_materialization"
 IFA_FAMILY_SHARED_CELL[code_calls]=1

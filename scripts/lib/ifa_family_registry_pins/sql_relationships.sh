@@ -40,7 +40,7 @@ IFA_FAMILY_PIN_WAIT_KEY="sql_relationship_materialization"
 # (batchCanonicalSQLQueriesTableUpsertCypher) is the SQL-relationship
 # family's QUERIES_TABLE write template (one of nine edge types the family
 # materializes, per ifa_family_fixtures.sh's header comment, but the one
-# this family's fail-graph-write cell targets -- scripts/verify-ifa-fault-injection.sh:302
+# this family's fail-graph-write cell targets -- scripts/verify-ifa-fault-injection.sh's sql_edge_operation_match
 # sql_edge_operation_match agrees byte-for-byte). shared_cell: driven every N
 # cell, THROUGH the registry loop -- scripts/verify-ifa-determinism.sh:338
 # calls ifa_family_registry_drive for every shared_cell family, this one

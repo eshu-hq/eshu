@@ -30,8 +30,7 @@
 # mid-program. Splitting by FAMILY rather than by mechanism (contrast
 # ifa_fault_generic_cells.sh's mechanism split) is deliberate: blocker_kind
 # and cell_kind get corrected in place as the program learns things --
-# deployable_unit_edges' cell_kind just flipped generic->custom this same
-# session, and codeowners_ownership_edges' blocker_kind was corrected in place
+# codeowners_ownership_edges' blocker_kind was corrected in place
 # from ack_barrier to table_lock:fact_records once its landed cell was
 # re-read -- and a
 # mechanism-grouped rows file would turn every such correction into a file
@@ -41,8 +40,8 @@
 # "files that must load in a specific order") so IFA_FAMILY_NAMES' order
 # stays exactly what it was before the split: the first four preserve
 # scripts/verify-ifa-determinism.sh's pre-registry inline drive/assert order
-# (sql, code_call, documentation, rationale) byte-for-byte -- that loop's own
-# header cites this ordering guarantee. A new family's row file gets the
+# (sql, code_call, documentation, rationale) byte-for-byte -- that loop reads
+# this order directly rather than restating it. A new family's row file gets the
 # next unused prefix; nothing about an insertion at the end requires
 # renumbering anything else.
 #

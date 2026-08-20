@@ -36,10 +36,10 @@ IFA_FAMILY_PIN_WAIT_KEY="rationale_materialization"
 # has no hand-written fault cells of its own). shared_cell:
 # scripts/lib/ifa_fault_injection_driver.sh:101-102 drives it
 # unconditionally in drive_all_cassettes, and
-# scripts/verify-ifa-determinism.sh's `for family in
-# $(ifa_family_registry_names); do ... ifa_family_registry_drive` /
-# `... ifa_family_registry_assert` loops (the drive call at :338 and the
-# assert call at :389) run its drive/assert every N.
+# scripts/verify-ifa-determinism.sh's registry drive and assert loops
+# (`while IFS= read -r family; do ... done < <(ifa_family_registry_names)`,
+# calling ifa_family_registry_drive and ifa_family_registry_assert) run its
+# drive/assert every N.
 # cell_kind: blocker_kind=shared_intent_lock => generic.
 IFA_FAMILY_PIN_ANCHOR="MERGE (rationale)-[rel:EXPLAINS]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=1

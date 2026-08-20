@@ -39,9 +39,9 @@ IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"
 # has no hand-written fault cells of its own). shared_cell:
 # scripts/lib/ifa_fault_injection_driver.sh:97-98's drive_all_cassettes
 # calls ifa_code_call_drive unconditionally for every cell, and
-# scripts/verify-ifa-determinism.sh's `for family in
-# $(ifa_family_registry_names); do ... ifa_family_registry_drive` loop
-# (the drive call at :338) is what this family's
+# scripts/verify-ifa-determinism.sh's registry drive loop
+# (`while IFS= read -r family; do ... done < <(ifa_family_registry_names)`,
+# calling ifa_family_registry_drive) is what this family's
 # determinism-gate drive now runs through. cell_kind:
 # blocker_kind=shared_intent_lock is generic-dispatcher-supported =>
 # generic.

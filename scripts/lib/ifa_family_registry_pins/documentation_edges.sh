@@ -42,7 +42,7 @@ IFA_FAMILY_PIN_WAIT_KEY="documentation_materialization"
 # target) and :34-49 (workload target) are the two DOCUMENTS write
 # templates; both end in the IDENTICAL final MERGE line, so the substring is
 # unambiguous across either template (matches
-# scripts/verify-ifa-fault-injection.sh:311
+# scripts/verify-ifa-fault-injection.sh's documentation_edge_operation_match
 # documentation_edge_operation_match, and
 # scripts/lib/test-ifa-fault-injection-documentation-cases.sh:25's own pin).
 # shared_cell: scripts/lib/ifa_fault_injection_driver.sh:99-100 drives it
