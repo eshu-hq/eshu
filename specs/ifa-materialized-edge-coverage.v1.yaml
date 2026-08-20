@@ -274,6 +274,16 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-codeowners-family"
     proof_gate: ifa-fault-injection
+  - surface: "materialized_edges:repo_dependency"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-repo-dependency-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:repo_dependency"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-repo-dependency-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
@@ -283,23 +293,13 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 8 other allProjectionDomains families: both live gates unproven. ---
+  # --- The 7 other allProjectionDomains families: both live gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver. Most still lack an Odù + expected-edge-set fixture; family-specific
   # comments below name any stronger offline proof that still lacks a live gate.
   # Each names its own per-domain child issue (#5991-#6003) under the #5344
   # epic umbrella #5543, not the umbrella itself: a waiver should name the issue
   # whose closure retires it, and the umbrella retires none of them individually.
-  - surface: "materialized_edges:repo_dependency"
-    proof_gate: ifa-determinism
-    issue: "#5999"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending #5999 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:repo_dependency"
-    proof_gate: ifa-fault-injection
-    issue: "#5999"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending #5999 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:workload_dependency"
     proof_gate: ifa-determinism
     issue: "#6003"
@@ -414,7 +414,7 @@ waivers:
 #     exact-one survivor; that delta behavior is not a separate required row.
 #   - deployable_unit_edges BASELINE and FAULT are covered once its vacuity
 #     guard is dispatched and its Odù cataloged (#5993/#6158).
-#   - The 8 other allProjectionDomains families are blocked on the epic #5344
+#   - The 7 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------

@@ -37,6 +37,13 @@
 // canonical byte form (or, with -digest, its sha256 hex digest) to -out or
 // stdout. It is read-only: it applies no schema DDL and performs no write.
 //
+// `ifa materialize-platform-prerequisite -repo-id ID -kind KIND -name NAME
+// -locator LOCATOR` prepares one Platform node for a live conformance case. It
+// derives the node ID with reducer.CanonicalPlatformID, passes exactly one row
+// to the production InfrastructurePlatformMaterializer, and verifies the node
+// exists. The source Repository must already exist. This explicit setup verb
+// does not change the read-only graph-dump or assert-edges backends.
+//
 // `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) is the
 // materialized-edge exhaustiveness gate's live, set-exact non-vacuity
 // assertion. Over the same read-only Bolt connection graph-dump uses, it reads

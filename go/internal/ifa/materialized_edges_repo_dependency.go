@@ -24,10 +24,6 @@ import (
 // registered before the #5543 naming convention and nothing has renamed it.
 const repoDependencyEdgesFamily = "repo_dependency"
 
-// repoDependencyRunsOnType is the one registry type this guard deliberately
-// does NOT prove. See this file's package-level doc comment.
-const repoDependencyRunsOnType = "RUNS_ON"
-
 // repoDependencyGuardClock is the fixed, deterministic wall-clock reading
 // this guard hands to reducer.ExtractRepoDependencyIntentRows for every row's
 // CreatedAt. go/internal/ifa/AGENTS.md forbids wall-clock time inside Ifá
@@ -60,8 +56,7 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // guard, mirroring resolveSQLRelationshipMaterializedEdges /
 // resolveCodeCallMaterializedEdges's role for their multi-type families.
 //
-// Unlike deployable_unit_edges, this family's SIX repo-to-repo relationship
-// types (DEPENDS_ON, DEPLOYS_FROM, DISCOVERS_CONFIG_IN,
+// Six relationship types (DEPENDS_ON, DEPLOYS_FROM, DISCOVERS_CONFIG_IN,
 // PROVISIONS_DEPENDENCY_FOR, USES_MODULE, READS_CONFIG_FROM) derive from an
 // Odù's own facts through the SAME two production seams
 // deployable_unit_edges runs -- DiscoveredEvidence (relationships.Resolve's
@@ -75,34 +70,22 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // graph backend could actually reach, the same false-green class the #5351
 // live-proof finding warns about for endpoint identity that
 // resolveDeployableUnitMaterializedEdges's doc comment names; running the
-// real resolver closes that gap here too.
-//
-// RUNS_ON, cypher.RepoDependencyMaterializedEdgeTypes's seventh registry
-// type, is a DELIBERATE, DOCUMENTED gap this guard does not prove. Two
-// separate reasons compound:
-//
-//  1. Its endpoint shape is (WorkloadInstance)-[:RUNS_ON]->(Platform), not
-//     Repository->Repository, reached through DEFINES/INSTANCE_OF edges a
-//     DIFFERENT domain (workload materialization) writes -- an Odù carrying
-//     only repository/content facts cannot produce a WorkloadInstance node
-//     to anchor the edge on at all.
-//  2. Even given a WorkloadInstance, buildResolvedEdgeIntentRow's RelRunsOn
-//     arm writes payload["platform_id"] = r.TargetEntityID verbatim, and the
-//     live writer (canonicalRunsOnUpsertCypher) MATCHes a Platform node by
-//     that id. Production stamps that id from reducer.CanonicalPlatformID,
-//     which no fact-only extraction seam can reproduce byte-for-byte outside
-//     the real platform-inference pipeline this guard deliberately does not
-//     run.
+// real resolver closes that gap here too. RUNS_ON's endpoint shape differs:
+// the writer MATCHes (Repository)-[:DEFINES]->(Workload)<-[:INSTANCE_OF]-
+// (WorkloadInstance) and a pre-existing Platform. The guard therefore also
+// runs ExtractWorkloadCandidates -> BuildProjectionRows over the Odù's facts
+// and requires one unambiguous WorkloadInstance for the source repository.
+// It derives the destination Platform identity through
+// reducer.CanonicalPlatformID. The later live gate must create that exact
+// Platform through reducer.NewInfrastructurePlatformMaterializer before the
+// repo_dependency writer runs; this pure guard deliberately does no graph I/O.
 //
 // This is a DIFFERENT gap from the three types
 // cypher.RepoDependencyMaterializedEdgeTypes never even registers
 // (HAS_DEPLOYMENT_EVIDENCE, EVIDENCES_REPOSITORY_RELATIONSHIP,
 // TARGETS_ENVIRONMENT -- excluded because their EvidenceArtifact endpoint id
 // embeds the generation id and ordinal, so no exact hand-derived set could
-// ever pin them). RUNS_ON IS in the registry; this guard's completeness
-// check (repoDependencyProvableRegistryTypes) explicitly subtracts it rather
-// than silently passing a registry check that would otherwise demand
-// coverage this Odù cannot honestly provide.
+// ever pin them).
 //
 // What this guard DOES catch: a regression in Terraform app_repo/module-
 // source, terragrunt config_path, Docker Compose depends_on/build-context, or
@@ -112,11 +95,10 @@ func repoDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // buildResolvedEdgeIntentRow's per-type routing (repo_id/target_repo_id
 // payload keys); and a regression in the catalog matcher's same-repo
 // exclusion or token-boundary discipline (the self-reference and near-miss-
-// alias negative cases -- see repoDependencyFamilyOdu's doc comment). What it
-// does NOT catch: anything downstream of the live Cypher writer (that is
-// `eshu-ifa assert-edges`' job once a coverage-manifest row and live
-// determinism/fault-injection cells exist for this family), and RUNS_ON as
-// described above.
+// alias negative cases); and RUNS_ON endpoint derivation from ArgoCD plus
+// Kubernetes workload facts. What it does NOT catch: anything downstream of
+// the live Cypher writer (that is `eshu-ifa assert-edges`' job once the live
+// determinism/fault-injection cells exist for this family).
 func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, repoDependencyEdgesFamily)
 	if err != nil {
@@ -126,18 +108,16 @@ func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	if err != nil {
 		return false, err.Error()
 	}
-	provable := repoDependencyProvableRegistryTypes(registry)
-	if missing := missingRepoDependencyExpectedTypes(expected, provable); len(missing) > 0 {
-		return false, fmt.Sprintf("odù %q: expected-edge set does not cover every fixture-provable registry type, missing: %v", odu.Name, missing)
-	}
-	for _, edge := range expected {
-		if edge.RelationshipType == repoDependencyRunsOnType {
-			return false, fmt.Sprintf("odù %q: expected-edge fixture carries a %s edge, but this guard deliberately does not prove RUNS_ON (see this file's package doc comment) -- remove it from the fixture or extend the guard's scope first", odu.Name, repoDependencyRunsOnType)
-		}
+	if missing := missingRepoDependencyExpectedTypes(expected, registry); len(missing) > 0 {
+		return false, fmt.Sprintf("odù %q: expected-edge set does not cover every registry type, missing: %v", odu.Name, missing)
 	}
 
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
+	}
+	instanceID, platformID, err := repoDependencyFamilyRunsOnPrerequisites(odu)
+	if err != nil {
+		return false, err.Error()
 	}
 
 	evidence := DiscoveredEvidence(odu)
@@ -158,9 +138,17 @@ func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (
 
 	actual := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
+		relationshipType := anyToStringValue(row.Payload["relationship_type"])
+		sourceEntityID := row.RepositoryID
+		if relationshipType == string(relationships.RelRunsOn) {
+			sourceEntityID = instanceID
+			if target := repoDependencyRowTargetEntityID(row); target != platformID {
+				return false, fmt.Sprintf("odù %q: RUNS_ON targets Platform %q, want canonical destination Platform %q", odu.Name, target, platformID)
+			}
+		}
 		actual = append(actual, ExpectedEdge{
-			RelationshipType: anyToStringValue(row.Payload["relationship_type"]),
-			SourceEntityID:   anyToStringValue(row.Payload["repo_id"]),
+			RelationshipType: relationshipType,
+			SourceEntityID:   sourceEntityID,
 			TargetEntityID:   repoDependencyRowTargetEntityID(row),
 		})
 	}
@@ -169,49 +157,77 @@ func resolveRepoDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (
 	}
 
 	return true, fmt.Sprintf(
-		"odù %q: DiscoveredEvidence -> relationships.Resolve -> reducer.ExtractRepoDependencyIntentRows reproduces the expected %d-edge set exactly across %d of %d registry types (RUNS_ON excluded by design), and the self-reference/near-miss-alias negative cases produced zero spurious evidence",
-		odu.Name, len(expected), len(provable), len(registry),
+		"odù %q: DiscoveredEvidence -> relationships.Resolve -> reducer.ExtractRepoDependencyIntentRows reproduces the expected %d-edge set exactly across all %d registry types; ExtractWorkloadCandidates -> BuildProjectionRows derives RUNS_ON's unique WorkloadInstance and CanonicalPlatformID derives its required Platform; the self-reference/near-miss-alias negative cases produced zero spurious evidence",
+		odu.Name, len(expected), len(registry),
 	)
+}
+
+// repoDependencyFamilyRunsOnPrerequisites derives the graph identities the
+// RUNS_ON writer MATCHes before writing. The workload side must resolve to one
+// Repository -> Workload <- WorkloadInstance chain; zero or multiple
+// instances fail closed. The Platform side pins the identity the live harness
+// must materialize through InfrastructurePlatformMaterializer before executing
+// the repo_dependency writer.
+func repoDependencyFamilyRunsOnPrerequisites(odu Odu) (string, string, error) {
+	candidates, deploymentEnvironments := reducer.ExtractWorkloadCandidates(odu.Facts)
+	projection := reducer.BuildProjectionRows(candidates, deploymentEnvironments)
+
+	workloadIDs := make(map[string]struct{})
+	for _, row := range projection.WorkloadRows {
+		if row.RepoID == repoDependencyFamilySourceRepoID {
+			workloadIDs[row.WorkloadID] = struct{}{}
+		}
+	}
+	if len(workloadIDs) != 1 {
+		return "", "", fmt.Errorf("odù %q: RUNS_ON requires exactly one source Repository -> Workload prerequisite, got %d; check source repository graph_id/name and workload signals", odu.Name, len(workloadIDs))
+	}
+
+	instanceIDs := make([]string, 0, len(projection.InstanceRows))
+	for _, row := range projection.InstanceRows {
+		if row.RepoID != repoDependencyFamilySourceRepoID {
+			continue
+		}
+		if _, ok := workloadIDs[row.WorkloadID]; !ok {
+			continue
+		}
+		instanceIDs = append(instanceIDs, row.InstanceID)
+	}
+	sort.Strings(instanceIDs)
+	if len(instanceIDs) != 1 {
+		return "", "", fmt.Errorf("odù %q: RUNS_ON requires exactly one source WorkloadInstance prerequisite, got %d (%v); missing or ambiguous environments cannot select a deterministic endpoint", odu.Name, len(instanceIDs), instanceIDs)
+	}
+
+	platformID := reducer.CanonicalPlatformID(reducer.CanonicalPlatformInput{
+		Kind:    "kubernetes",
+		Locator: "cluster/" + repoDependencyFamilyDestinationName,
+	})
+	if platformID == "" {
+		return "", "", fmt.Errorf("odù %q: RUNS_ON destination %q did not produce a canonical Platform id", odu.Name, repoDependencyFamilyDestinationName)
+	}
+	return instanceIDs[0], platformID, nil
 }
 
 // repoDependencyRowTargetEntityID reads a row's target entity id off the
 // payload key its relationship_type actually populates.
 // buildResolvedEdgeIntentRow (cross_repo_intent_row.go) writes RelRunsOn rows
 // under "platform_id" and every other repo_dependency type under
-// "target_repo_id" -- this guard never produces a RUNS_ON row (see this
-// file's package doc comment), but reading the wrong key defensively here
-// would silently render an empty TargetEntityID instead of failing loudly, so
-// the dispatch is explicit rather than a single hard-coded key.
+// "target_repo_id". Reading the wrong key would silently render an empty
+// TargetEntityID, so the dispatch is explicit rather than a single hard-coded
+// key.
 func repoDependencyRowTargetEntityID(row reducer.SharedProjectionIntentRow) string {
-	if anyToStringValue(row.Payload["relationship_type"]) == repoDependencyRunsOnType {
+	if anyToStringValue(row.Payload["relationship_type"]) == string(relationships.RelRunsOn) {
 		return anyToStringValue(row.Payload["platform_id"])
 	}
 	return anyToStringValue(row.Payload["target_repo_id"])
 }
 
-// repoDependencyProvableRegistryTypes returns registry minus RUNS_ON -- the
-// subset of cypher.RepoDependencyMaterializedEdgeTypes this guard can
-// honestly require an expected-edge fixture to cover. See
-// resolveRepoDependencyMaterializedEdges's doc comment for why RUNS_ON is
-// excluded.
-func repoDependencyProvableRegistryTypes(registry map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(registry))
-	for edgeType := range registry {
-		if edgeType == repoDependencyRunsOnType {
-			continue
-		}
-		out[edgeType] = struct{}{}
-	}
-	return out
-}
-
-func missingRepoDependencyExpectedTypes(expected []ExpectedEdge, provable map[string]struct{}) []string {
+func missingRepoDependencyExpectedTypes(expected []ExpectedEdge, registry map[string]struct{}) []string {
 	present := make(map[string]struct{}, len(expected))
 	for _, edge := range expected {
 		present[edge.RelationshipType] = struct{}{}
 	}
 	var missing []string
-	for edgeType := range provable {
+	for edgeType := range registry {
 		if _, ok := present[edgeType]; !ok {
 			missing = append(missing, edgeType)
 		}

@@ -117,6 +117,9 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_codeowners
 	cell_killworker_codeowners
 	cell_failgraphwrite_codeowners
+	cell_baseline_repo_dependency
+	cell_killworker_repo_dependency
+	cell_failgraphwrite_repo_dependency
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -142,6 +145,7 @@ IFA_FAULT_ALL_CELLS=(
 IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit"
 	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
+	"cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency"
 )
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges

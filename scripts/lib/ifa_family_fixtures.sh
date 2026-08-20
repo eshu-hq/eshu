@@ -73,6 +73,11 @@ deployable_unit_expected_edges="${repo_root}/go/internal/ifa/testdata/deployable
 codeowners_cassette="${repo_root}/testdata/cassettes/codeowners/ifa-codeowners-family.json"
 codeowners_expected_edges="${repo_root}/go/internal/ifa/testdata/codeowners/ifa-codeowners-family-expected-edges.json"
 
+# repo_dependency is resolver-owned and requires a fixture-only Platform
+# prerequisite after its first, deliberately gated drain.
+repo_dependency_cassette="${repo_root}/testdata/cassettes/repodependency/ifa-repo-dependency-family.json"
+repo_dependency_expected_edges="${repo_root}/go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json"
+
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
 # so a missing file is identifiable from the failure line alone; "$1" is the
@@ -95,4 +100,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${rationale_delta_expected_records}" ]] || { echo "${gate}: rationale delta expected-record set not found: ${rationale_delta_expected_records}" >&2; exit 1; }
 	[[ -f "${codeowners_cassette}" ]] || { echo "${gate}: codeowners cassette not found: ${codeowners_cassette}" >&2; exit 1; }
 	[[ -f "${codeowners_expected_edges}" ]] || { echo "${gate}: codeowners expected-edge set not found: ${codeowners_expected_edges}" >&2; exit 1; }
+	[[ -f "${repo_dependency_cassette}" ]] || { echo "${gate}: repo-dependency cassette not found: ${repo_dependency_cassette}" >&2; exit 1; }
+	[[ -f "${repo_dependency_expected_edges}" ]] || { echo "${gate}: repo-dependency expected-edge set not found: ${repo_dependency_expected_edges}" >&2; exit 1; }
 }

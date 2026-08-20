@@ -10,6 +10,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-source",
             "name": "repo-dependency-family-source",
             "repo_id": "repo-ifa-repo-dependency-source",
             "repo_slug": "ifa-org/repo-dependency-family-source",
@@ -24,6 +25,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-provisions",
             "name": "target-provisions",
             "repo_id": "repo-ifa-repo-dependency-target-provisions",
             "repo_slug": "ifa-org/target-provisions",
@@ -38,6 +40,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-usesmodule",
             "name": "target-usesmodule",
             "repo_id": "repo-ifa-repo-dependency-target-usesmodule",
             "repo_slug": "ifa-org/target-usesmodule",
@@ -52,6 +55,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-discoversconfig",
             "name": "target-discoversconfig",
             "repo_id": "repo-ifa-repo-dependency-target-discoversconfig",
             "repo_slug": "ifa-org/target-discoversconfig",
@@ -66,6 +70,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-dependson",
             "name": "target-dependson",
             "repo_id": "repo-ifa-repo-dependency-target-dependson",
             "repo_slug": "ifa-org/target-dependson",
@@ -80,6 +85,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-deploysfrom",
             "name": "target-deploysfrom",
             "repo_id": "repo-ifa-repo-dependency-target-deploysfrom",
             "repo_slug": "ifa-org/target-deploysfrom",
@@ -94,10 +100,35 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
+            "graph_id": "repo-ifa-repo-dependency-target-readsconfig",
             "name": "target-readsconfig",
             "repo_id": "repo-ifa-repo-dependency-target-readsconfig",
             "repo_slug": "ifa-org/target-readsconfig",
             "source_run_id": "run-ifa-repo-dependency-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "file:repo-ifa-repo-dependency-source:deploy/application.yaml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "argocd",
+            "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+            "content": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  destination:\n    name: prod-cluster\n    namespace: prod\n  source:\n    repoURL: https://github.com/ifa-org/repo-dependency-family-source.git\n",
+            "language": "yaml",
+            "parsed_file_data": {
+              "k8s_resources": [
+                {
+                  "kind": "Deployment",
+                  "namespace": "prod"
+                }
+              ]
+            },
+            "relative_path": "deploy/application.yaml",
+            "repo_id": "repo-ifa-repo-dependency-source"
           }
         },
         {

@@ -4,13 +4,17 @@
 package ifa
 
 import (
+	"fmt"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 // The repo_dependency family Odù (#5999, under the #5543 umbrella).
 //
-// Unlike deployable_unit_edges, this family's SIX repo-to-repo relationship
-// types (DEPENDS_ON, DEPLOYS_FROM, DISCOVERS_CONFIG_IN,
+// Unlike deployable_unit_edges, six of this family's relationship types
+// (DEPENDS_ON, DEPLOYS_FROM, DISCOVERS_CONFIG_IN,
 // PROVISIONS_DEPENDENCY_FOR, USES_MODULE, READS_CONFIG_FROM -- the
 // alternation cypher.RepoDependencyMaterializedEdgeTypes splits out of
 // repoDependencyRelationshipEdgeTypes) derive from facts ALONE: each is a
@@ -19,11 +23,15 @@ import (
 // fact's artifact_type/body, with no resolved-relationship precondition the
 // way deployable_unit_edges' deployment_repo_id has. So this Odù needs no
 // second production seam beyond DiscoveredEvidence -> relationships.Resolve
-// (see materialized_edges_repo_dependency.go).
+// (see materialized_edges_repo_dependency.go). The seventh type, RUNS_ON,
+// derives from an ArgoCD Application destination in a typed file fact. That
+// same fact carries a Kubernetes Deployment in namespace prod, so the
+// production workload extraction/projection seams derive the exact
+// WorkloadInstance endpoint the RUNS_ON writer MATCHes.
 //
-// One source repository carries one content fact per relationship type, each
-// naming a DISTINCT target repository so the six edges are trivially
-// separable by (type, target) alone:
+// One source repository carries one content fact per repo-to-repo relationship
+// type, each naming a DISTINCT target repository so those six edges are
+// trivially separable by (type, target) alone:
 //
 //   - PROVISIONS_DEPENDENCY_FOR: Terraform `app_repo = "..."` literal
 //     (relationships.EvidenceKindTerraformAppRepo), the same evidence kind
@@ -54,15 +62,6 @@ import (
 //     `target-provisions` alias but a DIFFERENT single catalog-match token)
 //     -- proves the fuzzy tokenizer does not treat a prefix collision as a
 //     match.
-//
-// RUNS_ON, the seventh registry type, is a deliberate, explicit, documented
-// gap -- NOT proven by this Odù. See
-// materialized_edges_repo_dependency.go's package-level doc comment for why:
-// its Platform-id endpoint identity is not reachable from an Odù's own
-// facts, distinct from the PERMANENT exclusion of
-// HAS_DEPLOYMENT_EVIDENCE/EVIDENCES_REPOSITORY_RELATIONSHIP/
-// TARGETS_ENVIRONMENT that cypher.RepoDependencyMaterializedEdgeTypes never
-// even registers.
 const (
 	repoDependencyFamilyOduName      = "odu:ifa-repo-dependency-family"
 	repoDependencyFamilyScopeID      = "scope-ifa-repo-dependency-family"
@@ -100,6 +99,10 @@ const (
 	repoDependencyFamilyNearMissAlias = "target-provisions-extra"
 
 	repoDependencyFamilyCommitSHA = "0123456789abcdef0123456789abcdef01234567"
+
+	repoDependencyFamilyEnvironment     = "prod"
+	repoDependencyFamilyDestinationName = "prod-cluster"
+	repoDependencyFamilyArgoCDRepoURL   = "https://github.com/ifa-org/repo-dependency-family-source.git"
 )
 
 // repoDependencyFamilyOdu returns the binary-portable catalog representation
@@ -113,8 +116,25 @@ func repoDependencyFamilyOdu() CatalogOdu {
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDependsOnRepoID, repoDependencyFamilyTargetDependsOnName, "ifa-org/"+repoDependencyFamilyTargetDependsOnName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDeploysFromRepoID, repoDependencyFamilyTargetDeploysFromName, "ifa-org/"+repoDependencyFamilyTargetDeploysFromName),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetReadsConfigRepoID, repoDependencyFamilyTargetReadsConfigName, "ifa-org/"+repoDependencyFamilyTargetReadsConfigName),
+		repoDependencyFamilyFileFact(codegraphv1.File{
+			RepoID:       repoDependencyFamilySourceRepoID,
+			RelativePath: "deploy/application.yaml",
+			Language:     strPtr("yaml"),
+			ParsedFileData: map[string]any{
+				"k8s_resources": []any{
+					map[string]any{"kind": "Deployment", "namespace": repoDependencyFamilyEnvironment},
+				},
+			},
+		}, "argocd", "apiVersion: argoproj.io/v1alpha1\n"+
+			"kind: Application\n"+
+			"spec:\n"+
+			"  destination:\n"+
+			"    name: "+repoDependencyFamilyDestinationName+"\n"+
+			"    namespace: "+repoDependencyFamilyEnvironment+"\n"+
+			"  source:\n"+
+			"    repoURL: "+repoDependencyFamilyArgoCDRepoURL+"\n"),
 
-		// Positive cases: one content fact per registry type this Odù proves.
+		// Positive repo-to-repo cases: one content fact per relationship type.
 		repoDependencyFamilyContentFact(
 			"env/ifa-repo-dependency/app-repo.tf", "terraform_hcl",
 			`app_repo = "`+repoDependencyFamilyTargetProvisionsName+`"`+"\n",
@@ -160,11 +180,11 @@ func repoDependencyFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: repoDependencyFamilyOduName, Facts: factsForOdu},
-		Detail: "one source repository with six content facts each producing exactly one repo_dependency relationship type against a distinct target repository " +
+		Detail: "one source repository with six content facts each producing exactly one repo-to-repo dependency type against a distinct target repository " +
 			"(PROVISIONS_DEPENDENCY_FOR, USES_MODULE, DISCOVERS_CONFIG_IN, DEPENDS_ON, DEPLOYS_FROM, READS_CONFIG_FROM), " +
+			"plus one ArgoCD/Kubernetes file fact producing a RUNS_ON relationship from the source repository's prod WorkloadInstance to the prod-cluster Platform, " +
 			"plus a self-reference and a near-miss-alias content fact that must produce zero evidence -- " +
-			"proving DiscoveredEvidence -> relationships.Resolve -> reducer.ExtractRepoDependencyIntentRows reproduces exactly the six-edge set. " +
-			"RUNS_ON (the registry's seventh type) is a deliberate, documented non-goal of this Odù.",
+			"proving the production discovery, resolution, workload projection, and repo_dependency extraction seams reproduce exactly the seven-edge set.",
 	}
 }
 
@@ -179,11 +199,28 @@ func repoDependencyFamilyOdu() CatalogOdu {
 // Repository contract.
 func repoDependencyFamilyRepositoryFact(repoID, name, repoSlug string) facts.Envelope {
 	return repoDependencyFamilyFact(repositoryFactKind, "repository:"+repoID, map[string]any{
+		"graph_id":      repoID,
 		"name":          name,
 		"repo_id":       repoID,
 		"repo_slug":     repoSlug,
 		"source_run_id": repoDependencyFamilySourceRunID,
 	})
+}
+
+// repoDependencyFamilyFileFact builds a typed file fact and adds the raw
+// content fields the relationship-evidence discovery seam consumes. The file
+// contract intentionally leaves raw content open while requiring repo_id,
+// relative_path, and parsed_file_data, so one fact can drive both production
+// workload projection and ArgoCD destination discovery.
+func repoDependencyFamilyFileFact(file codegraphv1.File, artifactType, content string) facts.Envelope {
+	payload, err := factschema.EncodeCodegraphFile(file)
+	if err != nil {
+		panic(fmt.Sprintf("ifa: encode repo-dependency catalog file %q: %v", file.RelativePath, err))
+	}
+	payload["artifact_type"] = artifactType
+	payload["commit_sha"] = repoDependencyFamilyCommitSHA
+	payload["content"] = content
+	return repoDependencyFamilyFact(factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload)
 }
 
 // repoDependencyFamilyContentFact builds one raw "content" fact on the

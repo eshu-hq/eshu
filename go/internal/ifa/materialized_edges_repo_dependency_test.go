@@ -18,8 +18,9 @@ import (
 // expected-edge-set fixture. It proves the guard runs the real
 // DiscoveredEvidence -> relationships.Resolve ->
 // reducer.ExtractRepoDependencyIntentRows chain over the cataloged Odù's own
-// facts and reproduces exactly the six edges the Terraform/Docker-Compose
-// content evidence implies -- never a hand-authored resolved relationship.
+// facts and reproduces exactly the seven edges the Terraform, Docker Compose,
+// ArgoCD, and Kubernetes evidence implies -- never a hand-authored resolved
+// relationship or endpoint identity.
 func TestResolveRepoDependencyMaterializedEdgesReproducesExpectedSet(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +60,8 @@ func TestRepoDependencyFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 }
 
 // TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet proves the
-// guard is not vacuously true: an expected-edge fixture naming the wrong
-// target repository must fail closed, not silently pass.
+// guard is not vacuously true: a complete expected-edge fixture naming the
+// wrong target repository must fail closed, not silently pass.
 func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testing.T) {
 	t.Parallel()
 
@@ -73,6 +74,7 @@ func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testin
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDependsOnRepoID},
 		{"relationship_type": "DEPLOYS_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDeploysFromRepoID},
 		{"relationship_type": "READS_CONFIG_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetReadsConfigRepoID},
+		{"relationship_type": "RUNS_ON", "source_entity_id": "workload-instance:" + repoDependencyFamilySourceName + ":" + repoDependencyFamilyEnvironment, "target_entity_id": "platform:kubernetes:none:cluster/" + repoDependencyFamilyDestinationName + ":none:none"},
 	})
 
 	ok, detail := resolveRepoDependencyMaterializedEdges(odu, wrongPath)
@@ -81,84 +83,79 @@ func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testin
 	}
 }
 
-// TestResolveRepoDependencyMaterializedEdgesRejectsRunsOnInFixture proves the
-// explicit RUNS_ON carve-out actually fires: a fixture that (wrongly) claims
-// RUNS_ON coverage must fail closed with a message naming why, not be
-// silently accepted or silently ignored.
-func TestResolveRepoDependencyMaterializedEdgesRejectsRunsOnInFixture(t *testing.T) {
+func TestRepoDependencyFamilyRunsOnPrerequisites(t *testing.T) {
 	t.Parallel()
 
 	odu := repoDependencyFamilyOdu().Odu
-	path := filepath.Join(t.TempDir(), "runs-on-expected-edges.json")
-	writeRepoDependencyExpectedEdgesFixture(t, path, []map[string]string{
-		{"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetProvisionsRepoID},
-		{"relationship_type": "USES_MODULE", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetUsesModuleRepoID},
-		{"relationship_type": "DISCOVERS_CONFIG_IN", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDiscoversConfigRepoID},
-		{"relationship_type": "DEPENDS_ON", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDependsOnRepoID},
-		{"relationship_type": "DEPLOYS_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetDeploysFromRepoID},
-		{"relationship_type": "READS_CONFIG_FROM", "source_entity_id": repoDependencyFamilySourceRepoID, "target_entity_id": repoDependencyFamilyTargetReadsConfigRepoID},
-		{"relationship_type": repoDependencyRunsOnType, "source_entity_id": "some-workload-instance", "target_entity_id": "some-platform"},
-	})
-
-	ok, detail := resolveRepoDependencyMaterializedEdges(odu, path)
-	if ok {
-		t.Fatalf("resolveRepoDependencyMaterializedEdges() = (true, %q), want (false, ...) for a fixture claiming RUNS_ON coverage", detail)
+	instanceID, platformID, err := repoDependencyFamilyRunsOnPrerequisites(odu)
+	if err != nil {
+		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want nil", err)
 	}
-	if !strings.Contains(detail, repoDependencyRunsOnType) {
-		t.Fatalf("detail = %q, want it to name %s as the rejected type", detail, repoDependencyRunsOnType)
+	if want := "workload-instance:" + repoDependencyFamilySourceName + ":" + repoDependencyFamilyEnvironment; instanceID != want {
+		t.Fatalf("instance id = %q, want %q", instanceID, want)
+	}
+	if want := "platform:kubernetes:none:cluster/" + repoDependencyFamilyDestinationName + ":none:none"; platformID != want {
+		t.Fatalf("platform id = %q, want %q", platformID, want)
 	}
 }
 
-// TestRepoDependencyProvableRegistryTypesExcludesRunsOn proves the carve-out
-// helper is not a no-op: RUNS_ON must be the ONLY type it drops, and every
-// other registry type must survive.
-func TestRepoDependencyProvableRegistryTypesExcludesRunsOn(t *testing.T) {
+func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsMissingGraphID(t *testing.T) {
 	t.Parallel()
 
-	registry, err := MaterializedEdgeDomainEdgeTypes(repoDependencyEdgesFamily)
-	if err != nil {
-		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%s): %v", repoDependencyEdgesFamily, err)
+	odu := repoDependencyFamilyOdu().Odu
+	for i := range odu.Facts {
+		if odu.Facts[i].FactKind == repositoryFactKind && anyToStringValue(odu.Facts[i].Payload["repo_id"]) == repoDependencyFamilySourceRepoID {
+			delete(odu.Facts[i].Payload, "graph_id")
+		}
 	}
-	if _, ok := registry[repoDependencyRunsOnType]; !ok {
-		t.Fatalf("registry does not contain %s; this test's premise (RUNS_ON is IN the registry) no longer holds", repoDependencyRunsOnType)
+	_, _, err := repoDependencyFamilyRunsOnPrerequisites(odu)
+	if err == nil || !strings.Contains(err.Error(), "Repository -> Workload prerequisite") {
+		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want missing Repository -> Workload prerequisite", err)
 	}
+}
 
-	provable := repoDependencyProvableRegistryTypes(registry)
-	if _, ok := provable[repoDependencyRunsOnType]; ok {
-		t.Fatalf("repoDependencyProvableRegistryTypes() kept %s; it must be excluded", repoDependencyRunsOnType)
-	}
-	if got, want := len(provable), len(registry)-1; got != want {
-		t.Fatalf("len(provable) = %d, want %d (registry minus exactly RUNS_ON)", got, want)
-	}
-	for edgeType := range registry {
-		if edgeType == repoDependencyRunsOnType {
+func TestRepoDependencyFamilyRunsOnPrerequisitesRejectsAmbiguousInstances(t *testing.T) {
+	t.Parallel()
+
+	odu := repoDependencyFamilyOdu().Odu
+	for i := range odu.Facts {
+		if odu.Facts[i].StableFactKey != "file:"+repoDependencyFamilySourceRepoID+":deploy/application.yaml" {
 			continue
 		}
-		if _, ok := provable[edgeType]; !ok {
-			t.Errorf("repoDependencyProvableRegistryTypes() dropped %s, which is not RUNS_ON and must survive", edgeType)
+		parsed, ok := odu.Facts[i].Payload["parsed_file_data"].(map[string]any)
+		if !ok {
+			t.Fatalf("fixture parsed_file_data has type %T, want map[string]any", odu.Facts[i].Payload["parsed_file_data"])
 		}
+		parsed["k8s_resources"] = []any{
+			map[string]any{"kind": "Deployment", "namespace": repoDependencyFamilyEnvironment},
+			map[string]any{"kind": "Deployment", "namespace": "stage"},
+		}
+	}
+	_, _, err := repoDependencyFamilyRunsOnPrerequisites(odu)
+	if err == nil || !strings.Contains(err.Error(), "got 2") || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want deterministic ambiguity failure naming 2 instances", err)
 	}
 }
 
 // TestMissingRepoDependencyExpectedTypesCatchesGap proves the coverage check
-// is not vacuous: an expected set missing one provable type must be reported,
+// is not vacuous: an expected set missing one registered type must be reported,
 // and a complete one must report nothing.
 func TestMissingRepoDependencyExpectedTypesCatchesGap(t *testing.T) {
 	t.Parallel()
 
-	provable := map[string]struct{}{"DEPENDS_ON": {}, "USES_MODULE": {}}
+	registry := map[string]struct{}{"DEPENDS_ON": {}, "USES_MODULE": {}}
 	complete := []ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "a", TargetEntityID: "b"},
 		{RelationshipType: "USES_MODULE", SourceEntityID: "a", TargetEntityID: "c"},
 	}
-	if missing := missingRepoDependencyExpectedTypes(complete, provable); len(missing) != 0 {
+	if missing := missingRepoDependencyExpectedTypes(complete, registry); len(missing) != 0 {
 		t.Fatalf("missingRepoDependencyExpectedTypes(complete) = %v, want none", missing)
 	}
 
 	incomplete := []ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "a", TargetEntityID: "b"},
 	}
-	missing := missingRepoDependencyExpectedTypes(incomplete, provable)
+	missing := missingRepoDependencyExpectedTypes(incomplete, registry)
 	if len(missing) != 1 || missing[0] != "USES_MODULE" {
 		t.Fatalf("missingRepoDependencyExpectedTypes(incomplete) = %v, want [USES_MODULE]", missing)
 	}

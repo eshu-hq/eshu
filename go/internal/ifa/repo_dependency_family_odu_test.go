@@ -20,8 +20,8 @@ import (
 // This is deliberately NOT called coverage. It proves the extractor, not the
 // gate: the live edge write is a MATCH-MATCH-MERGE on both endpoint ids, so a
 // missing endpoint Repository node makes the write a silent no-op this test
-// cannot see. A live ifa-determinism assertion (not yet wired -- see this
-// package's report to the #5999 issue owner) would close that half.
+// cannot see. The live ifa-determinism assertion closes that half by replaying
+// the same cassette and querying the materialized graph.
 func TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -38,12 +38,11 @@ func TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Log(detail)
 }
 
-// TestRepoDependencyFamilyCoversAllProvableRegistryTypes stops the fixture
-// degrading into a vacuous proof. The family's six fixture-provable types
-// (registry minus RUNS_ON) must all appear in the expected-edge set; an
-// expected set that quietly dropped one would still parse as valid JSON with
-// fewer edges asserted for the family.
-func TestRepoDependencyFamilyCoversAllProvableRegistryTypes(t *testing.T) {
+// TestRepoDependencyFamilyCoversEveryRegisteredType stops the fixture
+// degrading into a vacuous proof. Every registered repo_dependency type must
+// appear in the expected-edge set; an expected set that quietly dropped one
+// would still parse as valid JSON with fewer edges asserted for the family.
+func TestRepoDependencyFamilyCoversEveryRegisteredType(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
@@ -60,16 +59,15 @@ func TestRepoDependencyFamilyCoversAllProvableRegistryTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%s): %v", repoDependencyEdgesFamily, err)
 	}
-	provable := repoDependencyProvableRegistryTypes(registered)
 	var uncovered []string
-	for edgeType := range provable {
+	for edgeType := range registered {
 		if _, ok := present[edgeType]; !ok {
 			uncovered = append(uncovered, edgeType)
 		}
 	}
 	sort.Strings(uncovered)
 	if len(uncovered) > 0 {
-		t.Errorf("the expected-edge set exercises no %v edge; the family registers them (RUNS_ON excluded by design), so the fixture proves exhaustiveness over less than this guard claims", uncovered)
+		t.Errorf("the expected-edge set exercises no %v edge; the family registers them, so the fixture proves exhaustiveness over less than this guard claims", uncovered)
 	}
 }
 
@@ -82,10 +80,10 @@ func TestRepoDependencyFamilyCoversAllProvableRegistryTypes(t *testing.T) {
 // reflect.DeepEqual only detects DRIFT between the two sides -- it can never
 // catch an error baked into shared source both sides derive the same way
 // from. Catching that class needs an assertion against an INDEPENDENT source
-// of truth, which for this family is the six evidence-kind-specific parser
-// tests already committed under go/internal/relationships
-// (evidence_terraform_test.go et al.), not a tighter equality check between
-// the two things that would share the same defect.
+// of truth, which for this family is the evidence-kind-specific parser and
+// typed workload-projection coverage already committed under
+// go/internal/relationships and go/internal/reducer, not a tighter equality
+// check between the two things that would share the same defect.
 func TestRepoDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)

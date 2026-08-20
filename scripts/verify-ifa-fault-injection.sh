@@ -244,7 +244,7 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 # shellcheck source=scripts/lib/ifa_rationale_live.sh
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
-source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"  # two sources, one line: this file is at the 500-line cap
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -482,6 +482,9 @@ ifa_fault_shard_run cell_failgraphwrite_deployable_unit
 ifa_fault_shard_run cell_baseline_codeowners
 ifa_fault_shard_run cell_killworker_codeowners
 ifa_fault_shard_run cell_failgraphwrite_codeowners
+ifa_fault_shard_run cell_baseline_repo_dependency
+ifa_fault_shard_run cell_killworker_repo_dependency
+ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

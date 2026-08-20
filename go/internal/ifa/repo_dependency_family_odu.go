@@ -13,8 +13,8 @@ import (
 )
 
 // repoDependencyFamilyCassettePath is where the family's committed cassette
-// lives. Mirrors deployableUnitFamilyCassettePath's role: a future live gate
-// replays this same committed cassette, and this file's loader plus a
+// lives. Mirrors deployableUnitFamilyCassettePath's role: the live gates
+// replay this same committed cassette, and this file's loader plus a
 // lockstep test prove it never drifts from the compiled catalog Odù
 // (repo_dependency_family_catalog.go) rather than maintaining two fixtures
 // that can silently diverge.

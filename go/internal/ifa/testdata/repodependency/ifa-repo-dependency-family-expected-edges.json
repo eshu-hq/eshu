@@ -1,6 +1,6 @@
 {
   "odu": "odu:ifa-repo-dependency-family",
-  "note": "Six repo_dependency edges from the family's one source repository (repo-ifa-repo-dependency-source) to six distinct target repositories, one per registry relationship type this Odu proves. Every one of the six repo_dependency batched writer templates -- batchCanonicalRepoDependencyUpsertCypher (DEPENDS_ON, canonical.go) plus batchCanonicalDeploysFromRepoRelationshipUpsertCypher, batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher, batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher, batchCanonicalUsesModuleRepoRelationshipUpsertCypher, and batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher (canonical_relationships.go) -- MERGEs on (source_repo:Repository{id})-[:TYPE]->(target_repo:Repository{id}) alone; no property participates in the merge key (materializedEdgeIdentityByFamily[\"repo_dependency\"] declares empty identity for every type), so this 3-tuple is each edge's full structural identity. RUNS_ON, the registry's seventh type, is deliberately absent: see materialized_edges_repo_dependency.go's package doc for why it is not fixture-reachable.",
+  "note": "Seven repo_dependency edges cover every registered type. Six are Repository-to-Repository edges from repo-ifa-repo-dependency-source to distinct targets. RUNS_ON is WorkloadInstance-to-Platform: workload extraction and projection derive workload-instance:repo-dependency-family-source:prod, while ArgoCD destination discovery and reducer.CanonicalPlatformID agree on platform:kubernetes:none:cluster/prod-cluster:none:none. The live harness must materialize both prerequisites before executing the repo_dependency writer. No relationship property participates in the structural identity for this family.",
   "edges": [
     {
       "relationship_type": "PROVISIONS_DEPENDENCY_FOR",
@@ -31,6 +31,11 @@
       "relationship_type": "READS_CONFIG_FROM",
       "source_entity_id": "repo-ifa-repo-dependency-source",
       "target_entity_id": "repo-ifa-repo-dependency-target-readsconfig"
+    },
+    {
+      "relationship_type": "RUNS_ON",
+      "source_entity_id": "workload-instance:repo-dependency-family-source:prod",
+      "target_entity_id": "platform:kubernetes:none:cluster/prod-cluster:none:none"
     }
   ]
 }

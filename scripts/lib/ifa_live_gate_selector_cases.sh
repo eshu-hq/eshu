@@ -239,6 +239,14 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'
 	'scripts/lib/ifa_rationale_live.sh|scripts/lib/ifa_rationale_live.sh'
 	'scripts/lib/ifa_family_fixtures.sh|scripts/lib/ifa_family_fixtures.sh'
+	'scripts/lib/ifa_repo_dependency_live.sh|scripts/lib/ifa_repo_dependency_live.sh'
+	'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh|scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'
+	'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh|scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
+	'testdata/cassettes/repodependency/**|testdata/cassettes/repodependency/ifa-repo-dependency-family.json'
+	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
+	'go/internal/ifa/repo_dependency_family_*.go|go/internal/ifa/repo_dependency_family_odu.go'
+	'go/internal/reducer/cross_repo_resolution.go|go/internal/reducer/cross_repo_resolution.go'
+	'go/internal/storage/cypher/materialized_edge_repo_dependency.go|go/internal/storage/cypher/materialized_edge_repo_dependency.go'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
 	# #6147 PR-0: sourced directly by verify-ifa-determinism.sh and
 	# transitively by verify-ifa-fault-injection.sh (via

@@ -36,4 +36,7 @@ func TestRunUnknownSubcommandPrintsUsageAndErrors(t *testing.T) {
 	if stderr.Len() == 0 {
 		t.Error("stderr is empty, want usage output for an unknown subcommand")
 	}
+	if !strings.Contains(err.Error(), "materialize-platform-prerequisite") {
+		t.Errorf("error = %v, want it to list materialize-platform-prerequisite", err)
+	}
 }

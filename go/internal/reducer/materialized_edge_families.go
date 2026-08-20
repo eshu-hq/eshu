@@ -38,7 +38,7 @@ import "sort"
 // guard into the resolver dispatch and its Odu into the catalog -- both
 // existed with their own tests but neither was reachable from a production
 // coverage run. Those changes removed their families' waivers.
-// The current 8 not-yet-covered allProjectionDomains families remain tracked
+// The current 7 not-yet-covered allProjectionDomains families remain tracked
 // by #5543 in specs/ifa-materialized-edge-coverage.v1.yaml. Adding direct-materialization
 // families to this enumeration remains separate follow-up work under #5543
 // because they bypass the shared intent path this function inventories.

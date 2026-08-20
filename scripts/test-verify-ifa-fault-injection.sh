@@ -416,6 +416,7 @@ source "${code_call_cases_lib}"
 # their own existence/syntax checks for the cells library they exercise.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh
 source "${documentation_barrier_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh
@@ -423,6 +424,7 @@ source "${documentation_barrier_cleanup_cases_lib}"
 run_ifa_documentation_live_static_cases
 run_ifa_fault_injection_review_cases
 run_ifa_fault_injection_codeowners_cases
+run_ifa_fault_injection_repo_dependency_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
