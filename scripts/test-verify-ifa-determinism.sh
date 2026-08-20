@@ -34,6 +34,7 @@ require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpe
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -61,6 +62,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${family_cases_lib}" ]] || fail "missing ${family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -81,6 +83,7 @@ bash -n "${require_helpers_lib}" || fail "test-ifa-determinism-require-helpers.s
 bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -211,12 +214,14 @@ source "${require_helpers_lib}"
 
 require_inheritance_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${inheritance_lib}" || fail "missing ${label} (inheritance lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${inheritance_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (inheritance lib): ${needle}, or it survives only inside a comment"
 }
 
 require_shell_exec_lib() {
 	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${shell_exec_lib}" || fail "missing ${label} (shell-exec lib): ${needle}"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${shell_exec_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (shell-exec lib): ${needle}, or it survives only inside a comment"
 }
 
 # Strict mode and self-cleanup.
@@ -392,33 +397,12 @@ fi
 
 # --teeth (#4396 slice 6): the acceptance clause's negative-path proof that
 # the matrix catches a deliberately non-idempotent write, built behind a Go
-# build tag so it never ships in a normal/CI/production binary.
-require_code "--teeth flag" "--teeth"
-require_code "teeth build tag" "ifadeterminismteeth"
-require_code "teeth threads tags through every build call" 'ifa_det_build_bin "${bin_dir}" reducer "${build_tags}"'
-require_code "teeth caught framing" "TEETH: CAUGHT"
-require_code "teeth-not-caught is its own failure" "TEETH FAILED"
-require_code "teeth still forbids lowering N" "lower N, retry, or otherwise normalize this away"
-require_lib "build_bin accepts an optional tags argument" 'local bin_dir="$1" cmd="$2" tags="${3:-}"'
-require_lib "tags become -tags args only when non-empty" 'tag_args=(-tags "${tags}")'
-
-# The build-tag-gated fault itself must exist exactly where the script's own
-# doc says it does, and must not be reachable without the tag.
-teeth_reducer_on="${repo_root}/go/internal/reducer/gcp_resource_materialization_teeth.go"
-teeth_reducer_off="${repo_root}/go/internal/reducer/gcp_resource_materialization_teeth_off.go"
-teeth_cypher_on="${repo_root}/go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
-teeth_cypher_off="${repo_root}/go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
-for f in "${teeth_reducer_on}" "${teeth_reducer_off}" "${teeth_cypher_on}" "${teeth_cypher_off}"; do
-	[[ -f "${f}" ]] || fail "missing teeth build-tag file: ${f}"
-done
-rg --fixed-strings --quiet -- '//go:build ifadeterminismteeth' "${teeth_reducer_on}" \
-	|| fail "${teeth_reducer_on} must carry the ifadeterminismteeth build tag"
-rg --fixed-strings --quiet -- '//go:build !ifadeterminismteeth' "${teeth_reducer_off}" \
-	|| fail "${teeth_reducer_off} must carry the !ifadeterminismteeth build tag"
-rg --fixed-strings --quiet -- '//go:build ifadeterminismteeth' "${teeth_cypher_on}" \
-	|| fail "${teeth_cypher_on} must carry the ifadeterminismteeth build tag"
-rg --fixed-strings --quiet -- '//go:build !ifadeterminismteeth' "${teeth_cypher_off}" \
-	|| fail "${teeth_cypher_off} must carry the !ifadeterminismteeth build tag"
+# build tag so it never ships in a normal/CI/production binary. Lives in its
+# own sourced case module (mirroring the family/registry/pins splits above) to
+# keep this structural verifier under the repository's 500-line cap.
+# shellcheck source=scripts/lib/test-ifa-determinism-teeth-cases.sh
+source "${teeth_cases_lib}"
+run_ifa_determinism_teeth_cases
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 #
