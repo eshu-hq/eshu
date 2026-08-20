@@ -64,6 +64,7 @@ assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
+deployable_unit_ordering_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh"
 generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
 generic_baseline_lib="${repo_root}/scripts/lib/ifa_fault_generic_baseline_cell.sh"
 table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
@@ -80,7 +81,7 @@ generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -393,10 +394,13 @@ source "${documentation_cases_lib}"
 run_ifa_fault_injection_documentation_registry_cases
 
 # Sourced ahead of deployable_unit_cases_lib below: that module calls
-# run_ifa_fault_injection_deployable_unit_ordering_cases (defined here),
-# so this file's function definitions must exist before that call runs.
+# run_ifa_fault_injection_deployable_unit_ordering_cases and
+# run_ifa_fault_injection_atomic_group_ordering_cases (defined across these
+# two files), so both must exist before that call runs.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-shard-cases.sh
 source "${shard_cases_lib}"
+# shellcheck source=scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh
+source "${deployable_unit_ordering_cases_lib}"
 
 # deployable_unit_edges (#5993) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the review-cases
