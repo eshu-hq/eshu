@@ -303,6 +303,7 @@ ifa_live_gate_fault_only_seams=(
 # it changes.
 ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-family-cases.sh|scripts/lib/test-ifa-determinism-family-cases.sh'
+	'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh|scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
 	'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
 	'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
 	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'

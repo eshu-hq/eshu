@@ -98,10 +98,38 @@ bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax er
 # `# DISABLED: ` left this mirror green while the drive loop stopped skipping
 # non-shared_cell families. Truncating at `#` also stops the `true  # was: X`
 # shape. A `#` inside a quoted string can only make a pin RED, never pass.
-_ifa_det_count_code_matches() {
-	local needle="$1" file="$2" n=0 line stripped code
+# Whole-line form, sharing the comment and heredoc rules. `rg --line-regexp` is
+# comment-immune but NOT heredoc-immune -- a heredoc line equal to the needle
+# satisfies a whole-line regex, and the behavioural probe caught exactly that.
+_ifa_det_count_code_lines_exact() {
+	local needle="$1" file="$2" n=0 line stripped heredoc=""
 	while IFS= read -r line || [[ -n "${line}" ]]; do
 		stripped="${line#"${line%%[![:space:]]*}"}"
+		if [[ -n "${heredoc}" ]]; then
+			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
+			continue
+		fi
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+			heredoc="${BASH_REMATCH[1]}"
+		fi
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${stripped}" == "${needle}" ]] && n=$((n + 1))
+	done < "${file}"
+	printf '%s\n' "${n}"
+}
+_ifa_det_count_code_matches() {
+	local needle="$1" file="$2" n=0 line stripped code heredoc=""
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		# Heredoc bodies are data, not code: a real call moved into a dead heredoc
+		# was proven to satisfy every pin while never executing.
+		if [[ -n "${heredoc}" ]]; then
+			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
+			continue
+		fi
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+			heredoc="${BASH_REMATCH[1]}"
+		fi
 		[[ "${stripped}" == "#"* ]] && continue
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
@@ -157,7 +185,8 @@ require_code() {
 # the fixed-strings form still passed with the real line deleted.
 require_line() {
 	local label="$1" needle="$2"
-	rg --line-regexp --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+	[[ "$(_ifa_det_count_code_lines_exact "${needle}" "${script}")" -ge 1 ]] \
+		|| fail "missing ${label}, or it survives only inside a comment or heredoc: ${needle}"
 }
 require_fixture() {
 	local label="$1" needle="$2"
@@ -432,14 +461,23 @@ done
 # Floor against a collapsed derivation: if the *_lib expression stops matching,
 # the loop silently scans almost nothing and passes. Hand-written, below the
 # current count, never derived from the expression it guards.
+# Counted, and measured against THIS file with the pin's own line excluded --
+# the previous form pinned the needle against ${BASH_SOURCE[0]}, which is the
+# file the pin lives in, so the pin line satisfied itself and deleting the glob
+# block left it green. Two occurrences are expected: the glob block and the
+# unrelated run_ifa_family_registry_pins_cases call.
+# EXACTLY TWO: the glob block itself, and this pin's own line. An at-least-one
+# form is useless here -- a pin whose needle lives in the same file is always
+# satisfied by itself, which is how the previous version stayed green with the
+# whole glob block deleted. Counting is what makes an in-file pin able to fail.
+[[ "$(_ifa_det_count_code_matches 'ifa_family_registry_pins/*.sh' "${BASH_SOURCE[0]}")" -eq 2 ]] \
+	|| fail "the determinism private-data scan no longer globs the registry rows and pins (expected the glob block plus this pin line)"
 [[ "${#private_targets[@]}" -ge 20 ]] \
 	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the derivation has collapsed"
 # The glob block above is otherwise bound only by the floor, and only by a 3-file
 # margin -- three more *_lib declarations and deleting it would stop reddening,
 # which is the exact silent revert the sibling mirror was fixed for. Pin it
 # directly so the margin stops mattering.
-[[ "$(_ifa_det_count_code_matches 'ifa_family_registry_pins' "${BASH_SOURCE[0]}")" -ge 1 ]] \
-	|| fail "the determinism private-data scan no longer covers the registry rows and pins"
 for private_target in "${private_targets[@]}"; do
 	[[ -f "${private_target}" ]] \
 		|| fail "private-data scan target ${private_target} does not exist -- a scan that skips a missing file proves nothing"
@@ -448,5 +486,9 @@ for private_target in "${private_targets[@]}"; do
 	fi
 done
 printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
+
+# shellcheck source=scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh
+source "${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
+run_ifa_determinism_pin_behaviour_cases
 
 printf 'test-verify-ifa-determinism: pass\n'

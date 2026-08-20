@@ -2441,6 +2441,7 @@ gates:
       # -- the most common edit -- selecting no gate at all.
       - "scripts/lib/ifa_family_registry/**"
       - "scripts/lib/test-ifa-determinism-family-cases.sh"
+      - "scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
       - "scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
       - "scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
       # The per-family pin files the module above sources by variable path.

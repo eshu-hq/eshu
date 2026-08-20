@@ -33,6 +33,7 @@ on:
       # nothing.
       - 'scripts/lib/ifa_family_registry/**'
       - 'scripts/lib/test-ifa-determinism-family-cases.sh'
+      - 'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
       - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
       - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
       - 'scripts/lib/ifa_fault_shard.sh'

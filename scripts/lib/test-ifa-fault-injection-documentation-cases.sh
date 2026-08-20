@@ -200,6 +200,12 @@ run_ifa_documentation_live_static_cases() {
 	# that a single-character edit can delete.
 	[[ "$(_ifa_count_code_matches 'assert_libs_parse' "${static_test}")" -ge 1 ]] \
 		|| fail "the fault mirror no longer calls assert_libs_parse -- nothing would parse the libs at all"
+	# And the meta-gate's own call site. It shipped without this pin while both
+	# of its siblings had one -- the same asymmetry it was written to stop, in
+	# the gate meant to stop it. `:` in place of the call removed every
+	# pin-binding check with the mirror still green.
+	[[ "$(_ifa_count_code_matches 'assert_pin_helpers_bind_code' "${static_test}")" -ge 1 ]] \
+		|| fail "the fault mirror no longer calls assert_pin_helpers_bind_code -- nothing would check that pin helpers bind code"
 	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
 	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \

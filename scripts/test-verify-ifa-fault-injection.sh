@@ -110,9 +110,6 @@ source "${assertions_lib}"
 # Parses every declared *_lib and floors the count; defined in the assertions
 # lib, so it must run after that source.
 assert_libs_parse
-# META-GATE: every pin helper in either mirror must bind code, or be an explicit
-# prose entry. Catches a helper that was missed when the others were converted.
-assert_pin_helpers_bind_code
 # shellcheck source=scripts/lib/test-ifa-fault-injection-rationale-cases.sh
 source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
@@ -290,7 +287,7 @@ require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_
 require_cells "fault-free baseline retry snapshot in cell 1" "baseline_retried="
 require_lib "durable retry-signal query" "SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1"
 require_lib "baseline-differential assert helper" "ifa_fault_assert_retried_above"
-require_lib "once-script JSON kind" "fail-graph-write-once-then-succeed"
+require_framing "once-script JSON kind" "fail-graph-write-once-then-succeed" "${fault_lib}"
 
 # Cell 5 (restart-backend-between-phase-groups): sentinel-driven backend
 # restart, --no-compose skip, and a non-vacuity fired check.
@@ -299,7 +296,7 @@ require_cells "sentinel suffix matches Go wiring" '.restart-sentinel"'
 require_cells "sentinel watcher invocation" "ifa_fault_watch_restart_sentinel"
 require_cells "no-compose skips cell 5" "SKIPPED (--no-compose cannot restart a backend it does not own)"
 require_cells "non-vacuity fired check for cell 5" '"${restart_fired}" == "fired"'
-require_lib "restart script JSON kind" "restart-backend-between-phase-groups"
+require_framing "restart script JSON kind" "restart-backend-between-phase-groups" "${fault_lib}"
 require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\" -f \"\${compose_file}\" restart nornicdb"
 
 # Cell 6 (kill-worker-after-claim-sql, #5555): see the Cell 2 checks above --
@@ -482,5 +479,11 @@ run_ifa_fault_injection_generic_modules
 # CI-wiring/matrix-cardinality cross-checks against the workflow -- module
 # already sourced above (deployable_unit_cases_lib needs it earlier).
 run_ifa_fault_injection_shard_cases
+
+# META-GATE, run LAST so every case module has been sourced and bash can see the
+# helpers they define. Discovery is `compgen -A function`, so it sees exactly
+# what is loaded -- running it earlier silently exercised 18 helpers instead of
+# all of them, which the floor caught.
+assert_pin_helpers_bind_code
 
 printf 'test-verify-ifa-fault-injection: pass\n'
