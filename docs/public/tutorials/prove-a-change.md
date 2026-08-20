@@ -71,7 +71,7 @@ Two tests fail, and the failure message names exactly what broke:
     want true
 ```
 
-This is the same test `cd go && go test ./internal/ifa ./cmd/ifa -count=1`
+This is the same test `cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1`
 runs — the exact local command behind the blocking `ifa-contract-layer` CI
 gate. A PR with this change would fail CI with this same message, not a bare
 non-zero exit.

@@ -29,14 +29,17 @@ import (
 const (
 	codeCallFamilyOduName      = "odu:ifa-code-call-family"
 	codeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
-	codeCallExpectedEdgesPath  = "go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json"
+	// codeCallExpectedEdgesPath moved to materializededges alongside the guard
+	// that was its only consumer (#6053); the fixture itself stays under
+	// go/internal/ifa/testdata/ because the offline cassette validator globs
+	// testdata/cassettes/*/*.json and this file is a gate ASSERTION, not a cassette.
 )
 
 // codeCallFamilyCassetteFile declares the cassette's COMPLETE envelope
 // schema -- every field the real committed cassette
 // (testdata/cassettes/codecalls/ifa-code-call-family.json) carries at the
 // file, scope, and fact level, verified against that file directly -- not
-// just the load-bearing subset loadCodeCallFamilyOdu actually consumes.
+// just the load-bearing subset LoadCodeCallFamilyOdu actually consumes.
 //
 // Declaring the full schema, rather than only the fields this loader reads,
 // is what makes DisallowUnknownFields (below) safe to enable: a decoder that
@@ -82,28 +85,23 @@ type codeCallFamilyCassetteFile struct {
 	} `json:"scopes"`
 }
 
-// codeCallFamilyCassetteFullPath joins repoRoot onto the cassette path.
-func codeCallFamilyCassetteFullPath(repoRoot string) string {
+// CodeCallFamilyCassetteFullPath joins repoRoot onto the cassette path.
+// Exported (#6053) so materializededges' moved code-call-family tests can
+// locate the same committed cassette LoadCodeCallFamilyOdu reads.
+func CodeCallFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeCallFamilyCassettePath)
 }
 
-// codeCallFamilyExpectedEdgesPath joins repoRoot onto the expected-edge fixture.
-//
-// It lives under go/internal/ifa/testdata/ rather than testdata/cassettes/ for
-// the same reason the SQL, documentation and rationale families' fixtures do:
-// the offline cassette validator globs every testdata/cassettes/*/*.json as a
-// replay cassette, and this file is a gate ASSERTION, not a cassette.
-func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
-	return filepath.Join(repoRoot, codeCallExpectedEdgesPath)
-}
-
-// loadCodeCallFamilyOdu reads the committed cassette and projects it onto the
+// LoadCodeCallFamilyOdu reads the committed cassette and projects it onto the
 // fact envelopes the reducer's extractor consumes.
 //
-// Unexported because it is the test-side lockstep loader for the committed
-// cassette. Production registers the compiled codeCallFamilyOdu in catalogSeed;
-// TestCodeCallFamilyIsCatalogedAndResolvable compares that registered Odù with
-// this strict cassette projection and exercises the code_calls resolver guard.
+// It is the test-side lockstep loader for the committed cassette. Production
+// registers the compiled codeCallFamilyOdu in catalogSeed;
+// TestCodeCallFamilyIsCatalogedAndResolvable in materializededges (#6053,
+// moved with the rest of the code_calls guard) compares that registered Odù
+// with this strict cassette projection and exercises the code_calls resolver
+// guard. Exported so that moved test can reach it across the package
+// boundary.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts would
 // make every downstream assertion vacuous, which is the failure mode the whole
@@ -119,7 +117,7 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 // json.Decoder.Decode reads exactly one JSON value and stops, unlike the
 // json.Unmarshal this replaces, so a second Decode requiring io.EOF closes
 // the trailing-content gap switching decoders would otherwise reopen.
-func loadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
+func LoadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read code-call cassette %s: %w", cassettePath, err)

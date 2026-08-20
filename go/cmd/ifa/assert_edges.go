@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -81,7 +81,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 		return err
 	}
 
-	edgeTypes, err := ifa.MaterializedEdgeDomainEdgeTypes(o.domain)
+	edgeTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes(o.domain)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
@@ -94,7 +94,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
 	if o.domain == "rationale_edges" {
-		repoID, expected, err := ifa.LoadRationaleExpectedEdgeRecords(o.expected)
+		repoID, expected, err := materializededges.LoadRationaleExpectedEdgeRecords(o.expected)
 		if err != nil {
 			return fmt.Errorf("ifa assert-edges: %w", err)
 		}
@@ -110,7 +110,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 		return nil
 	}
 
-	expected, err := ifa.LoadExpectedEdges(o.expected, o.domain)
+	expected, err := materializededges.LoadExpectedEdges(o.expected, o.domain)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
@@ -172,7 +172,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // relationship properties, beyond the two endpoints, that participate in a
 // type's MERGE identity (e.g. DECLARES_CODEOWNER's pattern and source_path).
 // A live edge of a type with a declared identity is keyed by
-// ifa.ExpectedEdge.Key() using those properties read from edge.Props, the
+// materializededges.ExpectedEdge.Key() using those properties read from edge.Props, the
 // same way the fixture side is — otherwise two distinct rule declarations
 // between the same repo and team would collapse onto one key and the
 // duplicate/missing bookkeeping above would compare the wrong population. A
@@ -188,9 +188,9 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // for display, and printing Key()'s netstring in the assert-edges failure
 // report ("18:DECLARES_CODEOWNER6:repo-1...") would make the one surface an
 // operator reads at 3 AM illegible. Mirrors rationaleEdgeLabel's key/label
-// split (go/internal/ifa/materialized_edges_rationale.go), the existing
+// split (go/internal/ifa/materializededges/materialized_edges_rationale.go), the existing
 // precedent for this exact pattern in the sibling package.
-func expectedEdgeLabel(e ifa.ExpectedEdge) string {
+func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	label := fmt.Sprintf("%s|%s|%s", e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
 	if len(e.Identity) == 0 {
 		return label
@@ -215,7 +215,7 @@ func assertMaterializedEdges(
 	edgeTypes map[string]struct{},
 	endpoints map[string]cypher.MaterializedEdgeEndpoint,
 	identity map[string][]string,
-	expected []ifa.ExpectedEdge,
+	expected []materializededges.ExpectedEdge,
 ) error {
 	// expectedCounts tracks per-key multiplicity, not just presence: the
 	// command promises an exact edge COUNT, so two identical expected edges (a
@@ -287,7 +287,7 @@ func assertMaterializedEdges(
 			))
 			return nil
 		}
-		liveEdge := ifa.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}
+		liveEdge := materializededges.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}
 		if declared := identity[edge.Type]; len(declared) > 0 {
 			props := make(map[string]string, len(declared))
 			var badProps []string

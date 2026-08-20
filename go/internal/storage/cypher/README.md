@@ -752,8 +752,8 @@ repository ids, node ids, and statements stay out of metric labels.
   from it, so a declared identity can never drift from what the writer
   actually keys on.
 
-All of these are read by `ifa.MaterializedEdgeDomainEdgeTypes` (edge types and
-endpoint constraints) or `ifa.LoadExpectedEdges` (identity properties) to scope
+All of these are read by `materializededges.MaterializedEdgeDomainEdgeTypes` (edge types and
+endpoint constraints) or `materializededges.LoadExpectedEdges` (identity properties) to scope
 the live `assert-edges` check, and each is pinned against what its production
 write and retract templates actually do.
 
@@ -1881,7 +1881,7 @@ internal/storage/cypher/` touches no Cypher template text — every `MERGE`,
 `MATCH`, `UNWIND` and `DELETE` string in this package is byte-identical, and the
 only occurrences of those words in the diff are inside comments. What the change
 adds is four package-level `map[string]string` literals and their copy
-accessors. Their sole callers are `internal/ifa/materialized_edges_assert.go`
+accessors. Their sole callers are `internal/ifa/materializededges/materialized_edges_assert.go`
 and `cmd/ifa/assert_edges.go`; `rg` finds no consumer in the ingester, reducer,
 projector, API, or MCP binaries. `cmd/ifa` is the Ifá gate tool
 (`graph-dump`, `assert-edges`, `mutate-cassette`, `dead-letters`), so the one
@@ -1905,11 +1905,11 @@ there is nothing to add to the telemetry contract or the operator dashboard.
 `MaterializedEdgeIdentityProperties` reads the same kind of package-level map
 literal `SingleTypeMaterializedEdgeTypes` already reads, folded into
 `singleTypeMaterializedEdgeFamilies` in `materialized_edge_families.go`. Its
-callers are `ifa.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
+callers are `materializededges.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
 `assertMaterializedEdges`, both `cmd/ifa` gate-tool read paths, same as the
 edge-type and endpoint-label registries above: no fact is emitted, no work
 item enqueued, no graph statement written or retracted by this lookup.
-`BenchmarkExpectedEdgeKey` (`go/internal/ifa/materialized_edges_assert_test.go`)
+`BenchmarkExpectedEdgeKey` (`go/internal/ifa/materializededges/materialized_edges_assert_test.go`)
 measures the one place this identity is consulted per-edge: an edge whose
 type declares no identity (twelve of the fourteen families) takes the
 byte-identical pre-identity `Key()` path (21.6 ns/op, 1 alloc); an edge whose

@@ -25,9 +25,17 @@ fail() {
 }
 
 require() {
-	local label="$1" needle="$2" file="$3"
-	rg --fixed-strings --quiet -- "${needle}" "${file}" || \
-		fail "missing ${label} (${needle}) in ${file}"
+	# Matches the needle only as LIVE CODE: a commented-out occurrence does not
+	# count. Without this, commenting out a pinned workflow step leaves the pin
+	# green while the step stops running -- proven twice on this branch, once
+	# for the ifa contract-layer append_gate and once for docsclienvrefs.
+	local label="$1" needle="$2" file="$3" line stripped
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${line}" == *"${needle}"* ]] && return 0
+	done < "${file}"
+	fail "missing ${label} (${needle}) in ${file} as live code (a commented-out occurrence does not count)"
 }
 
 # ── 1. Verify script structural checks ─────────────────────────────────────

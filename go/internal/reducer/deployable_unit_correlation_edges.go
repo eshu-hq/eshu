@@ -35,7 +35,7 @@ const (
 // this seam accepting candidates instead of re-deriving them from envelopes
 // avoids running ExtractWorkloadCandidates twice per intent (#5993 review).
 // Ifá's deployable_unit_edges materialized-edge vacuity guard
-// (go/internal/ifa/materialized_edges_deployable_unit.go, #5993) extracts
+// (go/internal/ifa/materializededges/materialized_edges_deployable_unit.go, #5993) extracts
 // candidates from a cataloged Odù's facts the same way before calling this
 // seam directly with a hand-authored resolved-relationship fixture, mirroring
 // the role ExtractSQLRelationshipRows and ExtractAllCodeRelationshipRows play

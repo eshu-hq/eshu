@@ -11,7 +11,19 @@ import (
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
-const codeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
+// CodeCallFamilyLocalPath is the code-call family's repository local_path.
+// Exported (#6053) because sibling-identity collision guards in the
+// materializededges subpackage compare against it: a frozen copy there sits on
+// the REFERENCE side of the assertion and stops detecting the collision it
+// exists to catch, which is the shape that made three neighbouring constants
+// fail open before this was noticed.
+const CodeCallFamilyLocalPath = "/repo-code-calls"
+
+// CodeCallFamilyGenerationID is the code-call family's generation ID. Exported
+// (#6053) so the sibling-identity collision guards in materializededges compare
+// against one value: a copy there sits on the reference side of the assertion
+// and stops detecting the collision it exists to catch.
+const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 
 // codeCallFamilyOdu returns the binary-portable catalog representation of the
 // code_calls cassette. The checked-in cassette remains the live replay source;
@@ -19,7 +31,7 @@ const codeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 // to the same strict projection.
 func codeCallFamilyOdu() CatalogOdu {
 	sourceRunID := "run-ifa-code-call-family-1"
-	localPath := "/repo-code-calls"
+	localPath := CodeCallFamilyLocalPath
 	factsForOdu := []facts.Envelope{
 		codeCallCatalogRepositoryFact(codegraphv1.Repository{
 			RepoID: "repo-ifa-code-call-family", SourceRunID: &sourceRunID, LocalPath: &localPath,
@@ -84,7 +96,7 @@ func codeCallFamilyOdu() CatalogOdu {
 
 func codeCallCatalogFact(kind, stableKey string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		ScopeID: "scope-ifa-code-call-family", GenerationID: codeCallFamilyGenerationID, FactKind: kind,
+		ScopeID: "scope-ifa-code-call-family", GenerationID: CodeCallFamilyGenerationID, FactKind: kind,
 		StableFactKey: stableKey, SchemaVersion: "1.0.0", CollectorKind: "git",
 		SourceConfidence: "observed", Payload: payload,
 	}

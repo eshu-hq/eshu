@@ -21,7 +21,7 @@ running a different or incomplete command.
 ## `ifa-contract-layer`
 
 ```bash
-cd go && go test ./internal/ifa ./cmd/ifa -count=1
+cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1
 ```
 
 A failure here means one of: a payload no longer validates against its

@@ -28,8 +28,22 @@ lines="$(wc -l <"${script}" | tr -d '[:space:]')"
 [[ "${lines}" -lt 500 ]] || fail "prove.sh must stay under 500 lines (has ${lines})"
 
 require() {
+	# Prose-tolerant: several pins below assert that a HAZARD IS DOCUMENTED
+	# (e.g. the SIGPIPE note), and those legitimately live only in a comment.
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
+}
+require_code() {
+	# Code-binding: the needle must appear as LIVE CODE. Commenting out
+	# step_contract_layer used to leave this mirror green while make prove
+	# stopped running it, so the pins that name what prove.sh EXECUTES use this.
+	local label="$1" needle="$2" line stripped
+	while IFS= read -r line || [[ -n "${line}" ]]; do
+		stripped="${line#"${line%%[![:space:]]*}"}"
+		[[ "${stripped}" == "#"* ]] && continue
+		[[ "${line}" == *"${needle}"* ]] && return 0
+	done < "${script}"
+	fail "missing ${label}: ${needle} (as live code; a commented-out occurrence does not count)"
 }
 forbid() {
 	local label="$1" needle="$2"
@@ -42,7 +56,7 @@ forbid() {
 # recipe resolves via PATH is not guaranteed to be bash 4+ (macOS ships
 # /bin/bash 3.2 as the system default), matching scripts/dev/pre-pr.sh's own
 # portability choice.
-require "strict mode" "set -uo pipefail"
+require_code "strict mode" "set -uo pipefail"
 forbid "bash-4-only associative array" "declare -A"
 
 # Makefile wiring: a documented `prove` target in .PHONY, invoking this script.
@@ -55,16 +69,17 @@ rg --pcre2 --quiet '^\.PHONY:.*\bprove\b' "${makefile}" || fail "Makefile .PHONY
 rg --pcre2 --quiet '^prove:.*## ' "${makefile}" || fail "Makefile prove target must carry '## ' help text"
 require_makefile "prove target invokes prove.sh" "scripts/dev/prove.sh"
 
-# Credential-free common path: always runs, in this exact order, with the
-# exact commands the ci-gates registry already pins for these gate ids
-# (specs/ci-gates.v1.yaml: ifa-contract-layer, ifa-determinism,
-# ifa-dead-letter-matrix local.command).
-require "ifa contract-layer test command" "go test ./internal/ifa ./cmd/ifa -count=1"
-require "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
-require "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
-require "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
-require "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
-require "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
+# Credential-free common path: always runs, in this exact order. These pin what
+# prove.sh actually invokes. That is NOT the same as the ci-gates registry
+# command for the matching gate id -- ifa-contract-layer's local.command also
+# runs ./internal/reducer, which step_contract_layer does not. `make prove` is a
+# fast local sweep, not a stand-in for the blocking gate.
+require_code "ifa contract-layer test command" "go test ./internal/ifa/... ./cmd/ifa -count=1"
+require_code "hermetic determinism mirror invocation" "scripts/test-verify-ifa-determinism.sh"
+require_code "hermetic dead-letter-matrix mirror invocation" "scripts/test-verify-ifa-dead-letter-matrix.sh"
+require_code "ifa coverage reconcile invocation" "go run ./cmd/ifa coverage"
+require_code "coverage specs-dir passed as an absolute path" '-specs-dir "${repo_root}/specs"'
+require_code "coverage snapshot passed as an absolute path" '-snapshot "${repo_root}/testdata/golden/e2e-20repo-snapshot.json"'
 # This step runs `ifa coverage` in its default advisory mode, never with
 # -blocking: an uncovered surface is the expected P2+ backfill worklist, not a
 # defect, so forcing -blocking would fail every run against the still-growing
@@ -74,13 +89,13 @@ forbid "coverage must not pass -blocking" " -blocking"
 # Layer 2 selection: via `ci-gates select`, never `ci-gates run` (whose own
 # local.command for these two gate ids is the hermetic mirror above, not the
 # real Docker matrix).
-require "path selection via ci-gates select" "run ./cmd/ci-gates select"
+require_code "path selection via ci-gates select" "run ./cmd/ci-gates select"
 forbid "must not delegate the Docker matrix to ci-gates run" "cmd/ci-gates run"
-require "explain-based SELECTED parsing" "^SELECTED"
-require "ifa-determinism gate id read from selection" '"ifa-determinism"'
-require "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
-require "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
-require "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
+require_code "explain-based SELECTED parsing" "^SELECTED"
+require_code "ifa-determinism gate id read from selection" '"ifa-determinism"'
+require_code "ifa-dead-letter-matrix gate id read from selection" '"ifa-dead-letter-matrix"'
+require_code "real determinism matrix invoked directly" "scripts/verify-ifa-determinism.sh"
+require_code "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-letter-matrix.sh"
 
 # Select-failure guard: if `ci-gates select` itself exits non-zero (e.g. a
 # shallow/fork checkout where origin/main shares no merge-base with HEAD), the
@@ -89,10 +104,10 @@ require "real dead-letter matrix invoked directly" "scripts/verify-ifa-dead-lett
 # captures the select exit status, and on failure records both matrices as a hard
 # FAIL and exits non-zero. Pin that contract so a refactor cannot regress it back
 # to the status-discarding `explain="$(...)"` shape.
-require "select exit status is captured, not discarded" 'if ! explain="$('
-require "select-failure sets the guard flag" "select_ok=0"
-require "Layer 2 run is guarded by select_ok" 'if [[ "${select_ok}" -eq 1 ]]'
-require "select failure records a hard FAIL, not SKIP" "FAIL (ci-gates select errored)"
+require_code "select exit status is captured, not discarded" 'if ! explain="$('
+require_code "select-failure sets the guard flag" "select_ok=0"
+require_code "Layer 2 run is guarded by select_ok" 'if [[ "${select_ok}" -eq 1 ]]'
+require_code "select failure records a hard FAIL, not SKIP" "FAIL (ci-gates select errored)"
 forbid "select failure must not be recorded as a SKIP" "SKIP (ci-gates select"
 
 # No new gate id is registered anywhere in this diff: prove.sh is a thin
@@ -105,11 +120,11 @@ fi
 # Loud-defer-when-no-docker: mirrors scripts/dev/trivy-fs-local.sh's pattern
 # (print guidance, exit non-fatally, never silently pass as if the matrix
 # ran).
-require "docker detection" "command -v docker"
-require "defer status distinct from pass" "DEFER (docker unavailable)"
-require "operator guidance on defer" "install Docker"
-require "CI-remains-authoritative framing" "CI runs the authoritative Docker matrix"
-require "defer is not a silent pass" "this defer is informational, not a pass"
+require_code "docker detection" "command -v docker"
+require_code "defer status distinct from pass" "DEFER (docker unavailable)"
+require_code "operator guidance on defer" "install Docker"
+require_code "CI-remains-authoritative framing" "CI runs the authoritative Docker matrix"
+require_code "defer is not a silent pass" "this defer is informational, not a pass"
 
 # gate_selected must read rg's own PIPESTATUS, not the pipefail-tainted
 # overall pipeline status: `rg --quiet` exits as soon as it confirms a
@@ -119,7 +134,7 @@ require "defer is not a silent pass" "this defer is informational, not a pass"
 # gate into a false "not selected" (verified against a real repro on this
 # box: a real ifa-dead-letter-matrix selection was reported SKIP without
 # this fix). Regression-tested here, not just asserted.
-require "gate_selected reads rg's own exit code via PIPESTATUS" "PIPESTATUS[1]"
+require_code "gate_selected reads rg's own exit code via PIPESTATUS" "PIPESTATUS[1]"
 require "SIGPIPE/pipefail hazard documented" "SIGPIPE"
 
 # Same repro as above, executed directly against this script's own
@@ -161,12 +176,12 @@ fi
 # EXIT` handler's `$?` capture read 0, not the crash) — a false green worse
 # than deferring. prove.sh must verify a bash >= 4 before trusting this
 # layer's result, not assume the ambient PATH is safe.
-require "safe_bash resolves a bash >= 4 before running the real matrix" "safe_bash()"
-require "safe_bash checks BASH_VERSINFO" "BASH_VERSINFO[0]"
-require "safe_bash tries known Homebrew locations" "/opt/homebrew/bin/bash"
-require "bash-too-old defer status distinct from pass" "DEFER (bash too old)"
-require "bash-too-old guidance" "needs bash 4+"
-require "real matrix invoked through the resolved safe bash, not ambient PATH bash" '"${bash_bin}" "${repo_root}/${script_rel}"'
+require_code "safe_bash resolves a bash >= 4 before running the real matrix" "safe_bash()"
+require_code "safe_bash checks BASH_VERSINFO" "BASH_VERSINFO[0]"
+require_code "safe_bash tries known Homebrew locations" "/opt/homebrew/bin/bash"
+require_code "bash-too-old defer status distinct from pass" "DEFER (bash too old)"
+require_code "bash-too-old guidance" "needs bash 4+"
+require_code "real matrix invoked through the resolved safe bash, not ambient PATH bash" '"${bash_bin}" "${repo_root}/${script_rel}"'
 
 # Flake policy: stated, and not contradicted by an actual retry-to-green
 # loop. Each real gate is invoked exactly once: the two hermetic mirrors each
@@ -193,10 +208,10 @@ forbid "no until-retry loop" "until bash"
 # Deterministic report: fixed vocabulary, no wall-time/PID/tmpdir token
 # inside the report block itself (those live only in the separate TIMING
 # block).
-require "deterministic report marker" "PROVE REPORT (deterministic)"
-require "report end marker" "END PROVE REPORT"
-require "timing block is a separate section" "PROVE TIMING"
-require "timing excluded from the deterministic report framing" "not part of the deterministic report"
+require_code "deterministic report marker" "PROVE REPORT (deterministic)"
+require_code "report end marker" "END PROVE REPORT"
+require_code "timing block is a separate section" "PROVE TIMING"
+require_code "timing excluded from the deterministic report framing" "not part of the deterministic report"
 # The wall-time variable must never be PRINTED inside the deterministic
 # report block itself (computing it earlier, to have the value ready, is
 # fine) — extract the lines between the two report markers and assert none
@@ -211,8 +226,8 @@ fi
 # Prove-latency budget: read from the doc via rg, not hardcoded as a second
 # source of truth, so the shell and go/internal/perfcontract's doc-lockstep
 # test can never silently disagree.
-require "budget read from the envelope doc, not hardcoded" "local-performance-envelope.md"
-require "budget extraction pattern" "common path stays under"
+require_code "budget read from the envelope doc, not hardcoded" "local-performance-envelope.md"
+require_code "budget extraction pattern" "common path stays under"
 forbid "no bare numeric literal masquerading as a hardcoded budget" "prove_budget_seconds=\"90\""
 
 # The referenced envelope doc must actually carry the phrase prove.sh looks

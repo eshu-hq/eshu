@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -65,7 +65,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 		labeledEdge("DEPENDS_ON", "Workload", "wl-a", "Workload", "wl-b"),
 	}}
 
-	repoTypes, err := ifa.MaterializedEdgeDomainEdgeTypes("repo_dependency")
+	repoTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("repo_dependency")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
 	}
@@ -73,14 +73,14 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	if !ok {
 		t.Fatal("repo_dependency has no endpoint constraints; it shares DEPENDS_ON and needs them")
 	}
-	repoExpected := []ifa.ExpectedEdge{
+	repoExpected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "repo-a", TargetEntityID: "repo-b"},
 	}
 	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", repoTypes, repoEndpoints, nil, repoExpected); err != nil {
 		t.Errorf("repo_dependency assertion = %v, want nil; the Workload->Workload edge leaked into this family", err)
 	}
 
-	workloadTypes, err := ifa.MaterializedEdgeDomainEdgeTypes("workload_dependency")
+	workloadTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("workload_dependency")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(workload_dependency): %v", err)
 	}
@@ -88,7 +88,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	if !ok {
 		t.Fatal("workload_dependency has no endpoint constraints; it shares DEPENDS_ON and needs them")
 	}
-	workloadExpected := []ifa.ExpectedEdge{
+	workloadExpected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "wl-a", TargetEntityID: "wl-b"},
 	}
 	if err := assertMaterializedEdges(context.Background(), graph, "workload_dependency", workloadTypes, workloadEndpoints, nil, workloadExpected); err != nil {
@@ -110,11 +110,11 @@ func TestTypeOnlyFilteringWouldConflateTheSharedType(t *testing.T) {
 		labeledEdge("DEPENDS_ON", "Repository", "repo-a", "Repository", "repo-b"),
 		labeledEdge("DEPENDS_ON", "Workload", "wl-a", "Workload", "wl-b"),
 	}}
-	repoTypes, err := ifa.MaterializedEdgeDomainEdgeTypes("repo_dependency")
+	repoTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("repo_dependency")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
 	}
-	repoExpected := []ifa.ExpectedEdge{
+	repoExpected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DEPENDS_ON", SourceEntityID: "repo-a", TargetEntityID: "repo-b"},
 	}
 
@@ -140,7 +140,7 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 	graph := fakeEdgeReader{edges: []graphdump.Edge{
 		uidEdge("RUNS_IN", "Function", "fn-a", "Workload", "wl-a"),
 	}}
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("runs_in")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
 	}
@@ -148,7 +148,7 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 	if constrained {
 		t.Fatalf("runs_in unexpectedly carries endpoint constraints %+v", endpoints)
 	}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "RUNS_IN", SourceEntityID: "fn-a", TargetEntityID: "wl-a"},
 	}
 	if err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, endpoints, nil, expected); err != nil {
@@ -177,17 +177,17 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 		ToLabels:   []string{"Workload"},
 		ToProps:    map[string]any{"uid": "u-to", "id": "i-to"},
 	}
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("runs_in")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
 	}
 
-	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
+	byUID := []materializededges.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
 	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, nil, byUID); err != nil {
 		t.Errorf("expected set naming the uids = %v, want nil; uid must win when both properties are present", err)
 	}
 
-	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
+	byID := []materializededges.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
 	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, nil, byID); err == nil {
 		t.Error("expected set naming the ids passed; id must NOT win over uid, or the fallback silently reverses identity for every content entity")
 	}
@@ -205,7 +205,7 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
@@ -215,7 +215,7 @@ func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 		ToLabels:  []string{"CodeownerTeam"},
 		ToProps:   map[string]any{"ref": "team-a"}, // ref-only: no uid, no id.
 	}}}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a"},
 	}
 
@@ -234,7 +234,7 @@ func TestRefFallbackResolvesCodeownerTeamEndpoint(t *testing.T) {
 func TestRefFallbackIsScopedToCodeownerTeam(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
@@ -244,7 +244,7 @@ func TestRefFallbackIsScopedToCodeownerTeam(t *testing.T) {
 		ToLabels:  []string{"SomeOtherLabel"},
 		ToProps:   map[string]any{"ref": "incidental"}, // no uid, no id -- must NOT resolve.
 	}}}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "incidental"},
 	}
 
@@ -263,7 +263,7 @@ func TestRefFallbackIsScopedToCodeownerTeam(t *testing.T) {
 func TestUidAndIDWinOverRef(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("runs_in")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
 	}
@@ -275,7 +275,7 @@ func TestUidAndIDWinOverRef(t *testing.T) {
 		ToLabels:   []string{"Workload"},
 		ToProps:    map[string]any{"uid": "u-to", "ref": "ref-to"},
 	}
-	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
+	byUID := []materializededges.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
 	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{uidWins}}, "runs_in", types, nil, nil, byUID); err != nil {
 		t.Errorf("expected set naming the uids = %v, want nil; uid must win over ref", err)
 	}
@@ -287,7 +287,7 @@ func TestUidAndIDWinOverRef(t *testing.T) {
 		ToLabels:   []string{"Workload"},
 		ToProps:    map[string]any{"id": "i-to", "ref": "ref-to"},
 	}
-	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
+	byID := []materializededges.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
 	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{idWins}}, "runs_in", types, nil, nil, byID); err != nil {
 		t.Errorf("expected set naming the ids = %v, want nil; id must win over ref", err)
 	}
@@ -302,11 +302,11 @@ func TestUidAndIDWinOverRef(t *testing.T) {
 func TestEndpointDefectNamesWhichSideIsUnidentified(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("runs_in")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
 	}
-	expected := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "fn-a", TargetEntityID: "wl-a"}}
+	expected := []materializededges.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "fn-a", TargetEntityID: "wl-a"}}
 
 	for _, tc := range []struct {
 		name       string
@@ -364,7 +364,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 		runsOn("inst-workload", "plat-b", reducer.EvidenceSourceWorkloads),
 	}}
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("repo_dependency")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("repo_dependency")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
 	}
@@ -377,7 +377,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 	}
 
 	// Only the resolver's edge belongs to this family.
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-resolver", TargetEntityID: "plat-a"},
 	}
 	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, nil, expected); err != nil {
@@ -387,7 +387,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 	// And the materializer's edge must not be silently adoptable either: naming
 	// it in the expected set has to fail, or the filter would be matching on
 	// nothing rather than on provenance.
-	wrong := []ifa.ExpectedEdge{
+	wrong := []materializededges.ExpectedEdge{
 		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-workload", TargetEntityID: "plat-b"},
 	}
 	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, nil, wrong); err == nil {
@@ -424,7 +424,7 @@ func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 	t.Parallel()
 
-	types, err := ifa.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
+	types, err := materializededges.MaterializedEdgeDomainEdgeTypes("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(codeowners_ownership_edges): %v", err)
 	}
@@ -434,7 +434,7 @@ func TestEndpointDefectMessageNamesTheRefFallback(t *testing.T) {
 		ToLabels:  []string{"CodeownerTeam"},
 		ToProps:   map[string]any{}, // genuinely unmaterialized: no uid, no id, no ref.
 	}}}
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "DECLARES_CODEOWNER", SourceEntityID: "repo-1", TargetEntityID: "team-a"},
 	}
 

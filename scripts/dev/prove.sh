@@ -99,8 +99,10 @@ step_deadletter_mirror() { bash "${repo_root}/scripts/test-verify-ifa-dead-lette
 # defect, so make prove reports gaps without failing on them. The step still
 # fails loudly on a real tooling error (an unreadable manifest, a malformed
 # registry) — it tolerates advisory coverage gaps, not a broken reconcile. The
-# blocking Ifá contract gate is `ifa-contract-layer`'s `go test ./internal/ifa`
-# (step_contract_layer above), which make prove already runs.
+# blocking Ifá contract gate is `ifa-contract-layer`. step_contract_layer above
+# runs part of it -- `go test ./internal/ifa/...` plus ./cmd/ifa -- but NOT the
+# ./internal/reducer leg the registry command also runs, so make prove is a fast
+# local sweep, not a stand-in for that gate.
 step_coverage() {
 	(cd "${go_dir}" && go run ./cmd/ifa coverage \
 		-specs-dir "${repo_root}/specs" \

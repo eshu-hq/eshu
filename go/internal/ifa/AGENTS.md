@@ -16,12 +16,13 @@
    wholesale.
 9. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
    `demoOrgRoundtripOdu` depends on.
-10. `materialized_edges.go`, `materialized_edges_manifest.go`,
-    `materialized_edges_sql.go` (#5351) - the `materialized_edges:<domain>`
-    exhaustiveness gate: binds an Odù expectation to a reducer-materialized
-    graph edge family so a materialization silently ceasing to produce an
-    edge family is caught. `sql_relationship_odu.go` is the first family's
-    fixture.
+10. `go/internal/ifa/materializededges/AGENTS.md` (#5351, split out #6053) -
+    the `materialized_edges:<domain>` exhaustiveness gate: binds an Odù
+    expectation to a reducer-materialized graph edge family so a
+    materialization silently ceasing to produce an edge family is caught.
+    `*_family_odu.go`/`*_family_catalog.go` in this package still seed each
+    family's fixture (`sql_relationship_odu.go` was the first); the guards
+    and dispatch that consume them moved to that sibling package.
 
 ## Invariants
 
@@ -76,7 +77,7 @@
   on an otherwise-matching work item.
 - `reducer.MaterializedEdgeFamilies()` is the ONLY enumeration source for
   `materialized_edges:<domain>` surfaces. Do not hand-list families in
-  `materialized_edges.go` or the manifest; a family must come from that
+  `materializededges/materialized_edges.go` or the manifest; a family must come from that
   function (locked to `allProjectionDomains` by a reducer-package test).
 - A `materialized_edges:<family>` coverage row is not exhaustively covered
   until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
@@ -93,7 +94,7 @@
   declare at least one trigger in BOTH the `ifa-determinism` and
   `ifa-fault-injection` blocks of `specs/ci-gates.v1.yaml`, and a non-blank
   entry in `materializedEdgeFamilyTriggerStems`
-  (`materialized_edges_lockstep_test.go`) holding a substring that at least one
+  (`materializededges/materialized_edges_lockstep_test.go`) holding a substring that at least one
   of those triggers contains.
   `TestEveryCoveredFamilyTriggersBothLiveGates` enforces both. The stem
   map is total over `reducer.MaterializedEdgeFamilies()` in both directions, so
@@ -213,7 +214,31 @@ what does not.
 | Cell names in the hand-authored literal list | `ifa_full_cell_list_literal` in `scripts/lib/test-ifa-fault-injection-shard-cases.sh` | Nothing but you. It is typed by hand ON PURPOSE — deriving it from the arrays it checks would make the check agree with itself |
 | Coverage row (what makes the family COUNT as covered) | `specs/ifa-materialized-edge-coverage.v1.yaml` | The coverage-row contract above. Add it only once both gates really drive and assert the family — a row added earlier claims a proof that is not being run |
 | Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
-| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
+| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materializededges/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
+
+A new family's `materialized_edges_<family>.go` guard belongs in the
+`materializededges` subpackage, NOT here. Its `<family>_family_odu.go` and
+`<family>_family_catalog.go` stay in this package. Nothing enforces that split:
+`dirgate` only counts files per directory, so a guard written into the wrong
+package compiles, passes every gate, and is only caught in review.
+
+Two caps bite, and both are blocking pre-commit gates: `dirgate` caps each
+package at 40 non-test `.go` files (`go-dir-gate`), and the 500-line file cap is
+the other (`go-file-cap`). The 500-line cap is NOT enforced on `_test.go` --
+the linter skips them -- so a test file can drift past it silently; `dirgate`
+does not count them at all. This subpackage was not created because ifa breached
+the directory cap; it was under it, and the split was taken preemptively to buy
+headroom for the families still queued. Measure both before you add, and
+deliberately no numbers here, because a count written into prose goes stale the
+moment anyone edits the file, and this section's line-cap paragraph was already
+wrong twice that way:
+
+```bash
+for d in go/internal/ifa go/internal/ifa/materializededges; do
+  printf '%s: ' "$d"
+  ls "$d"/*.go | rg -v '_test\.go$' | wc -l
+done
+```
 
 Line-cap headroom is the constraint that will bite first. Several files grow per
 family and sit close to the hard 500-line limit. Measure before you add —

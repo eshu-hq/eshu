@@ -18,13 +18,16 @@ const (
 	sqlFamilyDeltaOduName = "odu:ifa-sql-family-delta"
 	sqlFamilyRepoID       = "repo-ifa-sql-family"
 	sqlFamilyScopeID      = "scope-ifa-sql-family"
-	sqlFamilyGenerationID = "gen-1"
+	// SQLFamilyGenerationID is the SQL family's generation ID. Exported (#6053)
+	// for the same reason as SQLFamilyLocalPath below: the collision guards in
+	// materializededges compare against it, and a copy there fails open.
+	SQLFamilyGenerationID = "gen-1"
 	sqlFamilyDeltaGenID   = "gen-2"
 	sqlFamilySchemaPath   = "db/schema.sql"
 	sqlFamilyHandlerPath  = "cmd/api/handlers.go"
 	sqlFamilySourceRunID  = "run-ifa-sql-family-1"
 
-	// sqlFamilyLocalPath is the repository fact's local_path — the checkout
+	// SQLFamilyLocalPath is the repository fact's local_path — the checkout
 	// path the real git collector emits (repositoryFactEnvelope's
 	// payload["local_path"] = repo.LocalPath). It is REQUIRED for the delta
 	// retract to work, and its absence was the #5549 P1a live-proof finding:
@@ -39,7 +42,7 @@ const (
 	// the retract matches nothing and a retargeted INDEXES edge leaves its
 	// stale predecessor in the graph. "/repo" mirrors the reducer's own delta
 	// test (sql_relationship_delta_scope_test.go).
-	sqlFamilyLocalPath = "/repo"
+	SQLFamilyLocalPath = "/repo"
 
 	// sqlFamilyGetUserFunctionUID is content.CanonicalEntityID(sqlFamilyRepoID,
 	// sqlFamilyHandlerPath, "Function", "GetUser", 10)
@@ -87,44 +90,44 @@ func sqlFamilyOdu() CatalogOdu {
 	odu := Odu{
 		Name: sqlFamilyOduName,
 		Facts: []facts.Envelope{
-			sqlFamilyRepositoryFact(sqlFamilyGenerationID, false, nil),
-			sqlFamilySchemaFileFact(sqlFamilyGenerationID),
-			sqlFamilyGetUserFunctionEntity(sqlFamilyGenerationID),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-tbl-users", "SqlTable", "public.users", map[string]any{
+			sqlFamilyRepositoryFact(SQLFamilyGenerationID, false, nil),
+			sqlFamilySchemaFileFact(SQLFamilyGenerationID),
+			sqlFamilyGetUserFunctionEntity(SQLFamilyGenerationID),
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-tbl-users", "SqlTable", "public.users", map[string]any{
 				"referenced_tables": []string{"public.orders"},
 				"sql_entity_type":   "SqlTable",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-tbl-orders", "SqlTable", "public.orders", nil),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-col-email", "SqlColumn", "public.users.email", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-tbl-orders", "SqlTable", "public.orders", nil),
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-col-email", "SqlColumn", "public.users.email", map[string]any{
 				"table_name":      "public.users",
 				"sql_entity_type": "SqlColumn",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-view-active-users", "SqlView", "public.active_users", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-view-active-users", "SqlView", "public.active_users", map[string]any{
 				"source_tables":   []string{"public.users"},
 				"sql_entity_type": "SqlView",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", map[string]any{
 				"write_tables":    []string{"public.users"},
 				"sql_entity_type": "SqlFunction",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-trig-users-touch", "SqlTrigger", "users_touch", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-trig-users-touch", "SqlTrigger", "users_touch", map[string]any{
 				"table_name":      "public.users",
 				"function_name":   "public.touch_updated_at",
 				"sql_entity_type": "SqlTrigger",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-idx-users-email", "SqlIndex", "idx_users_email", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-idx-users-email", "SqlIndex", "idx_users_email", map[string]any{
 				"table_name":      "public.users",
 				"sql_entity_type": "SqlIndex",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-mig-v1-add-users", "SqlMigration", "V1__add_users", map[string]any{
+			sqlFamilyContentEntity(SQLFamilyGenerationID, "content-entity:sql-mig-v1-add-users", "SqlMigration", "V1__add_users", map[string]any{
 				"tool":            "flyway",
 				"sql_entity_type": "SqlMigration",
 				"migration_targets": []map[string]any{
 					{"kind": "SqlTable", "name": "public.users", "operation": "create", "line_number": 1},
 				},
 			}),
-			sqlFamilyFileWithEmbeddedQuery(sqlFamilyGenerationID),
-			sqlFamilyFollowupFact(sqlFamilyGenerationID),
+			sqlFamilyFileWithEmbeddedQuery(SQLFamilyGenerationID),
+			sqlFamilyFollowupFact(SQLFamilyGenerationID),
 		},
 	}
 	return CatalogOdu{
@@ -227,8 +230,8 @@ func sqlFamilyRepositoryFact(generationID string, delta bool, deltaRelativePaths
 		"repo_id":       sqlFamilyRepoID,
 		"source_run_id": sqlFamilySourceRunID,
 		// local_path qualifies every entity node's path property (the delta
-		// retract anchor) — see sqlFamilyLocalPath's doc comment (#5549 P1a).
-		"local_path": sqlFamilyLocalPath,
+		// retract anchor) — see SQLFamilyLocalPath's doc comment (#5549 P1a).
+		"local_path": SQLFamilyLocalPath,
 	}
 	if delta {
 		payload["delta_generation"] = true

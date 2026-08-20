@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 )
 
 // fakeEdgeReader is an in-memory graphdump.Reader for the hermetic
@@ -42,7 +42,7 @@ func sqlEdge(edgeType, fromUID, toUID string) graphdump.Edge {
 
 func sqlEdgeTypesForTest(t *testing.T) map[string]struct{} {
 	t.Helper()
-	set, err := ifa.MaterializedEdgeDomainEdgeTypes("sql_relationships")
+	set, err := materializededges.MaterializedEdgeDomainEdgeTypes("sql_relationships")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(sql_relationships): %v", err)
 	}
@@ -95,7 +95,7 @@ func TestRunAssertEdgesCommandRejectsUnknownDomainWithoutBackend(t *testing.T) {
 func TestAssertMaterializedEdgesExactMatch(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 		{RelationshipType: "READS_FROM", SourceEntityID: "v", TargetEntityID: "t"},
 		{RelationshipType: "TRIGGERS", SourceEntityID: "trg", TargetEntityID: "t"},
@@ -128,7 +128,7 @@ func TestAssertMaterializedEdgesExactMatch(t *testing.T) {
 func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 		{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"},
 	}
@@ -140,7 +140,7 @@ func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(missing MIGRATES) = nil, want a missing-edge failure")
 	}
-	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"})
+	wantLabel := expectedEdgeLabel(materializededges.ExpectedEdge{RelationshipType: "MIGRATES", SourceEntityID: "mig", TargetEntityID: "t"})
 	if !strings.Contains(err.Error(), wantLabel) {
 		t.Errorf("error %q does not name the missing MIGRATES edge (want label %q)", err, wantLabel)
 	}
@@ -153,7 +153,7 @@ func TestAssertMaterializedEdgesMissingEdgeFails(t *testing.T) {
 func TestAssertMaterializedEdgesEmptyGraphFailsNotVacuous(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 	}
 	reader := fakeEdgeReader{edges: []graphdump.Edge{
@@ -175,7 +175,7 @@ func TestAssertMaterializedEdgesEmptyGraphFailsNotVacuous(t *testing.T) {
 func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 	}
 	reader := fakeEdgeReader{edges: []graphdump.Edge{
@@ -187,7 +187,7 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(extra edge) = nil, want an extra-edge failure")
 	}
-	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c2"})
+	wantLabel := expectedEdgeLabel(materializededges.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c2"})
 	if !strings.Contains(err.Error(), "extra") || !strings.Contains(err.Error(), wantLabel) {
 		t.Errorf("error %q does not name the extra edge (want label %q)", err, wantLabel)
 	}
@@ -204,7 +204,7 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 func TestAssertMaterializedEdgesMissingEndpointIdentityFails(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 	}
 	reader := fakeEdgeReader{edges: []graphdump.Edge{
@@ -230,7 +230,7 @@ func TestAssertMaterializedEdgesMissingEndpointIdentityFails(t *testing.T) {
 func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 	t.Parallel()
 
-	expected := []ifa.ExpectedEdge{
+	expected := []materializededges.ExpectedEdge{
 		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
 	}
 	reader := fakeEdgeReader{edges: []graphdump.Edge{
@@ -246,7 +246,7 @@ func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate") {
 		t.Errorf("error %q does not report the duplicate edge", err)
 	}
-	wantLabel := expectedEdgeLabel(ifa.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"})
+	wantLabel := expectedEdgeLabel(materializededges.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"})
 	if !strings.Contains(err.Error(), wantLabel) {
 		t.Errorf("error %q does not name the duplicated edge (want label %q)", err, wantLabel)
 	}

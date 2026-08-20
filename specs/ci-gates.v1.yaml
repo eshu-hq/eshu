@@ -2096,8 +2096,8 @@ gates:
       - "specs/replay-coverage-manifest.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
     local:
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2144,7 +2144,7 @@ gates:
       - "go/internal/ifa/**"
       - "go/cmd/ifa/**"
       - "go/internal/reducer/**"
-      - "go/internal/ifa/materialized_edges*.go"
+      - "go/internal/ifa/materializededges/**"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/materialized_edge_families.go"
       - "go/internal/reducer/shared_projection.go"
@@ -2188,8 +2188,12 @@ gates:
       # when that landed -- a check present in the tree and never run by the
       # gate meant to run it. The package takes ~5s; that buys a selection
       # that cannot rot as tests are added.
-      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
-      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      #
+      # The ifa leg names materializededges explicitly for the same reason: this
+      # list is PACKAGE-EXACT, not recursive, so a package that is not named here
+      # is not run by this gate no matter how many tests it holds.
+      command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
+      test_command: "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -2293,7 +2297,7 @@ gates:
       - "go/internal/ifa/documentation_family_catalog.go"
       - "go/internal/ifa/codeowners_family_odu.go"
       - "go/internal/ifa/codeowners_family_catalog.go"
-      - "go/internal/ifa/materialized_edges*.go"
+      - "go/internal/ifa/materializededges/**"
       - "go/cmd/bootstrap-data-plane/main.go"
       - "go/cmd/reducer/main.go"
       - "go/cmd/reducer/run.go"
@@ -2585,7 +2589,7 @@ gates:
       - "go/internal/ifa/documentation_family_catalog.go"
       - "go/internal/ifa/codeowners_family_odu.go"
       - "go/internal/ifa/codeowners_family_catalog.go"
-      - "go/internal/ifa/materialized_edges*.go"
+      - "go/internal/ifa/materializededges/**"
       - "go/cmd/bootstrap-data-plane/main.go"
       - "go/cmd/reducer/main.go"
       - "go/cmd/reducer/run.go"

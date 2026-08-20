@@ -149,7 +149,18 @@ on:
       - 'go/internal/ifa/catalog_seed.go'
       - 'go/internal/ifa/code_call_family_catalog.go'
       - 'go/internal/ifa/documentation_family_catalog.go'
-      - 'go/internal/ifa/materialized_edges*.go'
+      # The guards moved to go/internal/ifa/materializededges/ (#6053), so the
+      # former per-file glob for those guards matched nothing once they moved, so
+      # it was dropped here and from all three gate blocks in ci-gates.v1.yaml
+      # together -- the registry-subset-of-workflow lockstep compares trigger
+      # strings, so removing it from one side alone breaks the mirror.
+      #
+      # Without the line below both live gates are SELECTED as blocking by the
+      # registry and then never started by GitHub, because a PR touching only the
+      # moved package matches no path here. The determinism mirror's
+      # registry-subset-of-workflow loop is the only check that sees this -- the
+      # registry lane and --drift both pass while it is broken.
+      - 'go/internal/ifa/materializededges/**'
       - 'go/cmd/bootstrap-data-plane/main.go'
       - 'go/cmd/reducer/main.go'
       - 'go/cmd/reducer/canonical_graph_writers.go'
