@@ -308,6 +308,15 @@ run_ifa_determinism_registry_lockstep_cases
 source "${family_registry_pins_lib}"
 run_ifa_family_registry_pins_cases
 
+# Fixture-wiring cases: for every family the registry enumerates, its
+# CASSETTE_VAR/EXPECTED_VAR pointer must actually resolve -- not just be
+# declared -- to a non-empty, on-disk fixture in ifa_family_fixtures.sh.
+# Catches a family whose registry row and fault cells reference a
+# CASSETTE_VAR/EXPECTED_VAR that fixtures_lib never assigns, which both live
+# gates would otherwise discover only at runtime, under set -euo pipefail,
+# as a fatal "unbound variable" (#6002). Same module as the pins cases above.
+run_ifa_family_registry_fixture_wiring_cases
+
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope
 # writers contend and the owner ledger must keep the digest identical across

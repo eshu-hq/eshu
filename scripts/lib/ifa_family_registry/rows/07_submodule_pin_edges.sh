@@ -112,8 +112,8 @@ IFA_FAMILY_CELL_KIND[submodule_pin_edges]="custom"
 # No IFA_FAMILY_RETRY_BASELINE_VAR row: that field is required only for
 # shared_intent_lock families, whose generic kill cell compares against it.
 # This family is table_lock:fact_records and cell_kind=custom, so its own
-# cells (once written) own their baseline the way codeowners_ownership_edges'
-# cells do, and the generic precondition never runs for it.
+# cells own their baseline the way codeowners_ownership_edges' cells do, and
+# the generic precondition never runs for it.
 
 # Recorded even though nothing reads it for this family: handler_go_file is
 # consumed only by _ifa_generic_require_intent_writer, which runs for
@@ -127,7 +127,7 @@ IFA_FAMILY_HANDLER_GO_FILE[submodule_pin_edges]="go/internal/reducer/submodule_p
 # NOT in drive_all_cassettes: per repo convention (see the shared_cell field
 # comment in ../ifa_family_registry.sh's schema header), a new family's own
 # cells drive its cassette; the shared fault drive is never extended for a
-# new family, and this family has no fault cells at all yet.
+# new family.
 IFA_FAMILY_FAULT_SHARED_DRIVE[submodule_pin_edges]="0"
 
 IFA_FAMILY_NAMES+=(submodule_pin_edges)

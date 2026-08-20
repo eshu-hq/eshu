@@ -3,15 +3,16 @@
 # scripts/lib/ifa_codeowners_live.sh's shape exactly. Callers own strict mode
 # and cleanup.
 #
-# SOURCED by scripts/verify-ifa-determinism.sh, whose shared N={1,2,4} loop
-# dispatches these two functions by name through
+# SOURCED by both scripts/verify-ifa-determinism.sh and
+# scripts/verify-ifa-fault-injection.sh. On the determinism gate, the shared
+# N={1,2,4} loop dispatches these two functions by name through
 # scripts/lib/ifa_family_registry.sh's IFA_FAMILY_DRIVE_FN/ASSERT_FN
 # indirection (row: scripts/lib/ifa_family_registry/rows/07_submodule_pin_edges.sh).
-# No fault cell exists for this family yet (no
-# ifa_fault_injection_submodule_pin_cells.sh), so unlike
-# ifa_codeowners_live.sh this file is not yet also sourced by
-# verify-ifa-fault-injection.sh; wire that source in when this family's fault
-# cells land.
+# On the fault-injection gate, scripts/lib/ifa_fault_injection_submodule_pin_cells.sh
+# calls ifa_submodule_pin_drive/ifa_submodule_pin_assert directly from its
+# three cells (baseline, kill-worker-after-claim, fail-graph-write-once-then-
+# succeed) -- see that file's own header for why those cells are hand-written
+# rather than routed through the generic table_lock path.
 
 # ifa_submodule_pin_drive replays the committed family cassette into one
 # matrix cell. The caller performs the aggregate fact_work_items non-vacuity
