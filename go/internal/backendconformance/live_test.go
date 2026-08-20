@@ -32,6 +32,18 @@ func TestLiveBackendConformance(t *testing.T) {
 		t.Skipf("set %s=1 to run live backend conformance", liveConformanceEnv)
 	}
 
+	// A green run must never be mistaken for full coverage. The value-flow pair
+	// is absent from the corpora unless its own opt-in is set, so say so in the
+	// run output -- otherwise this test passes while a capability it is
+	// supposed to prove was never exercised, and nothing anywhere records it.
+	if valueFlowCasesEnabled() {
+		t.Logf("value-flow cloud sink pair: INCLUDED (%s is set)", valueFlowCasesEnv)
+	} else {
+		t.Logf("value-flow cloud sink pair: OMITTED -- %s is not set, so this run does "+
+			"NOT prove the value-flow cloud sink query. Set %s=1 to include it.",
+			valueFlowCasesEnv, valueFlowCasesEnv)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), liveTestTimeout)
 	defer cancel()
 
@@ -222,9 +234,46 @@ func (e liveCypherExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourc
 }
 
 // cleanupLiveCorpus removes only nodes created by DefaultWriteCorpus, keeping
-// live proofs safe to run against developer Compose databases.
+// live proofs safe to run against developer Compose databases. Every write case
+// needs a matching retract here: a case whose fixtures are not listed leaks
+// them permanently on a persistent database, which is the dev workflow this
+// package documents.
 func cleanupLiveCorpus(ctx context.Context, executor liveCypherExecutor) error {
 	cleanup := []sourcecypher.Statement{
+		{
+			// The value-flow chain, newest first so DETACH DELETE never has to
+			// rely on ordering. These are seeded by valueFlowWriteCases and
+			// none of them hang off Repository, so the Repository cleanup below
+			// does not reach them.
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (s:CloudResource {id: $sink_id}) DETACH DELETE s`,
+			Parameters: map[string]any{"sink_id": valueFlowSinkID},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (p:CloudResource {id: $principal_id}) DETACH DELETE p`,
+			Parameters: map[string]any{"principal_id": valueFlowPrincipalID},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (i:WorkloadInstance {id: $instance_id}) DETACH DELETE i`,
+			Parameters: map[string]any{"instance_id": valueFlowInstanceID},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (w:Workload {id: $workload_id}) DETACH DELETE w`,
+			Parameters: map[string]any{"workload_id": valueFlowWorkloadID},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (a:CloudAction {action: $action}) DETACH DELETE a`,
+			Parameters: map[string]any{"action": valueFlowAction},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (fn:Function {uid: $function_uid}) DETACH DELETE fn`,
+			Parameters: map[string]any{"function_uid": valueFlowFunctionUID},
+		},
 		{
 			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher: `MATCH (caller:Function {uid: $caller_uid})-[rel:CALLS]->(callee:Function {uid: $callee_uid})

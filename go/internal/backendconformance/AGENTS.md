@@ -46,7 +46,34 @@
 - **Add a new write case** → append to `DefaultWriteCorpus` in
   `corpus.go`, run the local default tests, then run the live opt-in via
   `scripts/verify_backend_conformance_live.sh` against both Neo4j and
-  NornicDB Compose lanes.
+  NornicDB Compose lanes. Add `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1` to
+  that run when you need the value-flow pair too; it is absent from the
+  corpora without it, so a green run does not cover it. **Add a matching retract to `cleanupLiveCorpus`
+  in `live_test.go` in the same change** — a write case with no cleanup
+  leaks its fixtures permanently on a persistent developer database.
+
+- **Both corpora are `append(...)` calls**, so a related read/write pair
+  that is large or has its own rationale can live in its own
+  `corpus_<name>.go` and be appended by a helper, as
+  `corpus_value_flow.go` does. Prefer that once inlining would push
+  `corpus.go` past the 500-line cap, or once the pair needs more comment
+  than case.
+
+- **A case that reproduces a backend defect** should run the *whole*
+  production statement rather than stopping at the first clause that
+  diverges. A case truncated at the first known bug goes green the moment
+  that one bug is fixed, while the real query stays broken on a later
+  clause. **Pin it by equality to the production constant, not by a list of
+  fragments.** A fragment list bounds only the mutations someone thought of;
+  the one here was defeated three separate times — by decomposing a multi-hop
+  MATCH, by dropping a `WHERE size(...) = 1` filter, and by truncating the
+  `RETURN` — each of which keeps the case name and `MinRows` and still returns
+  a row on a conforming backend. See
+  `TestValueFlowReadCaseEqualsTheProductionStatement` for the shape. Mind the
+  import direction: this package may import `internal/reducer` — it already
+  does, transitively, through `internal/storage/cypher` — so the equality lives
+  here and the production constant is exported. The reverse, a reducer-side test
+  importing this package, IS a cycle.
 
 - **Add or change a backend capability** → update
   `specs/backend-conformance.v1.yaml`, then update the
@@ -96,3 +123,18 @@
   for the chunked rollout plan and the matrix's place in it.
 - The default corpus contents: cases are referenced by tests outside this
   package; renames or removals need a coordinated update of every caller.
+
+## Citing a conformance env var in public docs registers it
+
+`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` is in `go/internal/envregistry` only
+because `docs/public/reference/backend-conformance.md` cites it. The
+`docs-cli-env-refs` gate requires a code owner for every env reference under
+`docs/public/`, and its debt baseline is frozen against a ceiling that can never
+grow — so a new public citation cannot be baselined and must be registered.
+
+`ESHU_BACKEND_CONFORMANCE_LIVE` is deliberately NOT registered: it is cited
+nowhere under `docs/public/`, so it is outside that gate's contract. The moment
+anyone adds it to a public page — and the obvious place is the page already
+documenting the live check — the gate fires and it cannot be baselined either.
+Register it in the `backend-conformance` subsystem alongside its sibling rather
+than rediscovering this during a preflight.

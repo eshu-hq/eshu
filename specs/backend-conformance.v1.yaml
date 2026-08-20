@@ -1,5 +1,5 @@
 version: v1
-updated_at: 2026-05-04
+updated_at: 2026-08-19
 owners:
   - platform-engineering
 backends:
@@ -21,14 +21,43 @@ backends:
           - go_test: ./internal/backendconformance
           - go_test: ./internal/query
           - compose_e2e: live-backend-conformance
-        notes: Served through the shared Bolt GraphQuery port with backend-aware query builders where needed.
+        notes: >-
+          Served through the shared Bolt GraphQuery port with backend-aware query builders
+          where needed. Four narrow divergences are measured and recorded rather than
+          implied, and they do not all fail the same way: collect() after two MATCH
+          clauses returns no rows; a property dereference off a subscripted alias
+          (ws[0] AS w2, then w2.name) returns the literal text "w2.name" rather than the
+          property value; IN over a relationship list property matches nothing; and a
+          multi-hop MATCH whose anchor was bound by an earlier clause returns no rows.
+          Neo4j 5 returns the row in every case. The list is not asserted to be
+          exhaustive -- it grew from two to four as successive reviews tested further
+          along the statement. See the value-flow read case in
+          go/internal/backendconformance/corpus_value_flow.go and that package's
+          evidence-notes.md, which carries the controls and the live exit codes for both
+          backends. Filed upstream as orneryd/NornicDB#297, #298, #301 and #302.
       path_traversal:
         status: supported
         verification:
           - go_test: ./internal/backendconformance
           - go_test: ./internal/query
           - compose_e2e: live-backend-conformance
-        notes: Bounded call-chain and transitive relationship reads use NornicDB-safe query shapes.
+        notes: >-
+          Bounded call-chain and transitive relationship reads use NornicDB-safe query
+          shapes, validated at deployed tier on both backends -- see
+          docs/internal/remote-validation/prod-call-chain-path.md,
+          prod-transitive-callers.md, prod-transitive-callees.md, and
+          prod-route-to-caller.md -- prod-trace-exposure-path.md is deliberately not
+          cited here, because its recorded observation is zero paths returned, an honest
+          negative that cannot substantiate a traversal returning rows. One narrow
+          exception is measured and does not
+          generalise: a compound multi-hop MATCH anchored on a WITH-bound variable returns
+          zero rows on NornicDB where Neo4j returns the row, filed upstream as
+          orneryd/NornicDB#302. Decomposing it into chained single-hop clauses works, and
+          the "value-flow cloud sink aggregation and subscript projection" read case in
+          go/internal/backendconformance/corpus_value_flow.go holds the shape with the
+          controls in that package's evidence-notes.md. The other three divergences that
+          case carries are aggregation, projection, and list-predicate semantics rather
+          than traversal, so they bear on direct_graph_reads rather than on this class.
       full_text_support:
         status: not_required
         verification: []

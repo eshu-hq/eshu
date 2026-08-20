@@ -53,8 +53,13 @@ type CaseResult struct {
 
 // DefaultReadCorpus returns the deterministic read corpus used as the common
 // graph-query adapter smoke for Chunk 5 backend conformance.
+//
+// The corpus is deterministic for a given environment, but it is not fixed: the
+// value-flow cloud sink case is included only when
+// ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set to 1, true, or yes. It is absent by
+// default, not skipped, so a caller counting cases sees a different length.
 func DefaultReadCorpus() []ReadCase {
-	return []ReadCase{
+	return append([]ReadCase{
 		{
 			Name:       "direct repository read",
 			Capability: CapabilityDirectGraphReads,
@@ -100,13 +105,17 @@ RETURN contains_count, file_count, entity_count`,
 			},
 			MinRows: 1,
 		},
-	}
+	}, valueFlowReadCases()...)
 }
 
 // DefaultWriteCorpus returns the deterministic write corpus used as the common
 // Cypher executor smoke for Chunk 5 backend conformance.
+//
+// As with [DefaultReadCorpus], the value-flow cloud sink seed is included only
+// when ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set to 1, true, or yes, and is
+// absent by default rather than skipped.
 func DefaultWriteCorpus() []WriteCase {
-	return []WriteCase{
+	return append([]WriteCase{
 		{
 			Name:       "canonical repository upsert",
 			Capability: CapabilityCanonicalWrites,
@@ -239,7 +248,7 @@ SET rel.evidence_source = 'projector/canonical',
 				},
 			},
 		},
-	}
+	}, valueFlowWriteCases()...)
 }
 
 // backendConformanceContainmentParams returns the deterministic fixture values

@@ -11,7 +11,18 @@
 // runtime, api, mcp, reducer, projector, coordinator, semantic, component) and
 // the hosted-collector production configuration. Container-registry credential
 // variables (ESHU_*_OCI_*, ESHU_*_PACKAGE_*) are integration-test gating read
-// only from _test.go and are out of scope. The coverage test
+// only from _test.go and are out of scope.
+//
+// One exception, and it is a rule rather than a special case: a contributor
+// test knob that is cited on a docs/public page IS carried here, because the
+// docs-cli-env-refs ratchet requires code ownership for every public citation
+// and its debt baseline is frozen against a ceiling that can never grow. Such
+// knobs get their own Subsystem (see backend-conformance) so they render in a
+// section of their own rather than beside operator runtime settings. The
+// ESHU_*_OCI_* variables above look like a counter-example but are not -- they
+// are grandfathered debt inside that frozen ceiling, not a pattern to copy.
+//
+// The coverage test
 // (TestRegistryCoversCoreEnvCallSites) scans the core, collector, and split
 // command config files, so the registry stays authoritative for exactly what it
 // claims to cover rather than silently drifting.
