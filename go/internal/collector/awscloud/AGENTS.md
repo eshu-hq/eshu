@@ -47,12 +47,11 @@ workstreams are scoped elsewhere — so "in scope" is the accurate word, not
 ### Measurements a restructure needs
 
 Gathered while scoping this, and recorded here so the next person does not
-re-derive them. **Measured against `2af1e3567`**; the branch has since been
-rebased and now forks from main at `606f404f9`, with the figures re-derived
-unchanged at that base. The commits in between touch only docs and
-`go/internal/query/`, adding no file to this directory and no importer of this
-package, which is why none of the figures move. All commands run from the
-repository root.
+re-derive them. **Measured against `2af1e3567`** and re-derived unchanged at
+`606f404f9`. Nothing between those two commits, or since, adds a file to this
+directory or a new importer of this package, which is why none of the figures
+move — re-derive with the commands below if you need them at a later commit.
+All commands run from the repository root.
 
 They do not all go stale together, and the difference decides which you can
 trust:
