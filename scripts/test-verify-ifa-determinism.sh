@@ -240,6 +240,8 @@ require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit
 require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
 require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
 require_code "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
+require_code "sources inheritance live lib" "scripts/lib/ifa_inheritance_live.sh"
+require_code "sources shell-exec live lib" "scripts/lib/ifa_shell_exec_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
