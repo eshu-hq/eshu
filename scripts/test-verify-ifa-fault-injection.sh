@@ -418,8 +418,7 @@ source "${code_call_cases_lib}"
 # their own existence/syntax checks for the cells library they exercise.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"; source "${repo_root}/scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"  # family case modules packed for the 500-line cap
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh
 source "${documentation_barrier_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh
@@ -427,9 +426,8 @@ source "${documentation_barrier_cleanup_cases_lib}"
 run_ifa_documentation_live_static_cases
 run_ifa_fault_injection_review_cases
 run_ifa_fault_injection_codeowners_cases
-run_ifa_fault_injection_repo_dependency_cases
+run_ifa_fault_injection_repo_dependency_cases; run_ifa_fault_injection_workload_dependency_cases  # family case modules packed for the 500-line cap
 source "${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
-run_ifa_fault_injection_workload_dependency_cases
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.

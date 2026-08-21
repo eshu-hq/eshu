@@ -20,18 +20,29 @@ run_ifa_documentation_live_static_cases() {
 	local conformance_doc="${repo_root}/docs/public/concepts/ifa-conformance-platform.md"
 	local debug_doc="${repo_root}/docs/public/guides/debug-a-failing-gate.md"
 	local coverage_spec="${repo_root}/specs/ifa-materialized-edge-coverage.v1.yaml"
-	local expected_fault_guide_row='| `ifa-fault-injection` | Lease reclaim and retry converge across a 33-cell matrix. It includes fault injection, baselines, and exact-edge delta retraction. CI shards 32 non-baseline cells four ways and repeats the shared baseline, for 36 runs. |'
+	local total_cells shard_count nonbaseline_cells ci_runs expected_fault_guide_row
+	total_cells="$("${script}" --list-cells | wc -l | tr -d '[:space:]')" \
+		|| fail "could not derive the fault matrix cell count"
+	shard_count="$(bash -c 'set -euo pipefail; source "$1"; printf "%s" "${IFA_FAULT_SHARD_DEFAULT_N}"' _ "${shard_lib}")" \
+		|| fail "could not derive the fault matrix shard count"
+	[[ "${total_cells}" =~ ^[1-9][0-9]*$ && "${shard_count}" =~ ^[1-9][0-9]*$ ]] \
+		|| fail "fault matrix counts are not positive integers: cells=${total_cells@Q} shards=${shard_count@Q}"
+	nonbaseline_cells=$((total_cells - 1))
+	ci_runs=$((nonbaseline_cells + shard_count))
+	expected_fault_guide_row='| `ifa-fault-injection` | Lease reclaim and retry converge across a '"${total_cells}"'-cell matrix. It includes fault injection, baselines, and exact-edge delta retraction. CI shards '"${nonbaseline_cells}"' non-baseline cells across '"${shard_count}"' jobs and repeats the shared baseline, for '"${ci_runs}"' runs. |'
 	rg --fixed-strings --line-regexp --quiet -- "${expected_fault_guide_row}" "${proof_suite_guide}" \
-		|| fail "run-the-proof-suite fault-injection row must stay in lockstep with the 33-cell, 32 non-baseline, 36-run shard matrix"
+		|| fail "run-the-proof-suite fault-injection row must stay in lockstep with the derived ${total_cells}-cell, ${nonbaseline_cells} non-baseline, ${ci_runs}-run shard matrix"
 	for check in \
-		"${conformance_doc}|Thirty-three cells; the thirty-two" \
-		"${conformance_doc}|CI executes thirty-six" \
-		"${conformance_doc}|cell runs for the thirty-three-cell matrix" \
-		"${debug_doc}|drives thirty-three cells" \
-		"${debug_doc}|the thirty-two cells other than the shared fault-free baseline" \
-		"${debug_doc}|executes thirty-six cell runs" \
-		"${debug_doc}|for a thirty-three-cell matrix" \
-		"${coverage_spec}|The 33-cell fault"; do
+		"${conformance_doc}|${total_cells} cells; the other ${nonbaseline_cells}" \
+		"${conformance_doc}|sharded across ${shard_count} CI jobs" \
+		"${conformance_doc}|CI executes ${ci_runs}" \
+		"${conformance_doc}|cell runs for the ${total_cells}-cell matrix" \
+		"${debug_doc}|drives ${total_cells} cells" \
+		"${debug_doc}|the ${nonbaseline_cells} cells other than the shared fault-free baseline" \
+		"${debug_doc}|split across ${shard_count} shards" \
+		"${debug_doc}|executes ${ci_runs} cell runs" \
+		"${debug_doc}|for a ${total_cells}-cell matrix" \
+		"${coverage_spec}|The ${total_cells}-cell fault"; do
 		local file="${check%%|*}" needle="${check#*|}"
 		rg --fixed-strings --quiet -- "${needle}" "${file}" \
 			|| fail "fault-matrix documentation drift in ${file##*/}: missing ${needle}"
