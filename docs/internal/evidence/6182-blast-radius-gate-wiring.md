@@ -203,6 +203,7 @@ container, with one negation case per name plus a repoint case:
 | repoint any of the four away from this container | exit 1 |
 | delete the workflow's `run: bash scripts/verify-replay-tier.sh` step | exit 1 |
 | put `if: ${{ false }}` on that step, leaving the `run:` line present | exit 1 |
+| put `continue-on-error: true` on that step | exit 1 |
 | weaken the guard from value-check to existence-check | exit 1, via the repoint cases |
 | unmodified | exit 0 |
 
@@ -219,12 +220,18 @@ evidence recorded in this table and no negation case in the mirror, so a future
 weakening of that one line would have gone unnoticed. A table row is a record;
 only the mirror is a guard.
 
-The `if: ${{ false }}` row is the sharper half of the same finding. The first
-version of the guard searched the whole workflow file for the `run:` line, so a
-step that GitHub skips entirely still satisfied it — present but never
-executed. The guard now extracts the step's own block and rejects any `if:` on
-it, because this gate is unconditional and a future conditional should require
-a deliberate edit here rather than silently stopping the proof.
+The last two workflow rows are the sharper half of the same finding, and they
+arrived one review round apart. The first version of the guard searched the
+whole workflow file for the `run:` line, so a step GitHub skips entirely still
+satisfied it — present but never executed, skip reading as pass. Rejecting
+`if:` closed that; it did not close `continue-on-error: true`, under which the
+step runs, fails, and the job passes anyway. Fail reads as pass, the same hole
+with the opposite trigger.
+
+The guard now extracts the step's own block and rejects both keys outright
+rather than inspecting them for a "safe" value. This gate is unconditional and
+blocking; changing either property should require a deliberate edit here, not
+quietly stop the proof from gating merges.
 
 The last two rows came from a fourth review round, and both are the same class
 again. The mirror proved the workflow installs `rg`, runs the contract test and

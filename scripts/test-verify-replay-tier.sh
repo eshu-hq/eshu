@@ -81,21 +81,30 @@ workflow_gate_step_block() {
 	' "$1"
 }
 
-# gate_step_is_active checks the workflow both HAS the gate step and RUNS it.
+# gate_step_is_active checks the workflow HAS the gate step, RUNS it, and lets
+# it BLOCK.
 #
-# A whole-file search for the `run:` line is not enough. `if: ${{ false }}` on
-# that step makes GitHub skip the live gate while the line is still present and
-# the mirror still green — codex proved exactly that against this file on #6205,
-# and it is the same skip-reads-as-pass shape the gate itself exists to close.
-# Any `if:` on this step is therefore rejected: the gate is unconditional, and a
-# future conditional needs a deliberate update here rather than silent skipping.
+# A whole-file search for the `run:` line is not enough, in two different ways,
+# and #6205 review found them one after the other:
+#
+#   - `if: ${{ false }}` makes GitHub skip the step while the line is still
+#     present and this mirror still green. Skip reads as pass.
+#   - `continue-on-error: true` lets the step fail and the job still succeed.
+#     Fail reads as pass — the same hole with the opposite trigger.
+#
+# Both are rejected outright rather than inspected for a "safe" value. This gate
+# is unconditional and blocking; a future change to either property should
+# require a deliberate edit here, not quietly stop the blast-radius proof from
+# gating merges.
 gate_step_is_active() {
-	local block
+	local block key
 	block="$(workflow_gate_step_block "$1")"
 	rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' <<<"${block}" || return 1
-	if rg --quiet '^[[:space:]]*if:' <<<"${block}"; then
-		return 1
-	fi
+	for key in 'if:' 'continue-on-error:'; do
+		if rg --quiet "^[[:space:]]*${key}" <<<"${block}"; then
+			return 1
+		fi
+	done
 }
 
 has_workflow_wiring() {
@@ -239,6 +248,13 @@ sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
 ' "${workflow}" >"${tmp}/workflow-disabled-gate-step"
 if has_workflow_wiring "${tmp}/workflow-disabled-gate-step"; then
 	fail "a disabled (if:-gated) live gate step must not satisfy the guard"
+fi
+# Non-blocking is the twin: the step runs, it fails, and the job passes anyway.
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
+        continue-on-error: true
+' "${workflow}" >"${tmp}/workflow-nonblocking-gate-step"
+if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-step"; then
+	fail "a continue-on-error live gate step must not satisfy the guard"
 fi
 sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow-no-rg"
