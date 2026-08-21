@@ -7,6 +7,7 @@
 ifa_repo_dependency_fault_prepare() {
 	local cell="$1" projector_pid reducer_pid
 	fresh_stack "${cell}"
+	drive_all_cassettes "${cell}"
 	ifa_repo_dependency_live_drive "${bin_dir}" "${repo_dependency_cassette}" || die "${cell}: cassette drive failed"
 	ifa_det_start_bg "${log_dir}" "projector-${cell}-pre" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-pre" reducer_pid "${bin_dir}/eshu-reducer"

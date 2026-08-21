@@ -10,9 +10,20 @@ ifa_repo_dependency_body_has_order() {
 	done
 }
 
+ifa_repo_dependency_prepare_has_required_order() {
+	ifa_repo_dependency_body_has_order "$1" \
+		'fresh_stack "${cell}"' \
+		'drive_all_cassettes "${cell}"' \
+		'ifa_repo_dependency_live_drive "${bin_dir}" "${repo_dependency_cassette}"' \
+		'ifa_det_start_bg "${log_dir}" "projector-${cell}-pre"' \
+		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-pre"' \
+		'run_drain_gate "${cell}-pre"'
+}
+
 run_ifa_fault_injection_repo_dependency_cases() {
 	local root script shard cells live fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
-	local gated_body terminal_body kill_body graph_body prerequisite_body edge_type needle
+	local gated_body terminal_body kill_body graph_body prerequisite_body prepare_body edge_type needle
+	local drive_line repo_drive_line omitted_drive_body misordered_drive_body
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
 	shard="${root}/scripts/lib/ifa_fault_shard.sh"
@@ -75,9 +86,18 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	done
 	rm -rf "${fake_bin}"
 	terminal_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_fault_assert_terminal\(\) \{.*?^\}' "${cells}")"
+	prepare_body="$(rg -U --pcre2 --only-matching -- '(?ms)^ifa_repo_dependency_fault_prepare\(\) \{.*?^\}' "${cells}")"
 	kill_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_killworker_repo_dependency\(\) \{.*?^\}' "${cells}")"
 	graph_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_failgraphwrite_repo_dependency\(\) \{.*?^\}' "${cells}")"
-	[[ -n "${terminal_body}" && -n "${kill_body}" && -n "${graph_body}" ]] || return 1
+	[[ -n "${terminal_body}" && -n "${prepare_body}" && -n "${kill_body}" && -n "${graph_body}" ]] || return 1
+	ifa_repo_dependency_prepare_has_required_order "${prepare_body}" || return 1
+	drive_line=$'\tdrive_all_cassettes "${cell}"'
+	repo_drive_line=$'\tifa_repo_dependency_live_drive "${bin_dir}" "${repo_dependency_cassette}" || die "${cell}: cassette drive failed"'
+	[[ "${prepare_body}" == *"${drive_line}"* && "${prepare_body}" == *"${repo_drive_line}"* ]] || return 1
+	omitted_drive_body="${prepare_body/"${drive_line}"$'\n'/}"
+	! ifa_repo_dependency_prepare_has_required_order "${omitted_drive_body}" || return 1
+	misordered_drive_body="${omitted_drive_body/"${repo_drive_line}"/"${repo_drive_line}"$'\n'"${drive_line}"}"
+	! ifa_repo_dependency_prepare_has_required_order "${misordered_drive_body}" || return 1
 	for needle in assert_no_dead_letters ifa_repo_dependency_live_assert_readiness_state ifa_repo_dependency_live_assert; do
 		[[ "${terminal_body}" == *"${needle}"* ]] || return 1
 	done
