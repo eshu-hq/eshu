@@ -330,7 +330,7 @@ run_ifa_repo_dependency_partition_lease_controls() (
 run_ifa_fault_injection_repo_dependency_cases() {
 	local root script shard cells live lease_lib fault_lib fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
 	local gated_body terminal_body kill_body graph_body prerequisite_body prepare_body edge_type needle
-	local graph_lifecycle_lines lifecycle_line omitted_graph_body misordered_graph_body repo_batch_anchor anchor_count production_go_files production_go_count
+	local graph_lifecycle_lines lifecycle_line omitted_graph_body misordered_graph_body repo_batch_anchor anchor_count production_go_files production_go_count scan_lines mutated_scan_lines
 	local drive_line repo_drive_line omitted_drive_body misordered_drive_body
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
@@ -407,13 +407,17 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	[[ -n "${terminal_body}" && -n "${prepare_body}" && -n "${kill_body}" && -n "${graph_body}" ]] || return 1
 	ifa_repo_dependency_prepare_has_required_order "${prepare_body}" || return 1
 	repo_batch_anchor=$'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence'
-	production_go_files="$(rg --files "${root}/go" -g '*.go' -g '!*_test.go')" || return 1
+	scan_lines="$(rg --pcre2 --only-matching -- '^[[:space:]]*(?:production_go_files|anchor_count)=.*$' "${BASH_SOURCE[0]}")" || return 1
+	[[ "$(printf '%s\n' "${scan_lines}" | rg --fixed-strings --count -- '"${root}"')" == 2 ]] || return 1
+	mutated_scan_lines="$(printf '%s\n' "${scan_lines}" | sed '/^[[:space:]]*anchor_count=/s#"${root}"#"${root}/go"#')"
+	[[ "$(printf '%s\n' "${mutated_scan_lines}" | rg --fixed-strings --count -- '"${root}"')" == 1 ]] || return 1
+	production_go_files="$(rg --files "${root}" -g '*.go' -g '!*_test.go')" || return 1
 	production_go_count="$(printf '%s\n' "${production_go_files}" | wc -l | tr -d '[:space:]')"
 	[[ "${production_go_count}" =~ ^[0-9]+$ && "${production_go_count}" -gt 100 ]] || return 1
 	! printf '%s\n' "${production_go_files}" | rg --quiet -- '_test\.go$' || return 1
 	[[ "${production_go_files}" == *'/go/internal/storage/cypher/canonical.go'* ]] || return 1
 	[[ "${production_go_files}" == *'/go/internal/reducer/workload_materializer.go'* ]] || return 1
-	anchor_count="$(rg -U -g '*.go' -g '!*_test.go' --fixed-strings --json -- "${repo_batch_anchor}" "${root}/go" \
+	anchor_count="$(rg -U -g '*.go' -g '!*_test.go' --fixed-strings --json -- "${repo_batch_anchor}" "${root}" \
 		| jq -s '[.[] | select(.type == "match")] | length')"
 	[[ "${anchor_count}" == 1 ]] || return 1
 	rg --fixed-strings --quiet -- 'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence' "${cells}" || return 1
