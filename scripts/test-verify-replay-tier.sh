@@ -71,14 +71,41 @@ has_graph_endpoint_pins() {
 	done
 }
 
+# workflow_gate_step_block prints the workflow step that runs the live gate,
+# from its `- name:` line up to the next step.
+workflow_gate_step_block() {
+	awk '
+		/^      - name: / { inside = 0 }
+		/^      - name: Run offline replay tier against real NornicDB$/ { inside = 1 }
+		inside { print }
+	' "$1"
+}
+
+# gate_step_is_active checks the workflow both HAS the gate step and RUNS it.
+#
+# A whole-file search for the `run:` line is not enough. `if: ${{ false }}` on
+# that step makes GitHub skip the live gate while the line is still present and
+# the mirror still green — codex proved exactly that against this file on #6205,
+# and it is the same skip-reads-as-pass shape the gate itself exists to close.
+# Any `if:` on this step is therefore rejected: the gate is unconditional, and a
+# future conditional needs a deliberate update here rather than silent skipping.
+gate_step_is_active() {
+	local block
+	block="$(workflow_gate_step_block "$1")"
+	rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' <<<"${block}" || return 1
+	if rg --quiet '^[[:space:]]*if:' <<<"${block}"; then
+		return 1
+	fi
+}
+
 has_workflow_wiring() {
 	local install_line test_line
 	install_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: scripts/ci/install-apt-packages\.sh ripgrep$' "$1" | cut -d: -f1)"
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
+	gate_step_is_active "$1" || return 1
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
-		rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' "$1" &&
 		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/dev/pre-pr\\.sh'$" "$1" &&
@@ -197,6 +224,21 @@ sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 	"${workflow}" >"${tmp}/workflow"
 if has_workflow_wiring "${tmp}/workflow"; then
 	fail "commented-out workflow wiring must not satisfy the guard"
+fi
+# The gate step gets the same standing negation every other guard here has. The
+# evidence for it used to be a one-time manual mutation, which is not a guard.
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/s/^/# /' \
+	"${workflow}" >"${tmp}/workflow-no-gate-step"
+if has_workflow_wiring "${tmp}/workflow-no-gate-step"; then
+	fail "workflow must run the live gate step (scripts/verify-replay-tier.sh)"
+fi
+# Present but skipped is the harder case: GitHub runs nothing, the run: line is
+# still there, and a whole-file regex stays green (#6205, found by codex).
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
+        if: ${{ false }}
+' "${workflow}" >"${tmp}/workflow-disabled-gate-step"
+if has_workflow_wiring "${tmp}/workflow-disabled-gate-step"; then
+	fail "a disabled (if:-gated) live gate step must not satisfy the guard"
 fi
 sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow-no-rg"
