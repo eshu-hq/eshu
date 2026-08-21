@@ -173,23 +173,10 @@ func inheritanceFamilyEntityID(relativePath, entityType, entityName string, star
 
 // inheritanceFamilyContentEntity builds one live content_entity envelope. The
 // payload uses "relative_path", the key contentEntityFactEnvelope
-// (go/internal/collector/git_content_fact_envelopes.go:80) actually emits --
-// NOT "path", which inheritance_materialization.go's declaredInheritanceRow /
-// buildInheritanceEntityIndex / buildInheritanceMethodIndex read for child_path
-// and inheritanceEntityRef.path
-// (inheritance_materialization.go:278,297,318,333,443,475). No content_entity
-// fact this collector emits carries a top-level "path" key, so those reads
-// return "" in production today -- the same class of bug #5998 found and fixed
-// in ExtractRationaleEdgeRows (rationale_edge_materialization.go:150-155) --
-// which blanks the file-scoped partition-key anchor (inheritanceFilePartitionKey)
-// and the delta-scope retraction path anchor for every inheritance edge. This
-// fixture deliberately reproduces the real key so the pure vacuity guard proves
-// what ExtractInheritanceRows ACTUALLY does today, not what a "path"-supplying
-// fixture would paper over; the row-derivation logic itself (which parent an
-// entity resolves to) does not depend on child_path, so this gap does not
-// change the expected edge SET, only a provenance field this family's expected-
-// edge fixture does not assert. Reported to the family owner; not fixed here
-// (out of this issue's offline-artifact scope).
+// (go/internal/collector/git_content_fact_envelopes.go) emits and the
+// inheritance extractor now reads for child_path and inheritanceEntityRef.path.
+// Keeping the real collector key here prevents the vacuity guard from passing
+// against a fixture-only "path" field that production never emits.
 func inheritanceFamilyContentEntity(entityID, name, relativePath, entityType string, startLine, endLine int, metadata map[string]any) facts.Envelope {
 	payload := map[string]any{
 		"graph_id":      entityID,

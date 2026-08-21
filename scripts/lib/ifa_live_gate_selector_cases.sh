@@ -281,6 +281,8 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/shellexec/**|testdata/cassettes/shellexec/ifa-shell-exec-family.json'
 	'go/internal/ifa/testdata/inheritance/**|go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json'
 	'go/internal/ifa/testdata/shellexec/**|go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json'
+	'go/internal/ifa/inheritance_family_odu.go|go/internal/ifa/inheritance_family_odu.go'
+	'go/internal/ifa/shell_exec_family_odu.go|go/internal/ifa/shell_exec_family_odu.go'
 	'scripts/lib/ifa_family_fixtures.sh|scripts/lib/ifa_family_fixtures.sh'
 	'scripts/lib/ifa_repo_dependency_live.sh|scripts/lib/ifa_repo_dependency_live.sh'
 	'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh|scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'

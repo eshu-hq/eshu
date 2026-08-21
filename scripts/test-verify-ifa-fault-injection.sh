@@ -3,12 +3,12 @@
 # slice S5, extended by #5555's SQL-targeted cells, #5991's code-call cells,
 # and #5998's rationale cells). The gate
 # itself needs Docker + a built toolchain and takes significantly longer
-# than the sibling determinism matrix (twenty-seven fresh Postgres + NornicDB
+# than the sibling determinism matrix (thirty-three fresh Postgres + NornicDB
 # stacks, six of them running a -tags ifafaultinjection
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# twenty-seven-cell shape (baseline + twenty-six live cells; fail-terminal
+# thirty-three-cell shape (baseline + thirty-two live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -59,8 +59,7 @@ rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cell
 rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"
 entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
-# shellcheck disable=SC2034  # read indirectly as "${!lib_var}" by the
-# syntax-check loop below, which shellcheck cannot follow.
+# shellcheck disable=SC2034  # read indirectly by the syntax-check loop below.
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
 shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"
@@ -78,7 +77,6 @@ generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-m
 # non-vacuity precondition this change rests on.
 generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
 generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
-
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
 for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
@@ -158,7 +156,7 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The twenty-seven-cell-shape anchored-invocation check and the SQL permanent-
+# The thirty-three-cell-shape anchored-invocation check and the SQL permanent-
 # member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
 # the sourced shard-cases module below, extracted to buy this file real
 # line-count headroom rather than trimming their comments in place.
@@ -211,7 +209,7 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 # The SQL permanent-member invocation pin also moved to the shard-cases
-# module (see the note above the twenty-seven-cell-shape comment).
+# module (see the note above the thirty-three-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
@@ -261,7 +259,7 @@ if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${deliv
 	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 fi
 
-require "fail-terminal explicitly excluded with rationale" "fail-terminal (a twenty-fifth possible cell) is deliberately NOT included"
+require "fail-terminal explicitly excluded with rationale" "fail-terminal (a thirty-first possible cell) is deliberately NOT included"
 
 # Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 # documentation, and rationale):

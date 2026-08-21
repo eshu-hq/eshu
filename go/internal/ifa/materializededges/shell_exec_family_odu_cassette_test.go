@@ -4,10 +4,14 @@
 package materializededges
 
 import (
+	"context"
+	"reflect"
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
 // TestShellExecFamilyCassetteMatchesGoOdu guards against drift between the
@@ -16,48 +20,45 @@ import (
 // `ifa drive` under the live lanes once wired) and the in-memory Go Odù
 // (ifa's shell_exec_family_odu.go, used by the pure vacuity guard): both
 // describe the SAME fixture facts, authored twice for two different
-// consumers. This test proves they actually agree by running the cassette's
-// file facts through the SAME pure reducer.ExtractShellExecRows seam the Go
-// Odù's own resolver test uses, and asserting the derived edge set is
-// identical, mirroring TestSQLFamilyCassetteMatchesGoOdu.
+// consumers. This test proves the full normalized facts.Envelope sequence is
+// identical, so non-edge-driving payload, identity, or lifecycle drift cannot
+// hide behind an unchanged derived edge set.
 func TestShellExecFamilyCassetteMatchesGoOdu(t *testing.T) {
 	t.Parallel()
-	repoRoot := repoRootDir(t)
+	source, err := cassette.NewSource(ifa.ShellExecFamilyCassetteFullPath(repoRootDir(t)))
+	if err != nil {
+		t.Fatalf("cassette.NewSource: %v", err)
+	}
+	generation, ok, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("cassette source Next: %v", err)
+	}
+	if !ok {
+		t.Fatal("cassette source returned no generation")
+	}
 
-	cassetteEnvelopes := loadCassetteEnvelopes(t, ifa.ShellExecFamilyCassetteFullPath(repoRoot))
-	oduEnvelopes := ifa.CatalogByName()[ifa.ShellExecFamilyOduName].Facts
-	if len(oduEnvelopes) == 0 {
+	cassetteFacts := make([]facts.Envelope, 0, generation.FactCount())
+	for envelope := range generation.Facts {
+		cassetteFacts = append(cassetteFacts, envelope)
+	}
+	compiled := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
+	if compiled.Name == "" {
 		t.Fatalf("CatalogByName omits %q", ifa.ShellExecFamilyOduName)
 	}
-
-	_, cassetteRows := reducer.ExtractShellExecRows(cassetteEnvelopes)
-	_, oduRows := reducer.ExtractShellExecRows(oduEnvelopes)
-
-	cassetteSet := shellExecEdgeSet(shellExecRowsToExpectedEdges(cassetteRows))
-	oduSet := shellExecEdgeSet(shellExecRowsToExpectedEdges(oduRows))
-
-	if len(cassetteSet) != len(oduSet) {
-		t.Fatalf("cassette derives %d edges, Go Odù derives %d; the two fixture authorings have drifted", len(cassetteSet), len(oduSet))
+	if len(cassetteFacts) != len(compiled.Facts) {
+		t.Fatalf("cassette has %d facts, compiled catalog Odù has %d", len(cassetteFacts), len(compiled.Facts))
 	}
-	for key := range oduSet {
-		if _, ok := cassetteSet[key]; !ok {
-			t.Errorf("edge %s present in the Go Odù but not the JSON cassette", key)
+	for i := range cassetteFacts {
+		got := cassetteFacts[i]
+		got.FactID = ""
+		got.FencingToken = 0
+		got.ObservedAt = time.Time{}
+		got.SourceRef = facts.Ref{}
+		if !reflect.DeepEqual(got, compiled.Facts[i]) {
+			t.Errorf("fact %d drifted between replay cassette and catalog\ncassette: %#v\ncatalog: %#v", i, got, compiled.Facts[i])
 		}
 	}
-	for key := range cassetteSet {
-		if _, ok := oduSet[key]; !ok {
-			t.Errorf("edge %s present in the JSON cassette but not the Go Odù", key)
-		}
+	if _, ok, err := source.Next(context.Background()); err != nil || ok {
+		t.Fatalf("cassette declares more than one generation: ok=%v err=%v", ok, err)
 	}
-}
-
-// shellExecEdgeSet builds a set keyed by ExpectedEdge.Key() so exact
-// set-equality (not just subset) can be asserted, mirroring
-// sqlRelationshipEdgeSet.
-func shellExecEdgeSet(edges []ExpectedEdge) map[string]struct{} {
-	out := make(map[string]struct{}, len(edges))
-	for _, e := range edges {
-		out[e.Key()] = struct{}{}
-	}
-	return out
 }

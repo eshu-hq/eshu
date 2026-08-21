@@ -472,6 +472,8 @@ on:
       - 'testdata/cassettes/shellexec/**'
       - 'go/internal/ifa/testdata/inheritance/**'
       - 'go/internal/ifa/testdata/shellexec/**'
+      - 'go/internal/ifa/inheritance_family_odu.go'
+      - 'go/internal/ifa/shell_exec_family_odu.go'
       - 'scripts/lib/ifa_rationale_live.sh'
       # Shared committed family fixture paths + existence guards, sourced by
       # BOTH live gates: a change here changes what every cell drives.

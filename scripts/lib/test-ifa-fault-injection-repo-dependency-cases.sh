@@ -494,5 +494,5 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_fault_script_json_controls || return 1
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 27 ]] || return 1
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 33 ]] || return 1
 }

@@ -7,31 +7,31 @@ shape, or worker/lease/queue behavior.
 
 ## #5996/#6001 — move the inheritance_edges/shell_exec vacuity-guard fixtures into go/internal/ifa/materializededges
 
-Pure package relocation forced by the #6053/#6199 materializededges split:
+Package relocation forced by the #6053/#6199 materializededges split:
 `materialized_edges_inheritance.go`, `materialized_edges_inheritance_test.go`,
 `materialized_edges_shell_exec.go`, `materialized_edges_shell_exec_test.go`,
 and `shell_exec_family_odu_cassette_test.go` moved from `go/internal/ifa` to
-`go/internal/ifa/materializededges` unchanged in logic -- only the package
-clause, the `ifa.` qualification the package boundary now requires, and the
-identifiers exported from `inheritance_family_odu.go`/`shell_exec_family_odu.go`
-so the moved guard/tests can reach them without a second copy -- read-only
-fixture data or path-joining helpers; see those two files' own doc comments
-for the exact export list and the `materializededges/AGENTS.md`
-two-direction mutation-probe rule this decision follows. No Cypher, extractor algorithm
+`go/internal/ifa/materializededges`. The extractor and expected-edge resolver
+logic is unchanged; the package move only adds the `ifa.` qualification and
+exports the read-only fixture identifiers the moved guard/tests need. The
+shell-exec cassette lockstep test now also compares every normalized fact
+envelope, not only derived edges. That exposed and fixed missing
+`stable_fact_key`, schema, collector, confidence, and JSON payload-shape parity
+in the compiled Odù while preserving the same facts and edge set. See the two
+fixture files' doc comments and the `materializededges/AGENTS.md`
+two-direction mutation-probe rule this decision follows. No Cypher or extractor algorithm
 (`reducer.ExtractInheritanceRows`/`reducer.ExtractShellExecRows`), worker
 count, batch size, lease, or queue behavior changed. This is a compile-time
 boundary move of pure fixture-construction and assertion code the live
 gates never execute on a hot path.
 
-No-Regression Evidence: `cd go && go build ./internal/ifa/...` (clean);
-`go vet ./internal/ifa/...` (clean); `go test ./internal/ifa/... ./cmd/ifa
--count=1` (all packages ok, including `internal/ifa/materializededges`);
-`go test ./internal/reducer -count=1` (ok); `gofmt -l` / `gofumpt -l` on
-every touched file (no output -- already formatted); `bash
-scripts/dev/precommit-go.sh lint <touched files>` (2 packages, 0 issues);
-`bash scripts/dev/precommit-go.sh dirgate-all` (clean; `go/internal/ifa`
-stays well under dirgate's 40-file cap after the split moved files out);
-`bash scripts/verify-package-docs.sh` (present).
+No-Regression Evidence: `cd go && go test ./internal/ifa
+./internal/ifa/materializededges ./cmd/ifa -count=1` (all packages ok);
+`cd go && go test ./internal/reducer -count=1` (ok); `bash
+scripts/dev/precommit-go.sh lint-all` (0 issues). The new full-envelope test
+failed against the pre-fix compiled shell-exec fixture at every omitted
+identity/schema field and mismatched JSON payload type, then passed after the
+compiled Odù and cassette matched fact-for-fact.
 
 No-Observability-Change: no metric instrument, metric label, span, log key,
 route, graph query shape, queue table, worker, lease, or runtime knob is
@@ -56,8 +56,8 @@ fact alone, the delta-retract Cypher matches the graph node's own `path`
 property (written by a different materializer), and
 `buildInheritanceRowMap`'s edge-write param map never included
 `child_path` at all. The defect was a provenance/partition-key-stability
-gap, not a correctness one, and the fix is a two-line read-key change plus
-the new diagnostics split.
+gap, not a correctness one, and the fix routes all six reads through one
+shared `relative_path` key constant plus the diagnostics split.
 
 No-Regression Evidence: `cd go && go test ./internal/reducer -run
 Inheritance -v -count=1` (all PASS, including the new 375-line

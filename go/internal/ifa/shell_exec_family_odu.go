@@ -160,16 +160,15 @@ func shellExecFamilyOdu() CatalogOdu {
 // qualifies every entity node's path property the same way it does for the
 // SQL family (sqlFamilyLocalPath's doc comment, #5549 P1a).
 func shellExecFamilyRepositoryFact() facts.Envelope {
-	return facts.Envelope{
-		ScopeID:      shellExecFamilyScopeID,
-		GenerationID: shellExecFamilyGenerationID,
-		FactKind:     repositoryFactKind,
-		Payload: map[string]any{
+	return shellExecFamilyEnvelope(
+		repositoryFactKind,
+		"repository:"+ShellExecFamilyRepoID,
+		map[string]any{
 			"repo_id":       ShellExecFamilyRepoID,
 			"source_run_id": shellExecFamilySourceRunID,
 			"local_path":    ShellExecFamilyLocalPath,
 		},
-	}
+	)
 }
 
 // shellExecFamilyFunctionEntity carries the content_entity fact that actually
@@ -181,20 +180,19 @@ func shellExecFamilyRepositoryFact() facts.Envelope {
 // vacuity guard (ExtractShellExecRows never reads content_entity facts) but
 // keeps the fixture live-gate-ready.
 func shellExecFamilyFunctionEntity(relativePath, entityName, entityUID string, line int) facts.Envelope {
-	return facts.Envelope{
-		ScopeID:      shellExecFamilyScopeID,
-		GenerationID: shellExecFamilyGenerationID,
-		FactKind:     contentEntityFactKind,
-		Payload: map[string]any{
+	return shellExecFamilyEnvelope(
+		contentEntityFactKind,
+		"content_entity:"+entityUID,
+		map[string]any{
 			"repo_id":       ShellExecFamilyRepoID,
 			"entity_id":     entityUID,
 			"entity_type":   "Function",
 			"entity_name":   entityName,
 			"relative_path": relativePath,
-			"start_line":    line,
-			"end_line":      line + 1,
+			"start_line":    float64(line),
+			"end_line":      float64(line + 1),
 		},
-	}
+	)
 }
 
 // shellExecFamilyDeployFileFact carries deploy_service, whose three raw
@@ -203,9 +201,9 @@ func shellExecFamilyFunctionEntity(relativePath, entityName, entityUID string, l
 // api) that must dedup to one row, the third is a distinct command on the
 // same function.
 func shellExecFamilyDeployFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(ShellExecFamilyDeployPath, []map[string]any{
+	return shellExecFamilyFileFact(ShellExecFamilyDeployPath, []any{
 		shellExecFamilyFunctionEntry(ShellExecFamilyDeployFunctionName, ShellExecFamilyDeployFunctionUID, ShellExecFamilyDeployFunctionLine),
-	}, []map[string]any{
+	}, []any{
 		shellExecFamilyCommand(ShellExecFamilyDeployFunctionName, ShellExecFamilyDeployFunctionLine, 5, "os.system", "python"),
 		shellExecFamilyCommand(ShellExecFamilyDeployFunctionName, ShellExecFamilyDeployFunctionLine, 5, "os.system", "python"), // exact duplicate -> dedup
 		shellExecFamilyCommand(ShellExecFamilyDeployFunctionName, ShellExecFamilyDeployFunctionLine, 6, "subprocess.run", "python"),
@@ -216,9 +214,9 @@ func shellExecFamilyDeployFileFact() facts.Envelope {
 // that each fail exactly one of ExtractShellExecRows's four field checks: a
 // non-positive line_number, and a blank api.
 func shellExecFamilyCleanupFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(ShellExecFamilyCleanupPath, []map[string]any{
+	return shellExecFamilyFileFact(ShellExecFamilyCleanupPath, []any{
 		shellExecFamilyFunctionEntry(ShellExecFamilyCleanupFunctionName, ShellExecFamilyCleanupFunctionUID, ShellExecFamilyCleanupFunctionLine),
-	}, []map[string]any{
+	}, []any{
 		shellExecFamilyCommand(ShellExecFamilyCleanupFunctionName, ShellExecFamilyCleanupFunctionLine, 0, "os.system", "python"), // line_number <= 0
 		shellExecFamilyCommand(ShellExecFamilyCleanupFunctionName, ShellExecFamilyCleanupFunctionLine, 5, "", "python"),          // blank api
 	})
@@ -230,9 +228,9 @@ func shellExecFamilyCleanupFileFact() facts.Envelope {
 // once the four field checks pass), a blank function_name, and a
 // non-positive function_line_number for the function that DOES exist.
 func shellExecFamilyOrphanFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(ShellExecFamilyOrphanPath, []map[string]any{
+	return shellExecFamilyFileFact(ShellExecFamilyOrphanPath, []any{
 		shellExecFamilyFunctionEntry(ShellExecFamilyOrphanFunctionName, ShellExecFamilyOrphanFunctionUID, ShellExecFamilyOrphanFunctionLine),
-	}, []map[string]any{
+	}, []any{
 		shellExecFamilyCommand("ghost_helper", ShellExecFamilyOrphanFunctionLine, 5, "os.system", "python"), // no function named ghost_helper in this file
 		shellExecFamilyCommand("", ShellExecFamilyOrphanFunctionLine, 6, "os.system", "python"),             // blank function_name
 		shellExecFamilyCommand(ShellExecFamilyOrphanFunctionName, 0, 7, "os.system", "python"),              // function_line_number <= 0
@@ -243,9 +241,9 @@ func shellExecFamilyOrphanFileFact() facts.Envelope {
 // embedded_shell_commands: the baseline "function exists, nothing to derive"
 // case.
 func shellExecFamilySilentFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(ShellExecFamilySilentPath, []map[string]any{
+	return shellExecFamilyFileFact(ShellExecFamilySilentPath, []any{
 		shellExecFamilyFunctionEntry(ShellExecFamilySilentFunctionName, ShellExecFamilySilentFunctionUID, ShellExecFamilySilentFunctionLine),
-	}, nil)
+	}, []any{})
 }
 
 // shellExecFamilyFileFact builds the "file" envelope carrying functions and
@@ -253,12 +251,11 @@ func shellExecFamilySilentFileFact() facts.Envelope {
 // sqlFamilyFileWithEmbeddedQuery's shape: parsed_file_data.path (not the
 // top-level payload) is what ExtractShellExecRows's sourcePath fallback
 // reads, matching the real fileFactEnvelope emitter.
-func shellExecFamilyFileFact(relativePath string, functions, commands []map[string]any) facts.Envelope {
-	return facts.Envelope{
-		ScopeID:      shellExecFamilyScopeID,
-		GenerationID: shellExecFamilyGenerationID,
-		FactKind:     fileFactKind,
-		Payload: map[string]any{
+func shellExecFamilyFileFact(relativePath string, functions, commands []any) facts.Envelope {
+	return shellExecFamilyEnvelope(
+		fileFactKind,
+		"file:"+ShellExecFamilyRepoID+":"+relativePath,
+		map[string]any{
 			"repo_id":       ShellExecFamilyRepoID,
 			"relative_path": relativePath,
 			"parsed_file_data": map[string]any{
@@ -267,7 +264,7 @@ func shellExecFamilyFileFact(relativePath string, functions, commands []map[stri
 				"embedded_shell_commands": commands,
 			},
 		},
-	}
+	)
 }
 
 // shellExecFamilyFunctionEntry builds one parsed_file_data.functions[] entry.
@@ -279,8 +276,8 @@ func shellExecFamilyFunctionEntry(name, uid string, line int) map[string]any {
 	return map[string]any{
 		"name":        name,
 		"uid":         uid,
-		"line_number": line,
-		"end_line":    line + 1,
+		"line_number": float64(line),
+		"end_line":    float64(line + 1),
 	}
 }
 
@@ -289,8 +286,8 @@ func shellExecFamilyFunctionEntry(name, uid string, line int) map[string]any {
 func shellExecFamilyCommand(functionName string, functionLine, lineNumber int, api, language string) map[string]any {
 	return map[string]any{
 		"function_name":        functionName,
-		"function_line_number": functionLine,
-		"line_number":          lineNumber,
+		"function_line_number": float64(functionLine),
+		"line_number":          float64(lineNumber),
 		"api":                  api,
 		"language":             language,
 	}
@@ -307,15 +304,29 @@ func shellExecFamilyCommand(functionName string, functionLine, lineNumber int, a
 // for fidelity with the live-drive cassette and the real collector's own
 // emission shape.
 func shellExecFamilyFollowupFact() facts.Envelope {
-	return facts.Envelope{
-		ScopeID:      shellExecFamilyScopeID,
-		GenerationID: shellExecFamilyGenerationID,
-		FactKind:     sharedFollowupFactKind,
-		Payload: map[string]any{
+	return shellExecFamilyEnvelope(
+		sharedFollowupFactKind,
+		"shared_followup:"+ShellExecFamilyRepoID+":shell_exec_materialization",
+		map[string]any{
 			"reducer_domain": "shell_exec_materialization",
 			"entity_key":     "shell:" + filepath.Base(ShellExecFamilyLocalPath),
 			"reason":         "repository snapshot emitted shell execution materialization follow-up",
 			"repo_id":        ShellExecFamilyRepoID,
 		},
+	)
+}
+
+// shellExecFamilyEnvelope adds the producer-owned identity and schema fields
+// carried by the replay cassette to every compiled fixture fact.
+func shellExecFamilyEnvelope(factKind, stableFactKey string, payload map[string]any) facts.Envelope {
+	return facts.Envelope{
+		ScopeID:          shellExecFamilyScopeID,
+		GenerationID:     shellExecFamilyGenerationID,
+		FactKind:         factKind,
+		StableFactKey:    stableFactKey,
+		SchemaVersion:    "1.0.0",
+		CollectorKind:    "git",
+		SourceConfidence: "observed",
+		Payload:          payload,
 	}
 }
