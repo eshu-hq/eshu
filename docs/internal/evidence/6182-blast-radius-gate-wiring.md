@@ -204,6 +204,8 @@ container, with one negation case per name plus a repoint case:
 | delete the workflow's `run: bash scripts/verify-replay-tier.sh` step | exit 1 |
 | put `if: ${{ false }}` on that step, leaving the `run:` line present | exit 1 |
 | put `continue-on-error: true` on that step | exit 1 |
+| put `if: ${{ false }}` on the replay-tier **job** | exit 1 |
+| put `continue-on-error: true` on the **job** | exit 1 |
 | weaken the guard from value-check to existence-check | exit 1, via the repoint cases |
 | unmodified | exit 0 |
 
@@ -228,10 +230,17 @@ satisfied it — present but never executed, skip reading as pass. Rejecting
 step runs, fails, and the job passes anyway. Fail reads as pass, the same hole
 with the opposite trigger.
 
-The guard now extracts the step's own block and rejects both keys outright
-rather than inspecting them for a "safe" value. This gate is unconditional and
-blocking; changing either property should require a deliberate edit here, not
-quietly stop the proof from gating merges.
+The guard extracts the step's own block and rejects both keys outright rather
+than inspecting them for a "safe" value. Then the next round found the same two
+keys one level up: `jobs.replay-tier.if` skips the install, the contract test
+and the gate together, with every `run:` line still present, and its
+`continue-on-error:` twin lets the whole job fail without blocking. So the job
+block is checked the same way.
+
+Four rejections for one property, arrived at over three review rounds, because
+the disabling vector kept moving and the guard kept not following. This gate is
+unconditional and blocking at both levels; changing that should require a
+deliberate edit here, not quietly stop the proof from gating merges.
 
 The last two rows came from a fourth review round, and both are the same class
 again. The mirror proved the workflow installs `rg`, runs the contract test and

@@ -107,6 +107,35 @@ gate_step_is_active() {
 	done
 }
 
+# workflow_gate_job_block prints the replay-tier job, from its key to the next
+# job key at the same indent.
+workflow_gate_job_block() {
+	awk '
+		/^  [A-Za-z0-9_-]+:$/ { inside = 0 }
+		/^  replay-tier:$/ { inside = 1 }
+		inside { print }
+	' "$1"
+}
+
+# gate_job_is_active applies the same two rejections one level up.
+#
+# gate_step_is_active reads only the step, so `jobs.replay-tier.if: ${{ false }}`
+# skips the install, the contract test AND the gate while every `run:` line is
+# still present — the step-level guard passes and nothing runs. Its
+# `continue-on-error:` twin lets the whole job fail without blocking. Found on
+# #6205 review after the step-level pair was already closed, which is the point:
+# the disabling vector moved up a level and the guard did not follow.
+gate_job_is_active() {
+	local job key
+	job="$(workflow_gate_job_block "$1")"
+	rg --quiet '^    name: Offline replay tier vs real NornicDB$' <<<"${job}" || return 1
+	for key in 'if:' 'continue-on-error:'; do
+		if rg --quiet "^    ${key}" <<<"${job}"; then
+			return 1
+		fi
+	done
+}
+
 has_workflow_wiring() {
 	local install_line test_line
 	install_line="$(rg --line-number --no-heading \
@@ -114,6 +143,7 @@ has_workflow_wiring() {
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
 	gate_step_is_active "$1" || return 1
+	gate_job_is_active "$1" || return 1
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
 		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
@@ -255,6 +285,20 @@ sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
 ' "${workflow}" >"${tmp}/workflow-nonblocking-gate-step"
 if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-step"; then
 	fail "a continue-on-error live gate step must not satisfy the guard"
+fi
+# The same two vectors one level up: disabling or de-blocking the whole job
+# skips the gate while every run: line stays present.
+sed '/^  replay-tier:$/a\
+    if: ${{ false }}
+' "${workflow}" >"${tmp}/workflow-disabled-gate-job"
+if has_workflow_wiring "${tmp}/workflow-disabled-gate-job"; then
+	fail "a disabled (if:-gated) replay-tier JOB must not satisfy the guard"
+fi
+sed '/^  replay-tier:$/a\
+    continue-on-error: true
+' "${workflow}" >"${tmp}/workflow-nonblocking-gate-job"
+if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-job"; then
+	fail "a continue-on-error replay-tier JOB must not satisfy the guard"
 fi
 sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow-no-rg"
