@@ -49,6 +49,28 @@ has_blast_radius_nonvacuity_guard() {
 	rg --quiet '^command -v rg >/dev/null 2>&1 \|\| die' "$1"
 }
 
+# has_graph_endpoint_pins checks the gate pins every name of the graph endpoint
+# to its OWN container, not merely that an export line exists.
+#
+# Two rounds of #6201 review closed holes exactly here: the database first, then
+# the URI mirror of it. Both were the same shape — one name of a pair pinned,
+# the other left free for an ambient value from a developer shell to win, which
+# CI never sees because a clean runner leaves both unset. Nothing in this mirror
+# guarded the pins, so a third round could have deleted one and stayed green.
+#
+# The value is asserted, not just the assignment. `export ESHU_NEO4J_URI="$OTHER"`
+# would satisfy an existence check while reopening the exact hole, and a guard
+# that passes for the wrong reason is what this whole gate exists to stop.
+has_graph_endpoint_pins() {
+	local var
+	for var in ESHU_NEO4J_URI NEO4J_URI; do
+		rg --quiet "^export ${var}=\"bolt://localhost:\\\$\\{BOLT_PORT\\}\"$" "$1" || return 1
+	done
+	for var in ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+		rg --quiet "^export ${var}=\"nornic\"$" "$1" || return 1
+	done
+}
+
 has_workflow_wiring() {
 	local install_line test_line
 	install_line="$(rg --line-number --no-heading \
@@ -113,6 +135,8 @@ has_blast_radius_command "${script}" \
 	|| fail "gate must run the sql_table blast-radius branch proof (#5409), not only the replay tier (#6182)"
 has_blast_radius_nonvacuity_guard "${script}" \
 	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
+has_graph_endpoint_pins "${script}" \
+	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -141,6 +165,21 @@ fi
 sed '/^command -v rg >\/dev\/null 2>&1 || die/s/^/# /' "${script}" >"${tmp}/script-no-rg"
 if has_blast_radius_nonvacuity_guard "${tmp}/script-no-rg"; then
 	fail "gate must refuse to run without rg rather than read a missing tool as no-match (#5974)"
+fi
+# One negation per pinned name: deleting any single export must fail, which is
+# the drift that produced both #6201 findings.
+for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+	sed "/^export ${pinned_var}=/d" "${script}" >"${tmp}/script-no-${pinned_var}"
+	if has_graph_endpoint_pins "${tmp}/script-no-${pinned_var}"; then
+		fail "a dropped ${pinned_var} pin must not satisfy the guard"
+	fi
+done
+# Repointing a pin away from this gate's own container must fail too: an
+# existence-only check would pass here and leave the hole open.
+sed 's|^export ESHU_NEO4J_URI=.*|export ESHU_NEO4J_URI="bolt://elsewhere:7687"|' \
+	"${script}" >"${tmp}/script-repointed"
+if has_graph_endpoint_pins "${tmp}/script-repointed"; then
+	fail "a pin repointed away from this gate's container must not satisfy the guard"
 fi
 sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 	-e '/^[[:space:]]*run: bash scripts\/test-verify-replay-tier\.sh$/s/^/# /' \

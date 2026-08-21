@@ -180,6 +180,35 @@ $ ... ESHU_NEO4J_URI=bolt://localhost:7687 go test ... -count=1; echo $?
 The gate now pins both names of both variables under one comment, rather than
 per-variable comments that let the next one drift.
 
+### The pins themselves were unguarded — found by the third review round on #6201
+
+The first two rounds fixed instances. This one is the class.
+
+The contract mirror guarded the blast-radius invocation, the `--- PASS:`
+non-vacuity check, the `rg` refusal, and the three-way trigger lockstep — and
+nothing at all about the four graph-endpoint exports those two rounds had just
+fixed. Deleting `export ESHU_NEO4J_URI` would have reopened the URI hole with
+the mirror still green, which is exactly the drift that produced both earlier
+findings.
+
+`has_graph_endpoint_pins` now asserts each name pins to this gate's own
+container, with one negation case per name plus a repoint case:
+
+| mutation | contract test |
+| --- | --- |
+| delete `ESHU_NEO4J_URI` | exit 1 |
+| delete `NEO4J_URI` | exit 1 |
+| delete `ESHU_NEO4J_DATABASE` | exit 1 |
+| delete `NEO4J_DATABASE` | exit 1 |
+| repoint `ESHU_NEO4J_URI` to another host | exit 1 |
+| unmodified | exit 0 |
+
+The value is asserted, not just the assignment. `export ESHU_NEO4J_URI="$OTHER"`
+satisfies an existence check while reopening the hole, which is why the repoint
+row is there — a guard that passes for the wrong reason is the failure this
+whole gate exists to stop, and this PR produced three of them before it stopped
+producing them.
+
 ### A negative control was named a bite proof — found by review on #6201
 
 `TestSQLTableBlastRadiusDetectsADeadBranchLive` detected no dead branch. It
