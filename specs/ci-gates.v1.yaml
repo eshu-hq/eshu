@@ -3282,6 +3282,11 @@ gates:
     triggers:
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
+      # internal/query carries the sql_table blast-radius branch proof (#5409),
+      # which this gate runs and nothing else does (#6182). Without this
+      # trigger a PR editing only the blast-radius query would not select the
+      # gate that proves its UNION branches still match.
+      - "go/internal/query/**"
       - "go/internal/replay/**"
       - "go/internal/reducer/**"
       - "go/internal/storage/cypher/**"
