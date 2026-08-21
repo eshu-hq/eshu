@@ -327,8 +327,8 @@ cell_killworker_deployable_unit() {
 		killed_retried_rc=$?
 	fi
 	assert_no_dead_letters killworkerdeployableunit
-	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-after" "killworkerdeployableunit" \
-		|| die "kill-worker-after-claim-deployable-unit: post-maintenance reducer log does not prove the readiness gate opened"
+	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-before" "killworkerdeployableunit" \
+		|| die "kill-worker-after-claim-deployable-unit: original reducer log does not prove the readiness gate opened before the isolated kill"
 	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "killworkerdeployableunit"

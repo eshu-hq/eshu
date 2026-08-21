@@ -6,6 +6,15 @@
 # reducer also owns shared-projection runners; killing as soon as the target
 # fact is claimed can abandon an unrelated five-minute repo_dependency
 # partition lease behind a four-minute gate drain.
+_ifa_deployable_unit_kill_readiness_uses_pre_kill_log() {
+	local cells_file="$1"
+	local pre_kill_call post_kill_call
+	pre_kill_call='ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-before" "killworkerdeployableunit"'
+	post_kill_call='ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-after" "killworkerdeployableunit"'
+	[[ "$(_ifa_count_code_matches "${pre_kill_call}" "${cells_file}")" -eq 1 \
+		&& "$(_ifa_count_code_matches "${post_kill_call}" "${cells_file}")" -eq 0 ]]
+}
+
 run_ifa_fault_injection_deployable_unit_kill_isolation_cases() {
 	require_deployable_unit_lock_lib "pre-kill isolation helper definition" "ifa_deployable_unit_wait_for_kill_isolation() {"
 	require_deployable_unit_lock_lib "pre-kill isolation uses the gate's terminal fact predicate" "status NOT IN ('succeeded', 'superseded')"
@@ -22,6 +31,18 @@ run_ifa_fault_injection_deployable_unit_kill_isolation_cases() {
 	[[ "${claimed_line}" =~ ^[0-9]+$ && "${isolation_line}" =~ ^[0-9]+$ && "${kill_line}" =~ ^[0-9]+$ \
 		&& "${claimed_line}" -lt "${isolation_line}" && "${isolation_line}" -lt "${kill_line}" ]] \
 		|| fail "deployable-unit kill isolation must run after the target claim and before kill -9 (claim=${claimed_line}, isolation=${isolation_line}, kill=${kill_line})"
+
+	_ifa_deployable_unit_kill_readiness_uses_pre_kill_log "${deployable_unit_cells_lib}" \
+		|| fail "kill-worker readiness must use the original reducer log; pre-kill isolation drains the repo-dependency witness before the replacement reducer starts"
+	local mutated_cells
+	mutated_cells="$(mktemp -t ifa-deployable-unit-readiness-label.XXXXXX)" \
+		|| fail "could not create readiness-label mutation file"
+	sed '/ifa_deployable_unit_live_assert_readiness_opened/s/reducer-killworkerdeployableunit-before/reducer-killworkerdeployableunit-after/' \
+		"${deployable_unit_cells_lib}" >"${mutated_cells}"
+	if _ifa_deployable_unit_kill_readiness_uses_pre_kill_log "${mutated_cells}"; then
+		fail "readiness-label regression test accepted a mutation from the original reducer log to the replacement reducer log"
+	fi
+	rm -f -- "${mutated_cells}"
 
 	local output failure_rc
 	output="$(

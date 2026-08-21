@@ -353,7 +353,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# in the wrong cell entirely.
 	local -A du_readiness_label=(
 		[cell_baseline_deployable_unit]="reducer-baseline_deployable_unit"
-		[cell_killworker_deployable_unit]="reducer-killworkerdeployableunit-after"
+		[cell_killworker_deployable_unit]="reducer-killworkerdeployableunit-before"
 		[cell_failgraphwrite_deployable_unit]="reducer-failgraphwritedeployableunit"
 	)
 	local du_readiness_line
