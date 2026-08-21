@@ -127,6 +127,61 @@ func TestInheritanceFamilyExpectedSetRejectsAnExtraEdge(t *testing.T) {
 	}
 }
 
+// TestInheritanceFamilyRejectsAnExtraParentlessRepository proves the guard
+// binds the fixture to its exact repository scope, not only its edge set. The
+// production inheritance handler emits one refresh/retract intent for every
+// repository returned by ExtractInheritanceRows, including a repository whose
+// entities declare no parent and therefore add no edge.
+func TestInheritanceFamilyRejectsAnExtraParentlessRepository(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu := ifa.CatalogByName()[ifa.InheritanceFamilyOduName]
+	odu.Facts = append([]facts.Envelope(nil), odu.Facts...)
+	for _, envelope := range odu.Facts {
+		if envelope.FactKind != "repository" {
+			continue
+		}
+		extraRepository := envelope
+		extraRepository.StableFactKey = "repository:repository:r_extra_parentless"
+		extraRepository.Payload = make(map[string]any, len(envelope.Payload))
+		for key, value := range envelope.Payload {
+			extraRepository.Payload[key] = value
+		}
+		extraRepository.Payload["repo_id"] = "repository:r_extra_parentless"
+		extraRepository.Payload["graph_id"] = "repository:r_extra_parentless"
+		extraRepository.Payload["source_run_id"] = "run-extra-parentless"
+		odu.Facts = append(odu.Facts, extraRepository)
+		break
+	}
+	odu.Facts = append(odu.Facts, facts.Envelope{
+		FactKind:      "content_entity",
+		StableFactKey: "inheritance-extra-parentless-entity",
+		Payload: map[string]any{
+			"repo_id":       "repository:r_extra_parentless",
+			"entity_id":     "content-entity:e_extra_parentless",
+			"entity_type":   "Class",
+			"entity_name":   "ExtraParentless",
+			"relative_path": "src/extra_parentless.go",
+		},
+	})
+
+	repoIDs, rows := reducer.ExtractInheritanceRows(odu.Facts)
+	if len(repoIDs) != 2 || repoIDs[0] != ifa.InheritanceFamilyRepoID || repoIDs[1] != "repository:r_extra_parentless" {
+		t.Fatalf("ExtractInheritanceRows repository scopes = %v, want exactly [%s repository:r_extra_parentless]", repoIDs, ifa.InheritanceFamilyRepoID)
+	}
+	if len(rows) != 5 {
+		t.Fatalf("ExtractInheritanceRows edge rows = %d, want unchanged five-edge set", len(rows))
+	}
+
+	ok, detail := resolveInheritanceMaterializedEdges(odu, inheritanceFamilyExpectedEdgesPath(repoRoot))
+	if ok {
+		t.Fatal("guard passed with an extra parentless repository; production would emit an unintended refresh/retract intent")
+	}
+	if !strings.Contains(detail, "repository scope") || !strings.Contains(detail, "repository:r_extra_parentless") {
+		t.Fatalf("detail = %q, want the exact unexpected repository scope", detail)
+	}
+}
+
 // TestInheritanceFamilyExpectedSetRejectsAMissingEdge is the other
 // direction: an expectation naming an edge the extractor does not produce
 // must fail, or the fixture could quietly outrun the code — this is also the

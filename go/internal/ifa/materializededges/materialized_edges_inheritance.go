@@ -129,8 +129,11 @@ func inheritanceEdgeLabel(e ExpectedEdge) string {
 // EVERY registry relationship type (the exhaustiveness half), and running
 // odu's own facts through the pure, backend-free
 // reducer.ExtractInheritanceRows seam reproduces that expected set EXACTLY
-// (the vacuity half) -- a fixture that merely looks right (a bound Odù name)
-// but whose facts don't actually derive the claimed edges cannot pass.
+// from the family's one intended repository scope (the vacuity half) -- a
+// fixture that merely looks right (a bound Odù name) but whose facts don't
+// actually derive the claimed edges cannot pass. Exact repository identity is
+// part of the contract because production emits a refresh/retract intent for
+// every extracted scope, including one with no derived inheritance edges.
 func resolveInheritanceMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, "inheritance_edges")
 	if err != nil {
@@ -146,8 +149,13 @@ func resolveInheritanceMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) 
 	}
 
 	repoIDs, rows := reducer.ExtractInheritanceRows(odu.Facts)
-	if len(repoIDs) == 0 {
-		return false, fmt.Sprintf("odù %q: ExtractInheritanceRows reports no repository scope", odu.Name)
+	if len(repoIDs) != 1 || repoIDs[0] != ifa.InheritanceFamilyRepoID {
+		return false, fmt.Sprintf(
+			"odù %q: ExtractInheritanceRows reports repository scope %v, want exactly [%s]",
+			odu.Name,
+			repoIDs,
+			ifa.InheritanceFamilyRepoID,
+		)
 	}
 	actual := inheritanceRowsToExpectedEdges(rows)
 	if mismatch := compareInheritanceExpectedSets(odu.Name, expected, actual); mismatch != "" {
