@@ -66,7 +66,7 @@ ifa_workload_dependency_live_reopen_materialization() {
 		      AND domain = 'workload_materialization'
 		      AND scope_id = 'scope-ifa-workload-dependency-family'
 		      AND generation_id = 'gen-ifa-workload-dependency-family-1'
-		      AND entity_key = 'repo:repo-ifa-workload-dependency-source'
+		      AND payload->>'entity_key' = 'repo:repo-ifa-workload-dependency-source'
 		      AND status = 'succeeded'
 		RETURNING 1
 		 ) SELECT count(*) FROM reopened;" "${compose_file}")" || rc=$?

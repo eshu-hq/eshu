@@ -4,16 +4,31 @@
 # family-scoped baseline, kill/reclaim, and exact graph-write fault cells.
 
 run_ifa_fault_injection_workload_dependency_cases() {
-	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation reopen_body failgraph_body
+	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation reopen_body failgraph_body work_items_schema queue_source readiness_source
 	repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 	live_lib="${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
 	cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
 	registry_row="${repo_root}/scripts/lib/ifa_family_registry/rows/08_workload_dependency.sh"
 	cassette="${repo_root}/testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json"
+	work_items_schema="${repo_root}/go/internal/storage/postgres/migrations/005_fact_work_items.sql"
+	queue_source="${repo_root}/go/internal/storage/postgres/reducer_queue.go"
+	readiness_source="${repo_root}/go/internal/storage/postgres/reducer_queue_readiness_sql.go"
 	[[ -f "${live_lib}" ]] || fail "missing ${live_lib}"
 	[[ -f "${cells_lib}" ]] || fail "missing ${cells_lib}"
 	[[ -f "${registry_row}" ]] || fail "missing ${registry_row}"
+	[[ -f "${work_items_schema}" ]] || fail "missing ${work_items_schema}"
+	[[ -f "${queue_source}" ]] || fail "missing ${queue_source}"
+	[[ -f "${readiness_source}" ]] || fail "missing ${readiness_source}"
+	rg --quiet -- '^[[:space:]]+payload JSONB NOT NULL ' "${work_items_schema}" \
+		|| fail "fact_work_items schema no longer stores reducer entity identity in JSONB payload"
+	if rg --quiet -- '^[[:space:]]+entity_key[[:space:]]' "${work_items_schema}"; then
+		fail "fact_work_items unexpectedly has a physical entity_key column; revisit the reopen query contract"
+	fi
+	rg --quiet --fixed-strings -- 'payload["entity_key"] = intent.EntityKey' "${queue_source}" \
+		|| fail "reducer enqueue no longer stores entity_key inside fact_work_items payload"
+	rg --quiet --fixed-strings -- ".payload->>'entity_key'" "${readiness_source}" \
+		|| fail "production readiness SQL no longer reads entity_key from fact_work_items payload"
 	bash -n "${live_lib}" || fail "ifa_workload_dependency_live.sh has a syntax error"
 	bash -n "${cells_lib}" || fail "ifa_fault_injection_workload_dependency_cells.sh has a syntax error"
 	for cell in baseline killworker failgraphwrite; do
@@ -47,15 +62,18 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	done
 	reopen_body="$(awk '/^ifa_workload_dependency_live_reopen_materialization\(\)/,/^}/' "${live_lib}")"
 	workload_dependency_reopen_has_exact_replay_key() {
-		printf '%s\n' "$1" | rg --quiet -- "^[[:space:]]+AND entity_key = 'repo:repo-ifa-workload-dependency-source'$"
+		printf '%s\n' "$1" | rg --quiet -- "^[[:space:]]+AND payload->>'entity_key' = 'repo:repo-ifa-workload-dependency-source'$"
 	}
 	workload_dependency_reopen_has_exact_replay_key "${reopen_body}" \
 		|| fail "workload_dependency reopen must target the production repo_dependency replay entity key"
-	if workload_dependency_reopen_has_exact_replay_key "$(printf '%s\n' "${reopen_body}" | rg -v --fixed-strings -- "entity_key = 'repo:repo-ifa-workload-dependency-source'")"; then
+	if workload_dependency_reopen_has_exact_replay_key "$(printf '%s\n' "${reopen_body}" | rg -v --fixed-strings -- "payload->>'entity_key' = 'repo:repo-ifa-workload-dependency-source'")"; then
 		fail "workload_dependency reopen entity-key omission mutation passed"
 	fi
+	if workload_dependency_reopen_has_exact_replay_key "$(printf '%s\n' "${reopen_body}" | awk '{ sub(/payload->>\047entity_key\047/, "entity_key"); print }')"; then
+		fail "workload_dependency reopen wrong entity-key expression mutation passed"
+	fi
 	if workload_dependency_reopen_has_exact_replay_key "${reopen_body//repo:repo-ifa-workload-dependency-source/repo:wrong-source}"; then
-		fail "workload_dependency reopen wrong-entity-key mutation passed"
+		fail "workload_dependency reopen wrong entity-key value mutation passed"
 	fi
 	failgraph_body="$(awk '/^cell_failgraphwrite_workload_dependency\(\)/,/^}/' "${cells_lib}")"
 	workload_dependency_failgraph_has_retry_proof() {
