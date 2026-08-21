@@ -164,11 +164,19 @@ non-vacuity check was an unanchored fixed-string search that a `# ` prefix did
 not defeat; it is now anchored at line start through tab indentation.
 
 No-Regression Evidence: the gate's existing work is untouched. The tier
-  invocation, its package list, and its `-run` allowlist are byte-identical, and
-  the tier passed in 218s on the run that also added the branch proof. The added
-  work is 14s of wall clock against the container the gate already starts, so
-  the gate grows by roughly 6 percent and starts no second container. The two
-  tests seed nine repositories and delete them, bounded and self-contained.
+  invocation, its package list, and its `-run` allowlist are byte-identical.
+  Two full runs, each measuring both halves in the same run so the ratio is
+  comparable even though the totals are not — the second ran with a warm Go
+  build cache, which is why its absolute numbers are much lower:
+
+  | run | tier | blast radius | added share |
+  | --- | --- | --- | --- |
+  | cold build cache | 218s | 14s | 6.4% |
+  | warm build cache | 35s | 3s | 8.6% |
+
+  Do not read 218s against 35s as a speedup; they are not comparable runs. The
+  added work starts no second container, and the two tests seed nine
+  repositories and delete them, bounded and self-contained.
 
 No-Observability-Change: no metric, span, or log line changes. This wires an
   existing test into an existing gate. The only new operator-visible output is
