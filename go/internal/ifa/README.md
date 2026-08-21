@@ -148,7 +148,7 @@ just in family name. `submodule_pin_family_catalog.go` adds
 representation of the checked-in cassette — with no Cypher, worker claim,
 batching, or concurrency code of its own;
 `TestSubmodulePinFamilyIsCatalogedAndResolvable` pins it against that cassette
-via `reflect.DeepEqual`. `materialized_edges_submodule_pin.go` adds
+via `reflect.DeepEqual`. `materializededges/materialized_edges_submodule_pin.go` adds
 `resolveSubmodulePinMaterializedEdges`, a pure offline vacuity guard: it loads
 the hand-derived expected-edge fixture, asserts it covers every relationship
 type `submodule_pin_edges`' writer registry accepts, then runs
@@ -165,19 +165,21 @@ its own. The production write path
 No-Observability-Change: same reasoning — no runtime path, worker, queue, or
 graph write is added or altered; the observable behavior is entirely in the
 already-existing handler and `canonical_submodule_edges.go`. Both live gates
-were run fresh against this fixture at commit e232782f0:
+were re-run against this fixture after the guard was relocated into the
+`materializededges` subpackage, because moving it changes what the gates load
+and any earlier run describes a tree that no longer exists.
 `scripts/verify-ifa-determinism.sh` exited 0 with the combined graph digest
 `b7b9893e117347536655c8c7dd4f96b14788ffc4c64dea16b7bc1034385af90b` identical
 across N=1/2/4, and `scripts/verify-ifa-fault-injection.sh` shard 1/4 (8
 cells, including all three submodule_pin cells) exited 0 with
 `baseline_submodule_pin`, `killworkersubmodulepin`, and
 `failgraphwritesubmodulepin` all converging to digest
-`ddc993e36e2a09eb87b8c7d1e6383e424cbb06998fa29a7e30050f109ef20ab0`. This is
-the operator-equivalent proof for a fixture/guard-only change on this
-surface. The commits after e232782f0 (0faa8eeaf, 46407fa43, and this one)
-touch only gate trigger-list metadata, a generated doc, and prose/pin
-comments — no cell dispatch logic, blocker semantics, or write-template
-code — so those live-gate results still hold for the current head.
+`ddc993e36e2a09eb87b8c7d1e6383e424cbb06998fa29a7e30050f109ef20ab0`. Both
+digests are byte-identical to the pre-relocation runs, which is the result a
+package move should produce and is here demonstrated rather than assumed.
+Shards 2/4, 3/4 and 4/4 were not run locally; those are cells belonging to
+other families and are CI's lane. This is the operator-equivalent proof for a
+fixture/guard-only change on this surface.
 
 ## Gotchas / Invariants
 
