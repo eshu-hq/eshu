@@ -6,56 +6,11 @@ package ifa
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
-
-// TestWorkloadDependencyFamilyCassetteDerivesTheExpectedEdgeSet is the
-// offline vacuity guard for #6003: the production two-seam
-// evidence/resolution/extraction/reconciliation chain, over the committed
-// cassette, reproduces the hand-derived expected set EXACTLY.
-//
-// This is deliberately NOT called coverage. It proves the extractor and
-// reconciler, not the gate: the live edge write is a MATCH-MATCH-MERGE on
-// both endpoint ids, so a missing endpoint Workload node makes the write a
-// silent no-op this test cannot see. A live ifa-determinism assertion (not
-// yet wired) would close that half. Mirrors
-// TestRepoDependencyFamilyCassetteDerivesTheExpectedEdgeSet.
-func TestWorkloadDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
-	t.Parallel()
-	repoRoot := repoRootDir(t)
-
-	odu, err := loadWorkloadDependencyFamilyOdu(workloadDependencyFamilyCassetteFullPath(repoRoot))
-	if err != nil {
-		t.Fatalf("loadWorkloadDependencyFamilyOdu: %v", err)
-	}
-
-	ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, workloadDependencyFamilyExpectedEdgesPath(repoRoot))
-	if !ok {
-		t.Fatalf("resolveWorkloadDependencyMaterializedEdges(cassette odù) = (false, %q), want (true, ...)", detail)
-	}
-	t.Log(detail)
-}
-
-// TestWorkloadDependencyFamilyCassetteMatchesCompiledCatalog pins the
-// compiled, binary-portable Odù (workloadDependencyFamilyOdu, registered in
-// catalog_seed.go) to the committed cassette's strict projection, so a
-// one-sided edit to either fails this focused suite. Mirrors
-// TestRepoDependencyFamilyCassetteMatchesCompiledCatalog.
-func TestWorkloadDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
-	t.Parallel()
-	repoRoot := repoRootDir(t)
-
-	compiled := workloadDependencyFamilyOdu().Odu
-	fromCassette, err := loadWorkloadDependencyFamilyOdu(workloadDependencyFamilyCassetteFullPath(repoRoot))
-	if err != nil {
-		t.Fatalf("loadWorkloadDependencyFamilyOdu: %v", err)
-	}
-	if !reflect.DeepEqual(compiled, fromCassette) {
-		t.Fatalf("compiled catalog Odù drifted from strict cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
-	}
-}
 
 // TestWorkloadDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings
 // pins the repository and generation identity boundaries the live
@@ -77,8 +32,8 @@ func TestWorkloadDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t 
 		if fact.FactKind != repositoryFactKind {
 			continue
 		}
-		repoID := strings.TrimSpace(anyToStringValue(fact.Payload["repo_id"]))
-		if repoID == "" {
+		repoID, ok := fact.Payload["repo_id"].(string)
+		if !ok || strings.TrimSpace(repoID) == "" {
 			t.Fatalf("repository fact %q has no repo_id", fact.StableFactKey)
 		}
 		repoIDs = append(repoIDs, repoID)
@@ -116,7 +71,7 @@ func TestWorkloadDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t 
 	if len(odu.Facts) == 0 || strings.TrimSpace(odu.Facts[0].GenerationID) == "" {
 		t.Fatal("workload_dependency-family Odù has no generation ID; active-generation publication would be unidentifiable")
 	}
-	for _, sibling := range []string{sqlFamilyGenerationID, codeCallFamilyGenerationID, deployableUnitFamilyGenerationID, repoDependencyFamilyGenerationID} {
+	for _, sibling := range []string{SQLFamilyGenerationID, CodeCallFamilyGenerationID, deployableUnitFamilyGenerationID, repoDependencyFamilyGenerationID} {
 		if odu.Facts[0].GenerationID == sibling {
 			t.Fatalf("workload_dependency-family generation ID %q collides with a sibling family's generation; only one live-matrix scope can publish it as active", odu.Facts[0].GenerationID)
 		}
@@ -197,5 +152,26 @@ func TestWorkloadDependencyFamilyOduInCatalogSeed(t *testing.T) {
 	}
 	if len(odu.Facts) == 0 {
 		t.Fatalf("cataloged %q carries no facts", workloadDependencyFamilyOduName)
+	}
+}
+
+func TestWorkloadDependencyFamilyOduCarriesProductionFollowup(t *testing.T) {
+	t.Parallel()
+
+	var followups []facts.Envelope
+	for _, fact := range workloadDependencyFamilyOdu().Odu.Facts {
+		if fact.FactKind == "shared_followup" && fact.Payload["reducer_domain"] == "workload_materialization" {
+			followups = append(followups, fact)
+		}
+	}
+	if len(followups) != 1 {
+		t.Fatalf("workload_materialization followups = %d, want exactly 1 so live replay schedules the handler that writes workload_dependency edges", len(followups))
+	}
+	followup := followups[0]
+	if followup.Payload["repo_id"] != workloadDependencyFamilySourceRepoID {
+		t.Fatalf("workload_materialization followup repo_id = %#v, want %q", followup.Payload["repo_id"], workloadDependencyFamilySourceRepoID)
+	}
+	if followup.StableFactKey != "shared_followup:"+workloadDependencyFamilySourceRepoID+":workload_materialization" {
+		t.Fatalf("workload_materialization followup stable_fact_key = %q", followup.StableFactKey)
 	}
 }

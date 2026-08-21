@@ -222,6 +222,20 @@
             "relative_path": "deploy/deployment.yaml",
             "repo_id": "repo-ifa-workload-dependency-multi-target"
           }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-source:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:workload-dependency-source",
+            "reason": "repository snapshot emitted workload materialization follow-up",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
         }
       ]
     }

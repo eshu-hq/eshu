@@ -27,8 +27,12 @@ split was taken, not over it. It owns:
   (`materialized_edges_codeowners.go`), deployable-unit edges
   (`materialized_edges_deployable_unit.go`), repository dependencies
   (`materialized_edges_repo_dependency.go`), and submodule pins
-  (`materialized_edges_submodule_pin.go`). Deliberately uncounted: a count in
-  prose has no gate and drifts the moment a family lands.
+  (`materialized_edges_submodule_pin.go`), inheritance edges
+  (`materialized_edges_inheritance.go`), shell-exec edges
+  (`materialized_edges_shell_exec.go`), and workload dependencies
+  (`materialized_edges_workload_dependency.go`).
+  Deliberately uncounted: a count in prose has no gate and drifts the moment a
+  family lands.
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture

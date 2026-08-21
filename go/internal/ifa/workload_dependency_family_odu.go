@@ -47,6 +47,12 @@ func workloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 	return filepath.Join(repoRoot, workloadDependencyFamilyCassettePath)
 }
 
+// WorkloadDependencyFamilyCassetteFullPath returns the committed cassette path
+// consumed by the materializededges package's lockstep test.
+func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
+	return workloadDependencyFamilyCassetteFullPath(repoRoot)
+}
+
 // loadWorkloadDependencyFamilyOdu reads the committed cassette and projects
 // it onto the fact envelopes relationships.DiscoverEvidence and
 // reducer.ExtractWorkloadCandidates consume.
@@ -92,4 +98,10 @@ func loadWorkloadDependencyFamilyOdu(cassettePath string) (Odu, error) {
 		})
 	}
 	return Odu{Name: workloadDependencyFamilyOduName, Facts: envelopes}, nil
+}
+
+// LoadWorkloadDependencyFamilyOdu strictly projects the committed cassette
+// into the Odù shape consumed by the materialized-edge vacuity guard.
+func LoadWorkloadDependencyFamilyOdu(cassettePath string) (Odu, error) {
+	return loadWorkloadDependencyFamilyOdu(cassettePath)
 }

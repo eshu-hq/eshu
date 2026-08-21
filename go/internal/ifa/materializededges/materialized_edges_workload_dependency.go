@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -61,7 +62,10 @@ func workloadDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 // production-derived data plus a small, explicitly-named set of PERSISTED
 // entries the fixture's doc comment (workload_dependency_family_catalog.go)
 // names -- simulating what a live graph backend's ListRepoWorkloads would
-// report for a repo whose workload record predates this generation.
+// report for a repo whose workload record predates this generation. Both list
+// methods filter on repoIDs exactly as the production Neo4j adapter does;
+// returning unrelated rows would let this guard certify an input production
+// can never supply.
 // RepoEdges comes from the SAME evidence/resolution seam repo_dependency's
 // guard runs (resolveWorkloadDependencyMaterializedEdges's doc comment); it
 // is never hand-authored. ListWorkloadDependencyEdges always returns empty:
@@ -73,20 +77,33 @@ type workloadDependencyFamilyGraphLookup struct {
 	persistedWorkloads []reducer.RepoWorkload
 }
 
-// ListRepoDependencyEdges returns the full derived repo-to-repo DEPENDS_ON
-// set regardless of repoIDs, mirroring the production reducer test suite's
-// own fakeWorkloadDependencyGraphLookup (workload_dependency_reconciliation_test.go):
-// filtering by repoIDs is the real graph backend's concern, not
-// ReconcileWorkloadDependencyEdges' own defensive checks this guard proves
-// fire correctly.
-func (l workloadDependencyFamilyGraphLookup) ListRepoDependencyEdges(_ context.Context, _ []string) ([]reducer.RepoDependencyEdge, error) {
-	return l.repoEdges, nil
+// ListRepoDependencyEdges returns derived repo-to-repo DEPENDS_ON edges whose
+// source or target is one of repoIDs, matching neo4jWorkloadDependencyLookup's
+// two anchored query branches.
+func (l workloadDependencyFamilyGraphLookup) ListRepoDependencyEdges(_ context.Context, repoIDs []string) ([]reducer.RepoDependencyEdge, error) {
+	requested := workloadDependencyRepoIDSet(repoIDs)
+	edges := make([]reducer.RepoDependencyEdge, 0, len(l.repoEdges))
+	for _, edge := range l.repoEdges {
+		_, sourceRequested := requested[edge.SourceRepoID]
+		_, targetRequested := requested[edge.TargetRepoID]
+		if sourceRequested || targetRequested {
+			edges = append(edges, edge)
+		}
+	}
+	return edges, nil
 }
 
-// ListRepoWorkloads returns the fixed persisted-workload set regardless of
-// repoIDs, for the same reason as ListRepoDependencyEdges above.
-func (l workloadDependencyFamilyGraphLookup) ListRepoWorkloads(_ context.Context, _ []string) ([]reducer.RepoWorkload, error) {
-	return l.persistedWorkloads, nil
+// ListRepoWorkloads returns persisted workloads owned by repoIDs, matching the
+// production adapter's repo.id IN $repo_ids predicate.
+func (l workloadDependencyFamilyGraphLookup) ListRepoWorkloads(_ context.Context, repoIDs []string) ([]reducer.RepoWorkload, error) {
+	requested := workloadDependencyRepoIDSet(repoIDs)
+	workloads := make([]reducer.RepoWorkload, 0, len(l.persistedWorkloads))
+	for _, workload := range l.persistedWorkloads {
+		if _, ok := requested[workload.RepoID]; ok {
+			workloads = append(workloads, workload)
+		}
+	}
+	return workloads, nil
 }
 
 // ListWorkloadDependencyEdges always returns empty: see this type's doc
@@ -125,11 +142,11 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 // workloadDependencyFamilyGraphLookup, an in-memory
 // reducer.WorkloadDependencyGraphLookup built from those two seams' outputs
 // plus a small, explicitly-named persisted-workload set (this file's
-// workloadDependencyFamilyGraphLookup doc comment) that proves
-// ReconcileWorkloadDependencyEdges' two independent drop conditions
-// (workload_dependency_reconciliation.go:137-146) both actually fire, not
-// merely that the expected set happens to omit the pairs they should drop
-// (workloadDependencyAssertDropReasons below).
+// workloadDependencyFamilyGraphLookup doc comment). The multi-workload pair
+// proves ReconcileWorkloadDependencyEdges' ambiguity drop actually fires. The
+// orphan pair proves the lookup stays production-anchored: because neither
+// endpoint is current, the live query cannot return it and this fake must not
+// smuggle it into reconciliation.
 //
 // What this guard DOES catch: a regression in Docker Compose depends_on
 // evidence discovery or resolution; a regression in
@@ -142,7 +159,7 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 // determinism/fault-injection cells exist for this family), and the retract
 // path (this Odù is first-generation, so ListWorkloadDependencyEdges always
 // returns empty here).
-func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath string) (bool, string) {
+func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, workloadDependencyEdgesFamily)
 	if err != nil {
 		return false, err.Error()
@@ -164,7 +181,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath strin
 	first := odu.Facts[0]
 
 	// Seam 1: repo-to-repo DEPENDS_ON edges.
-	evidence := DiscoveredEvidence(odu)
+	evidence := ifa.DiscoveredEvidence(odu)
 	if len(evidence) == 0 {
 		return false, fmt.Sprintf("odù %q: DiscoveredEvidence produced zero evidence facts from this Odù's own Docker Compose depends_on content facts", odu.Name)
 	}
@@ -175,7 +192,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath strin
 	depRows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, first.ScopeID, workloadDependencyGuardSourceRunID, first.GenerationID, workloadDependencyGuardClock)
 	repoEdges := workloadDependencyRepoEdgesFromRows(depRows)
 	if len(repoEdges) != 3 {
-		return false, fmt.Sprintf("odù %q: resolved %d repo-to-repo DEPENDS_ON edge(s), want exactly 3 (positive, multi-workload, orphan); this guard cannot prove both drop reasons selective without all three pairs reaching ReconcileWorkloadDependencyEdges", odu.Name, len(repoEdges))
+		return false, fmt.Sprintf("odù %q: evidence resolution produced %d repo-to-repo DEPENDS_ON edge(s), want exactly 3 (positive, multi-workload, and an orphan pair that the production-shaped lookup must filter out)", odu.Name, len(repoEdges))
 	}
 
 	// Seam 2: current-generation repo-to-workload map.
@@ -195,9 +212,9 @@ func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath strin
 	lookup := workloadDependencyFamilyGraphLookup{
 		repoEdges: repoEdges,
 		persistedWorkloads: []reducer.RepoWorkload{
-			{RepoID: workloadDependencyFamilyMultiTargetRepoID, WorkloadID: workloadDependencyFamilyMultiTargetPhantomWorkloadID},
-			{RepoID: workloadDependencyFamilyOrphanSourceRepoID, WorkloadID: workloadDependencyFamilyOrphanSourcePersistedWorkloadID},
-			{RepoID: workloadDependencyFamilyOrphanTargetRepoID, WorkloadID: workloadDependencyFamilyOrphanTargetPersistedWorkloadID},
+			{RepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyMultiTargetPhantomWorkloadID},
+			{RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID},
+			{RepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanTargetPersistedWorkloadID},
 		},
 	}
 
@@ -205,7 +222,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath strin
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ReconcileWorkloadDependencyEdges: %v", odu.Name, err)
 	}
-	if detail := workloadDependencyAssertDropReasons(odu.Name, admitted); detail != "" {
+	if detail := workloadDependencyAssertSelectiveAdmission(odu.Name, admitted); detail != "" {
 		return false, detail
 	}
 
@@ -227,9 +244,19 @@ func resolveWorkloadDependencyMaterializedEdges(odu Odu, expectedEdgesPath strin
 	}
 
 	return true, fmt.Sprintf(
-		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractRepoDependencyIntentRows (repo-to-repo seam) plus ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms (repo-to-workload seam) feed the real ReconcileWorkloadDependencyEdges to reproduce the expected %d-edge set exactly, and both the multi-workload and neither-repo-is-current drop reasons fire for the other two resolved repo pairs",
+		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractRepoDependencyIntentRows (repo-to-repo seam) plus ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms (repo-to-workload seam) feed the production-anchored lookup and real ReconcileWorkloadDependencyEdges to reproduce the expected %d-edge set exactly; the multi-workload ambiguity is dropped and the neither-current orphan pair remains unreachable through the live lookup contract",
 		odu.Name, len(expected),
 	)
+}
+
+func workloadDependencyRepoIDSet(repoIDs []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(repoIDs))
+	for _, repoID := range repoIDs {
+		if repoID = strings.TrimSpace(repoID); repoID != "" {
+			result[repoID] = struct{}{}
+		}
+	}
+	return result
 }
 
 // workloadDependencyRepoEdgesFromRows narrows
@@ -253,32 +280,28 @@ func workloadDependencyRepoEdgesFromRows(rows []reducer.SharedProjectionIntentRo
 	return edges
 }
 
-// workloadDependencyAssertDropReasons proves ReconcileWorkloadDependencyEdges'
-// two independent drop conditions actually fire for THIS Odù's resolved repo
-// pairs, not merely that the admitted set happens to match the expected
-// edges. A fixture carrying only rows that end up admitted cannot prove
-// either filter exists: removing either one would still pass an exact-set
-// comparison over an Odù with no pair that SHOULD be dropped (mirrors
-// deployableUnitAssertDropReasons' role for its own two drop conditions).
-func workloadDependencyAssertDropReasons(oduName string, admitted []reducer.WorkloadDependencyEdgeRow) string {
+// workloadDependencyAssertSelectiveAdmission proves the positive pair admits,
+// the ambiguous pair is dropped by reconciliation, and the neither-current
+// orphan pair is not smuggled past the production lookup's anchoring contract.
+func workloadDependencyAssertSelectiveAdmission(oduName string, admitted []reducer.WorkloadDependencyEdgeRow) string {
 	admittedPairs := make(map[string]struct{}, len(admitted))
 	for _, row := range admitted {
 		admittedPairs[row.RepoID+"->"+row.TargetRepoID] = struct{}{}
 	}
 
-	multiPair := workloadDependencyFamilyMultiSourceRepoID + "->" + workloadDependencyFamilyMultiTargetRepoID
+	multiPair := ifa.WorkloadDependencyFamilyMultiSourceRepoID + "->" + ifa.WorkloadDependencyFamilyMultiTargetRepoID
 	if _, ok := admittedPairs[multiPair]; ok {
 		return fmt.Sprintf("odù %q: multi-workload pair %q leaked into the admitted set; the fixture no longer proves ReconcileWorkloadDependencyEdges' len(targetWorkloads)!=1 drop (workload_dependency_reconciliation.go:138)", oduName, multiPair)
 	}
 
-	orphanPair := workloadDependencyFamilyOrphanSourceRepoID + "->" + workloadDependencyFamilyOrphanTargetRepoID
+	orphanPair := ifa.WorkloadDependencyFamilyOrphanSourceRepoID + "->" + ifa.WorkloadDependencyFamilyOrphanTargetRepoID
 	if _, ok := admittedPairs[orphanPair]; ok {
-		return fmt.Sprintf("odù %q: orphan pair %q leaked into the admitted set; the fixture no longer proves ReconcileWorkloadDependencyEdges' neither-repo-is-current ownership drop (workload_dependency_reconciliation.go:141-146)", oduName, orphanPair)
+		return fmt.Sprintf("odù %q: neither-current orphan pair %q leaked into the admitted set; the fixture lookup no longer matches production's source-or-target anchoring query", oduName, orphanPair)
 	}
 
-	positivePair := workloadDependencyFamilySourceRepoID + "->" + workloadDependencyFamilyTargetRepoID
+	positivePair := ifa.WorkloadDependencyFamilySourceRepoID + "->" + ifa.WorkloadDependencyFamilyTargetRepoID
 	if _, ok := admittedPairs[positivePair]; !ok {
-		return fmt.Sprintf("odù %q: positive pair %q did not admit; nothing would distinguish the two drop reasons above from ReconcileWorkloadDependencyEdges dropping every resolved pair", oduName, positivePair)
+		return fmt.Sprintf("odù %q: positive pair %q did not admit; nothing would distinguish the two selectivity checks above from dropping every resolved pair", oduName, positivePair)
 	}
 	if len(admitted) != 1 {
 		return fmt.Sprintf("odù %q: expected exactly 1 admitted workload dependency row, got %d", oduName, len(admitted))

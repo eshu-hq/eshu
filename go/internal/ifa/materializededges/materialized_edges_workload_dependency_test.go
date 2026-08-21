@@ -1,18 +1,64 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package materializededges
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
+
+func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testing.T) {
+	t.Parallel()
+
+	lookup := workloadDependencyFamilyGraphLookup{
+		repoEdges: []reducer.RepoDependencyEdge{
+			{SourceRepoID: ifa.WorkloadDependencyFamilySourceRepoID, TargetRepoID: ifa.WorkloadDependencyFamilyTargetRepoID},
+			{SourceRepoID: ifa.WorkloadDependencyFamilyMultiSourceRepoID, TargetRepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID},
+			{SourceRepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, TargetRepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID},
+		},
+		persistedWorkloads: []reducer.RepoWorkload{
+			{RepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyMultiTargetPhantomWorkloadID},
+			{RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID},
+		},
+	}
+
+	currentRepoIDs := []string{
+		ifa.WorkloadDependencyFamilySourceRepoID,
+		ifa.WorkloadDependencyFamilyTargetRepoID,
+		ifa.WorkloadDependencyFamilyMultiSourceRepoID,
+		ifa.WorkloadDependencyFamilyMultiTargetRepoID,
+	}
+	edges, err := lookup.ListRepoDependencyEdges(context.Background(), currentRepoIDs)
+	if err != nil {
+		t.Fatalf("ListRepoDependencyEdges: %v", err)
+	}
+	if len(edges) != 2 {
+		t.Fatalf("ListRepoDependencyEdges(current repos) returned %d edges, want 2 anchored edges; the neither-current orphan pair is unreachable through production's query", len(edges))
+	}
+	for _, edge := range edges {
+		if edge.SourceRepoID == ifa.WorkloadDependencyFamilyOrphanSourceRepoID || edge.TargetRepoID == ifa.WorkloadDependencyFamilyOrphanTargetRepoID {
+			t.Fatalf("ListRepoDependencyEdges(current repos) returned unanchored orphan edge %#v", edge)
+		}
+	}
+
+	workloads, err := lookup.ListRepoWorkloads(context.Background(), currentRepoIDs)
+	if err != nil {
+		t.Fatalf("ListRepoWorkloads: %v", err)
+	}
+	if len(workloads) != 1 || workloads[0].RepoID != ifa.WorkloadDependencyFamilyMultiTargetRepoID {
+		t.Fatalf("ListRepoWorkloads(current repos) = %#v, want only the requested multi-target workload", workloads)
+	}
+}
 
 // TestResolveWorkloadDependencyMaterializedEdgesReproducesExpectedSet pins
 // the workload_dependency vacuity guard against the family's hand-derived
@@ -26,7 +72,7 @@ import (
 func TestResolveWorkloadDependencyMaterializedEdgesReproducesExpectedSet(t *testing.T) {
 	t.Parallel()
 
-	odu := workloadDependencyFamilyOdu().Odu
+	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, workloadDependencyFamilyExpectedEdgesPath(repoRootDir(t)))
 	if !ok {
 		t.Fatalf("resolveWorkloadDependencyMaterializedEdges() = (false, %q), want (true, ...)", detail)
@@ -44,18 +90,42 @@ func TestResolveWorkloadDependencyMaterializedEdgesReproducesExpectedSet(t *test
 func TestWorkloadDependencyFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+	resolver := MaterializedEdgeOduResolver{Catalog: ifa.CatalogByName(), RepoRoot: repoRoot}
 
 	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
 		Surface:      MaterializedEdgeSurfacePrefix + workloadDependencyEdgesFamily,
 		Scenario:     replaycoverage.ScenarioOdu,
 		ScenarioType: replaycoverage.ScenarioTypeBaseline,
-		Ref:          workloadDependencyFamilyOduName,
+		Ref:          ifa.WorkloadDependencyFamilyOduName,
 	})
 	if !ok {
 		t.Fatalf("resolver.Resolve for %s: %s", workloadDependencyEdgesFamily, detail)
 	}
 	t.Logf("%s", detail)
+}
+
+func TestWorkloadDependencyFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu, err := ifa.LoadWorkloadDependencyFamilyOdu(ifa.WorkloadDependencyFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("ifa.LoadWorkloadDependencyFamilyOdu: %v", err)
+	}
+	if ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, workloadDependencyFamilyExpectedEdgesPath(repoRoot)); !ok {
+		t.Fatalf("resolveWorkloadDependencyMaterializedEdges(cassette odù) = (false, %q), want true", detail)
+	}
+}
+
+func TestWorkloadDependencyFamilyCassetteMatchesCompiledCatalog(t *testing.T) {
+	t.Parallel()
+	compiled := ifa.WorkloadDependencyFamilyOdu().Odu
+	fromCassette, err := ifa.LoadWorkloadDependencyFamilyOdu(ifa.WorkloadDependencyFamilyCassetteFullPath(repoRootDir(t)))
+	if err != nil {
+		t.Fatalf("ifa.LoadWorkloadDependencyFamilyOdu: %v", err)
+	}
+	if !reflect.DeepEqual(compiled, fromCassette) {
+		t.Fatalf("compiled catalog Odù drifted from cassette projection\ncompiled: %#v\ncassette: %#v", compiled, fromCassette)
+	}
 }
 
 // TestResolveWorkloadDependencyMaterializedEdgesRejectsWrongExpectedSet
@@ -64,7 +134,7 @@ func TestWorkloadDependencyFamilyResolvesThroughTheManifestResolver(t *testing.T
 func TestResolveWorkloadDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testing.T) {
 	t.Parallel()
 
-	odu := workloadDependencyFamilyOdu().Odu
+	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	wrongPath := filepath.Join(t.TempDir(), "wrong-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, wrongPath, []map[string]string{
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:not-the-real-target"},
@@ -83,7 +153,7 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsWrongExpectedSet(t *te
 func TestResolveWorkloadDependencyMaterializedEdgesRejectsMultiWorkloadPairInFixture(t *testing.T) {
 	t.Parallel()
 
-	odu := workloadDependencyFamilyOdu().Odu
+	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	path := filepath.Join(t.TempDir(), "multi-workload-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
@@ -97,12 +167,12 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsMultiWorkloadPairInFix
 }
 
 // TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture
-// proves the neither-repo-is-current drop reason actually fires,
-// independently of the multi-workload drop reason above.
+// proves an expected fixture cannot claim the neither-current orphan pair;
+// production's anchored graph lookup cannot return that pair to reconciliation.
 func TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture(t *testing.T) {
 	t.Parallel()
 
-	odu := workloadDependencyFamilyOdu().Odu
+	odu := ifa.WorkloadDependencyFamilyOdu().Odu
 	path := filepath.Join(t.TempDir(), "orphan-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
@@ -115,38 +185,38 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture(t 
 	}
 }
 
-// TestWorkloadDependencyAssertDropReasonsCatchesEitherLeak proves
-// workloadDependencyAssertDropReasons is not vacuous: it must reject the
-// multi-workload pair leaking in, the orphan pair leaking in, and an empty
-// admitted set (which would prove neither drop reason selective), while
+// TestWorkloadDependencyAssertSelectiveAdmissionCatchesEitherLeak proves
+// workloadDependencyAssertSelectiveAdmission is not vacuous: it must reject the
+// multi-workload pair leaking in, the orphan pair leaking past lookup
+// anchoring, and an empty admitted set (which would prove no selection), while
 // accepting exactly the positive pair alone.
-func TestWorkloadDependencyAssertDropReasonsCatchesEitherLeak(t *testing.T) {
+func TestWorkloadDependencyAssertSelectiveAdmissionCatchesEitherLeak(t *testing.T) {
 	t.Parallel()
 
 	positive := reducer.WorkloadDependencyEdgeRow{
-		RepoID: workloadDependencyFamilySourceRepoID, WorkloadID: "workload:workload-dependency-source",
-		TargetRepoID: workloadDependencyFamilyTargetRepoID, TargetWorkloadID: "workload:workload-dependency-target",
+		RepoID: ifa.WorkloadDependencyFamilySourceRepoID, WorkloadID: "workload:workload-dependency-source",
+		TargetRepoID: ifa.WorkloadDependencyFamilyTargetRepoID, TargetWorkloadID: "workload:workload-dependency-target",
 	}
 	multiLeak := reducer.WorkloadDependencyEdgeRow{
-		RepoID: workloadDependencyFamilyMultiSourceRepoID, WorkloadID: "workload:workload-dependency-multi-source",
-		TargetRepoID: workloadDependencyFamilyMultiTargetRepoID, TargetWorkloadID: "workload:workload-dependency-multi-target",
+		RepoID: ifa.WorkloadDependencyFamilyMultiSourceRepoID, WorkloadID: "workload:workload-dependency-multi-source",
+		TargetRepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, TargetWorkloadID: "workload:workload-dependency-multi-target",
 	}
 	orphanLeak := reducer.WorkloadDependencyEdgeRow{
-		RepoID: workloadDependencyFamilyOrphanSourceRepoID, WorkloadID: workloadDependencyFamilyOrphanSourcePersistedWorkloadID,
-		TargetRepoID: workloadDependencyFamilyOrphanTargetRepoID, TargetWorkloadID: workloadDependencyFamilyOrphanTargetPersistedWorkloadID,
+		RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID,
+		TargetRepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID, TargetWorkloadID: ifa.WorkloadDependencyFamilyOrphanTargetPersistedWorkloadID,
 	}
 
-	if detail := workloadDependencyAssertDropReasons("odu:test", []reducer.WorkloadDependencyEdgeRow{positive}); detail != "" {
-		t.Fatalf("workloadDependencyAssertDropReasons(positive only) = %q, want empty", detail)
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive}); detail != "" {
+		t.Fatalf("workloadDependencyAssertSelectiveAdmission(positive only) = %q, want empty", detail)
 	}
-	if detail := workloadDependencyAssertDropReasons("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, multiLeak}); detail == "" {
-		t.Fatal("workloadDependencyAssertDropReasons(multi-workload leak) = \"\", want a non-empty failure detail")
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, multiLeak}); detail == "" {
+		t.Fatal("workloadDependencyAssertSelectiveAdmission(multi-workload leak) = \"\", want a non-empty failure detail")
 	}
-	if detail := workloadDependencyAssertDropReasons("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, orphanLeak}); detail == "" {
-		t.Fatal("workloadDependencyAssertDropReasons(orphan leak) = \"\", want a non-empty failure detail")
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, orphanLeak}); detail == "" {
+		t.Fatal("workloadDependencyAssertSelectiveAdmission(orphan leak) = \"\", want a non-empty failure detail")
 	}
-	if detail := workloadDependencyAssertDropReasons("odu:test", nil); detail == "" {
-		t.Fatal("workloadDependencyAssertDropReasons(empty admitted set) = \"\", want a non-empty failure detail (cannot distinguish selective drops from dropping everything)")
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", nil); detail == "" {
+		t.Fatal("workloadDependencyAssertSelectiveAdmission(empty admitted set) = \"\", want a non-empty failure detail (cannot distinguish selective drops from dropping everything)")
 	}
 }
 
@@ -208,7 +278,7 @@ func writeWorkloadDependencyExpectedEdgesFixture(t *testing.T, path string, edge
 			TargetEntityID   string `json:"target_entity_id"`
 		} `json:"edges"`
 	}{
-		Odu: workloadDependencyFamilyOduName,
+		Odu: ifa.WorkloadDependencyFamilyOduName,
 	}
 	for _, edge := range edges {
 		fixture.Edges = append(fixture.Edges, struct {
