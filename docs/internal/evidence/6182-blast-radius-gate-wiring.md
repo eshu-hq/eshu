@@ -90,7 +90,7 @@ composes and either of which could break a branch without touching the query
 file. Seven extra four-minute runs per 200 commits is the price of not having
 that hole, and it is the reason the trigger is the package rather than the file.
 
-### A second defect the first live run exposed
+### The trailing cleanup had never run — found by the first live run
 
 The test's trailing cleanup had never worked. `defer driver.Close(...)` runs when
 the test function returns, before any `t.Cleanup` callback, so all three deletes
@@ -112,7 +112,7 @@ last.
 | before the fix | 3 |
 | after the fix | 0 |
 
-### A fifth, found by review on the PR: the database was not pinned
+### The database was not pinned — found by review on #6201
 
 The gate exported `ESHU_NEO4J_DATABASE=nornic`, but the two live tests read
 `NEO4J_DATABASE` alone — even though the same tests already preferred
@@ -149,10 +149,10 @@ ESHU_-first, matching how the URI already behaved, and the gate pins
 this hole; the pair also keeps a future test that reads only one of the names
 honest.
 
-### A fourth, found by review on the PR
+### A negative control was named a bite proof — found by review on #6201
 
-`TestSQLTableBlastRadiusDetectsADeadBranchLive` was neither. It queries a table
-nothing references, asserts no seeded repository comes back, then computed
+`TestSQLTableBlastRadiusDetectsADeadBranchLive` detected no dead branch. It
+queries a table nothing references, asserts no seeded repository comes back, then computed
 `missing` by walking `sqlBlastRadiusBranches()` — a fixture list, never the
 query rows — so it passed even if every shipped UNION branch were dead. The
 codex reviewer and the repo owner reached that independently on #6201.
@@ -171,7 +171,7 @@ trusting it could delete
 `TestSQLTableBlastRadiusEveryBranchContributesLive` — the test that does detect
 a dead branch — and believe the bite proof was still enforced.
 
-### A third, found by reviewing this diff against itself
+### The tier swallowed its own failure message — found by reading this diff against itself
 
 `set -e` is on, and a failing `( ... )` exits the shell immediately, so the
 tier's `tier_status=$?` was unreachable and the `die` under it had never
