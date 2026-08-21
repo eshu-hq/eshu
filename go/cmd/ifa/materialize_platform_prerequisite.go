@@ -204,8 +204,10 @@ func materializePlatformPrerequisite(
 	if err != nil {
 		return "", 0, newPlatformPrerequisiteBackendError("materialize Platform prerequisite", err)
 	}
+	// PlatformEdgesWritten is the accepted input-row count, not proof that the
+	// Repository MATCH wrote an edge. CountPlatform below is the graph postcondition.
 	if result.PlatformEdgesWritten != 1 {
-		return "", 0, fmt.Errorf("materializer reported %d rows, want 1", result.PlatformEdgesWritten)
+		return "", 0, fmt.Errorf("materializer accepted %d input rows, want 1", result.PlatformEdgesWritten)
 	}
 
 	platformCount, err := verifier.CountPlatform(ctx, platformID)
