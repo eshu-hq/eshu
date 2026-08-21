@@ -109,12 +109,16 @@ func missingShellExecExpectedTypes(expected []ExpectedEdge, registry map[string]
 // shellExecRowsToExpectedEdges adapts ExtractShellExecRows's []map[string]any
 // row shape into the shared ExpectedEdge identity the comparison keys on.
 // shell_exec declares no relationship-MERGE identity properties, so Identity
-// is left empty.
+// is left empty. RelationshipType is read from the row (reducer.ExtractShellExecRows
+// stamps "relationship_type") rather than hardcoded, mirroring
+// inheritanceRowsToExpectedEdges: a hardcoded literal here would make
+// compareShellExecExpectedEdges compare a fixed string against itself, unable
+// to catch the extractor emitting anything other than EXECUTES_SHELL.
 func shellExecRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 	out := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, ExpectedEdge{
-			RelationshipType: "EXECUTES_SHELL",
+			RelationshipType: anyToStringValue(row["relationship_type"]),
 			SourceEntityID:   anyToStringValue(row["source_entity_id"]),
 			TargetEntityID:   anyToStringValue(row["target_entity_id"]),
 		})
