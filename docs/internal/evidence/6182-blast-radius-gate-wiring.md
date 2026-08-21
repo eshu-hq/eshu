@@ -200,8 +200,18 @@ container, with one negation case per name plus a repoint case:
 | delete `NEO4J_URI` | exit 1 |
 | delete `ESHU_NEO4J_DATABASE` | exit 1 |
 | delete `NEO4J_DATABASE` | exit 1 |
-| repoint `ESHU_NEO4J_URI` to another host | exit 1 |
+| repoint any of the four away from this container | exit 1 |
+| delete the workflow's `run: bash scripts/verify-replay-tier.sh` step | exit 1 |
+| weaken the guard from value-check to existence-check | exit 1 |
 | unmodified | exit 0 |
+
+The last two rows came from a fourth review round, and both are the same class
+again. The mirror proved the workflow installs `rg`, runs the contract test and
+carries the path trigger, but never that it runs the gate — so deleting that
+step would have stopped CI running the blast-radius proof with the mirror still
+green. And the repoint negation covered only `ESHU_NEO4J_URI`, so regressing the
+guard to an existence-only check would have kept every deletion case passing.
+Each pin now has a repoint case, which is what catches that regression.
 
 The value is asserted, not just the assignment. `export ESHU_NEO4J_URI="$OTHER"`
 satisfies an existence check while reopening the hole, which is why the repoint

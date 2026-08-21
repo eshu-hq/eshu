@@ -78,6 +78,7 @@ has_workflow_wiring() {
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
+		rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' "$1" &&
 		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/dev/pre-pr\\.sh'$" "$1" &&
@@ -174,13 +175,23 @@ for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; d
 		fail "a dropped ${pinned_var} pin must not satisfy the guard"
 	fi
 done
-# Repointing a pin away from this gate's own container must fail too: an
-# existence-only check would pass here and leave the hole open.
-sed 's|^export ESHU_NEO4J_URI=.*|export ESHU_NEO4J_URI="bolt://elsewhere:7687"|' \
-	"${script}" >"${tmp}/script-repointed"
-if has_graph_endpoint_pins "${tmp}/script-repointed"; then
-	fail "a pin repointed away from this gate's container must not satisfy the guard"
-fi
+# Repointing a pin away from this gate's own container must fail too, for EVERY
+# name. Deletion cases alone cannot catch the guard regressing from asserting
+# the value to asserting only the assignment: a weakened `^export ${var}=`
+# check still fails every deletion above while letting a repointed pin through.
+repoint_pin() {
+	case "$1" in
+	*_URI) printf 'bolt://elsewhere:7687\n' ;;
+	*) printf 'not-nornic\n' ;;
+	esac
+}
+for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+	sed "s|^export ${pinned_var}=.*|export ${pinned_var}=\"$(repoint_pin "${pinned_var}")\"|" \
+		"${script}" >"${tmp}/script-repointed-${pinned_var}"
+	if has_graph_endpoint_pins "${tmp}/script-repointed-${pinned_var}"; then
+		fail "${pinned_var} repointed away from this gate's container must not satisfy the guard"
+	fi
+done
 sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 	-e '/^[[:space:]]*run: bash scripts\/test-verify-replay-tier\.sh$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow"
