@@ -190,3 +190,10 @@ each matching one seeded repository at the expected hop count. It does not touch
 the `sql_table` handler, its bounding, or its response shape. And the branch
 fixtures are hand-derived: a branch whose real-world shape differs from the
 seeded chain is proven only for the seeded chain.
+
+Both tests call `blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true})`,
+so the scoped-access branch of that filter — the one a component-extension token
+takes — is not exercised by either. That is a limit #5409's tests already had;
+this change wires them into a gate without widening what they cover. A scoped
+run would need its own seeded grant set and is a separate piece of work, not a
+line to add here.
