@@ -68,6 +68,28 @@ nothing or the test skipped. A skip is not a pass.
 exit 1
 ```
 
+### What the wider trigger costs, measured rather than assumed
+
+`go/internal/query/**` is a large, active package, and adding it to a Docker
+gate is not free. Over the last 200 commits on main, 8 touched
+`go/internal/query/` and 1 touched the blast-radius files:
+
+```
+$ git log --oneline -200 origin/main -- go/internal/query/ | wc -l
+8
+$ git log --oneline -200 origin/main -- go/internal/query/impact_blast_radius.go \
+    go/internal/query/impact_blast_radius_sql_table_live_test.go | wc -l
+1
+```
+
+So the whole-package trigger runs the gate about 4 percent of the time, seven of
+those eight for a reason unrelated to blast radius. Narrowing to
+`impact_blast_radius*.go` would cut that to one in 200 and would miss a change
+to `repositoryAccessFilter` or `NewNeo4jReader`, both of which the branch query
+composes and either of which could break a branch without touching the query
+file. Seven extra four-minute runs per 200 commits is the price of not having
+that hole, and it is the reason the trigger is the package rather than the file.
+
 ### A second defect the first live run exposed
 
 The test's trailing cleanup had never worked. `defer driver.Close(...)` runs when
@@ -89,6 +111,29 @@ last.
 | --- | --- |
 | before the fix | 3 |
 | after the fix | 0 |
+
+### A third, found by reviewing this diff against itself
+
+`set -e` is on, and a failing `( ... )` exits the shell immediately, so the
+tier's `tier_status=$?` was unreachable and the `die` under it had never
+printed:
+
+```
+$ bash -c 'set -euo pipefail; ( exit 7 ); s=$?; echo "reached, s=$s"'; echo $?
+7
+```
+
+The gate still failed — with the raw `go test` status and none of the wall-clock
+or diagnostic output. The blast-radius invocation guards this with `set +e`
+deliberately, and leaving the two blocks inconsistent invites someone to
+"simplify" the working one to match the broken one. Both are guarded now, and
+the tier's failure path prints:
+
+```
+[verify-replay-tier] offline replay tier wall-clock: 0s
+[verify-replay-tier] ERROR: offline replay tier test failed (status 3)
+exit 1
+```
 
 ## Evidence
 

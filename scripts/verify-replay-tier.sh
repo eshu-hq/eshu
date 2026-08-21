@@ -93,6 +93,12 @@ export GOCACHE="${repo_root}/.gocache"
 
 log "running focused offline replay tier tests (R-5 graph truth + R-17 delta/tombstone) against real NornicDB"
 tier_start="$(date +%s)"
+# set -e is on, and a failing ( ... ) exits the shell at once -- so without this
+# guard `tier_status=$?` below was unreachable and the die message under it had
+# never printed. The gate still failed, with the go test status and none of the
+# wall-clock or diagnostic output. Guarded the same way as the blast-radius
+# invocation at the end of this file, so the two blocks cannot drift.
+set +e
 (
 	cd go
 	# Both packages mutate the same live graph, so package test binaries must run
@@ -101,6 +107,7 @@ tier_start="$(date +%s)"
 		-run 'TestOfflineReplayTierGraphTruth|TestDeltaTombstone|TestDeltaEntityRetractGraphTruth|TestEntityRetractManifestBinding|TestDeltaSurvivorScopedRetractGraphTruth|TestDeltaEdgeRetractGraphTruth|TestDeltaFileRetractGraphTruth|TestReducerCodeCallEdgeRetractGraphTruth|TestReducerInheritanceEdgeRetractGraphTruth|TestReducerSQLRelationshipRetractGraphTruth|TestReducerRationaleEdgeRetractGraphTruth|TestReducerMetaclassEdgeRetractGraphTruth|TestReducerRepoDependencyEdgeRetractGraphTruth|TestReducerRuntimeEdgeRetractGraphTruth|TestReducerContentEdgeRetractGraphTruth|TestCodeInterprocTaintEdgeRetractGraphTruth|TestReducerCloudEdgeRetractGraphTruth|TestReducerSecurityGroupReachabilityEdgeRetractGraphTruth|TestReducerCanonicalGovernanceEdgeRetractGraphTruth|TestReducerWorkloadUsesEdgeRetractGraphTruth|TestReducerIAMEdgeRetractGraphTruth|TestReducerAWSCloudImageEdgeRetractGraphTruth|TestReducerSecretsIAMEdgeRetractGraphTruth|TestReducerSemanticVariableRetractGraphTruth|TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth|TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth|TestReducerProvenanceReplayTombstoneGraphTruth|TestNornicDBFunctionProjectionCorruptsAfterOptionalMatch|TestNornicDBSecondChainedOptionalMatchCorruptsPlainPropertyReads' -count=1 -v
 )
 tier_status=$?
+set -e
 tier_end="$(date +%s)"
 tier_elapsed=$(( tier_end - tier_start ))
 
