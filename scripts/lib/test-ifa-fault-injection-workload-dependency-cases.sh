@@ -4,7 +4,7 @@
 # family-scoped baseline, kill/reclaim, and exact graph-write fault cells.
 
 run_ifa_fault_injection_workload_dependency_cases() {
-	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation
+	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation reopen_body failgraph_body
 	repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 	live_lib="${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
@@ -45,6 +45,31 @@ run_ifa_fault_injection_workload_dependency_cases() {
 		rg --fixed-strings --quiet -- "${fixture_filter}" "${live_lib}" \
 			|| fail "workload_dependency reopen is not fixture-scoped by ${fixture_filter}"
 	done
+	reopen_body="$(awk '/^ifa_workload_dependency_live_reopen_materialization\(\)/,/^}/' "${live_lib}")"
+	workload_dependency_reopen_has_exact_replay_key() {
+		printf '%s\n' "$1" | rg --quiet -- "^[[:space:]]+AND entity_key = 'repo:repo-ifa-workload-dependency-source'$"
+	}
+	workload_dependency_reopen_has_exact_replay_key "${reopen_body}" \
+		|| fail "workload_dependency reopen must target the production repo_dependency replay entity key"
+	if workload_dependency_reopen_has_exact_replay_key "$(printf '%s\n' "${reopen_body}" | rg -v --fixed-strings -- "entity_key = 'repo:repo-ifa-workload-dependency-source'")"; then
+		fail "workload_dependency reopen entity-key omission mutation passed"
+	fi
+	if workload_dependency_reopen_has_exact_replay_key "${reopen_body//repo:repo-ifa-workload-dependency-source/repo:wrong-source}"; then
+		fail "workload_dependency reopen wrong-entity-key mutation passed"
+	fi
+	failgraph_body="$(awk '/^cell_failgraphwrite_workload_dependency\(\)/,/^}/' "${cells_lib}")"
+	workload_dependency_failgraph_has_retry_proof() {
+		printf '%s\n' "$1" | rg --quiet -- '^[[:space:]]*ifa_fault_assert_retried_above ' \
+			&& printf '%s\n' "$1" | rg --quiet -- '^[[:space:]]*"\$\{compose_file\}" "\$\{baseline_workload_dependency_retried\}" 15 workload_materialization \\$'
+	}
+	workload_dependency_failgraph_has_retry_proof "${failgraph_body}" \
+		|| fail "workload_dependency failgraphwrite must prove workload_materialization retried above baseline"
+	if workload_dependency_failgraph_has_retry_proof "${failgraph_body//ifa_fault_assert_retried_above/ifa_fault_count_retried}"; then
+		fail "workload_dependency failgraphwrite retry-assertion omission mutation passed"
+	fi
+	if workload_dependency_failgraph_has_retry_proof "${failgraph_body//baseline_workload_dependency_retried/wrong_retry_baseline}"; then
+		fail "workload_dependency failgraphwrite wrong-baseline mutation passed"
+	fi
 	local automatic_assert_line reopen_line
 	automatic_assert_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}"' "${cells_lib}" | head -1 | cut -d: -f1 || true)"
 	reopen_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_fault_reopen "${cell}"' "${cells_lib}" | head -1 | cut -d: -f1 || true)"

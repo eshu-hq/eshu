@@ -106,6 +106,9 @@ cell_failgraphwrite_workload_dependency() {
 		"ESHU_IFA_FAULT_SCRIPT=${fault_script}" "${tagged_bin_dir}/eshu-reducer"
 	run_drain_gate "${cell}"
 	ifa_workload_dependency_fault_assert_terminal "${cell}"
+	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"${compose_file}" "${baseline_workload_dependency_retried}" 15 workload_materialization \
+		|| die "${cell}: injected workload_materialization graph-write failure did not retry above baseline"
 	ifa_fault_assert_once_fault_marker "${fault_script}" "${workload_dependency_edge_operation_match}" || marker_rc=$?
 	[[ "${marker_rc}" -eq 0 ]] \
 		|| die "${cell}: once-fired marker did not name the workload DEPENDS_ON MERGE (status ${marker_rc})"
