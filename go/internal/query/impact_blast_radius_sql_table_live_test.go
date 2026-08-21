@@ -154,7 +154,13 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open graph driver: %v", err)
 	}
-	defer func() { _ = driver.Close(context.Background()) }()
+	// Registered through t.Cleanup rather than defer, and registered BEFORE the
+	// node cleanup below, so LIFO ordering closes the driver last. With a defer
+	// here the driver closed while the test function returned and every trailing
+	// delete then failed with "Trying to create session on closed driver",
+	// leaving probe5409 nodes behind in a graph this gate now shares with the
+	// replay tier (#6182).
+	t.Cleanup(func() { _ = driver.Close(context.Background()) })
 	if err := driver.VerifyConnectivity(ctx); err != nil {
 		t.Fatalf("verify graph connectivity: %v", err)
 	}
