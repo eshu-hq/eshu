@@ -80,14 +80,19 @@ log "NornicDB healthy"
 
 # Real-backend environment for the gated go test.
 export ESHU_GRAPH_BACKEND="nornicdb"
+# Both names of both variables are pinned, deliberately. The graph endpoint has
+# a canonical ESHU_-prefixed name and a bare alias
+# (go/internal/envregistry/entries.go), consumers disagree about which they
+# read, and this container is the only endpoint any of them may reach. Pinning
+# one name and leaving the other free lets an ambient value from a developer
+# shell win: the test then runs against a stale endpoint or a database the tier
+# never asserted against, inside this same gate run. CI never sees it because a
+# clean runner leaves both unset, so it fails only on the machine of whoever
+# has the variable set. Both holes were found on #6201 review, one round apart —
+# the database first, then this mirror of it on the URI.
 export ESHU_NEO4J_DATABASE="nornic"
-# Pinned too, not only its ESHU_ form. The blast-radius tests below prefer
-# ESHU_NEO4J_DATABASE now, but a developer shell exporting NEO4J_DATABASE=neo4j
-# used to send them at a different database than the tier had just asserted
-# against, inside this same run. CI never saw it because a clean runner leaves
-# both unset (#6201 review). Pinning here keeps the gate hermetic for any test
-# it grows later, whatever name that test reads.
 export NEO4J_DATABASE="nornic"
+export ESHU_NEO4J_URI="bolt://localhost:${BOLT_PORT}"
 export NEO4J_URI="bolt://localhost:${BOLT_PORT}"
 # NornicDB runs with NORNICDB_NO_AUTH=true, but the shared Bolt driver config
 # requires non-empty username/password, so supply placeholders the backend

@@ -149,6 +149,37 @@ ESHU_-first, matching how the URI already behaved, and the gate pins
 this hole; the pair also keeps a future test that reads only one of the names
 honest.
 
+### The URI had the same hole — found by the second review round on #6201
+
+Fixing the database and leaving the URI alone was the obvious mistake to make
+and I made it. `sqlBlastRadiusBackend` prefers `ESHU_NEO4J_URI`, which
+`go/internal/envregistry/entries.go` lists as the canonical name with
+`NEO4J_URI` as its alias, and the gate pinned only the alias. Worse, the
+comment I had just written claimed the gate was hermetic "whatever name that
+test reads" — false for the URI at the moment it was written.
+
+Reachable, on the same terms as the database hole:
+
+```
+$ NEO4J_URI=bolt://localhost:7687 ESHU_NEO4J_URI=bolt://localhost:7699 \
+    go test ./internal/query/ -run '<both live tests>' -count=1; echo $?
+verify graph connectivity: ConnectivityError: dial tcp [::1]:7699: connect: connection refused
+--- FAIL: TestSQLTableBlastRadiusEveryBranchContributesLive
+--- FAIL: TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive
+1
+```
+
+With both names pinned, the same ambient value loses:
+
+```
+$ ... ESHU_NEO4J_URI=bolt://localhost:7687 go test ... -count=1; echo $?
+--- PASS  (both)
+0
+```
+
+The gate now pins both names of both variables under one comment, rather than
+per-variable comments that let the next one drift.
+
 ### A negative control was named a bite proof — found by review on #6201
 
 `TestSQLTableBlastRadiusDetectsADeadBranchLive` detected no dead branch. It
