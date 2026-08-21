@@ -296,7 +296,7 @@ cell_failgraphwrite_repo_dependency() {
 	run_drain_gate "${cell}"
 	ifa_fault_assert_once_fault_marker "${fault_script}" "${anchor}" || die "${cell}: DEPENDS_ON fault marker did not fire"
 	ifa_fault_assert_once_fault_marker "${fault_script}" "${operation_proof}" || die "${cell}: fault marker did not name the repo_dependency DEPENDS_ON operation"
-	ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-after"
+	ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-before"
 	capture_digest "${cell}"
 	assert_matches_baseline "${cell}" baseline_repo_dependency
 	teardown_cell "${cell}"

@@ -20,6 +20,10 @@ ifa_repo_dependency_prepare_has_required_order() {
 		'run_drain_gate "${cell}-pre"'
 }
 
+ifa_repo_dependency_graph_terminal_owner_is_exact() {
+	[[ "$1" == *'ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-before"'* ]]
+}
+
 ifa_repo_dependency_failgraphwrite_has_required_order() {
 	ifa_repo_dependency_body_has_order "$1" \
 		ifa_repo_dependency_fault_prepare \
@@ -110,6 +114,34 @@ run_ifa_repo_dependency_fault_script_json_controls() (
 	! ifa_fault_write_once_script "${invalid_script}" "${anchor}" invalid-lane || return 1
 	[[ ! -e "${invalid_script}" ]] || return 1
 	! ifa_fault_write_once_script "" "${anchor}" queue-retry || return 1
+)
+
+run_ifa_repo_dependency_graph_terminal_owner_controls() (
+	local terminal_label="" events="" projector_pid reducer_before reducer_after failgraphwrite_repo_dependency=0
+	local bin_dir=/fake/bin tagged_bin_dir=/fake/tagged log_dir=/fake/log work_dir=/fake/work
+	local CLAIMED_ROW_WAIT_TIMEOUT=1
+	local wall_times=()
+	: "${failgraphwrite_repo_dependency}"
+	ifa_repo_dependency_fault_prepare() { :; }
+	ifa_fault_write_once_script() { :; }
+	ifa_det_start_bg() { printf -v "$3" '%s' 765432; }
+	ifa_repo_dependency_fault_wait_for_once_marker() { :; }
+	ifa_repo_dependency_fault_wait_for_quarantine_telemetry() { :; }
+	ifa_repo_dependency_fault_capture_partition_leases() { printf -v "$3" '%s' $'repo_dependency\t0\t4\towner'; }
+	ifa_det_stop_join_untrack_bg_pid() { :; }
+	ifa_repo_dependency_fault_require_partition_lease_subset() { :; }
+	ifa_repo_dependency_fault_expire_partition_leases() { :; }
+	run_drain_gate() { events="${events} drain"; }
+	ifa_fault_assert_once_fault_marker() { :; }
+	assert_no_dead_letters() { events="${events} dead"; }
+	ifa_repo_dependency_live_assert_readiness_state() { terminal_label="$2"; events="${events} ready"; }
+	ifa_repo_dependency_live_assert() { events="${events} graph"; }
+	capture_digest() { :; }
+	assert_matches_baseline() { :; }
+	teardown_cell() { :; }
+	repo_dependency_expected_edges=/fake/edges.json cell_failgraphwrite_repo_dependency || return 1
+	[[ "${terminal_label}" == reducer-failgraphwrite_repo_dependency-before ]] || return 1
+	[[ "${events}" == ' drain dead ready graph' ]] || return 1
 )
 
 run_ifa_repo_dependency_quarantine_telemetry_controls() (
@@ -429,6 +461,11 @@ run_ifa_fault_injection_repo_dependency_cases() {
 		misordered_graph_body="${lifecycle_line}"$'\n'"${omitted_graph_body}"
 		! ifa_repo_dependency_failgraphwrite_has_required_order "${misordered_graph_body}" || return 1
 	done <<<"${graph_lifecycle_lines}"
+	rg --fixed-strings --line-regexp --quiet -- $'\tifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}"' "${cells}" || return 1
+	rg --fixed-strings --line-regexp --quiet -- $'\tifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-after"' "${cells}" || return 1
+	ifa_repo_dependency_graph_terminal_owner_is_exact "${graph_body}" || return 1
+	local wrong_terminal_body="${graph_body/'ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-before"'/'ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-after"'}"
+	! ifa_repo_dependency_graph_terminal_owner_is_exact "${wrong_terminal_body}" || return 1
 	rg --fixed-strings --quiet -- 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'baseline_deployment_mapping_retried' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'ifa_repo_dependency_pre_gate_dump_path' "${live}" || return 1
@@ -451,6 +488,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_partition_lease_controls || return 1
 	run_ifa_repo_dependency_fault_marker_wait_controls || return 1
 	run_ifa_repo_dependency_fault_script_json_controls || return 1
+	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
 	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 24 ]] || return 1
 }
