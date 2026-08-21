@@ -20,12 +20,13 @@ headroom under the repository's directory file-count gate (`go-dir-gate`)
 before the families still queued consumed it. ifa was under the cap when the
 split was taken, not over it. It owns:
 
-- The six family guards: SQL relationships (`materialized_edges_sql.go`),
+- The seven family guards: SQL relationships (`materialized_edges_sql.go`),
   documentation edges (`materialized_edges_documentation.go`), code calls
   (`materialized_edges_code_calls.go`), rationale edges
   (`materialized_edges_rationale.go`), codeowners ownership
   (`materialized_edges_codeowners.go`), and deployable-unit edges
-  (`materialized_edges_deployable_unit.go`).
+  (`materialized_edges_deployable_unit.go`), and repository dependencies
+  (`materialized_edges_repo_dependency.go`).
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture
@@ -34,6 +35,13 @@ split was taken, not over it. It owns:
   compiled-catalog-vs-cassette lockstep test (moved with its guard from
   `ifa/<family>_family_odu_test.go` for the same reason: it can only reach
   the guard's unexported internals from this side of the package boundary).
+
+`repoDependencyFamilyOdu` (`repo_dependency_family_catalog.go`) carries seven
+unique repository scopes and 18 facts: six target-only scopes first and the
+evidence-bearing source scope last. The source includes the
+`workload_materialization and deployment_mapping scheduling followups` used by
+production admission. Together the two live gates prove all seven
+repo-dependency writer-registry types.
 
 It does NOT own: the Odù catalog itself (`Odu`, `Catalog`, `CatalogByName`,
 `DiscoveredEvidence` all stay in `ifa`), the per-family fixture builders that

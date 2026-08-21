@@ -74,6 +74,7 @@ IFA_FAMILY_PINS_NAMES=(
 	documentation_edges
 	deployable_unit_edges
 	codeowners_ownership_edges
+	repo_dependency
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

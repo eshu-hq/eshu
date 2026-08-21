@@ -97,6 +97,25 @@ session.
   `-out` or stdout; with `-digest`, it writes the sha256 hex digest instead.
   It is a read-only diagnostic verb: it applies no schema DDL and performs no
   write.
+- `ifa materialize-platform-prerequisite -repo-id ID -kind KIND -name NAME
+  -locator LOCATOR [-provider PROVIDER] [-environment ENV] [-region REGION]` -
+  prepares one Platform node for a live Ifá conformance case. The command
+  derives the node ID with `reducer.CanonicalPlatformID`, calls the production
+  `InfrastructurePlatformMaterializer` with one row, and verifies the exact
+  Platform exists before printing its ID. The source Repository must already
+  exist. This is explicit gate setup, not a reducer or deployment command.
+
+#### Platform prerequisite performance and observability (#5999)
+
+- No-Regression Evidence: this command is outside every deployed runtime path.
+  One invocation performs a Repository count by ID, one production materializer
+  write with one row, and a Platform count by ID. It changes no worker count,
+  batch default, queue, or reducer schedule.
+- No-Observability-Change: the command adds no runtime metric, span, or log
+  field. Its credential-free stdout line reports only the canonical Platform
+  ID and the verified count; errors name the failed prerequisite without
+  printing connection configuration.
+
 - `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) - the Ifá
   materialized-edge exhaustiveness gate's LIVE, set-exact non-vacuity
   assertion. It opens the same read-only Bolt connection `ifa graph-dump` uses,
@@ -114,9 +133,10 @@ session.
   an expected endpoint identity. Cross-repository attachments and repository
   property drift are therefore extras rather than hidden as foreign data.
   The live matrices invoke this verb for `sql_relationships`, `code_calls`,
-  `documentation_edges`, and `rationale_edges`. They require nine SQL edges,
-  five code-call edges, three documentation edges, and three full rationale
-  records exactly in every applicable baseline or recovery cell.
+  `documentation_edges`, `rationale_edges`, and `repo_dependency`. They require
+  nine SQL edges, five code-call edges, three documentation edges, three full
+  rationale records, and seven repository-dependency edges exactly in every
+  applicable baseline or recovery cell.
   Families sharing a relationship type with another family are
   additionally scoped by endpoint label, so repo_dependency and
   workload_dependency do not count each other's DEPENDS_ON edges. This is the
@@ -135,6 +155,8 @@ session.
   uses `ifa-fault-injection`.
   `rationale_edges` has two rows: baseline uses `ifa-determinism`; fault uses
   `ifa-fault-injection`.
+  `repo_dependency` has two rows: baseline uses `ifa-determinism`; fault uses
+  `ifa-fault-injection`.
 
   The `ifa-determinism` live gate invokes it in every worker-count cell for the
   baseline families, then asserts the generation-2 SQL and rationale sets and
@@ -146,6 +168,13 @@ session.
   Both documentation recovery cells repeat the exact three-edge assertion.
   The rationale recovery cells repeat the exact three-record assertion and
   require zero dead letters.
+  `repo_dependency` runs once as a standalone determinism cell after the worker
+  matrix because its Platform prerequisite is maintenance-backed, not a worker
+  count variable. Its cassette carries seven unique repository scopes and 18 facts, with six target-only scopes first and the evidence-bearing source scope last, plus
+  `workload_materialization and deployment_mapping scheduling followups` on
+  that source. Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle
+  for baseline, killed-worker recovery, and a once-then-succeed graph-write
+  fault.
   In the SQL delta-retract cell, the generation-2 SQL assertion runs first. The
   post-delta code-call and one-record rationale assertions follow before the
   collateral comparison; that full-record comparison keeps documentation graph
@@ -212,6 +241,11 @@ new driver dependency for the repo. `internal/ifa/graphdump` itself takes on
 no new dependency: it stays driver-free by design (see its README's
 "Ownership Boundary").
 
+`ifa materialize-platform-prerequisite` reuses that command-local Bolt driver
+configuration but has its own narrow write backend. It passes one row to
+`reducer.NewInfrastructurePlatformMaterializer`; it does not add a write to
+the read-only graph-dump or assert-edges readers.
+
 `ifa mutate-cassette` and `ifa dead-letters` (P3, ADR step 3a) add no new
 dependency: `mutate_cassette.go` uses `go/internal/ifa` (`MutateCassette`) and
 the already-imported `go/internal/replay/cassette`; `dead_letters.go` reuses
@@ -226,10 +260,16 @@ own.
 ## Telemetry
 
 No runtime telemetry is emitted. This is not a deployed service; the coverage
-report, drive report, graph-dump canonical output/digest, mutate-cassette
-report, and dead-letters JSON are the operator-facing artifacts.
+report, drive report, graph-dump canonical output/digest, verified Platform ID,
+mutate-cassette report, and dead-letters JSON are the operator-facing artifacts.
 
 ## Gotchas / Invariants
+
+- `ifa materialize-platform-prerequisite` validates every flag before opening
+  Bolt. It fails if the source Repository is absent or if the production
+  materializer returns without leaving exactly one Platform node. Its row
+  count alone is not proof because the writer's Repository `MATCH` can produce
+  a zero-row no-op.
 
 - `ifa mutate-cassette`'s two `-kind` values reach very different runtime
   failure paths for a fact kind core registers a schema version for (proven

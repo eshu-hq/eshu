@@ -27,6 +27,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "README.md"),
 			required: []string{
 				"`codeCallFamilyOdu` (`code_call_family_catalog.go`",
+				"repository dependencies\n  (`materialized_edges_repo_dependency.go`)",
+				"`repoDependencyFamilyOdu` (`repo_dependency_family_catalog.go`)",
+				"carries seven\nunique repository scopes and 18 facts",
+				"18 facts: six target-only scopes first and the\nevidence-bearing source scope last",
+				"workload_materialization and deployment_mapping scheduling followups",
+				"Together the two live gates prove all seven\nrepo-dependency writer-registry types",
 				"`materialized_edges:documentation_edges`",
 				"Both live matrices drive the documentation cassette and\n  exact-assert its three DOCUMENTS edges",
 				"Both live matrices drive the rationale cassette\n  and exact-assert its full EXPLAINS records",
@@ -55,7 +61,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"five families carries a waiver.",
+				"six families carries a waiver.",
 				"Both live gates drive the rationale cassette and exact-assert its full\n  # EXPLAINS records.",
 			},
 			prohibited: []string{
@@ -74,8 +80,13 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "cmd", "ifa", "README.md"),
 			required: []string{
-				"`sql_relationships`, `code_calls`,\n  `documentation_edges`, and `rationale_edges`",
-				"nine SQL edges,\n  five code-call edges, three documentation edges, and three full rationale",
+				"`sql_relationships`, `code_calls`,\n  `documentation_edges`, `rationale_edges`, and `repo_dependency`",
+				"nine SQL edges, five code-call edges, three documentation edges, three full\n  rationale records, and seven repository-dependency edges exactly",
+				"seven unique repository scopes and 18 facts",
+				"six target-only scopes first and the evidence-bearing source scope last",
+				"workload_materialization and deployment_mapping scheduling followups",
+				"`repo_dependency` runs once as a standalone determinism cell",
+				"Its fault trio repeats the full prerequisite, maintenance, and exact-set lifecycle",
 				"`ifa-determinism` live gate invokes it in every worker-count cell",
 				"one row per (surface, scenario) under two proof-gate IDs",
 				"`sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;\n  fault uses `ifa-fault-injection`.",
@@ -101,7 +112,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, and deployable-unit edges.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, and repository dependencies.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",
@@ -144,6 +155,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"Documentation edges require baseline and fault dimensions. Both live matrices\n// exact-assert their three DOCUMENTS edges",
 				"Rationale edges require baseline and fault dimensions. Both live matrices\n// exact-assert full EXPLAINS records",
+				"Repository dependencies require baseline and fault dimensions",
 			},
 			prohibited: []string{
 				"live-gate activation remains a separate layer",
@@ -238,7 +250,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 8 not-yet-covered allProjectionDomains families",
+				"current 7 not-yet-covered allProjectionDomains families",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",

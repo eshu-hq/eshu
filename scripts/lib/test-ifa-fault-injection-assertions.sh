@@ -12,7 +12,7 @@
 # The rest bind code and use require_code. The exact number is deliberately
 # not spelled here: it drifted twice (45 vs 44) because a prose count in a
 # comment has no gate, which is the same trap three public docs hit with
-# "twenty-one cells". The split was established
+# "twenty-four cells". The split was established
 # empirically, not by reading labels: every call site was converted, the mirror
 # run, and only the ones that genuinely could not pass were moved back.
 require() {

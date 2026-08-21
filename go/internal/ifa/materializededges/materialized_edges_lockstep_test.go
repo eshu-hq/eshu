@@ -90,7 +90,12 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	}
 
 	if gate.Failed() {
-		t.Fatal("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
+		for _, finding := range gate.Findings {
+			if finding.Required && !finding.OK {
+				t.Errorf("materialized-edge gate finding %q failed: %s", finding.Check, finding.Detail)
+			}
+		}
+		t.Error("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
 	}
 
 	// sql_relationships has genuinely-proven BASELINE, DELTA, and (#5555)
@@ -163,6 +168,25 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	for _, waiver := range waivers {
 		if waiver.Surface == MaterializedEdgeSurfacePrefix+"rationale_edges" {
 			t.Errorf("stale rationale_edges waiver remains for proof gate %q; #5998 requires both waivers to be removed with the live rows", waiver.ProofGate)
+		}
+	}
+
+	// #5999 promotes repo_dependency only after both live gates execute the
+	// maintenance-backed cassette and its seven-edge oracle. Pin both resolved
+	// rows and the waiver deletion so a dangling Odù ref reports the uncovered
+	// status with the explicit no-waiver detail instead of disappearing behind
+	// the gate's aggregate failure.
+	repoDependencyBaseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"repo_dependency", replaycoverage.ScenarioTypeBaseline)
+	if repoDependencyBaseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:repo_dependency (baseline) status = %q, detail=%q, want covered", repoDependencyBaseline.Status, repoDependencyBaseline.Detail)
+	}
+	repoDependencyFault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"repo_dependency", replaycoverage.ScenarioTypeFault)
+	if repoDependencyFault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:repo_dependency (fault) status = %q, detail=%q, want covered", repoDependencyFault.Status, repoDependencyFault.Detail)
+	}
+	for _, waiver := range waivers {
+		if waiver.Surface == MaterializedEdgeSurfacePrefix+"repo_dependency" {
+			t.Errorf("stale repo_dependency waiver remains for proof gate %q; #5999 requires both waivers to be removed with the live rows", waiver.ProofGate)
 		}
 	}
 

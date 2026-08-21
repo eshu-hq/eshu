@@ -1,0 +1,41 @@
+{
+  "odu": "odu:ifa-repo-dependency-family",
+  "note": "Seven repo_dependency edges cover every registered type. Six are Repository-to-Repository edges from repo-ifa-repo-dependency-source to distinct targets. RUNS_ON is WorkloadInstance-to-Platform: workload extraction and projection derive workload-instance:repo-dependency-family-source:prod, while ArgoCD destination discovery and reducer.CanonicalPlatformID agree on platform:kubernetes:none:cluster/prod-cluster:none:none. The live harness must materialize both prerequisites before executing the repo_dependency writer. No relationship property participates in the structural identity for this family.",
+  "edges": [
+    {
+      "relationship_type": "PROVISIONS_DEPENDENCY_FOR",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-provisions"
+    },
+    {
+      "relationship_type": "USES_MODULE",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-usesmodule"
+    },
+    {
+      "relationship_type": "DISCOVERS_CONFIG_IN",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-discoversconfig"
+    },
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-dependson"
+    },
+    {
+      "relationship_type": "DEPLOYS_FROM",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-deploysfrom"
+    },
+    {
+      "relationship_type": "READS_CONFIG_FROM",
+      "source_entity_id": "repo-ifa-repo-dependency-source",
+      "target_entity_id": "repo-ifa-repo-dependency-target-readsconfig"
+    },
+    {
+      "relationship_type": "RUNS_ON",
+      "source_entity_id": "workload-instance:repo-dependency-family-source:prod",
+      "target_entity_id": "platform:kubernetes:none:cluster/prod-cluster:none:none"
+    }
+  ]
+}

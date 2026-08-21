@@ -10,10 +10,9 @@
 # Ifá P6 part 2 (#4580) deterministic fault-injection Docker gate (design doc
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
-# PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`,
-# same non-inert rationale as scripts/verify-ifa-determinism.sh) PLUS the SQL
-# relationship, code-call, documentation, and rationale family cassettes through a FRESH
-# Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
+# PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`) PLUS
+# the SQL relationship, code-call, documentation, rationale, and repository-dependency family cassettes
+# through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
 # drain, the canonicalized graph (`ifa graph-dump -digest`) is
@@ -22,8 +21,8 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Twenty-one cells, each hitting a genuinely different recovery or delivery
-# seam. All twenty-one run by default. Cell functions live in
+# Twenty-four cells, each hitting a genuinely different recovery or delivery
+# seam. All twenty-four run by default. Cell functions live in
 # scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
@@ -32,7 +31,9 @@
 # and 15, issue #5998), scripts/lib/ifa_fault_injection_delivery_cells.sh
 # (cells 10-11, issue #5544), and
 # scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue
-# #5993). The delta cell's full-node collateral comparator is split into
+# #5993), scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
+# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue #5999).
+# The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
 #   1. baseline                              -- fault-free; establishes the
@@ -125,6 +126,12 @@
 #  18. fail-graph-write-once-then-succeed-deployable-unit (#5993) -- mirrors
 #      cells 12-13, anchored to the CORRELATES_DEPLOYABLE_UNIT MERGE, also
 #      run after the same maintenance pass.
+#  19. baseline-codeowners (#5992) -- family-scoped fault-free baseline.
+#  20. kill-worker-after-claim-codeowners (#5992) -- lease reclaim proof.
+#  21. fail-graph-write-once-then-succeed-codeowners (#5992) -- retry proof.
+#  22. baseline-repo-dependency (#5999) -- maintenance-backed family baseline.
+#  23. kill-worker-after-claim-repo-dependency (#5999) -- full reclaim lifecycle.
+#  24. fail-graph-write-once-then-succeed-repo-dependency (#5999) -- exact retry proof.
 #
 # Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -138,11 +145,11 @@
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (a nineteenth possible cell) is deliberately NOT included: it
+# fail-terminal (a twenty-fifth possible cell) is deliberately NOT included: it
 # has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17 already can't use live.
+# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17/20/23 already can't use live.
 # Building a live fail-terminal seam is out of scope; this is reported as an
 # explicit, honest gap, not silently dropped.
 #
@@ -151,8 +158,8 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17
-#   - a once-fired marker for cells 4/12/13/14/15/18
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -244,7 +251,7 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
 # shellcheck source=scripts/lib/ifa_rationale_live.sh
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
-source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"  # two sources, one line: this file is at the 500-line cap
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -260,8 +267,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -482,6 +489,9 @@ ifa_fault_shard_run cell_failgraphwrite_deployable_unit
 ifa_fault_shard_run cell_baseline_codeowners
 ifa_fault_shard_run cell_killworker_codeowners
 ifa_fault_shard_run cell_failgraphwrite_codeowners
+ifa_fault_shard_run cell_baseline_repo_dependency
+ifa_fault_shard_run cell_killworker_repo_dependency
+ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

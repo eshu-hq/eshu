@@ -139,7 +139,7 @@ assert_rationale_truth() {
 }
 
 # assert_rationale_delta_truth is used only after delta-retract's combined SQL
-# and rationale delta drain. The other twenty cells remain bound to the
+# and rationale delta drain. The other twenty-three cells remain bound to the
 # rationale baseline three-record graph and exact durable tuple through
 # run_drain_gate.
 assert_rationale_delta_truth() {

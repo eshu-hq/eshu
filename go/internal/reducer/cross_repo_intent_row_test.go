@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -269,5 +270,42 @@ func TestBuildResolvedEdgeIntentRowsFromRealPipelineOmitsAbsentEdgeDetailFields(
 	}
 	if _, ok := rows[0].Payload["destination_namespace"]; ok {
 		t.Fatalf("Payload must not carry destination_namespace at all (removed, no producer): %#v", rows[0].Payload)
+	}
+}
+
+// TestExtractRepoDependencyIntentRowsMatchesUnexportedHelper proves the
+// exported ExtractRepoDependencyIntentRows (added for Ifá's repo_dependency
+// materialized-edge vacuity guard, #5999) is a pure passthrough to the exact
+// same buildResolvedEdgeIntentRows production Handle step 5 calls, not a
+// re-implementation the two could silently drift apart from. A regression
+// that dropped an argument, reordered them, or hand-rolled a partial
+// conversion would fail this reflect.DeepEqual, not merely "look plausible".
+func TestExtractRepoDependencyIntentRowsMatchesUnexportedHelper(t *testing.T) {
+	t.Parallel()
+
+	resolved := []relationships.ResolvedRelationship{
+		{
+			SourceRepoID:     "repo-source",
+			TargetRepoID:     "repo-target",
+			RelationshipType: relationships.RelUsesModule,
+			Confidence:       0.9,
+			EvidenceCount:    1,
+			Rationale:        "terraform module source points at the target module repository",
+			ResolutionSource: relationships.ResolutionSourceInferred,
+		},
+	}
+	createdAt := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+
+	wantRows, wantCounts := buildResolvedEdgeIntentRows(resolved, "scope-1", "source-run-1", "gen-1", createdAt)
+	gotRows, gotCounts := ExtractRepoDependencyIntentRows(resolved, "scope-1", "source-run-1", "gen-1", createdAt)
+
+	if !reflect.DeepEqual(gotRows, wantRows) {
+		t.Fatalf("ExtractRepoDependencyIntentRows rows = %#v, want %#v", gotRows, wantRows)
+	}
+	if !reflect.DeepEqual(gotCounts, wantCounts) {
+		t.Fatalf("ExtractRepoDependencyIntentRows route counts = %#v, want %#v", gotCounts, wantCounts)
+	}
+	if len(gotRows) != 1 {
+		t.Fatalf("len(gotRows) = %d, want 1 (test is vacuous otherwise)", len(gotRows))
 	}
 }
