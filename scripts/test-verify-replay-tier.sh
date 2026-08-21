@@ -18,6 +18,37 @@ has_serialized_package_command() {
 		"$1"
 }
 
+# has_blast_radius_command checks the gate also runs the sql_table blast-radius
+# branch proof (#5409). Those two tests skip unless ESHU_REPLAY_TIER_LIVE=1, and
+# until #6182 the only thing setting it was this gate, whose package list and
+# -run allowlist named neither. A skipped test is indistinguishable from a
+# passing one in any summary a reviewer reads.
+has_blast_radius_command() {
+	rg --quiet '^[[:space:]]*go test -p=1 \./internal/query/ \\$' "$1" &&
+		rg --quiet "^[[:space:]]*-run 'TestSQLTableBlastRadiusEveryBranchContributesLive\|TestSQLTableBlastRadiusDetectsADeadBranchLive' \\\\$" "$1"
+}
+
+# has_blast_radius_nonvacuity_guard checks the gate asserts both tests actually
+# RAN. `go test -run` exits 0 when its regex matches nothing, so renaming a test
+# turns the proof into a no-op that reports success. That is #5974's shape,
+# where an assertion which never fired read as green for months -- and it failed
+# there because it called a binary the runner did not have, so the guard must
+# also refuse to run without rg rather than treat a missing tool as no-match.
+#
+# Every pattern below is anchored at line start through tab indentation only, so
+# a `# ` prefix breaks it. An unanchored whole-file search would keep passing
+# after the assertion was commented out, which is the shape that has let
+# load-bearing lines be deleted while their mirror stayed green.
+has_blast_radius_nonvacuity_guard() {
+	local name
+	for name in TestSQLTableBlastRadiusEveryBranchContributesLive \
+		TestSQLTableBlastRadiusDetectsADeadBranchLive; do
+		rg --quiet "^\t${name}[; \\\\]" "$1" || return 1
+	done
+	rg --quiet '^\trg --quiet "\^--- PASS: \$\{required_test\} "' "$1" || return 1
+	rg --quiet '^command -v rg >/dev/null 2>&1 \|\| die' "$1"
+}
+
 has_workflow_wiring() {
 	local install_line test_line
 	install_line="$(rg --line-number --no-heading \
@@ -25,13 +56,25 @@ has_workflow_wiring() {
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
+		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/dev/pre-pr\\.sh'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/ci/install-apt-packages\\.sh'$" "$1"
 }
 
+# replay_registry_block prints only the replay-tier gate's rows. Twelve other
+# gates in the same registry also trigger on go/internal/query/**, so a
+# whole-file search for that line reports success whether or not THIS gate
+# carries it -- verified by deleting the trigger and watching an unscoped check
+# stay green.
+replay_registry_block() {
+	awk '/^  - id: / { inside = ($0 == "  - id: replay-tier") } inside { print }' "$1"
+}
+
 has_registry_wiring() {
-	rg --quiet '^[[:space:]]*- "scripts/test-verify-replay-tier\.sh"$' "$1" &&
+	replay_registry_block "$1" |
+		rg --quiet '^[[:space:]]*- "go/internal/query/\*\*"$' &&
+		rg --quiet '^[[:space:]]*- "scripts/test-verify-replay-tier\.sh"$' "$1" &&
 		rg --quiet '^[[:space:]]*- "scripts/dev/pre-pr\.sh"$' "$1" &&
 		rg --quiet '^[[:space:]]*- "scripts/ci/install-apt-packages\.sh"$' "$1" &&
 		rg --quiet '^[[:space:]]*test_command: "bash scripts/test-verify-replay-tier\.sh"$' "$1"
@@ -47,7 +90,7 @@ has_prepr_selector_parity() {
 	rg --quiet "^[[:space:]]+'\\^\\(.*\\)'[[:space:]]+\\\\$" <<<"${trigger}" || return 1
 	for required_path in \
 		'go/cmd/(ingester|projector)/' \
-		'go/internal/(replay|reducer|storage/cypher|storage/nornicdb|projector|graph|runtime)/' \
+		'go/internal/(query|replay|reducer|storage/cypher|storage/nornicdb|projector|graph|runtime)/' \
 		'testdata/cassettes/(replayoffline|replaydelta)/' \
 		'scripts/(verify-replay-tier|test-verify-replay-tier)\.sh' \
 		'scripts/dev/pre-pr\.sh' \
@@ -66,6 +109,10 @@ command -v rg >/dev/null 2>&1 || fail "missing required tool: rg"
 
 has_serialized_package_command "${script}" \
 	|| fail "shared-graph package test binaries must run sequentially with go test -p=1"
+has_blast_radius_command "${script}" \
+	|| fail "gate must run the sql_table blast-radius branch proof (#5409), not only the replay tier (#6182)"
+has_blast_radius_nonvacuity_guard "${script}" \
+	|| fail "gate must assert both blast-radius tests RAN; go test -run exits 0 on a regex matching nothing"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -83,6 +130,17 @@ trap 'rm -rf "${tmp}"' EXIT
 sed 's/^[[:space:]]*go test -p=1 /# go test -p=1 /' "${script}" >"${tmp}/script"
 if has_serialized_package_command "${tmp}/script"; then
 	fail "commented-out package serialization must not satisfy the guard"
+fi
+if has_blast_radius_command "${tmp}/script"; then
+	fail "commented-out blast-radius invocation must not satisfy the guard"
+fi
+sed '/rg --quiet "\^--- PASS: \${required_test} "/s/^/# /' "${script}" >"${tmp}/script-vacuous"
+if has_blast_radius_nonvacuity_guard "${tmp}/script-vacuous"; then
+	fail "commented-out non-vacuity assertion must not satisfy the guard"
+fi
+sed '/^command -v rg >\/dev\/null 2>&1 || die/s/^/# /' "${script}" >"${tmp}/script-no-rg"
+if has_blast_radius_nonvacuity_guard "${tmp}/script-no-rg"; then
+	fail "gate must refuse to run without rg rather than read a missing tool as no-match (#5974)"
 fi
 sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 	-e '/^[[:space:]]*run: bash scripts\/test-verify-replay-tier\.sh$/s/^/# /' \
