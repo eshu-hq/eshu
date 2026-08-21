@@ -125,13 +125,13 @@ const (
 // of the repo_dependency family fixture.
 func repoDependencyFamilyOdu() CatalogOdu {
 	factsForOdu := []facts.Envelope{
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetProvisionsRepoID, repoDependencyFamilyTargetProvisionsName, "ifa-org/"+repoDependencyFamilyTargetProvisionsName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetUsesModuleRepoID, repoDependencyFamilyTargetUsesModuleName, "ifa-org/"+repoDependencyFamilyTargetUsesModuleName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDiscoversConfigRepoID, repoDependencyFamilyTargetDiscoversConfigName, "ifa-org/"+repoDependencyFamilyTargetDiscoversConfigName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDependsOnRepoID, repoDependencyFamilyTargetDependsOnName, "ifa-org/"+repoDependencyFamilyTargetDependsOnName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetDeploysFromRepoID, repoDependencyFamilyTargetDeploysFromName, "ifa-org/"+repoDependencyFamilyTargetDeploysFromName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilyTargetReadsConfigRepoID, repoDependencyFamilyTargetReadsConfigName, "ifa-org/"+repoDependencyFamilyTargetReadsConfigName),
-		repoDependencyFamilyRepositoryFact(repoDependencyFamilySourceRepoID, repoDependencyFamilySourceName, repoDependencyFamilySourceSlug),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetProvisionsRepoID, repoDependencyFamilyTargetProvisionsName, "ifa-org/"+repoDependencyFamilyTargetProvisionsName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetUsesModuleRepoID, repoDependencyFamilyTargetUsesModuleName, "ifa-org/"+repoDependencyFamilyTargetUsesModuleName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetDiscoversConfigRepoID, repoDependencyFamilyTargetDiscoversConfigName, "ifa-org/"+repoDependencyFamilyTargetDiscoversConfigName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetDependsOnRepoID, repoDependencyFamilyTargetDependsOnName, "ifa-org/"+repoDependencyFamilyTargetDependsOnName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetDeploysFromRepoID, repoDependencyFamilyTargetDeploysFromName, "ifa-org/"+repoDependencyFamilyTargetDeploysFromName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetReadsConfigRepoID, repoDependencyFamilyTargetReadsConfigName, "ifa-org/"+repoDependencyFamilyTargetReadsConfigName)),
+		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilySourceRepoID, repoDependencyFamilySourceName, repoDependencyFamilySourceSlug)),
 		repoDependencyFamilyFileFact(codegraphv1.File{
 			RepoID:       repoDependencyFamilySourceRepoID,
 			RelativePath: "deploy/application.yaml",
@@ -212,30 +212,33 @@ func RepoDependencyFamilyOdu() CatalogOdu {
 	return repoDependencyFamilyOdu()
 }
 
-// repoDependencyFamilyRepositoryFact builds one raw "repository" fact in the
-// shape relationships.RepositoryCatalogEntry reads (repo_id, name,
-// repo_slug), the same untyped shape odu:repo-dependency-concurrency already
-// proves satisfies the fact-kind registry (repo_dependency_odu.go's
-// repoDependencyRepositoryFact) -- deliberately NOT the typed
-// codegraphv1.Repository/factschema.EncodeCodegraphRepository shape
-// deployable_unit_family_catalog.go uses, because this family's evidence
-// discovery needs only the untyped alias fields, not a full codegraph
-// Repository contract.
-func repoDependencyFamilyRepositoryFact(repoID, name, repoSlug string) facts.Envelope {
-	scopeID, generationID := repoDependencyFamilyRepoCoordinates(name)
-	payload := map[string]any{
-		"graph_id":          repoID,
-		"graph_kind":        "repository",
-		"name":              name,
-		"repo_id":           repoID,
-		"repo_slug":         repoSlug,
-		"remote_url":        "https://github.com/ifa-org/" + name + ".git",
-		"local_path":        "/fixtures/ifa/" + name,
-		"parsed_file_count": "0",
-		"is_dependency":     repoID != repoDependencyFamilySourceRepoID,
-		"source_run_id":     repoDependencyFamilySourceRunID,
+func repoDependencyFamilyRepository(repoID, name, repoSlug string) codegraphv1.Repository {
+	graphKind := "repository"
+	parsedFileCount := "0"
+	isDependency := repoID != repoDependencyFamilySourceRepoID
+	remoteURL := "https://github.com/ifa-org/" + name + ".git"
+	localPath := "/fixtures/ifa/" + name
+	sourceRunID := repoDependencyFamilySourceRunID
+	return codegraphv1.Repository{
+		RepoID: repoID, GraphID: &repoID, GraphKind: &graphKind, Name: &name,
+		ParsedFileCount: &parsedFileCount, IsDependency: &isDependency,
+		RepoSlug: &repoSlug, RemoteURL: &remoteURL, LocalPath: &localPath,
+		SourceRunID: &sourceRunID,
 	}
-	return repoDependencyFamilyFactAt(scopeID, generationID, repositoryFactKind, "repository:"+repoID, payload)
+}
+
+// repoDependencyFamilyRepositoryFact encodes one typed repository contract
+// before assigning the family's per-repository scope and generation.
+func repoDependencyFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
+	if repository.Name == nil || *repository.Name == "" {
+		panic(fmt.Sprintf("ifa: repo-dependency catalog repository %q has no name", repository.RepoID))
+	}
+	payload, err := factschema.EncodeCodegraphRepository(repository)
+	if err != nil {
+		panic(fmt.Sprintf("ifa: encode repo-dependency catalog repository %q: %v", repository.RepoID, err))
+	}
+	scopeID, generationID := repoDependencyFamilyRepoCoordinates(*repository.Name)
+	return repoDependencyFamilyFactAt(scopeID, generationID, factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload)
 }
 
 func repoDependencyFamilyRepoCoordinates(name string) (string, string) {
