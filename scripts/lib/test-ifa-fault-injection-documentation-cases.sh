@@ -16,6 +16,10 @@
 # helper.
 
 run_ifa_documentation_live_static_cases() {
+	local proof_suite_guide="${repo_root}/docs/public/guides/run-the-proof-suite.md"
+	local expected_fault_guide_row='| `ifa-fault-injection` | Lease reclaim and retry converge across a 27-cell matrix. It includes fault injection, baselines, and exact-edge delta retraction. CI shards 26 non-baseline cells four ways and repeats the shared baseline, for 30 runs. |'
+	rg --fixed-strings --line-regexp --quiet -- "${expected_fault_guide_row}" "${proof_suite_guide}" \
+		|| fail "run-the-proof-suite fault-injection row must stay in lockstep with the 27-cell, 26 non-baseline, 30-run shard matrix"
 	# Every cell drives the family via drive_all_cassettes, baseline exact-asserts
 	# it, and two dedicated cells prove queue reclaim and graph-write retry.
 	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
