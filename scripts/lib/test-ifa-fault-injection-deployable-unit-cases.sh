@@ -19,6 +19,10 @@
 # deployable_unit_cells_lib for the same 500-line reason -- their
 # definitions are checked there, their WIRING against deployable_unit_cells_lib.
 
+# shellcheck source=scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh
+deployable_unit_kill_isolation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
+source "${deployable_unit_kill_isolation_cases_lib}"
+
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_live_lib}")" -ge 1 ]] \
@@ -47,6 +51,7 @@ require_deployable_unit_cells() {
 # the parent's scope, not at source time -- a bare top-level block here would
 # silently assert against empty variables.
 run_ifa_fault_injection_deployable_unit_cases() {
+	run_ifa_fault_injection_deployable_unit_kill_isolation_cases
 	# The live gate script actually sources each deployable-unit lib. Moved
 	# here from the top-level preamble (mirroring the require_* relocation
 	# this whole split exists to demonstrate) to keep the parent structural
