@@ -51,11 +51,15 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# here from the top-level preamble (mirroring the require_* relocation
 	# this whole split exists to demonstrate) to keep the parent structural
 	# verifier under the repository's 500-line cap.
-	require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
-	require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-	require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
-	require_code "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-	require_code "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+	for source_name in \
+		ifa_deployable_unit_live.sh \
+		ifa_deployable_unit_live_diagnostics.sh \
+		ifa_deployable_unit_live_converge.sh \
+		ifa_fault_injection_deployable_unit_lock.sh \
+		ifa_fault_injection_deployable_unit_cells.sh; do
+		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
+			|| fail "source inventory omits ${source_name}"
+	done
 
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
 	# fault cells, run after a bootstrap-index maintenance pass

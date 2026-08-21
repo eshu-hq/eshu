@@ -63,7 +63,8 @@
 # cell_baseline (the SHARED, non-family baseline) is the sole writer of
 # digests[baseline] (scripts/lib/ifa_fault_injection_driver.sh's
 # assert_matches_baseline), which every recovery cell reads UNLESS it reads
-# a family-scoped baseline digest instead. Today those carve-outs are deployable_unit, codeowners, and repo_dependency;
+# a family-scoped baseline digest instead. Today those carve-outs are
+# deployable_unit, codeowners, repo_dependency, and submodule_pin;
 # each recovery pair reads the digest written by its own family baseline.
 # The deployable_unit family (#5993) additionally runs an
 # extra bootstrap-index maintenance pass the shared baseline never runs (see

@@ -11,7 +11,8 @@
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`) PLUS
-# the SQL relationship, code-call, documentation, rationale, and repository-dependency family cassettes
+# the SQL relationship, code-call, documentation, rationale, repository-
+# dependency, and submodule-pin family cassettes
 # through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
@@ -21,8 +22,8 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Twenty-four cells, each hitting a genuinely different recovery or delivery
-# seam. All twenty-four run by default. Cell functions live in
+# Twenty-seven cells, each hitting a genuinely different recovery or delivery
+# seam. All twenty-seven run by default. Cell functions live in
 # scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
@@ -32,7 +33,9 @@
 # (cells 10-11, issue #5544), and
 # scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue
 # #5993), scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
-# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue #5999).
+# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue
+# #5999), and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells
+# 25-27, issue #6002).
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -203,57 +206,8 @@ cd "${repo_root}"
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_common.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_driver.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
-# shellcheck source=scripts/lib/ifa_fault_shard.sh
-source "${repo_root}/scripts/lib/ifa_fault_shard.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_sql_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
-# shellcheck source=scripts/lib/ifa_fault_generic_cells.sh
-# Self-sources its own three mechanism files and ifa_family_registry.sh;
-# cell_killworker_family/cell_failgraphwrite_family below are what the
-# code_calls and rationale_edges cell bodies delegate to.
-source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
-# shellcheck source=scripts/lib/ifa_fault_generic_baseline_cell.sh
-source "${repo_root}/scripts/lib/ifa_fault_generic_baseline_cell.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_code_call_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_code_call_cells.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_rationale_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_collateral_nodes.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_delivery_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
-# shellcheck source=scripts/lib/ifa_sql_delta_live.sh
-# Shared with scripts/verify-ifa-determinism.sh so both gates agree on what a
-# correctly-landed generation-2 delta looks like (#5544 cell_deltaretract).
-source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
-# shellcheck source=scripts/lib/ifa_code_call_live.sh
-source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
-# shellcheck source=scripts/lib/ifa_documentation_live.sh
-source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_documentation_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_documentation_cells.sh"
-# shellcheck source=scripts/lib/ifa_deployable_unit_live.sh
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
-# shellcheck source=scripts/lib/ifa_deployable_unit_live_diagnostics.sh
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-# shellcheck source=scripts/lib/ifa_deployable_unit_live_converge.sh
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_lock.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-# shellcheck source=scripts/lib/ifa_fault_injection_deployable_unit_cells.sh
-source "${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
-# shellcheck source=scripts/lib/ifa_rationale_live.sh
-source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
-# shellcheck source=scripts/lib/ifa_codeowners_live.sh
-source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_codeowners_cells.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh"
-# shellcheck source=scripts/lib/ifa_submodule_pin_live.sh
-source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"; source "${repo_root}/scripts/lib/ifa_fault_injection_submodule_pin_cells.sh"  # two sources, one line, same reason
+# shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -496,7 +450,9 @@ ifa_fault_shard_run cell_baseline_repo_dependency
 ifa_fault_shard_run cell_killworker_repo_dependency
 ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 
-# submodule_pin_edges (#6002), cells 22-24; baseline first (it sets digests[baseline_submodule_pin] + baseline_submodule_pin_retried), same trio shape as codeowners above.
+# submodule_pin_edges (#6002), cells 25-27; baseline first (it sets
+# digests[baseline_submodule_pin] + baseline_submodule_pin_retried), same trio
+# shape as codeowners above.
 ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin

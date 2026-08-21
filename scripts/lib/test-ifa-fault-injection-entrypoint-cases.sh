@@ -4,22 +4,40 @@
 # Sourced by scripts/test-verify-ifa-fault-injection.sh.
 
 run_ifa_fault_entrypoint_static_cases() {
+	require_source_inventory() {
+		local label="$1"
+		local needle="$2"
+		[[ "$(_ifa_count_code_matches "${needle}" "${sources_lib}")" -ge 1 ]] \
+			|| fail "${label}"
+	}
+
 	# Strict mode, self-cleanup, and the masking-safe bash>=4.4 guard.
 	require_line "strict mode" "set -euo pipefail"
 	require_code "exit trap" "trap cleanup EXIT"
 	require_code "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 	require_code "sources determinism lib" "scripts/lib/ifa_determinism_common.sh"
 	require_code "sources fault-injection lib" "scripts/lib/ifa_fault_injection_common.sh"
-	require_code "sources driver lib" "scripts/lib/ifa_fault_injection_driver.sh"
-	require_code "sources cells lib" "scripts/lib/ifa_fault_injection_cells.sh"
-	require_code "sources sql cells lib" "scripts/lib/ifa_fault_injection_sql_cells.sh"
-	require_code "sources code-call live lib" "scripts/lib/ifa_code_call_live.sh"
-	require_code "sources documentation ACK barrier lib" "scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh"
-	require_code "sources code-call cells lib" "scripts/lib/ifa_fault_injection_code_call_cells.sh"
-	require_code "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
-	require_code "sources rationale cells lib" "scripts/lib/ifa_fault_injection_rationale_cells.sh"
-	require_code "sources collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, rationale, and repository-dependency family cassettes"
+	require_source_inventory "source inventory omits driver lib" "scripts/lib/ifa_fault_injection_driver.sh"
+	require_code "sources source-inventory lib" "scripts/lib/ifa_fault_injection_sources.sh"
+	for source_name in \
+		ifa_fault_injection_cells.sh \
+		ifa_fault_injection_sql_cells.sh \
+		ifa_fault_generic_cells.sh \
+		ifa_fault_injection_codeowners_cells.sh \
+		ifa_fault_injection_repo_dependency_cells.sh \
+		ifa_fault_injection_submodule_pin_cells.sh; do
+		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
+			|| fail "source-inventory lib does not source ${source_name}"
+	done
+	require_source_inventory "source inventory omits cells lib" "scripts/lib/ifa_fault_injection_cells.sh"
+	require_source_inventory "source inventory omits sql cells lib" "scripts/lib/ifa_fault_injection_sql_cells.sh"
+	require_source_inventory "source inventory omits code-call live lib" "scripts/lib/ifa_code_call_live.sh"
+	require_source_inventory "source inventory omits documentation ACK barrier lib" "scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh"
+	require_source_inventory "source inventory omits code-call cells lib" "scripts/lib/ifa_fault_injection_code_call_cells.sh"
+	require_source_inventory "source inventory omits rationale live lib" "scripts/lib/ifa_rationale_live.sh"
+	require_source_inventory "source inventory omits rationale cells lib" "scripts/lib/ifa_fault_injection_rationale_cells.sh"
+	require_source_inventory "source inventory omits collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
+	require "gate overview names the latest exact-set cassette family" "dependency, and submodule-pin family cassettes"
 	require_code "failure log dump" "host binary logs (failure)"
 	# The container-log tail alone cannot name a dead-lettered row: its
 	# failure_message lives only in Postgres, and one real CI failure spent

@@ -356,7 +356,7 @@ run_ifa_rationale_live_static_cases() {
 		'testdata/cassettes/rationale/ifa-rationale-family-delta.json' \
 		'go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json' \
 		'go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'; do
-		rg --fixed-strings --quiet -- "${needle}" "${script}" "${fixtures_lib}" \
+		rg --fixed-strings --quiet -- "${needle}" "${script}" "${sources_lib}" "${fixtures_lib}" \
 			|| fail "fault verifier missing rationale wiring: ${needle}"
 	done
 	# The rationale anchor moved into the registry when this family migrated onto

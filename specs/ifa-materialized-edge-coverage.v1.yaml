@@ -244,7 +244,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 24-cell fault
+  # the exact one-edge survivor. The 27-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.
@@ -440,7 +440,7 @@ waivers:
 #     exact-one survivor; that delta behavior is not a separate required row.
 #   - deployable_unit_edges BASELINE and FAULT are covered once its vacuity
 #     guard is dispatched and its Odù cataloged (#5993/#6158).
-#   - The 7 other allProjectionDomains families are blocked on the epic #5344
+#   - The 6 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------
