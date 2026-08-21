@@ -122,7 +122,8 @@ source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
-source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"  # two sources, one line: this file is at the 500-line cap and a genuinely new line here is not free
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
+source "${repo_root}/scripts/lib/ifa_inheritance_live.sh"; source "${repo_root}/scripts/lib/ifa_shell_exec_live.sh"  # paired sources keep this near-cap gate below 500 lines
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port

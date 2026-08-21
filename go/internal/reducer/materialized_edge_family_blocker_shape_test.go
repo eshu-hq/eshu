@@ -170,10 +170,7 @@ var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 // recently: scripts/lib/ifa_family_registry/rows/07_submodule_pin_edges.sh
 // and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh landed
 // together, so it is removed rather than added here.
-var materializedEdgeFamilyNotYetInRegistry = map[string]string{
-	DomainShellExec:        "no ifa_fault_injection_shell_exec_cells.sh exists yet -- fault cell not landed",
-	DomainInheritanceEdges: "no ifa_fault_injection_inheritance_cells.sh exists yet -- fault cell not landed",
-}
+var materializedEdgeFamilyNotYetInRegistry = map[string]string{}
 
 // noopFactLoader, noopIntentWriter, and noopSharedProjectionEdgeWriter are
 // minimal non-nil DefaultHandlers dependency stubs. They exist only so

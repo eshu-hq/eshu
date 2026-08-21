@@ -275,7 +275,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 			}
 			seenEdges[edgeKey] = struct{}{}
 
-			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "INHERITS"))
+			rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "INHERITS"))
 		}
 
 		if _, implementer := implementerEntityTypes[entityType]; implementer {
@@ -294,7 +294,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "IMPLEMENTS"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "IMPLEMENTS"))
 			}
 		}
 
@@ -315,7 +315,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "OVERRIDES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "OVERRIDES"))
 			}
 
 			for _, aliasedTrait := range inheritanceTraitAliasTargets(adaptation) {
@@ -330,7 +330,7 @@ func ExtractInheritanceRows(envelopes []facts.Envelope) ([]string, []map[string]
 				}
 				seenEdges[edgeKey] = struct{}{}
 
-				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, "path"), parent, repoID, "ALIASES"))
+				rows = append(rows, declaredInheritanceRow(childEntityID, entityType, semanticPayloadString(env.Payload, inheritanceEntityPathKey), parent, repoID, "ALIASES"))
 			}
 
 			aliasMapping, ok := inheritanceTraitAliasMapping(adaptation)
@@ -440,7 +440,7 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: entityType,
-				path:       semanticPayloadString(env.Payload, "path"),
+				path:       semanticPayloadString(env.Payload, inheritanceEntityPathKey),
 			}
 		}
 	}
@@ -472,13 +472,15 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: "Function",
-				path:       semanticPayloadString(env.Payload, "path"),
+				path:       semanticPayloadString(env.Payload, inheritanceEntityPathKey),
 			}
 		}
 	}
 	return index
 }
 
-// collectInheritanceRepoIDs and inheritancePayloadBases live in
+// collectInheritanceRepoIDs, inheritancePayloadBases, and
+// inheritanceEntityPathKey (the payload key read for every childPath /
+// inheritanceEntityRef.path above) live in
 // inheritance_materialization_diagnostics.go alongside countInheritanceFactInputs
 // to keep this file under the 500-line cap.

@@ -244,7 +244,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 27-cell fault
+  # the exact one-edge survivor. The 33-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.
@@ -289,6 +289,38 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-repo-dependency-family"
     proof_gate: ifa-fault-injection
+  # inheritance_edges (#5996) and shell_exec (#6001). Both carry an Odu with a
+  # committed expected-edge set, and both are now driven by the live gates:
+  # SHARED_CELL=1 puts each in the determinism gate's shared N={1,2,4} cell via
+  # the registry dispatch loop, and each has its own baseline/killworker/
+  # failgraphwrite trio in the fault gate through the generic cell dispatchers.
+  # The fault rows are real rather than aspirational for a DIFFERENT reason than
+  # codeowners' above: these two declare blocker_kind=shared_intent_lock, not a
+  # table lock, so the fault cell proves recovery across the shared intent lock
+  # rather than through a relation visibly contended in pg_locks. Each also
+  # drives itself (FAULT_SHARED_DRIVE=0) and therefore owns its own baseline
+  # digest, so a fault that silently dropped an edge on recovery diverges that
+  # family's own digest instead of hiding inside the shared one.
+  - surface: "materialized_edges:inheritance_edges"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-inheritance-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:inheritance_edges"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-inheritance-family"
+    proof_gate: ifa-fault-injection
+  - surface: "materialized_edges:shell_exec"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-shell-exec-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:shell_exec"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-shell-exec-family"
+    proof_gate: ifa-fault-injection
 
   # submodule_pin_edges (#6002). SubmodulePinEdgeMaterializationHandler is the
   # same single-stage, EdgeWriter-only, no-IntentWriter shape as
@@ -329,7 +361,7 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 6 other allProjectionDomains families: both live gates unproven. ---
+  # --- The 4 other allProjectionDomains families: both live gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver. Most still lack an Odù + expected-edge-set fixture; family-specific
   # comments below name any stronger offline proof that still lacks a live gate.
@@ -346,26 +378,6 @@ waivers:
     issue: "#6003"
     waived: "2026-07-20"
     reason: "reducer.DomainWorkloadDependency; pending #6003 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:shell_exec"
-    proof_gate: ifa-determinism
-    issue: "#6001"
-    waived: "2026-07-20"
-    reason: "reducer.DomainShellExec; pending #6001 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:shell_exec"
-    proof_gate: ifa-fault-injection
-    issue: "#6001"
-    waived: "2026-07-20"
-    reason: "reducer.DomainShellExec; pending #6001 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:inheritance_edges"
-    proof_gate: ifa-determinism
-    issue: "#5996"
-    waived: "2026-07-20"
-    reason: "reducer.DomainInheritanceEdges; pending #5996 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:inheritance_edges"
-    proof_gate: ifa-fault-injection
-    issue: "#5996"
-    waived: "2026-07-20"
-    reason: "reducer.DomainInheritanceEdges; pending #5996 for an Odù + expected-edge-set fixture"
   # documentation_edges carries NO waiver. Both dimensions were waived from
   # 2026-08-09 until #5994, when only the EXTRACTOR was proven and neither gate
   # executed the family -- a coverage row would have claimed a gate proves
@@ -440,7 +452,7 @@ waivers:
 #     exact-one survivor; that delta behavior is not a separate required row.
 #   - deployable_unit_edges BASELINE and FAULT are covered once its vacuity
 #     guard is dispatched and its Odù cataloged (#5993/#6158).
-#   - The 6 other allProjectionDomains families are blocked on the epic #5344
+#   - The 4 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543, decomposed into per-domain child issues #5991-#6003
 #     (both gates each).
 # ---------------------------------------------------------------------------

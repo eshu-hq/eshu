@@ -1,0 +1,16 @@
+{
+  "odu": "odu:ifa-shell-exec-family",
+  "note": "Hand-derived from reducer.ExtractShellExecRows's real extraction path (go/internal/reducer/shell_exec_materialization.go) over shell_exec_family_odu.go's fixture. Both edges come from services/deploy/deploy.py's deploy_service function: two distinct (line_number, api) commands survive after an exact-duplicate command collapses via ExtractShellExecRows's own edgeKey dedup. source_entity_id is deploy_service's canonical Function uid (content.CanonicalEntityID); target_entity_id is the sha256 ShellCommand uid edge_writer_shell_exec.go's shellExecTargetID derives over (repo_id, source_path, function_entity_id, line_number, api) where source_path is parsed_file_data.path (/repo-shell-exec/services/deploy/deploy.py, the fallback ExtractShellExecRows uses when the top-level envelope carries no \"path\" key) -- independently reproduced (not hand-typed) by TestShellExecTargetIDLiteralsMatchTheWriterFunction. cleanup.py, orphan.py, and silent.py derive zero edges by construction -- see shell_exec_family_odu.go's doc comment for which exclusion clause each pins.",
+  "edges": [
+    {
+      "relationship_type": "EXECUTES_SHELL",
+      "source_entity_id": "content-entity:e_8dccb4300a1b",
+      "target_entity_id": "shell-command:684dbafc339b684757e594dddd2c1b58a5e6613885d9506e94b9cb02258efd1a"
+    },
+    {
+      "relationship_type": "EXECUTES_SHELL",
+      "source_entity_id": "content-entity:e_8dccb4300a1b",
+      "target_entity_id": "shell-command:c61db6da0b0b274841061584a6e9fe62f1290fd66a8fe9d2f85216eb52c11b92"
+    }
+  ]
+}

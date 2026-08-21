@@ -61,3 +61,11 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_repo_dependenc
 source "${ifa_fault_sources_root}/scripts/lib/ifa_submodule_pin_live.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_submodule_pin_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_submodule_pin_cells.sh"
+# shellcheck source=scripts/lib/ifa_inheritance_live.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_inheritance_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_inheritance_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_inheritance_cells.sh"
+# shellcheck source=scripts/lib/ifa_shell_exec_live.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_shell_exec_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_shell_exec_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_shell_exec_cells.sh"

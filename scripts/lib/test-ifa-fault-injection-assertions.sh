@@ -12,7 +12,7 @@
 # The rest bind code and use require_code. The exact number is deliberately
 # not spelled here: it drifted twice (45 vs 44) because a prose count in a
 # comment has no gate, which is the same trap three public docs hit with
-# "twenty-four cells". The split was established
+# "thirty cells". The split was established
 # empirically, not by reading labels: every call site was converted, the mirror
 # run, and only the ones that genuinely could not pass were moved back.
 require() {
@@ -363,7 +363,7 @@ _ifa_count_code_matches() {
 		# whitespace: `;` `|` `&` `(` `)` `<` `>` all do it. Cutting only at
 		# whitespace-then-`#` let `:;#trap ifa_det_cleanup EXIT` read as live code,
 		# which reproduced on HEAD the exact defect the previous round closed --
-		# shellcheck does not flag it, `bash -n` passes, and no gate runs shellcheck
+		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
 		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))

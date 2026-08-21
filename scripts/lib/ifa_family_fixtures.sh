@@ -86,6 +86,27 @@ repo_dependency_expected_edges="${repo_root}/go/internal/ifa/testdata/repodepend
 submodule_pin_cassette="${repo_root}/testdata/cassettes/submodulepin/ifa-submodule-pin-family.json"
 submodule_pin_expected_edges="${repo_root}/go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json"
 
+# inheritance_edges family cassette (#5996): the INHERITS / IMPLEMENTS /
+# OVERRIDES / ALIASES edge family, exact-set asserted at five edges by both
+# gates -- one per type plus a second ALIASES, so a regression that keeps only
+# the INHERITS template cannot pass. Driven uniformly into every N-cell on the
+# determinism gate (a plain reducer family needing no maintenance pass), and
+# only by its own targeted cells on the fault-injection gate -- never by
+# drive_all_cassettes, per that driver's rule that a new family cassette must
+# not join the shared drive.
+inheritance_cassette="${repo_root}/testdata/cassettes/inheritance/ifa-inheritance-family.json"
+inheritance_expected_edges="${repo_root}/go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json"
+
+# shell_exec family cassette (#6001): the EXECUTES_SHELL edge family, exact-set
+# asserted at two edges by both gates. Two rather than three because
+# ExtractShellExecRows collapses an exact-duplicate command through its own
+# edgeKey dedup; the exact-set assertion is what makes that collapse provable
+# rather than assumed. Same drive placement as the families above: uniform on
+# the determinism N-cells, targeted-only on the fault gate, never
+# drive_all_cassettes.
+shell_exec_cassette="${repo_root}/testdata/cassettes/shellexec/ifa-shell-exec-family.json"
+shell_exec_expected_edges="${repo_root}/go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json"
+
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
 # so a missing file is identifiable from the failure line alone; "$1" is the
@@ -112,4 +133,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${repo_dependency_expected_edges}" ]] || { echo "${gate}: repo-dependency expected-edge set not found: ${repo_dependency_expected_edges}" >&2; exit 1; }
 	[[ -f "${submodule_pin_cassette}" ]] || { echo "${gate}: submodule-pin cassette not found: ${submodule_pin_cassette}" >&2; exit 1; }
 	[[ -f "${submodule_pin_expected_edges}" ]] || { echo "${gate}: submodule-pin expected-edge set not found: ${submodule_pin_expected_edges}" >&2; exit 1; }
+	[[ -f "${inheritance_cassette}" ]] || { echo "${gate}: inheritance cassette not found: ${inheritance_cassette}" >&2; exit 1; }
+	[[ -f "${inheritance_expected_edges}" ]] || { echo "${gate}: inheritance expected-edge set not found: ${inheritance_expected_edges}" >&2; exit 1; }
+	[[ -f "${shell_exec_cassette}" ]] || { echo "${gate}: shell-exec cassette not found: ${shell_exec_cassette}" >&2; exit 1; }
+	[[ -f "${shell_exec_expected_edges}" ]] || { echo "${gate}: shell-exec expected-edge set not found: ${shell_exec_expected_edges}" >&2; exit 1; }
 }

@@ -9,6 +9,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// inheritanceEntityPathKey is the payload key every content_entity fact
+// actually carries its file path under. contentEntityFactEnvelope
+// (go/internal/collector/git_content_fact_envelopes.go:80) emits
+// "relative_path", never "path" -- no content_entity fact this collector
+// produces carries a top-level "path" key. Reading "path" (the pre-#5996
+// behavior) returned "" for every inheritance edge in production, which
+// blanked the file-scoped partition-key anchor (inheritanceFilePartitionKey)
+// and the child_path provenance field on every emitted edge row. This is the
+// same class of bug #5998 found and fixed in ExtractRationaleEdgeRows
+// (rationale_edge_materialization.go:150-156): every sibling content_entity
+// reader (semantic_entity_materialization, sql_relationship_embedded_query,
+// sql_relationship_materialization) already reads "relative_path", so this
+// aligns inheritance with the established contract rather than inventing a new
+// one. No "path" fallback is added: unlike a `file` fact's parsed_file_data
+// (shell_exec_materialization.go, which legitimately carries a raw top-level
+// "path" for some callers/fixtures alongside its own nested "path"), a
+// content_entity fact never carries a top-level "path" key in any production
+// or fixture shape this repo emits, so a fallback here would be dead code
+// masking a real ordering bug instead of covering a genuine dual-shape
+// envelope (#5996).
+const inheritanceEntityPathKey = "relative_path"
+
 // countInheritanceFactInputs returns the number of content_entity facts loaded
 // for the inheritance materialization and, of those, how many carry an
 // inheritable entity type AND actually declare a parent (a base, an implemented

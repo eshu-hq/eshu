@@ -89,7 +89,15 @@ run_ifa_fault_injection_shard_cases() {
 		cell_baseline_repo_dependency
 		cell_killworker_repo_dependency
 		cell_failgraphwrite_repo_dependency
-		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin
+		cell_baseline_submodule_pin
+		cell_killworker_submodule_pin
+		cell_failgraphwrite_submodule_pin
+		cell_baseline_inheritance
+		cell_killworker_inheritance
+		cell_failgraphwrite_inheritance
+		cell_baseline_shell_exec
+		cell_killworker_shell_exec
+		cell_failgraphwrite_shell_exec
 	)
 
 	local actual_full
@@ -102,11 +110,12 @@ run_ifa_fault_injection_shard_cases() {
 		|| test_ifa_fault_shard_cases_fail "--list-cells output does not match the hand-authored literal list (see file header) -- actual:
 ${actual_full}"
 
-	# CELL-COUNT PIN (F-4). 27 = the
+	# CELL-COUNT PIN (F-4). 33 = the
 	# 15 cells the fault gate originally defined, plus the three
 	# deployable_unit-targeted cells (#5993), plus the three
-	# codeowners-targeted cells (#6160), plus the repo_dependency and
-	# submodule_pin_edges atomic trios. It is a COUNT pin, deliberately
+	# codeowners-targeted cells (#6160), plus the repo_dependency,
+	# submodule_pin_edges, inheritance_edges, and shell_exec_edges atomic
+	# trios. It is a COUNT pin, deliberately
 	# not weakened to an existence check, and it belongs beside the
 	# hand-authored cell list: the person who changes the number is the person
 	# adding cells, and they need to land in this file -- where the literal
@@ -152,14 +161,14 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# original; the CELL LIST is not -- the relocation landed an older
 	# eighteen-cell version of the loop, and the counts went with it; restored.)
 	#
-	# The twenty-seven-cell shape: baseline plus twenty-six cells with a live
+	# The thirty-three-cell shape: baseline plus thirty-two cells with a live
 	# seam -- four original recovery cells, two SQL-targeted (#5555), two
 	# delivery-shaped (#5544), two code-call-targeted (#5991), two
 	# documentation-targeted (#5994), two rationale-targeted (#5998), and a
 	# family-scoped baseline plus two recovery cells each for
 	# deployable_unit_edges (#5993), codeowners_ownership_edges (#6160),
-	# repo_dependency (#5999), and submodule_pin_edges (#6002). All twenty-seven
-	# run by default.
+	# repo_dependency (#5999), submodule_pin_edges (#6002), inheritance_edges
+	# (#5996), and shell_exec (#6001). All thirty-three run by default.
 	# Every cell is anchored to its own invocation line, never matched by bare name.
 	# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
 	# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
@@ -167,7 +176,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# the sole writer of digests[baseline], so every assert_matches_baseline call
 	# that does not name a family-scoped baseline would then compare against an
 	# unset key. The anchored form was previously applied to only five cells; it
-	# now covers all twenty-seven.
+	# now covers all thirty-three.
 	# rg without --fixed-strings so ^...$ binds.
 	#
 	# Prefixed with "ifa_fault_shard_run " (scripts/lib/ifa_fault_shard.sh): every
@@ -194,7 +203,9 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_failgraphwrite_deployable_unit \
 		cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners \
 		cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency \
-		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin; do
+		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin \
+		cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance \
+		cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec; do
 		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
 			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper (which would silently run every shard, ignoring --shard)"
 	done
@@ -217,7 +228,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# "cell_killworker_family code_calls" is satisfied by prose anywhere in
 	# the file (this module's own header comments say "rationale_edges"
 	# repeatedly) and would keep passing even if the delegation were deleted
-	# entirely -- the identical defect class the twenty-four-cell dispatch-anchor
+	# entirely -- the identical defect class the thirty-cell dispatch-anchor
 	# loop above already documents. Do not weaken these back to bare-word
 	# checks.
 	local code_call_cells_lib rationale_cells_lib
@@ -377,50 +388,13 @@ ${sorted_expected}"
 		"${#ifa_full_cell_list_literal[@]}" "${n}"
 }
 
-# run_ifa_fault_injection_deployable_unit_ordering_cases verifies the
-# deployable_unit trio's dispatch-anchor invocation and dispatch ORDER.
-# Extracted from scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh
-# to keep that file under the line cap (extraction, not deletion -- every
-# comment below is the full, unabridged rationale). "$1" is the gate script
-# path; the caller passes its own ${script} rather than this module
-# recomputing repo_root, since deployable-unit-cases.sh is always sourced
-# alongside a main mirror that already resolved it.
-run_ifa_fault_injection_deployable_unit_ordering_cases() {
-	local script="$1"
-
-	# Anchored the same way as the twenty-four-cell loop above: needles carry
-	# the ifa_fault_shard_run prefix (scripts/lib/ifa_fault_shard.sh), since
-	# every dispatch line now routes through that wrapper for --shard skip
-	# support. STRICTLY STRONGER than a bare-name check: an unwrapped cell
-	# would silently ignore --shard and run in every shard instead of just
-	# its own -- a real defect with no other detector, since the gate would
-	# still pass everywhere, just doing 4x the work for these three cells
-	# while quietly diverging from the partition this mirror claims to prove.
-	local cell
-	for cell in cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit; do
-		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
-			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper"
-	done
-
-	# The baseline cell must dispatch before both fault cells: it is the sole
-	# writer of digests[baseline_deployable_unit]
-	# (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh's
-	# assert_matches_baseline calls), which the two fault cells below read.
-	# This is also the co-location property the shard PARTITIONER depends on
-	# for its one atomic group (scripts/lib/ifa_fault_shard.sh's
-	# IFA_FAULT_ATOMIC_GROUPS): the trio must land in the same shard, in this
-	# order, or a fault cell reads an unset digests key. A line-number
-	# extraction that returns empty (rather than a real line) would otherwise
-	# fail below with a misleading "not a number" instead of naming the real
-	# cause, so each extracted line is validated as numeric first.
-	local baseline_du_line killworker_du_line failgraphwrite_du_line
-	baseline_du_line="$(rg -n --line-regexp -- 'ifa_fault_shard_run cell_baseline_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	killworker_du_line="$(rg -n --line-regexp -- 'ifa_fault_shard_run cell_killworker_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	failgraphwrite_du_line="$(rg -n --line-regexp -- 'ifa_fault_shard_run cell_failgraphwrite_deployable_unit' "${script}" | cut -d: -f1 || true)"
-	[[ "${baseline_du_line}" =~ ^[0-9]+$ && "${killworker_du_line}" =~ ^[0-9]+$ && "${failgraphwrite_du_line}" =~ ^[0-9]+$ \
-		&& "${baseline_du_line}" -lt "${killworker_du_line}" && "${baseline_du_line}" -lt "${failgraphwrite_du_line}" ]] \
-		|| test_ifa_fault_shard_cases_fail "cell_baseline_deployable_unit must be dispatched before both deployable-unit fault cells"
-}
+# run_ifa_fault_injection_deployable_unit_ordering_cases (deployable_unit
+# trio dispatch-anchor + ordering proof) moved to its own sibling module,
+# scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh, to
+# keep this file under the repository's 500-line cap -- extraction, not
+# deletion; every comment there is the full, unabridged rationale. Sourced
+# alongside this file by scripts/test-verify-ifa-fault-injection.sh, before
+# deployable_unit_cases_lib calls it.
 
 # run_ifa_fault_injection_atomic_group_ordering_cases generalizes the ordering
 # proof above over EVERY entry in IFA_FAULT_ATOMIC_GROUPS, instead of naming one

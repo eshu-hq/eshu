@@ -1,0 +1,261 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-shell-exec-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-shell-exec-family",
+      "metadata": {
+        "fixture": "ifa-shell-exec-family"
+      },
+      "generation_id": "gen-ifa-shell-exec-family-1",
+      "observed_at": "2026-08-18T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:r_9f3ce6a1",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "source_run_id": "run-ifa-shell-exec-family-1",
+            "local_path": "/repo-shell-exec"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:r_9f3ce6a1:services/deploy/deploy.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "relative_path": "services/deploy/deploy.py",
+            "parsed_file_data": {
+              "path": "/repo-shell-exec/services/deploy/deploy.py",
+              "functions": [
+                {
+                  "name": "deploy_service",
+                  "uid": "content-entity:e_8dccb4300a1b",
+                  "line_number": 4,
+                  "end_line": 5
+                }
+              ],
+              "embedded_shell_commands": [
+                {
+                  "function_name": "deploy_service",
+                  "function_line_number": 4,
+                  "line_number": 5,
+                  "api": "os.system",
+                  "language": "python"
+                },
+                {
+                  "function_name": "deploy_service",
+                  "function_line_number": 4,
+                  "line_number": 5,
+                  "api": "os.system",
+                  "language": "python"
+                },
+                {
+                  "function_name": "deploy_service",
+                  "function_line_number": 4,
+                  "line_number": 6,
+                  "api": "subprocess.run",
+                  "language": "python"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:r_9f3ce6a1:services/deploy/cleanup.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "relative_path": "services/deploy/cleanup.py",
+            "parsed_file_data": {
+              "path": "/repo-shell-exec/services/deploy/cleanup.py",
+              "functions": [
+                {
+                  "name": "cleanup_workspace",
+                  "uid": "content-entity:e_79ad678937d5",
+                  "line_number": 3,
+                  "end_line": 4
+                }
+              ],
+              "embedded_shell_commands": [
+                {
+                  "function_name": "cleanup_workspace",
+                  "function_line_number": 3,
+                  "line_number": 0,
+                  "api": "os.system",
+                  "language": "python"
+                },
+                {
+                  "function_name": "cleanup_workspace",
+                  "function_line_number": 3,
+                  "line_number": 5,
+                  "api": "",
+                  "language": "python"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:r_9f3ce6a1:services/deploy/orphan.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "relative_path": "services/deploy/orphan.py",
+            "parsed_file_data": {
+              "path": "/repo-shell-exec/services/deploy/orphan.py",
+              "functions": [
+                {
+                  "name": "report_status",
+                  "uid": "content-entity:e_508a059a3742",
+                  "line_number": 3,
+                  "end_line": 4
+                }
+              ],
+              "embedded_shell_commands": [
+                {
+                  "function_name": "ghost_helper",
+                  "function_line_number": 3,
+                  "line_number": 5,
+                  "api": "os.system",
+                  "language": "python"
+                },
+                {
+                  "function_name": "",
+                  "function_line_number": 3,
+                  "line_number": 6,
+                  "api": "os.system",
+                  "language": "python"
+                },
+                {
+                  "function_name": "report_status",
+                  "function_line_number": 0,
+                  "line_number": 7,
+                  "api": "os.system",
+                  "language": "python"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:r_9f3ce6a1:services/deploy/silent.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "relative_path": "services/deploy/silent.py",
+            "parsed_file_data": {
+              "path": "/repo-shell-exec/services/deploy/silent.py",
+              "functions": [
+                {
+                  "name": "noop_task",
+                  "uid": "content-entity:e_0bde1f6623cb",
+                  "line_number": 2,
+                  "end_line": 3
+                }
+              ],
+              "embedded_shell_commands": []
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_8dccb4300a1b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "entity_id": "content-entity:e_8dccb4300a1b",
+            "entity_type": "Function",
+            "entity_name": "deploy_service",
+            "relative_path": "services/deploy/deploy.py",
+            "start_line": 4,
+            "end_line": 5
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_79ad678937d5",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "entity_id": "content-entity:e_79ad678937d5",
+            "entity_type": "Function",
+            "entity_name": "cleanup_workspace",
+            "relative_path": "services/deploy/cleanup.py",
+            "start_line": 3,
+            "end_line": 4
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_508a059a3742",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "entity_id": "content-entity:e_508a059a3742",
+            "entity_type": "Function",
+            "entity_name": "report_status",
+            "relative_path": "services/deploy/orphan.py",
+            "start_line": 3,
+            "end_line": 4
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_0bde1f6623cb",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:r_9f3ce6a1",
+            "entity_id": "content-entity:e_0bde1f6623cb",
+            "entity_type": "Function",
+            "entity_name": "noop_task",
+            "relative_path": "services/deploy/silent.py",
+            "start_line": 2,
+            "end_line": 3
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repository:r_9f3ce6a1:shell_exec_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "reducer_domain": "shell_exec_materialization",
+            "entity_key": "shell:repo-shell-exec",
+            "reason": "repository snapshot emitted shell execution materialization follow-up",
+            "repo_id": "repository:r_9f3ce6a1"
+          }
+        }
+      ]
+    }
+  ]
+}

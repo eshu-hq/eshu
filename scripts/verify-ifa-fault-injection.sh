@@ -11,8 +11,7 @@
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`) PLUS
-# the SQL relationship, code-call, documentation, rationale, repository-
-# dependency, and submodule-pin family cassettes
+# the SQL relationship, code-call, documentation, rationale, repository-dependency, submodule-pin, inheritance, and shell-exec family cassettes
 # through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
@@ -22,8 +21,8 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Twenty-seven cells, each hitting a genuinely different recovery or delivery
-# seam. All twenty-seven run by default. Cell functions live in
+# Thirty-three cells, each hitting a genuinely different recovery or delivery
+# seam. All thirty-three run by default. Cell functions live in
 # scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
@@ -35,7 +34,9 @@
 # #5993), scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
 # scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue
 # #5999), and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells
-# 25-27, issue #6002).
+# 25-27, issue #6002), scripts/lib/ifa_fault_injection_inheritance_cells.sh
+# (cells 28-30, issue #5996), and scripts/lib/ifa_fault_injection_shell_exec_cells.sh
+# (cells 31-33, issue #6001).
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -135,6 +136,15 @@
 #  22. baseline-repo-dependency (#5999) -- maintenance-backed family baseline.
 #  23. kill-worker-after-claim-repo-dependency (#5999) -- full reclaim lifecycle.
 #  24. fail-graph-write-once-then-succeed-repo-dependency (#5999) -- exact retry proof.
+#  25. baseline-submodule-pin (#6002) -- family-scoped fault-free baseline.
+#  26. kill-worker-after-claim-submodule-pin (#6002) -- lease reclaim proof.
+#  27. fail-graph-write-once-then-succeed-submodule-pin (#6002) -- retry proof.
+#  28. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+#  29. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+#  30. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+#  31. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+#  32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+#  33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
 #
 # Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -148,11 +158,11 @@
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (a twenty-fifth possible cell) is deliberately NOT included: it
+# fail-terminal (a thirty-fourth possible cell) is deliberately NOT included: it
 # has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17/20/23 already can't use live.
+# hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17/20/23/26/29/32 already can't use live.
 # Building a live fail-terminal seam is out of scope; this is reported as an
 # explicit, honest gap, not silently dropped.
 #
@@ -161,8 +171,8 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -223,8 +233,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -456,6 +466,16 @@ ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin
+# inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
+# first in each trio (sole writer of that family's digest and retry baseline;
+# the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,
+# which is why each needs its own baseline -- see ifa_fault_generic_cells.sh.
+ifa_fault_shard_run cell_baseline_inheritance
+ifa_fault_shard_run cell_killworker_inheritance
+ifa_fault_shard_run cell_failgraphwrite_inheritance
+ifa_fault_shard_run cell_baseline_shell_exec
+ifa_fault_shard_run cell_killworker_shell_exec
+ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

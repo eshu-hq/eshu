@@ -25,7 +25,11 @@ run_ifa_fault_entrypoint_static_cases() {
 		ifa_fault_generic_cells.sh \
 		ifa_fault_injection_codeowners_cells.sh \
 		ifa_fault_injection_repo_dependency_cells.sh \
-		ifa_fault_injection_submodule_pin_cells.sh; do
+		ifa_fault_injection_submodule_pin_cells.sh \
+		ifa_inheritance_live.sh \
+		ifa_fault_injection_inheritance_cells.sh \
+		ifa_shell_exec_live.sh \
+		ifa_fault_injection_shell_exec_cells.sh; do
 		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
 			|| fail "source-inventory lib does not source ${source_name}"
 	done
@@ -37,7 +41,7 @@ run_ifa_fault_entrypoint_static_cases() {
 	require_source_inventory "source inventory omits rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 	require_source_inventory "source inventory omits rationale cells lib" "scripts/lib/ifa_fault_injection_rationale_cells.sh"
 	require_source_inventory "source inventory omits collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-	require "gate overview names the latest exact-set cassette family" "dependency, and submodule-pin family cassettes"
+	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, rationale, repository-dependency, submodule-pin, inheritance, and shell-exec family cassettes"
 	require_code "failure log dump" "host binary logs (failure)"
 	# The container-log tail alone cannot name a dead-lettered row: its
 	# failure_message lives only in Postgres, and one real CI failure spent
