@@ -94,6 +94,30 @@ func TestExpectedEdgeKeyIsInjective(t *testing.T) {
 	}
 }
 
+// TestExpectedEdgeKeySeparatesIdentityFromAssertedProperties proves a property
+// key/value sequence cannot be reinterpreted as additional identity fields.
+func TestExpectedEdgeKeySeparatesIdentityFromAssertedProperties(t *testing.T) {
+	t.Parallel()
+
+	edgeA := ExpectedEdge{
+		RelationshipType: "PINS_SUBMODULE",
+		SourceEntityID:   "repo-1",
+		TargetEntityID:   "repo-2",
+		Identity:         map[string]string{"a": "x"},
+		Properties:       map[string]string{"b": "properties", "c": "z"},
+	}
+	edgeB := ExpectedEdge{
+		RelationshipType: "PINS_SUBMODULE",
+		SourceEntityID:   "repo-1",
+		TargetEntityID:   "repo-2",
+		Identity:         map[string]string{"a": "x", "properties": "b"},
+		Properties:       map[string]string{"c": "z"},
+	}
+	if edgeA.Key() == edgeB.Key() {
+		t.Fatalf("identity/property partitions collided onto one key %q", edgeA.Key())
+	}
+}
+
 // TestValidateExpectedEdgeIdentity covers the fixture-error shapes
 // LoadExpectedEdges must reject: a missing declared key, an undeclared key,
 // any identity map on a declared-empty relationship type, and a blank value
@@ -128,6 +152,32 @@ func TestValidateExpectedEdgeIdentity(t *testing.T) {
 			err := validateExpectedEdgeIdentity(tc.identity, tc.declared)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("validateExpectedEdgeIdentity(%v, %v) error = %v, wantErr %v", tc.identity, tc.declared, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateExpectedEdgeProperties(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		properties map[string]string
+		identity   map[string]string
+		wantErr    bool
+	}{
+		{name: "none", wantErr: false},
+		{name: "nonblank", properties: map[string]string{"pinned_sha": "abc123"}, wantErr: false},
+		{name: "blank key", properties: map[string]string{" ": "abc123"}, wantErr: true},
+		{name: "blank value", properties: map[string]string{"pinned_sha": " "}, wantErr: true},
+		{name: "overlaps identity", properties: map[string]string{"path": "vendor/lib"}, identity: map[string]string{"path": "vendor/lib"}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateExpectedEdgeProperties(tc.properties, tc.identity)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validateExpectedEdgeProperties(%v, %v) error = %v, wantErr %v", tc.properties, tc.identity, err, tc.wantErr)
 			}
 		})
 	}

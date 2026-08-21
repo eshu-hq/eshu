@@ -56,7 +56,8 @@ stays in `ifa`).
 
 ## Exported Surface
 
-- `ExpectedEdge{RelationshipType, SourceEntityID, TargetEntityID, Identity}`
+- `ExpectedEdge{RelationshipType, SourceEntityID, TargetEntityID, Identity,
+  Properties}`
   and `LoadExpectedEdges(path, family)` - the shared hand-derived
   expected-edge-set shape and loader every guard reads its fixture through.
 - `MaterializedEdgeDomainEdgeTypes(family)` - the family's registered
@@ -265,7 +266,13 @@ exact wording and fails if they drift.
   in the fixture (`DisallowUnknownFields`). `assertMaterializedEdges`
   (`cmd/ifa/assert_edges.go`) mirrors the same validation against the LIVE
   graph: a declared identity property missing, non-string, or blank on a live
-  edge is a loud identity defect, never silently keyed as `""`.
+  edge is a loud identity defect, never silently keyed as `""`. `ExpectedEdge`
+  also carries an optional `Properties map[string]string` for SET-only values
+  the fixture must assert without widening MERGE identity. The loader rejects
+  blank values and overlap with identity keys; the live comparator reads only
+  the fixture-declared keys. `submodule_pin_edges` uses this for `pinned_sha`,
+  so PIN A's later duplicate must win even though the edge count and path stay
+  unchanged.
 
 - `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
   `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)

@@ -51,13 +51,10 @@ const (
 //   - PIN A-DUP repeats PIN A's exact (parent_repo_id, submodule_path) key
 //     with a DIFFERENT pinned_sha: ExtractSubmodulePinEdgeRowsWithQuarantine
 //     must collapse it into PIN A's row rather than emit a second edge for
-//     the same path -- proving the dedup COUNT half of the last-match-wins
-//     contract (rowIndexByKey in submodule_pin_materialization.go). The
-//     offline guard's edge comparison drops pinned_sha (a SET-only
-//     property, never part of the MERGE key), so it cannot see which
-//     envelope's value survived; TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA
-//     (materialized_edges_submodule_pin_test.go) reads the raw row map to
-//     prove the later envelope's value actually wins.
+//     the same path. The expected fixture separately asserts the later
+//     envelope's SET-only pinned_sha without widening MERGE identity;
+//     TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA also reads the raw
+//     row map so a reducer-level wrong winner has a focused failure.
 //   - PIN E (path "vendor/libbaz") resolves to a SECOND, DISTINCT target
 //     repository (repo-ifa-submodule-pin-target-baz): proves the extractor
 //     tracks per-path target identity correctly rather than only ever

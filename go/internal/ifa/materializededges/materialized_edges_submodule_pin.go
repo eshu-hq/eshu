@@ -98,19 +98,17 @@ func resolveSubmodulePinMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 	if mismatch := compareSubmodulePinExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
-	return true, fmt.Sprintf("odù %q: ExtractSubmodulePinEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly (by relationship_type/source/target plus the declared path identity) across all %d registry type(s)", odu.Name, len(expected), len(registry))
+	return true, fmt.Sprintf("odù %q: ExtractSubmodulePinEdgeRowsWithQuarantine reproduces the expected %d-edge set exactly (by relationship_type/source/target, path identity, and pinned_sha) across all %d registry type(s)", odu.Name, len(expected), len(registry))
 }
 
 // submodulePinRowsToExpectedEdges adapts
 // ExtractSubmodulePinEdgeRowsWithQuarantine's []map[string]any row shape into
 // the shared ExpectedEdge identity the comparison keys on.
 //
-// generation_id and pinned_sha are deliberately left out: generation_id and
-// pinned_sha are SET-only relationship properties, not part of the write
-// template's relationship MERGE key (canonical_submodule_edges.go's
-// `MERGE (parent)-[rel:PINS_SUBMODULE {path: row.submodule_path}]->(target)`
-// followed by a separate SET), so including either would assert an identity
-// the graph does not actually key on.
+// generation_id is deliberately left out because it is run-specific.
+// pinned_sha is SET-only rather than part of the relationship MERGE key, but
+// it is still asserted as mutable truth so the duplicate PIN A fixture proves
+// the extractor retained the later envelope's value.
 func submodulePinRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 	out := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
@@ -120,6 +118,9 @@ func submodulePinRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 			TargetEntityID:   anyToStringValue(row["resolved_repo_id"]),
 			Identity: map[string]string{
 				"path": anyToStringValue(row["submodule_path"]),
+			},
+			Properties: map[string]string{
+				"pinned_sha": anyToStringValue(row["pinned_sha"]),
 			},
 		})
 	}

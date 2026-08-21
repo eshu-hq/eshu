@@ -251,3 +251,23 @@ func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
 		t.Errorf("error %q does not name the duplicated edge (want label %q)", err, wantLabel)
 	}
 }
+
+// TestAssertMaterializedEdgesMissingDuplicateFails proves exact multiset
+// comparison also rejects a graph with fewer copies than the fixture names.
+// Checking only got==0 would let one graph edge satisfy two identical expected
+// entries and contradict the command's exact-count contract.
+func TestAssertMaterializedEdgesMissingDuplicateFails(t *testing.T) {
+	t.Parallel()
+
+	edge := materializededges.ExpectedEdge{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"}
+	expected := []materializededges.ExpectedEdge{edge, edge}
+	reader := fakeEdgeReader{edges: []graphdump.Edge{sqlEdge("HAS_COLUMN", "t", "c")}}
+
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), nil, nil, expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(one of two expected copies) = nil, want a missing-multiplicity failure")
+	}
+	if !strings.Contains(err.Error(), "missing") || !strings.Contains(err.Error(), "graph=1, expected=2") {
+		t.Fatalf("error %q does not report the missing multiplicity", err)
+	}
+}

@@ -29,7 +29,7 @@ bash -n "${submodule_pin_cells_lib}" || fail "ifa_fault_injection_submodule_pin_
 # exhaustion with a stubbed query and requires a non-zero return, then
 # proves the success path reports the granted lock and registers the holder
 # for teardown.
-test_ifa_submodule_pin_intent_lock_is_fail_closed() (
+test_ifa_submodule_pin_fact_records_lock_is_fail_closed() (
 	source "${det_lib}"
 	source "${submodule_pin_cells_lib}"
 
@@ -108,6 +108,6 @@ test_ifa_submodule_pin_released_lock_holder_is_not_torn_down_twice() (
 )
 
 run_ifa_fault_injection_submodule_pin_cases() {
-	test_ifa_submodule_pin_intent_lock_is_fail_closed
+	test_ifa_submodule_pin_fact_records_lock_is_fail_closed
 	test_ifa_submodule_pin_released_lock_holder_is_not_torn_down_twice
 }

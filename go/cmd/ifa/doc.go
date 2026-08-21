@@ -49,7 +49,9 @@
 // assertion. Over the same read-only Bolt connection graph-dump uses, it reads
 // every edge of the named family's registry edge types and asserts the
 // family's materialized edges are exactly the hand-derived expected set in
-// -expected. Generic families compare edge identity triples; rationale_edges
+// -expected. Generic families compare edge identity triples plus any
+// fixture-declared MERGE-identity and SET-only relationship properties;
+// submodule_pin_edges uses the latter to assert pinned_sha. rationale_edges
 // compares complete source, relationship, and target graph records for one
 // repository and retains cross-repository attachments or expected identities
 // with drifted repository properties as mismatches. It backs

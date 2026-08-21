@@ -100,6 +100,7 @@ type sqlRelationshipExpectedEdge struct {
 	SourceEntityID   string            `json:"source_entity_id"`
 	TargetEntityID   string            `json:"target_entity_id"`
 	Identity         map[string]string `json:"identity,omitempty"`
+	Properties       map[string]string `json:"properties,omitempty"`
 }
 
 type sqlRelationshipExpectedEdgesFile struct {

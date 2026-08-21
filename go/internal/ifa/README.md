@@ -154,32 +154,23 @@ the hand-derived expected-edge fixture, asserts it covers every relationship
 type `submodule_pin_edges`' writer registry accepts, then runs
 `reducer.ExtractSubmodulePinEdgeRowsWithQuarantine` — the same pure,
 backend-free extraction seam every sibling family's guard uses — and compares
-the result to the fixture by exact multiset (`compareSubmodulePinExpectedEdges`).
+the result to the fixture by exact multiset (`compareSubmodulePinExpectedEdges`),
+including each edge's SET-only `pinned_sha`.
 It mentions `canonical_submodule_edges.go`'s `MERGE` template only in a
 comment, to name the `{path: row.submodule_path}` identity property the
-comparison keys on; it contains no Cypher, graph write, or dispatch code of
-its own. The production write path
+comparison keys on and the separately asserted `pinned_sha`; it contains no
+Cypher, graph write, or dispatch code of its own. The production write path
 (`SubmodulePinEdgeMaterializationHandler`,
 `go/internal/reducer/submodule_pin_materialization.go`, and
 `canonical_submodule_edges.go`) is unchanged by this PR.
 No-Observability-Change: same reasoning — no runtime path, worker, queue, or
 graph write is added or altered; the observable behavior is entirely in the
-already-existing handler and `canonical_submodule_edges.go`. Both live gates
-were re-run against this fixture after the guard was relocated into the
-`materializededges` subpackage, because moving it changes what the gates load
-and any earlier run describes a tree that no longer exists.
-`scripts/verify-ifa-determinism.sh` exited 0 with the combined graph digest
-`b7b9893e117347536655c8c7dd4f96b14788ffc4c64dea16b7bc1034385af90b` identical
-across N=1/2/4, and `scripts/verify-ifa-fault-injection.sh` shard 1/4 (8
-cells, including all three submodule_pin cells) exited 0 with
-`baseline_submodule_pin`, `killworkersubmodulepin`, and
-`failgraphwritesubmodulepin` all converging to digest
-`ddc993e36e2a09eb87b8c7d1e6383e424cbb06998fa29a7e30050f109ef20ab0`. Both
-digests are byte-identical to the pre-relocation runs, which is the result a
-package move should produce and is here demonstrated rather than assumed.
-Shards 2/4, 3/4 and 4/4 were not run locally; those are cells belonging to
-other families and are CI's lane. This is the operator-equivalent proof for a
-fixture/guard-only change on this surface.
+already-existing handler and `canonical_submodule_edges.go`. The proof helper
+now rejects a stale or missing `pinned_sha` in addition to the existing exact
+edge identity checks; that diagnostic tightening adds no production telemetry
+surface. Current-head live evidence must postdate any expected-property or
+fixture change so an older digest-only run is never cited for this stronger
+assertion.
 
 ## Gotchas / Invariants
 

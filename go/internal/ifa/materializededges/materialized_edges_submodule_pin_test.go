@@ -96,24 +96,21 @@ func TestSubmodulePinDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 // repo-ifa-submodule-pin-target-baz repository. PIN A-DUP deliberately
 // produces NO additional edge: it repeats PIN A's exact (parent_repo_id,
 // submodule_path) key, and the extractor's rowIndexByKey dedup collapses it
-// into one row rather than emitting a second edge -- proving the dedup COUNT
-// half of the last-match-wins contract, not just adding a fourth entry here.
-// This test's comparison goes through submodulePinRowsToExpectedEdges, which
-// deliberately drops pinned_sha (a SET-only property, not part of the MERGE
-// key), so it cannot see WHICH duplicate's pinned_sha survived -- a
-// first-match-wins regression would pass here unnoticed.
-// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA below reads the raw
-// row map directly to prove that half.
+// into one row rather than emitting a second edge. The expected edge's
+// Properties map pins sha-libfoo-pin-a-dup-newer, so keeping the older SHA
+// cannot pass while the edge count stays three. The focused raw-row test below
+// keeps the reducer-level cause easy to diagnose independently.
 //
 // PIN C (vendor/libunresolved) also produces NO
 // edge: it carries a submodule_url but no resolved_repo_id, and the
 // extractor must never guess a target Repository id for an unresolved
 // submodule. Each edge's identity object carries path, the one property
 // cypher.MaterializedEdgeIdentityProperties declares for this family, so
-// both this pure guard and the live assert-edges verb prove per-path
-// property truth rather than only the edge count between a (parent, target)
-// pair. The fixture's top-level "odu" field is NOT validated against
-// Catalog()/ifa.CatalogByName() or anything else -- ifa.LoadExpectedEdges decodes
+// both this pure guard and the live assert-edges verb prove per-path identity
+// and exact pinned_sha truth rather than only the edge count between a
+// (parent, target) pair. The fixture's top-level "odu" field is NOT validated
+// against ifa.Catalog()/ifa.CatalogByName() or anything else --
+// LoadExpectedEdges decodes
 // it and never reads it back -- so "odu:ifa-submodule-pin-family" here is a
 // human label, not a resolvable identity.
 func TestSubmodulePinFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
@@ -179,19 +176,11 @@ func TestSubmodulePinFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	}
 }
 
-// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA closes a gap the test
-// above does not cover: it proves edge COUNT (PIN A-DUP collapses into one
-// row, not two), never the WINNING VALUE. submodulePinRowsToExpectedEdges
-// (materialized_edges_submodule_pin.go) deliberately drops pinned_sha from
-// ExpectedEdge.Identity -- correctly, since it is a SET-only relationship
-// property, not part of canonical_submodule_edges.go's MERGE key -- but that
-// means the offline guard's set-exact comparison never inspects pinned_sha
-// at all. A last-match-wins regression (keeping PIN A's original row instead
-// of PIN A-DUP's) or a corrupted pinned_sha would still produce the same
-// edge count, same identity, same Key() -- and pass invisibly. This test
-// reads the raw row map ExtractSubmodulePinEdgeRowsWithQuarantine returns,
-// bypassing the ExpectedEdge abstraction entirely, to assert the winning
-// value directly.
+// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA reads the raw extractor
+// row directly so a reducer-level last-match-wins regression names the wrong
+// winner without depending on the expected-edge adapter. The exact fixture
+// test above and the live assert-edges command independently carry the same
+// pinned_sha value through the offline and graph-backed proof boundaries.
 func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)

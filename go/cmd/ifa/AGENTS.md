@@ -114,7 +114,11 @@
   (DEPENDS_ON) also constrains endpoint labels via
   `cypher.MaterializedEdgeEndpointLabels`; a family with no constraints is
   matched by type alone, never by nothing — that exact silent no-op is what #5351's
-  fixture work surfaced. Read-only, flags-before-backend like `graph-dump`; the
+  fixture work surfaced. An expected fixture may separately assert SET-only
+  relationship properties without adding them to MERGE identity; the generic
+  comparator must read exactly those declared keys and fail on missing, blank,
+  non-string, or mismatched values. Read-only, flags-before-backend like
+  `graph-dump`; the
   set-comparison core (`assertMaterializedEdges`) takes a `graphdump.Reader` so
   it is hermetically testable against a fake with no Docker. A family uses its
   own comparator only when its proof contract requires more than identity:

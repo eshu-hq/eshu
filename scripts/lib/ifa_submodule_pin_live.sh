@@ -34,7 +34,9 @@ ifa_submodule_pin_drive() {
 # two PINS_SUBMODULE edges from the family repo to one target at two distinct
 # paths, plus one edge to a second target -- proving the {path} identity
 # property keeps the two same-target edges distinct rather than collapsing
-# onto one relationship.
+# onto one relationship. Each expected edge also asserts its SET-only
+# pinned_sha. PIN A therefore requires the later duplicate's SHA, proving the
+# extractor's last-match-wins contract rather than only its deduplicated count.
 #
 # This assertion is property-aware. assert-edges reads
 # cypher.MaterializedEdgeIdentityProperties for the domain, so a live
@@ -42,13 +44,9 @@ ifa_submodule_pin_drive() {
 # batchCanonicalSubmodulePinEdgeCypher's MERGE key
 # (go/internal/storage/cypher/canonical_submodule_edges.go), mirroring
 # codeowners_ownership_edges' identical (pattern, source_path) reasoning for
-# DECLARES_CODEOWNER. It proves WHICH gitmodules entry produced which edge,
-# so a dropped path is caught rather than netting out in the count.
-#
-# KNOWN LIMIT: same as codeowners_ownership_edges -- a permutation of
-# identity properties among edges sharing one (source, target) pair preserves
-# the multiset and is invisible. Reaching that class means widening the
-# relationship MERGE key, which is a different change.
+# DECLARES_CODEOWNER. It proves WHICH gitmodules entry produced which edge and
+# which pinned commit survived duplicate reduction, so a dropped path or stale
+# pinned_sha is caught rather than netting out in the count.
 ifa_submodule_pin_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert submodule-pin materialized edges (three-edge exact set) ===\n' "${label}"
