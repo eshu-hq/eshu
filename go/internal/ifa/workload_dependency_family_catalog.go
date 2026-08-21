@@ -132,30 +132,30 @@ func WorkloadDependencyFamilyOdu() CatalogOdu {
 func workloadDependencyFamilyOdu() CatalogOdu {
 	factsForOdu := []facts.Envelope{
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName)),
-		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
-		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
-		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
-		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanSourceRepoID, workloadDependencyFamilyOrphanSourceName)),
-		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanTargetRepoID, workloadDependencyFamilyOrphanTargetName)),
-
-		// Repo-to-repo DEPENDS_ON evidence, one Docker Compose `depends_on:`
-		// content fact per pair, mirroring
-		// repo_dependency_family_catalog.go's positive DEPENDS_ON case exactly
-		// (same artifact_type/body shape).
 		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilySourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyTargetName),
-		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyMultiSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyMultiTargetName),
-		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyOrphanSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyOrphanTargetName),
-
-		// Kubernetes Deployment file facts: the positive and multi-workload
-		// pairs each get one per repo, so ExtractWorkloadCandidates admits
-		// exactly one workload for each of those four repos. The orphan pair
-		// gets none, so neither orphan repo produces a candidate at all.
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName)),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName),
+
+		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName),
+
+		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
+		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyMultiSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyMultiTargetName),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName),
+
+		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
-		workloadDependencyFamilyFollowupFact("deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
-		workloadDependencyFamilyWorkloadFollowupFact(),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName),
+
+		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanSourceRepoID, workloadDependencyFamilyOrphanSourceName)),
+		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyOrphanSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyOrphanTargetName),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyOrphanSourceRepoID, workloadDependencyFamilyOrphanSourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+
+		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanTargetRepoID, workloadDependencyFamilyOrphanTargetName)),
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: workloadDependencyFamilyOduName, Facts: factsForOdu},
@@ -178,9 +178,16 @@ func workloadDependencyFamilyOdu() CatalogOdu {
 func workloadDependencyFamilyRepository(repoID, name string) codegraphv1.Repository {
 	repoSlug := "ifa-org/" + name
 	sourceRunID := workloadDependencyFamilySourceRunID
+	graphKind := "repository"
+	parsedFileCount := "0"
+	isDependency := false
+	localPath := "/fixtures/ifa/" + name
+	remoteURL := "https://example.invalid/ifa-org/" + name + ".git"
 	return codegraphv1.Repository{
-		RepoID: repoID, GraphID: &repoID, Name: &name,
-		RepoSlug: &repoSlug, SourceRunID: &sourceRunID,
+		RepoID: repoID, GraphID: &repoID, GraphKind: &graphKind, Name: &name,
+		ParsedFileCount: &parsedFileCount, IsDependency: &isDependency,
+		RepoSlug: &repoSlug, RemoteURL: &remoteURL, LocalPath: &localPath,
+		SourceRunID: &sourceRunID,
 	}
 }
 
@@ -189,7 +196,7 @@ func workloadDependencyFamilyRepositoryFact(repository codegraphv1.Repository) f
 	if err != nil {
 		panic(fmt.Sprintf("ifa: encode workload-dependency catalog repository %q: %v", repository.RepoID, err))
 	}
-	return workloadDependencyFamilyFact(factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload)
+	return workloadDependencyFamilyFact(repository.RepoID, factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload)
 }
 
 // workloadDependencyFamilyDependsOnContentFact builds one raw "content" fact
@@ -199,7 +206,7 @@ func workloadDependencyFamilyRepositoryFact(repository codegraphv1.Repository) f
 // resolves to a DEPENDS_ON relationship
 // (repo_dependency_family_catalog.go's positive DEPENDS_ON case).
 func workloadDependencyFamilyDependsOnContentFact(sourceRepoID, path, targetName string) facts.Envelope {
-	return workloadDependencyFamilyFact(contentFactKind, "content:"+sourceRepoID+":"+path, map[string]any{
+	return workloadDependencyFamilyFact(sourceRepoID, contentFactKind, "content:"+sourceRepoID+":"+path, map[string]any{
 		"artifact_type": "docker_compose",
 		"commit_sha":    workloadDependencyFamilyCommitSHA,
 		"content_body":  "services:\n  app:\n    depends_on:\n      - " + targetName + "\n",
@@ -240,36 +247,44 @@ func workloadDependencyFamilyK8sDeploymentFact(file codegraphv1.File) facts.Enve
 	if err != nil {
 		panic(fmt.Sprintf("ifa: encode workload-dependency catalog file %q: %v", file.RelativePath, err))
 	}
-	return workloadDependencyFamilyFact(factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload)
+	return workloadDependencyFamilyFact(file.RepoID, factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload)
 }
 
-func workloadDependencyFamilyWorkloadFollowupFact() facts.Envelope {
-	return workloadDependencyFamilyFollowupFact("workload_materialization", "repository snapshot emitted workload materialization follow-up")
+func workloadDependencyFamilyWorkloadFollowupFact(repoID, repoName string) facts.Envelope {
+	return workloadDependencyFamilyFollowupFact(repoID, repoName, "workload_materialization", "repository snapshot emitted workload materialization follow-up")
 }
 
-func workloadDependencyFamilyFollowupFact(domain, reason string) facts.Envelope {
+func workloadDependencyFamilyFollowupFact(repoID, repoName, domain, reason string) facts.Envelope {
 	return workloadDependencyFamilyFact(
+		repoID,
 		"shared_followup",
-		"shared_followup:"+workloadDependencyFamilySourceRepoID+":"+domain,
+		"shared_followup:"+repoID+":"+domain,
 		map[string]any{
 			"reducer_domain": domain,
-			"entity_key":     "workload:" + workloadDependencyFamilySourceName,
+			"entity_key":     "workload:" + repoName,
 			"reason":         reason,
-			"repo_id":        workloadDependencyFamilySourceRepoID,
+			"repo_id":        repoID,
 		},
 	)
 }
 
-// workloadDependencyFamilyFact stamps the family's single scope/generation
-// onto one fact envelope, mirroring repoDependencyFamilyFact's field set
-// exactly (no FactID, ObservedAt, or SourceRef) so the compiled Odù and its
-// cassette-loaded projection render identical zero-value envelopes on those
-// fields for TestWorkloadDependencyFamilyCassetteMatchesCompiledCatalog's
-// reflect.DeepEqual to hold.
-func workloadDependencyFamilyFact(kind, stableKey string, payload map[string]any) facts.Envelope {
+// workloadDependencyFamilyFact stamps the owning repository's production
+// scope/generation onto one semantic fact envelope. The positive source keeps
+// the original scope identity because the live guard reopens its exact
+// workload_materialization row; every other repository gets its own scope so
+// projector canonicalization cannot discard five Repository facts.
+func workloadDependencyFamilyFact(repoID, kind, stableKey string, payload map[string]any) facts.Envelope {
+	scopeID, generationID := workloadDependencyFamilyScopeGeneration(repoID)
 	return facts.Envelope{
-		ScopeID: workloadDependencyFamilyScopeID, GenerationID: workloadDependencyFamilyGenerationID, FactKind: kind,
+		ScopeID: scopeID, GenerationID: generationID, FactKind: kind,
 		StableFactKey: stableKey, SchemaVersion: "1.0.0", CollectorKind: "git",
 		SourceConfidence: "observed", Payload: payload,
 	}
+}
+
+func workloadDependencyFamilyScopeGeneration(repoID string) (string, string) {
+	if repoID == workloadDependencyFamilySourceRepoID {
+		return workloadDependencyFamilyScopeID, workloadDependencyFamilyGenerationID
+	}
+	return "scope-ifa-workload-dependency-family-" + repoID, "gen-ifa-workload-dependency-family-" + repoID + "-1"
 }

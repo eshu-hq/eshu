@@ -4,12 +4,11 @@
 package ifa
 
 import (
-	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
 // TestWorkloadDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings
@@ -94,29 +93,20 @@ func TestWorkloadDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 		t.Fatalf("loadWorkloadDependencyFamilyOdu: %v", err)
 	}
 
-	raw, err := os.ReadFile(workloadDependencyFamilyCassetteFullPath(repoRoot))
+	onDisk, err := cassette.LoadFile(workloadDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("read cassette: %v", err)
+		t.Fatalf("cassette.LoadFile: %v", err)
 	}
-	var onDisk struct {
-		Scopes []struct {
-			Facts []struct {
-				FactKind      string `json:"fact_kind"`
-				SchemaVersion string `json:"schema_version"`
-				StableFactKey string `json:"stable_fact_key"`
-				CollectorKind string `json:"collector_kind"`
-			} `json:"facts"`
-		} `json:"scopes"`
+	var cassetteFacts []cassette.Fact
+	for _, scope := range onDisk.Scopes {
+		cassetteFacts = append(cassetteFacts, scope.Facts...)
 	}
-	if err := json.Unmarshal(raw, &onDisk); err != nil {
-		t.Fatalf("parse cassette: %v", err)
-	}
-	if len(onDisk.Scopes) != 1 || len(onDisk.Scopes[0].Facts) != len(odu.Facts) {
-		t.Fatalf("fact count mismatch: cassette has %d, Odù has %d", len(onDisk.Scopes[0].Facts), len(odu.Facts))
+	if len(onDisk.Scopes) != 6 || len(cassetteFacts) != len(odu.Facts) {
+		t.Fatalf("fixture shape mismatch: cassette has %d scopes/%d facts, Odù has %d facts", len(onDisk.Scopes), len(cassetteFacts), len(odu.Facts))
 	}
 
 	checked := 0
-	for i, want := range onDisk.Scopes[0].Facts {
+	for i, want := range cassetteFacts {
 		got := odu.Facts[i]
 		if want.SchemaVersion == "" {
 			t.Fatalf("fact %d (%s) declares no schema_version; this guard would be vacuous", i, want.FactKind)
@@ -164,15 +154,24 @@ func TestWorkloadDependencyFamilyOduCarriesProductionFollowup(t *testing.T) {
 			followups = append(followups, fact)
 		}
 	}
-	if len(followups) != 1 {
-		t.Fatalf("workload_materialization followups = %d, want exactly 1 so live replay schedules the handler that writes workload_dependency edges", len(followups))
+	wantRepoIDs := map[string]struct{}{
+		workloadDependencyFamilySourceRepoID:      {},
+		workloadDependencyFamilyTargetRepoID:      {},
+		workloadDependencyFamilyMultiSourceRepoID: {},
+		workloadDependencyFamilyMultiTargetRepoID: {},
 	}
-	followup := followups[0]
-	if followup.Payload["repo_id"] != workloadDependencyFamilySourceRepoID {
-		t.Fatalf("workload_materialization followup repo_id = %#v, want %q", followup.Payload["repo_id"], workloadDependencyFamilySourceRepoID)
+	if len(followups) != len(wantRepoIDs) {
+		t.Fatalf("workload_materialization followups = %d, want exactly %d (one per workload-bearing scope)", len(followups), len(wantRepoIDs))
 	}
-	if followup.StableFactKey != "shared_followup:"+workloadDependencyFamilySourceRepoID+":workload_materialization" {
-		t.Fatalf("workload_materialization followup stable_fact_key = %q", followup.StableFactKey)
+	for _, followup := range followups {
+		repoID, _ := followup.Payload["repo_id"].(string)
+		if _, ok := wantRepoIDs[repoID]; !ok {
+			t.Fatalf("unexpected workload_materialization followup repo_id = %#v", followup.Payload["repo_id"])
+		}
+		delete(wantRepoIDs, repoID)
+		if followup.StableFactKey != "shared_followup:"+repoID+":workload_materialization" {
+			t.Fatalf("workload_materialization followup stable_fact_key = %q", followup.StableFactKey)
+		}
 	}
 }
 
@@ -185,14 +184,22 @@ func TestWorkloadDependencyFamilyOduCarriesRepoDependencyPrerequisiteFollowup(t 
 			followups = append(followups, fact)
 		}
 	}
-	if len(followups) != 1 {
-		t.Fatalf("deployment_mapping followups = %d, want exactly 1 so maintenance can materialize repo_dependency before workload materialization is retriggered", len(followups))
+	wantRepoIDs := map[string]struct{}{
+		workloadDependencyFamilySourceRepoID:       {},
+		workloadDependencyFamilyMultiSourceRepoID:  {},
+		workloadDependencyFamilyOrphanSourceRepoID: {},
 	}
-	followup := followups[0]
-	if followup.Payload["repo_id"] != workloadDependencyFamilySourceRepoID {
-		t.Fatalf("deployment_mapping followup repo_id = %#v, want %q", followup.Payload["repo_id"], workloadDependencyFamilySourceRepoID)
+	if len(followups) != len(wantRepoIDs) {
+		t.Fatalf("deployment_mapping followups = %d, want exactly %d (one per dependency-source scope)", len(followups), len(wantRepoIDs))
 	}
-	if followup.StableFactKey != "shared_followup:"+workloadDependencyFamilySourceRepoID+":deployment_mapping" {
-		t.Fatalf("deployment_mapping followup stable_fact_key = %q", followup.StableFactKey)
+	for _, followup := range followups {
+		repoID, _ := followup.Payload["repo_id"].(string)
+		if _, ok := wantRepoIDs[repoID]; !ok {
+			t.Fatalf("unexpected deployment_mapping followup repo_id = %#v", followup.Payload["repo_id"])
+		}
+		delete(wantRepoIDs, repoID)
+		if followup.StableFactKey != "shared_followup:"+repoID+":deployment_mapping" {
+			t.Fatalf("deployment_mapping followup stable_fact_key = %q", followup.StableFactKey)
+		}
 	}
 }

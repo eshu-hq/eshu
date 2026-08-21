@@ -33,10 +33,12 @@ run_ifa_fault_injection_workload_dependency_cases() {
 		rg --fixed-strings --quiet -- "${needle}" "${cells_lib}" \
 			|| fail "workload_dependency fault cells missing ${needle}"
 	done
-	fixture_scope="$(jq -er '.scopes | if length == 1 then .[0].scope_id else error("want exactly one scope") end' "${cassette}")" \
-		|| fail "workload_dependency cassette has no unique scope_id"
-	fixture_generation="$(jq -er '.scopes | if length == 1 then .[0].generation_id else error("want exactly one scope") end' "${cassette}")" \
-		|| fail "workload_dependency cassette has no unique generation_id"
+	fixture_scope="$(jq -er \
+		'[.scopes[] | select([.facts[] | select(.fact_kind == "shared_followup" and .stable_fact_key == "shared_followup:repo-ifa-workload-dependency-source:workload_materialization" and .payload.reducer_domain == "workload_materialization")] | length == 1)] | if length == 1 then .[0].scope_id else error("want exactly one source workload_materialization scope") end' \
+		"${cassette}")" || fail "workload_dependency cassette has no unique workload_materialization source scope_id"
+	fixture_generation="$(jq -er \
+		'[.scopes[] | select([.facts[] | select(.fact_kind == "shared_followup" and .stable_fact_key == "shared_followup:repo-ifa-workload-dependency-source:workload_materialization" and .payload.reducer_domain == "workload_materialization")] | length == 1)] | if length == 1 then .[0].generation_id else error("want exactly one source workload_materialization scope") end' \
+		"${cassette}")" || fail "workload_dependency cassette has no unique workload_materialization source generation_id"
 	for fixture_filter in \
 		"scope_id = '${fixture_scope}'" \
 		"generation_id = '${fixture_generation}'"; do

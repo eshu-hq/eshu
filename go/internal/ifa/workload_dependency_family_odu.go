@@ -4,9 +4,7 @@
 package ifa
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -19,27 +17,6 @@ import (
 // (workload_dependency_family_catalog.go) rather than maintaining two
 // fixtures that can silently diverge.
 const workloadDependencyFamilyCassettePath = "testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json"
-
-// workloadDependencyFamilyCassetteFile mirrors
-// repoDependencyFamilyCassetteFile's field set for the same reason:
-// schema_version, stable_fact_key, collector_kind, and source_confidence all
-// gate whether a fact is accepted at all, so this projection must never be
-// more permissive than production.
-type workloadDependencyFamilyCassetteFile struct {
-	Scopes []struct {
-		ScopeID      string `json:"scope_id"`
-		GenerationID string `json:"generation_id"`
-		Facts        []struct {
-			FactKind         string         `json:"fact_kind"`
-			SchemaVersion    string         `json:"schema_version"`
-			StableFactKey    string         `json:"stable_fact_key"`
-			CollectorKind    string         `json:"collector_kind"`
-			SourceConfidence string         `json:"source_confidence"`
-			IsTombstone      bool           `json:"is_tombstone"`
-			Payload          map[string]any `json:"payload"`
-		} `json:"facts"`
-	} `json:"scopes"`
-}
 
 // workloadDependencyFamilyCassetteFullPath joins repoRoot onto the cassette
 // path.
@@ -62,32 +39,25 @@ func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 // catalogSeed; a lockstep test compares that registered Odù with this strict
 // cassette projection so a one-sided edit fails the focused suite.
 //
-// It fails closed on more than one scope or an empty fact list, mirroring
-// loadRepoDependencyFamilyOdu: a multi-scope fixture would make the expected-
-// edge set ambiguous about which scope produced an edge, and an empty Odù
-// would make every downstream assertion vacuous.
+// It uses the production cassette source so root and per-scope replay
+// contracts cannot drift from the live gate. The returned Odù deliberately
+// removes replay-generated transport fields: the compiled catalog owns the
+// semantic fixture, while projector admission tests separately pin the exact
+// generated IDs, provenance, and scope projection behavior.
 func loadWorkloadDependencyFamilyOdu(cassettePath string) (Odu, error) {
-	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
+	emitted, err := LoadCassetteEnvelopes(cassettePath)
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read workload-dependency cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("ifa: load workload-dependency cassette %s through production source: %w", cassettePath, err)
 	}
-	var parsed workloadDependencyFamilyCassetteFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse workload-dependency cassette %s: %w", cassettePath, err)
-	}
-	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: workload-dependency cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
-	}
-	scope := parsed.Scopes[0]
-	if len(scope.Facts) == 0 {
+	if len(emitted) == 0 {
 		return Odu{}, fmt.Errorf("ifa: workload-dependency cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
-	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
-	for _, fact := range scope.Facts {
+	envelopes := make([]facts.Envelope, 0, len(emitted))
+	for _, fact := range emitted {
 		envelopes = append(envelopes, facts.Envelope{
-			ScopeID:          scope.ScopeID,
-			GenerationID:     scope.GenerationID,
+			ScopeID:          fact.ScopeID,
+			GenerationID:     fact.GenerationID,
 			FactKind:         fact.FactKind,
 			SchemaVersion:    fact.SchemaVersion,
 			StableFactKey:    fact.StableFactKey,
