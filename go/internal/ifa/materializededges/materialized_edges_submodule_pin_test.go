@@ -93,15 +93,10 @@ func TestSubmodulePinDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 // on {path}, not on the (parent, target) pair alone, so one target reached by
 // several paths is several edges, not one overwritten edge. PIN E
 // (vendor/libbaz) is the third, to the distinct
-// repo-ifa-submodule-pin-target-baz repository. PIN A-DUP deliberately
-// produces NO additional edge: it repeats PIN A's exact (parent_repo_id,
-// submodule_path) key, and the extractor's rowIndexByKey dedup collapses it
-// into one row rather than emitting a second edge. The expected edge's
-// Properties map pins sha-libfoo-pin-a-dup-newer, so keeping the older SHA
-// cannot pass while the edge count stays three. The focused raw-row test below
-// keeps the reducer-level cause easy to diagnose independently.
-//
-// PIN C (vendor/libunresolved) also produces NO
+// repo-ifa-submodule-pin-target-baz repository. PIN A's expected edge also
+// asserts sha-libfoo-pin-a-current, so the correct relationship identity and
+// edge count cannot hide a stale SET-only property. PIN C
+// (vendor/libunresolved) produces NO
 // edge: it carries a submodule_url but no resolved_repo_id, and the
 // extractor must never guess a target Repository id for an unresolved
 // submodule. Each edge's identity object carries path, the one property
@@ -169,63 +164,10 @@ func TestSubmodulePinFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 		t.Errorf("EXTRA %d edge(s) nobody derived: %s", len(extra), strings.Join(extra, ", "))
 	}
 	if len(rows) != len(expectedEdges) {
-		t.Errorf("extractor produced %d row(s) for %d hand-derived edge(s) -- PIN A-DUP's last-match-wins dedup should keep the row count equal to the expected edge count, not merely the same key set", len(rows), len(expectedEdges))
+		t.Errorf("extractor produced %d row(s) for %d hand-derived edge(s)", len(rows), len(expectedEdges))
 	}
 	if len(missing) == 0 && len(extra) == 0 {
 		t.Logf("submodule_pin_edges: %d rows reproduce the expected %d-edge set exactly", len(rows), len(expectedEdges))
-	}
-}
-
-// TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA reads the raw extractor
-// row directly so a reducer-level last-match-wins regression names the wrong
-// winner without depending on the expected-edge adapter. The exact fixture
-// test above and the live assert-edges command independently carry the same
-// pinned_sha value through the offline and graph-backed proof boundaries.
-func TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA(t *testing.T) {
-	t.Parallel()
-	repoRoot := repoRootDir(t)
-
-	odu, err := ifa.LoadSubmodulePinFamilyOdu(ifa.SubmodulePinFamilyCassetteFullPath(repoRoot))
-	if err != nil {
-		t.Fatalf("ifa.LoadSubmodulePinFamilyOdu: %v", err)
-	}
-
-	generationID := submodulePinFamilyGenerationIDFromFacts(odu.Facts)
-	rows, quarantined, err := reducer.ExtractSubmodulePinEdgeRowsWithQuarantine(odu.Facts, generationID)
-	if err != nil {
-		t.Fatalf("ExtractSubmodulePinEdgeRowsWithQuarantine: %v", err)
-	}
-	if len(quarantined) > 0 {
-		t.Fatalf("%d fact(s) quarantined; the cassette no longer validates against the submodule.pin contract", len(quarantined))
-	}
-
-	// PIN A and PIN A-DUP share this (parent_repo_id, submodule_path) key.
-	// PIN A's envelope carries pinned_sha "sha-libfoo-pin-a"; PIN A-DUP's,
-	// which appears LATER in submodulePinFamilyOdu's envelope slice, carries
-	// "sha-libfoo-pin-a-dup-newer". Last-match-wins means the surviving row
-	// must carry PIN A-DUP's SHA, never PIN A's.
-	const (
-		wantParent = ifa.SubmodulePinFamilyRepoID
-		wantPath   = "vendor/libfoo"
-		wantSHA    = "sha-libfoo-pin-a-dup-newer"
-		loserSHA   = "sha-libfoo-pin-a"
-	)
-	var winner map[string]any
-	for _, row := range rows {
-		if row["parent_repo_id"] == wantParent && row["submodule_path"] == wantPath {
-			winner = row
-			break
-		}
-	}
-	if winner == nil {
-		t.Fatalf("no row for (parent_repo_id=%q, submodule_path=%q); PIN A/PIN A-DUP's key produced nothing", wantParent, wantPath)
-	}
-	got, _ := winner["pinned_sha"].(string)
-	if got == loserSHA {
-		t.Fatalf("pinned_sha = %q: this is PIN A's ORIGINAL value -- last-match-wins kept the earlier envelope instead of PIN A-DUP's later one", got)
-	}
-	if got != wantSHA {
-		t.Fatalf("pinned_sha = %q, want %q (PIN A-DUP's, the later envelope)", got, wantSHA)
 	}
 }
 
@@ -270,24 +212,24 @@ func TestSubmodulePinFamilyIsCatalogedAndResolvable(t *testing.T) {
 	}
 }
 
-// TestSubmodulePinFamilyOduBuildsSevenFacts exercises submodulePinFamilyOdu
+// TestSubmodulePinFamilyOduBuildsSixFacts exercises submodulePinFamilyOdu
 // directly rather than through ifa.CatalogByName(), so a catalog_seed.go
 // regression fails one test with a clear cause instead of taking the whole
 // family-specific stack down with it.
-func TestSubmodulePinFamilyOduBuildsSevenFacts(t *testing.T) {
+func TestSubmodulePinFamilyOduBuildsSixFacts(t *testing.T) {
 	t.Parallel()
 	catalogOdu := ifa.SubmodulePinFamilyOdu()
 	if catalogOdu.Odu.Name != ifa.SubmodulePinFamilyOduName {
 		t.Fatalf("ifa.SubmodulePinFamilyOdu().Odu.Name = %q, want %q", catalogOdu.Odu.Name, ifa.SubmodulePinFamilyOduName)
 	}
-	// 1 repository fact + 5 submodule.pin facts (PIN A, B, A-DUP, E, C) + the
+	// 1 repository fact + 4 submodule.pin facts (PIN A, B, E, C) + the
 	// shared_followup fact that enqueues this family's reducer work item. The
 	// follow-up is not decoration: without it the projector's fan-out never
 	// creates a domain='submodule_pin' fact_work_items row, so the live gates
 	// cannot drive the handler at all (mirroring codeowners_ownership_edges,
 	// #5992). See submodulePinFamilySharedFollowupFact's doc comment.
-	if len(catalogOdu.Odu.Facts) != 7 {
-		t.Fatalf("ifa.SubmodulePinFamilyOdu() carries %d facts, want 7 (1 repository + 5 pins + 1 shared_followup)", len(catalogOdu.Odu.Facts))
+	if len(catalogOdu.Odu.Facts) != 6 {
+		t.Fatalf("ifa.SubmodulePinFamilyOdu() carries %d facts, want 6 (1 repository + 4 pins + 1 shared_followup)", len(catalogOdu.Odu.Facts))
 	}
 }
 

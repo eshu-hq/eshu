@@ -271,8 +271,8 @@ exact wording and fails if they drift.
   the fixture must assert without widening MERGE identity. The loader rejects
   blank values and overlap with identity keys; the live comparator reads only
   the fixture-declared keys. `submodule_pin_edges` uses this for `pinned_sha`,
-  so PIN A's later duplicate must win even though the edge count and path stay
-  unchanged.
+  so PIN A's explicit current value must match even though the edge count and
+  path stay unchanged.
 
 - `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
   `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)

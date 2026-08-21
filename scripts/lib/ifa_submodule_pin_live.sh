@@ -35,8 +35,8 @@ ifa_submodule_pin_drive() {
 # paths, plus one edge to a second target -- proving the {path} identity
 # property keeps the two same-target edges distinct rather than collapsing
 # onto one relationship. Each expected edge also asserts its SET-only
-# pinned_sha. PIN A therefore requires the later duplicate's SHA, proving the
-# extractor's last-match-wins contract rather than only its deduplicated count.
+# pinned_sha. PIN A therefore requires its explicit current SHA, proving stale
+# SET-only graph truth cannot pass behind the correct edge count and identity.
 #
 # This assertion is property-aware. assert-edges reads
 # cypher.MaterializedEdgeIdentityProperties for the domain, so a live

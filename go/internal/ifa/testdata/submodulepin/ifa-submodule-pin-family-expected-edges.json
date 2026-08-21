@@ -9,7 +9,7 @@
         "path": "vendor/libfoo"
       },
       "properties": {
-        "pinned_sha": "sha-libfoo-pin-a-dup-newer"
+        "pinned_sha": "sha-libfoo-pin-a-current"
       }
     },
     {

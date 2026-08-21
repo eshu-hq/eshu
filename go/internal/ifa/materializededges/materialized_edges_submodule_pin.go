@@ -107,8 +107,8 @@ func resolveSubmodulePinMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 //
 // generation_id is deliberately left out because it is run-specific.
 // pinned_sha is SET-only rather than part of the relationship MERGE key, but
-// it is still asserted as mutable truth so the duplicate PIN A fixture proves
-// the extractor retained the later envelope's value.
+// it is still asserted as mutable truth so a stale graph property cannot pass
+// merely because the relationship identity and edge count are correct.
 func submodulePinRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 	out := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {

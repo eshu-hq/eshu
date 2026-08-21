@@ -21,13 +21,13 @@
         {
           "fact_kind": "submodule.pin",
           "schema_version": "1.0.0",
-          "stable_fact_key": "submodule.pin:repo-ifa-submodule-pin-family:pin-a",
+          "stable_fact_key": "9269ffd44b741b44f042e53202e7164e1cb14369c5f6644efd8bddce196440ea",
           "collector_kind": "git",
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
             "parent_repo_id": "repo-ifa-submodule-pin-family",
-            "pinned_sha": "sha-libfoo-pin-a",
+            "pinned_sha": "sha-libfoo-pin-a-current",
             "resolved_repo_id": "repo-ifa-submodule-pin-target-foo",
             "submodule_path": "vendor/libfoo",
             "submodule_url": "https://git.example.invalid/org/libfoo.git"
@@ -36,7 +36,7 @@
         {
           "fact_kind": "submodule.pin",
           "schema_version": "1.0.0",
-          "stable_fact_key": "submodule.pin:repo-ifa-submodule-pin-family:pin-b",
+          "stable_fact_key": "f6da2e990b38c36ab68f83b33f34e587cb2a47cdec419f7f3c9801d32dec20e0",
           "collector_kind": "git",
           "source_confidence": "observed",
           "is_tombstone": false,
@@ -51,22 +51,7 @@
         {
           "fact_kind": "submodule.pin",
           "schema_version": "1.0.0",
-          "stable_fact_key": "submodule.pin:repo-ifa-submodule-pin-family:pin-a-dup",
-          "collector_kind": "git",
-          "source_confidence": "observed",
-          "is_tombstone": false,
-          "payload": {
-            "parent_repo_id": "repo-ifa-submodule-pin-family",
-            "pinned_sha": "sha-libfoo-pin-a-dup-newer",
-            "resolved_repo_id": "repo-ifa-submodule-pin-target-foo",
-            "submodule_path": "vendor/libfoo",
-            "submodule_url": "https://git.example.invalid/org/libfoo.git"
-          }
-        },
-        {
-          "fact_kind": "submodule.pin",
-          "schema_version": "1.0.0",
-          "stable_fact_key": "submodule.pin:repo-ifa-submodule-pin-family:pin-e",
+          "stable_fact_key": "a47f6c2e786e14cef5a18f767de87edc79236c5b53a35033044ba46623f86476",
           "collector_kind": "git",
           "source_confidence": "observed",
           "is_tombstone": false,
@@ -81,7 +66,7 @@
         {
           "fact_kind": "submodule.pin",
           "schema_version": "1.0.0",
-          "stable_fact_key": "submodule.pin:repo-ifa-submodule-pin-family:pin-c",
+          "stable_fact_key": "2267c980b7248f66663d52c56e67229b78f6b4085c045c2d373b29ae54f9792a",
           "collector_kind": "git",
           "source_confidence": "observed",
           "is_tombstone": false,

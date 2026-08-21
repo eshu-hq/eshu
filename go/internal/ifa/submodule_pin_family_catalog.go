@@ -19,7 +19,7 @@ const (
 	// submodule-pin-family tests can build a synthetic Odù against this same
 	// repository (TestResolveSubmodulePinMaterializedEdgesReturnsZeroRowsFalse's
 	// empty-probe) and identify PIN A's row by parent_repo_id
-	// (TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA) without
+	// (TestSubmodulePinFamilyCassetteSurvivesProductionFactOrder) without
 	// duplicating the literal.
 	SubmodulePinFamilyRepoID      = "repo-ifa-submodule-pin-family"
 	submodulePinFamilyTargetFooID = "repo-ifa-submodule-pin-target-foo"
@@ -48,13 +48,6 @@ const (
 //     path identity (cypher.MaterializedEdgeIdentityProperties) is what lets
 //     a dropped path stay visible when an unrelated duplicate masks the
 //     count.
-//   - PIN A-DUP repeats PIN A's exact (parent_repo_id, submodule_path) key
-//     with a DIFFERENT pinned_sha: ExtractSubmodulePinEdgeRowsWithQuarantine
-//     must collapse it into PIN A's row rather than emit a second edge for
-//     the same path. The expected fixture separately asserts the later
-//     envelope's SET-only pinned_sha without widening MERGE identity;
-//     TestSubmodulePinFamilyCassettePinADupWinsOnPinnedSHA also reads the raw
-//     row map so a reducer-level wrong winner has a focused failure.
 //   - PIN E (path "vendor/libbaz") resolves to a SECOND, DISTINCT target
 //     repository (repo-ifa-submodule-pin-target-baz): proves the extractor
 //     tracks per-path target identity correctly rather than only ever
@@ -75,41 +68,34 @@ func SubmodulePinFamilyOdu() CatalogOdu {
 			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
-			PinnedSHA:      strPtr("sha-libfoo-pin-a"),
-		}, "pin-a"),
+			PinnedSHA:      strPtr("sha-libfoo-pin-a-current"),
+		}),
 		// PIN B: same target as PIN A, a different path.
 		submodulePinFamilyPinFact(submodulev1.Pin{
 			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo-mirror",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo-mirror.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
 			PinnedSHA:      strPtr("sha-libfoo-mirror-pin-b"),
-		}, "pin-b"),
-		// PIN A-DUP: last-match-wins duplicate of PIN A's (parent, path) key.
-		submodulePinFamilyPinFact(submodulev1.Pin{
-			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libfoo",
-			SubmoduleURL:   strPtr("https://git.example.invalid/org/libfoo.git"),
-			ResolvedRepoID: strPtr(submodulePinFamilyTargetFooID),
-			PinnedSHA:      strPtr("sha-libfoo-pin-a-dup-newer"),
-		}, "pin-a-dup"),
+		}),
 		// PIN E: a second, distinct target repository.
 		submodulePinFamilyPinFact(submodulev1.Pin{
 			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libbaz",
 			SubmoduleURL:   strPtr("https://git.example.invalid/org/libbaz.git"),
 			ResolvedRepoID: strPtr(submodulePinFamilyTargetBazID),
 			PinnedSHA:      strPtr("sha-libbaz-pin-e"),
-		}, "pin-e"),
+		}),
 		// PIN C: unresolved submodule URL -- no edge must project.
 		submodulePinFamilyPinFact(submodulev1.Pin{
 			ParentRepoID: SubmodulePinFamilyRepoID, SubmodulePath: "vendor/libunresolved",
 			SubmoduleURL: strPtr("https://git.example.invalid/org/libunresolved.git"),
-		}, "pin-c"),
+		}),
 		submodulePinFamilySharedFollowupFact(),
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: SubmodulePinFamilyOduName, Facts: factsForOdu},
 		Detail: "one parent repository pinning two distinct target repositories across three " +
-			"live paths (a same-target two-path collision PIN A/B, a last-match-wins " +
-			"duplicate PIN A-DUP, and a second-target PIN E), plus an unresolved " +
+			"live paths (a same-target two-path collision PIN A/B and a second-target " +
+			"PIN E), plus an unresolved " +
 			"submodule PIN C that must project no edge -- three PINS_SUBMODULE edges total",
 	}
 }
@@ -167,18 +153,22 @@ func SubmodulePinFamilyRepositoryFact(repoID, localPath string) facts.Envelope {
 	}
 }
 
-// submodulePinFamilyPinFact builds one typed "submodule.pin" fact. pinLabel
-// feeds the stable_fact_key so each pin has its own stable identity even
-// though PIN A and PIN A-DUP otherwise share every field but pinned_sha.
-func submodulePinFamilyPinFact(pin submodulev1.Pin, pinLabel string) facts.Envelope {
+// submodulePinFamilyPinFact builds one typed "submodule.pin" fact. Its stable
+// identity exactly mirrors collector/submodule.Emit: one key per
+// (parent_repo_id, submodule_path), independent of mutable URL, resolution,
+// and pinned-SHA values.
+func submodulePinFamilyPinFact(pin submodulev1.Pin) facts.Envelope {
 	payload, err := factschema.EncodeSubmodulePin(pin)
 	if err != nil {
 		panic(fmt.Sprintf("ifa: encode submodule-pin catalog pin %q/%q: %v", pin.ParentRepoID, pin.SubmodulePath, err))
 	}
 	return facts.Envelope{
 		ScopeID: "scope-ifa-submodule-pin-family", GenerationID: submodulePinFamilyGenerationID,
-		FactKind:         factschema.FactKindSubmodulePin,
-		StableFactKey:    "submodule.pin:" + pin.ParentRepoID + ":" + pinLabel,
+		FactKind: factschema.FactKindSubmodulePin,
+		StableFactKey: facts.StableID(facts.SubmodulePinFactKind, map[string]any{
+			"parent_repo_id": pin.ParentRepoID,
+			"submodule_path": pin.SubmodulePath,
+		}),
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "git",
 		SourceConfidence: "observed",

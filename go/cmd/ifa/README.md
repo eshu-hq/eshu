@@ -128,8 +128,8 @@ session.
   `Repository`, `Workload`, `WorkloadInstance` and `Platform` carry no uid).
   Fixtures may additionally assert relationship properties that are SET after
   MERGE without treating them as edge identity. The `submodule_pin_edges`
-  fixture uses that contract for `pinned_sha`, including the later duplicate's
-  winning value.
+  fixture uses that contract for `pinned_sha`, including PIN A's explicit
+  current value.
   The `rationale_edges` domain uses the same flags but compares complete
   EXPLAINS records: sorted endpoint labels plus every raw source, relationship,
   and target property. It scopes the fixture to one nonblank repository and
