@@ -200,8 +200,55 @@ container, with one negation case per name plus a repoint case:
 | delete `NEO4J_URI` | exit 1 |
 | delete `ESHU_NEO4J_DATABASE` | exit 1 |
 | delete `NEO4J_DATABASE` | exit 1 |
-| repoint `ESHU_NEO4J_URI` to another host | exit 1 |
+| repoint any of the four away from this container | exit 1 |
+| delete the workflow's `run: bash scripts/verify-replay-tier.sh` step | exit 1 |
+| put `if: ${{ false }}` on that step, leaving the `run:` line present | exit 1 |
+| put `continue-on-error: true` on that step | exit 1 |
+| put `if: ${{ false }}` on the replay-tier **job** | exit 1 |
+| put `continue-on-error: true` on the **job** | exit 1 |
+| weaken the guard from value-check to existence-check | exit 1, via the repoint cases |
 | unmodified | exit 0 |
+
+Every row above except the last mutation is a standing case in
+`scripts/test-verify-replay-tier.sh`, not a one-time manual experiment. The
+exception is deliberate: nothing mutates `has_graph_endpoint_pins` itself,
+because a guard cannot stand-test itself. Weakening it to `^export ${var}=`
+would still fail every deletion row, so what actually catches that regression
+is the per-pin repoint loop — a weakened guard lets a repointed pin through and
+the first repoint case fails.
+
+That distinction cost a fifth review round: the gate-step guard shipped with its
+evidence recorded in this table and no negation case in the mirror, so a future
+weakening of that one line would have gone unnoticed. A table row is a record;
+only the mirror is a guard.
+
+The last two workflow rows are the sharper half of the same finding, and they
+arrived one review round apart. The first version of the guard searched the
+whole workflow file for the `run:` line, so a step GitHub skips entirely still
+satisfied it — present but never executed, skip reading as pass. Rejecting
+`if:` closed that; it did not close `continue-on-error: true`, under which the
+step runs, fails, and the job passes anyway. Fail reads as pass, the same hole
+with the opposite trigger.
+
+The guard extracts the step's own block and rejects both keys outright rather
+than inspecting them for a "safe" value. Then the next round found the same two
+keys one level up: `jobs.replay-tier.if` skips the install, the contract test
+and the gate together, with every `run:` line still present, and its
+`continue-on-error:` twin lets the whole job fail without blocking. So the job
+block is checked the same way.
+
+Four rejections for one property, arrived at over three review rounds, because
+the disabling vector kept moving and the guard kept not following. This gate is
+unconditional and blocking at both levels; changing that should require a
+deliberate edit here, not quietly stop the proof from gating merges.
+
+The last two rows came from a fourth review round, and both are the same class
+again. The mirror proved the workflow installs `rg`, runs the contract test and
+carries the path trigger, but never that it runs the gate — so deleting that
+step would have stopped CI running the blast-radius proof with the mirror still
+green. And the repoint negation covered only `ESHU_NEO4J_URI`, so regressing the
+guard to an existence-only check would have kept every deletion case passing.
+Each pin now has a repoint case, which is what catches that regression.
 
 The value is asserted, not just the assignment. `export ESHU_NEO4J_URI="$OTHER"`
 satisfies an existence check while reopening the hole, which is why the repoint

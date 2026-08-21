@@ -71,12 +71,79 @@ has_graph_endpoint_pins() {
 	done
 }
 
+# workflow_gate_step_block prints the workflow step that runs the live gate,
+# from its `- name:` line up to the next step.
+workflow_gate_step_block() {
+	awk '
+		/^      - name: / { inside = 0 }
+		/^      - name: Run offline replay tier against real NornicDB$/ { inside = 1 }
+		inside { print }
+	' "$1"
+}
+
+# gate_step_is_active checks the workflow HAS the gate step, RUNS it, and lets
+# it BLOCK.
+#
+# A whole-file search for the `run:` line is not enough, in two different ways,
+# and #6205 review found them one after the other:
+#
+#   - `if: ${{ false }}` makes GitHub skip the step while the line is still
+#     present and this mirror still green. Skip reads as pass.
+#   - `continue-on-error: true` lets the step fail and the job still succeed.
+#     Fail reads as pass — the same hole with the opposite trigger.
+#
+# Both are rejected outright rather than inspected for a "safe" value. This gate
+# is unconditional and blocking; a future change to either property should
+# require a deliberate edit here, not quietly stop the blast-radius proof from
+# gating merges.
+gate_step_is_active() {
+	local block key
+	block="$(workflow_gate_step_block "$1")"
+	rg --quiet '^[[:space:]]*run: bash scripts/verify-replay-tier\.sh$' <<<"${block}" || return 1
+	for key in 'if:' 'continue-on-error:'; do
+		if rg --quiet "^[[:space:]]*${key}" <<<"${block}"; then
+			return 1
+		fi
+	done
+}
+
+# workflow_gate_job_block prints the replay-tier job, from its key to the next
+# job key at the same indent.
+workflow_gate_job_block() {
+	awk '
+		/^  [A-Za-z0-9_-]+:$/ { inside = 0 }
+		/^  replay-tier:$/ { inside = 1 }
+		inside { print }
+	' "$1"
+}
+
+# gate_job_is_active applies the same two rejections one level up.
+#
+# gate_step_is_active reads only the step, so `jobs.replay-tier.if: ${{ false }}`
+# skips the install, the contract test AND the gate while every `run:` line is
+# still present — the step-level guard passes and nothing runs. Its
+# `continue-on-error:` twin lets the whole job fail without blocking. Found on
+# #6205 review after the step-level pair was already closed, which is the point:
+# the disabling vector moved up a level and the guard did not follow.
+gate_job_is_active() {
+	local job key
+	job="$(workflow_gate_job_block "$1")"
+	rg --quiet '^    name: Offline replay tier vs real NornicDB$' <<<"${job}" || return 1
+	for key in 'if:' 'continue-on-error:'; do
+		if rg --quiet "^    ${key}" <<<"${job}"; then
+			return 1
+		fi
+	done
+}
+
 has_workflow_wiring() {
 	local install_line test_line
 	install_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: scripts/ci/install-apt-packages\.sh ripgrep$' "$1" | cut -d: -f1)"
 	test_line="$(rg --line-number --no-heading \
 		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
+	gate_step_is_active "$1" || return 1
+	gate_job_is_active "$1" || return 1
 	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
 		rg --quiet "^[[:space:]]*- 'go/internal/query/\\*\\*'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
@@ -174,18 +241,64 @@ for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; d
 		fail "a dropped ${pinned_var} pin must not satisfy the guard"
 	fi
 done
-# Repointing a pin away from this gate's own container must fail too: an
-# existence-only check would pass here and leave the hole open.
-sed 's|^export ESHU_NEO4J_URI=.*|export ESHU_NEO4J_URI="bolt://elsewhere:7687"|' \
-	"${script}" >"${tmp}/script-repointed"
-if has_graph_endpoint_pins "${tmp}/script-repointed"; then
-	fail "a pin repointed away from this gate's container must not satisfy the guard"
-fi
+# Repointing a pin away from this gate's own container must fail too, for EVERY
+# name. Deletion cases alone cannot catch the guard regressing from asserting
+# the value to asserting only the assignment: a weakened `^export ${var}=`
+# check still fails every deletion above while letting a repointed pin through.
+repoint_pin() {
+	case "$1" in
+	*_URI) printf 'bolt://elsewhere:7687\n' ;;
+	*) printf 'not-nornic\n' ;;
+	esac
+}
+for pinned_var in ESHU_NEO4J_URI NEO4J_URI ESHU_NEO4J_DATABASE NEO4J_DATABASE; do
+	sed "s|^export ${pinned_var}=.*|export ${pinned_var}=\"$(repoint_pin "${pinned_var}")\"|" \
+		"${script}" >"${tmp}/script-repointed-${pinned_var}"
+	if has_graph_endpoint_pins "${tmp}/script-repointed-${pinned_var}"; then
+		fail "${pinned_var} repointed away from this gate's container must not satisfy the guard"
+	fi
+done
 sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 	-e '/^[[:space:]]*run: bash scripts\/test-verify-replay-tier\.sh$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow"
 if has_workflow_wiring "${tmp}/workflow"; then
 	fail "commented-out workflow wiring must not satisfy the guard"
+fi
+# The gate step gets the same standing negation every other guard here has. The
+# evidence for it used to be a one-time manual mutation, which is not a guard.
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/s/^/# /' \
+	"${workflow}" >"${tmp}/workflow-no-gate-step"
+if has_workflow_wiring "${tmp}/workflow-no-gate-step"; then
+	fail "workflow must run the live gate step (scripts/verify-replay-tier.sh)"
+fi
+# Present but skipped is the harder case: GitHub runs nothing, the run: line is
+# still there, and a whole-file regex stays green (#6205, found by codex).
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
+        if: ${{ false }}
+' "${workflow}" >"${tmp}/workflow-disabled-gate-step"
+if has_workflow_wiring "${tmp}/workflow-disabled-gate-step"; then
+	fail "a disabled (if:-gated) live gate step must not satisfy the guard"
+fi
+# Non-blocking is the twin: the step runs, it fails, and the job passes anyway.
+sed '/^[[:space:]]*run: bash scripts\/verify-replay-tier\.sh$/i\
+        continue-on-error: true
+' "${workflow}" >"${tmp}/workflow-nonblocking-gate-step"
+if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-step"; then
+	fail "a continue-on-error live gate step must not satisfy the guard"
+fi
+# The same two vectors one level up: disabling or de-blocking the whole job
+# skips the gate while every run: line stays present.
+sed '/^  replay-tier:$/a\
+    if: ${{ false }}
+' "${workflow}" >"${tmp}/workflow-disabled-gate-job"
+if has_workflow_wiring "${tmp}/workflow-disabled-gate-job"; then
+	fail "a disabled (if:-gated) replay-tier JOB must not satisfy the guard"
+fi
+sed '/^  replay-tier:$/a\
+    continue-on-error: true
+' "${workflow}" >"${tmp}/workflow-nonblocking-gate-job"
+if has_workflow_wiring "${tmp}/workflow-nonblocking-gate-job"; then
+	fail "a continue-on-error replay-tier JOB must not satisfy the guard"
 fi
 sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' \
 	"${workflow}" >"${tmp}/workflow-no-rg"
