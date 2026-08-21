@@ -192,7 +192,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // precedent for this exact pattern in the sibling package.
 func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	label := fmt.Sprintf("%s|%s|%s", e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
-	if len(e.Identity) == 0 {
+	if len(e.Identity) == 0 && len(e.Properties) == 0 {
 		return label
 	}
 	keys := make([]string, 0, len(e.Identity))
@@ -204,6 +204,14 @@ func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	b.WriteString(label)
 	for _, k := range keys {
 		fmt.Fprintf(&b, "|%s=%s", k, e.Identity[k])
+	}
+	propertyKeys := make([]string, 0, len(e.Properties))
+	for k := range e.Properties {
+		propertyKeys = append(propertyKeys, k)
+	}
+	sort.Strings(propertyKeys)
+	for _, k := range propertyKeys {
+		fmt.Fprintf(&b, "|%s=%s", k, e.Properties[k])
 	}
 	return b.String()
 }
@@ -217,6 +225,10 @@ func assertMaterializedEdges(
 	identity map[string][]string,
 	expected []materializededges.ExpectedEdge,
 ) error {
+	expectedPropertyKeys, err := indexExpectedPropertyKeys(expected)
+	if err != nil {
+		return fmt.Errorf("ifa assert-edges: %w", err)
+	}
 	// expectedCounts tracks per-key multiplicity, not just presence: the
 	// command promises an exact edge COUNT, so two identical expected edges (a
 	// mis-authored fixture) and two identical graph edges (a duplicate-writer /
@@ -238,93 +250,22 @@ func assertMaterializedEdges(
 		labels[key] = expectedEdgeLabel(e)
 	}
 
-	actualCounts := make(map[string]int)
-	var endpointErrs []string
-	var identityErrs []string
-	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
-		if _, ok := edgeTypes[edge.Type]; !ok {
-			return nil
-		}
-		// A constrained type must match its endpoint labels too. Only families
-		// with a proven type collision carry constraints, and the cypher-side
-		// guard requires them to be total over the family's registered types, so
-		// a constrained family can never have a type silently fall through here
-		// unmatched.
-		if endpoint, constrained := endpoints[edge.Type]; constrained {
-			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
-				return nil
-			}
-			// Provenance, where the family declares it. Two live writers can emit
-			// the same type between the same labels (RUNS_ON), and only the
-			// evidence_source the writer stamped tells them apart — the same
-			// property the family's retract scopes on.
-			if endpoint.EvidenceSource != "" {
-				if got, _ := edge.Props["evidence_source"].(string); got != endpoint.EvidenceSource {
-					return nil
-				}
-			}
-		}
-		fromUID := endpointID(edge.FromProps, edge.FromLabels)
-		toUID := endpointID(edge.ToProps, edge.ToLabels)
-		if fromUID == "" || toUID == "" {
-			// Name WHICH side is unidentified. This branch fires when either
-			// endpoint lacks an identity, so a message asserting both are missing
-			// sends the reader looking at a node that is materialized correctly.
-			missing := "source and target"
-			switch {
-			case fromUID == "" && toUID != "":
-				missing = "source"
-			case toUID == "" && fromUID != "":
-				missing = "target"
-			}
-			// Name every identity endpointID actually tries, including the
-			// CodeownerTeam-scoped ref. Naming only uid and id sends the
-			// operator of a DECLARES_CODEOWNER regression looking for two
-			// properties the node is never keyed by.
-			endpointErrs = append(endpointErrs, fmt.Sprintf(
-				"%s edge whose %s endpoint carries neither uid, id, nor (for a CodeownerTeam endpoint) ref (from=%q to=%q) — an unmaterialized endpoint node",
-				edge.Type, missing, fromUID, toUID,
-			))
-			return nil
-		}
-		liveEdge := materializededges.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}
-		if declared := identity[edge.Type]; len(declared) > 0 {
-			props := make(map[string]string, len(declared))
-			var badProps []string
-			for _, key := range declared {
-				value, ok := edge.Props[key].(string)
-				if !ok || strings.TrimSpace(value) == "" {
-					badProps = append(badProps, key)
-					continue
-				}
-				props[key] = value
-			}
-			if len(badProps) > 0 {
-				sort.Strings(badProps)
-				identityErrs = append(identityErrs, fmt.Sprintf(
-					"%s edge (from=%q to=%q) has missing or non-string declared identity properties %v — an unmaterialized identity property",
-					edge.Type, fromUID, toUID, badProps,
-				))
-				return nil
-			}
-			liveEdge.Identity = props
-		}
-		key := liveEdge.Key()
-		actualCounts[key]++
-		labels[key] = expectedEdgeLabel(liveEdge)
-		return nil
-	})
+	scan, err := scanMaterializedEdges(ctx, reader, edgeTypes, endpoints, identity, expectedPropertyKeys, labels)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: stream %s edges: %w", domain, err)
 	}
+	actualCounts := scan.counts
+	endpointErrs := scan.endpointErrs
+	identityErrs := scan.identityErrs
+	propertyErrs := scan.propertyErrs
 
 	var missing, extra, duplicate []string
 	for key, want := range expectedCounts {
 		got := actualCounts[key]
 		label := labels[key]
 		switch {
-		case got == 0:
-			missing = append(missing, label)
+		case got < want:
+			missing = append(missing, fmt.Sprintf("%s (graph=%d, expected=%d)", label, got, want))
 		case got > want:
 			// Present, but materialized more times than expected: a duplicate.
 			duplicate = append(duplicate, fmt.Sprintf("%s (graph=%d, expected=%d)", label, got, want))
@@ -347,8 +288,9 @@ func assertMaterializedEdges(
 	sort.Strings(duplicate)
 	sort.Strings(endpointErrs)
 	sort.Strings(identityErrs)
+	sort.Strings(propertyErrs)
 
-	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 && len(identityErrs) == 0 {
+	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 && len(identityErrs) == 0 && len(propertyErrs) == 0 {
 		return nil
 	}
 	var b strings.Builder
@@ -380,6 +322,12 @@ func assertMaterializedEdges(
 	if len(identityErrs) > 0 {
 		fmt.Fprintf(&b, "\n  identity defects (%d):", len(identityErrs))
 		for _, e := range identityErrs {
+			fmt.Fprintf(&b, "\n    %s", e)
+		}
+	}
+	if len(propertyErrs) > 0 {
+		fmt.Fprintf(&b, "\n  asserted-property defects (%d):", len(propertyErrs))
+		for _, e := range propertyErrs {
 			fmt.Fprintf(&b, "\n    %s", e)
 		}
 	}

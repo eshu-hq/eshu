@@ -9,8 +9,9 @@
 # ESHU_POSTGRES_DSN, log_dir, bg_pids, ifa_det_pg, ifa_det_untrack_bg_pid).
 #
 # cell_killworker_deployable_unit (ifa_fault_injection_deployable_unit_cells.sh)
-# is the only caller of the lock/release pair below; cell_baseline_deployable_unit
-# in that same file calls ifa_deployable_unit_require_admission_decisions_written.
+# is the only caller of the lock/release and pre-kill isolation helpers below;
+# cell_baseline_deployable_unit in that same file calls
+# ifa_deployable_unit_require_admission_decisions_written.
 
 # ifa_deployable_unit_require_admission_decisions_written fails closed unless
 # admission_decisions carries at least one row for domain =
@@ -71,6 +72,82 @@ ifa_deployable_unit_require_admission_decisions_written() {
 		return 1
 	fi
 	printf '%s: confirmed %s admission_decisions row(s) for domain=deployable_unit_correlation -- the lock target below is a real write, not a race\n' "${cell}" "${admission_count}"
+}
+
+# ifa_deployable_unit_wait_for_kill_isolation keeps the deployable-unit fault
+# targeted even though kill -9 stops the whole reducer process. That process
+# also owns the generic and repo-dependency shared-projection runners. Killing
+# it as soon as deployable_unit_correlation is claimed can therefore abandon an
+# unrelated partition lease; repo_dependency's production lease is five
+# minutes, longer than this gate's four-minute post-kill drain.
+#
+# The target handler is already blocked on admission_decisions when this runs.
+# In one PostgreSQL snapshot, each poll requires: every non-target work item is
+# terminal, every shared intent is complete, and no cross-scope completion
+# event can reopen more work. Once all three are zero, the only remaining
+# producer is deployable_unit_correlation, which has no IntentWriter and cannot
+# create a shared intent. An idle partition lease may remain, but there is no
+# work behind it for the kill to strand. Other reducer workers remain fully
+# concurrent while the barrier waits; no production lease or worker setting is
+# changed.
+#
+# Args: cell compose_project use_compose dsn compose_file budget_seconds
+ifa_deployable_unit_wait_for_kill_isolation() {
+	local cell="$1" compose_project="$2" use_compose_arg="$3" dsn="$4"
+	local compose_file_arg="$5" budget="$6"
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: pre-kill isolation budget must be a positive integer, got %q\n' "${cell}" "${budget}" >&2
+		return 1
+	fi
+
+	local raw state query_rc
+	if raw="$(ifa_det_pg "${compose_project}" "${use_compose_arg}" "${dsn}" \
+		"CREATE OR REPLACE FUNCTION pg_temp.ifa_wait_for_deployable_unit_kill_isolation(wait_seconds integer)
+		 RETURNS text LANGUAGE plpgsql AS \$\$
+		 DECLARE
+		   other_fact_work bigint;
+		   shared_intents bigint;
+		   completion_events bigint;
+		   deadline timestamptz := clock_timestamp() + make_interval(secs => wait_seconds);
+		 BEGIN
+		   LOOP
+		     SELECT
+		       (SELECT count(*) FROM fact_work_items
+		         WHERE status NOT IN ('succeeded', 'superseded')
+		           AND NOT (stage = 'reducer' AND domain = 'deployable_unit_correlation')),
+		       (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL),
+		       (SELECT count(*) FROM cross_scope_completion_events)
+		       INTO other_fact_work, shared_intents, completion_events;
+		     IF other_fact_work = 0 AND shared_intents = 0 AND completion_events = 0 THEN
+		       RETURN '0|0|0';
+		     END IF;
+		     EXIT WHEN clock_timestamp() >= deadline;
+		     PERFORM pg_sleep(0.05);
+		   END LOOP;
+		   RETURN other_fact_work || '|' || shared_intents || '|' || completion_events;
+		 END
+		 \$\$;
+		 SELECT pg_temp.ifa_wait_for_deployable_unit_kill_isolation(${budget});" \
+		 "${compose_file_arg}")"; then
+		query_rc=0
+	else
+		query_rc=$?
+	fi
+	if [[ "${query_rc}" -ne 0 ]]; then
+		printf '%s: pre-kill isolation query failed (exit %s); refusing to kill a reducer with unknown cross-family ownership\n' "${cell}" "${query_rc}" >&2
+		return "${query_rc}"
+	fi
+	state="$(printf '%s\n' "${raw}" | tail -n 1 | tr -d '[:space:]')"
+	if [[ "${state}" == "0|0|0" ]]; then
+		printf '%s: pre-kill isolation: other fact work=0, shared intents=0, completion events=0\n' "${cell}"
+		return 0
+	fi
+	if [[ ! "${state}" =~ ^[0-9]+\|[0-9]+\|[0-9]+$ ]]; then
+		printf '%s: pre-kill isolation returned malformed state %q; refusing to treat unknown ownership as isolated\n' "${cell}" "${state}" >&2
+		return 1
+	fi
+	printf '%s: pre-kill isolation timed out with other_fact_work|shared_intents|completion_events=%s; refusing a process-wide kill that could orphan another family\n' "${cell}" "${state}" >&2
+	return 1
 }
 
 # ifa_deployable_unit_start_admission_decisions_lock holds admission_decisions

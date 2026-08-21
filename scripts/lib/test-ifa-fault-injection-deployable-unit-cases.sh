@@ -19,6 +19,10 @@
 # deployable_unit_cells_lib for the same 500-line reason -- their
 # definitions are checked there, their WIRING against deployable_unit_cells_lib.
 
+# shellcheck source=scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh
+deployable_unit_kill_isolation_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
+source "${deployable_unit_kill_isolation_cases_lib}"
+
 require_deployable_unit_live_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_live_lib}")" -ge 1 ]] \
@@ -47,15 +51,20 @@ require_deployable_unit_cells() {
 # the parent's scope, not at source time -- a bare top-level block here would
 # silently assert against empty variables.
 run_ifa_fault_injection_deployable_unit_cases() {
+	run_ifa_fault_injection_deployable_unit_kill_isolation_cases
 	# The live gate script actually sources each deployable-unit lib. Moved
 	# here from the top-level preamble (mirroring the require_* relocation
 	# this whole split exists to demonstrate) to keep the parent structural
 	# verifier under the repository's 500-line cap.
-	require_code "sources deployable-unit live lib" "scripts/lib/ifa_deployable_unit_live.sh"
-	require_code "sources deployable-unit diagnostics lib" "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
-	require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_unit_live_converge.sh"
-	require_code "sources deployable-unit lock lib" "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
-	require_code "sources deployable-unit cells lib" "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
+	for source_name in \
+		ifa_deployable_unit_live.sh \
+		ifa_deployable_unit_live_diagnostics.sh \
+		ifa_deployable_unit_live_converge.sh \
+		ifa_fault_injection_deployable_unit_lock.sh \
+		ifa_fault_injection_deployable_unit_cells.sh; do
+		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
+			|| fail "source inventory omits ${source_name}"
+	done
 
 	# deployable_unit_edges (#5993): a family-scoped baseline cell plus two
 	# fault cells, run after a bootstrap-index maintenance pass
@@ -344,7 +353,7 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# in the wrong cell entirely.
 	local -A du_readiness_label=(
 		[cell_baseline_deployable_unit]="reducer-baseline_deployable_unit"
-		[cell_killworker_deployable_unit]="reducer-killworkerdeployableunit-after"
+		[cell_killworker_deployable_unit]="reducer-killworkerdeployableunit-before"
 		[cell_failgraphwrite_deployable_unit]="reducer-failgraphwritedeployableunit"
 	)
 	local du_readiness_line

@@ -19,8 +19,8 @@
 # cell_failgraphwrite_family, the shared kill/reclaim/drain/assert skeleton
 # every blocker_kind reuses, the uniform fail-graph-write cell, and the
 # wait_stage lookup. Per-mechanism logic lives in its own file so each stays
-# well under the 500-line cap with room for the eight more families still to
-# land, and so it is obvious which mechanism a new family opts into:
+# well under the 500-line cap with room for the families still to land, and
+# so it is obvious which mechanism a new family opts into:
 #   - ifa_fault_generic_shared_intent_lock.sh -- the shared_intent_lock
 #     blocker (precondition + acquire/release). The ONE mechanism this PR
 #     wires to a real consumer (code_calls, rationale_edges).

@@ -255,6 +255,11 @@ cell_baseline_deployable_unit() {
 # retries in a clean maintenance-pass run, so any positive count is the
 # fault's fingerprint) proves the replacement reducer re-executed
 # deployable_unit_correlation, not merely another queued row.
+# Before that process-wide kill, the pre-kill isolation barrier lets every
+# non-target fact, shared intent, and cross-scope completion event finish. The
+# blocked target has no IntentWriter, so after that boundary it cannot create
+# new cross-family work; killing the reducer cannot abandon an unrelated
+# five-minute repo_dependency partition lease behind the four-minute drain.
 #
 # THE RETRY EVIDENCE IS SNAPSHOTTED, NOT RE-QUERIED (found live in CI):
 # attempt_count is captured immediately after the post-kill drain reaches
@@ -299,6 +304,9 @@ cell_killworker_deployable_unit() {
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" "deployable_unit_correlation")" \
 		|| die "kill-worker-after-claim-deployable-unit: no deployable_unit_correlation row was claimed while its durable write was blocked"
 	printf 'kill-worker-after-claim-deployable-unit: non-vacuous: %s blocked claimed/running row(s) observed\n' "${claimed_before}"
+	ifa_deployable_unit_wait_for_kill_isolation "killworkerdeployableunit" \
+		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "kill-worker-after-claim-deployable-unit: unrelated reducer work did not reach the pre-kill isolation boundary"
 	kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
 	ifa_deployable_unit_release_admission_decisions_lock "killworkerdeployableunit" "${lock_holder_pid}"
 	ifa_det_start_bg "${log_dir}" "reducer-killworkerdeployableunit-after" reducer_pid_after "${bin_dir}/eshu-reducer"
@@ -319,8 +327,8 @@ cell_killworker_deployable_unit() {
 		killed_retried_rc=$?
 	fi
 	assert_no_dead_letters killworkerdeployableunit
-	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-after" "killworkerdeployableunit" \
-		|| die "kill-worker-after-claim-deployable-unit: post-maintenance reducer log does not prove the readiness gate opened"
+	ifa_deployable_unit_live_assert_readiness_opened "${log_dir}" "reducer-killworkerdeployableunit-before" "killworkerdeployableunit" \
+		|| die "kill-worker-after-claim-deployable-unit: original reducer log does not prove the readiness gate opened before the isolated kill"
 	ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_resolved_deploys_from_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}"
 	ifa_deployable_unit_live_report_correlation_reopen "${log_dir}" "killworkerdeployableunit"

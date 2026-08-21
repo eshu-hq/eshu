@@ -122,7 +122,7 @@ source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
-source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"
+source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"  # two sources, one line: this file is at the 500-line cap and a genuinely new line here is not free
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port

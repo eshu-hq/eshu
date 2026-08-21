@@ -20,13 +20,15 @@ headroom under the repository's directory file-count gate (`go-dir-gate`)
 before the families still queued consumed it. ifa was under the cap when the
 split was taken, not over it. It owns:
 
-- The seven family guards: SQL relationships (`materialized_edges_sql.go`),
+- The family guards: SQL relationships (`materialized_edges_sql.go`),
   documentation edges (`materialized_edges_documentation.go`), code calls
   (`materialized_edges_code_calls.go`), rationale edges
   (`materialized_edges_rationale.go`), codeowners ownership
-  (`materialized_edges_codeowners.go`), and deployable-unit edges
-  (`materialized_edges_deployable_unit.go`), and repository dependencies
-  (`materialized_edges_repo_dependency.go`).
+  (`materialized_edges_codeowners.go`), deployable-unit edges
+  (`materialized_edges_deployable_unit.go`), repository dependencies
+  (`materialized_edges_repo_dependency.go`), and submodule pins
+  (`materialized_edges_submodule_pin.go`). Deliberately uncounted: a count in
+  prose has no gate and drifts the moment a family lands.
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture
@@ -54,7 +56,8 @@ stays in `ifa`).
 
 ## Exported Surface
 
-- `ExpectedEdge{RelationshipType, SourceEntityID, TargetEntityID, Identity}`
+- `ExpectedEdge{RelationshipType, SourceEntityID, TargetEntityID, Identity,
+  Properties}`
   and `LoadExpectedEdges(path, family)` - the shared hand-derived
   expected-edge-set shape and loader every guard reads its fixture through.
 - `MaterializedEdgeDomainEdgeTypes(family)` - the family's registered
@@ -263,7 +266,13 @@ exact wording and fails if they drift.
   in the fixture (`DisallowUnknownFields`). `assertMaterializedEdges`
   (`cmd/ifa/assert_edges.go`) mirrors the same validation against the LIVE
   graph: a declared identity property missing, non-string, or blank on a live
-  edge is a loud identity defect, never silently keyed as `""`.
+  edge is a loud identity defect, never silently keyed as `""`. `ExpectedEdge`
+  also carries an optional `Properties map[string]string` for SET-only values
+  the fixture must assert without widening MERGE identity. The loader rejects
+  blank values and overlap with identity keys; the live comparator reads only
+  the fixture-declared keys. `submodule_pin_edges` uses this for `pinned_sha`,
+  so PIN A's explicit current value must match even though the edge count and
+  path stay unchanged.
 
 - `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
   `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)

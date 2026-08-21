@@ -1,0 +1,106 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "git",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-submodule-pin-family",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "local_path": "/repo-submodule-pin-parent",
+            "repo_id": "repo-ifa-submodule-pin-family",
+            "source_run_id": "run-ifa-submodule-pin-family-1"
+          }
+        },
+        {
+          "fact_kind": "submodule.pin",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "9269ffd44b741b44f042e53202e7164e1cb14369c5f6644efd8bddce196440ea",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parent_repo_id": "repo-ifa-submodule-pin-family",
+            "pinned_sha": "sha-libfoo-pin-a-current",
+            "resolved_repo_id": "repo-ifa-submodule-pin-target-foo",
+            "submodule_path": "vendor/libfoo",
+            "submodule_url": "https://git.example.invalid/org/libfoo.git"
+          }
+        },
+        {
+          "fact_kind": "submodule.pin",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "f6da2e990b38c36ab68f83b33f34e587cb2a47cdec419f7f3c9801d32dec20e0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parent_repo_id": "repo-ifa-submodule-pin-family",
+            "pinned_sha": "sha-libfoo-mirror-pin-b",
+            "resolved_repo_id": "repo-ifa-submodule-pin-target-foo",
+            "submodule_path": "vendor/libfoo-mirror",
+            "submodule_url": "https://git.example.invalid/org/libfoo-mirror.git"
+          }
+        },
+        {
+          "fact_kind": "submodule.pin",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "a47f6c2e786e14cef5a18f767de87edc79236c5b53a35033044ba46623f86476",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parent_repo_id": "repo-ifa-submodule-pin-family",
+            "pinned_sha": "sha-libbaz-pin-e",
+            "resolved_repo_id": "repo-ifa-submodule-pin-target-baz",
+            "submodule_path": "vendor/libbaz",
+            "submodule_url": "https://git.example.invalid/org/libbaz.git"
+          }
+        },
+        {
+          "fact_kind": "submodule.pin",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "2267c980b7248f66663d52c56e67229b78f6b4085c045c2d373b29ae54f9792a",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parent_repo_id": "repo-ifa-submodule-pin-family",
+            "submodule_path": "vendor/libunresolved",
+            "submodule_url": "https://git.example.invalid/org/libunresolved.git"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-submodule-pin-family:submodule_pin",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "entity_key": "submodule:repo-ifa-submodule-pin-family",
+            "reason": "repository snapshot emitted submodule pin follow-up",
+            "reducer_domain": "submodule_pin",
+            "repo_id": "repo-ifa-submodule-pin-family"
+          }
+        }
+      ],
+      "generation_id": "gen-ifa-submodule-pin-family-1",
+      "metadata": {
+        "fixture": "ifa-submodule-pin-family"
+      },
+      "observed_at": "2026-08-15T00:00:00Z",
+      "partition_key": "scope-ifa-submodule-pin-family",
+      "scope_id": "scope-ifa-submodule-pin-family",
+      "scope_kind": "repo",
+      "source_system": "git",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

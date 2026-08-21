@@ -54,6 +54,7 @@ var catalogSeed = []CatalogOdu{
 	documentationFamilyOdu(),
 	rationaleFamilyOdu(),
 	CodeownersFamilyOdu(),
+	SubmodulePinFamilyOdu(),
 	sqlFamilyDeltaOdu(),
 	deployableUnitFamilyOdu(),
 	repoDependencyFamilyOdu(),

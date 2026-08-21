@@ -35,6 +35,7 @@ on:
       - 'scripts/lib/test-ifa-determinism-family-cases.sh'
       - 'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
       - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
+      - 'scripts/lib/test-ifa-determinism-require-helpers.sh'
       - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
       - 'scripts/lib/ifa_fault_shard.sh'
       # Glob, not one literal: the dispatcher sources its three mechanism files
@@ -309,6 +310,7 @@ on:
       - 'scripts/lib/ifa_fault_injection_common.sh'
       - 'scripts/lib/ifa_fault_injection_cells.sh'
       - 'scripts/lib/ifa_fault_injection_driver.sh'
+      - 'scripts/lib/ifa_fault_injection_sources.sh'
       - 'scripts/lib/ifa_fault_injection_sql_cells.sh'
       - 'scripts/lib/ifa_fault_injection_delivery_cells.sh'
       - 'scripts/lib/ifa_fault_injection_code_call_cells.sh'
@@ -374,6 +376,33 @@ on:
       - 'scripts/lib/ifa_codeowners_live.sh'
       - 'scripts/lib/ifa_fault_injection_codeowners_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
+      # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
+      # reducer stage, and live/fault helpers are all inputs to what the live
+      # lanes assert, so each one must retrigger them. The family's guard
+      # (materialized_edges_submodule_pin.go) lives in
+      # go/internal/ifa/materializededges/, already a trigger above (the
+      # #6199 split's directory glob) -- not repeated here. factschema_decode_*.go
+      # is also already a trigger above (a generic glob a prior family
+      # added); this family's REDUCER-side decode file
+      # (go/internal/reducer/factschema_decode_submodule.go) already matches
+      # it, but the SDK-side decoder and fact-kind constant it calls into
+      # (sdk/go/factschema/decode_submodule.go,
+      # sdk/go/factschema/fact_kinds_submodule.go) matched nothing: neither
+      # sits under submodule/v1/, and only that subtree is covered below. A
+      # change that quarantined or mis-decoded every cassette pin at that
+      # seam would leave the coverage rows #6002 unwaived backed by stale
+      # results, with no gate re-running to notice.
+      - 'go/internal/ifa/submodule_pin_family_odu.go'
+      - 'go/internal/ifa/submodule_pin_family_catalog.go'
+      - 'go/internal/reducer/submodule_pin*.go'
+      - 'sdk/go/factschema/submodule/v1/**'
+      - 'sdk/go/factschema/*submodule*.go'
+      - 'go/internal/storage/cypher/*submodule*.go'
+      - 'testdata/cassettes/submodulepin/**'
+      - 'go/internal/ifa/testdata/submodulepin/**'
+      - 'scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
+      - 'scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
+      - 'scripts/lib/ifa_submodule_pin_live.sh'
       # deployable_unit_edges (#5993) is driven and exact-set asserted in its own
       # standalone determinism cell (after the shared N-loop, since materializing
       # anything requires a bootstrap-index maintenance pass none of the other

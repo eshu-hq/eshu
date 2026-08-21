@@ -282,12 +282,25 @@ require_codeowners_lib "codeowners assert-edges domain" "-domain codeowners_owne
 require_codeowners_lib "codeowners drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_codeowners_lib "codeowners assert is exact-set, not a digest" '-expected "${expected_edges}"'
 
+# submodule_pin_edges (#6002), wired into the shared determinism cell from
+# the start -- unlike codeowners_ownership_edges there is no interim
+# shared_cell=0 state to have recorded. Its drive/assert helpers live in
+# scripts/lib/ifa_submodule_pin_live.sh and follow the same majority labeled
+# signature, so the registry loop dispatches them with no shim. The
+# exact-set assert is what makes the coverage real: the MERGE key for this
+# family deliberately includes path, so two distinct submodule paths (or
+# two distinct targets) must not collapse onto one edge.
+require_submodule_pin_lib "submodule-pin assert-edges domain" "-domain submodule_pin_edges"
+require_submodule_pin_lib "submodule-pin drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_submodule_pin_lib "submodule-pin assert is exact-set, not a digest" '-expected "${expected_edges}"'
+
 declare -A ifa_det_family_cases_hand_authored=(
 	[sql_relationships]="-domain sql_relationships"
 	[code_calls]="-domain code_calls"
 	[documentation_edges]="-domain documentation_edges"
 	[rationale_edges]="-domain rationale_edges"
 	[codeowners_ownership_edges]="-domain codeowners_ownership_edges"
+	[submodule_pin_edges]="-domain submodule_pin_edges"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -311,7 +324,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	[[ "${domain_needle}" == "${expected_needle}" ]] \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with value '${domain_needle}', which is not this family's own '${expected_needle}' assert-edges flag -- the value must be the family's real domain needle, never a bare acknowledgement or a value copied from another family"
 	rg --fixed-strings --quiet -- "${domain_needle}" \
-		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
+		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" "${submodule_pin_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh
@@ -352,8 +365,14 @@ done
 # call along with the other four, and it has no legitimate bare-name drive
 # anywhere else in the gate (`rg -c 'ifa_codeowners_drive "'` on the gate
 # returns 0). It was missed when the family landed mid-branch.
+# submodule_pin_edges joins on BOTH names, drive and assert -- unlike
+# codeowners/code_calls/documentation/rationale it has no post-delta
+# re-assertion of any kind, so neither ifa_submodule_pin_drive nor
+# ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
+# gate; dispatch is entirely through the registry loop for this family.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
-	ifa_codeowners_drive ifa_det_assert_sql_baseline ifa_rationale_assert; do
+	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
+	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
 	fi

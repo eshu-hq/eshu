@@ -142,6 +142,36 @@ this fixture and matched digests across every codeowners cell and every N,
 which is the operator-equivalent proof for a fixture-only change on this
 surface.
 
+No-Regression Evidence (#6002): the two changes are different in kind, not
+just in family name. `submodule_pin_family_catalog.go` adds
+`submodulePinFamilyOdu`, a compiled Odù literal — the binary-portable catalog
+representation of the checked-in cassette — with no Cypher, worker claim,
+batching, or concurrency code of its own;
+`TestSubmodulePinFamilyIsCatalogedAndResolvable` pins it against that cassette
+via `reflect.DeepEqual`. `materializededges/materialized_edges_submodule_pin.go` adds
+`resolveSubmodulePinMaterializedEdges`, a pure offline vacuity guard: it loads
+the hand-derived expected-edge fixture, asserts it covers every relationship
+type `submodule_pin_edges`' writer registry accepts, then runs
+`reducer.ExtractSubmodulePinEdgeRowsWithQuarantine` — the same pure,
+backend-free extraction seam every sibling family's guard uses — and compares
+the result to the fixture by exact multiset (`compareSubmodulePinExpectedEdges`),
+including each edge's SET-only `pinned_sha`.
+It mentions `canonical_submodule_edges.go`'s `MERGE` template only in a
+comment, to name the `{path: row.submodule_path}` identity property the
+comparison keys on and the separately asserted `pinned_sha`; it contains no
+Cypher, graph write, or dispatch code of its own. The production write path
+(`SubmodulePinEdgeMaterializationHandler`,
+`go/internal/reducer/submodule_pin_materialization.go`, and
+`canonical_submodule_edges.go`) is unchanged by this PR.
+No-Observability-Change: same reasoning — no runtime path, worker, queue, or
+graph write is added or altered; the observable behavior is entirely in the
+already-existing handler and `canonical_submodule_edges.go`. The proof helper
+now rejects a stale or missing `pinned_sha` in addition to the existing exact
+edge identity checks; that diagnostic tightening adds no production telemetry
+surface. Current-head live evidence must postdate any expected-property or
+fixture change so an older digest-only run is never cited for this stronger
+assertion.
+
 ## Gotchas / Invariants
 
 - The canonical form is produced by `replay.CanonicalizeValue`, not by a new Ifá

@@ -171,6 +171,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveRationaleEdgeMaterializedEdges(odu, rationaleFamilyExpectedEdgesPath(r.RepoRoot))
 	case codeownersOwnershipFamily:
 		return resolveCodeownersOwnershipMaterializedEdges(odu, codeownersFamilyExpectedEdgesPath(r.RepoRoot))
+	case submodulePinEdgesFamily:
+		return resolveSubmodulePinMaterializedEdges(odu, submodulePinFamilyExpectedEdgesPath(r.RepoRoot))
 	case deployableUnitEdgesFamily:
 		return resolveDeployableUnitMaterializedEdges(odu, deployableUnitFamilyExpectedEdgesPath(r.RepoRoot))
 	case repoDependencyEdgesFamily:

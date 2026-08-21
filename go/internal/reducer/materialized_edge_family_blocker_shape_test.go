@@ -161,16 +161,18 @@ var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 // either explicitly acknowledged here with a reason, or fails the test by
 // name -- never silently treated as "no blocker declared" the way an earlier
 // version of this file did. Confirmed by reading scripts/lib for a dedicated
-// ifa_fault_injection_<family>_cells.sh: none exists for any of these three
-// as of this writing. This list is expected to shrink to empty as their
-// fault cells and registry rows land; TestMaterializedEdgeFamilyBlockerLockstep
+// ifa_fault_injection_<family>_cells.sh: none exists for either family still
+// listed below. This list is expected to shrink to empty as their fault
+// cells and registry rows land; TestMaterializedEdgeFamilyBlockerLockstep
 // fails loudly if a listed family's row appears without this list being
 // updated to drop it, so the list cannot go stale in the other direction
-// either.
+// either. submodule_pin_edges (#6002) is the family this happened to most
+// recently: scripts/lib/ifa_family_registry/rows/07_submodule_pin_edges.sh
+// and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh landed
+// together, so it is removed rather than added here.
 var materializedEdgeFamilyNotYetInRegistry = map[string]string{
-	DomainShellExec:         "no ifa_fault_injection_shell_exec_cells.sh exists yet -- fault cell not landed",
-	DomainInheritanceEdges:  "no ifa_fault_injection_inheritance_cells.sh exists yet -- fault cell not landed",
-	DomainSubmodulePinEdges: "no ifa_fault_injection_submodule_pin_cells.sh exists yet -- fault cell not landed",
+	DomainShellExec:        "no ifa_fault_injection_shell_exec_cells.sh exists yet -- fault cell not landed",
+	DomainInheritanceEdges: "no ifa_fault_injection_inheritance_cells.sh exists yet -- fault cell not landed",
 }
 
 // noopFactLoader, noopIntentWriter, and noopSharedProjectionEdgeWriter are

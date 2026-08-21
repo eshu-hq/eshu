@@ -13,8 +13,9 @@ import (
 )
 
 // ExpectedEdge is the exported identity triple, plus any relationship-MERGE
-// identity properties, of one hand-derived expected materialized graph edge
-// — the shape `cmd/ifa`'s `assert-edges` verb compares a live graph against.
+// identity properties and explicitly asserted SET-only properties, of one
+// hand-derived expected materialized graph edge — the shape `cmd/ifa`'s
+// `assert-edges` verb compares a live graph against.
 // It mirrors the unexported sqlRelationshipExpectedEdge the pure vacuity
 // guard uses, exported so the live-gate verb reads the SAME expected-edge-set
 // fixture through one loader rather than re-declaring the JSON shape.
@@ -33,6 +34,9 @@ type ExpectedEdge struct {
 	// types require it. LoadExpectedEdges validates that a loaded edge's key
 	// set exactly matches its family's declaration.
 	Identity map[string]string `json:"identity,omitempty"`
+	// Properties carries SET-only relationship properties whose values the
+	// fixture asserts even though they do not participate in MERGE identity.
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // Key is the canonical set-membership key for exact-set comparison: a
@@ -41,8 +45,10 @@ type ExpectedEdge struct {
 // length-prefixed (netstring-style) encoding of each component in order:
 // RelationshipType, SourceEntityID, TargetEntityID (delegated to
 // sqlRelationshipEdgeKey, materialized_edges_sql.go), then, when Identity is
-// non-empty, each Identity property in SORTED KEY ORDER. One encoding for
-// every path, not two: an earlier version kept the empty-Identity path on
+// non-empty, each Identity property in SORTED KEY ORDER. When Properties is
+// non-empty, an explicit version marker and section lengths keep the Identity
+// and Properties maps structurally distinct before their sorted key/value
+// fields are appended. An earlier version kept the empty-Identity path on
 // sqlRelationshipEdgeKey's original raw "|"-joined shape for byte-identity
 // with Key() before the Identity field existed, but that raw join was not
 // injective either -- nothing stops RelationshipType, SourceEntityID, or
@@ -65,22 +71,38 @@ type ExpectedEdge struct {
 // field's content -- whatever it is -- can be misread as a boundary between
 // fields.
 func (e ExpectedEdge) Key() string {
-	if len(e.Identity) == 0 {
+	if len(e.Identity) == 0 && len(e.Properties) == 0 {
 		return sqlRelationshipEdgeKey(e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
 	}
-	keys := make([]string, 0, len(e.Identity))
+	identityKeys := make([]string, 0, len(e.Identity))
 	for k := range e.Identity {
-		keys = append(keys, k)
+		identityKeys = append(identityKeys, k)
 	}
-	sort.Strings(keys)
+	sort.Strings(identityKeys)
 
 	var b strings.Builder
 	writeLengthPrefixedField(&b, e.RelationshipType)
 	writeLengthPrefixedField(&b, e.SourceEntityID)
 	writeLengthPrefixedField(&b, e.TargetEntityID)
-	for _, k := range keys {
+	if len(e.Properties) > 0 {
+		writeLengthPrefixedField(&b, "expected-edge-properties-v1")
+		writeLengthPrefixedField(&b, strconv.Itoa(len(identityKeys)))
+	}
+	for _, k := range identityKeys {
 		writeLengthPrefixedField(&b, k)
 		writeLengthPrefixedField(&b, e.Identity[k])
+	}
+	if len(e.Properties) > 0 {
+		propertyKeys := make([]string, 0, len(e.Properties))
+		for k := range e.Properties {
+			propertyKeys = append(propertyKeys, k)
+		}
+		sort.Strings(propertyKeys)
+		writeLengthPrefixedField(&b, strconv.Itoa(len(propertyKeys)))
+		for _, k := range propertyKeys {
+			writeLengthPrefixedField(&b, k)
+			writeLengthPrefixedField(&b, e.Properties[k])
+		}
 	}
 	return b.String()
 }
@@ -127,6 +149,9 @@ func LoadExpectedEdges(path, family string) ([]ExpectedEdge, error) {
 		if err := validateExpectedEdgeIdentity(e.Identity, identity[e.RelationshipType]); err != nil {
 			return nil, fmt.Errorf("ifa: expected edge %d (%s) in %s: %w", i, e.RelationshipType, path, err)
 		}
+		if err := validateExpectedEdgeProperties(e.Properties, e.Identity); err != nil {
+			return nil, fmt.Errorf("ifa: expected edge %d (%s) in %s: %w", i, e.RelationshipType, path, err)
+		}
 		// Direct struct conversion: ExpectedEdge and sqlRelationshipExpectedEdge
 		// have identical field types and order (only the JSON tags differ, which
 		// a conversion ignores), so this stays correct if either grows a field —
@@ -134,6 +159,28 @@ func LoadExpectedEdges(path, family string) ([]ExpectedEdge, error) {
 		out[i] = ExpectedEdge(e)
 	}
 	return out, nil
+}
+
+func validateExpectedEdgeProperties(properties, identity map[string]string) error {
+	var blankKeys, blankValues, overlaps []string
+	for key, value := range properties {
+		if strings.TrimSpace(key) == "" {
+			blankKeys = append(blankKeys, key)
+		}
+		if strings.TrimSpace(value) == "" {
+			blankValues = append(blankValues, key)
+		}
+		if _, ok := identity[key]; ok {
+			overlaps = append(overlaps, key)
+		}
+	}
+	sort.Strings(blankKeys)
+	sort.Strings(blankValues)
+	sort.Strings(overlaps)
+	if len(blankKeys) > 0 || len(blankValues) > 0 || len(overlaps) > 0 {
+		return fmt.Errorf("asserted properties have blank keys %q, blank values %v, or overlap identity keys %v", blankKeys, blankValues, overlaps)
+	}
+	return nil
 }
 
 // validateExpectedEdgeIdentity asserts identity's key set equals declared

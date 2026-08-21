@@ -3,12 +3,12 @@
 # slice S5, extended by #5555's SQL-targeted cells, #5991's code-call cells,
 # and #5998's rationale cells). The gate
 # itself needs Docker + a built toolchain and takes significantly longer
-# than the sibling determinism matrix (twenty-four fresh Postgres + NornicDB
+# than the sibling determinism matrix (twenty-seven fresh Postgres + NornicDB
 # stacks, six of them running a -tags ifafaultinjection
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# twenty-four-cell shape (baseline + twenty-three live cells; fail-terminal
+# twenty-seven-cell shape (baseline + twenty-six live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -31,6 +31,7 @@ script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 det_lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
 fault_lib="${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 driver_lib="${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
+sources_lib="${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
 delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 sql_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
@@ -79,7 +80,7 @@ generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -115,7 +116,6 @@ source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
 source "${entrypoint_cases_lib}"
 run_ifa_fault_entrypoint_static_cases
-
 
 # Both GCP cassettes, generated synth-multiscope once, and the drive verb
 # (now in the driver lib's drive_all_cassettes helper).
@@ -157,7 +157,7 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The twenty-four-cell-shape anchored-invocation check and the SQL permanent-
+# The twenty-seven-cell-shape anchored-invocation check and the SQL permanent-
 # member pin (both touch the ifa_fault_shard_run dispatch wrapper) live in
 # the sourced shard-cases module below, extracted to buy this file real
 # line-count headroom rather than trimming their comments in place.
@@ -210,7 +210,7 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 # The SQL permanent-member invocation pin also moved to the shard-cases
-# module (see the note above the twenty-four-cell-shape comment).
+# module (see the note above the twenty-seven-cell-shape comment).
 require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
@@ -247,7 +247,8 @@ require_delivery_cells "delta-retract asserts generation 1 landed first" "genera
 require_delivery_cells "delta-retract collateral success names every exact family" "outside exact SQL/code-call/rationale assertions"
 require "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
 require "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
-require_code "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
+[[ "$(_ifa_count_code_matches 'scripts/lib/ifa_sql_delta_live.sh' "${sources_lib}")" -ge 1 ]] \
+	|| fail "gate source inventory omits the shared delta-live helper"
 require_fixture "gate defines the delta expected-edge set" "sql_delta_expected_edges="
 if rg --fixed-strings --quiet -- "ifa_fault_compare_non_sql_edges" "${delivery_cells_lib}"; then
 	fail "delta-retract must not compare whole non-SQL graph-dump endpoint hashes: SQL generation updates legitimately replace SQL-owned CONTAINS/REPO_CONTAINS hashes; assert unaffected covered families exactly instead"
@@ -370,7 +371,8 @@ require_code_call_lib "code-call exact assertion domain" "-domain code_calls"
 # generic_cells_lib's own `projection_domain` intent-window diagnostic IS
 # restored (the old bespoke cell had it; the generic dispatcher now does too,
 # generically, driven by the family argument every cell already passes).
-require_code "generic-cell dispatcher sourced by the gate" 'source "${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"'
+[[ "$(_ifa_count_code_matches 'scripts/lib/ifa_fault_generic_cells.sh' "${sources_lib}")" -ge 1 ]] \
+	|| fail "generic-cell dispatcher is not sourced by the gate source inventory"
 require_generic_cells "generic kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 require_generic_cells "generic graph-write cell selects queue-retry" '"queue-retry"'
 require_generic_cells "generic graph-write cell targets the durable once-fired marker" "ifa_fault_assert_once_fault_marker"
@@ -425,6 +427,7 @@ run_ifa_documentation_live_static_cases
 run_ifa_fault_injection_review_cases
 run_ifa_fault_injection_codeowners_cases
 run_ifa_fault_injection_repo_dependency_cases
+source "${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.

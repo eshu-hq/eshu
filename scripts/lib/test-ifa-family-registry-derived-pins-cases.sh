@@ -75,6 +75,7 @@ IFA_FAMILY_PINS_NAMES=(
 	deployable_unit_edges
 	codeowners_ownership_edges
 	repo_dependency
+	submodule_pin_edges
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"
@@ -248,4 +249,63 @@ run_ifa_family_registry_pins_cases() {
 
 	printf 'family registry pins: %d families checked (blocker_kind, wait_stage, wait_key, anchor, shared_cell, cell_kind) against %s, totality confirmed both directions\n' \
 		"${#IFA_FAMILY_PINS_NAMES[@]}" "${registry_family_lib}"
+}
+
+# run_ifa_family_registry_fixture_wiring_cases proves every family's
+# CASSETTE_VAR/EXPECTED_VAR registry pointer actually RESOLVES to a real,
+# on-disk fixture -- not merely that the pointer NAME is declared. #6002
+# landed submodule_pin_edges with CASSETTE_VAR/EXPECTED_VAR declared in its
+# registry row and dereferenced six times in its fault cells, but never
+# ASSIGNED in scripts/lib/ifa_family_fixtures.sh: every static gate on that
+# branch stayed green (nothing sources ifa_family_registry.sh and
+# ifa_family_fixtures.sh together and dereferences the result) while both
+# live gates, running under `set -euo pipefail`, would have died with
+# "${!cassette_var}: unbound variable" at N=1 -- inside the SHARED cell loop,
+# so the whole determinism gate dies for every family, not just the broken
+# one. Requires `fail()`, `registry_family_lib` (ifa_family_registry.sh), and
+# `fixtures_lib` (ifa_family_fixtures.sh) to already be defined by the caller.
+run_ifa_family_registry_fixture_wiring_cases() {
+	[[ -n "${registry_family_lib:-}" ]] \
+		|| fail "run_ifa_family_registry_fixture_wiring_cases: caller did not set \${registry_family_lib}"
+	[[ -n "${fixtures_lib:-}" ]] \
+		|| fail "run_ifa_family_registry_fixture_wiring_cases: caller did not set \${fixtures_lib}"
+	[[ -f "${fixtures_lib}" ]] \
+		|| fail "\${fixtures_lib} (${fixtures_lib}) does not exist -- the caller must point it at scripts/lib/ifa_family_fixtures.sh before sourcing this module"
+	# shellcheck source=/dev/null
+	source "${registry_family_lib}"
+	# shellcheck source=/dev/null
+	source "${fixtures_lib}"
+
+	local family cassette_var expected_var checked=0
+	while IFS= read -r family; do
+		[[ -n "${family}" ]] || continue
+		checked=$((checked + 1))
+
+		cassette_var="$(ifa_family_cassette_var "${family}")" \
+			|| fail "fixture wiring: '${family}' has no CASSETTE_VAR declared in ${registry_family_lib}"
+		[[ -n "${cassette_var}" ]] \
+			|| fail "fixture wiring: '${family}' declares an empty CASSETTE_VAR"
+		[[ -n "${!cassette_var+set}" ]] \
+			|| fail "fixture wiring: '${family}' points CASSETTE_VAR at '${cassette_var}', which ${fixtures_lib} never assigns -- both live gates run under set -euo pipefail and would die on \"\${!cassette_var}: unbound variable\" the first time this family's cell runs"
+		[[ -n "${!cassette_var}" ]] \
+			|| fail "fixture wiring: '${family}' CASSETTE_VAR '${cassette_var}' is assigned but empty in ${fixtures_lib}"
+		[[ -f "${!cassette_var}" ]] \
+			|| fail "fixture wiring: '${family}' cassette does not exist on disk: ${!cassette_var} (CASSETTE_VAR=${cassette_var})"
+
+		expected_var="$(ifa_family_expected_var "${family}")" \
+			|| fail "fixture wiring: '${family}' has no EXPECTED_VAR declared in ${registry_family_lib}"
+		[[ -n "${expected_var}" ]] \
+			|| fail "fixture wiring: '${family}' declares an empty EXPECTED_VAR"
+		[[ -n "${!expected_var+set}" ]] \
+			|| fail "fixture wiring: '${family}' points EXPECTED_VAR at '${expected_var}', which ${fixtures_lib} never assigns -- both live gates run under set -euo pipefail and would die on \"\${!expected_var}: unbound variable\" the first time this family's cell runs"
+		[[ -n "${!expected_var}" ]] \
+			|| fail "fixture wiring: '${family}' EXPECTED_VAR '${expected_var}' is assigned but empty in ${fixtures_lib}"
+		[[ -f "${!expected_var}" ]] \
+			|| fail "fixture wiring: '${family}' expected-edge set does not exist on disk: ${!expected_var} (EXPECTED_VAR=${expected_var})"
+	done < <(ifa_family_registry_names)
+
+	[[ "${checked}" -ge 5 ]] \
+		|| fail "fixture wiring: checked only ${checked} family/ies; ifa_family_registry_names discovery has collapsed"
+
+	printf 'fixture wiring: %d family/ies confirmed CASSETTE_VAR/EXPECTED_VAR resolve to an existing on-disk fixture\n' "${checked}"
 }

@@ -63,7 +63,8 @@
 # cell_baseline (the SHARED, non-family baseline) is the sole writer of
 # digests[baseline] (scripts/lib/ifa_fault_injection_driver.sh's
 # assert_matches_baseline), which every recovery cell reads UNLESS it reads
-# a family-scoped baseline digest instead. Today those carve-outs are deployable_unit, codeowners, and repo_dependency;
+# a family-scoped baseline digest instead. Today those carve-outs are
+# deployable_unit, codeowners, repo_dependency, and submodule_pin;
 # each recovery pair reads the digest written by its own family baseline.
 # The deployable_unit family (#5993) additionally runs an
 # extra bootstrap-index maintenance pass the shared baseline never runs (see
@@ -119,6 +120,16 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_repo_dependency
 	cell_killworker_repo_dependency
 	cell_failgraphwrite_repo_dependency
+	# submodule_pin_edges (#6002): the same family-scoped-baseline-plus-two
+	# shape as codeowners_ownership_edges immediately above, and for the same
+	# reason (cell_kind=custom on a table_lock:fact_records blocker -- see
+	# scripts/lib/ifa_fault_injection_submodule_pin_cells.sh's header for why
+	# this family does NOT use the generic table_lock dispatcher). Its
+	# baseline writes digests[baseline_submodule_pin], so the trio must stay
+	# co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_submodule_pin
+	cell_killworker_submodule_pin
+	cell_failgraphwrite_submodule_pin
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -145,6 +156,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_deployable_unit cell_killworker_deployable_unit cell_failgraphwrite_deployable_unit"
 	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
 	"cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency"
+	"cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin"
 )
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges

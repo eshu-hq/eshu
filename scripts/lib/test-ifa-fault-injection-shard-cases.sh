@@ -89,6 +89,7 @@ run_ifa_fault_injection_shard_cases() {
 		cell_baseline_repo_dependency
 		cell_killworker_repo_dependency
 		cell_failgraphwrite_repo_dependency
+		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin
 	)
 
 	local actual_full
@@ -101,10 +102,11 @@ run_ifa_fault_injection_shard_cases() {
 		|| test_ifa_fault_shard_cases_fail "--list-cells output does not match the hand-authored literal list (see file header) -- actual:
 ${actual_full}"
 
-	# CELL-COUNT PIN (F-4). 24 = the
+	# CELL-COUNT PIN (F-4). 27 = the
 	# 15 cells the fault gate originally defined, plus the three
 	# deployable_unit-targeted cells (#5993), plus the three
-	# codeowners-targeted cells (#6160), plus repo_dependency's atomic trio. It is a COUNT pin, deliberately
+	# codeowners-targeted cells (#6160), plus the repo_dependency and
+	# submodule_pin_edges atomic trios. It is a COUNT pin, deliberately
 	# not weakened to an existence check, and it belongs beside the
 	# hand-authored cell list: the person who changes the number is the person
 	# adding cells, and they need to land in this file -- where the literal
@@ -148,15 +150,16 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# DISPATCH-ANCHOR CHECKS (moved here from scripts/test-verify-ifa-fault-injection.sh
 	# to give that file real line-count headroom. The rationale below is the
 	# original; the CELL LIST is not -- the relocation landed an older
-	# eighteen-cell version of the loop, and the counts in this block went with
-	# it. Restored to twenty-four here.)
+	# eighteen-cell version of the loop, and the counts went with it; restored.)
 	#
-	# The twenty-four-cell shape: baseline plus twenty-three cells with a live seam --
-	# four original recovery cells, two SQL-targeted (#5555), two delivery-shaped
-	# (#5544), two code-call-targeted (#5991), two documentation-targeted (#5994),
-	# two rationale-targeted (#5998), a family-scoped baseline plus two recovery
-	# cells for deployable_unit_edges (#5993), plus family-scoped trios for
-	# codeowners_ownership_edges (#6160) and repo_dependency (#5999). All twenty-four run by default.
+	# The twenty-seven-cell shape: baseline plus twenty-six cells with a live
+	# seam -- four original recovery cells, two SQL-targeted (#5555), two
+	# delivery-shaped (#5544), two code-call-targeted (#5991), two
+	# documentation-targeted (#5994), two rationale-targeted (#5998), and a
+	# family-scoped baseline plus two recovery cells each for
+	# deployable_unit_edges (#5993), codeowners_ownership_edges (#6160),
+	# repo_dependency (#5999), and submodule_pin_edges (#6002). All twenty-seven
+	# run by default.
 	# Every cell is anchored to its own invocation line, never matched by bare name.
 	# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
 	# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
@@ -164,7 +167,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# the sole writer of digests[baseline], so every assert_matches_baseline call
 	# that does not name a family-scoped baseline would then compare against an
 	# unset key. The anchored form was previously applied to only five cells; it
-	# now covers all twenty-four.
+	# now covers all twenty-seven.
 	# rg without --fixed-strings so ^...$ binds.
 	#
 	# Prefixed with "ifa_fault_shard_run " (scripts/lib/ifa_fault_shard.sh): every
@@ -190,7 +193,8 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_baseline_deployable_unit cell_killworker_deployable_unit \
 		cell_failgraphwrite_deployable_unit \
 		cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners \
-		cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency; do
+		cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency \
+		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin; do
 		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
 			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper (which would silently run every shard, ignoring --shard)"
 	done

@@ -77,6 +77,14 @@ codeowners_expected_edges="${repo_root}/go/internal/ifa/testdata/codeowners/ifa-
 # prerequisite after its first, deliberately gated drain.
 repo_dependency_cassette="${repo_root}/testdata/cassettes/repodependency/ifa-repo-dependency-family.json"
 repo_dependency_expected_edges="${repo_root}/go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json"
+# submodule_pin_edges family cassette (#6002): the PINS_SUBMODULE edge family,
+# exact-set asserted by both gates. Driven uniformly into every N-cell on the
+# determinism gate (a plain reducer family needing no maintenance pass), and
+# only by the three submodule-pin-targeted cells on the fault-injection gate
+# -- never by drive_all_cassettes, per that driver's rule that a new family
+# cassette must not join the shared drive.
+submodule_pin_cassette="${repo_root}/testdata/cassettes/submodulepin/ifa-submodule-pin-family.json"
+submodule_pin_expected_edges="${repo_root}/go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -102,4 +110,6 @@ ifa_family_fixtures_require() {
 	[[ -f "${codeowners_expected_edges}" ]] || { echo "${gate}: codeowners expected-edge set not found: ${codeowners_expected_edges}" >&2; exit 1; }
 	[[ -f "${repo_dependency_cassette}" ]] || { echo "${gate}: repo-dependency cassette not found: ${repo_dependency_cassette}" >&2; exit 1; }
 	[[ -f "${repo_dependency_expected_edges}" ]] || { echo "${gate}: repo-dependency expected-edge set not found: ${repo_dependency_expected_edges}" >&2; exit 1; }
+	[[ -f "${submodule_pin_cassette}" ]] || { echo "${gate}: submodule-pin cassette not found: ${submodule_pin_cassette}" >&2; exit 1; }
+	[[ -f "${submodule_pin_expected_edges}" ]] || { echo "${gate}: submodule-pin expected-edge set not found: ${submodule_pin_expected_edges}" >&2; exit 1; }
 }

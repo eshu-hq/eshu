@@ -1,0 +1,38 @@
+{
+  "odu": "odu:ifa-submodule-pin-family",
+  "edges": [
+    {
+      "relationship_type": "PINS_SUBMODULE",
+      "source_entity_id": "repo-ifa-submodule-pin-family",
+      "target_entity_id": "repo-ifa-submodule-pin-target-foo",
+      "identity": {
+        "path": "vendor/libfoo"
+      },
+      "properties": {
+        "pinned_sha": "sha-libfoo-pin-a-current"
+      }
+    },
+    {
+      "relationship_type": "PINS_SUBMODULE",
+      "source_entity_id": "repo-ifa-submodule-pin-family",
+      "target_entity_id": "repo-ifa-submodule-pin-target-foo",
+      "identity": {
+        "path": "vendor/libfoo-mirror"
+      },
+      "properties": {
+        "pinned_sha": "sha-libfoo-mirror-pin-b"
+      }
+    },
+    {
+      "relationship_type": "PINS_SUBMODULE",
+      "source_entity_id": "repo-ifa-submodule-pin-family",
+      "target_entity_id": "repo-ifa-submodule-pin-target-baz",
+      "identity": {
+        "path": "vendor/libbaz"
+      },
+      "properties": {
+        "pinned_sha": "sha-libbaz-pin-e"
+      }
+    }
+  ]
+}
