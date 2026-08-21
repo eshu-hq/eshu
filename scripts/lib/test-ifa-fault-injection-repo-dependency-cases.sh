@@ -20,6 +20,148 @@ ifa_repo_dependency_prepare_has_required_order() {
 		'run_drain_gate "${cell}-pre"'
 }
 
+ifa_repo_dependency_failgraphwrite_has_required_order() {
+	ifa_repo_dependency_body_has_order "$1" \
+		ifa_repo_dependency_fault_prepare \
+		ifa_fault_write_once_script \
+		'ifa_det_start_bg "${log_dir}" "projector-${cell}"' \
+		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-before"' \
+		'env "ESHU_IFA_FAULT_SCRIPT=${fault_script}" "${tagged_bin_dir}/eshu-reducer"' \
+		ifa_repo_dependency_fault_wait_for_once_marker \
+		'ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_dir}/reducer-${cell}-before.log" "${reducer_before}" "${CLAIMED_ROW_WAIT_TIMEOUT}"' \
+		'ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_fault_partition_leases' \
+		'ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL' \
+		'ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" post_fault_partition_leases' \
+		ifa_repo_dependency_fault_require_partition_lease_subset \
+		'ifa_repo_dependency_fault_expire_partition_leases "${cell}" "${reducer_before}" "${post_fault_partition_leases}"' \
+		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after "${bin_dir}/eshu-reducer"' \
+		run_drain_gate ifa_fault_assert_once_fault_marker \
+		ifa_repo_dependency_fault_assert_terminal capture_digest assert_matches_baseline teardown_cell
+}
+
+run_ifa_repo_dependency_fault_marker_wait_controls() (
+	local mode=live cell=test_cell reducer_pid=876543 budget=1 kill_checks=0
+	local state_dir fault_script anchor operation sibling_anchor single_row_anchor marker
+	state_dir="$(mktemp -d)" || return 1
+	trap 'rm -rf "${state_dir}"' EXIT
+	fault_script="${state_dir}/fault.json"
+	anchor=$'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence'
+	operation=$'UNWIND $rows AS row\nMERGE (source_repo:Repository {id: row.repo_id})\nMERGE (target_repo:Repository {id: row.target_repo_id})\nON CREATE SET target_repo.evidence_source = row.evidence_source,\n              target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence,\n    rel.resolution_source = row.resolution_source'
+	sibling_anchor=$'UNWIND $rows AS row\nMATCH (source_repo:Repository {id: row.repo_id})\nMATCH (target_repo:Repository {id: row.target_repo_id})\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)'
+	single_row_anchor=$'MATCH (source_repo:Repository {id: $source_repo_id})\nMATCH (target_repo:Repository {id: $target_repo_id})\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.resolution_source = $resolution_source'
+	marker="${fault_script}.restart-sentinel.once-fired"
+
+	ifa_fault_assert_once_fault_marker() {
+		local script_path="$1" expected="$2" contents
+		[[ -f "${script_path}.restart-sentinel.once-fired" ]] || return 1
+		contents="$(<"${script_path}.restart-sentinel.once-fired")" || return 1
+		[[ "${contents}" == *"${expected}"* ]] || return 2
+	}
+	kill() {
+		kill_checks=$((kill_checks + 1))
+		[[ "$1" == "-0" && "$2" == "${reducer_pid}" && "${mode}" != "dead" ]] || return 1
+		[[ "${mode}" != "dies-after-marker" || "${kill_checks}" -lt 2 ]]
+	}
+	sleep() { :; }
+
+	printf '%s\n' "${operation}" >"${marker}"
+	ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	[[ "${kill_checks}" -eq 2 ]] || return 1
+	mode=wrong-marker
+	kill_checks=0
+	printf '%s\n' 'MERGE (wrong)-[:EDGE]->(target)' >"${marker}"
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	printf '%s\n' "${sibling_anchor}" >"${marker}"
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	printf '%s\n' "${single_row_anchor}" >"${marker}"
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	mode=absent
+	kill_checks=0
+	rm -f "${marker}"
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	mode=dead
+	kill_checks=0
+	printf '%s\n' "${operation}" >"${marker}"
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+	mode=dies-after-marker
+	kill_checks=0
+	! ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${reducer_pid}" "${budget}" || return 1
+)
+
+run_ifa_repo_dependency_fault_script_json_controls() (
+	local state_dir fault_script invalid_script anchor roundtrip
+	state_dir="$(mktemp -d)" || return 1
+	trap 'rm -rf "${state_dir}"' EXIT
+	fault_script="${state_dir}/fault.json"
+	invalid_script="${state_dir}/invalid.json"
+	anchor=$'row.note = "quoted\\value"\nMERGE (source)-[:DEPENDS_ON]->(target)'
+	ifa_fault_write_once_script "${fault_script}" "${anchor}" queue-retry || return 1
+	jq -e . "${fault_script}" >/dev/null || return 1
+	roundtrip="$(jq -er '.faults[0].trigger.operation_match' "${fault_script}")" || return 1
+	[[ "${roundtrip}" == "${anchor}" ]] || return 1
+	[[ "$(jq -r '.faults[0].target.lane' "${fault_script}")" == queue-retry ]] || return 1
+	! ifa_fault_write_once_script "${invalid_script}" "${anchor}" invalid-lane || return 1
+	[[ ! -e "${invalid_script}" ]] || return 1
+	! ifa_fault_write_once_script "" "${anchor}" queue-retry || return 1
+)
+
+run_ifa_repo_dependency_quarantine_telemetry_controls() (
+	local mode=live reducer_pid=765432 budget=1 state_dir log_path marker_path record_tmp
+	local fault_phrase='ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #'
+	state_dir="$(mktemp -d)" || return 1
+	trap 'rm -rf "${state_dir}"' EXIT
+	log_path="${state_dir}/reducer-failgraphwrite_repo_dependency-before.log"
+	marker_path="${state_dir}/fault.restart-sentinel.once-fired"
+	record_tmp="${state_dir}/record.tmp"
+	sleep() { :; }
+	kill() {
+		[[ "$1" == "-0" && "$2" == "${reducer_pid}" && "${mode}" != "dead" ]]
+	}
+	write_record() {
+		jq -cn \
+			--arg domain "$1" --arg class "$2" --arg reason "$3" \
+			--argjson duration "$4" --arg error "$5" \
+			'{message:"repo dependency projection cycle failed",domain:$domain,failure_class:$class,lease_quarantined:true,quarantine_reason:$reason,quarantine_duration_seconds:$duration,error:$error}' \
+			>"${log_path}"
+	}
+	local correct_error="quarantine repo dependency lease for 5m0s: ${fault_phrase}1"
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+
+	printf '%s\n' 'marker-fired' >"${marker_path}"
+	: >"${log_path}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	jq -c '.message = "wrong message"' "${log_path}" >"${record_tmp}" && mv "${record_tmp}" "${log_path}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	jq -c '.lease_quarantined = false' "${log_path}" >"${record_tmp}" && mv "${record_tmp}" "${log_path}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record wrong_domain repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency wrong_class cycle_error 300 "${correct_error}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined wrong_reason 300 "${correct_error}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 299 "${correct_error}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 'quarantine without the injected fault phrase'
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	printf '%s\n' "$(<"${log_path}")" >>"${log_path}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+	mode=dead
+	write_record repo_dependency repo_dependency_projection_lease_quarantined cycle_error 300 "${correct_error}"
+	! ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_path}" "${reducer_pid}" "${budget}" || return 1
+)
+
 run_ifa_repo_dependency_partition_lease_controls() (
 	local dead_pid=987654 mode="lifecycle" pre_census="" post_census=""
 	local lease_state_dir pg_marker census_marker update_marker zero_marker updated_marker
@@ -154,8 +296,9 @@ run_ifa_repo_dependency_partition_lease_controls() (
 )
 
 run_ifa_fault_injection_repo_dependency_cases() {
-	local root script shard cells live lease_lib fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
+	local root script shard cells live lease_lib fault_lib fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
 	local gated_body terminal_body kill_body graph_body prerequisite_body prepare_body edge_type needle
+	local graph_lifecycle_lines lifecycle_line omitted_graph_body misordered_graph_body repo_batch_anchor anchor_count production_go_files production_go_count
 	local drive_line repo_drive_line omitted_drive_body misordered_drive_body
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
@@ -163,6 +306,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	cells="${IFA_REPO_DEPENDENCY_CELLS_UNDER_TEST:-${root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh}"
 	live="${IFA_REPO_DEPENDENCY_LIVE_UNDER_TEST:-${root}/scripts/lib/ifa_repo_dependency_live.sh}"
 	lease_lib="${IFA_REPO_DEPENDENCY_LEASE_UNDER_TEST:-${cells}}"
+	fault_lib="${root}/scripts/lib/ifa_fault_injection_common.sh"
 	fixtures="${root}/scripts/lib/ifa_family_fixtures.sh"
 	expected_cassette="${root}/testdata/cassettes/repodependency/ifa-repo-dependency-family.json"
 	expected_edges="${root}/go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json"
@@ -183,6 +327,8 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	source "${live}"
 	# shellcheck source=scripts/lib/ifa_fault_injection_repo_dependency_cells.sh
 	source "${lease_lib}"
+	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+	source "${fault_lib}"
 	for cell in cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency; do
 		rg --line-regexp --quiet -- "ifa_fault_shard_run ${cell}" "${script}" || return 1
 		rg --fixed-strings --quiet -- "${cell}" "${shard}" || return 1
@@ -228,6 +374,19 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	graph_body="$(rg -U --pcre2 --only-matching -- '(?ms)^cell_failgraphwrite_repo_dependency\(\) \{.*?^\}' "${cells}")"
 	[[ -n "${terminal_body}" && -n "${prepare_body}" && -n "${kill_body}" && -n "${graph_body}" ]] || return 1
 	ifa_repo_dependency_prepare_has_required_order "${prepare_body}" || return 1
+	repo_batch_anchor=$'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence'
+	production_go_files="$(rg --files "${root}/go" -g '*.go' -g '!*_test.go')" || return 1
+	production_go_count="$(printf '%s\n' "${production_go_files}" | wc -l | tr -d '[:space:]')"
+	[[ "${production_go_count}" =~ ^[0-9]+$ && "${production_go_count}" -gt 100 ]] || return 1
+	! printf '%s\n' "${production_go_files}" | rg --quiet -- '_test\.go$' || return 1
+	[[ "${production_go_files}" == *'/go/internal/storage/cypher/canonical.go'* ]] || return 1
+	[[ "${production_go_files}" == *'/go/internal/reducer/workload_materializer.go'* ]] || return 1
+	anchor_count="$(rg -U -g '*.go' -g '!*_test.go' --fixed-strings --json -- "${repo_batch_anchor}" "${root}/go" \
+		| jq -s '[.[] | select(.type == "match")] | length')"
+	[[ "${anchor_count}" == 1 ]] || return 1
+	rg --fixed-strings --quiet -- 'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence' "${cells}" || return 1
+	rg --fixed-strings --quiet -- "'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)'" "${cells}" || return 1
+	! rg --fixed-strings --quiet -- 'anchor="MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)"' "${cells}" || return 1
 	drive_line=$'\tdrive_all_cassettes "${cell}"'
 	repo_drive_line=$'\tifa_repo_dependency_live_drive "${bin_dir}" "${repo_dependency_cassette}" || die "${cell}: cassette drive failed"'
 	[[ "${prepare_body}" == *"${drive_line}"* && "${prepare_body}" == *"${repo_drive_line}"* ]] || return 1
@@ -262,13 +421,14 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	for needle in ifa_repo_dependency_fault_prepare 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' ifa_fault_write_once_script ESHU_IFA_FAULT_SCRIPT run_drain_gate ifa_fault_assert_once_fault_marker ifa_repo_dependency_fault_assert_terminal capture_digest assert_matches_baseline teardown_cell; do
 		[[ "${graph_body}" == *"${needle}"* ]] || return 1
 	done
-	ifa_repo_dependency_body_has_order "${graph_body}" \
-		ifa_repo_dependency_fault_prepare \
-		'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' \
-		ifa_fault_write_once_script \
-		'ESHU_IFA_FAULT_SCRIPT=${fault_script}' \
-		run_drain_gate ifa_fault_assert_once_fault_marker \
-		ifa_repo_dependency_fault_assert_terminal capture_digest assert_matches_baseline teardown_cell || return 1
+	ifa_repo_dependency_failgraphwrite_has_required_order "${graph_body}" || return 1
+	graph_lifecycle_lines=$'ifa_repo_dependency_fault_wait_for_once_marker\nifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_dir}/reducer-${cell}-before.log" "${reducer_before}" "${CLAIMED_ROW_WAIT_TIMEOUT}"\nifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_fault_partition_leases\nifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL\nifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" post_fault_partition_leases\nifa_repo_dependency_fault_require_partition_lease_subset\nifa_repo_dependency_fault_expire_partition_leases "${cell}" "${reducer_before}" "${post_fault_partition_leases}"\nifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after "${bin_dir}/eshu-reducer"'
+	while IFS= read -r lifecycle_line; do
+		omitted_graph_body="${graph_body/"${lifecycle_line}"/}"
+		! ifa_repo_dependency_failgraphwrite_has_required_order "${omitted_graph_body}" || return 1
+		misordered_graph_body="${lifecycle_line}"$'\n'"${omitted_graph_body}"
+		! ifa_repo_dependency_failgraphwrite_has_required_order "${misordered_graph_body}" || return 1
+	done <<<"${graph_lifecycle_lines}"
 	rg --fixed-strings --quiet -- 'MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'baseline_deployment_mapping_retried' "${cells}" || return 1
 	rg --fixed-strings --quiet -- 'ifa_repo_dependency_pre_gate_dump_path' "${live}" || return 1
@@ -289,5 +449,8 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	release_line="$(rg -n --fixed-strings -- 'ifa_fault_release_shared_intent_lock' "${cells}" | cut -d: -f1)"
 	[[ "${lock_line}" -lt "${claim_line}" && "${claim_line}" -lt "${release_line}" ]] || return 1
 	run_ifa_repo_dependency_partition_lease_controls || return 1
+	run_ifa_repo_dependency_fault_marker_wait_controls || return 1
+	run_ifa_repo_dependency_fault_script_json_controls || return 1
+	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
 	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 24 ]] || return 1
 }

@@ -38,18 +38,27 @@
 # anchor regardless of when it fires.
 ifa_fault_write_once_script() {
 	local path="$1" operation_match="$2" lane="$3"
-	cat >"${path}" <<-JSON
+	[[ -n "${path}" && -n "${operation_match}" ]] || {
+		printf 'ifa_fault_write_once_script: path and operation_match must be non-empty\n' >&2
+		return 2
+	}
+	case "${lane}" in
+	queue-retry | executor-retry) ;;
+	*)
+		printf 'ifa_fault_write_once_script: unsupported lane %q\n' "${lane}" >&2
+		return 2
+		;;
+	esac
+	jq -n --arg operation_match "${operation_match}" --arg lane "${lane}" '
 		{
-		  "version": 1,
-		  "faults": [
-		    {
-		      "kind": "fail-graph-write-once-then-succeed",
-		      "trigger": {"operation_match": "${operation_match}"},
-		      "target": {"lane": "${lane}"}
-		    }
-		  ]
+			"version": 1,
+			"faults": [{
+				"kind": "fail-graph-write-once-then-succeed",
+				"trigger": {"operation_match": $operation_match},
+				"target": {"lane": $lane}
+			}]
 		}
-	JSON
+	' >"${path}"
 }
 
 # ifa_fault_write_restart_script writes a faultreplay v1 fault-script JSON

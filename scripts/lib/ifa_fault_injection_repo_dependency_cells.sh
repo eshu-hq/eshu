@@ -80,6 +80,81 @@ ifa_repo_dependency_fault_assert_no_active_partition_leases() {
 	}
 }
 
+ifa_repo_dependency_fault_wait_for_once_marker() {
+	local cell="$1" fault_script="$2" anchor="$3" operation_proof="$4" reducer_pid="$5" budget="$6"
+	local marker i polls marker_rc
+	[[ "${cell}" =~ ^[a-z0-9_]+$ && -n "${anchor}" && -n "${operation_proof}" && "${reducer_pid}" =~ ^[1-9][0-9]*$ && "${budget}" =~ ^[1-9][0-9]*$ ]] || return 2
+	marker="${fault_script}.restart-sentinel.once-fired"
+	polls=$((budget * 5))
+	for ((i = 0; i < polls; i++)); do
+		kill -0 "${reducer_pid}" >/dev/null 2>&1 || {
+			printf '%s: tagged reducer exited before the exact repo_dependency fault marker was proven\n' "${cell}" >&2
+			return 1
+		}
+		if [[ -f "${marker}" ]]; then
+			marker_rc=0
+			ifa_fault_assert_once_fault_marker "${fault_script}" "${anchor}" || marker_rc=$?
+			[[ "${marker_rc}" -eq 0 ]] || return "${marker_rc}"
+			ifa_fault_assert_once_fault_marker "${fault_script}" "${operation_proof}" || marker_rc=$?
+			[[ "${marker_rc}" -eq 0 ]] || return "${marker_rc}"
+			kill -0 "${reducer_pid}" >/dev/null 2>&1 || {
+				printf '%s: tagged reducer was not live after the exact repo_dependency fault marker fired\n' "${cell}" >&2
+				return 1
+			}
+			return 0
+		fi
+		sleep 0.2
+	done
+	printf '%s: exact repo_dependency fault marker did not fire within %ss\n' "${cell}" "${budget}" >&2
+	return 1
+}
+
+ifa_repo_dependency_fault_wait_for_quarantine_telemetry() {
+	local log_path="$1" reducer_pid="$2" budget="$3" i polls count
+	local fault_phrase='ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #'
+	[[ -n "${log_path}" && "${reducer_pid}" =~ ^[1-9][0-9]*$ && "${budget}" =~ ^[1-9][0-9]*$ ]] || return 2
+	polls=$((budget * 5))
+	for ((i = 0; i < polls; i++)); do
+		kill -0 "${reducer_pid}" >/dev/null 2>&1 || {
+			printf 'tagged reducer exited before repo_dependency lease-quarantine telemetry was proven\n' >&2
+			return 1
+		}
+		if [[ -f "${log_path}" ]]; then
+			if count="$(jq -R -s --arg fault_phrase "${fault_phrase}" '
+				[split("\n")[] | fromjson? | select(
+					.message == "repo dependency projection cycle failed" and
+					.domain == "repo_dependency" and
+					.failure_class == "repo_dependency_projection_lease_quarantined" and
+					.lease_quarantined == true and
+					.quarantine_reason == "cycle_error" and
+					.quarantine_duration_seconds == 300 and
+					(.error | type == "string" and contains($fault_phrase))
+				)] | length
+			' "${log_path}")"; then
+				:
+			else
+				printf 'could not inspect repo_dependency lease-quarantine telemetry\n' >&2
+				return 1
+			fi
+			[[ "${count}" =~ ^[0-9]+$ ]] || return 1
+			if [[ "${count}" -gt 1 ]]; then
+				printf 'repo_dependency lease-quarantine telemetry was not unique\n' >&2
+				return 1
+			fi
+			if [[ "${count}" -eq 1 ]]; then
+				kill -0 "${reducer_pid}" >/dev/null 2>&1 || {
+					printf 'tagged reducer was not live after repo_dependency lease-quarantine telemetry was proven\n' >&2
+					return 1
+				}
+				return 0
+			fi
+		fi
+		sleep 0.2
+	done
+	printf 'exact repo_dependency lease-quarantine telemetry did not appear within %ss\n' "${budget}" >&2
+	return 1
+}
+
 ifa_repo_dependency_fault_expire_partition_leases() {
 	local cell="$1" reducer_pid="$2" captured="$3" row domain partition_id partition_count owner
 	local values_sql="" expected_count=0 result query_rc affected updated
@@ -190,17 +265,38 @@ cell_killworker_repo_dependency() {
 }
 
 cell_failgraphwrite_repo_dependency() {
-	local cell="failgraphwrite_repo_dependency" cell_start projector_pid reducer_pid fault_script anchor
+	local cell="failgraphwrite_repo_dependency" cell_start projector_pid reducer_before reducer_after fault_script anchor operation_proof
+	local pre_fault_partition_leases="" post_fault_partition_leases=""
 	cell_start=$(date +%s)
 	ifa_repo_dependency_fault_prepare "${cell}"
-	anchor="MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)"
+	anchor=$'target_repo.generation_id = row.generation_id\nMERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)\nSET rel.confidence = row.confidence'
+	operation_proof='MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)'
 	fault_script="${work_dir}/fault-once-then-succeed-repo-dependency.json"
 	ifa_fault_write_once_script "${fault_script}" "${anchor}" queue-retry
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-${cell}" reducer_pid env "ESHU_IFA_FAULT_SCRIPT=${fault_script}" "${tagged_bin_dir}/eshu-reducer"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_before \
+		env "ESHU_IFA_FAULT_SCRIPT=${fault_script}" "${tagged_bin_dir}/eshu-reducer"
+	ifa_repo_dependency_fault_wait_for_once_marker \
+		"${cell}" "${fault_script}" "${anchor}" "${operation_proof}" "${reducer_before}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "${cell}: exact DEPENDS_ON fault marker did not fire while the tagged reducer remained live"
+	ifa_repo_dependency_fault_wait_for_quarantine_telemetry "${log_dir}/reducer-${cell}-before.log" "${reducer_before}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "${cell}: exact repo_dependency lease-quarantine telemetry did not follow the scripted fault"
+	ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_fault_partition_leases \
+		|| die "${cell}: could not capture live fault-owner repo_dependency partition leases"
+	ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL \
+		|| die "${cell}: tagged reducer did not stop after the scripted fault"
+	ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" post_fault_partition_leases \
+		|| die "${cell}: could not recapture stable fault-owner repo_dependency partition leases"
+	ifa_repo_dependency_fault_require_partition_lease_subset \
+		"${reducer_before}" "${pre_fault_partition_leases}" "${post_fault_partition_leases}" \
+		|| die "${cell}: post-fault lease census lost live ownership evidence"
+	ifa_repo_dependency_fault_expire_partition_leases "${cell}" "${reducer_before}" "${post_fault_partition_leases}" \
+		|| die "${cell}: exact scripted-fault dead-owner repo_dependency leases did not expire"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after "${bin_dir}/eshu-reducer"
 	run_drain_gate "${cell}"
 	ifa_fault_assert_once_fault_marker "${fault_script}" "${anchor}" || die "${cell}: DEPENDS_ON fault marker did not fire"
-	ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}"
+	ifa_fault_assert_once_fault_marker "${fault_script}" "${operation_proof}" || die "${cell}: fault marker did not name the repo_dependency DEPENDS_ON operation"
+	ifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-after"
 	capture_digest "${cell}"
 	assert_matches_baseline "${cell}" baseline_repo_dependency
 	teardown_cell "${cell}"
