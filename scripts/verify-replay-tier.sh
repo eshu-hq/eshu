@@ -81,6 +81,13 @@ log "NornicDB healthy"
 # Real-backend environment for the gated go test.
 export ESHU_GRAPH_BACKEND="nornicdb"
 export ESHU_NEO4J_DATABASE="nornic"
+# Pinned too, not only its ESHU_ form. The blast-radius tests below prefer
+# ESHU_NEO4J_DATABASE now, but a developer shell exporting NEO4J_DATABASE=neo4j
+# used to send them at a different database than the tier had just asserted
+# against, inside this same run. CI never saw it because a clean runner leaves
+# both unset (#6201 review). Pinning here keeps the gate hermetic for any test
+# it grows later, whatever name that test reads.
+export NEO4J_DATABASE="nornic"
 export NEO4J_URI="bolt://localhost:${BOLT_PORT}"
 # NornicDB runs with NORNICDB_NO_AUTH=true, but the shared Bolt driver config
 # requires non-empty username/password, so supply placeholders the backend
@@ -132,7 +139,7 @@ set +e
 (
 	cd go
 	go test -p=1 ./internal/query/ \
-		-run 'TestSQLTableBlastRadiusEveryBranchContributesLive|TestSQLTableBlastRadiusDetectsADeadBranchLive' \
+		-run 'TestSQLTableBlastRadiusEveryBranchContributesLive|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive' \
 		-count=1 -v
 ) >"${BLAST_LOG}" 2>&1
 blast_status=$?
@@ -146,7 +153,7 @@ log "sql_table blast-radius wall-clock: $(( $(date +%s) - blast_start ))s"
 # per test: a skip is not a pass.
 for required_test in \
 	TestSQLTableBlastRadiusEveryBranchContributesLive \
-	TestSQLTableBlastRadiusDetectsADeadBranchLive; do
+	TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive; do
 	rg --quiet "^--- PASS: ${required_test} " "${BLAST_LOG}" \
 		|| die "${required_test} did not run: no '--- PASS: ${required_test}' line, so -run matched nothing or the test skipped. A skip is not a pass."
 done

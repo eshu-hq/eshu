@@ -112,6 +112,65 @@ last.
 | before the fix | 3 |
 | after the fix | 0 |
 
+### A fifth, found by review on the PR: the database was not pinned
+
+The gate exported `ESHU_NEO4J_DATABASE=nornic`, but the two live tests read
+`NEO4J_DATABASE` alone — even though the same tests already preferred
+`ESHU_NEO4J_URI` over `NEO4J_URI`. On a clean runner both are unset and the
+`nornic` default holds, so CI never saw it. On a developer machine exporting
+`NEO4J_DATABASE=neo4j` the branch proof went at a different database than the
+tier had just asserted against, in the same gate run — and `make pre-pr` runs
+this gate locally.
+
+Not theoretical. Feeding the pre-fix shape a hostile ambient value fails:
+
+```
+$ NEO4J_DATABASE=neo4j go test ./internal/query/ -run '<both tests>' -count=1; echo $?
+impact_blast_radius_sql_table_live_test.go:202: cleanup "MATCH (n) WHERE n.repo_id
+STARTS WITH 'probe5409' DETACH DELETE n": neo4j query: Neo4jError:
+Neo.ClientError.Database.DatabaseNotFound (Database 'neo4j' does not exist)
+--- FAIL: TestSQLTableBlastRadiusEveryBranchContributesLive
+--- FAIL: TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive
+1
+```
+
+With the fix, the same hostile ambient value is ignored:
+
+```
+$ ESHU_NEO4J_DATABASE=nornic NEO4J_DATABASE=neo4j go test ... -count=1; echo $?
+--- PASS: TestSQLTableBlastRadiusEveryBranchContributesLive
+--- PASS: TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive
+0
+```
+
+Both halves changed: `sqlBlastRadiusBackend` resolves each variable
+ESHU_-first, matching how the URI already behaved, and the gate pins
+`NEO4J_DATABASE` as well as `ESHU_NEO4J_DATABASE`. Either alone would close
+this hole; the pair also keeps a future test that reads only one of the names
+honest.
+
+### A fourth, found by review on the PR
+
+`TestSQLTableBlastRadiusDetectsADeadBranchLive` was neither. It queries a table
+nothing references, asserts no seeded repository comes back, then computed
+`missing` by walking `sqlBlastRadiusBranches()` — a fixture list, never the
+query rows — so it passed even if every shipped UNION branch were dead. The
+codex reviewer and the repo owner reached that independently on #6201.
+
+What it actually does is worth keeping: it rules out the opposite failure, a
+branch matching everything, under which the positive proof would pass for the
+wrong reason. So it is renamed
+`TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive`, documented as a
+negative control, and its duplicated fixture-vs-constant count check is
+dropped — `TestSQLTableBlastRadiusBranchTableMatchesQuery` already runs that
+without a backend, and keeping it here dressed a compile-time comparison up as
+live evidence.
+
+The name was the real defect. Wiring the gate made it load-bearing: a reader
+trusting it could delete
+`TestSQLTableBlastRadiusEveryBranchContributesLive` — the test that does detect
+a dead branch — and believe the bite proof was still enforced.
+
 ### A third, found by reviewing this diff against itself
 
 `set -e` is on, and a failing `( ... )` exits the shell immediately, so the
@@ -151,7 +210,12 @@ after a pipe.
 | one branch killed | `INDEXES` → `INDEXES_BITE_PROBE`, same gate | exit 1 — "these UNION branches contributed NO repository: [INDEXES]" |
 | branch restored | focused rerun against the same container | exit 0, both `--- PASS`, zero cleanup errors |
 
-The bite proof kills exactly one branch and leaves the other eight intact. The
+The bite proof — the `INDEXES` row above — kills exactly one branch and leaves
+the other eight intact. It is a manual experiment recorded here, not a standing
+test; the one test whose name claimed that role was a negative control and has
+been renamed. Making it permanent would mean seeding eight of nine branches and
+asserting the ninth is reported missing, which is real work and outside what
+this PR was asked for. Raised on #6201 for the owner rather than built here. The
 hermetic count guard still passes at nine fixtures against
 `blastRadiusSqlTableBranches = 9`, so the live test is the only thing in the
 repo that catches it — which is the claim this wiring is here to make true.

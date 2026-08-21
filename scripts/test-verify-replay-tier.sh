@@ -25,7 +25,7 @@ has_serialized_package_command() {
 # passing one in any summary a reviewer reads.
 has_blast_radius_command() {
 	rg --quiet '^[[:space:]]*go test -p=1 \./internal/query/ \\$' "$1" &&
-		rg --quiet "^[[:space:]]*-run 'TestSQLTableBlastRadiusEveryBranchContributesLive\|TestSQLTableBlastRadiusDetectsADeadBranchLive' \\\\$" "$1"
+		rg --quiet "^[[:space:]]*-run 'TestSQLTableBlastRadiusEveryBranchContributesLive\|TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive' \\\\$" "$1"
 }
 
 # has_blast_radius_nonvacuity_guard checks the gate asserts both tests actually
@@ -42,7 +42,7 @@ has_blast_radius_command() {
 has_blast_radius_nonvacuity_guard() {
 	local name
 	for name in TestSQLTableBlastRadiusEveryBranchContributesLive \
-		TestSQLTableBlastRadiusDetectsADeadBranchLive; do
+		TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive; do
 		rg --quiet "^\t${name}[; \\\\]" "$1" || return 1
 	done
 	rg --quiet '^\trg --quiet "\^--- PASS: \$\{required_test\} "' "$1" || return 1

@@ -127,6 +127,39 @@ func TestSQLTableBlastRadiusBranchTableMatchesQuery(t *testing.T) {
 	}
 }
 
+// sqlBlastRadiusBackend resolves the live graph endpoint for both live tests,
+// preferring each variable's ESHU_-prefixed form over the bare NEO4J_ name.
+//
+// The URI already worked that way; the database did not, and read
+// NEO4J_DATABASE alone. scripts/verify-replay-tier.sh pins
+// ESHU_NEO4J_DATABASE, so on a developer machine that already exports
+// NEO4J_DATABASE=neo4j these tests connected to a different database than the
+// replay tier had just asserted against, inside the same gate run. CI was
+// unaffected — a clean runner leaves both unset and the nornic default holds —
+// which is why it went unnoticed until #6201 review. The gate now pins both
+// names as well; either fix alone would close the hole, and the pair keeps a
+// future test that reads only one of them honest.
+func sqlBlastRadiusBackend() (uri, database string) {
+	firstNonEmpty := func(names ...string) string {
+		for _, name := range names {
+			if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+				return value
+			}
+		}
+		return ""
+	}
+
+	uri = firstNonEmpty("ESHU_NEO4J_URI", "NEO4J_URI")
+	if uri == "" {
+		uri = "bolt://localhost:7687"
+	}
+	database = firstNonEmpty("ESHU_NEO4J_DATABASE", "NEO4J_DATABASE")
+	if database == "" {
+		database = "nornic"
+	}
+	return uri, database
+}
+
 // TestSQLTableBlastRadiusEveryBranchContributesLive drives the real
 // blastRadiusSqlTableQuery against a live NornicDB and asserts each of the nine
 // UNION branches independently contributes its own repository at its own hop
@@ -135,17 +168,7 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_REPLAY_TIER_LIVE")) != "1" {
 		t.Skip("set ESHU_REPLAY_TIER_LIVE=1 to run the sql_table blast-radius branch proof against a real NornicDB")
 	}
-	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
-	if uri == "" {
-		uri = strings.TrimSpace(os.Getenv("NEO4J_URI"))
-	}
-	if uri == "" {
-		uri = "bolt://localhost:7687"
-	}
-	database := strings.TrimSpace(os.Getenv("NEO4J_DATABASE"))
-	if database == "" {
-		database = "nornic"
-	}
+	uri, database := sqlBlastRadiusBackend()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -235,30 +258,30 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 	}
 }
 
-// TestSQLTableBlastRadiusDetectsADeadBranchLive is the bite proof. The test
-// above passing tells us nine branches work; it does not tell us the test could
-// notice if one stopped. This drives the same query against a table nothing
-// references and asserts every branch is reported as contributing nothing.
+// TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive is a NEGATIVE
+// CONTROL, not a bite proof. It drives the same query against a table nothing
+// references and asserts no seeded repository comes back, which rules out the
+// opposite failure from a dead branch: a branch matching everything, under
+// which the positive proof above would pass for the wrong reason.
 //
-// That exercises the exact detection path a single dead branch would take:
-// per-branch repository lookup, missing-list accumulation. Without it, "each
-// branch has its own repository so a dead one cannot hide" is a structural
-// claim nobody has watched hold.
-func TestSQLTableBlastRadiusDetectsADeadBranchLive(t *testing.T) {
+// It was named TestSQLTableBlastRadiusDetectsADeadBranchLive and documented as
+// the bite proof, and it is neither. Its `missing` counter walks
+// sqlBlastRadiusBranches() — a fixture list, never the query rows — so it
+// passes even if every shipped UNION branch were dead. Both the codex reviewer
+// and the repo owner caught that independently on #6201. The name mattered
+// more than the test did: a future reader trusting it could delete the real
+// per-branch proof and believe dead-branch detection was still enforced.
+//
+// Dead-branch detection lives in
+// TestSQLTableBlastRadiusEveryBranchContributesLive, which accumulates the
+// missing list from actual rows. That it bites was proven by breaking one
+// branch and watching the gate fail naming it; see
+// docs/internal/evidence/6182-blast-radius-gate-wiring.md.
+func TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_REPLAY_TIER_LIVE")) != "1" {
-		t.Skip("set ESHU_REPLAY_TIER_LIVE=1 to run the sql_table blast-radius bite proof against a real NornicDB")
+		t.Skip("set ESHU_REPLAY_TIER_LIVE=1 to run the sql_table blast-radius negative control against a real NornicDB")
 	}
-	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
-	if uri == "" {
-		uri = strings.TrimSpace(os.Getenv("NEO4J_URI"))
-	}
-	if uri == "" {
-		uri = "bolt://localhost:7687"
-	}
-	database := strings.TrimSpace(os.Getenv("NEO4J_DATABASE"))
-	if database == "" {
-		database = "nornic"
-	}
+	uri, database := sqlBlastRadiusBackend()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -286,13 +309,8 @@ func TestSQLTableBlastRadiusDetectsADeadBranchLive(t *testing.T) {
 		}
 	}
 
-	// Every branch must be detectable as absent, which is what makes the
-	// positive proof meaningful.
-	missing := 0
-	for range sqlBlastRadiusBranches() {
-		missing++
-	}
-	if missing != blastRadiusSqlTableBranches {
-		t.Fatalf("branch count drifted: %d fixtures vs %d query branches", missing, blastRadiusSqlTableBranches)
-	}
+	// The fixture-vs-constant count check that used to live here duplicated
+	// TestSQLTableBlastRadiusBranchTableMatchesQuery, which already runs it
+	// without a backend. Keeping it here dressed a compile-time comparison up as
+	// live evidence, which is how this test came to be called a bite proof.
 }
