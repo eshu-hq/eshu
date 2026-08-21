@@ -12,7 +12,6 @@ IFA_FAMILY_ANCHOR[workload_dependency]="MERGE (source)-[rel:DEPENDS_ON]->(target
 IFA_FAMILY_CELL_KIND[workload_dependency]="custom"
 IFA_FAMILY_CASSETTE_VAR[workload_dependency]="workload_dependency_cassette"
 IFA_FAMILY_EXPECTED_VAR[workload_dependency]="workload_dependency_expected_edges"
-IFA_FAMILY_RETRY_BASELINE_VAR[workload_dependency]="baseline_workload_dependency_retried"
 IFA_FAMILY_HANDLER_GO_FILE[workload_dependency]="go/internal/reducer/workload_materialization_handler.go"
 IFA_FAMILY_FAULT_SHARED_DRIVE[workload_dependency]="0"
 IFA_FAMILY_NAMES+=(workload_dependency)
