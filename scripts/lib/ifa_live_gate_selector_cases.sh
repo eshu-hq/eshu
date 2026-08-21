@@ -166,7 +166,6 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/submodulepin/**|testdata/cassettes/submodulepin/ifa-submodule-pin-family.json'
 	'go/internal/ifa/testdata/submodulepin/**|go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json'
 	'scripts/lib/ifa_submodule_pin_live.sh|scripts/lib/ifa_submodule_pin_live.sh'
-	'scripts/lib/ifa_fault_family_libs.sh|scripts/lib/ifa_fault_family_libs.sh'
 	'scripts/lib/ifa_inheritance_live.sh|scripts/lib/ifa_inheritance_live.sh'
 	'scripts/lib/ifa_fault_injection_inheritance_cells.sh|scripts/lib/ifa_fault_injection_inheritance_cells.sh'
 	'scripts/lib/ifa_shell_exec_live.sh|scripts/lib/ifa_shell_exec_live.sh'

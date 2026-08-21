@@ -17,9 +17,25 @@
 
 run_ifa_documentation_live_static_cases() {
 	local proof_suite_guide="${repo_root}/docs/public/guides/run-the-proof-suite.md"
-	local expected_fault_guide_row='| `ifa-fault-injection` | Lease reclaim and retry converge across a 27-cell matrix. It includes fault injection, baselines, and exact-edge delta retraction. CI shards 26 non-baseline cells four ways and repeats the shared baseline, for 30 runs. |'
+	local conformance_doc="${repo_root}/docs/public/concepts/ifa-conformance-platform.md"
+	local debug_doc="${repo_root}/docs/public/guides/debug-a-failing-gate.md"
+	local coverage_spec="${repo_root}/specs/ifa-materialized-edge-coverage.v1.yaml"
+	local expected_fault_guide_row='| `ifa-fault-injection` | Lease reclaim and retry converge across a 33-cell matrix. It includes fault injection, baselines, and exact-edge delta retraction. CI shards 32 non-baseline cells four ways and repeats the shared baseline, for 36 runs. |'
 	rg --fixed-strings --line-regexp --quiet -- "${expected_fault_guide_row}" "${proof_suite_guide}" \
-		|| fail "run-the-proof-suite fault-injection row must stay in lockstep with the 27-cell, 26 non-baseline, 30-run shard matrix"
+		|| fail "run-the-proof-suite fault-injection row must stay in lockstep with the 33-cell, 32 non-baseline, 36-run shard matrix"
+	for check in \
+		"${conformance_doc}|Thirty-three cells; the thirty-two" \
+		"${conformance_doc}|CI executes thirty-six" \
+		"${conformance_doc}|cell runs for the thirty-three-cell matrix" \
+		"${debug_doc}|drives thirty-three cells" \
+		"${debug_doc}|the thirty-two cells other than the shared fault-free baseline" \
+		"${debug_doc}|executes thirty-six cell runs" \
+		"${debug_doc}|for a thirty-three-cell matrix" \
+		"${coverage_spec}|The 33-cell fault"; do
+		local file="${check%%|*}" needle="${check#*|}"
+		rg --fixed-strings --quiet -- "${needle}" "${file}" \
+			|| fail "fault-matrix documentation drift in ${file##*/}: missing ${needle}"
+	done
 	# Every cell drives the family via drive_all_cassettes, baseline exact-asserts
 	# it, and two dedicated cells prove queue reclaim and graph-write retry.
 	require_fixture "documentation cassette path" "testdata/cassettes/documentation/ifa-documentation-family.json"
@@ -148,11 +164,11 @@ run_ifa_documentation_live_static_cases() {
 	rg -U --pcre2 --quiet -- 'ifa_fault_wait_for_claimed[^\n]*\\\n\s*\|\| die "kill-worker-after-claim-documentation: no documentation_materialization row was claimed"' "${documentation_cells_lib}" \
 		|| fail "documentation kill cell's claimed-row guard must die when no documentation_materialization row was claimed -- otherwise the cell passes against an empty queue"
 	require_documentation_cells "documentation kill cell reports its non-vacuity evidence" "non-vacuous: %s claimed row; ACK backend %s blocked by holder %s after exact graph write"
-	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29"
-	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30"
-	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18/21/24/27/30's queue-retry lane"
+	require "claimed-row proof inventory includes every lease-reclaim cell" "a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32"
+	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33"
+	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18/21/24/27/30/33's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
-	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other twenty-nine cells remain bound" "${driver_lib}"
+	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other thirty-two cells remain bound" "${driver_lib}"
 	# The literal-label pin that used to live here ("Run Ifa fault-injection
 	# matrix (18 cells, fresh stack per cell)") was migrated to
 	# scripts/lib/test-ifa-fault-injection-shard-cases.sh once the

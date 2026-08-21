@@ -58,7 +58,7 @@ const (
 	inheritanceFamilyWorkerPath = "services/worker.py"
 )
 
-// inheritanceFamilyOdu carries six typed entities across three inheritance
+// inheritanceFamilyOdu carries nine typed entities across three inheritance
 // mechanisms in one repository:
 //
 //   - Dog (Class, entity_metadata.bases=["Animal"]) derives one INHERITS edge
