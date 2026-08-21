@@ -1901,9 +1901,9 @@ before. An operator's dashboards and alerts see no new series and lose none, so
 there is nothing to add to the telemetry contract or the operator dashboard.
 
 No-Regression Evidence (#6003): merged-main baseline
-`2d84304654dc498ef744fd1d79eea864dd2a4dc2` filtered
+`c74e196c69162cc649f47f739e95a733558ab302` filtered
 `workload_dependency` edges by type and endpoint labels. Code head
-`d5c55f1c7b835056f939087eb529a92a18c305a9` adds the writer's existing
+`5d70778e33df20d69e514f293f948d0392e6ece9` adds the writer's existing
 `reducer.EvidenceSourceWorkloads` value to that in-memory gate constraint. The
 Bolt graph dump, statement count, and backend row set are unchanged on both
 supported backends: `assert-edges` still streams the same edges, then performs
