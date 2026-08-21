@@ -203,12 +203,18 @@ container, with one negation case per name plus a repoint case:
 | repoint any of the four away from this container | exit 1 |
 | delete the workflow's `run: bash scripts/verify-replay-tier.sh` step | exit 1 |
 | put `if: ${{ false }}` on that step, leaving the `run:` line present | exit 1 |
-| weaken the guard from value-check to existence-check | exit 1 |
+| weaken the guard from value-check to existence-check | exit 1, via the repoint cases |
 | unmodified | exit 0 |
 
-Every row above is a standing mutation case in
-`scripts/test-verify-replay-tier.sh`, not a one-time manual experiment. That
-distinction cost a fifth review round: the gate-step guard shipped with its
+Every row above except the last mutation is a standing case in
+`scripts/test-verify-replay-tier.sh`, not a one-time manual experiment. The
+exception is deliberate: nothing mutates `has_graph_endpoint_pins` itself,
+because a guard cannot stand-test itself. Weakening it to `^export ${var}=`
+would still fail every deletion row, so what actually catches that regression
+is the per-pin repoint loop — a weakened guard lets a repointed pin through and
+the first repoint case fails.
+
+That distinction cost a fifth review round: the gate-step guard shipped with its
 evidence recorded in this table and no negation case in the mirror, so a future
 weakening of that one line would have gone unnoticed. A table row is a record;
 only the mirror is a guard.
