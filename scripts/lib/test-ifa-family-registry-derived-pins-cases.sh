@@ -78,6 +78,7 @@ IFA_FAMILY_PINS_NAMES=(
 	submodule_pin_edges
 	inheritance_edges
 	shell_exec
+	workload_dependency
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

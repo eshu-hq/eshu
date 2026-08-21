@@ -40,9 +40,9 @@ import "sort"
 // coverage run -- and #6002 added the submodule_pin_edges Odu, cassette, and
 // expected-edge-set fixture. #5992/#6160 added codeowners_ownership_edges,
 // #5999 added repo_dependency, and #5996/#6001 added inheritance_edges and
-// shell_exec.
+// shell_exec. #6003 added workload_dependency.
 // Those changes removed their families' waivers.
-// The current 4 not-yet-covered allProjectionDomains families remain tracked
+// The current 3 not-yet-covered allProjectionDomains families remain tracked
 // by #5543 in specs/ifa-materialized-edge-coverage.v1.yaml. Adding direct-materialization
 // families to this enumeration remains separate follow-up work under #5543
 // because they bypass the shared intent path this function inventories.

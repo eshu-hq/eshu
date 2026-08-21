@@ -175,3 +175,24 @@ func TestWorkloadDependencyFamilyOduCarriesProductionFollowup(t *testing.T) {
 		t.Fatalf("workload_materialization followup stable_fact_key = %q", followup.StableFactKey)
 	}
 }
+
+func TestWorkloadDependencyFamilyOduCarriesRepoDependencyPrerequisiteFollowup(t *testing.T) {
+	t.Parallel()
+
+	var followups []facts.Envelope
+	for _, fact := range workloadDependencyFamilyOdu().Odu.Facts {
+		if fact.FactKind == "shared_followup" && fact.Payload["reducer_domain"] == "deployment_mapping" {
+			followups = append(followups, fact)
+		}
+	}
+	if len(followups) != 1 {
+		t.Fatalf("deployment_mapping followups = %d, want exactly 1 so maintenance can materialize repo_dependency before workload materialization is retriggered", len(followups))
+	}
+	followup := followups[0]
+	if followup.Payload["repo_id"] != workloadDependencyFamilySourceRepoID {
+		t.Fatalf("deployment_mapping followup repo_id = %#v, want %q", followup.Payload["repo_id"], workloadDependencyFamilySourceRepoID)
+	}
+	if followup.StableFactKey != "shared_followup:"+workloadDependencyFamilySourceRepoID+":deployment_mapping" {
+		t.Fatalf("deployment_mapping followup stable_fact_key = %q", followup.StableFactKey)
+	}
+}

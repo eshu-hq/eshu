@@ -21,8 +21,8 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Thirty-three cells, each hitting a genuinely different recovery or delivery
-# seam. All thirty-three run by default. Cell functions live in
+# Thirty-six cells, each hitting a genuinely different recovery or delivery
+# seam. All thirty-six run by default. Cell functions live in
 # scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
@@ -36,7 +36,8 @@
 # #5999), and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells
 # 25-27, issue #6002), scripts/lib/ifa_fault_injection_inheritance_cells.sh
 # (cells 28-30, issue #5996), and scripts/lib/ifa_fault_injection_shell_exec_cells.sh
-# (cells 31-33, issue #6001).
+# (cells 31-33, issue #6001), and workload_dependency cells 34-36 (#6003) live
+# in their family libraries.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -171,8 +172,8 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -233,8 +234,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -448,9 +449,7 @@ ifa_fault_shard_run cell_killworker_deployable_unit
 ifa_fault_shard_run cell_failgraphwrite_deployable_unit
 
 # codeowners_ownership_edges (#5992), cells 19-21; baseline first (it sets digests[baseline_codeowners] + baseline_codeowners_retried).
-# Wrapped, like every other cell: #6160 landed these three before this gate
-# was sharded, so they dispatched bare and would have run in ALL FOUR shards
-# instead of just their own -- four times the work, and a partition the
+# Wrapped: #6160 landed these before sharding, so bare dispatch would run in all shards and the partition would be false.
 # mirror's exact-cover proof no longer described. The shard-cases count pin
 # caught it on the merge.
 ifa_fault_shard_run cell_baseline_codeowners
@@ -459,7 +458,6 @@ ifa_fault_shard_run cell_failgraphwrite_codeowners
 ifa_fault_shard_run cell_baseline_repo_dependency
 ifa_fault_shard_run cell_killworker_repo_dependency
 ifa_fault_shard_run cell_failgraphwrite_repo_dependency
-
 # submodule_pin_edges (#6002), cells 25-27; baseline first (it sets
 # digests[baseline_submodule_pin] + baseline_submodule_pin_retried), same trio
 # shape as codeowners above.
@@ -476,6 +474,12 @@ ifa_fault_shard_run cell_failgraphwrite_inheritance
 ifa_fault_shard_run cell_baseline_shell_exec
 ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
+
+# workload_dependency (#6003), cells 34-36; its maintenance-backed baseline
+# must run before the two recovery cells in the same atomic shard group.
+ifa_fault_shard_run cell_baseline_workload_dependency
+ifa_fault_shard_run cell_killworker_workload_dependency
+ifa_fault_shard_run cell_failgraphwrite_workload_dependency
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

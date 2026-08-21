@@ -154,6 +154,7 @@ func workloadDependencyFamilyOdu() CatalogOdu {
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
+		workloadDependencyFamilyFollowupFact("deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
 		workloadDependencyFamilyWorkloadFollowupFact(),
 	}
 	return CatalogOdu{
@@ -243,13 +244,17 @@ func workloadDependencyFamilyK8sDeploymentFact(file codegraphv1.File) facts.Enve
 }
 
 func workloadDependencyFamilyWorkloadFollowupFact() facts.Envelope {
+	return workloadDependencyFamilyFollowupFact("workload_materialization", "repository snapshot emitted workload materialization follow-up")
+}
+
+func workloadDependencyFamilyFollowupFact(domain, reason string) facts.Envelope {
 	return workloadDependencyFamilyFact(
 		"shared_followup",
-		"shared_followup:"+workloadDependencyFamilySourceRepoID+":workload_materialization",
+		"shared_followup:"+workloadDependencyFamilySourceRepoID+":"+domain,
 		map[string]any{
-			"reducer_domain": "workload_materialization",
+			"reducer_domain": domain,
 			"entity_key":     "workload:" + workloadDependencyFamilySourceName,
-			"reason":         "repository snapshot emitted workload materialization follow-up",
+			"reason":         reason,
 			"repo_id":        workloadDependencyFamilySourceRepoID,
 		},
 	)

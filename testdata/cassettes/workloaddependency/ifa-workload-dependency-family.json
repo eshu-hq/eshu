@@ -226,6 +226,20 @@
         {
           "fact_kind": "shared_followup",
           "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-source:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "entity_key": "workload:workload-dependency-source",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
           "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-source:workload_materialization",
           "collector_kind": "git",
           "source_confidence": "observed",

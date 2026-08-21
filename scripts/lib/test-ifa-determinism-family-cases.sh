@@ -161,6 +161,32 @@ compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=
 [[ "${repo_standalone_line}" =~ ^[0-9]+$ && "${standalone_cell_line}" -lt "${repo_standalone_line}" && "${repo_standalone_line}" -lt "${compare_digests_line}" ]] \
 	|| fail "repo_dependency standalone cell must run after deployable_unit and before digest comparison"
 
+# workload_dependency is a second maintenance-backed standalone proof. Its
+# first drain may create Workload nodes but cannot create their DEPENDS_ON edge:
+# the repo_dependency prerequisite is not durable yet. The cell must prove that
+# absence, finish and exact-assert repo_dependency, explicitly reopen only
+# workload_materialization, then drain and exact-assert the workload edge with
+# the writer's evidence_source ownership constraint.
+require_fixture "workload-dependency cassette path" "testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json"
+require_fixture "workload-dependency expected-edge set path" "go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-expected-edges.json"
+require_fixture "workload-dependency repo-prerequisite expected-edge set path" "go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-repo-prerequisite-expected-edges.json"
+require_fixture "workload-dependency cassette existence guard" "workload-dependency cassette not found"
+require_fixture "workload-dependency expected-edge existence guard" "workload-dependency expected-edge set not found"
+require_fixture "workload-dependency repo-prerequisite existence guard" "workload-dependency repo-prerequisite expected-edge set not found"
+workload_dependency_live_lib="${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
+[[ -f "${workload_dependency_live_lib}" ]] || fail "missing workload_dependency live helper"
+for workload_needle in 'ifa_workload_dependency_live_run_standalone_cell()' \
+	'ifa_workload_dependency_live_drain pre' 'ifa_repo_dependency_live_run_maintenance_pass workload-dependency' \
+	'ifa_workload_dependency_live_drain repo' 'ifa_workload_dependency_live_assert_repo_prerequisite' \
+	'ifa_workload_dependency_live_assert_owned_absent' 'ifa_workload_dependency_live_reopen_materialization' \
+	'ifa_workload_dependency_live_drain workload' '-domain workload_dependency -expected "${expected_edges}"'; do
+	rg --fixed-strings --quiet -- "${workload_needle}" "${workload_dependency_live_lib}" \
+		|| fail "workload_dependency live helper missing ${workload_needle}"
+done
+workload_standalone_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_live_run_standalone_cell' "${script}" | tail -1 | cut -d: -f1 || true)"
+[[ "${workload_standalone_line}" =~ ^[0-9]+$ && "${repo_standalone_line}" -lt "${workload_standalone_line}" && "${workload_standalone_line}" -lt "${compare_digests_line}" ]] \
+	|| fail "workload_dependency standalone cell must run after repo_dependency and before digest comparison"
+
 # rationale_edges (#5998): every worker-count cell drives the production-shaped
 # cassette, exact-asserts all three EXPLAINS records, and fails closed unless
 # the durable queue/intent lifecycle is exactly 1|1|0|4|3|1|4|0 with one

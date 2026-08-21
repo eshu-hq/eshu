@@ -98,6 +98,9 @@ run_ifa_fault_injection_shard_cases() {
 		cell_baseline_shell_exec
 		cell_killworker_shell_exec
 		cell_failgraphwrite_shell_exec
+		cell_baseline_workload_dependency
+		cell_killworker_workload_dependency
+		cell_failgraphwrite_workload_dependency
 	)
 
 	local actual_full
@@ -205,7 +208,8 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency \
 		cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin \
 		cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance \
-		cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec; do
+		cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec \
+		cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency; do
 		rg --quiet -- "^ifa_fault_shard_run ${cell}\$" "${script}" \
 			|| test_ifa_fault_shard_cases_fail "verifier does not invoke ${cell} via ifa_fault_shard_run on its own line -- missing entirely, or dispatched WITHOUT the wrapper (which would silently run every shard, ignoring --shard)"
 	done

@@ -69,3 +69,7 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_inheritance_ce
 source "${ifa_fault_sources_root}/scripts/lib/ifa_shell_exec_live.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_shell_exec_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+# shellcheck source=scripts/lib/ifa_workload_dependency_live.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_workload_dependency_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_workload_dependency_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
