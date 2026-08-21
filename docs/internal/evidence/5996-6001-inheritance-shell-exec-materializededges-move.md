@@ -60,7 +60,7 @@ gap, not a correctness one, and the fix is a two-line read-key change plus
 the new diagnostics split.
 
 No-Regression Evidence: `cd go && go test ./internal/reducer -run
-Inheritance -v -count=1` (33 cases, all PASS, including the new 375-line
+Inheritance -v -count=1` (all PASS, including the new 375-line
 `inheritance_relative_path_test.go` regression suite and
 `TestInheritanceFilePartitionKeyChangesWithProductionChildPath`, which fails
 red on the pre-fix `"path"` read and green on the fix); `go test
