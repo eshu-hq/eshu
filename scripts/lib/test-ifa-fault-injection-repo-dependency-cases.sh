@@ -20,8 +20,141 @@ ifa_repo_dependency_prepare_has_required_order() {
 		'run_drain_gate "${cell}-pre"'
 }
 
+run_ifa_repo_dependency_partition_lease_controls() (
+	local dead_pid=987654 mode="lifecycle" pre_census="" post_census=""
+	local lease_state_dir pg_marker census_marker update_marker zero_marker updated_marker
+	local domain partition_id partition_count owner
+	local FAULT_COMPOSE_PROJECT=test use_compose=0 ESHU_POSTGRES_DSN=test compose_file=test
+	local owner_prefix="repo-dependency-projection-runner:test-host:${dead_pid}:0123456789abcdef0123456789abcdef"
+	local first="repo_dependency|0|4|${owner_prefix}/worker-0-of-4"
+	local second="repo_dependency|1|4|${owner_prefix}/worker-1-of-4"
+	local third="repo_dependency|2|4|${owner_prefix}/worker-2-of-4"
+	local fourth="repo_dependency|3|4|${owner_prefix}/worker-3-of-4"
+	local expected_pre="${first}"$'\n'"${second}"
+	local expected_post="${expected_pre}"$'\n'"${third}"$'\n'"${fourth}"
+	lease_state_dir="$(mktemp -d)" || return 1
+	trap 'rm -rf "${lease_state_dir}"' EXIT
+	pg_marker="${lease_state_dir}/preserved"
+	census_marker="${lease_state_dir}/census"
+	update_marker="${lease_state_dir}/updates"
+	zero_marker="${lease_state_dir}/zero-checks"
+	updated_marker="${lease_state_dir}/updated-snapshot"
+	printf '0' >"${census_marker}"
+	printf '0' >"${update_marker}"
+	printf '0' >"${zero_marker}"
+
+	ifa_det_pg() {
+		local sql="$4"
+		if [[ "${sql}" == "SELECT count(*) FROM shared_projection_partition_leases"* ]]; then
+			printf '%s' "$(( $(<"${zero_marker}") + 1 ))" >"${zero_marker}"
+			[[ "${sql}" == *"projection_domain = 'repo_dependency'"* ]] || return 1
+			[[ "${sql}" == *":${dead_pid}:[0-9a-f]{32}/worker-"* ]] || return 1
+			[[ "${mode}" == "remaining" || "${mode}" == "pre-only-mutation" ]] && printf '2' || printf '0'
+			return 0
+		fi
+		if [[ "${sql}" == *"SELECT COALESCE(string_agg("* ]]; then
+			printf '%s' "$(( $(<"${census_marker}") + 1 ))" >"${census_marker}"
+			[[ "${sql}" == *"projection_domain = 'repo_dependency'"* ]] || return 1
+			[[ "${sql}" == *"lease_expires_at > CURRENT_TIMESTAMP"* ]] || return 1
+			[[ "${sql}" == *":${dead_pid}:[0-9a-f]{32}/worker-"* ]] || return 1
+			case "${mode}" in
+			zero) return 0 ;;
+			wrong-owner)
+				printf 'repo_dependency|0|4|repo-dependency-projection-runner:test-host:987655:0123456789abcdef0123456789abcdef/worker-0-of-4'
+				return 0
+				;;
+			wrong-domain)
+				printf 'documentation_materialization|0|4|%s/worker-0-of-4' "${owner_prefix}"
+				return 0
+				;;
+			pre-only-mutation)
+				printf '%s' "${expected_pre}"
+				return 0
+				;;
+			esac
+			[[ "$(<"${census_marker}")" -eq 1 ]] && printf '%s' "${expected_pre}" || printf '%s' "${expected_post}"
+			return 0
+		fi
+		[[ "${sql}" == *"UPDATE shared_projection_partition_leases AS lease"* ]] || return 1
+		printf '%s' "$(( $(<"${update_marker}") + 1 ))" >"${update_marker}"
+		[[ "${sql}" == *"lease.projection_domain = captured.projection_domain"* ]] || return 1
+		[[ "${sql}" == *"lease.partition_id = captured.partition_id"* ]] || return 1
+		[[ "${sql}" == *"lease.partition_count = captured.partition_count"* ]] || return 1
+		[[ "${sql}" == *"lease.lease_owner = captured.lease_owner"* ]] || return 1
+		[[ "${sql}" != *"documentation_materialization"* && "${sql}" != *"unrelated-owner"* ]] || return 1
+		printf '%s\n' \
+			'documentation_materialization|same-owner|future' \
+			'repo_dependency|unrelated-owner|future' >"${pg_marker}"
+		printf '%s' "${expected_post}" >"${updated_marker}"
+		if [[ "${mode}" == "pre-only-mutation" ]]; then
+			printf '%s' "${expected_pre}" >"${updated_marker}"
+			printf '2\n%s' "${expected_pre}"
+			return 0
+		fi
+		while IFS='|' read -r domain partition_id partition_count owner; do
+			[[ "${sql}" == *"('${domain}',${partition_id},${partition_count},'${owner}')"* ]] || return 1
+		done <<<"${expected_post}"
+		if [[ "${mode}" == "partial" ]]; then
+			printf '3\n%s\n%s\n%s' "${first}" "${second}" "${third}"
+		else
+			printf '4\n%s' "${expected_post}"
+		fi
+	}
+
+	ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census || return 1
+	[[ "${pre_census}" == "${expected_pre}" ]] || return 1
+	ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
+	[[ "${post_census}" == "${expected_post}" ]] || return 1
+	ifa_repo_dependency_fault_require_partition_lease_subset "${dead_pid}" "${pre_census}" "${post_census}" || return 1
+	! ifa_repo_dependency_fault_require_partition_lease_subset "${dead_pid}" "${post_census}" "${pre_census}" || return 1
+	ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${post_census}" || return 1
+	[[ "$(<"${updated_marker}")" == "${expected_post}" && "$(<"${zero_marker}")" -eq 1 ]] || return 1
+	[[ "$(<"${pg_marker}")" == $'documentation_materialization|same-owner|future\nrepo_dependency|unrelated-owner|future' ]] || return 1
+
+	mode="zero"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
+	mode="wrong-owner"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
+	mode="wrong-domain"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
+	mode="partial"
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${expected_post}" || return 1
+	mode="remaining"
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${expected_post}" || return 1
+
+	mode="pre-only-mutation"
+	printf '0' >"${census_marker}"
+	ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census || return 1
+	! {
+		ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${pre_census}" &&
+			[[ "$(<"${updated_marker}")" == "${expected_post}" ]]
+	} || return 1
+
+	mode="lifecycle"
+	rm -f "${pg_marker}"
+	local other_domain="documentation_materialization|0|4|${owner_prefix}/worker-0-of-4"
+	local duplicate="${first}"$'\n'"${first}"
+	local malformed="repo_dependency|0|4|${owner_prefix}/worker-x-of-4"
+	local quote_owner="repo_dependency|0|4|repo-dependency-projection-runner:test'host:${dead_pid}:0123456789abcdef0123456789abcdef/worker-0-of-4"
+	local update_calls_before
+	update_calls_before="$(<"${update_marker}")"
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${other_domain}" || return 1
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${duplicate}" || return 1
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${malformed}" || return 1
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${quote_owner}" || return 1
+	[[ "$(<"${update_marker}")" -eq "${update_calls_before}" ]] || return 1
+	[[ ! -e "${pg_marker}" ]] || return 1
+	local live_owner="repo_dependency|0|4|repo-dependency-projection-runner:test-host:$$:0123456789abcdef0123456789abcdef/worker-0-of-4"
+	! ifa_repo_dependency_fault_expire_partition_leases test_cell "$$" "${live_owner}" || return 1
+	[[ "$(<"${update_marker}")" -eq "${update_calls_before}" ]] || return 1
+	[[ ! -e "${pg_marker}" ]] || return 1
+	local multi_owner="repo-dependency-projection-runner:test-host:${dead_pid}:0123456789abcdef0123456789abcdef"
+	ifa_repo_dependency_fault_validate_partition_leases "${dead_pid}" \
+		"repo_dependency|2|12|${multi_owner}/worker-2-of-12"$'\n'"repo_dependency|10|12|${multi_owner}/worker-10-of-12" || return 1
+)
+
 run_ifa_fault_injection_repo_dependency_cases() {
-	local root script shard cells live fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
+	local root script shard cells live lease_lib fixtures expected_cassette expected_edges baseline_line kill_line graph_line prerequisite_line maintenance_line lock_line claim_line release_line
 	local gated_body terminal_body kill_body graph_body prerequisite_body prepare_body edge_type needle
 	local drive_line repo_drive_line omitted_drive_body misordered_drive_body
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,6 +162,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	shard="${root}/scripts/lib/ifa_fault_shard.sh"
 	cells="${IFA_REPO_DEPENDENCY_CELLS_UNDER_TEST:-${root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh}"
 	live="${IFA_REPO_DEPENDENCY_LIVE_UNDER_TEST:-${root}/scripts/lib/ifa_repo_dependency_live.sh}"
+	lease_lib="${IFA_REPO_DEPENDENCY_LEASE_UNDER_TEST:-${cells}}"
 	fixtures="${root}/scripts/lib/ifa_family_fixtures.sh"
 	expected_cassette="${root}/testdata/cassettes/repodependency/ifa-repo-dependency-family.json"
 	expected_edges="${root}/go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json"
@@ -44,8 +178,11 @@ run_ifa_fault_injection_repo_dependency_cases() {
 		([.scopes[6].facts[] | select(.fact_kind == "shared_followup") | .payload.reducer_domain] | sort) == ["deployment_mapping", "workload_materialization"]
 	' "${expected_cassette}" >/dev/null || return 1
 	[[ -f "${cells}" ]] || { printf 'repo_dependency cells missing: %s\n' "${cells}" >&2; return 1; }
+	[[ -f "${lease_lib}" ]] || { printf 'repo_dependency lease helper missing: %s\n' "${lease_lib}" >&2; return 1; }
 	# shellcheck source=scripts/lib/ifa_repo_dependency_live.sh
 	source "${live}"
+	# shellcheck source=scripts/lib/ifa_fault_injection_repo_dependency_cells.sh
+	source "${lease_lib}"
 	for cell in cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency; do
 		rg --line-regexp --quiet -- "ifa_fault_shard_run ${cell}" "${script}" || return 1
 		rg --fixed-strings --quiet -- "${cell}" "${shard}" || return 1
@@ -104,7 +241,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	ifa_repo_dependency_body_has_order "${terminal_body}" \
 		assert_no_dead_letters ifa_repo_dependency_live_assert_readiness_state \
 		'ifa_repo_dependency_live_assert "${bin_dir}" "${repo_dependency_expected_edges}"' || return 1
-	for needle in ifa_repo_dependency_fault_prepare ifa_fault_start_shared_intent_lock ifa_fault_wait_for_claimed 'deployment_mapping' ' KILL ' ifa_fault_release_shared_intent_lock 'reducer-${cell}-after' run_drain_gate ifa_repo_dependency_fault_assert_terminal ifa_fault_assert_retried_above capture_digest assert_matches_baseline teardown_cell; do
+	for needle in ifa_repo_dependency_fault_prepare ifa_fault_start_shared_intent_lock ifa_fault_wait_for_claimed 'deployment_mapping' pre_kill_partition_leases ' KILL ' post_kill_partition_leases ifa_repo_dependency_fault_require_partition_lease_subset ifa_repo_dependency_fault_expire_partition_leases ifa_fault_release_shared_intent_lock 'reducer-${cell}-after' run_drain_gate ifa_repo_dependency_fault_assert_terminal ifa_fault_assert_retried_above capture_digest assert_matches_baseline teardown_cell; do
 		[[ "${kill_body}" == *"${needle}"* ]] || return 1
 	done
 	ifa_repo_dependency_body_has_order "${kill_body}" \
@@ -113,7 +250,11 @@ run_ifa_fault_injection_repo_dependency_cases() {
 		ifa_fault_start_shared_intent_lock \
 		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-before"' \
 		ifa_fault_wait_for_claimed \
+		'ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_kill_partition_leases' \
 		'ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL' \
+		'ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" post_kill_partition_leases' \
+		ifa_repo_dependency_fault_require_partition_lease_subset \
+		'ifa_repo_dependency_fault_expire_partition_leases "${cell}" "${reducer_before}" "${post_kill_partition_leases}"' \
 		ifa_fault_release_shared_intent_lock \
 		'ifa_det_start_bg "${log_dir}" "reducer-${cell}-after"' \
 		run_drain_gate ifa_repo_dependency_fault_assert_terminal \
@@ -147,5 +288,6 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	claim_line="$(rg -n -A 14 '^cell_killworker_repo_dependency\(\)' "${cells}" | rg --fixed-strings -- 'deployment_mapping' | head -1 | cut -d- -f1)"
 	release_line="$(rg -n --fixed-strings -- 'ifa_fault_release_shared_intent_lock' "${cells}" | cut -d: -f1)"
 	[[ "${lock_line}" -lt "${claim_line}" && "${claim_line}" -lt "${release_line}" ]] || return 1
+	run_ifa_repo_dependency_partition_lease_controls || return 1
 	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 24 ]] || return 1
 }
