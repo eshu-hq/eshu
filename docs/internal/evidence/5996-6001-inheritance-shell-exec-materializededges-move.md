@@ -14,11 +14,10 @@ and `shell_exec_family_odu_cassette_test.go` moved from `go/internal/ifa` to
 `go/internal/ifa/materializededges` unchanged in logic -- only the package
 clause, the `ifa.` qualification the package boundary now requires, and the
 identifiers exported from `inheritance_family_odu.go`/`shell_exec_family_odu.go`
-so the moved guard/tests can reach them without a second copy (13 new
-exported constants/functions, all read-only fixture data or path-joining
-helpers; see those two files' own doc comments for the export list and the
-`materializededges/AGENTS.md` two-direction mutation-probe rule this
-decision follows). No Cypher, extractor algorithm
+so the moved guard/tests can reach them without a second copy -- read-only
+fixture data or path-joining helpers; see those two files' own doc comments
+for the exact export list and the `materializededges/AGENTS.md`
+two-direction mutation-probe rule this decision follows. No Cypher, extractor algorithm
 (`reducer.ExtractInheritanceRows`/`reducer.ExtractShellExecRows`), worker
 count, batch size, lease, or queue behavior changed. This is a compile-time
 boundary move of pure fixture-construction and assertion code the live
