@@ -27,7 +27,6 @@ func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testin
 			{SourceRepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, TargetRepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID},
 		},
 		persistedWorkloads: []reducer.RepoWorkload{
-			{RepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyMultiTargetPhantomWorkloadID},
 			{RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID},
 		},
 	}
@@ -55,8 +54,8 @@ func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testin
 	if err != nil {
 		t.Fatalf("ListRepoWorkloads: %v", err)
 	}
-	if len(workloads) != 1 || workloads[0].RepoID != ifa.WorkloadDependencyFamilyMultiTargetRepoID {
-		t.Fatalf("ListRepoWorkloads(current repos) = %#v, want only the requested multi-target workload", workloads)
+	if len(workloads) != 0 {
+		t.Fatalf("ListRepoWorkloads(current repos) = %#v, want no injected workload rows", workloads)
 	}
 }
 
@@ -68,7 +67,7 @@ func TestWorkloadDependencyFamilyGraphLookupMatchesProductionAnchoring(t *testin
 // reducer.ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms
 // for the workload map -- over the cataloged Odù's own facts, feeding the
 // real reducer.ReconcileWorkloadDependencyEdges, and reproduces exactly the
-// one edge the positive pair's evidence implies.
+// two edges the catalog's production workload candidates imply.
 func TestResolveWorkloadDependencyMaterializedEdgesReproducesExpectedSet(t *testing.T) {
 	t.Parallel()
 
@@ -146,23 +145,21 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsWrongExpectedSet(t *te
 	}
 }
 
-// TestResolveWorkloadDependencyMaterializedEdgesRejectsMultiWorkloadPairInFixture
-// proves the multi-workload drop reason actually fires: a fixture that
-// (wrongly) claims the multi-workload pair as an admitted edge must fail
-// closed, not be silently accepted.
-func TestResolveWorkloadDependencyMaterializedEdgesRejectsMultiWorkloadPairInFixture(t *testing.T) {
+// TestResolveWorkloadDependencyMaterializedEdgesAdmitsBothProductionPairs
+// proves the guard matches both pairs the committed catalog produces.
+func TestResolveWorkloadDependencyMaterializedEdgesAdmitsBothProductionPairs(t *testing.T) {
 	t.Parallel()
 
 	odu := ifa.WorkloadDependencyFamilyOdu().Odu
-	path := filepath.Join(t.TempDir(), "multi-workload-expected-edges.json")
+	path := filepath.Join(t.TempDir(), "two-production-pairs-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-multi-source", "target_entity_id": "workload:workload-dependency-multi-target"},
 	})
 
 	ok, detail := resolveWorkloadDependencyMaterializedEdges(odu, path)
-	if ok {
-		t.Fatalf("resolveWorkloadDependencyMaterializedEdges() = (true, %q), want (false, ...) for a fixture claiming the multi-workload pair admits", detail)
+	if !ok {
+		t.Fatalf("resolveWorkloadDependencyMaterializedEdges() = (false, %q), want true for both production-derived pairs", detail)
 	}
 }
 
@@ -176,6 +173,7 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture(t 
 	path := filepath.Join(t.TempDir(), "orphan-expected-edges.json")
 	writeWorkloadDependencyExpectedEdgesFixture(t, path, []map[string]string{
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-source", "target_entity_id": "workload:workload-dependency-target"},
+		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-multi-source", "target_entity_id": "workload:workload-dependency-multi-target"},
 		{"relationship_type": "DEPENDS_ON", "source_entity_id": "workload:workload-dependency-orphan-source-persisted", "target_entity_id": "workload:workload-dependency-orphan-target-persisted"},
 	})
 
@@ -185,12 +183,11 @@ func TestResolveWorkloadDependencyMaterializedEdgesRejectsOrphanPairInFixture(t 
 	}
 }
 
-// TestWorkloadDependencyAssertSelectiveAdmissionCatchesEitherLeak proves
-// workloadDependencyAssertSelectiveAdmission is not vacuous: it must reject the
-// multi-workload pair leaking in, the orphan pair leaking past lookup
-// anchoring, and an empty admitted set (which would prove no selection), while
-// accepting exactly the positive pair alone.
-func TestWorkloadDependencyAssertSelectiveAdmissionCatchesEitherLeak(t *testing.T) {
+// TestWorkloadDependencyAssertSelectiveAdmissionCatchesMissingAndExtra proves
+// workloadDependencyAssertSelectiveAdmission is not vacuous: it must require
+// both production pairs, reject the orphan pair leaking past lookup anchoring,
+// and reject an empty admitted set.
+func TestWorkloadDependencyAssertSelectiveAdmissionCatchesMissingAndExtra(t *testing.T) {
 	t.Parallel()
 
 	positive := reducer.WorkloadDependencyEdgeRow{
@@ -206,13 +203,13 @@ func TestWorkloadDependencyAssertSelectiveAdmissionCatchesEitherLeak(t *testing.
 		TargetRepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID, TargetWorkloadID: ifa.WorkloadDependencyFamilyOrphanTargetPersistedWorkloadID,
 	}
 
-	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive}); detail != "" {
-		t.Fatalf("workloadDependencyAssertSelectiveAdmission(positive only) = %q, want empty", detail)
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive}); detail == "" {
+		t.Fatal("workloadDependencyAssertSelectiveAdmission(positive only) = empty, want missing second-pair failure")
 	}
-	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, multiLeak}); detail == "" {
-		t.Fatal("workloadDependencyAssertSelectiveAdmission(multi-workload leak) = \"\", want a non-empty failure detail")
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, multiLeak}); detail != "" {
+		t.Fatalf("workloadDependencyAssertSelectiveAdmission(two production pairs) = %q, want empty", detail)
 	}
-	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, orphanLeak}); detail == "" {
+	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", []reducer.WorkloadDependencyEdgeRow{positive, multiLeak, orphanLeak}); detail == "" {
 		t.Fatal("workloadDependencyAssertSelectiveAdmission(orphan leak) = \"\", want a non-empty failure detail")
 	}
 	if detail := workloadDependencyAssertSelectiveAdmission("odu:test", nil); detail == "" {

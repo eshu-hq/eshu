@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2004,SC2034,SC2154
-# workload_dependency fault trio. Every cell completes repo_dependency first,
-# proves the exact prerequisite set, and only then reopens the single succeeded
-# workload_materialization row. That ordering prevents a fault cell from
-# passing on a handler run that never had repository dependency truth to read.
+# workload_dependency fault trio. Every cell first proves repo_dependency's
+# automatic replay converged the exact workload edge set, then deliberately
+# reopens the source workload_materialization row for the fault probe.
 
 workload_dependency_edge_operation_match='MERGE (source)-[rel:DEPENDS_ON]->(target)'
 
@@ -29,8 +28,8 @@ ifa_workload_dependency_fault_prepare() {
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM || die "${cell}: could not stop repo prerequisite reducer"
 	ifa_workload_dependency_live_assert_repo_prerequisite "${bin_dir}" "${workload_dependency_repo_expected_edges}" \
 		|| die "${cell}: repo_dependency prerequisite did not converge to its exact three-edge set"
-	ifa_workload_dependency_live_assert_owned_absent "${bin_dir}" "${cell}-pre-retrigger" \
-		|| die "${cell}: workload-owned edge existed before explicit workload_materialization retrigger"
+	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" \
+		|| die "${cell}: automatic repo_dependency replay did not converge workload_dependency before the fault probe"
 }
 
 ifa_workload_dependency_fault_reopen() {
@@ -40,14 +39,14 @@ ifa_workload_dependency_fault_reopen() {
 		|| die "${cell}: workload_materialization reopen failed"
 	[[ "${reopened}" == "1" ]] \
 		|| die "${cell}: reopened ${reopened@Q} workload_materialization rows, want exactly 1 (non-vacuity guard)"
-	printf '%s: explicitly reopened exactly one workload_materialization row after repo_dependency drained\n' "${cell}"
+	printf '%s: explicitly reopened exactly one workload_materialization row after automatic exact-set convergence\n' "${cell}"
 }
 
 ifa_workload_dependency_fault_assert_terminal() {
 	local cell="$1"
 	assert_no_dead_letters "${cell}"
 	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" \
-		|| die "${cell}: workload_dependency did not converge to its exact one-edge owned set"
+		|| die "${cell}: workload_dependency did not converge to its exact two-edge owned set"
 }
 
 cell_baseline_workload_dependency() {

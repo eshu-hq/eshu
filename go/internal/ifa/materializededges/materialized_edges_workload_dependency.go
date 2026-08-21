@@ -59,10 +59,8 @@ func workloadDependencyFamilyExpectedEdgesPath(repoRoot string) string {
 
 // workloadDependencyFamilyGraphLookup implements
 // reducer.WorkloadDependencyGraphLookup entirely from this Odù's own
-// production-derived data plus a small, explicitly-named set of PERSISTED
-// entries the fixture's doc comment (workload_dependency_family_catalog.go)
-// names -- simulating what a live graph backend's ListRepoWorkloads would
-// report for a repo whose workload record predates this generation. Both list
+// production-derived data plus the explicitly named orphan PERSISTED entries
+// the fixture's doc comment names. Both list
 // methods filter on repoIDs exactly as the production Neo4j adapter does;
 // returning unrelated rows would let this guard certify an input production
 // can never supply.
@@ -141,10 +139,10 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 // and reducer.BuildWorkloadDependencyIntentRowsFromEdges against
 // workloadDependencyFamilyGraphLookup, an in-memory
 // reducer.WorkloadDependencyGraphLookup built from those two seams' outputs
-// plus a small, explicitly-named persisted-workload set (this file's
-// workloadDependencyFamilyGraphLookup doc comment). The multi-workload pair
-// proves ReconcileWorkloadDependencyEdges' ambiguity drop actually fires. The
-// orphan pair proves the lookup stays production-anchored: because neither
+// plus the explicitly named orphan persisted-workload set (this file's
+// workloadDependencyFamilyGraphLookup doc comment). The second named pair is
+// production-positive. The orphan pair proves the lookup
+// stays production-anchored: because neither
 // endpoint is current, the live query cannot return it and this fake must not
 // smuggle it into reconciliation.
 //
@@ -153,7 +151,7 @@ func (l workloadDependencyFamilyGraphLookup) ListWorkloadDependencyEdges(_ conte
 // reducer.ExtractRepoDependencyIntentRows' DEPENDS_ON routing; a regression in
 // reducer.ExtractWorkloadCandidates'/BuildProjectionRowsWithInfrastructurePlatforms'
 // Kubernetes-Deployment-to-workload-candidate admission; and a regression in
-// either of ReconcileWorkloadDependencyEdges' two drop conditions. What it
+// ReconcileWorkloadDependencyEdges' endpoint ownership. What it
 // does NOT catch: anything downstream of the live Cypher writer (that is
 // `eshu-ifa assert-edges`' job once a coverage-manifest row and live
 // determinism/fault-injection cells exist for this family), and the retract
@@ -192,7 +190,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	depRows, _ := reducer.ExtractRepoDependencyIntentRows(resolved, first.ScopeID, workloadDependencyGuardSourceRunID, first.GenerationID, workloadDependencyGuardClock)
 	repoEdges := workloadDependencyRepoEdgesFromRows(depRows)
 	if len(repoEdges) != 3 {
-		return false, fmt.Sprintf("odù %q: evidence resolution produced %d repo-to-repo DEPENDS_ON edge(s), want exactly 3 (positive, multi-workload, and an orphan pair that the production-shaped lookup must filter out)", odu.Name, len(repoEdges))
+		return false, fmt.Sprintf("odù %q: evidence resolution produced %d repo-to-repo DEPENDS_ON edge(s), want exactly 3 (two production-positive pairs and an orphan pair that the production-shaped lookup must filter out)", odu.Name, len(repoEdges))
 	}
 
 	// Seam 2: current-generation repo-to-workload map.
@@ -206,13 +204,12 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 		if projection != nil {
 			got = len(projection.RepoDescriptors)
 		}
-		return false, fmt.Sprintf("odù %q: BuildProjectionRowsWithInfrastructurePlatforms admitted %d RepoDescriptor(s), want exactly 4 (positive source/target, multi-workload source/target); the orphan pair must NOT admit a descriptor", odu.Name, got)
+		return false, fmt.Sprintf("odù %q: BuildProjectionRowsWithInfrastructurePlatforms admitted %d RepoDescriptor(s), want exactly 4 (both production-positive source/target pairs); the orphan pair must NOT admit a descriptor", odu.Name, got)
 	}
 
 	lookup := workloadDependencyFamilyGraphLookup{
 		repoEdges: repoEdges,
 		persistedWorkloads: []reducer.RepoWorkload{
-			{RepoID: ifa.WorkloadDependencyFamilyMultiTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyMultiTargetPhantomWorkloadID},
 			{RepoID: ifa.WorkloadDependencyFamilyOrphanSourceRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID},
 			{RepoID: ifa.WorkloadDependencyFamilyOrphanTargetRepoID, WorkloadID: ifa.WorkloadDependencyFamilyOrphanTargetPersistedWorkloadID},
 		},
@@ -244,7 +241,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	}
 
 	return true, fmt.Sprintf(
-		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractRepoDependencyIntentRows (repo-to-repo seam) plus ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms (repo-to-workload seam) feed the production-anchored lookup and real ReconcileWorkloadDependencyEdges to reproduce the expected %d-edge set exactly; the multi-workload ambiguity is dropped and the neither-current orphan pair remains unreachable through the live lookup contract",
+		"odù %q: DiscoveredEvidence -> relationships.Resolve -> ExtractRepoDependencyIntentRows (repo-to-repo seam) plus ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms (repo-to-workload seam) feed the production-anchored lookup and real ReconcileWorkloadDependencyEdges to reproduce the expected %d-edge set exactly; both current-repo pairs admit and the neither-current orphan pair remains unreachable through the live lookup contract",
 		odu.Name, len(expected),
 	)
 }
@@ -280,9 +277,9 @@ func workloadDependencyRepoEdgesFromRows(rows []reducer.SharedProjectionIntentRo
 	return edges
 }
 
-// workloadDependencyAssertSelectiveAdmission proves the positive pair admits,
-// the ambiguous pair is dropped by reconciliation, and the neither-current
-// orphan pair is not smuggled past the production lookup's anchoring contract.
+// workloadDependencyAssertSelectiveAdmission proves both current-repo pairs
+// admit and the neither-current orphan pair is not smuggled past the production
+// lookup's anchoring contract.
 func workloadDependencyAssertSelectiveAdmission(oduName string, admitted []reducer.WorkloadDependencyEdgeRow) string {
 	admittedPairs := make(map[string]struct{}, len(admitted))
 	for _, row := range admitted {
@@ -290,8 +287,8 @@ func workloadDependencyAssertSelectiveAdmission(oduName string, admitted []reduc
 	}
 
 	multiPair := ifa.WorkloadDependencyFamilyMultiSourceRepoID + "->" + ifa.WorkloadDependencyFamilyMultiTargetRepoID
-	if _, ok := admittedPairs[multiPair]; ok {
-		return fmt.Sprintf("odù %q: multi-workload pair %q leaked into the admitted set; the fixture no longer proves ReconcileWorkloadDependencyEdges' len(targetWorkloads)!=1 drop (workload_dependency_reconciliation.go:138)", oduName, multiPair)
+	if _, ok := admittedPairs[multiPair]; !ok {
+		return fmt.Sprintf("odù %q: second production pair %q did not admit", oduName, multiPair)
 	}
 
 	orphanPair := ifa.WorkloadDependencyFamilyOrphanSourceRepoID + "->" + ifa.WorkloadDependencyFamilyOrphanTargetRepoID
@@ -303,8 +300,8 @@ func workloadDependencyAssertSelectiveAdmission(oduName string, admitted []reduc
 	if _, ok := admittedPairs[positivePair]; !ok {
 		return fmt.Sprintf("odù %q: positive pair %q did not admit; nothing would distinguish the two selectivity checks above from dropping every resolved pair", oduName, positivePair)
 	}
-	if len(admitted) != 1 {
-		return fmt.Sprintf("odù %q: expected exactly 1 admitted workload dependency row, got %d", oduName, len(admitted))
+	if len(admitted) != 2 {
+		return fmt.Sprintf("odù %q: expected exactly 2 admitted workload dependency rows, got %d", oduName, len(admitted))
 	}
 
 	return ""

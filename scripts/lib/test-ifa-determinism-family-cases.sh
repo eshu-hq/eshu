@@ -162,11 +162,10 @@ compare_digests_line="$(rg -n --fixed-strings -- 'log "compare digests across N=
 	|| fail "repo_dependency standalone cell must run after deployable_unit and before digest comparison"
 
 # workload_dependency is a second maintenance-backed standalone proof. Its
-# first drain may create Workload nodes but cannot create their DEPENDS_ON edge:
-# the repo_dependency prerequisite is not durable yet. The cell must prove that
-# absence, finish and exact-assert repo_dependency, explicitly reopen only
-# workload_materialization, then drain and exact-assert the workload edge with
-# the writer's evidence_source ownership constraint.
+# first drain proves absence before repo_dependency exists. After maintenance,
+# repo_dependency's production runner must automatically replay workload
+# materialization, so the repo drain exact-asserts both the repository
+# prerequisite and workload-owned edge set without a manual reopen.
 require_fixture "workload-dependency cassette path" "testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json"
 require_fixture "workload-dependency expected-edge set path" "go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-expected-edges.json"
 require_fixture "workload-dependency repo-prerequisite expected-edge set path" "go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-repo-prerequisite-expected-edges.json"
@@ -178,11 +177,26 @@ workload_dependency_live_lib="${repo_root}/scripts/lib/ifa_workload_dependency_l
 for workload_needle in 'ifa_workload_dependency_live_run_standalone_cell()' \
 	'ifa_workload_dependency_live_drain pre' 'ifa_repo_dependency_live_run_maintenance_pass workload-dependency' \
 	'ifa_workload_dependency_live_drain repo' 'ifa_workload_dependency_live_assert_repo_prerequisite' \
-	'ifa_workload_dependency_live_assert_owned_absent' 'ifa_workload_dependency_live_reopen_materialization' \
-	'ifa_workload_dependency_live_drain workload' '-domain workload_dependency -expected "${expected_edges}"'; do
+	'ifa_workload_dependency_live_assert_owned_absent' '-domain workload_dependency -expected "${expected_edges}"'; do
 	rg --fixed-strings --quiet -- "${workload_needle}" "${workload_dependency_live_lib}" \
 		|| fail "workload_dependency live helper missing ${workload_needle}"
 done
+workload_standalone_body="$(awk '/^ifa_workload_dependency_live_run_standalone_cell\(\)/,/^}/' "${workload_dependency_live_lib}")"
+if printf '%s\n' "${workload_standalone_body}" | rg --quiet --fixed-strings -- 'ifa_workload_dependency_live_reopen_materialization'; then
+	fail "workload_dependency standalone cell must rely on automatic replay, not manual reopen"
+fi
+workload_absent_line="$(printf '%s\n' "${workload_standalone_body}" | rg -n --fixed-strings -- 'ifa_workload_dependency_live_assert_owned_absent "${bin_dir}" pre-maintenance' | cut -d: -f1 || true)"
+workload_maintenance_line="$(printf '%s\n' "${workload_standalone_body}" | rg -n --fixed-strings -- 'ifa_repo_dependency_live_run_maintenance_pass workload-dependency' | cut -d: -f1 || true)"
+workload_repo_drain_line="$(printf '%s\n' "${workload_standalone_body}" | rg -n --fixed-strings -- 'ifa_workload_dependency_live_drain repo' | cut -d: -f1 || true)"
+workload_repo_assert_line="$(printf '%s\n' "${workload_standalone_body}" | rg -n --fixed-strings -- 'ifa_workload_dependency_live_assert_repo_prerequisite' | cut -d: -f1 || true)"
+workload_exact_assert_line="$(printf '%s\n' "${workload_standalone_body}" | rg -n --fixed-strings -- 'ifa_workload_dependency_live_assert "${bin_dir}" "${expected_edges}"' | cut -d: -f1 || true)"
+workload_order_lines="${workload_absent_line} ${workload_maintenance_line} ${workload_repo_drain_line} ${workload_repo_assert_line} ${workload_exact_assert_line}"
+[[ "${workload_order_lines}" =~ ^[0-9]+\ [0-9]+\ [0-9]+\ [0-9]+\ [0-9]+$ \
+	&& "${workload_absent_line}" -lt "${workload_maintenance_line}" \
+	&& "${workload_maintenance_line}" -lt "${workload_repo_drain_line}" \
+	&& "${workload_repo_drain_line}" -lt "${workload_repo_assert_line}" \
+	&& "${workload_repo_assert_line}" -lt "${workload_exact_assert_line}" ]] \
+	|| fail "workload_dependency standalone lifecycle must stay absent -> maintenance -> repo drain -> repo exact assertion -> automatic workload exact assertion; got lines ${workload_order_lines}"
 workload_standalone_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_live_run_standalone_cell' "${script}" | tail -1 | cut -d: -f1 || true)"
 [[ "${workload_standalone_line}" =~ ^[0-9]+$ && "${repo_standalone_line}" -lt "${workload_standalone_line}" && "${workload_standalone_line}" -lt "${compare_digests_line}" ]] \
 	|| fail "workload_dependency standalone cell must run after repo_dependency and before digest comparison"

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# workload_dependency is a two-pass live family. The first reducer drain builds
-# workloads and consumes its initial workload_materialization item while the
-# repository dependency graph is still gated. Bootstrap maintenance then
-# reopens deployment_mapping; that work must drain and its exact three-edge
-# Repository DEPENDS_ON set must land before workload_materialization is
-# explicitly reopened. Only the final drain may create the one owned Workload
-# DEPENDS_ON edge.
+# workload_dependency is a maintenance-backed live family. The first drain
+# builds workloads while repository dependency projection is still gated.
+# Bootstrap maintenance reopens deployment_mapping; the repo_dependency runner
+# then writes the exact Repository edges and automatically replays workload
+# materialization for the affected repositories. The same drain must therefore
+# converge both the three-edge repository prerequisite and the two owned
+# Workload DEPENDS_ON edges without a manual reopen.
 
 ifa_workload_dependency_live_drive() {
 	local bin_dir="$1" cassette="$2"
@@ -24,7 +24,7 @@ ifa_workload_dependency_live_assert_repo_prerequisite() {
 }
 
 # The ownership filter is the same one retractWorkloadDependencyEdgesCypher
-# uses. Zero here proves the later exact edge cannot be stale state from the
+# uses. Zero here proves the later exact edges cannot be stale state from the
 # initial workload drain or a different DEPENDS_ON writer.
 ifa_workload_dependency_live_assert_owned_absent() {
 	local bin_dir="$1" label="$2" dump_path count
@@ -43,16 +43,17 @@ ifa_workload_dependency_live_assert_owned_absent() {
 	}
 	rm -f "${dump_path}"
 	[[ "${count}" =~ ^[0-9]+$ && "${count}" -eq 0 ]] || {
-		printf '%s: expected zero workload-owned DEPENDS_ON edges before explicit retrigger, got %q\n' "${label}" "${count}" >&2
+		printf '%s: expected zero workload-owned DEPENDS_ON edges before repo_dependency replay, got %q\n' "${label}" "${count}" >&2
 		return 1
 	}
-	printf '%s: confirmed zero workload-owned DEPENDS_ON edges before explicit retrigger\n' "${label}"
+	printf '%s: confirmed zero workload-owned DEPENDS_ON edges before repo_dependency replay\n' "${label}"
 }
 
-# Reopen only this fixture's succeeded workload_materialization row. Scoping by
-# domain alone would let a future shared cassette retrigger unrelated work and
-# turn this family's exact-one non-vacuity guard into suite-order coupling. The
-# count is returned from the UPDATE itself; callers require exactly one row.
+# Reopen only this fixture's succeeded workload_materialization row for the
+# fault cells' deliberate second execution. The standalone cell relies on the
+# repo_dependency runner's automatic replay and never calls this helper.
+# Scoping by domain alone would retrigger unrelated work; the count is returned
+# from the UPDATE itself and fault callers require exactly one row.
 ifa_workload_dependency_live_reopen_materialization() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
 	local result rc=0
@@ -86,8 +87,8 @@ ifa_workload_dependency_live_drain() {
 # Args: bin cassette workload-expected repo-expected log compose use dsn file timeout.
 ifa_workload_dependency_live_run_standalone_cell() {
 	local bin_dir="$1" cassette="$2" expected_edges="$3" repo_expected="$4" log_dir="$5"
-	local compose_project="$6" use_compose="$7" postgres_dsn="$8" compose_file="$9" timeout="${10}"
-	local cell_start reopened
+	local compose_project="$6" use_compose="$7" compose_file="$9" timeout="${10}"
+	local cell_start
 	cell_start=$(date +%s)
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -p "${compose_project}" -f "${compose_file}" up -d nornicdb postgres || return 1
@@ -100,13 +101,6 @@ ifa_workload_dependency_live_run_standalone_cell() {
 	ifa_repo_dependency_live_run_maintenance_pass workload-dependency "${bin_dir}" "${log_dir}" || return 1
 	ifa_workload_dependency_live_drain repo "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_workload_dependency_live_assert_repo_prerequisite "${bin_dir}" "${repo_expected}" || return 1
-	ifa_workload_dependency_live_assert_owned_absent "${bin_dir}" pre-retrigger || return 1
-	reopened="$(ifa_workload_dependency_live_reopen_materialization "${compose_project}" "${use_compose}" "${postgres_dsn}" "${compose_file}")" || return 1
-	[[ "${reopened}" == "1" ]] || {
-		printf 'workload_dependency: reopened %q workload_materialization rows, want exactly 1\n' "${reopened}" >&2
-		return 1
-	}
-	ifa_workload_dependency_live_drain workload "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_workload_dependency_live_assert "${bin_dir}" "${expected_edges}" || return 1
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -p "${compose_project}" -f "${compose_file}" down -v >/dev/null 2>&1 || true

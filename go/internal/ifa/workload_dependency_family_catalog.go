@@ -21,11 +21,11 @@ import (
 // becomes a WORKLOAD dependency once each endpoint repository also owns
 // exactly one materialized workload
 // (reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRowsWithInfrastructurePlatforms)
-// and reducer.ReconcileWorkloadDependencyEdges's ambiguity condition does not
-// fire. See
-// materializededges/materialized_edges_workload_dependency.go for how this Odù's own facts
-// drive both seams and the fake reducer.WorkloadDependencyGraphLookup that
-// closes the loop.
+// and reducer.ReconcileWorkloadDependencyEdges finds one workload at each
+// endpoint. See
+// materializededges/materialized_edges_workload_dependency.go for how this
+// Odù's own facts drive both seams and the production-shaped in-memory lookup
+// that closes the loop.
 //
 // Three repo-to-repo DEPENDS_ON pairs, all discovered from a Docker Compose
 // `depends_on:` content fact -- the exact evidence shape
@@ -36,13 +36,10 @@ import (
 //     Deployment file fact, so ExtractWorkloadCandidates admits exactly one
 //     workload per repo and the pair is expected to materialize as one
 //     Workload->Workload DEPENDS_ON edge.
-//   - multi-workload: multiSourceRepo depends on multiTargetRepo. Both also
-//     carry a Deployment file fact and are current-generation repos, but the
-//     guard's fake graph lookup additionally reports multiTargetRepo as
-//     already owning a SECOND, unrelated workload -- proving
-//     ReconcileWorkloadDependencyEdges' `len(targetWorkloads) != 1` drop
-//     (workload_dependency_reconciliation.go:138) actually fires, not merely
-//     that the expected set happens to omit this pair.
+//   - second positive: multiSourceRepo depends on multiTargetRepo. Both carry
+//     one Deployment file fact, so production admits the second workload pair
+//     just like the first. The names are historical fixture names; no
+//     additional workload is injected into either repository.
 //   - orphan: orphanSourceRepo depends on orphanTargetRepo, but NEITHER
 //     carries any Kubernetes/ArgoCD signal, so neither produces a workload
 //     candidate and neither is a "current" repo
@@ -77,16 +74,6 @@ const (
 	workloadDependencyFamilyOrphanTargetRepoID = "repo-ifa-workload-dependency-orphan-target"
 	workloadDependencyFamilyOrphanTargetName   = "workload-dependency-orphan-target"
 
-	// workloadDependencyFamilyMultiTargetPhantomWorkloadID is the SECOND
-	// workload the guard's fake lookup reports multiTargetRepo already owns,
-	// on top of the one real candidate ExtractWorkloadCandidates admits from
-	// this Odù's own Deployment file fact. It never appears as a
-	// RepoDescriptor or a WorkloadCandidate -- it exists only in the fake
-	// lookup's ListRepoWorkloads response -- so `len(targetWorkloads) != 1`
-	// fires for a reason entirely outside this Odù's own facts, the same way
-	// a live graph's stale second workload record would.
-	workloadDependencyFamilyMultiTargetPhantomWorkloadID = "workload:workload-dependency-multi-target-phantom"
-
 	// workloadDependencyFamilyOrphanSourcePersistedWorkloadID and
 	// workloadDependencyFamilyOrphanTargetPersistedWorkloadID are the single
 	// PERSISTED workload the fake lookup reports for each orphan repo, even
@@ -105,16 +92,14 @@ const (
 	WorkloadDependencyFamilySourceRepoID = workloadDependencyFamilySourceRepoID
 	// WorkloadDependencyFamilyTargetRepoID identifies the admitted target repository.
 	WorkloadDependencyFamilyTargetRepoID = workloadDependencyFamilyTargetRepoID
-	// WorkloadDependencyFamilyMultiSourceRepoID identifies the rejected multi-workload source repository.
+	// WorkloadDependencyFamilyMultiSourceRepoID identifies the second admitted source repository.
 	WorkloadDependencyFamilyMultiSourceRepoID = workloadDependencyFamilyMultiSourceRepoID
-	// WorkloadDependencyFamilyMultiTargetRepoID identifies the rejected multi-workload target repository.
+	// WorkloadDependencyFamilyMultiTargetRepoID identifies the second admitted target repository.
 	WorkloadDependencyFamilyMultiTargetRepoID = workloadDependencyFamilyMultiTargetRepoID
 	// WorkloadDependencyFamilyOrphanSourceRepoID identifies the rejected stale source repository.
 	WorkloadDependencyFamilyOrphanSourceRepoID = workloadDependencyFamilyOrphanSourceRepoID
 	// WorkloadDependencyFamilyOrphanTargetRepoID identifies the rejected stale target repository.
 	WorkloadDependencyFamilyOrphanTargetRepoID = workloadDependencyFamilyOrphanTargetRepoID
-	// WorkloadDependencyFamilyMultiTargetPhantomWorkloadID identifies the target's second persisted workload.
-	WorkloadDependencyFamilyMultiTargetPhantomWorkloadID = workloadDependencyFamilyMultiTargetPhantomWorkloadID
 	// WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID identifies the stale source workload.
 	WorkloadDependencyFamilyOrphanSourcePersistedWorkloadID = workloadDependencyFamilyOrphanSourcePersistedWorkloadID
 	// WorkloadDependencyFamilyOrphanTargetPersistedWorkloadID identifies the stale target workload.
@@ -159,11 +144,11 @@ func workloadDependencyFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu: Odu{Name: workloadDependencyFamilyOduName, Facts: factsForOdu},
-		Detail: "three repo-to-repo DEPENDS_ON pairs from Docker Compose depends_on evidence: one positive pair whose two repos each own exactly one current-generation Kubernetes-Deployment workload " +
-			"(expected to materialize as one Workload->Workload DEPENDS_ON edge), one pair whose target repo the fake graph lookup reports as owning a second, unrelated workload (must be dropped), " +
-			"and one pair with no Kubernetes evidence on either repo, so neither is a current-generation repo while the fake graph lookup's backing data carries a persisted workload for each (the production-shaped query predicates must keep this pair unreachable) -- " +
+		Detail: "three repo-to-repo DEPENDS_ON pairs from Docker Compose depends_on evidence: two positive pairs whose repos each own exactly one current-generation Kubernetes-Deployment workload " +
+			"(expected to materialize as two Workload->Workload DEPENDS_ON edges), " +
+			"and one pair with no Kubernetes evidence on either repo, so neither is a current-generation repo while the in-memory lookup's backing data carries a persisted workload for each (the production-shaped query predicates must keep this pair unreachable) -- " +
 			"proving DiscoveredEvidence -> relationships.Resolve (for the repo edge) plus ExtractWorkloadCandidates -> BuildProjectionRowsWithInfrastructurePlatforms (for the workload map) feed the real " +
-			"reducer.ReconcileWorkloadDependencyEdges through a production-anchored lookup, with both the ambiguous and unrelated pairs excluded for their actual live-path reasons rather than merely omitted from the expected set.",
+			"reducer.ReconcileWorkloadDependencyEdges through a production-anchored lookup, with the unrelated orphan pair excluded for its actual live-path reason rather than merely omitted from the expected set.",
 	}
 }
 

@@ -23,7 +23,7 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	for needle in \
 		'ifa_workload_dependency_fault_prepare' \
 		'ifa_workload_dependency_live_assert_repo_prerequisite' \
-		'ifa_workload_dependency_live_assert_owned_absent' \
+		'ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}"' \
 		'ifa_workload_dependency_live_reopen_materialization' \
 		'ESHU_REDUCER_CLAIM_DOMAIN=workload_materialization' \
 		'ifa_fault_wait_for_claimed' \
@@ -45,6 +45,11 @@ run_ifa_fault_injection_workload_dependency_cases() {
 		rg --fixed-strings --quiet -- "${fixture_filter}" "${live_lib}" \
 			|| fail "workload_dependency reopen is not fixture-scoped by ${fixture_filter}"
 	done
+	local automatic_assert_line reopen_line
+	automatic_assert_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}"' "${cells_lib}" | head -1 | cut -d: -f1 || true)"
+	reopen_line="$(rg -n --fixed-strings -- 'ifa_workload_dependency_fault_reopen "${cell}"' "${cells_lib}" | head -1 | cut -d: -f1 || true)"
+	[[ "${automatic_assert_line}" =~ ^[0-9]+$ && "${reopen_line}" =~ ^[0-9]+$ && "${automatic_assert_line}" -lt "${reopen_line}" ]] \
+		|| fail "workload_dependency fault cells must prove automatic exact-set convergence before deliberate reopen"
 	rg --fixed-strings --quiet -- 'IFA_FAMILY_BLOCKER_KIND[workload_dependency]="table_lock:fact_records"' "${registry_row}" \
 		|| fail "workload_dependency registry blocker is not fact_records"
 	rg --fixed-strings --quiet -- 'IFA_FAMILY_WAIT_KEY[workload_dependency]="workload_materialization"' "${registry_row}" \
