@@ -9,8 +9,8 @@
 # Workload DEPENDS_ON edges without a manual reopen.
 
 ifa_workload_dependency_live_drive() {
-	local bin_dir="$1" cassette="$2"
-	"${bin_dir}/eshu-ifa" drive -cassette "${cassette}"
+	local bin_dir="$1" cassette="$2" workers="$3"
+	"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"
 }
 
 ifa_workload_dependency_live_assert() {
@@ -191,26 +191,17 @@ ifa_workload_dependency_live_drain() {
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM || return 1
 }
 
-# Args: bin cassette workload-expected repo-expected log compose use dsn file timeout.
-ifa_workload_dependency_live_run_standalone_cell() {
-	local bin_dir="$1" cassette="$2" expected_edges="$3" repo_expected="$4" log_dir="$5"
-	local compose_project="$6" use_compose="$7" compose_file="$9" timeout="${10}"
-	local cell_start
-	cell_start=$(date +%s)
-	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${compose_project}" -f "${compose_file}" up -d nornicdb postgres || return 1
-		ifa_det_wait_for_backends "${compose_project}" "${compose_file}" || return 1
-	fi
-	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-workload-dependency.log" 2>&1 || return 1
-	ifa_workload_dependency_live_drive "${bin_dir}" "${cassette}" || return 1
+# Args: bin cassette workload-expected repo-expected workers log timeout.
+# The caller owns the fresh stack and schema lifecycle so this proof runs once
+# inside each N cell and its exact graph truth enters that cell's digest.
+ifa_workload_dependency_live_run_matrix_cell() {
+	local bin_dir="$1" cassette="$2" expected_edges="$3" repo_expected="$4"
+	local workers="$5" log_dir="$6" timeout="$7"
+	ifa_workload_dependency_live_drive "${bin_dir}" "${cassette}" "${workers}" || return 1
 	ifa_workload_dependency_live_drain pre "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_workload_dependency_live_assert_owned_absent "${bin_dir}" pre-maintenance || return 1
 	ifa_repo_dependency_live_run_maintenance_pass workload-dependency "${bin_dir}" "${log_dir}" || return 1
 	ifa_workload_dependency_live_drain repo "${bin_dir}" "${log_dir}" "${timeout}" || return 1
 	ifa_workload_dependency_live_assert_repo_prerequisite "${bin_dir}" "${repo_expected}" || return 1
 	ifa_workload_dependency_live_assert "${bin_dir}" "${expected_edges}" || return 1
-	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${compose_project}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
-	fi
-	printf 'workload_dependency: standalone cell wall time: %ss\n' "$(( $(date +%s) - cell_start ))"
 }

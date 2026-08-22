@@ -63,8 +63,8 @@
 // matrix also proves the generation-2 exact-one survivor.
 // Repository dependencies require baseline and fault dimensions. The live
 // gates exact-assert the six repository relationships and one RUNS_ON edge.
-// Workload dependencies have an offline guard that derives repository and
-// workload ownership through the production seams before reconciliation. Its
-// baseline and fault rows remain waived until the live gates drive and assert
-// the committed cassette.
+// Workload dependencies require baseline and fault dimensions.
+// Both live matrices drive the committed cassette through its maintenance-backed
+// repository prerequisite and exact-assert the two workload-owned DEPENDS_ON
+// edges without waivers.
 package materializededges

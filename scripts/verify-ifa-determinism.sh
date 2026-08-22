@@ -296,6 +296,9 @@ for n in "${worker_counts[@]}"; do
 	log "N=${n}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"
 	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-n${n}.log" 2>&1 \
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-n${n}.log"; die "N=${n}: bootstrap-data-plane failed"; }
+	ifa_workload_dependency_live_run_matrix_cell \
+		"${bin_dir}" "${workload_dependency_cassette}" "${workload_dependency_expected_edges}" "${workload_dependency_repo_expected_edges}" "${n}" "${log_dir}" "${GATE_DRAIN_TIMEOUT}" \
+		|| die "workload_dependency: N=${n} matrix cell failed"
 
 	log "N=${n}: drive demo-org GCP cassette through eshu-ifa drive -workers ${n}"
 	if ! "${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${n}" \
@@ -415,6 +418,8 @@ for n in "${worker_counts[@]}"; do
 		"${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${ifa_rationale_delta_generation_id}" "${ifa_rationale_delta_expected_tuple}" \
 		|| die "N=${n}: rationale generation-2 durable lifecycle assertion failed"
+	ifa_workload_dependency_live_assert "${bin_dir}" "${workload_dependency_expected_edges}" \
+		|| die "N=${n}: workload_dependency exact set changed before canonical output"
 
 	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \
@@ -453,11 +458,6 @@ ifa_repo_dependency_live_run_standalone_cell \
 	"${bin_dir}" "${repo_dependency_cassette}" "${repo_dependency_expected_edges}" "${log_dir}" \
 	"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
 	|| die "repo_dependency: standalone live-proof cell failed"
-ifa_workload_dependency_live_run_standalone_cell \
-	"${bin_dir}" "${workload_dependency_cassette}" "${workload_dependency_expected_edges}" "${workload_dependency_repo_expected_edges}" "${log_dir}" \
-	"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
-	|| die "workload_dependency: standalone live-proof cell failed"
-
 log "compare digests across N=${worker_counts[*]}"
 first_n="${worker_counts[0]}"
 mismatch=0

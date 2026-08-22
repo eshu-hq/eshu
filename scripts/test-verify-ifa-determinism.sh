@@ -127,8 +127,10 @@ _ifa_det_count_code_lines_exact() {
 	printf '%s\n' "${n}"
 }
 _ifa_det_count_code_matches() {
-	local needle="$1" file="$2" n=0 line stripped code heredoc=""
+	local needle="$1" file="$2" mode="${3:-count}" n=0 line_no=0 line stripped code heredoc="" matches=""
+	[[ "${mode}" == "count" || "${mode}" == "lines" ]] || return 2
 	while IFS= read -r line || [[ -n "${line}" ]]; do
+		line_no=$((line_no + 1))
 		stripped="${line#"${line%%[![:space:]]*}"}"
 		# Heredoc bodies are data, not code: a real call moved into a dead heredoc
 		# was proven to satisfy every pin while never executing.
@@ -152,9 +154,22 @@ _ifa_det_count_code_matches() {
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
 		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
-		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
+		if [[ "${code}" == *"${needle}"* ]]; then
+			n=$((n + 1))
+			matches+="${line_no}"$'\n'
+		fi
 	done < "${file}"
-	printf '%s\n' "${n}"
+	if [[ "${mode}" == "lines" ]]; then
+		printf '%s' "${matches}"
+	else
+		printf '%s\n' "${n}"
+	fi
+}
+_ifa_det_unique_code_match_line() {
+	local lines
+	lines="$(_ifa_det_count_code_matches "$1" "$2" lines)" || return 1
+	[[ "${lines}" =~ ^[0-9]+$ ]] || return 1
+	printf '%s\n' "${lines}"
 }
 # require pins a needle ANYWHERE in the gate, comments included. Exactly THREE
 # call sites still use it, and all three deliberately bind FRAMING that exists

@@ -4,6 +4,7 @@
 package materializededges
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -188,6 +189,40 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		if waiver.Surface == MaterializedEdgeSurfacePrefix+"repo_dependency" {
 			t.Errorf("stale repo_dependency waiver remains for proof gate %q; #5999 requires both waivers to be removed with the live rows", waiver.ProofGate)
 		}
+	}
+
+	// #6003 promotes workload_dependency only when both live matrices resolve
+	// their coverage rows and both waivers are gone. Keep the package contract
+	// tied to that executable ledger so stale "remain waived" prose cannot
+	// survive after the gate becomes blocking proof.
+	workloadBaseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"workload_dependency", replaycoverage.ScenarioTypeBaseline)
+	if workloadBaseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:workload_dependency (baseline) status = %q, detail=%q, want covered", workloadBaseline.Status, workloadBaseline.Detail)
+	}
+	workloadFault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"workload_dependency", replaycoverage.ScenarioTypeFault)
+	if workloadFault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:workload_dependency (fault) status = %q, detail=%q, want covered", workloadFault.Status, workloadFault.Detail)
+	}
+	for _, waiver := range waivers {
+		if waiver.Surface == MaterializedEdgeSurfacePrefix+"workload_dependency" {
+			t.Errorf("stale workload_dependency waiver remains for proof gate %q; #6003 requires both waivers to be removed with the live rows", waiver.ProofGate)
+		}
+	}
+	docBytes, err := os.ReadFile(filepath.Join(repoRoot, "go", "internal", "ifa", "materializededges", "doc.go"))
+	if err != nil {
+		t.Fatalf("ReadFile(materializededges/doc.go): %v", err)
+	}
+	docContract := string(docBytes)
+	workloadDocStart := strings.Index(docContract, "// Workload dependencies")
+	if workloadDocStart < 0 {
+		t.Fatal("materializededges package contract has no workload_dependency paragraph")
+	}
+	workloadDocContract := docContract[workloadDocStart:]
+	if !strings.Contains(workloadDocContract, "Both live matrices drive the committed cassette") {
+		t.Error("materializededges package contract must say both live workload_dependency matrices drive the committed cassette")
+	}
+	if strings.Contains(workloadDocContract, "remain waived") {
+		t.Error("materializededges package contract still says workload_dependency coverage remains waived")
 	}
 
 	// Assert both proof gates this manifest references are CI-blocking with a
