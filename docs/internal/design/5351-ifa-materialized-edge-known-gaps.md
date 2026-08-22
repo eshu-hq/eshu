@@ -37,21 +37,16 @@ than living only in a PR description.
   reproduced after a domain-scoped graph-write-failure recovery cell
   anchored at each family's own MERGE template, marker-asserted, drained
   with zero dead letters, and digest-matched against the shared trio
-  baseline (#5995/#6000/#5997). That is what this fault coverage claims.
-  It does NOT claim mid-pipeline kill/reclaim: any handler-stage
-  kill-worker cell for these three would reuse code_calls' own wait_key
-  (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive) and prove nothing
-  new, so closing this gap needs its own blocker mechanism (a
-  runner_lease_hold on the production lease key) -- tracked as a NAMED,
-  tracked gap, #6208, not a silent absence. These three share the
-  shared-projection runner path (`sharedProjectionDomains`,
-  `go/internal/reducer/shared_projection_runner.go:31-43`) with eight
-  sibling materialized-edge families, each of which already has an equivalent
-  `cell_failgraphwrite_*` cell proving recovery through that path; their
-  graph-write cells prove family-scoped Cypher-layer recovery, nothing
-  architecturally unique. See
-  `docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md`
-  for the blocker-mechanism theory-proof behind the #6208 follow-up.
+  baseline (#5995/#6000/#5997). #6208 closes the mid-pipeline kill/reclaim
+  gap with a `runner_lease_hold` on each family's production partition-lease
+  advisory key. Each custom cell proves the pre-reducer false control, waits
+  for the family's pending intent and an exact lock waiter, kills and joins
+  that reducer, releases the holder, then restarts and drains before the same
+  exact-set and digest checks. Holding one domain key parks all four workers
+  in the process-wide `SharedProjectionRunner` cycle, so unrelated shared
+  projection domains can pause for the hold interval; the proof does not
+  claim family-local isolation. The existing `cell_failgraphwrite_*` cells
+  still prove the separate, family-scoped Cypher retry seam.
 - No allProjectionDomains family carries a waiver as of the change that
   retired the trio's waivers: the epic #5344 umbrella #5543, decomposed
   into per-domain child issues #5991-#6003, is complete.

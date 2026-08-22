@@ -56,8 +56,9 @@
 # for every row; see each row file's own comments for the file:line read):
 #
 #   family       e.g. rationale_edges. The materialized_edges:<domain> name.
-#   blocker_kind one of: shared_intent_lock, table_lock:<tablename>,
-#                ack_barrier, none. What a fault-injection kill/fail cell
+#   blocker_kind one of: shared_intent_lock, runner_lease_hold,
+#                table_lock:<tablename>, ack_barrier, none. What a
+#                fault-injection kill/fail cell
 #                must engage to hold the handler in flight long enough to
 #                observe a genuinely blocked in-progress write.
 #   wait_stage   handler | runner. Which queue the non-vacuity precondition

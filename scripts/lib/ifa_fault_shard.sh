@@ -146,17 +146,19 @@ IFA_FAULT_ALL_CELLS=(
 	cell_failgraphwrite_workload_dependency
 	# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): ONE
 	# shared trio baseline (all three families come from one cassette and one
-	# builder pass, buildSymbolRuntimeIntentRows) plus each family's own
-	# cell_failgraphwrite_<family>, anchored to its own MERGE. blocker_kind=none
-	# for all three (arbiter-ruled Design A), so there is no killworker cell --
-	# the first atomic group in this file without one. The baseline writes
+	# builder pass, buildSymbolRuntimeIntentRows), each family's own
+	# cell_failgraphwrite_<family>, and each family's runner-lease kill/reclaim
+	# cell. The baseline writes
 	# digests[baseline_handles_route]/[baseline_runs_in]/
 	# [baseline_invokes_cloud_action] (one digest, three keys), so the
-	# four-cell group must stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	# seven-cell group must stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
 	cell_baseline_symbol_runtime
 	cell_failgraphwrite_handles_route
 	cell_failgraphwrite_runs_in
 	cell_failgraphwrite_invokes_cloud_action
+	cell_killworker_handles_route
+	cell_killworker_runs_in
+	cell_killworker_invokes_cloud_action
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -187,18 +189,14 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"
-	# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): the FIRST
-	# group in this file with no killworker member (Design A has
-	# blocker_kind=none for all three, so no distinct handler-stage kill cell
-	# exists -- see ifa_fault_injection_symbol_runtime_cells.sh's header) and
-	# the first with FOUR members rather than three, because one shared
-	# baseline serves three families instead of one. Baseline named FIRST:
+	# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): one
+	# shared baseline serves all three families. Baseline named FIRST:
 	# it writes digests[baseline_<family>] for all three families, and each
-	# failgraphwrite cell compares against its own key -- split across shards,
+	# recovery cell compares against its own key -- split across shards,
 	# a comparing cell would run where its digest was never written and die on
 	# an unset baseline (the same standing hazard every other group here
 	# exists to prevent).
-	"cell_baseline_symbol_runtime cell_failgraphwrite_handles_route cell_failgraphwrite_runs_in cell_failgraphwrite_invokes_cloud_action"
+	"cell_baseline_symbol_runtime cell_failgraphwrite_handles_route cell_failgraphwrite_runs_in cell_failgraphwrite_invokes_cloud_action cell_killworker_handles_route cell_killworker_runs_in cell_killworker_invokes_cloud_action"
 )
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges

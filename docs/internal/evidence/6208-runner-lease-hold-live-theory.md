@@ -2,18 +2,19 @@
 
 ## Scope and dependency boundary
 
-This record proves the proposed `runner_lease_hold` fault mechanism against the
-real shared-projection lease path before production cell code is written. It is
-a diagnostic correctness proof, not a runtime change or a claim that the final
-Ifá family cells pass.
+This record proves the `runner_lease_hold` fault mechanism against the real
+shared-projection lease path. The first section records the pre-implementation
+diagnostic proof; the final section records the promoted family cells. This is
+a test-harness change, not a production-runtime change.
 
 The three target family fixtures for `handles_route`, `runs_in`, and
-`invokes_cloud_action` are owned by prerequisite issues #5995, #6000, and
-#5997. They were not merged when this proof ran, so the shim deliberately did
-not copy their fixtures or edit their coverage rows. It used one schema-valid
-synthetic `handles_route` refresh intent scoped to the committed code-call
-cassette's real acceptance identifiers. The finished cells must replace that
-synthetic row with each family's real authored intent and graph oracle.
+`invokes_cloud_action` were originally owned by prerequisite issues #5995,
+#6000, and #5997. They were not merged when the diagnostic proof ran, so the
+shim deliberately did not copy their fixtures or edit their coverage rows. It
+used one schema-valid synthetic `handles_route` refresh intent scoped to the
+committed code-call cassette's real acceptance identifiers. PR #6211 later
+merged the real fixtures, allowing the promoted cells to use each family's
+authored intent and graph oracle.
 
 The proof ran at source commit
 `b635b327d106a31e19955a696dccc74e42759da1` with production host binaries,
@@ -140,8 +141,12 @@ must:
 
 - add the `runner_lease_hold` vocabulary, classifier, registry rows, and
   registry-to-Go lockstep checks;
-- acquire the production lease key only after the target family has authored
-  a pending intent;
+- arm the production lease key after the cassette has enqueued its first-stage
+  work but before the reducer starts, prove the exact-waiter clause is false,
+  then require the reducer to author a pending target intent and park on that
+  same key; the handler and shared runner live in one reducer process, so
+  trying to acquire only after the intent appears would introduce a race with
+  the runner claim rather than strengthen the proof;
 - require the exact pending-intent-plus-waiter predicate before killing the
   reducer;
 - kill and join the reducer, release the holder, wait for orphaned PostgreSQL
@@ -172,9 +177,9 @@ startup and teardown overhead. The first orphaned lease row was observed
 within 454-497 ms of release. Once all orphaned waiters drained, all eight rows
 were observed within 236-699 ms of replacement startup, and later snapshots
 showed all eight released. These are polling bounds from a diagnostic proof,
-not a production latency target or speedup claim. The final tracked
-implementation still requires its focused tests, live family cells,
-performance-evidence gate, and the repository promotion gate.
+not a production latency target or speedup claim. The tracked implementation
+results are recorded below. The repository promotion gate remains a separate
+pre-push requirement.
 
 ## Observability Evidence:
 
@@ -187,6 +192,53 @@ advisory-wait metric and no shared-intent attempt/dead-letter lifecycle;
 dead-letter assertions apply to the first-stage `fact_work_items` queue. No
 metric, span, log key, status field, runtime knob, or production query was
 added by this proof.
+
+## Tracked implementation proof
+
+On 2026-08-22, the tracked implementation based on
+`b877a524ac70729dcbee48d577be728602d99486` passed the live fault-injection
+atomic shard with `FAULT_SHARD_2_RC=0`:
+
+```text
+bash scripts/verify-ifa-fault-injection.sh --shard 2/4
+```
+
+The fresh-stack run used the repository Compose profile and production
+projector/reducer binaries. Each family first proved a holder with zero exact
+runner waiters, then proved the conjunction of pending target intents and four
+waiters on the production advisory key. The dedicated `code_calls` control was
+independently complete at seven total and zero pending in every cell.
+
+| Cell | Pending target intents | Exact waiters | Exact graph oracle | Dead letters | Wall time |
+| --- | ---: | ---: | --- | ---: | ---: |
+| `killworker_handles_route` | 3 | 4 | 2 edges | 0 | 13 s |
+| `killworker_runs_in` | 3 | 4 | 2 edges | 0 | 11 s |
+| `killworker_invokes_cloud_action` | 2 | 4 | 1 edge | 0 | 71 s |
+
+All three cells converged to the baseline symbol-runtime digest
+`8e8ab90c85a65099aa34a6f071de98a59e08b79b55e7f78e4a4cca656b994d71`.
+The longer `invokes_cloud_action` observation included 48 seconds of residual
+first-stage drain polling before reaching zero; it remained inside the existing
+gate bound. No timeout, worker count, lease TTL, retry policy, or batch size was
+changed.
+
+Focused offline proof also passed after the final tracked edits:
+
+```text
+bash scripts/test-verify-ifa-fault-injection.sh
+bash scripts/test-verify-ifa-determinism.sh
+cd go && go test ./internal/reducer -count=1
+cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1
+bash scripts/verify-ci-gates-registry.sh --drift
+bash scripts/test-verify-ci-gates-registry.sh
+bash scripts/verify-docs-build-changed.sh
+git diff --check
+```
+
+The change adds no production telemetry or runtime behavior. Its operator
+evidence remains the existing durable intent/lease state, PostgreSQL lock
+views, reducer logs, exact graph assertions, queue drain summary, and
+dead-letter count used by the gate.
 
 PostgreSQL references:
 
