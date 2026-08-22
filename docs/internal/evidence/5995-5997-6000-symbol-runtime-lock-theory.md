@@ -237,3 +237,103 @@ they are not a throughput, contention, or lease-storm measurement. Re-run
 these shims (or their successors) if `claimPartitionLeaseSQL`'s key
 derivation, the advisory-lock namespace hash, or the runner-stage poll's query
 shape change.
+
+## Runtime impact of the extraction seam
+
+The `perf-evidence` gate flags six changed files as hot-path surface:
+`go/internal/reducer/symbol_runtime_refresh_intents.go`,
+`go/internal/ifa/symbol_runtime_family_odu.go`, and the four
+`go/internal/ifa/materializededges/materialized_edges_*` files. This section
+records why the change does not move the runtime contract, and how that was
+established rather than assumed.
+
+No-Regression Evidence: no measurement is reported because there is nothing
+whose latency could have moved -- a benchmark here would time unmodified code,
+which is the fabrication this section exists to avoid. Three structural facts
+carry that, each verified on this branch rather than reasoned about.
+
+First, be exact about which files are gate-only, because an earlier draft of
+this section was not. Five of the six are: `symbol_runtime_family_odu.go` and
+the four `materialized_edges_*` files. The sixth,
+`go/internal/reducer/symbol_runtime_refresh_intents.go`, is NOT -- it lives in
+`internal/reducer` and contains production code. `buildSymbolRuntimeIntentRows`
+is defined there and runs inside `CodeCallMaterializationHandler.Handle`
+(`code_call_materialization.go:175`) on every code-call materialization. A file
+holding production code is not a file off the production path; what is off the
+path is the added function, and the claim has to be made at that granularity.
+
+Second, no pre-existing line in that file changed. `git diff --numstat
+origin/main...HEAD -- go/internal/reducer/symbol_runtime_refresh_intents.go`
+reports `46 0`. Zero deletions is what makes "byte-identical" rigorous rather
+than rhetorical: a modified line appears in a unified diff as a delete plus an
+add, so zero deletions means no existing line was touched.
+`buildSymbolRuntimeIntentRows` and the three per-family builders beneath it are
+byte-identical to `origin/main`, and the whole diff is one added function plus
+its doc comment. Scope that to the file, not the package: the only other
+non-test reducer change is `materialized_edge_families.go` at `6 4`, whose four
+deletions are comment lines -- zero non-comment changes, but not zero
+deletions.
+
+Third, the added function has no runtime caller. It has exactly one caller in
+the tree, `materializededges/materialized_edges_symbol_runtime_shared.go:53`;
+every other `rg 'ExtractSymbolRuntimeIntentRows'` hit is a doc comment or a
+string literal inside an error message, so a naive match count over non-test
+files reads as 14 hits across 6 files and is wrong. The package holding that caller,
+`internal/ifa/materializededges`, is linked by exactly one main package. Two
+independent derivations agree: enumerating every main package in the `go`
+module (54 of them -- 52 under `cmd/`, plus two generators elsewhere, neither
+of which links it) returns only `cmd/ifa`; and the package's non-test import
+closure is four files, all under `go/cmd/ifa`. Count main packages with
+`go list -f '{{.Name}}' ./...`, not with a textual sweep. The sweep overcounts
+by one: `rg -l '^package main' go/ | xargs -n1 dirname | sort -u | wc -l`
+reports 55 package directories, because `internal/resolutionparity` contains
+the string `package main` at line 78 of a `_test.go` file as embedded fixture
+content. Note the pipeline rather than the bare `rg -l`, which reports 861
+files -- a package spans many, so the file count is not the package count and
+neither figure is reproducible from the other.
+`go list` reports that package as `resolutionparity`. A grep for a package
+clause cannot tell a declaration from a fixture, and this is the one place in
+this document where that distinction changes a number. Other Go modules in this repo cannot
+reach it, and not because nobody tried: `internal/` is PATH-scoped, not
+module-scoped -- the Go rule is that an import of a path containing an
+`internal` element is disallowed from outside the tree rooted at that
+directory's parent, and module boundaries do not enter into it. So the
+constraint is that a package must be rooted at `github.com/eshu-hq/eshu/go/` to
+import this at all, and no other module in the repo claims a path under that
+prefix: 19 `go.mod` files, with the siblings under `eshu/tools/`,
+`eshu/sdk/go/` (a different prefix from `eshu/go/`) and `eshu/examples/`, plus
+fixture modules on unrelated paths. The `go` module is therefore the entire
+candidate set rather than merely the set that was searched -- and that stays
+true only while no new module claims a path under `eshu/go/`. None of the five runtime services
+(`cmd/api`, `cmd/mcp-server`, `cmd/ingester`, `cmd/reducer`,
+`cmd/bootstrap-index`) links it.
+
+Two corrections worth carrying forward rather than quietly fixing. An earlier
+draft claimed the package was "not linked into any shipped binary", derived
+from `go list -deps` over four hand-picked commands; it is linked, into
+`cmd/ifa`. A subset probe can establish presence but never absence -- enumerate
+the population and let the exceptions announce themselves. Note also that
+`internal/reducer` itself IS linked into 36 of the 52 `cmd/` main packages,
+`cmd/reducer` among them, so `ExtractSymbolRuntimeIntentRows` is compiled into
+the reducer binary; it simply has no caller there. Do not tighten this into "absent from
+the reducer binary", which would be false.
+
+Backend/version and input shape are therefore not applicable to a throughput
+claim: the added function runs only under the two Ifá proof gates, against the
+single committed cassette (1 repository, 3 files, 3 `content_entity` facts, 2
+`shared_followup` facts -- nine facts total), producing a terminal set of 2
+HANDLES_ROUTE, 2 RUNS_IN, and 1 INVOKES_CLOUD_ACTION edges. Those counts are
+asserted exactly by the gates, so an output regression fails them. Work-shape
+changes are not covered by that assertion -- nothing here would catch an extra
+pass over the envelopes, a redundant allocation, or an accidental O(N^2) in the
+entity index that still produced the same edges -- and do not need to be: the
+added function executes only under those gates on that nine-fact cassette, so
+there is no production cost for a work-shape change to regress.
+
+No-Observability-Change: no span, metric, counter, log line, or status field is
+added, removed, renamed, or re-cardinalised. The production emitters are
+untouched by the additive diff above, and the new code is gate-only, so there
+is no runtime surface for an operator to observe differently at 3 AM than
+before this change. The Ifá cells' own diagnostics (marker assertions, dead
+letter counts, digest comparisons) are gate-time output, not operator
+telemetry, and are covered by the gates rather than by dashboards.
