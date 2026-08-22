@@ -4,7 +4,6 @@
 package materializededges
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -295,25 +294,63 @@ func TestHandlesRouteFamilyMissingRegistryTypeIsCaught(t *testing.T) {
 	}
 }
 
-// TestHandlesRouteUnresolvedDiagnosticEscapesNUL pins the gate's own failure
-// message, not a test helper's. handlesRouteRowsToExpectedEdges keys unresolved
-// pairs as repoID + "\x00" + path, and the guard in
-// resolveHandlesRouteMaterializedEdges reports that slice to whoever is reading
-// gate output. Rendered with %v the NUL reaches the terminal and the CI log raw,
-// where it truncates or corrupts the surrounding line; %q escapes it. The
-// message only ever prints on failure, which is exactly when it has to be
-// legible, so this asserts the rendering rather than trusting it.
+// TestHandlesRouteUnresolvedDiagnosticEscapesNUL drives the production entry
+// point, resolveHandlesRouteMaterializedEdges, into its unresolved-endpoint
+// branch and asserts on the detail string it returns.
+//
+// An earlier version of this test rebuilt the guard's format string by hand and
+// asserted on its own copy. That was a false green: reverting
+// materialized_edges_handles_route.go:115 from %q back to %v left the test
+// passing, so it could not red on the one defect it was written for. Two
+// reviewers caught it independently. The lesson is the one this PR is otherwise
+// about — a regression test must drive the real subject, because a copy of the
+// subject agrees with itself no matter what the subject does.
+//
+// Unresolved keys are repoID + "\x00" + path. Rendered with %v the NUL reaches
+// the terminal and the CI log raw, where it truncates or corrupts the
+// surrounding line; %q escapes it. The message prints only on failure, which is
+// exactly when it has to be legible.
 func TestHandlesRouteUnresolvedDiagnosticEscapesNUL(t *testing.T) {
 	t.Parallel()
+	repoRoot := repoRootDir(t)
 
-	unresolved := []string{"repo-1\x00/widgets"}
-	rendered := fmt.Sprintf("odù %q: no workload-materialization Endpoint resolved for %d (repo_id, path) pair(s) HANDLES_ROUTE needs: %q; HANDLES_ROUTE cannot bind without a workload-committed Endpoint at that key",
-		"ifa-symbol-runtime-family", len(unresolved), unresolved)
-
-	if strings.ContainsRune(rendered, 0) {
-		t.Fatalf("diagnostic carries a raw NUL byte; it must be escaped so gate output stays readable: %q", rendered)
+	// Strip the workload-signal files (Dockerfile, Jenkinsfile) so
+	// ExtractWorkloadCandidates yields no Endpoint for the route entries that
+	// remain. Every (repo_id, path) HANDLES_ROUTE needs is then unresolved,
+	// which is the branch that renders the diagnostic under test.
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+	kept := odu.Facts[:0:0]
+	for _, fact := range odu.Facts {
+		if fact.FactKind == "file" {
+			path := anyToStringValue(fact.Payload["relative_path"])
+			if path == ifa.SymbolRuntimeFamilyDockerfilePath || path == ifa.SymbolRuntimeFamilyJenkinsfilePath {
+				continue
+			}
+		}
+		kept = append(kept, fact)
 	}
-	if !strings.Contains(rendered, `repo-1\x00/widgets`) {
-		t.Fatalf("diagnostic does not show the escaped key; got %s", rendered)
+	if len(kept) == len(odu.Facts) {
+		t.Fatal("no workload-signal file fact was stripped; the fixture no longer reaches the unresolved-endpoint branch and this test would prove nothing")
+	}
+	odu.Facts = kept
+
+	ok, detail := resolveHandlesRouteMaterializedEdges(odu, handlesRouteExpectedEdgesPath(repoRoot))
+	if ok {
+		t.Fatal("guard passed with no workload-materialization Endpoint available; the unresolved branch never rendered")
+	}
+	if !strings.Contains(detail, "no workload-materialization Endpoint resolved") {
+		t.Fatalf("reached a different failure branch, so this test is not exercising the diagnostic under test: %s", detail)
+	}
+	if strings.ContainsRune(detail, 0) {
+		t.Fatalf("diagnostic carries a raw NUL byte; it must be escaped so gate output stays readable: %q", detail)
+	}
+	// The escaped form, taken from the real fixture rather than a hand-typed
+	// key: the earlier copy asserted "repo-1", which the production path never
+	// produces — a detail the hand-built version could not have surfaced.
+	if !strings.Contains(detail, `\x00/widgets`) {
+		t.Fatalf("diagnostic does not render the NUL in escaped form; got %s", detail)
+	}
+	if !strings.Contains(detail, ifa.SymbolRuntimeFamilyRepoID) {
+		t.Fatalf("diagnostic does not name the fixture repo, so it is not the key under test; got %s", detail)
 	}
 }

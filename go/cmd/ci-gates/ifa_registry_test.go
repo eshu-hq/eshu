@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -112,10 +111,6 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read coverage manifest: %v", err)
 	}
-	registry, err := os.ReadFile(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatalf("read gate registry: %v", err)
-	}
 
 	refs := regexp.MustCompile(`ref:\s*"odu:([a-z0-9-]+)"`).FindAllStringSubmatch(string(manifest), -1)
 	if len(refs) < 10 {
@@ -138,28 +133,42 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 		t.Fatalf("derived only %d cassette director(ies), want >= 10", len(wantDirs))
 	}
 
-	block := coverageGateBlock(t, string(registry))
+	// Assert against the LOADED gate's active Triggers, not the raw YAML text.
+	// A substring match on the block would also match a commented-out trigger:
+	// `# - "testdata/cassettes/codeowners/**"` still contains the path, so a
+	// disabled trigger would read as present while the selector had stopped
+	// scheduling the gate — recreating the exact silent skip this test exists to
+	// prevent. Parsing is what distinguishes a live trigger from its corpse.
+	gate := coverageGate(t, filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	active := make(map[string]struct{}, len(gate.Triggers))
+	for _, trigger := range gate.Triggers {
+		active[trigger] = struct{}{}
+	}
 	for dir, ref := range wantDirs {
 		trigger := "testdata/cassettes/" + dir + "/**"
-		if !strings.Contains(block, trigger) {
+		if _, ok := active[trigger]; !ok {
 			t.Errorf("ifa-materialized-edge-coverage does not trigger on %q (odù %s); a cassette edit that leaves the edge set identical would skip this gate's compiled-Odù lockstep", trigger, ref)
 		}
 	}
 }
 
-// coverageGateBlock returns just the ifa-materialized-edge-coverage entry, so a
-// trigger declared under some OTHER gate cannot satisfy the assertion above.
-func coverageGateBlock(t *testing.T, registry string) string {
+// coverageGate loads the registry and returns the ifa-materialized-edge-coverage
+// entry, so callers assert on parsed triggers rather than on YAML text.
+func coverageGate(t *testing.T, registryPath string) cigates.Gate {
 	t.Helper()
 
-	const marker = "id: ifa-materialized-edge-coverage"
-	start := strings.Index(registry, marker)
-	if start < 0 {
-		t.Fatal("ifa-materialized-edge-coverage not found in specs/ci-gates.v1.yaml")
+	reg, err := cigates.Load(registryPath)
+	if err != nil {
+		t.Fatalf("cigates.Load(%s): %v", registryPath, err)
 	}
-	rest := registry[start+len(marker):]
-	if next := strings.Index(rest, "\n  - id:"); next >= 0 {
-		return rest[:next]
+	for _, gate := range reg.Gates {
+		if gate.ID == "ifa-materialized-edge-coverage" {
+			if len(gate.Triggers) == 0 {
+				t.Fatal("ifa-materialized-edge-coverage parsed with zero triggers; every assertion below would pass vacuously")
+			}
+			return gate
+		}
 	}
-	return rest
+	t.Fatal("ifa-materialized-edge-coverage not present in the loaded registry")
+	return cigates.Gate{}
 }
