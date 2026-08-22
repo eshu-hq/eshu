@@ -4,8 +4,10 @@
 package materializededges
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -106,5 +108,151 @@ func TestRunsInRowsToExpectedEdgesReportsUnresolvedRepo(t *testing.T) {
 	}
 	if len(unresolved) != 1 || unresolved[0] != "repo-1" {
 		t.Fatalf("unresolved = %v, want exactly [\"repo-1\"]", unresolved)
+	}
+}
+
+// TestResolveRunsInMaterializedEdgesRejectsAnExtraEdge drives the REAL
+// resolveRunsInMaterializedEdges entry point (not runsInRowsToExpectedEdges
+// in isolation) over the cataloged symbol-runtime Odù. Shrinking the fixture
+// below what the extractor/projection actually produces must surface the
+// surplus real edge as EXTRA, mirroring TestShellExecFamilyExpectedSetRejectsAnExtraEdge.
+func TestResolveRunsInMaterializedEdgesRejectsAnExtraEdge(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+
+	expected, err := LoadExpectedEdges(runsInExpectedEdgesPath(repoRoot), runsInFamily)
+	if err != nil {
+		t.Fatalf("LoadExpectedEdges: %v", err)
+	}
+	path := writeSymbolRuntimeExpectedEdgesFixture(t, expected[:len(expected)-1])
+
+	ok, detail := resolveRunsInMaterializedEdges(odu, path)
+	if ok {
+		t.Fatal("guard passed against a short expected set; an edge nobody derived went unreported")
+	}
+	if !strings.Contains(detail, "EXTRA") {
+		t.Errorf("detail = %q, want it to name the EXTRA edge", detail)
+	}
+}
+
+// TestResolveRunsInMaterializedEdgesRejectsAMissingEdge pads the real
+// fixture with a fabricated edge the extractor/projection does not produce,
+// driving the real entry point. The fixture over-claiming an edge must
+// surface it as MISSING, mirroring TestShellExecFamilyExpectedSetRejectsAMissingEdge.
+func TestResolveRunsInMaterializedEdgesRejectsAMissingEdge(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+
+	expected, err := LoadExpectedEdges(runsInExpectedEdgesPath(repoRoot), runsInFamily)
+	if err != nil {
+		t.Fatalf("LoadExpectedEdges: %v", err)
+	}
+	padded := append(append([]ExpectedEdge{}, expected...), ExpectedEdge{
+		RelationshipType: "RUNS_IN",
+		SourceEntityID:   ifa.SymbolRuntimeFamilyHandlerFunctionUID,
+		TargetEntityID:   "workload:nonexistent",
+	})
+	path := writeSymbolRuntimeExpectedEdgesFixture(t, padded)
+
+	ok, detail := resolveRunsInMaterializedEdges(odu, path)
+	if ok {
+		t.Fatal("guard passed against an expectation the extractor/projection does not satisfy")
+	}
+	if !strings.Contains(detail, "MISSING") {
+		t.Errorf("detail = %q, want it to name the MISSING edge", detail)
+	}
+}
+
+// TestResolveRunsInMaterializedEdgesRejectsWrongSourceEntityID proves the
+// guard fails when a fixture's source_entity_id drifts from the real
+// canonical Function uid by a single hex character -- exactly what a wrong
+// content.CanonicalEntityID derivation looks like in production, otherwise
+// silent live (the source-side MATCH finds nothing, the MERGE no-ops, no
+// dead letter is raised).
+func TestResolveRunsInMaterializedEdgesRejectsWrongSourceEntityID(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+
+	expected, err := LoadExpectedEdges(runsInExpectedEdgesPath(repoRoot), runsInFamily)
+	if err != nil {
+		t.Fatalf("LoadExpectedEdges: %v", err)
+	}
+	corrupted := append([]ExpectedEdge{}, expected...)
+	realSource := corrupted[0].SourceEntityID
+	wrongSource := flipOneHexChar(t, realSource)
+	corrupted[0].SourceEntityID = wrongSource
+	path := writeSymbolRuntimeExpectedEdgesFixture(t, corrupted)
+
+	ok, detail := resolveRunsInMaterializedEdges(odu, path)
+	if ok {
+		t.Fatal("guard passed against a fixture whose source_entity_id does not match the real canonical Function uid")
+	}
+	if !strings.Contains(detail, "MISSING") || !strings.Contains(detail, "EXTRA") {
+		t.Errorf("detail = %q, want it to name both the MISSING (corrupted) edge and the EXTRA (real) edge", detail)
+	}
+	if !strings.Contains(detail, wrongSource) {
+		t.Errorf("detail = %q, want it to name the corrupted source id %q as MISSING", detail, wrongSource)
+	}
+	if !strings.Contains(detail, realSource) {
+		t.Errorf("detail = %q, want it to name the real source id %q as EXTRA", detail, realSource)
+	}
+}
+
+// TestResolveRunsInMaterializedEdgesRejectsWrongTargetEntityID mirrors the
+// source-id test for the Workload target id: a wrong workload id must fail
+// the same way, naming both the bogus expectation and the real edge the
+// projection actually produced. Unlike HANDLES_ROUTE's Endpoint hash, RUNS_IN's
+// workload id ("workload:symbolruntime") is a non-hashed literal, so this
+// uses corruptTargetEntityID rather than flipOneHexChar.
+func TestResolveRunsInMaterializedEdgesRejectsWrongTargetEntityID(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+
+	expected, err := LoadExpectedEdges(runsInExpectedEdgesPath(repoRoot), runsInFamily)
+	if err != nil {
+		t.Fatalf("LoadExpectedEdges: %v", err)
+	}
+	corrupted := append([]ExpectedEdge{}, expected...)
+	realTarget := corrupted[0].TargetEntityID
+	wrongTarget := corruptTargetEntityID(realTarget)
+	corrupted[0].TargetEntityID = wrongTarget
+	path := writeSymbolRuntimeExpectedEdgesFixture(t, corrupted)
+
+	ok, detail := resolveRunsInMaterializedEdges(odu, path)
+	if ok {
+		t.Fatal("guard passed against a fixture whose target_entity_id does not match the real Workload MERGE-key id")
+	}
+	if !strings.Contains(detail, "MISSING") || !strings.Contains(detail, "EXTRA") {
+		t.Errorf("detail = %q, want it to name both the MISSING (corrupted) edge and the EXTRA (real) edge", detail)
+	}
+	if !strings.Contains(detail, wrongTarget) {
+		t.Errorf("detail = %q, want it to name the corrupted target id %q as MISSING", detail, wrongTarget)
+	}
+	if !strings.Contains(detail, realTarget) {
+		t.Errorf("detail = %q, want it to name the real target id %q as EXTRA", detail, realTarget)
+	}
+}
+
+// TestRunsInFamilyMissingRegistryTypeIsCaught proves
+// missingSymbolRuntimeExpectedTypes fires when the fixture drops RUNS_IN, the
+// family's only registry type, mirroring TestShellExecFamilyMissingRegistryTypeIsCaught.
+func TestRunsInFamilyMissingRegistryTypeIsCaught(t *testing.T) {
+	t.Parallel()
+	odu := ifa.SymbolRuntimeFamilyOdu().Odu
+
+	path := writeSymbolRuntimeExpectedEdgesFixture(t, []ExpectedEdge{
+		{RelationshipType: "NOT_RUNS_IN", SourceEntityID: "a", TargetEntityID: "b"},
+	})
+
+	ok, detail := resolveRunsInMaterializedEdges(odu, path)
+	if ok {
+		t.Fatal("guard passed against a fixture naming no RUNS_IN edge")
+	}
+	if !strings.Contains(detail, "RUNS_IN") {
+		t.Errorf("detail = %q, want it to name the missing RUNS_IN registry type", detail)
 	}
 }
