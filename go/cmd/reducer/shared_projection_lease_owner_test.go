@@ -5,15 +5,49 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 const sharedProjectionLeaseOwnerHelperEnv = "ESHU_TEST_SHARED_PROJECTION_LEASE_OWNER_HELPER"
+
+func TestBuildReducerServiceWiresSharedProjectionLeaseOwner(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeReducerDB{}
+	service, err := buildReducerService(
+		context.Background(),
+		db,
+		stubGraphExecutor{},
+		stubCypherExecutor{},
+		postgres.NewSharedIntentStore(db),
+		stubCypherReader{},
+		stubCypherReader{},
+		func(name string) string {
+			if name == sharedProjectionLeaseOwnerEnv {
+				return "shared-wiring-test"
+			}
+			return ""
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildReducerService() error = %v, want nil", err)
+	}
+	if got := service.SharedProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, "shared-wiring-test:") {
+		t.Fatalf("buildReducerService() shared projection lease owner = %q, want configured prefix plus process identity", got)
+	}
+}
 
 func TestLoadSharedProjectionLeaseOwnerUsesStableProcessIdentity(t *testing.T) {
 	t.Parallel()
