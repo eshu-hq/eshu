@@ -18,8 +18,12 @@ synthetic row with each family's real authored intent and graph oracle.
 The proof ran at source commit
 `b635b327d106a31e19955a696dccc74e42759da1` with production host binaries,
 PostgreSQL 18, and the Compose-pinned NornicDB image
-`eshu-nornicdb-pr290:3722b483c02c`. The recorded run identifier is
-`runner-lease-hold-20260822T103129Z`.
+`eshu-nornicdb-pr290:3722b483c02c`. The final-shape shim passed on three fresh
+stacks. The recorded run identifiers are:
+
+- `runner-lease-hold-20260822T103129Z`
+- `runner-lease-hold-20260822T104435Z`
+- `runner-lease-hold-20260822T104523Z`
 
 ## Flow and failure boundary
 
@@ -68,7 +72,7 @@ the single synthetic target refresh, armed the exact `handles_route` advisory
 key, and started the production projector and reducer with four shared
 projection workers. It retained controller output plus the negative,
 positive, post-kill, pre-replacement, and post-replacement database snapshots
-under the recorded run identifier.
+under each recorded run identifier.
 
 The lock observation joined a granted holder row to an ungranted waiter row in
 `pg_locks` on `locktype`, `database`, `classid`, `objid`, and `objsubid`. It
@@ -78,9 +82,9 @@ two-integer advisory lock stores the first key in `classid`, the second in
 `objid`, and uses `objsubid = 2`; an ungranted `pg_locks` row is a waiting
 request. The holder itself was independently proven from another session with
 `NOT pg_try_advisory_xact_lock(...)`, avoiding signed hash-value comparisons.
-The run's exact lock tag was `locktype=advisory`, `database=16384`,
+Each run's exact lock tag was `locktype=advisory`, `database=16384`,
 `classid=1155623211`, `objid=3401466860`, and `objsubid=2`. The negative
-snapshot had only the granted holder; the positive snapshot had that same
+snapshots had only the granted holder; every positive snapshot had that same
 holder plus four ungranted `Lock/advisory` waiters on the tag.
 
 The runnable wait predicate was the conjunction of:
@@ -95,28 +99,31 @@ retain one statement's activity/statistics snapshot while the concurrent
 runner state changes. Filtering by the waiter's query text was also rejected:
 the exact advisory lock tag and wait state are the ownership contract.
 
-| Observation | Result |
-| --- | ---: |
-| Holder armed before reducer start | `waiter_count=0`; predicate rejected in 225 ms |
-| Reducer started with pending target | `pending_target=1`; `parked_reducers=4`; predicate accepted in 1,862 ms |
-| Independent `code_calls` control during hold | already `6` total, `0` pending at the positive snapshot; confirmation query returned in 225 ms |
-| Target state during control | still pending and still parked |
-| Holder-client lifecycle interval | 5,499 ms, including startup and teardown overhead |
-| Reducer kill and join | process gone; four PostgreSQL waiters remained |
-| Release to first durable lease row observation | within 497 ms; four orphaned claims committed before replacement |
-| Replacement to all partition-row observation | within 356 ms; lease rows increased from four to eight |
-| Target state after replacement | eight released lease rows; one synthetic intent still pending |
+| Run suffix | Negative predicate | Positive predicate | Control confirmation | Holder-client lifecycle | Release to first row | Replacement to eight rows |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `T103129Z` | 225 ms | 1,862 ms | 225 ms | 5,499 ms | within 497 ms | within 356 ms |
+| `T104435Z` | 230 ms | 1,616 ms | 231 ms | 5,276 ms | within 475 ms | within 236 ms |
+| `T104523Z` | 220 ms | 1,598 ms | 222 ms | 5,146 ms | within 454 ms | within 699 ms |
 
-The kill/reclaim oracle is ordered: the reducer process was killed and joined;
-the four server-side waiters remained visible; terminating the holder let those
-requests commit four active lease rows; the waiters then drained; and a newly
-started reducer inserted rows for the other four partitions. A later snapshot
-showed all eight rows released, proving that the replacement also reclaimed
-and released the original four. The synthetic target remained blocked by
-missing semantic-readiness evidence, so completion would be a false oracle at
-this dependency stage. This proves client death, orphaned claim completion,
-and replacement progress at the lease/runner seam. It does not prove target
-graph convergence.
+The state observations were identical in all three runs. Before reducer start,
+the holder had zero waiters and the predicate rejected. After reducer start,
+one target intent was pending and all four workers waited on the exact key.
+The independent `code_calls` runner was already at six total and zero pending
+when the positive snapshot was captured. Killing and joining the reducer left
+four PostgreSQL waiters. After release, those requests committed four active
+lease rows; after they drained, the replacement expanded the set to eight and
+released all eight. The synthetic target intent remained pending.
+
+The kill/reclaim oracle is ordered: the reducer process is killed and joined;
+the four server-side waiters remain visible; stopping the holder lets those
+requests commit four active lease rows; the waiters drain; and a newly started
+reducer inserts rows for the other four partitions. A later snapshot must show
+all eight rows released, proving that the replacement also reclaimed and
+released the original four. The three runs reproduced that sequence. The
+synthetic target remained blocked by missing semantic-readiness evidence, so
+completion would be a false oracle at this dependency stage. This proves client
+death, orphaned claim completion, and replacement progress at the lease/runner
+seam. It does not prove target graph convergence.
 
 ## Known collateral and final implementation contract
 
@@ -155,16 +162,19 @@ proof with the committed family cassettes and graph assertions.
 ## No-Regression Evidence:
 
 No production code or configuration changed in this design-and-shim slice.
-The exact live wait predicate rejected the negative control in 225 ms and
-accepted the real four-worker contention state in 1.862 seconds, below its
-five-second bound. The independent `code_calls` lane was already fully drained
-at the positive snapshot; its later confirmation query returned in 225 ms.
-The holder-client lifecycle lasted 5.499 seconds including startup and teardown
-overhead. The first orphaned lease row was observed within 497 ms of release.
-Once all orphaned waiters drained, all eight rows were observed within 356 ms
-of replacement startup, and a later snapshot showed all eight released. The
-final tracked implementation still requires its focused tests, live family
-cells, performance-evidence gate, and the repository promotion gate.
+The final-shape live proof passed three of three fresh-stack runs. The exact
+predicate rejected the negative control in 220-230 ms and accepted the real
+four-worker contention state in 1.598-1.862 seconds, below its five-second
+bound. The independent `code_calls` lane was already fully drained at every
+positive snapshot; the later confirmation queries returned in 222-231 ms.
+The holder-client lifecycle intervals were 5.146-5.499 seconds including
+startup and teardown overhead. The first orphaned lease row was observed
+within 454-497 ms of release. Once all orphaned waiters drained, all eight rows
+were observed within 236-699 ms of replacement startup, and later snapshots
+showed all eight released. These are polling bounds from a diagnostic proof,
+not a production latency target or speedup claim. The final tracked
+implementation still requires its focused tests, live family cells,
+performance-evidence gate, and the repository promotion gate.
 
 ## Observability Evidence:
 
