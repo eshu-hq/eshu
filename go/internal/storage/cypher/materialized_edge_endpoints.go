@@ -77,7 +77,11 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 		},
 	},
 	"workload_dependency": {
-		"DEPENDS_ON": {FromLabel: "Workload", ToLabel: "Workload"},
+		"DEPENDS_ON": {
+			FromLabel:      "Workload",
+			ToLabel:        "Workload",
+			EvidenceSource: reducer.EvidenceSourceWorkloads,
+		},
 	},
 }
 

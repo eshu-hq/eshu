@@ -1,0 +1,21 @@
+{
+  "odu": "odu:ifa-workload-dependency-family",
+  "note": "The exact Repository DEPENDS_ON prerequisite set resolved from this Odù before workload_materialization is explicitly retriggered. The positive, ambiguous-target, and orphan workload pairs all remain legitimate repository dependencies; workload reconciliation, not repository resolution, filters the latter two from Workload DEPENDS_ON truth.",
+  "edges": [
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "repo-ifa-workload-dependency-source",
+      "target_entity_id": "repo-ifa-workload-dependency-target"
+    },
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "repo-ifa-workload-dependency-multi-source",
+      "target_entity_id": "repo-ifa-workload-dependency-multi-target"
+    },
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "repo-ifa-workload-dependency-orphan-source",
+      "target_entity_id": "repo-ifa-workload-dependency-orphan-target"
+    }
+  ]
+}

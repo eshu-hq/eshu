@@ -4,7 +4,8 @@
 // Package materializededges implements Ifá's materialized-edge coverage
 // contract (#5351): one pure vacuity guard per reducer-materialized graph
 // edge family (SQL relationships, documentation edges, code calls, rationale
-// edges, codeowners ownership, deployable-unit edges), plus the
+// edges, codeowners ownership, deployable-unit edges, repository dependencies,
+// and workload dependencies), plus the
 // replaycoverage.Resolver that dispatches a coverage-manifest row to the
 // right guard by family name.
 //
@@ -62,4 +63,8 @@
 // matrix also proves the generation-2 exact-one survivor.
 // Repository dependencies require baseline and fault dimensions. The live
 // gates exact-assert the six repository relationships and one RUNS_ON edge.
+// Workload dependencies have an offline guard that derives repository and
+// workload ownership through the production seams before reconciliation. Its
+// baseline and fault rows remain waived until the live gates drive and assert
+// the committed cassette.
 package materializededges

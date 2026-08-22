@@ -136,6 +136,9 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_shell_exec
 	cell_killworker_shell_exec
 	cell_failgraphwrite_shell_exec
+	cell_baseline_workload_dependency
+	cell_killworker_workload_dependency
+	cell_failgraphwrite_workload_dependency
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.
@@ -165,6 +168,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
+	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"
 )
 
 # ifa_fault_shard_build_groups walks IFA_FAULT_ALL_CELLS in order and merges

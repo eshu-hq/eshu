@@ -1,0 +1,16 @@
+{
+  "odu": "odu:ifa-workload-dependency-family",
+  "note": "Two workload_dependency edges come from the family's two production-positive pairs: source -> target and multi-source -> multi-target. Every endpoint owns exactly one current-generation Kubernetes-Deployment workload, so the repo_dependency runner's automatic workload replay admits both pairs with evidence_source finalization/workloads. The orphan pair remains absent because neither endpoint is a current repo, so production's source-or-target-anchored lookup cannot return it to reconciliation. batchCanonicalWorkloadDependencyUpsertCypher MERGEs on (source:Workload{id})-[:DEPENDS_ON]->(target:Workload{id}) alone; no property participates in the merge key, so each source/type/target tuple is the full structural identity.",
+  "edges": [
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "workload:workload-dependency-source",
+      "target_entity_id": "workload:workload-dependency-target"
+    },
+    {
+      "relationship_type": "DEPENDS_ON",
+      "source_entity_id": "workload:workload-dependency-multi-source",
+      "target_entity_id": "workload:workload-dependency-multi-target"
+    }
+  ]
+}

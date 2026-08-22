@@ -293,6 +293,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/collector/git_fact_builder*.go|go/internal/collector/git_fact_builder_delta.go'
 	'go/internal/collector/git_followup_facts.go|go/internal/collector/git_followup_facts.go'
 	'go/internal/projector/canonical_import_extract.go|go/internal/projector/canonical_import_extract.go'
+	'go/internal/projector/workload_dependency_cassette_admission_test.go|go/internal/projector/workload_dependency_cassette_admission_test.go'
 	'go/internal/reducer/platform_materialization.go|go/internal/reducer/platform_materialization.go'
 	'go/internal/reducer/platform_materialization_writer.go|go/internal/reducer/platform_materialization_writer.go'
 	'go/internal/reducer/workload_materialization_repo_phase.go|go/internal/reducer/workload_materialization_repo_phase.go'
@@ -335,6 +336,7 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh|scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
 	'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
+	'scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-marker-cases.sh|scripts/lib/test-ifa-fault-injection-marker-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh|scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh'
@@ -378,6 +380,7 @@ ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh|scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
 	'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
 	'scripts/lib/test-ifa-determinism-require-helpers.sh|scripts/lib/test-ifa-determinism-require-helpers.sh'
+	'scripts/lib/test-ifa-determinism-teeth-cases.sh|scripts/lib/test-ifa-determinism-teeth-cases.sh'
 	'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
 	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
 )

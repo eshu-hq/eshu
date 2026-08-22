@@ -1900,6 +1900,30 @@ emit none; `assert-edges` reports through its exit code and stderr exactly as
 before. An operator's dashboards and alerts see no new series and lose none, so
 there is nothing to add to the telemetry contract or the operator dashboard.
 
+No-Regression Evidence (#6003): merged-main baseline
+`c74e196c69162cc649f47f739e95a733558ab302` filtered
+`workload_dependency` edges by type and endpoint labels. Code head
+`5d70778e33df20d69e514f293f948d0392e6ece9` adds the writer's existing
+`reducer.EvidenceSourceWorkloads` value to that in-memory gate constraint. The
+Bolt graph dump, statement count, and backend row set are unchanged on both
+supported backends: `assert-edges` still streams the same edges, then performs
+one property lookup and string comparison for each already-matched
+Workload-to-Workload `DEPENDS_ON` candidate. The committed six-scope, 20-fact
+cassette expects exactly two workload-owned edges and three repository
+prerequisite edges. Focused `cmd/ifa`, `ifa/materializededges`, and
+`storage/cypher` tests prove both workload pairs remain visible while an
+identical edge carrying another writer's provenance is rejected. A
+backend/version measurement does not apply to this post-read filter because it
+changes no backend query, round trip, or production write path. Terminal queue
+depth and graph-write row counts are also unchanged: the registry is read only
+by `eshu-ifa assert-edges` and tests, and neither enqueues a work item nor writes
+an edge.
+
+No-Observability-Change (#6003): no production metric, span, structured log,
+status field, or label changes. The gate continues to report success or an
+exact-set mismatch through the existing `assert-edges` stdout, stderr, and exit
+status; the narrower ownership check adds no new operator-facing signal.
+
 ## Materialized-edge identity registry: performance and observability
 
 `MaterializedEdgeIdentityProperties` reads the same kind of package-level map

@@ -107,6 +107,12 @@ inheritance_expected_edges="${repo_root}/go/internal/ifa/testdata/inheritance/if
 shell_exec_cassette="${repo_root}/testdata/cassettes/shellexec/ifa-shell-exec-family.json"
 shell_exec_expected_edges="${repo_root}/go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json"
 
+# workload_dependency is maintenance-backed too, but its prerequisite is the
+# three Repository DEPENDS_ON edges resolved from this family's own cassette.
+workload_dependency_cassette="${repo_root}/testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json"
+workload_dependency_expected_edges="${repo_root}/go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-expected-edges.json"
+workload_dependency_repo_expected_edges="${repo_root}/go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-repo-prerequisite-expected-edges.json"
+
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
 # so a missing file is identifiable from the failure line alone; "$1" is the
@@ -137,4 +143,7 @@ ifa_family_fixtures_require() {
 	[[ -f "${inheritance_expected_edges}" ]] || { echo "${gate}: inheritance expected-edge set not found: ${inheritance_expected_edges}" >&2; exit 1; }
 	[[ -f "${shell_exec_cassette}" ]] || { echo "${gate}: shell-exec cassette not found: ${shell_exec_cassette}" >&2; exit 1; }
 	[[ -f "${shell_exec_expected_edges}" ]] || { echo "${gate}: shell-exec expected-edge set not found: ${shell_exec_expected_edges}" >&2; exit 1; }
+	[[ -f "${workload_dependency_cassette}" ]] || { echo "${gate}: workload-dependency cassette not found: ${workload_dependency_cassette}" >&2; exit 1; }
+	[[ -f "${workload_dependency_expected_edges}" ]] || { echo "${gate}: workload-dependency expected-edge set not found: ${workload_dependency_expected_edges}" >&2; exit 1; }
+	[[ -f "${workload_dependency_repo_expected_edges}" ]] || { echo "${gate}: workload-dependency repo-prerequisite expected-edge set not found: ${workload_dependency_repo_expected_edges}" >&2; exit 1; }
 }

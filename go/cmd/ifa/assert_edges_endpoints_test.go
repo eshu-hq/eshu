@@ -32,6 +32,12 @@ func labeledEdge(edgeType, fromLabel, fromID, toLabel, toID string) graphdump.Ed
 	}
 }
 
+func labeledOwnedEdge(edgeType, fromLabel, fromID, toLabel, toID, evidenceSource string) graphdump.Edge {
+	edge := labeledEdge(edgeType, fromLabel, fromID, toLabel, toID)
+	edge.Props = map[string]any{"evidence_source": evidenceSource}
+	return edge
+}
+
 // uidEdge builds the other identity convention: content entities (Function,
 // Class, File) ARE uid-keyed, and both must resolve.
 func uidEdge(edgeType, fromLabel, fromUID, toLabel, toUID string) graphdump.Edge {
@@ -62,7 +68,8 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 
 	graph := fakeEdgeReader{edges: []graphdump.Edge{
 		labeledEdge("DEPENDS_ON", "Repository", "repo-a", "Repository", "repo-b"),
-		labeledEdge("DEPENDS_ON", "Workload", "wl-a", "Workload", "wl-b"),
+		labeledOwnedEdge("DEPENDS_ON", "Workload", "wl-a", "Workload", "wl-b", reducer.EvidenceSourceWorkloads),
+		labeledOwnedEdge("DEPENDS_ON", "Workload", "wl-other", "Workload", "wl-target", "another/writer"),
 	}}
 
 	repoTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("repo_dependency")

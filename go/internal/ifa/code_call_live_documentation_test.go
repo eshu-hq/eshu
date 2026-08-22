@@ -61,7 +61,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"The 4 other allProjectionDomains families are blocked",
+				"The 3 other allProjectionDomains families are blocked",
 				"Both live gates drive the rationale cassette and exact-assert its full\n  # EXPLAINS records.",
 			},
 			prohibited: []string{
@@ -112,7 +112,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, and shell-exec edges.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, and workload dependencies.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",
@@ -250,7 +250,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 4 not-yet-covered allProjectionDomains families",
+				"current 3 not-yet-covered allProjectionDomains families",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",

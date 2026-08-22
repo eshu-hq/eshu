@@ -1,0 +1,455 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-workload-dependency-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-source",
+        "repo_path": "/fixtures/ifa/workload-dependency-source"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-source",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-source",
+            "name": "workload-dependency-source",
+            "repo_id": "repo-ifa-workload-dependency-source",
+            "repo_slug": "ifa-org/workload-dependency-source",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-source",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-source.git"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-workload-dependency-source:deploy/docker-compose.yml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "docker_compose",
+            "commit_sha": "fedcba9876543210fedcba9876543210fedcba9",
+            "content_body": "services:\n  app:\n    depends_on:\n      - workload-dependency-target\n",
+            "content_path": "deploy/docker-compose.yml",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "file:repo-ifa-workload-dependency-source:deploy/deployment.yaml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parsed_file_data": {
+              "k8s_resources": [
+                {
+                  "kind": "Deployment",
+                  "name": "workload-dependency-source",
+                  "namespace": "production"
+                }
+              ]
+            },
+            "relative_path": "deploy/deployment.yaml",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-source:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "entity_key": "workload:workload-dependency-source",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-source:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:workload-dependency-source",
+            "reason": "repository snapshot emitted workload materialization follow-up",
+            "repo_id": "repo-ifa-workload-dependency-source"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-target",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-target",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-target",
+        "repo_path": "/fixtures/ifa/workload-dependency-target"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-repo-ifa-workload-dependency-target-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-target",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-target",
+            "name": "workload-dependency-target",
+            "repo_id": "repo-ifa-workload-dependency-target",
+            "repo_slug": "ifa-org/workload-dependency-target",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-target",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-target.git"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "file:repo-ifa-workload-dependency-target:deploy/deployment.yaml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parsed_file_data": {
+              "k8s_resources": [
+                {
+                  "kind": "Deployment",
+                  "name": "workload-dependency-target",
+                  "namespace": "production"
+                }
+              ]
+            },
+            "relative_path": "deploy/deployment.yaml",
+            "repo_id": "repo-ifa-workload-dependency-target"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-target:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:workload-dependency-target",
+            "reason": "repository snapshot emitted workload materialization follow-up",
+            "repo_id": "repo-ifa-workload-dependency-target"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-source",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-source",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-multi-source",
+        "repo_path": "/fixtures/ifa/workload-dependency-multi-source"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-source-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-multi-source",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-multi-source",
+            "name": "workload-dependency-multi-source",
+            "repo_id": "repo-ifa-workload-dependency-multi-source",
+            "repo_slug": "ifa-org/workload-dependency-multi-source",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-multi-source",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-multi-source.git"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-workload-dependency-multi-source:deploy/docker-compose.yml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "docker_compose",
+            "commit_sha": "fedcba9876543210fedcba9876543210fedcba9",
+            "content_body": "services:\n  app:\n    depends_on:\n      - workload-dependency-multi-target\n",
+            "content_path": "deploy/docker-compose.yml",
+            "repo_id": "repo-ifa-workload-dependency-multi-source"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "file:repo-ifa-workload-dependency-multi-source:deploy/deployment.yaml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parsed_file_data": {
+              "k8s_resources": [
+                {
+                  "kind": "Deployment",
+                  "name": "workload-dependency-multi-source",
+                  "namespace": "production"
+                }
+              ]
+            },
+            "relative_path": "deploy/deployment.yaml",
+            "repo_id": "repo-ifa-workload-dependency-multi-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-multi-source:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "deployment_mapping",
+            "entity_key": "workload:workload-dependency-multi-source",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
+            "repo_id": "repo-ifa-workload-dependency-multi-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-multi-source:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:workload-dependency-multi-source",
+            "reason": "repository snapshot emitted workload materialization follow-up",
+            "repo_id": "repo-ifa-workload-dependency-multi-source"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-target",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-target",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-multi-target",
+        "repo_path": "/fixtures/ifa/workload-dependency-multi-target"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-repo-ifa-workload-dependency-multi-target-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-multi-target",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-multi-target",
+            "name": "workload-dependency-multi-target",
+            "repo_id": "repo-ifa-workload-dependency-multi-target",
+            "repo_slug": "ifa-org/workload-dependency-multi-target",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-multi-target",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-multi-target.git"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "file:repo-ifa-workload-dependency-multi-target:deploy/deployment.yaml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "parsed_file_data": {
+              "k8s_resources": [
+                {
+                  "kind": "Deployment",
+                  "name": "workload-dependency-multi-target",
+                  "namespace": "production"
+                }
+              ]
+            },
+            "relative_path": "deploy/deployment.yaml",
+            "repo_id": "repo-ifa-workload-dependency-multi-target"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-multi-target:workload_materialization",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "workload_materialization",
+            "entity_key": "workload:workload-dependency-multi-target",
+            "reason": "repository snapshot emitted workload materialization follow-up",
+            "repo_id": "repo-ifa-workload-dependency-multi-target"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-source",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-source",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-orphan-source",
+        "repo_path": "/fixtures/ifa/workload-dependency-orphan-source"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-source-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-orphan-source",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-orphan-source",
+            "name": "workload-dependency-orphan-source",
+            "repo_id": "repo-ifa-workload-dependency-orphan-source",
+            "repo_slug": "ifa-org/workload-dependency-orphan-source",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-orphan-source",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-orphan-source.git"
+          }
+        },
+        {
+          "fact_kind": "content",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "content:repo-ifa-workload-dependency-orphan-source:deploy/docker-compose.yml",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "artifact_type": "docker_compose",
+            "commit_sha": "fedcba9876543210fedcba9876543210fedcba9",
+            "content_body": "services:\n  app:\n    depends_on:\n      - workload-dependency-orphan-target\n",
+            "content_path": "deploy/docker-compose.yml",
+            "repo_id": "repo-ifa-workload-dependency-orphan-source"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-orphan-source:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "deployment_mapping",
+            "entity_key": "workload:workload-dependency-orphan-source",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
+            "repo_id": "repo-ifa-workload-dependency-orphan-source"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-target",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-target",
+      "metadata": {
+        "fixture": "ifa-workload-dependency-family",
+        "repo_id": "repo-ifa-workload-dependency-orphan-target",
+        "repo_path": "/fixtures/ifa/workload-dependency-orphan-target"
+      },
+      "generation_id": "gen-ifa-workload-dependency-family-repo-ifa-workload-dependency-orphan-target-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "repository:repo-ifa-workload-dependency-orphan-target",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "graph_id": "repo-ifa-workload-dependency-orphan-target",
+            "name": "workload-dependency-orphan-target",
+            "repo_id": "repo-ifa-workload-dependency-orphan-target",
+            "repo_slug": "ifa-org/workload-dependency-orphan-target",
+            "source_run_id": "run-ifa-workload-dependency-family-1",
+            "graph_kind": "repository",
+            "parsed_file_count": "0",
+            "is_dependency": false,
+            "local_path": "/fixtures/ifa/workload-dependency-orphan-target",
+            "remote_url": "https://example.invalid/ifa-org/workload-dependency-orphan-target.git"
+          }
+        }
+      ]
+    }
+  ]
+}

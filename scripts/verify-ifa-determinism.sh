@@ -119,7 +119,7 @@ source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 source "${repo_root}/scripts/lib/ifa_code_call_live.sh"
 source "${repo_root}/scripts/lib/ifa_documentation_live.sh"
 source "${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
-source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"
+source "${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"; source "${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"; source "${repo_root}/scripts/lib/ifa_repo_dependency_live.sh"; source "${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
 source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
 source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
@@ -453,6 +453,10 @@ ifa_repo_dependency_live_run_standalone_cell \
 	"${bin_dir}" "${repo_dependency_cassette}" "${repo_dependency_expected_edges}" "${log_dir}" \
 	"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
 	|| die "repo_dependency: standalone live-proof cell failed"
+ifa_workload_dependency_live_run_standalone_cell \
+	"${bin_dir}" "${workload_dependency_cassette}" "${workload_dependency_expected_edges}" "${workload_dependency_repo_expected_edges}" "${log_dir}" \
+	"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
+	|| die "workload_dependency: standalone live-proof cell failed"
 
 log "compare digests across N=${worker_counts[*]}"
 first_n="${worker_counts[0]}"

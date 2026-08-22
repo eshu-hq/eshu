@@ -6,6 +6,8 @@ package cypher
 import (
 	"sort"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // familyRegistry returns a family's registered edge types regardless of which
@@ -111,6 +113,19 @@ func TestSharedEdgeTypesAreDisambiguatedByEndpoints(t *testing.T) {
 	if repoDependsOn == workloadDependsOn {
 		t.Fatalf("both families constrain DEPENDS_ON to %+v; identical endpoints cannot partition the shared type, so each family's exact set would see the other's edges as extras",
 			repoDependsOn)
+	}
+}
+
+func TestWorkloadDependencyConstraintPinsWriterOwnership(t *testing.T) {
+	t.Parallel()
+
+	constraints, ok := MaterializedEdgeEndpointLabels("workload_dependency")
+	if !ok {
+		t.Fatal("workload_dependency has no endpoint constraints")
+	}
+	dependsOn := constraints["DEPENDS_ON"]
+	if got, want := dependsOn.EvidenceSource, reducer.EvidenceSourceWorkloads; got != want {
+		t.Fatalf("workload_dependency DEPENDS_ON evidence source = %q, want %q so the live exact-set assertion proves the same ownership boundary its retract uses", got, want)
 	}
 }
 

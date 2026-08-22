@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -30,5 +31,20 @@ func TestEdgeWriterRetractEdgesWorkloadDependencyDispatch(t *testing.T) {
 	}
 	if !strings.Contains(executor.calls[0].Cypher, "source:Workload") {
 		t.Fatalf("cypher missing Workload match: %s", executor.calls[0].Cypher)
+	}
+	for _, want := range []string{
+		"source.repo_id IN $repo_ids",
+		"rel.evidence_source = $evidence_source",
+		"DELETE rel",
+	} {
+		if !strings.Contains(executor.calls[0].Cypher, want) {
+			t.Fatalf("workload_dependency retract must preserve exact source-repo and writer ownership boundary %q:\n%s", want, executor.calls[0].Cypher)
+		}
+	}
+	if got := executor.calls[0].Parameters["evidence_source"]; got != reducer.EvidenceSourceWorkloads {
+		t.Fatalf("retract evidence_source = %#v, want %q", got, reducer.EvidenceSourceWorkloads)
+	}
+	if got := executor.calls[0].Parameters["repo_ids"]; !reflect.DeepEqual(got, []string{"repo-a"}) {
+		t.Fatalf("retract repo_ids = %#v, want exact source repository [repo-a]", got)
 	}
 }
