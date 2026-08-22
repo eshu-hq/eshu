@@ -30,7 +30,7 @@
 #     the absolute expected set can, which is why the proof_gate is only honest
 #     with the assert-edges wiring in scripts/verify-ifa-determinism.sh.)
 #   - a `coverage:` row with scenario_type: fault, proof_gate: ifa-fault-injection
-#     (the P4 fault-injection matrix drives the same family cassette into every
+#     (The 43-cell fault matrix drives the same family cassette into every
 #     cell so lease-expiry / kill-worker recovery exercises the family's real
 #     durable handler replay, asserts the fault-free baseline carries exactly
 #     the expected edges via `ifa assert-edges`, then compares every recovery
@@ -118,10 +118,10 @@
 # workload_dependency, retiring its waiver. #5995/#6000/#5997 added
 # handles_route/runs_in/invokes_cloud_action -- the last three families under
 # this umbrella -- sharing one cassette/Odù and each gaining its own
-# anchor-scoped fault cell (blocker_kind=none, wait_stage=runner; mid-pipeline
-# kill/reclaim remains a named, tracked gap for all three, #6208), retiring
-# their waivers too. No allProjectionDomains family carries a waiver as of
-# this change: the epic #5344 umbrella #5543, decomposed into per-domain
+# anchor-scoped graph-write fault cell. #6208 adds a runner_lease_hold cell
+# for each family, blocking the production partition-lease key before killing
+# and replacing the reducer. No allProjectionDomains family carries a waiver
+# as of this change: the epic #5344 umbrella #5543, decomposed into per-domain
 # child issues #5991-#6003, is complete.
 #
 # Only seed a coverage row here once the referenced Odù is genuinely green
@@ -258,7 +258,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 40-cell fault
+  # the exact one-edge survivor. The 43-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.
@@ -381,21 +381,22 @@ coverage:
   # share ONE cassette/Odù (odu:ifa-symbol-runtime-family) and ONE
   # backend-free extraction seam (reducer.ExtractSymbolRuntimeIntentRows)
   # through CodeCallMaterializationHandler -- the same handler code_calls
-  # already covers -- so a distinct handler-stage kill-worker cell would reuse
-  # code_calls' own wait_key and prove nothing new
+  # already covers -- so a handler-stage kill-worker cell would reuse
+  # code_calls' wait key and prove nothing new
   # (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive,
-  # go/internal/reducer/materialized_edge_family_blocker_shape_test.go). Design
-  # A ships blocker_kind=none, wait_stage=runner instead: each family gets its
-  # own anchor-scoped cell_failgraphwrite_<family> cell, a once-fault injected
+  # go/internal/reducer/materialized_edge_family_blocker_shape_test.go). Each
+  # family keeps its own anchor-scoped cell_failgraphwrite_<family>, with a
+  # one-time fault injected
   # at that family's own MERGE template (HANDLES_ROUTE / RUNS_IN /
   # INVOKES_CLOUD_ACTION), independent of which handler or wait_key produced
   # the write. The fault row is real coverage, not aspirational: the cell's
   # durable marker is asserted, the drain gate requires zero dead letters, and
   # the exact-set edge assertion (2/2/1 edges respectively) reruns against the
-  # shared trio baseline digest after recovery. Mid-pipeline kill/reclaim is a
-  # named, tracked gap for all three (#6208), not claimed here -- see the
-  # known-gaps doc below and docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md
-  # for the blocker-mechanism theory-proof behind that follow-up.
+  # shared trio baseline digest after recovery. #6208 also gives each family
+  # a runner-lease kill/reclaim cell: it proves a false pre-reducer control,
+  # waits for a pending family intent plus a runner parked on the exact
+  # production advisory key, kills and joins that reducer, then releases,
+  # reclaims, drains, exact-asserts the family, and matches the same baseline.
   - surface: "materialized_edges:handles_route"
     scenario: odu
     scenario_type: baseline

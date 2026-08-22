@@ -29,18 +29,18 @@
 #     this PR (deployable_unit_edges stays cell_kind=custom on its own
 #     already-proven cell -- see ifa_family_registry.sh's IFA_FAMILY_CELL_KIND
 #     comment for that scoping call).
-#   - ifa_fault_generic_runner_wait.sh -- the wait_stage=runner non-vacuity
-#     predicate. UNPROVEN: no family declares wait_stage=runner today.
+#   - ifa_fault_generic_runner_wait.sh -- the exact runner-lease holder and
+#     non-vacuity predicates used by the custom symbol-runtime cells. The
+#     generic dispatcher deliberately rejects runner-stage rows because its
+#     shared body does not own that holder lifecycle.
 #
 # cell_kind=custom families (documentation_edges' ACK barrier,
 # deployable_unit_edges' table_lock kept on its bespoke cell,
 # codeowners_ownership_edges' table_lock:fact_records, landed and kept on its
-# own bespoke cell) are NOT
-# forced into the generic shape. cell_killworker_family and
-# cell_failgraphwrite_family below dispatch straight to that family's own
-# hand-written cell function (custom_killworker_fn / custom_failgraphwrite_fn
-# in the registry) instead -- see ifa_family_registry.sh's schema comment for
-# why cell_kind exists.
+# own bespoke cell) are NOT forced into the generic shape. Their hand-written
+# functions are invoked by name from the gate; the generic public dispatchers
+# reject `cell_kind=custom` so an accidental registry dispatch cannot silently
+# select the wrong mechanism.
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; sourcing it would rebind the caller's shell options -- same note
@@ -80,9 +80,10 @@
 #   2. Flip that row's cell_kind to generic only after proving the matching
 #      mechanism file's precondition (_ifa_generic_require_intent_writer for
 #      shared_intent_lock, _ifa_generic_require_table_domain_written for
-#      table_lock:<table>) against that family's live cell -- table_lock and
-#      wait_stage=runner are UNEXERCISED/UNPROVEN as of this file's own
-#      mechanism-file headers; do not flip cell_kind on an unproven mechanism.
+#      table_lock:<table>) against that family's live cell. Runner-stage lease
+#      holds remain custom because they require a holder/negative-control/
+#      release lifecycle outside this generic body; do not flip such a row to
+#      generic without adding and proving that lifecycle first.
 #   3. Replace that family's own cell_killworker_<family> /
 #      cell_failgraphwrite_<family> bodies with the same one-line delegation
 #      shape code_calls and rationale_edges use above. The
@@ -174,13 +175,12 @@ _ifa_generic_baseline_key() {
 	esac
 }
 
-# _ifa_generic_wait_for_claimed dispatches the non-vacuity wait predicate on
-# wait_stage: "handler" polls fact_work_items (ifa_fault_wait_for_claimed,
-# ifa_fault_injection_common.sh), "runner" polls shared_projection_intents
-# (ifa_fault_wait_for_claimed_projection_intent,
-# ifa_fault_generic_runner_wait.sh -- UNPROVEN, see that file's header).
+# _ifa_generic_wait_for_claimed dispatches the generic non-vacuity predicate.
+# Handler-stage rows poll fact_work_items. Runner-stage lease holds require an
+# exact labeled holder plus ordered release/drain, which custom cells own; this
+# dispatcher fails closed rather than calling the waiter without that holder.
 _ifa_generic_wait_for_claimed() {
-	local family="$1" budget="$2" wait_stage wait_key
+	local family="$1" cell="$2" budget="$3" wait_stage wait_key
 	wait_stage="$(ifa_family_wait_stage "${family}")" || return 1
 	wait_key="$(ifa_family_wait_key "${family}")" || return 1
 	case "${wait_stage}" in
@@ -188,7 +188,8 @@ _ifa_generic_wait_for_claimed() {
 		ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}"
 		;;
 	runner)
-		ifa_fault_wait_for_claimed_projection_intent "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}"
+		printf '_ifa_generic_wait_for_claimed: %s wait_stage=runner requires a custom runner-lease cell; generic cell %s does not own the holder lifecycle\n' "${family}" "${cell}" >&2
+		return 1
 		;;
 	*)
 		printf '_ifa_generic_wait_for_claimed: %s has unknown wait_stage %q\n' "${family}" "${wait_stage}" >&2
@@ -237,7 +238,7 @@ _ifa_generic_cell_killworker_body() {
 		;;
 	esac
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_pid_before "${bin_dir}/eshu-reducer"
-	claimed_before="$(_ifa_generic_wait_for_claimed "${family}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
+	claimed_before="$(_ifa_generic_wait_for_claimed "${family}" "${cell}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
 		|| die "${cell}: no ${family} row was claimed before the kill -- non-vacuous precondition failed"
 	printf '%s: non-vacuous: %s claimed/running %s row(s) observed before kill\n' "${cell}" "${claimed_before}" "${family}"
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL \

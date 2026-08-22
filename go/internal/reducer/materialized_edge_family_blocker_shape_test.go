@@ -30,6 +30,12 @@ const (
 	// incomplete on kill. Only a handler that actually writes that table can
 	// be genuinely interrupted by locking it.
 	blockerSharedIntentLock blockerKind = "shared_intent_lock"
+	// blockerRunnerLeaseHold holds a shared projection partition lease so the
+	// runner-stage wait observes a claimed-but-incomplete intent in the target
+	// projection domain. It is distinct from blockerSharedIntentLock: the
+	// handler may share its IntentWriter with another family, but the runner
+	// lease key is the family-specific recovery seam.
+	blockerRunnerLeaseHold blockerKind = "runner_lease_hold"
 	// blockerAckBarrier holds public.fact_work_items so a handler that writes
 	// graph edges directly (EdgeWriter, no shared_projection_intents write)
 	// stays claimed-but-incomplete on kill.
@@ -51,13 +57,15 @@ const (
 
 // classifyBlockerKind maps a registry row's raw declared string to the
 // blockerKind vocabulary above. Returns false for anything that is not one
-// of the four documented shapes, so a registry typo or a new blocker
+// of the five documented shapes, so a registry typo or a new blocker
 // vocabulary this test does not know about fails loudly instead of silently
 // comparing unequal to blockerSharedIntentLock and passing vacuously.
 func classifyBlockerKind(raw string) (blockerKind, bool) {
 	switch {
 	case raw == string(blockerSharedIntentLock):
 		return blockerSharedIntentLock, true
+	case raw == string(blockerRunnerLeaseHold):
+		return blockerRunnerLeaseHold, true
 	case raw == string(blockerAckBarrier):
 		return blockerAckBarrier, true
 	case raw == string(blockerNone):
@@ -93,11 +101,11 @@ type familyBlockerExpectation struct {
 // handler through implementedDefaultDomainDefinitions' switch
 // (defaults_domain_catalog.go:12-129). See
 // materializedEdgeFamilyBlockerLockstepExclusions for the other 6 and why
-// each is out of scope for a single-handler reflection. Not every family
-// covered here has a row in scripts/lib/ifa_family_registry.sh yet -- see
-// materializedEdgeFamilyNotYetInRegistry for the three that do not and why:
-// a missing row for any OTHER covered family is a named test failure, not an
-// implicit pass.
+// each is out of scope for a single-handler reflection. A missing row for any
+// covered family is a named test failure, not an implicit pass. The three
+// symbol-runtime families remain exclusions because
+// reflection cannot distinguish their shared handler from code_calls; their
+// runner_lease_hold proof is checked separately.
 var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectation{
 	// code_call_materialization_intents.go:129,225 tag rows
 	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:224
@@ -148,9 +156,9 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 // handler is reachable through the one switch this test reflects over.
 var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 	DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:296), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
-	DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: rows are built by buildSymbolRuntimeIntentRows (symbol_runtime_refresh_intents.go:20) and written through the same handler's IntentWriter, so this test's one-field IntentWriter reflection genuinely cannot distinguish this family from code_calls -- the exclusion stands for that structural reason alone. It is NOT an absence of coverage: it has its own anchor-scoped cell_baseline_symbol_runtime / cell_failgraphwrite_handles_route fault cell (registry blocker_kind=none, wait_stage=runner, wait_key=handles_route), which proves a real family-scoped Cypher-layer fault (see checkSharedIntentLockRoutedDomainIsUnique and checkIfaFamilyRegistryAnchorsAreUnique for the lockstep guards that scope it). Mid-pipeline kill/reclaim coverage (interrupting the handler mid-write, as code_calls' own cell_killworker_code_calls does) is a named, tracked gap for this family, not a silent one -- it is vacuous under the current mechanism because any kill-worker proof would necessarily reuse code_calls' own wait_key (see TestIfaFamilyRegistryHandlerWaitKeysAreExclusive) and is tracked as #6208, a follow-up needing its own blocker mechanism (a runner_lease_hold on the production lease key) rather than shipped here as a fake proof.",
-	DomainRunsIn:              "same as handles_route: shares CodeCallMaterializationHandler.IntentWriter with no dedicated handler type, so the exclusion stands for the identical structural reason. Same anchor-scoped cell_failgraphwrite_runs_in fault cell (blocker_kind=none, wait_stage=runner, wait_key=runs_in) and the same named, tracked kill/reclaim gap as handles_route, tracked in #6208.",
-	DomainInvokesCloudAction:  "same as handles_route: shares CodeCallMaterializationHandler.IntentWriter with no dedicated handler type, so the exclusion stands for the identical structural reason. Same anchor-scoped cell_failgraphwrite_invokes_cloud_action fault cell (blocker_kind=none, wait_stage=runner, wait_key=invokes_cloud_action) and the same named, tracked kill/reclaim gap as handles_route, tracked in #6208.",
+	DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
+	DomainRunsIn:              "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
+	DomainInvokesCloudAction:  "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
 	DomainRepoDependency:      "three separate producer handlers (CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
 	DomainWorkloadDependency:  "written by WorkloadMaterializationHandler.WorkloadDependencyEdgeWriter, a handler shared across many unrelated domains (DomainWorkloadMaterialization etc.) -- not 1:1 with this family",
 }
@@ -161,9 +169,9 @@ var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 // either explicitly acknowledged here with a reason, or fails the test by
 // name -- never silently treated as "no blocker declared" the way an earlier
 // version of this file did. Confirmed by reading scripts/lib for a dedicated
-// ifa_fault_injection_<family>_cells.sh: none exists for either family still
-// listed below. This list is expected to shrink to empty as their fault
-// cells and registry rows land; TestMaterializedEdgeFamilyBlockerLockstep
+// ifa_fault_injection_<family>_cells.sh: none exists for any family still
+// listed below. This list is expected to stay empty while all covered families
+// have rows; TestMaterializedEdgeFamilyBlockerLockstep
 // fails loudly if a listed family's row appears without this list being
 // updated to drop it, so the list cannot go stale in the other direction
 // either. submodule_pin_edges (#6002) is the family this happened to most
@@ -327,7 +335,7 @@ func TestMaterializedEdgeFamilyBlockerLockstep(t *testing.T) {
 
 			declared, known := classifyBlockerKind(raw)
 			if !known {
-				t.Fatalf("family %q: scripts/lib/ifa_family_registry.sh declares blocker kind %q, which is not one of shared_intent_lock, ack_barrier, none, or table_lock:<name> -- the registry's vocabulary drifted from what this test's classifier understands", family, raw)
+				t.Fatalf("family %q: scripts/lib/ifa_family_registry.sh declares blocker kind %q, which is not one of shared_intent_lock, runner_lease_hold, ack_barrier, none, or table_lock:<name> -- the registry's vocabulary drifted from what this test's classifier understands", family, raw)
 			}
 
 			if err := checkFamilyBlockerLockstep(family, want.routedDomain, declared, handlerByDomain[want.routedDomain]); err != nil {

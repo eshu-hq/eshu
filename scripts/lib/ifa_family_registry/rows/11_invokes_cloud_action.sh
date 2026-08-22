@@ -8,14 +8,9 @@
 # for blocker_kind/cell_kind is identical across all three rows and is not
 # repeated in full here.
 
-# blocker_kind=none: same reasoning as 09_handles_route.sh -- a handler-stage
-# kill cell for this family would need wait_key="code_call_materialization"
-# (the routed domain for CodeCallMaterializationHandler, the only handler
-# buildSymbolRuntimeIntentRows writes through), byte-identical to code_calls'
-# own row and rejected by TestIfaFamilyRegistryHandlerWaitKeysAreExclusive
-# even before considering it proves nothing new. Real fault coverage rests on
-# this family's own cell_failgraphwrite_invokes_cloud_action.
-IFA_FAMILY_BLOCKER_KIND[invokes_cloud_action]="none"
+# runner_lease_hold: same production partition-lease seam as handles_route,
+# keyed to this family's own projection domain.
+IFA_FAMILY_BLOCKER_KIND[invokes_cloud_action]="runner_lease_hold"
 # wait_stage=runner: this family's rows are tagged
 # ProjectionDomain=DomainInvokesCloudAction="invokes_cloud_action"
 # (go/internal/reducer/shared_projection.go:44,
@@ -36,8 +31,8 @@ IFA_FAMILY_EXPECTED_VAR[invokes_cloud_action]="invokes_cloud_action_expected_edg
 # surface. The CloudAction node id ("cloud-action:" + action) is created
 # inline by this same MERGE (its own ON CREATE clause).
 IFA_FAMILY_ANCHOR[invokes_cloud_action]="MERGE (func)-[rel:INVOKES_CLOUD_ACTION]->(action)"
-# custom: no cell_killworker is possible for this family (see blocker_kind
-# comment); its baseline and fail-graph-write cells are hand-written in
+# custom: its baseline, graph-write-failure cell, and runner-lease
+# kill/reclaim cell are hand-written in
 # scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh.
 IFA_FAMILY_CELL_KIND[invokes_cloud_action]="custom"
 
@@ -45,7 +40,7 @@ IFA_FAMILY_CELL_KIND[invokes_cloud_action]="custom"
 # DRIVE_FN/CASSETTE_VAR above.
 IFA_FAMILY_FAULT_SHARED_DRIVE[invokes_cloud_action]="0"
 
-# No IFA_FAMILY_RETRY_BASELINE_VAR / IFA_FAMILY_HANDLER_GO_FILE -- both are
-# shared_intent_lock-only fields; see 09_handles_route.sh's identical note.
+# No handler retry-baseline or handler Go-file field; see
+# 09_handles_route.sh.
 
 IFA_FAMILY_NAMES+=(invokes_cloud_action)

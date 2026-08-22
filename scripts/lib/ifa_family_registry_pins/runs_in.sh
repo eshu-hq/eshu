@@ -9,14 +9,9 @@
 # rows (handles_route #5995, runs_in #6000, invokes_cloud_action #5997) and
 # is not repeated in full here.
 
-# blocker_kind=none: same reasoning as handles_route.sh -- this family's rows
-# come from reducer.ExtractSymbolRuntimeIntentRows, called inside
-# CodeCallMaterializationHandler.Handle; a handler-stage blocker would need
-# wait_key="code_call_materialization", byte-identical to code_calls' own
-# row and rejected by TestIfaFamilyRegistryHandlerWaitKeysAreExclusive even
-# before considering it proves nothing new. Real fault coverage rests on
-# cell_failgraphwrite_runs_in instead.
-IFA_FAMILY_PIN_BLOCKER_KIND="none"
+# runner_lease_hold: the custom kill cell blocks the production
+# ClaimPartitionLease advisory key for DomainRunsIn. See handles_route.sh.
+IFA_FAMILY_PIN_BLOCKER_KIND="runner_lease_hold"
 # wait_stage=runner: this family's rows are tagged
 # ProjectionDomain=DomainRunsIn="runs_in"
 # (go/internal/reducer/shared_projection.go:38,
@@ -34,8 +29,6 @@ IFA_FAMILY_PIN_ANCHOR="MERGE (func)-[rel:RUNS_IN]->(workload)"
 # the determinism gate's shared N={1,2,4} cell via a drive_fn shared with
 # its two sibling rows.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind=custom: no cell_killworker exists for this family (see
-# blocker_kind comment); its baseline and fail-graph-write cells are
-# hand-written in scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
-# and dispatched by name.
+# cell_kind=custom: its baseline, graph-write-failure, and runner-lease kill
+# cells are hand-written and dispatched by name.
 IFA_FAMILY_PIN_CELL_KIND="custom"

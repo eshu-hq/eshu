@@ -22,21 +22,10 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Forty cells, each hitting a genuinely different recovery or delivery seam. All forty run by default.
-# Cell functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
-# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
-# scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue #5991),
-# scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and 14, issue #5994),
-# scripts/lib/ifa_fault_injection_rationale_cells.sh (cells 9 and 15, issue #5998),
-# scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 10-11, issue #5544), and
-# scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue #5993),
-# scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
-# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue #5999), and
-# scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells 25-27, issue #6002),
-# scripts/lib/ifa_fault_injection_inheritance_cells.sh (cells 28-30, issue #5996),
-# scripts/lib/ifa_fault_injection_shell_exec_cells.sh (cells 31-33, issue #6001), workload_dependency
-# cells 34-36 (#6003), and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh (cells 37-40,
-# issues #5995/#6000/#5997).
+# The shard mirror derives the current cell count from its hand-authored
+# roster and cross-checks this script's dispatch block. Cell libraries are
+# split by family under scripts/lib/ifa_fault_injection_*_cells.sh; the
+# symbol-runtime library owns cells 37-43 for issues #5995/#6000/#5997.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -145,11 +134,13 @@
 #  31. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
 #  32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
 #  33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-#  37. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
-#      handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
+#  37. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE shared baseline.
 #  38. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
 #  39. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
 #  40. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+#  41. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+#  42. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+#  43. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
 #
 # Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -177,6 +168,7 @@
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
 #   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35
+#   - an exact runner-waiter proof for cells 41/42/43
 #   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40
 #   - a sentinel-fired proof for cell 5
 #
@@ -480,11 +472,10 @@ ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
 # workload_dependency (#6003, cells 34-36) and the handles_route/runs_in/
-# invokes_cloud_action trio (#5995/#6000/#5997, cells 37-40,
+# invokes_cloud_action trio (#5995/#6000/#5997, cells 37-43,
 # scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh): each baseline
 # must run before its recovery cells in the same atomic shard group. The
-# trio's shared baseline has no kill-worker cell -- blocker_kind=none for
-# all three.
+# trio's runner-lease kill cells follow the three graph-write cells.
 ifa_fault_shard_run cell_baseline_workload_dependency
 ifa_fault_shard_run cell_killworker_workload_dependency
 ifa_fault_shard_run cell_failgraphwrite_workload_dependency
@@ -492,6 +483,9 @@ ifa_fault_shard_run cell_baseline_symbol_runtime
 ifa_fault_shard_run cell_failgraphwrite_handles_route
 ifa_fault_shard_run cell_failgraphwrite_runs_in
 ifa_fault_shard_run cell_failgraphwrite_invokes_cloud_action
+ifa_fault_shard_run cell_killworker_handles_route
+ifa_fault_shard_run cell_killworker_runs_in
+ifa_fault_shard_run cell_killworker_invokes_cloud_action
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do
