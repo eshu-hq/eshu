@@ -1572,14 +1572,18 @@ committed zero nodes.
   `repository` phase runs the normal id-based MERGE. Keeping this in a separate
   `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
   delete commits and before the new id owns that path.
-- `RetryingExecutor.ExecuteGroup` retries on commit-time UNIQUE conflicts
-  and typed NornicDB relationship-update snapshot conflicts when every
-  statement in the group is MERGE-shaped, sharing the same
+- `RetryingExecutor.Execute` retries commit-time UNIQUE conflicts for a
+  MERGE-shaped statement. `ExecuteGroup` retries that conflict and typed
+  NornicDB relationship-update snapshot conflicts when every statement in the
+  group is MERGE-shaped, sharing the same
   `runWithRetry` loop as `Execute` (`retrying_executor.go:52`). Driver-
   level `session.ExecuteWrite` continues to handle Neo.TransientError.*
   codes for the group path; the Eshu retry layer adds coverage for
   Neo.ClientError.Transaction.TransactionCommitFailed when the message
-  classifies as a NornicDB commit-time UNIQUE conflict. Mixed groups
+  classifies as a NornicDB commit-time UNIQUE conflict. The pinned backend can
+  report the same commit failure as Neo.ClientError.Statement.SyntaxError for
+  `MERGE ... ON CREATE SET`; that code is retryable only with the exact commit
+  UNIQUE body and the existing MERGE guard. Mixed groups
   containing non-MERGE statements are not retried, preserving
   idempotency safety.
 - `ExecuteOnlyExecutor` intentionally hides `GroupExecutor`. Use it when the
@@ -1593,6 +1597,22 @@ committed zero nodes.
   wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
   `TransactionCommitFailed` wrapping so the classifier stays current
   across pinned binaries (`retrying_executor.go:227`).
+- No-Regression Evidence (#6003 follow-up): the baseline workload determinism
+  run on pinned NornicDB image revision `3722b483c02c` dead-lettered one losing
+  Platform batch and retained one nonterminal fact row. After the classifier
+  change, the opt-in live contract executes two production-sized 500-row
+  implicit batches that share one `Platform.id` and observes the exact typed
+  commit-UNIQUE loser retry; the full N=1/2/4 matrix reaches zero terminal queue
+  residual and the same graph digest at every worker count. The compatibility
+  path still requires the commit-failure prefix, `constraint violation`,
+  `UNIQUE on`, `already exists`, and MERGE-shaped Cypher. Its no-contention path
+  is unchanged; only a losing concurrent MERGE pays the existing bounded retry
+  backoff, with no worker, batch, query, or conflict-key setting change.
+- Observability Evidence (#6003 follow-up): the compatibility path reuses
+  `eshu_dp_neo4j_deadlock_retries_total` with
+  `reason=commit_unique_conflict` and `write_phase=canonical_upsert`. The metric
+  proof requires those bounded attributes and rejects raw graph identifiers;
+  no metric, span, log field, or status contract is added or renamed.
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer

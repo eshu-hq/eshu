@@ -10,7 +10,7 @@ ifa_workload_dependency_fault_prepare() {
 	local cell="$1" projector_pid reducer_pid
 	fresh_stack "${cell}"
 	drive_all_cassettes "${cell}"
-	ifa_workload_dependency_live_drive "${bin_dir}" "${workload_dependency_cassette}" \
+	ifa_workload_dependency_live_drive "${bin_dir}" "${workload_dependency_cassette}" 1 \
 		|| die "${cell}: workload_dependency cassette drive failed"
 	ifa_det_start_bg "${log_dir}" "projector-${cell}-pre" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-pre" reducer_pid "${bin_dir}/eshu-reducer"
