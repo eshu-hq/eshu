@@ -8,10 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
+	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // TestCommittedRegistrySelectsIfaBlockingGate proves the P4 (#4397)
@@ -107,31 +108,35 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)
 
-	manifest, err := os.ReadFile(filepath.Join(root, "specs", "ifa-materialized-edge-coverage.v1.yaml"))
+	// Read the manifest through the same parser the gate itself uses, rather
+	// than regex-matching YAML text. Two hand-tuned patterns had to agree with
+	// each other, and they agreed wrongly: a ref written single-quoted or as a
+	// block scalar matched NEITHER, so both counts dropped it equally, the
+	// equality check still held, and the family was silently skipped anyway --
+	// the exact failure this test exists to prevent, reached through the
+	// manifest's YAML form. A structural read handles every YAML spelling
+	// because the parser does, and a non-Odù ref is simply skipped instead of
+	// producing a false failure.
+	manifest, err := replaycoverage.LoadManifest(filepath.Join(root, "specs", "ifa-materialized-edge-coverage.v1.yaml"))
 	if err != nil {
-		t.Fatalf("read coverage manifest: %v", err)
+		t.Fatalf("replaycoverage.LoadManifest: %v", err)
 	}
-
-	// Count every ref: line first, then require the odù parse to account for all
-	// of them. A pattern-only floor is not enough: `[a-z0-9-]+` silently skips a
-	// ref written with an underscore, uppercase, or a block scalar, and the
-	// skipped family is then absent from wantDirs while a `>= 10` floor still
-	// passes — the same silent skip this test exists to prevent, reached through
-	// the manifest's ref format instead of a commented-out trigger. Comparing
-	// the two counts fails loudly on a format this parse cannot read, and needs
-	// no update when a family is added.
-	declared := regexp.MustCompile(`(?m)^\s*ref:\s*"`).FindAllString(string(manifest), -1)
-	refs := regexp.MustCompile(`ref:\s*"odu:([a-z0-9-]+)"`).FindAllStringSubmatch(string(manifest), -1)
-	if len(refs) < 10 {
-		t.Fatalf("found %d odù ref(s) in the coverage manifest, want >= 10; the parse has collapsed and every assertion below would pass vacuously", len(refs))
-	}
-	if len(refs) != len(declared) {
-		t.Fatalf("the manifest declares %d ref: line(s) but the odù pattern matched %d; a ref this parse cannot read is being silently skipped, and its family would go unchecked below", len(declared), len(refs))
+	if len(manifest.Coverage) < 10 {
+		t.Fatalf("coverage manifest parsed %d row(s), want >= 10; the load has collapsed and every assertion below would pass vacuously", len(manifest.Coverage))
 	}
 
 	wantDirs := make(map[string]string)
-	for _, match := range refs {
-		ref := match[1]
+	materialized := 0
+	for _, entry := range manifest.Coverage {
+		if !strings.HasPrefix(entry.Surface, "materialized_edges:") {
+			continue
+		}
+		materialized++
+		ref := strings.TrimPrefix(entry.Ref, "odu:")
+		if ref == "" || ref == entry.Ref {
+			t.Errorf("materialized_edges row %q carries ref %q, which is not an odù reference; the cassette directory cannot be derived from it", entry.Surface, entry.Ref)
+			continue
+		}
 		hits, globErr := filepath.Glob(filepath.Join(root, "testdata", "cassettes", "*", ref+".json"))
 		if globErr != nil {
 			t.Fatalf("glob cassette for %s: %v", ref, globErr)
@@ -140,6 +145,9 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 			t.Fatalf("odù ref %q resolves to %d cassette file(s), want exactly 1; the ref-to-directory derivation this test rests on no longer holds", ref, len(hits))
 		}
 		wantDirs[filepath.Base(filepath.Dir(hits[0]))] = ref
+	}
+	if materialized < 10 {
+		t.Fatalf("found %d materialized_edges:* row(s), want >= 10; the surface filter has collapsed and every assertion below would pass vacuously", materialized)
 	}
 	if len(wantDirs) < 10 {
 		t.Fatalf("derived only %d cassette director(ies), want >= 10", len(wantDirs))
