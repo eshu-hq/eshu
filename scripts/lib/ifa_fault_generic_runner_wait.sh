@@ -267,24 +267,27 @@ ifa_fault_wait_for_runner_lease_expiry() {
 	return 1
 }
 
-ifa_fault_require_replacement_runner_lease_audit() {
-	local cell="$1" domain="$2" replacement_pid="$3" captured="$4" values expected result query_rc owner_re
+ifa_fault_wait_for_replacement_runner_lease_audit() {
+	local cell="$1" domain="$2" replacement_pid="$3" captured="$4" budget="$5"
+	local values expected result query_rc owner_re i
 	_ifa_fault_validate_runner_lease_identity "replacement durable lease audit" "${cell}" "${domain}" || return $?
-	[[ "${replacement_pid}" =~ ^[1-9][0-9]*$ ]] || return 2
+	[[ "${replacement_pid}" =~ ^[1-9][0-9]*$ && "${budget}" =~ ^[1-9][0-9]*$ ]] || return 2
 	local dead_owner="${captured#*|}"; dead_owner="${dead_owner#*|}"; dead_owner="${dead_owner%%|*}"
 	local dead_pid="${dead_owner%:*}"; dead_pid="${dead_pid##*:}"
 	_ifa_fault_validate_runner_partition_lease_snapshot "${dead_pid}" "${captured}" || return 2
 	[[ "${replacement_pid}" != "${dead_pid}" ]] || return 2
 	_ifa_fault_runner_partition_lease_values "${captured}" values expected
 	owner_re="^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+:${replacement_pid}:[0-9a-f]{16,32}$"
-	if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold replacement durable lease audit */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(DISTINCT (audit.partition_id, audit.partition_count)) FROM captured JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit ON audit.projection_domain = '${domain}' AND audit.partition_id = captured.partition_id AND audit.partition_count = captured.partition_count WHERE audit.event_kind = 'transition' AND audit.lease_owner ~ '${owner_re}';" \
-		"${compose_file}")"; then :; else query_rc=$?; return "${query_rc}"; fi
-	result="$(_ifa_fault_compact_sql_output "${result}")"
-	[[ "${result}" == "${expected}" ]] || {
-		printf '%s: replacement audit covered %s of %s captured %s leases\n' "${cell}" "${result}" "${expected}" "${domain}" >&2
-		return 1
-	}
+	for i in $(seq 1 "$((budget * 4))"); do
+		if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"/* runner_lease_hold replacement durable lease audit */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(DISTINCT (audit.partition_id, audit.partition_count)) FROM captured JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit ON audit.projection_domain = '${domain}' AND audit.partition_id = captured.partition_id AND audit.partition_count = captured.partition_count WHERE audit.event_kind = 'transition' AND audit.lease_owner ~ '${owner_re}';" \
+			"${compose_file}")"; then :; else query_rc=$?; return "${query_rc}"; fi
+		result="$(_ifa_fault_compact_sql_output "${result}")"
+		[[ "${result}" == "${expected}" ]] && return 0
+		sleep 0.25
+	done
+	printf '%s: replacement audit covered %s of %s captured %s leases\n' "${cell}" "${result}" "${expected}" "${domain}" >&2
+	return 1
 }
 
 ifa_fault_drop_runner_lease_audit() {

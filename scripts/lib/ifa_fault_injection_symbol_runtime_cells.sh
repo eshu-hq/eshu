@@ -191,10 +191,10 @@ _ifa_symbol_runtime_cell_killworker() {
 		|| die "${cell}: replacement did not attempt every captured active lease without changing its dead owner"
 	ifa_fault_wait_for_runner_lease_expiry "${cell}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
 		|| die "${cell}: captured dead-owner leases did not reach the intended expiry boundary"
-	run_drain_gate "${cell}"
-	ifa_fault_require_replacement_runner_lease_audit \
-		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" \
+	ifa_fault_wait_for_replacement_runner_lease_audit \
+		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
 		|| die "${cell}: replacement did not claim every captured partition under its distinct process owner"
+	run_drain_gate "${cell}"
 	ifa_fault_require_runner_leases_reclaimed "${cell}" "${family}" "${durable_snapshot}" \
 		|| die "${cell}: captured dead-owner durable leases were not reclaimed and released"
 	printf '%s: durable reclaim: dead-owner leases stayed fenced until expiry, then replacement PID %s claimed and released them\n' \

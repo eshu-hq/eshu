@@ -467,7 +467,7 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 	[[ "${ifa_runner_lease_audit_owned}" -eq 1 ]] || fail "runner lease audit installation did not register cleanup ownership"
 	mode=attempt; ifa_fault_wait_for_runner_lease_attempt_fenced proof handles_route "${replacement_pid}" "${captured}" 1 || return 1
 	mode=expiry; ifa_fault_wait_for_runner_lease_expiry proof "${captured}" 1 || return 1
-	mode=audit; ifa_fault_require_replacement_runner_lease_audit proof handles_route "${replacement_pid}" "${captured}" || return 1
+	mode=audit; ifa_fault_wait_for_replacement_runner_lease_audit proof handles_route "${replacement_pid}" "${captured}" 1 || return 1
 	mode=reclaimed
 	ifa_fault_require_runner_leases_reclaimed proof handles_route "${captured}" || return 1
 	mode=drop; ifa_fault_cleanup_runner_lease_audit || return 1
@@ -477,7 +477,7 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 	[[ "${cell_source}" == *'ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}"'* &&
 		"${cell_source}" == *'ifa_fault_capture_runner_partition_leases'* &&
 		"${cell_source}" == *'ifa_fault_wait_for_runner_lease_attempt_fenced'* &&
-		"${cell_source}" == *'ifa_fault_require_replacement_runner_lease_audit'* &&
+		"${cell_source}" == *'ifa_fault_wait_for_replacement_runner_lease_audit'* &&
 		"${cell_source}" == *'ifa_fault_require_runner_leases_reclaimed'* ]] \
 		|| fail "symbol-runtime runner cells do not prove durable dead-owner expiry and distinct-owner reclaim"
 	[[ "${cell_source}" == *'ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_before}"'*'ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}"'* ]] \
