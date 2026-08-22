@@ -13,7 +13,7 @@
 #
 # ONE shared drive function for all three rows (they name the SAME
 # IFA_FAMILY_DRIVE_FN/IFA_FAMILY_CASSETTE_VAR -- one cassette, one builder
-# pass, per .trio-notes/build-plan.md's "Settled design"): the trio's rows
+# pass): the trio's rows
 # all come from reducer.ExtractSymbolRuntimeIntentRows
 # (go/internal/reducer/symbol_runtime_refresh_intents.go), which is called
 # inside CodeCallMaterializationHandler.Handle, so driving the cassette once
@@ -29,10 +29,11 @@
 # fresh stack (a genuinely different label) starts, since the whole gate
 # runs every cell sequentially in one shell process. Keying on label instead
 # means "already driven for this SAME fresh stack" is exactly what gets
-# skipped: a repeat call with the identical label is a deliberate no-op
-# (deterministic intent ids, a completed row is never reopened -- build-plan.md
-# "Fixture recipe" / cell-map's "Exactly ONE drive per cell" note), while a new
-# label always drives. The fault-injection gate's own cells
+# skipped: a repeat call with the identical label is a deliberate no-op --
+# shared-projection intent IDs are deterministic and completed rows are
+# never reopened, the same property
+# ifa_fault_injection_sql_cells.sh's fresh-stack precondition comment relies
+# on -- while a new label always drives. The fault-injection gate's own cells
 # (scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh) call this exactly
 # once per cell with that cell's own name as label, so the guard is inert
 # there by construction -- it exists for the determinism gate's repeat-label

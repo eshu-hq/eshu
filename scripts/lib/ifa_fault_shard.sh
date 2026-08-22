@@ -63,10 +63,15 @@
 # cell_baseline (the SHARED, non-family baseline) is the sole writer of
 # digests[baseline] (scripts/lib/ifa_fault_injection_driver.sh's
 # assert_matches_baseline), which every recovery cell reads UNLESS it reads
-# a family-scoped baseline digest instead. Today those carve-outs are
-# deployable_unit, codeowners, repo_dependency, and submodule_pin;
-# each recovery pair reads the digest written by its own family baseline.
-# The deployable_unit family (#5993) additionally runs an
+# a family-scoped baseline digest instead. Every such carve-out is named,
+# by construction, as the non-baseline members of an IFA_FAULT_ATOMIC_GROUPS
+# entry below whose first element is a family-scoped `cell_baseline_<family>`
+# -- read that array for the current roster rather than a prose list here,
+# which has already gone stale more than once as families landed
+# (inheritance, shell_exec, and workload_dependency were each missing from
+# an earlier version of this same sentence, alongside the symbol-runtime
+# trio). Each such recovery pair reads the digest written by its own family
+# baseline. The deployable_unit family (#5993) additionally runs an
 # extra bootstrap-index maintenance pass the shared baseline never runs (see
 # scripts/lib/ifa_fault_injection_deployable_unit_cells.sh's header). A cell
 # reading a family-scoped baseline digest MUST land in the same shard as the

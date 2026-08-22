@@ -32,10 +32,10 @@ IFA_FAMILY_CASSETTE_VAR[runs_in]="symbol_runtime_cassette"
 IFA_FAMILY_EXPECTED_VAR[runs_in]="runs_in_expected_edges"
 
 # go/internal/storage/cypher/canonical_runs_in_edges.go:27. One intent row
-# can fan out to N edges for N Workloads (no LIMIT in the MATCH,
-# .trio-notes/build-plan.md "Expected-edge sets"); the anchor still covers
-# the family's whole write surface -- fan-out changes row-to-edge count, not
-# the MERGE template the fault decorator matches against.
+# can fan out to N edges for N Workloads (no LIMIT in that file's MATCH);
+# the anchor still covers the family's whole write surface -- fan-out
+# changes row-to-edge count, not the MERGE template the fault decorator
+# matches against.
 IFA_FAMILY_ANCHOR[runs_in]="MERGE (func)-[rel:RUNS_IN]->(workload)"
 # custom: no cell_killworker is possible for this family (see blocker_kind
 # comment); its baseline and fail-graph-write cells are hand-written in

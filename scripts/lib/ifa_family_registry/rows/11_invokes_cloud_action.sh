@@ -34,7 +34,7 @@ IFA_FAMILY_EXPECTED_VAR[invokes_cloud_action]="invokes_cloud_action_expected_edg
 # go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go:22.
 # Single relationship type; this anchor covers the family's whole write
 # surface. The CloudAction node id ("cloud-action:" + action) is created
-# inline by this same MERGE, per build-plan.md's "Expected-edge sets" note.
+# inline by this same MERGE (its own ON CREATE clause).
 IFA_FAMILY_ANCHOR[invokes_cloud_action]="MERGE (func)-[rel:INVOKES_CLOUD_ACTION]->(action)"
 # custom: no cell_killworker is possible for this family (see blocker_kind
 # comment); its baseline and fail-graph-write cells are hand-written in

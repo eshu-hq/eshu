@@ -8,8 +8,7 @@
 # variable's value. Same false positive ifa_fault_generic_cells.sh's header
 # documents for the identical pattern.
 # Fault cells for the handles_route (#5995) / runs_in (#6000) /
-# invokes_cloud_action (#5997) trio. Design A (arbiter-ruled, see
-# .trio-notes/build-plan.md "Settled design"): blocker_kind=none for all
+# invokes_cloud_action (#5997) trio. Design A: blocker_kind=none for all
 # three rows, so there is no cell_killworker_<family> here -- a handler-stage
 # kill cell for any of these three would need wait_key=
 # "code_call_materialization" (the only routed fact_work_items.domain for
@@ -31,8 +30,11 @@
 # per-family baselines would replay the identical cassette three times for no
 # additional proof. Its digest is aliased under all three families'
 # digests[baseline_<family>] keys -- deliberate, so no downstream cell dies
-# on an unset baseline digest (a standing failure mode; see
-# .trio-notes/fault-cell-map.md section 6). Each family still gets its own
+# on an unset baseline digest: a FAULT_SHARED_DRIVE=0 family's recovery cell
+# comparing against the wrong (unset or shared) baseline key would die
+# reporting a graph divergence that is really a fixture difference, the
+# exact standing failure mode ifa_fault_generic_baseline_cell.sh's own
+# header documents for the identical shape. Each family still gets its own
 # cell_failgraphwrite_<family>, anchored to its own MERGE, because the
 # once-fault decorator intercepts one Cypher statement at a time and the
 # three families write three different relationship types.

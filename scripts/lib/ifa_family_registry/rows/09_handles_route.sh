@@ -4,8 +4,8 @@
 # handles_route row (#5995). See ../../ifa_family_registry.sh for the schema
 # and every array declaration this file assigns into. Sibling rows: this
 # file's own runs_in (#6000, 10_runs_in.sh) and invokes_cloud_action (#5997,
-# 11_invokes_cloud_action.sh) -- all three share ONE cassette/drive_fn (see
-# S1 in .trio-notes/build-plan.md) because their intent rows come from the
+# 11_invokes_cloud_action.sh) -- all three share ONE cassette/drive_fn
+# because their intent rows come from the
 # SAME production entry point, buildSymbolRuntimeIntentRows
 # (go/internal/reducer/symbol_runtime_refresh_intents.go:66), called inside
 # CodeCallMaterializationHandler.Handle -- the same handler code_calls
@@ -24,8 +24,11 @@
 # wait_stage=handler rows sharing one wait_key, and even if it did not, the
 # cell would observe/kill the SAME handler invocation code_calls' own
 # cell_killworker_code_calls already proves -- not a distinct structural
-# fact (arbiter ruling, .trio-notes/build-plan.md "Settled design"). Recorded
-# faithfully as none, matching sql_relationships' row
+# fact. Full design rationale (Design A, ruled after proving a stronger
+# lock-based blocker was mechanically possible but out of scope -- see the
+# "Disposition" section):
+# docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md.
+# Recorded faithfully as none, matching sql_relationships' row
 # (01_sql_relationships.sh:15) for the identical reason: this family's real
 # fault coverage rests on its own cell_failgraphwrite_handles_route instead.
 IFA_FAMILY_BLOCKER_KIND[handles_route]="none"
@@ -53,8 +56,8 @@ IFA_FAMILY_SHARED_CELL[handles_route]=1
 IFA_FAMILY_DRIVE_FN[handles_route]="ifa_symbol_runtime_drive"
 IFA_FAMILY_ASSERT_FN[handles_route]="ifa_handles_route_assert"
 # SHARED cassette var across all three trio rows -- one cassette, one
-# builder pass (build-plan.md "Settled design"). NOT shared: assert_fn,
-# expected_var, anchor.
+# builder pass (buildSymbolRuntimeIntentRows, cited above). NOT shared:
+# assert_fn, expected_var, anchor.
 IFA_FAMILY_CASSETTE_VAR[handles_route]="symbol_runtime_cassette"
 IFA_FAMILY_EXPECTED_VAR[handles_route]="handles_route_expected_edges"
 
