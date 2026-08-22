@@ -112,7 +112,7 @@ func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 
 	actual, unresolved := handlesRouteRowsToExpectedEdges(rows, endpointIDs, relType)
 	if len(unresolved) > 0 {
-		return false, fmt.Sprintf("odù %q: no workload-materialization Endpoint resolved for %d (repo_id, path) pair(s) HANDLES_ROUTE needs: %v; HANDLES_ROUTE cannot bind without a workload-committed Endpoint at that key", odu.Name, len(unresolved), unresolved)
+		return false, fmt.Sprintf("odù %q: no workload-materialization Endpoint resolved for %d (repo_id, path) pair(s) HANDLES_ROUTE needs: %q; HANDLES_ROUTE cannot bind without a workload-committed Endpoint at that key", odu.Name, len(unresolved), unresolved)
 	}
 
 	if mismatch := compareSymbolRuntimeExpectedEdges(odu.Name, "handles route", expected, actual); mismatch != "" {

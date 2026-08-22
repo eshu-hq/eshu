@@ -4,6 +4,7 @@
 package materializededges
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -48,7 +49,7 @@ func TestHandlesRouteRowsToExpectedEdgesCollapsesMethodDedupe(t *testing.T) {
 
 	edges, unresolved := handlesRouteRowsToExpectedEdges(rows, endpointIDs, "HANDLES_ROUTE")
 	if len(unresolved) != 0 {
-		t.Fatalf("unresolved = %v, want none", unresolved)
+		t.Fatalf("unresolved = %q, want none", unresolved)
 	}
 	if len(edges) != 1 {
 		t.Fatalf("expected exactly 1 collapsed edge for a GET+POST same-path pair, got %d: %+v", len(edges), edges)
@@ -77,7 +78,7 @@ func TestHandlesRouteRowsToExpectedEdgesDistinctPathsStayDistinct(t *testing.T) 
 
 	edges, unresolved := handlesRouteRowsToExpectedEdges(rows, endpointIDs, "HANDLES_ROUTE")
 	if len(unresolved) != 0 {
-		t.Fatalf("unresolved = %v, want none", unresolved)
+		t.Fatalf("unresolved = %q, want none", unresolved)
 	}
 	if len(edges) != 2 {
 		t.Fatalf("expected 2 distinct edges for 2 distinct paths, got %d: %+v", len(edges), edges)
@@ -105,7 +106,7 @@ func TestHandlesRouteRowsToExpectedEdgesAssertsMethodOnlyWhenUnambiguous(t *test
 
 	edges, unresolved := handlesRouteRowsToExpectedEdges(rows, endpointIDs, "HANDLES_ROUTE")
 	if len(unresolved) != 0 {
-		t.Fatalf("unresolved = %v, want none", unresolved)
+		t.Fatalf("unresolved = %q, want none", unresolved)
 	}
 	if len(edges) != 2 {
 		t.Fatalf("expected 2 edges, got %d: %+v", len(edges), edges)
@@ -142,7 +143,7 @@ func TestHandlesRouteRowsToExpectedEdgesReportsUnresolvedEndpoint(t *testing.T) 
 		t.Fatalf("expected 0 edges when no Endpoint resolves, got %d: %+v", len(edges), edges)
 	}
 	if len(unresolved) != 1 || unresolved[0] != "repo-1\x00/widgets" {
-		t.Fatalf("unresolved = %v, want exactly [\"repo-1\\x00/widgets\"]", unresolved)
+		t.Fatalf("unresolved = %q, want exactly [\"repo-1\\x00/widgets\"]", unresolved)
 	}
 }
 
@@ -291,5 +292,28 @@ func TestHandlesRouteFamilyMissingRegistryTypeIsCaught(t *testing.T) {
 	}
 	if !strings.Contains(detail, "HANDLES_ROUTE") {
 		t.Errorf("detail = %q, want it to name the missing HANDLES_ROUTE registry type", detail)
+	}
+}
+
+// TestHandlesRouteUnresolvedDiagnosticEscapesNUL pins the gate's own failure
+// message, not a test helper's. handlesRouteRowsToExpectedEdges keys unresolved
+// pairs as repoID + "\x00" + path, and the guard in
+// resolveHandlesRouteMaterializedEdges reports that slice to whoever is reading
+// gate output. Rendered with %v the NUL reaches the terminal and the CI log raw,
+// where it truncates or corrupts the surrounding line; %q escapes it. The
+// message only ever prints on failure, which is exactly when it has to be
+// legible, so this asserts the rendering rather than trusting it.
+func TestHandlesRouteUnresolvedDiagnosticEscapesNUL(t *testing.T) {
+	t.Parallel()
+
+	unresolved := []string{"repo-1\x00/widgets"}
+	rendered := fmt.Sprintf("odù %q: no workload-materialization Endpoint resolved for %d (repo_id, path) pair(s) HANDLES_ROUTE needs: %q; HANDLES_ROUTE cannot bind without a workload-committed Endpoint at that key",
+		"ifa-symbol-runtime-family", len(unresolved), unresolved)
+
+	if strings.ContainsRune(rendered, 0) {
+		t.Fatalf("diagnostic carries a raw NUL byte; it must be escaped so gate output stays readable: %q", rendered)
+	}
+	if !strings.Contains(rendered, `repo-1\x00/widgets`) {
+		t.Fatalf("diagnostic does not show the escaped key; got %s", rendered)
 	}
 }

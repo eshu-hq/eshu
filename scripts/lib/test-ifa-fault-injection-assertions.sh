@@ -47,6 +47,20 @@ require_fixture() {
 	[[ "$(_ifa_count_code_matches "${needle}" "${fixtures_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (fixtures lib): ${needle}, or it survives only inside a comment"
 }
+# require_catalog pins a needle that lives in the numbered cell catalog,
+# docs/internal/ifa-fault-cell-catalog.md, rather than in the gate script. The
+# catalog was a comment block inside verify-ifa-fault-injection.sh until that
+# script hit its 500-line cap; require() is deliberately strict about the gate
+# script so that moving anything else out still fails, and this is the narrow,
+# named exception for the one block that did move -- the same shape as
+# require_fixture above. It is a plain fixed-string match because the catalog is
+# entirely prose: _ifa_count_code_matches skips comment lines and would find
+# nothing there.
+require_catalog() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${cell_catalog_doc}" \
+		|| fail "missing ${label} (cell catalog): ${needle}"
+}
 require_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_count_code_matches "${needle}" "${fault_lib}")" -ge 1 ]] \
@@ -186,7 +200,15 @@ _ifa_pin_probe_run() {
 # whole multi-line invocation with `rg -U`, braces included, so commenting any
 # inner line breaks the match. It is comment-immune by construction, but it
 # cannot pass a single-line probe.
-IFA_PIN_PROSE_HELPERS="require require_framing require_delivery_cells_multiline"
+# require_catalog binds prose in docs/internal/ifa-fault-cell-catalog.md, the
+# numbered cell list that moved out of the gate script when it hit its 500-line
+# cap (#6212). Both of its needles were measured against the precondition above
+# before it was added here: each matches the catalog exactly once, each matches
+# the gate script zero times, and the catalog has zero code-portion lines because
+# it is entirely markdown. The wrong-FILE trap the comment warns about is what
+# the first of those three measurements rules out -- a pin aimed at nothing also
+# reports zero code matches.
+IFA_PIN_PROSE_HELPERS="require require_framing require_delivery_cells_multiline require_catalog"
 assert_pin_helpers_bind_code() {
 	# BEHAVIOURAL, not textual. Earlier versions of this gate discovered helpers
 	# with a regex and judged them by substring-matching their bodies. Both halves
