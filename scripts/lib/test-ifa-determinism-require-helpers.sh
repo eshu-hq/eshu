@@ -92,3 +92,21 @@ _ifa_det_assert_lib_under_500() {
 	[[ "$(wc -l <"${lib_path}" | tr -d '[:space:]')" -lt 500 ]] \
 		|| fail "${lib_var} (${lib_path}) must stay under 500 lines"
 }
+
+# _ifa_det_assert_lib_cap_floor floors the *_lib loop that
+# _ifa_det_assert_lib_under_500 runs inside, NOT the private-data scan's
+# private_targets array: that array is ALSO fed by a separate registry-row/pin
+# glob (14 rows + 14 pins + ifa_family_registry.sh + script + BASH_SOURCE[0] =
+# 31 on its own), so if the *_lib derivation collapsed to zero,
+# private_targets would still clear its own floor and this function's caller
+# would run zero times with nothing red -- exactly the hole a caller-supplied
+# count, incremented ONLY inside the loop it guards, closes. 18 is
+# hand-written, below the 22 *_lib vars this mirror currently declares
+# (verified by sourcing this mirror's own var-declaration lines in a subshell
+# and counting `compgen -v | rg '_lib$'`), never derived from the expression
+# it guards.
+_ifa_det_assert_lib_cap_floor() {
+	local checked="$1"
+	[[ "${checked}" -ge 18 ]] \
+		|| fail "500-line cap covered only ${checked} lib(s); the *_lib derivation has collapsed"
+}

@@ -17,9 +17,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-determinism.sh"
 lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
-lifecycle_lib="${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"
+lifecycle_lib="${repo_root}/scripts/lib/ifa_determinism_lifecycle.sh"; code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"  # packed for the 500-line cap
 delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
-code_call_lib="${repo_root}/scripts/lib/ifa_code_call_live.sh"
 documentation_lib="${repo_root}/scripts/lib/ifa_documentation_live.sh"
 deployable_unit_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live.sh"
 deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
@@ -36,7 +35,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -65,7 +64,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -87,7 +86,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -448,10 +447,12 @@ run_ifa_determinism_teeth_cases
 # detection is unchanged -- verified alternative by alternative.
 private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
 declare -a private_targets=("${script}" "${BASH_SOURCE[0]}")
+lib_cap_checked=0 # floors the *_lib loop itself -- see _ifa_det_assert_lib_cap_floor's own comment
 while IFS= read -r private_lib_var; do
 	private_targets+=("${!private_lib_var}")
-	_ifa_det_assert_lib_under_500 "${private_lib_var}" "${!private_lib_var}"
+	_ifa_det_assert_lib_under_500 "${private_lib_var}" "${!private_lib_var}"; lib_cap_checked=$((lib_cap_checked + 1))
 done < <(compgen -v | rg '_lib$' | sort)
+_ifa_det_assert_lib_cap_floor "${lib_cap_checked}"
 # The registry, its rows and its hand-derived pins are not bound to *_lib vars,
 # so the derivation cannot see them. Globbed, so a seventh row is covered the
 # day it lands.
@@ -485,7 +486,7 @@ done
 printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
 
 # shellcheck source=scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh
-source "${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"
+source "${pin_behaviour_cases_lib}"
 run_ifa_determinism_pin_behaviour_cases
 # Pin this gate's OWN call site: deleting the three lines above would otherwise
 # remove the whole behavioural pin check with this mirror still green, and the

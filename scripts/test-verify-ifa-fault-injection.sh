@@ -50,20 +50,20 @@ deployable_unit_diagnostics_lib="${repo_root}/scripts/lib/ifa_deployable_unit_li
 deployable_unit_converge_lib="${repo_root}/scripts/lib/ifa_deployable_unit_live_converge.sh"
 deployable_unit_lock_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
 deployable_unit_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
-review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"
+review_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-review-cases.sh"; codeowners_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"  # packed for the 500-line cap
 deployable_unit_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
 documentation_barrier_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh"
 documentation_barrier_cleanup_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh"
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
-rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"
-entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"
+rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"; submodule_pin_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"  # packed for the 500-line cap
+entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"; marker_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"  # packed for the 500-line cap
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 # shellcheck disable=SC2034  # read indirectly by the syntax-check loop below.
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 shard_lib="${repo_root}/scripts/lib/ifa_fault_shard.sh"
-shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"; repo_dependency_lease_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh"  # packed for the 500-line cap
-deployable_unit_ordering_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh"
+shard_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-shard-cases.sh"; repo_dependency_lease_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh"; repo_dependency_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"  # packed for the 500-line cap
+deployable_unit_ordering_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh"; workload_dependency_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"  # packed for the 500-line cap
 generic_cells_lib="${repo_root}/scripts/lib/ifa_fault_generic_cells.sh"
 generic_baseline_lib="${repo_root}/scripts/lib/ifa_fault_generic_baseline_cell.sh"
 table_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_table_lock.sh"
@@ -78,7 +78,7 @@ generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-m
 generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
 generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -417,8 +417,8 @@ source "${code_call_cases_lib}"
 # codeowners_ownership_edges (#5992) hermetic cases, same split, and they own
 # their own existence/syntax checks for the cells library they exercise.
 # shellcheck source=scripts/lib/test-ifa-fault-injection-codeowners-cases.sh
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-codeowners-cases.sh"
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh"; source "${repo_dependency_lease_cases_lib}"; source "${repo_root}/scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh"  # family case modules packed for the 500-line cap
+source "${codeowners_cases_lib}"
+source "${repo_dependency_cases_lib}"; source "${repo_dependency_lease_cases_lib}"; source "${workload_dependency_cases_lib}"  # family case modules packed for the 500-line cap
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh
 source "${documentation_barrier_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh
@@ -427,7 +427,7 @@ run_ifa_documentation_live_static_cases
 run_ifa_fault_injection_review_cases
 run_ifa_fault_injection_codeowners_cases
 run_ifa_fault_injection_repo_dependency_cases; run_ifa_fault_injection_workload_dependency_cases  # family case modules packed for the 500-line cap
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
+source "${submodule_pin_cases_lib}"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
 
 # The unchanged Layer 4 acceptance: digest equality against baseline plus a
 # hard failure (never a retry) on divergence.
@@ -479,7 +479,7 @@ assert_no_private_data "${script}"
 # structural verifier stays under 500 lines (mirroring the deployable-unit
 # and review-cases splits above).
 # shellcheck source=scripts/lib/test-ifa-fault-injection-marker-cases.sh
-source "${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"
+source "${marker_cases_lib}"
 run_ifa_fault_injection_marker_cases
 # shellcheck source=scripts/lib/test-ifa-fault-injection-generic-modules.sh
 source "${generic_modules_lib}"
