@@ -150,7 +150,7 @@ cell_baseline_symbol_runtime() {
 _ifa_symbol_runtime_cell_killworker() {
 	local family="$1" expected_var="$2" assert_fn="$3"
 	local cell="killworker_${family}" cell_start projector_pid reducer_before reducer_after
-	local holder_before holder_after waiter_count control_snapshot durable_snapshot
+	local holder_before waiter_count control_snapshot durable_snapshot
 	cell_start=$(date +%s)
 	log "cell kill-worker-after-runner-lease-wait (${family}): fresh stack"
 	fresh_stack "${cell}"
@@ -183,22 +183,14 @@ _ifa_symbol_runtime_cell_killworker() {
 	ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}" 4 durable_snapshot \
 		|| die "${cell}: killed reducer's orphaned claims did not commit active durable leases"
 	ifa_fault_install_runner_lease_audit "${cell}" "${family}" "${durable_snapshot}" \
-		|| die "${cell}: could not install the test-local durable lease transition audit"
-	ifa_fault_start_runner_lease_hold "${cell}" "${family}" holder_after \
-		|| die "${cell}: could not reacquire the runner lease key for the expiry fence"
+		|| die "${cell}: could not install the test-local durable lease attempt and transition audit"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after env \
 		ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${bin_dir}/eshu-reducer"
-	ifa_fault_require_runner_leases_expiry_fenced \
-		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" \
-		|| die "${cell}: replacement bypassed the active durable lease owned by the dead reducer"
-	waiter_count="$(ifa_fault_wait_for_claimed_projection_intent \
-		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${CLAIMED_ROW_WAIT_TIMEOUT}" "${family}" "${cell}")" \
-		|| die "${cell}: replacement did not wait on the runner key after the dead-owner lease expired"
+	ifa_fault_wait_for_runner_lease_attempt_fenced \
+		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "${cell}: replacement did not attempt every captured active lease without changing its dead owner"
 	ifa_fault_wait_for_runner_lease_expiry "${cell}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
 		|| die "${cell}: captured dead-owner leases did not reach the intended expiry boundary"
-	ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_after}" \
-		|| die "${cell}: expiry-fence holder release or replacement waiter drain failed"
 	run_drain_gate "${cell}"
 	ifa_fault_require_replacement_runner_lease_audit \
 		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" \

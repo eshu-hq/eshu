@@ -431,14 +431,15 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 				"${sql}" == *":${dead_pid}:[0-9a-f]{16,32}"* ]] || return 1
 			printf '0|8|%s|200.000000|100.000000' "${dead_owner}"
 			;;
-		preexpiry)
-			[[ "${sql}" == *"runner_lease_hold pre-expiry durable lease fence"* &&
+		attempt)
+			[[ "${sql}" == *"runner_lease_hold pre-expiry replacement attempt fence"* &&
 				"${sql}" == *"(0,8,'${dead_owner}',to_timestamp(200.000000),to_timestamp(100.000000))"* &&
+				"${sql}" == *"audit.event_kind = 'attempt'"* &&
 				"${sql}" == *":${replacement_pid}:[0-9a-f]{16,32}"* ]] || return 1
-			printf '1|1|0'
+			printf '1|1|1'
 			;;
 		install)
-			[[ "${sql}" == *"CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRIGGER}"* && "${sql}" == *"CREATE TABLE ${_IFA_RUNNER_LEASE_AUDIT_TABLE}"* ]] || return 1
+			[[ "${sql}" == *"CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} BEFORE INSERT"* && "${sql}" == *"CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} AFTER INSERT OR UPDATE"* && "${sql}" == *"event_kind TEXT NOT NULL"* ]] || return 1
 			;;
 		expiry)
 			[[ "${sql}" == *"runner_lease_hold wait captured expiry"* && "${sql}" == *"MAX(captured.dead_expiry)"* ]] || return 1
@@ -447,10 +448,11 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 		audit)
 			[[ "${sql}" == *"runner_lease_hold replacement durable lease audit"* &&
 				"${sql}" == *"JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit"* &&
+				"${sql}" == *"audit.event_kind = 'transition'"* &&
 				"${sql}" == *":${replacement_pid}:[0-9a-f]{16,32}"* ]] || return 1
 			printf '1'
 			;;
-		drop) [[ "${sql}" == *"DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRIGGER}"* ]] || return 1 ;;
+		drop) [[ "${sql}" == *"DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER}"* && "${sql}" == *"DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER}"* ]] || return 1 ;;
 		reclaimed)
 			[[ "${sql}" == *"runner_lease_hold post-reclaim durable lease release"* ]] || return 1
 			printf '1|1|1'
@@ -460,10 +462,9 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 
 	ifa_fault_capture_runner_partition_leases proof handles_route "${dead_pid}" 2 captured || return 1
 	[[ "${captured}" == "0|8|${dead_owner}|200.000000|100.000000" ]] || return 1
-	mode=preexpiry
-	ifa_fault_require_runner_leases_expiry_fenced proof handles_route "${replacement_pid}" "${captured}" || return 1
 	mode=install; ifa_fault_install_runner_lease_audit proof handles_route "${captured}" || return 1
 	[[ "${ifa_runner_lease_audit_owned}" -eq 1 ]] || fail "runner lease audit installation did not register cleanup ownership"
+	mode=attempt; ifa_fault_wait_for_runner_lease_attempt_fenced proof handles_route "${replacement_pid}" "${captured}" 1 || return 1
 	mode=expiry; ifa_fault_wait_for_runner_lease_expiry proof "${captured}" 1 || return 1
 	mode=audit; ifa_fault_require_replacement_runner_lease_audit proof handles_route "${replacement_pid}" "${captured}" || return 1
 	mode=reclaimed
@@ -474,12 +475,13 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 	cell_source="$(<"${repo_root}/scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh")"
 	[[ "${cell_source}" == *'ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}"'* &&
 		"${cell_source}" == *'ifa_fault_capture_runner_partition_leases'* &&
-		"${cell_source}" == *'ifa_fault_require_runner_leases_expiry_fenced'* &&
+		"${cell_source}" == *'ifa_fault_wait_for_runner_lease_attempt_fenced'* &&
 		"${cell_source}" == *'ifa_fault_require_replacement_runner_lease_audit'* &&
 		"${cell_source}" == *'ifa_fault_require_runner_leases_reclaimed'* ]] \
 		|| fail "symbol-runtime runner cells do not prove durable dead-owner expiry and distinct-owner reclaim"
 	[[ "${cell_source}" == *'ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_before}"'*'ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}"'* ]] \
 		|| fail "symbol-runtime runner cell does not release the holder before capturing the killed waiter's committed durable lease"
+	[[ "${cell_source}" != *'holder_after'* ]] || fail "replacement runner is hidden behind a second advisory holder instead of exercising the durable lease fence"
 	[[ "$(<"${repo_root}/scripts/verify-ifa-fault-injection.sh")" == *'ifa_fault_cleanup_runner_lease_audit'* ]] \
 		|| fail "top-level EXIT cleanup does not remove a caller-owned runner lease audit"
 )

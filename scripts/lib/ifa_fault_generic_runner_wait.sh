@@ -6,7 +6,8 @@
 _IFA_RUNNER_LEASE_NAMESPACE='shared_projection_partition_leases'
 _IFA_RUNNER_LEASE_AUDIT_TABLE="ifa_runner_lease_audit_$$"
 _IFA_RUNNER_LEASE_AUDIT_FUNCTION="ifa_runner_lease_audit_capture_$$"
-_IFA_RUNNER_LEASE_AUDIT_TRIGGER="ifa_runner_lease_audit_capture_$$"
+_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER="ifa_runner_lease_audit_attempt_$$"
+_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER="ifa_runner_lease_audit_transition_$$"
 ifa_runner_lease_audit_owned=0
 ifa_runner_lease_audit_cell=""
 
@@ -203,29 +204,31 @@ ifa_fault_capture_runner_partition_leases() {
 	return 1
 }
 
-ifa_fault_require_runner_leases_expiry_fenced() {
-	local cell="$1" domain="$2" replacement_pid="$3" captured="$4"
-	local values expected result query_rc owner_re
+ifa_fault_wait_for_runner_lease_attempt_fenced() {
+	local cell="$1" domain="$2" replacement_pid="$3" captured="$4" budget="$5"
+	local values expected result query_rc owner_re i
 	_ifa_fault_validate_runner_lease_identity "runner durable lease fence" "${cell}" "${domain}" || return $?
-	[[ "${replacement_pid}" =~ ^[1-9][0-9]*$ ]] || return 2
+	[[ "${replacement_pid}" =~ ^[1-9][0-9]*$ && "${budget}" =~ ^[1-9][0-9]*$ ]] || return 2
 	local dead_owner="${captured#*|}"; dead_owner="${dead_owner#*|}"; dead_owner="${dead_owner%%|*}"
 	local dead_pid="${dead_owner%:*}"; dead_pid="${dead_pid##*:}"
 	_ifa_fault_validate_runner_partition_lease_snapshot "${dead_pid}" "${captured}" || return 2
 	[[ "${replacement_pid}" != "${dead_pid}" ]] || return 2
 	_ifa_fault_runner_partition_lease_values "${captured}" values expected
 	owner_re="^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+:${replacement_pid}:[0-9a-f]{16,32}$"
-	if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold pre-expiry durable lease fence */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(*)::text || '|' || count(*) FILTER (WHERE lease.lease_owner = captured.dead_owner AND lease.lease_expires_at > clock_timestamp())::text || '|' || count(*) FILTER (WHERE lease.lease_owner ~ '${owner_re}')::text FROM captured LEFT JOIN shared_projection_partition_leases AS lease ON lease.projection_domain = '${domain}' AND lease.partition_id = captured.partition_id AND lease.partition_count = captured.partition_count;" \
-		"${compose_file}")"; then :; else
-		query_rc=$?
-		printf '%s: pre-expiry durable lease fence query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
-		return "${query_rc}"
-	fi
-	result="$(_ifa_fault_compact_sql_output "${result}")"
-	[[ "${result}" == "${expected}|${expected}|0" ]] || {
-		printf '%s: replacement reducer bypassed or could not prove the active dead-owner lease fence (observed %s)\n' "${cell}" "${result}" >&2
-		return 1
-	}
+	for i in $(seq 1 "$((budget * 4))"); do
+		if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"/* runner_lease_hold pre-expiry replacement attempt fence */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT (SELECT count(lease.partition_id) FROM captured JOIN shared_projection_partition_leases AS lease ON lease.projection_domain = '${domain}' AND lease.partition_id = captured.partition_id AND lease.partition_count = captured.partition_count)::text || '|' || (SELECT count(*) FROM captured JOIN shared_projection_partition_leases AS lease ON lease.projection_domain = '${domain}' AND lease.partition_id = captured.partition_id AND lease.partition_count = captured.partition_count WHERE lease.lease_owner = captured.dead_owner AND lease.lease_expires_at > clock_timestamp())::text || '|' || (SELECT count(DISTINCT (audit.partition_id, audit.partition_count)) FROM captured JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit ON audit.projection_domain = '${domain}' AND audit.partition_id = captured.partition_id AND audit.partition_count = captured.partition_count WHERE audit.event_kind = 'attempt' AND audit.lease_owner ~ '${owner_re}' AND audit.observed_at < captured.dead_expiry)::text;" \
+			"${compose_file}")"; then :; else
+			query_rc=$?
+			printf '%s: pre-expiry replacement attempt query FAILED (exit %s); state is unknown\n' "${cell}" "${query_rc}" >&2
+			return "${query_rc}"
+		fi
+		result="$(_ifa_fault_compact_sql_output "${result}")"
+		[[ "${result}" == "${expected}|${expected}|${expected}" ]] && return 0
+		sleep 0.25
+	done
+	printf '%s: replacement did not attempt every captured lease while the dead-owner rows remained active (observed %s)\n' "${cell}" "${result}" >&2
+	return 1
 }
 
 ifa_fault_install_runner_lease_audit() {
@@ -236,7 +239,7 @@ ifa_fault_install_runner_lease_audit() {
 	_ifa_fault_validate_runner_partition_lease_snapshot "${dead_pid}" "${captured}" || return 2
 	ifa_runner_lease_audit_owned=1; ifa_runner_lease_audit_cell="${cell}"
 	if ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold install durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE}; CREATE TABLE ${_IFA_RUNNER_LEASE_AUDIT_TABLE} (projection_domain TEXT NOT NULL, partition_id INTEGER NOT NULL, partition_count INTEGER NOT NULL, lease_owner TEXT NOT NULL, observed_at TIMESTAMPTZ NOT NULL, lease_expires_at TIMESTAMPTZ NOT NULL); CREATE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF NEW.lease_owner IS NOT NULL AND NEW.lease_expires_at IS NOT NULL THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES (NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); END IF; RETURN NEW; END \$\$; CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRIGGER} AFTER INSERT OR UPDATE ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}();" \
+		"/* runner_lease_hold install durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} ON shared_projection_partition_leases; DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE}; CREATE TABLE ${_IFA_RUNNER_LEASE_AUDIT_TABLE} (event_kind TEXT NOT NULL, projection_domain TEXT NOT NULL, partition_id INTEGER NOT NULL, partition_count INTEGER NOT NULL, lease_owner TEXT NOT NULL, observed_at TIMESTAMPTZ NOT NULL, lease_expires_at TIMESTAMPTZ NOT NULL); CREATE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF TG_WHEN = 'BEFORE' THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('attempt', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); RETURN NEW; END IF; IF NEW.lease_owner IS NOT NULL AND NEW.lease_expires_at IS NOT NULL THEN INSERT INTO ${_IFA_RUNNER_LEASE_AUDIT_TABLE} VALUES ('transition', NEW.projection_domain, NEW.partition_id, NEW.partition_count, NEW.lease_owner, clock_timestamp(), NEW.lease_expires_at); END IF; RETURN NEW; END \$\$; CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} BEFORE INSERT ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); CREATE TRIGGER ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} AFTER INSERT OR UPDATE ON shared_projection_partition_leases FOR EACH ROW EXECUTE FUNCTION ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}();" \
 		"${compose_file}" >/dev/null; then
 		return 0
 	fi
@@ -275,7 +278,7 @@ ifa_fault_require_replacement_runner_lease_audit() {
 	_ifa_fault_runner_partition_lease_values "${captured}" values expected
 	owner_re="^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+:${replacement_pid}:[0-9a-f]{16,32}$"
 	if result="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold replacement durable lease audit */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(DISTINCT (audit.partition_id, audit.partition_count)) FROM captured JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit ON audit.projection_domain = '${domain}' AND audit.partition_id = captured.partition_id AND audit.partition_count = captured.partition_count WHERE audit.lease_owner ~ '${owner_re}' AND audit.observed_at >= captured.dead_expiry;" \
+		"/* runner_lease_hold replacement durable lease audit */ WITH captured(partition_id, partition_count, dead_owner, dead_expiry, dead_updated) AS (VALUES ${values}) SELECT count(DISTINCT (audit.partition_id, audit.partition_count)) FROM captured JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit ON audit.projection_domain = '${domain}' AND audit.partition_id = captured.partition_id AND audit.partition_count = captured.partition_count WHERE audit.event_kind = 'transition' AND audit.lease_owner ~ '${owner_re}' AND audit.observed_at >= captured.dead_expiry;" \
 		"${compose_file}")"; then :; else query_rc=$?; return "${query_rc}"; fi
 	result="$(_ifa_fault_compact_sql_output "${result}")"
 	[[ "${result}" == "${expected}" ]] || {
@@ -287,7 +290,7 @@ ifa_fault_require_replacement_runner_lease_audit() {
 ifa_fault_drop_runner_lease_audit() {
 	local cell="$1" query_rc
 	if ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"/* runner_lease_hold drop durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE};" \
+		"/* runner_lease_hold drop durable lease audit */ DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_ATTEMPT_TRIGGER} ON shared_projection_partition_leases; DROP TRIGGER IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TRANSITION_TRIGGER} ON shared_projection_partition_leases; DROP FUNCTION IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_FUNCTION}(); DROP TABLE IF EXISTS ${_IFA_RUNNER_LEASE_AUDIT_TABLE};" \
 		"${compose_file}" >/dev/null; then
 		ifa_runner_lease_audit_owned=0; ifa_runner_lease_audit_cell=""
 		return 0

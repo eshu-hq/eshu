@@ -244,7 +244,8 @@ summary, and dead-letter count used by the gate.
 
 ## Post-merge owner-fencing correction
 
-PR #6214 was squash-merged at `b00c1ce12e45946cbcb9f63bcba17b970c60d199`
+PR #6214 was squash-merged as `ebd59d7520fd39aff02fb19b74abba0563de5f32`
+from reviewed head `b00c1ce12e45946cbcb9f63bcba17b970c60d199`
 before three review threads were addressed. Two were shell failure-path defects:
 the independent `code_calls` query collapsed its original exit status, and a
 failed holder-release precheck left the holder client tracked. The third was a
@@ -261,13 +262,15 @@ setting changes in production.
 The live cells use an eight-second lease TTL only to keep the expiry proof
 bounded. After the first reducer is killed, its blocked PostgreSQL claims are
 allowed to commit, and the cell captures their exact partition keys, owner,
-expiry, and update timestamp. A test-local trigger then records lease-owner
-transitions. The replacement starts while the captured leases are still active;
-the cell proves those rows remain owned by the dead process, waits for their
-actual timestamps to expire, releases the advisory holder, and finally requires
-the audit to show the distinct replacement owner claimed every captured key
-after expiry. The final table state must have every captured lease released and
-updated after its post-kill dead-owner capture.
+expiry, and update timestamp. Test-local triggers record both lease-upsert
+attempts and committed owner transitions. The replacement starts without a
+second advisory holder while the captured leases are still active. PostgreSQL
+runs the row-level `BEFORE INSERT` trigger before resolving the upsert conflict,
+so the cell requires the distinct replacement owner to attempt every captured
+key before expiry while all rows remain actively dead-owned. It then waits for
+the recorded timestamps and requires committed replacement-owner transitions
+only after expiry. The final table state must have every captured lease released
+and updated after its post-kill dead-owner capture.
 
 The exact source head `b16c62db7cbeeb95f2d07fdf2d462d80da67e140`
 passed the full shard with RC 0:
@@ -317,3 +320,5 @@ PostgreSQL references:
 
 - [The `pg_locks` view](https://www.postgresql.org/docs/current/view-pg-locks.html)
 - [`pg_stat_activity` and statistics snapshots](https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-ACTIVITY-VIEW)
+- [Trigger behavior for `INSERT ... ON CONFLICT DO UPDATE`](https://www.postgresql.org/docs/current/trigger-definition.html)
+- [`INSERT` conflict conditions and `BEFORE INSERT` effects](https://www.postgresql.org/docs/current/sql-insert.html)
