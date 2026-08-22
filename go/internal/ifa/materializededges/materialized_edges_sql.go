@@ -114,9 +114,21 @@ type sqlRelationshipExpectedEdgesFile struct {
 }
 
 // loadSQLRelationshipExpectedEdges reads and parses one hand-derived
-// expected-edge-set fixture file. The decoder disallows unknown fields so a
-// typo in a fixture (e.g. "identiy" instead of "identity") fails loudly at
-// load time instead of silently decoding to a zero value.
+// expected-edge-set fixture file. Despite its name (kept for the SQL family
+// that introduced it -- renaming would ripple across a dozen-plus call sites
+// and comments in this package's tests, not "a few"), this is the SHARED
+// loader every family's guard calls through LoadExpectedEdges
+// (materialized_edges_assert.go:140), including handles_route/runs_in/
+// invokes_cloud_action. Its own error strings are therefore family-neutral
+// ("expected edges", never "sql relationship expected edges"): a mutation-test
+// pass on the symbol-runtime trio found the old wording surfacing as "sql
+// relationship expected edges ... has no edges" while debugging an
+// invokes_cloud_action fixture, which is the wrong artifact name at exactly
+// the moment a reader needs the right one.
+//
+// The decoder disallows unknown fields so a typo in a fixture (e.g. "identiy"
+// instead of "identity") fails loudly at load time instead of silently
+// decoding to a zero value.
 //
 // json.Decoder.Decode reads exactly one JSON value off the stream and
 // stops -- unlike json.Unmarshal, it does not require the input to end
@@ -128,19 +140,19 @@ type sqlRelationshipExpectedEdgesFile struct {
 func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdge, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is a checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return nil, fmt.Errorf("ifa: read sql relationship expected edges %s: %w", path, err)
+		return nil, fmt.Errorf("ifa: read expected edges %s: %w", path, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed sqlRelationshipExpectedEdgesFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("ifa: parse sql relationship expected edges %s: %w", path, err)
+		return nil, fmt.Errorf("ifa: parse expected edges %s: %w", path, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has trailing content after its JSON object", path)
+		return nil, fmt.Errorf("ifa: expected edges %s has trailing content after its JSON object", path)
 	}
 	if len(parsed.Edges) == 0 {
-		return nil, fmt.Errorf("ifa: sql relationship expected edges %s has no edges", path)
+		return nil, fmt.Errorf("ifa: expected edges %s has no edges", path)
 	}
 	return parsed.Edges, nil
 }

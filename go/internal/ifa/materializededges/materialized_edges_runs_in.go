@@ -31,16 +31,30 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // into how many Workloads the repository DEFINES, because that admission
 // runs in a wholly separate handler over different facts
 // (workload_materialization, not code_call_materialization). The live
-// Cypher's MATCH is (Repository)-[:DEFINES]->(Workload) with NO LIMIT, so ONE
-// intent row fans OUT to N graph edges for N Workloads. A guard that
-// converted intent rows to ExpectedEdge one-for-one would silently miss
-// every edge past the first Workload. This guard instead derives the fan-out
-// offline: it runs the SAME reducer.ExtractWorkloadCandidates ->
-// reducer.BuildProjectionRows seam the live workload-materialization handler
-// runs over the Odù's own facts, reads the resulting WorkloadRows (an
-// exported field), and emits one ExpectedEdge per (function_id,
-// workload_id) pair -- exactly the cross product a live MATCH with no LIMIT
-// produces.
+// Cypher's MATCH is (Repository)-[:DEFINES]->(Workload) with NO LIMIT
+// (go/internal/storage/cypher/canonical_runs_in_edges.go:26), so the WRITE
+// TEMPLATE imposes no cap on how many Workloads one row could bind to. This
+// guard therefore derives its fan-out offline rather than assuming 1-to-1: it
+// runs the SAME reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRows
+// seam the live workload-materialization handler runs over the Odù's own
+// facts, reads the resulting WorkloadRows (an exported field), and emits one
+// ExpectedEdge per (function_id, workload_id) pair actually present in that
+// projection -- never a hardcoded count.
+//
+// What the write template PERMITS and what today's reducer candidate path
+// CAN PRODUCE for one repository are two different claims, and this guard
+// only exercises the second one live. ExtractWorkloadCandidates aggregates
+// every workload signal into one repoSignals entry keyed by repo_id alone
+// (go/internal/reducer/candidate_loader.go:37,50,69), and BuildProjectionRows
+// emits exactly one WorkloadRow per WorkloadCandidate
+// (go/internal/reducer/projection.go:259-301, one loop iteration per
+// candidate, deduped by workloadID) -- so a single repository yields AT MOST
+// ONE Workload through today's candidate path. The N>1-Workload cross
+// product the no-LIMIT template permits is real and DEFENDED here (the
+// fan-out is derived from the actual projection, never assumed 1-to-1), but
+// it is not EXERCISED end to end by any live fixture, because the reducer's
+// own candidate extraction cannot currently hand one repository more than one
+// Workload to fan out against.
 //
 // The fixture carries two distinct route-bound handlers (HandleWidgets and
 // HandleHealth, on distinct paths) so this is not a one-edge assertion that
@@ -48,11 +62,13 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // "processed only the first one": a regression that stopped after the
 // first resolved handler would drop the second edge, and the exact-set
 // comparison below would report it as MISSING by name. The repository
-// DEFINES exactly one Workload in this fixture, so the fan-out per row
-// stays 1-to-1 here (2 rows, 2 edges); the N>1 Workload cross product is
-// proven deterministically by a synthetic offline unit test instead
-// (materialized_edges_runs_in_test.go), not by adding a second Workload to
-// this live fixture.
+// DEFINES exactly one Workload in this fixture -- the only shape today's
+// candidate path can produce for one repo -- so the fan-out per row stays
+// 1-to-1 here (2 rows, 2 edges); the N>1 Workload cross product this guard
+// would perform if the projection ever contained one is proven only by a
+// synthetic offline unit test that hand-builds a two-entry workloadIDs map
+// under one repo key (materialized_edges_runs_in_test.go), never by a live
+// fixture -- no live fixture can produce that shape today.
 func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, runsInFamily)
 	if err != nil {
@@ -120,7 +136,13 @@ func runsInWorkloadIDsByRepo(rows []reducer.WorkloadRow) map[string][]string {
 // This is the one function a synthetic unit test drives directly to prove
 // the N-Workload fan-out deterministically (one row, two workload ids for
 // its repo, must yield exactly two ExpectedEdges), without needing a live
-// backend or a second-workload fixture.
+// backend or a second-workload fixture -- and it has to be synthetic: no live
+// fixture can currently produce a two-Workload repository, because
+// reducer.ExtractWorkloadCandidates/BuildProjectionRows cap one repository at
+// one Workload today (see resolveRunsInMaterializedEdges's doc comment). The
+// write template this function's cross product mirrors has no such cap, so
+// the synthetic case defends a real capability of the MERGE, not a
+// hypothetical one.
 func runsInRowsToExpectedEdges(
 	rows []reducer.SharedProjectionIntentRow,
 	workloadIDs map[string][]string,

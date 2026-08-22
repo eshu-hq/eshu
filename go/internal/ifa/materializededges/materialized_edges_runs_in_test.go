@@ -22,13 +22,27 @@ func runsInTestRow(functionID, repoID string) reducer.SharedProjectionIntentRow 
 }
 
 // TestRunsInRowsToExpectedEdgesFansOutOverMultipleWorkloads is the required
-// offline proof of the N-Workload fan-out: the live Cypher's
-// (Repository)-[:DEFINES]->(Workload) MATCH carries no LIMIT
-// (canonical_runs_in_edges.go), so ONE RUNS_IN intent row -- which has no
-// visibility into how many Workloads its repository DEFINES -- produces one
-// graph edge PER Workload at write time. This test proves the guard's own
-// fan-out reproduces that cross product deterministically: one row, two
+// offline proof of the N-Workload fan-out the write TEMPLATE permits: the
+// live Cypher's (Repository)-[:DEFINES]->(Workload) MATCH carries no LIMIT
+// (go/internal/storage/cypher/canonical_runs_in_edges.go:26), so ONE RUNS_IN
+// intent row -- which has no visibility into how many Workloads its
+// repository DEFINES -- WOULD produce one graph edge PER Workload at write
+// time if a repository ever had more than one. This test proves the guard's
+// own fan-out reproduces that cross product deterministically: one row, two
 // Workloads for its repo, must yield exactly two ExpectedEdges.
+//
+// It has to be synthetic (hand-built workloadIDs, not a live cassette):
+// reducer.ExtractWorkloadCandidates aggregates workload signals per repo_id
+// alone and reducer.BuildProjectionRows emits exactly one WorkloadRow per
+// candidate (go/internal/reducer/candidate_loader.go,
+// go/internal/reducer/projection.go:259-301), so today's reducer candidate
+// path cannot hand one repository more than one Workload -- no live fixture
+// can currently exhibit the shape this test defends against. That does not
+// make the test unnecessary: the no-LIMIT MATCH is a real property of the
+// write template regardless of what the candidate path can produce today, so
+// this guard still needs to prove it derives fan-out from the real
+// projection rather than assuming 1-to-1, and this is the only way to
+// exercise that logic against N>1 until the candidate path can produce it.
 func TestRunsInRowsToExpectedEdgesFansOutOverMultipleWorkloads(t *testing.T) {
 	t.Parallel()
 

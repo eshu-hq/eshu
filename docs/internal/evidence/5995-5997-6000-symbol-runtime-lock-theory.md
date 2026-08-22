@@ -183,10 +183,9 @@ three families, not a silent absence -- see
 mechanism this document proves -- a transaction-scoped
 `pg_advisory_xact_lock` on `shared_projection_partition_leases` keyed by
 domain, used as a `runner_lease_hold` blocker -- is the de-risked design for
-closing that gap. No follow-up issue number is recorded here: filing one needs
-the repo owner's agreement, requested but not yet received as of this writing.
-A future follow-up should name the mechanism (`runner_lease_hold`) rather than
-re-run this proof from scratch.
+closing that gap, tracked as #6208. A future follow-up should name the
+mechanism (`runner_lease_hold`) and cite #6208 rather than re-run this proof
+from scratch.
 
 ## Limits
 
