@@ -58,6 +58,29 @@ func (e *concurrencyProbeExecutor) currentConcurrency() int {
 	return e.current
 }
 
+func waitForProbeSaturation(
+	t *testing.T,
+	probe *concurrencyProbeExecutor,
+	exec *BackpressureExecutor,
+	maxInFlight int,
+) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if probe.currentConcurrency() >= maxInFlight {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := exec.InFlight(); got > int64(maxInFlight) {
+		t.Fatalf("InFlight() = %d while saturating, want <= %d", got, maxInFlight)
+	}
+	if got := probe.currentConcurrency(); got != maxInFlight {
+		t.Fatalf("currentConcurrency() = %d before release, want %d (callers never saturated the permit ceiling)", got, maxInFlight)
+	}
+}
+
 func (e *concurrencyProbeExecutor) Execute(ctx context.Context, _ Statement) error {
 	e.enter()
 	defer e.leave()
@@ -130,19 +153,7 @@ func TestBackpressureExecutorBoundsConcurrentWrites(t *testing.T) {
 	// executor's InFlight() permit count instead raced that window and left the
 	// observed peak at maxInFlight-1. The executor caps permits at maxInFlight,
 	// so currentConcurrency() saturates at exactly maxInFlight and never above.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if probe.currentConcurrency() >= maxInFlight {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if got := exec.InFlight(); got > maxInFlight {
-		t.Fatalf("InFlight() = %d while saturating, want <= %d", got, maxInFlight)
-	}
-	if got := probe.currentConcurrency(); got != maxInFlight {
-		t.Fatalf("currentConcurrency() = %d before release, want %d (callers never saturated the permit ceiling)", got, maxInFlight)
-	}
+	waitForProbeSaturation(t, probe, exec, maxInFlight)
 	close(probe.release)
 	wg.Wait()
 
@@ -245,13 +256,7 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 		}()
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if exec.InFlight() >= maxInFlight {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	waitForProbeSaturation(t, probe, exec, maxInFlight)
 	close(probe.release)
 	wg.Wait()
 
@@ -260,6 +265,9 @@ func TestBackpressureExecutorGroupRespectsBound(t *testing.T) {
 	// grouped writes instead of sharing the concurrent permit pool.
 	if peak := probe.peakConcurrency(); peak != maxInFlight {
 		t.Fatalf("peak concurrent grouped writes = %d, want exactly %d (bound breached or writes were serialized below the ceiling)", peak, maxInFlight)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d after grouped-write drain, want 0 (permit leak)", got)
 	}
 }
 
@@ -282,18 +290,15 @@ func TestBackpressureExecutorProbeRespectsBound(t *testing.T) {
 		}()
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if exec.InFlight() >= maxInFlight {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	waitForProbeSaturation(t, probe, exec, maxInFlight)
 	close(probe.release)
 	wg.Wait()
 
 	if peak := probe.peakConcurrency(); peak != maxInFlight {
 		t.Fatalf("peak concurrent probes = %d, want exactly %d (bound breached or probes were serialized below the ceiling)", peak, maxInFlight)
+	}
+	if got := exec.InFlight(); got != 0 {
+		t.Fatalf("InFlight() = %d after probe drain, want 0 (permit leak)", got)
 	}
 }
 

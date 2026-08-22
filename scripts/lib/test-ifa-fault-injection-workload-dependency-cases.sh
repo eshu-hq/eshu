@@ -87,30 +87,33 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	done
 	reopen_body="$(awk '/^ifa_workload_dependency_live_reopen_materialization\(\)/,/^}/' "${live_lib}")"
 	production_reopen_body="$(awk '/^const reopenSucceededReducerWorkQuery = `/,/^`/' "${replay_source}")"
+	local -a reopen_lifecycle=(
+		"SET status = 'pending'|SET status = 'pending'"
+		"attempt_count = 0|attempt_count = 0"
+		"container_image_identity_v2_authorized_status = CASE|container_image_identity_v2_authorized_status = CASE"
+		"WHEN container_image_identity_v2_required THEN 'pending'|WHEN container_image_identity_v2_required THEN 'pending'"
+		"container_image_identity_v3_authorized_status = CASE|container_image_identity_v3_authorized_status = CASE"
+		"WHEN container_image_identity_v3_required THEN 'pending'|WHEN container_image_identity_v3_required THEN 'pending'"
+		"lease_owner = NULL|lease_owner = NULL"
+		"claim_until = NULL|claim_until = NULL"
+		"visible_at = \$1|visible_at = now()"
+		"next_attempt_at = NULL|next_attempt_at = NULL"
+		"updated_at = \$1|updated_at = now()"
+		"reopened_at = \$1|reopened_at = now()"
+		"failure_class = NULL|failure_class = NULL"
+		"failure_message = NULL|failure_message = NULL"
+		"failure_details = NULL|failure_details = NULL"
+	)
 	workload_dependency_reopen_matches_production_lifecycle() {
-		local candidate="$1" production_clause fixture_clause
-		while IFS='|' read -r production_clause fixture_clause; do
+		local candidate="$1" lifecycle_entry production_clause fixture_clause
+		for lifecycle_entry in "${reopen_lifecycle[@]}"; do
+			production_clause="${lifecycle_entry%%|*}"
+			fixture_clause="${lifecycle_entry#*|}"
 			[[ -n "${production_clause}" ]] || continue
 			printf '%s\n' "${production_reopen_body}" | rg --fixed-strings --quiet -- "${production_clause}" \
 				&& printf '%s\n' "${candidate}" | rg --fixed-strings --quiet -- "${fixture_clause}" \
 				|| return 1
-		done <<'REOPEN_LIFECYCLE'
-SET status = 'pending'|SET status = 'pending'
-attempt_count = 0|attempt_count = 0
-container_image_identity_v2_authorized_status = CASE|container_image_identity_v2_authorized_status = CASE
-WHEN container_image_identity_v2_required THEN 'pending'|WHEN container_image_identity_v2_required THEN 'pending'
-container_image_identity_v3_authorized_status = CASE|container_image_identity_v3_authorized_status = CASE
-WHEN container_image_identity_v3_required THEN 'pending'|WHEN container_image_identity_v3_required THEN 'pending'
-lease_owner = NULL|lease_owner = NULL
-claim_until = NULL|claim_until = NULL
-visible_at = $1|visible_at = now()
-next_attempt_at = NULL|next_attempt_at = NULL
-updated_at = $1|updated_at = now()
-reopened_at = $1|reopened_at = now()
-failure_class = NULL|failure_class = NULL
-failure_message = NULL|failure_message = NULL
-failure_details = NULL|failure_details = NULL
-REOPEN_LIFECYCLE
+		done
 	}
 	workload_dependency_reopen_matches_production_lifecycle "${reopen_body}" \
 		|| fail "workload_dependency reopen does not mirror the production succeeded-row lifecycle reset"
