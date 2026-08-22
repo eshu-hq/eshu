@@ -49,6 +49,15 @@ func handlesRouteExpectedEdgesPath(repoRoot string) string {
 // live workload-materialization handler runs over the Odù's own facts,
 // reading the resulting EndpointRows (an exported field) rather than
 // inventing or hardcoding the hash.
+//
+// The fixture's GET+POST /widgets route pair, sharing one handler, proves
+// the collapse LIVE (not only in a synthetic unit test): a regression that
+// added http_method to the graph MERGE identity would split that pair into
+// two edges here, and the exact-set comparison below would report it as an
+// EXTRA by name. The fixture's second, distinct GET /healthz route (a
+// different handler on a different path) additionally proves this is not a
+// one-edge assertion that could not tell "processed every route" apart from
+// "processed only the first one".
 func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, handlesRouteFamily)
 	if err != nil {
@@ -104,6 +113,17 @@ func handlesRouteEndpointIDsByRepoPath(rows []reducer.APIEndpointRow) map[string
 	return out
 }
 
+// handlesRouteEdgeAccumulator collects every distinct http_method observed
+// across the intent rows that collapse onto one edge identity, in
+// first-occurrence order (the extractor's own row order is already
+// deterministic, so preserving it keeps this function deterministic too).
+type handlesRouteEdgeAccumulator struct {
+	functionID string
+	repoID     string
+	path       string
+	methods    map[string]struct{}
+}
+
 // handlesRouteRowsToExpectedEdges dedupes HANDLES_ROUTE upsert rows onto
 // their true edge identity (function_entity_id, repo_id, path) -- the same
 // identity the graph MERGE uses, which omits http_method -- resolving each
@@ -111,37 +131,64 @@ func handlesRouteEndpointIDsByRepoPath(rows []reducer.APIEndpointRow) map[string
 // sorted list of (repo_id, path) keys it could not resolve, so the caller can
 // report every gap at once rather than failing on the first.
 //
+// It also asserts http_method as a SET-only Property, but ONLY when every
+// row that collapsed onto an identity agrees on exactly one method: a route
+// served by a single method (e.g. GET-only /healthz) has a deterministic
+// stored http_method, safe to assert. A route served by two-or-more methods
+// on the same path (GET+POST /widgets) has NO documented write-order
+// guarantee for which row's SET wins (family-semantics.md Sec.4), so
+// asserting a value there would be flaky by construction -- that edge's
+// Properties stays nil.
+//
 // This is the one function a synthetic unit test drives directly to prove
 // the GET+POST same-path collapse deterministically (two rows sharing an
 // identity but differing only in http_method must yield exactly one
-// ExpectedEdge), without needing a live backend or a second fixture route.
+// ExpectedEdge with no asserted http_method), without needing a live backend
+// or a second fixture route.
 func handlesRouteRowsToExpectedEdges(
 	rows []reducer.SharedProjectionIntentRow,
 	endpointIDs map[string]string,
 	relationshipType string,
 ) (edges []ExpectedEdge, unresolved []string) {
-	seen := make(map[string]struct{}, len(rows))
-	unresolvedSet := make(map[string]struct{})
+	order := make([]string, 0, len(rows))
+	byIdentity := make(map[string]*handlesRouteEdgeAccumulator, len(rows))
 	for _, row := range rows {
 		functionID := anyToStringValue(row.Payload["function_entity_id"])
 		repoID := anyToStringValue(row.Payload["repo_id"])
 		path := anyToStringValue(row.Payload["path"])
+		httpMethod := anyToStringValue(row.Payload["http_method"])
 		identityKey := functionID + "\x00" + repoID + "\x00" + path
-		if _, dup := seen[identityKey]; dup {
-			continue
-		}
-		seen[identityKey] = struct{}{}
 
-		endpointID, ok := endpointIDs[repoID+"\x00"+path]
+		entry, ok := byIdentity[identityKey]
 		if !ok {
-			unresolvedSet[repoID+"\x00"+path] = struct{}{}
+			entry = &handlesRouteEdgeAccumulator{functionID: functionID, repoID: repoID, path: path, methods: map[string]struct{}{}}
+			byIdentity[identityKey] = entry
+			order = append(order, identityKey)
+		}
+		if httpMethod != "" {
+			entry.methods[httpMethod] = struct{}{}
+		}
+	}
+
+	unresolvedSet := make(map[string]struct{})
+	for _, identityKey := range order {
+		entry := byIdentity[identityKey]
+		endpointID, ok := endpointIDs[entry.repoID+"\x00"+entry.path]
+		if !ok {
+			unresolvedSet[entry.repoID+"\x00"+entry.path] = struct{}{}
 			continue
 		}
-		edges = append(edges, ExpectedEdge{
+		edge := ExpectedEdge{
 			RelationshipType: relationshipType,
-			SourceEntityID:   functionID,
+			SourceEntityID:   entry.functionID,
 			TargetEntityID:   endpointID,
-		})
+		}
+		if len(entry.methods) == 1 {
+			for method := range entry.methods {
+				edge.Properties = map[string]string{"http_method": method}
+			}
+		}
+		edges = append(edges, edge)
 	}
 	for key := range unresolvedSet {
 		unresolved = append(unresolved, key)

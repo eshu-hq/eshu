@@ -1,11 +1,19 @@
 {
   "odu": "odu:ifa-symbol-runtime-family",
-  "note": "Hand-derived from reducer.ExtractSymbolRuntimeIntentRows's real extraction path over symbol_runtime_family_odu.go's fixture, filtered to the handles_route domain's upsert rows. Two intent-level dedupe facts collapse here to ONE edge: HandleWidgets serves exactly one route entry (GET /widgets) in this fixture, so no method collapse is exercised by this live fixture at all -- the GET+POST same-path collapse (two intent rows, one shared partition key, ONE resulting graph edge because the MERGE identity is (Function, HANDLES_ROUTE, Endpoint) with no method dimension) is proven deterministically by a synthetic offline unit test instead (materialized_edges_handles_route_test.go), never by asserting http_method here. source_entity_id is HandleWidgets' canonical Function uid (content.CanonicalEntityID). target_entity_id is the :Endpoint node's true MERGE-key id, stableAPIEndpointID(repo_id, workload_id, path) -- NOT the (repo_id, path) property pair the write-time MATCH uses -- derived here via the SAME reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRows seam the live workload-materialization handler runs, independently reproduced (not hand-typed) by TestSymbolRuntimeFamilyEndpointIDLiteral.",
+  "note": "Hand-derived from reducer.ExtractSymbolRuntimeIntentRows's real extraction path over symbol_runtime_family_odu.go's fixture, filtered to the handles_route domain's upsert rows. This fixture now proves the method-identity collapse LIVE, not only in a synthetic offline test: HandleWidgets serves TWO route entries (GET /widgets, POST /widgets) that produce two distinct intent rows sharing one partition key, but both dedupe onto the SAME (function_entity_id, repo_id, path) edge identity -- the identity the graph MERGE actually uses, which has no method dimension -- so they collapse to exactly ONE edge here. A regression that added http_method to the HANDLES_ROUTE MERGE identity would split this pair into two graph edges, and this exact-set assertion would catch it by name (MISSING one edge is impossible; EXTRA would appear instead). HandleHealth serves a second, distinct route (GET /healthz) on a distinct path, proving this is not merely a one-edge fixture that cannot distinguish 'processed everything' from 'processed the first route only'. http_method is deliberately NOT asserted via Properties on the /widgets edge: with GET and POST both present, whichever row's write lands last wins the stored value with no documented ordering guarantee (family-semantics.md Sec.4), so asserting it here would be flaky by construction. source_entity_id is each handler's canonical Function uid (content.CanonicalEntityID); target_entity_id is each :Endpoint node's true MERGE-key id, stableAPIEndpointID(repo_id, workload_id, path), derived via the SAME reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRows seam the live workload-materialization handler runs, independently reproduced (not hand-typed) by TestSymbolRuntimeFamilyWorkloadAndEndpointIDLiterals.",
   "edges": [
     {
       "relationship_type": "HANDLES_ROUTE",
       "source_entity_id": "content-entity:e_b802e874e4a3",
       "target_entity_id": "endpoint:f8c7b9f9a7ebdd90ea596f67"
+    },
+    {
+      "relationship_type": "HANDLES_ROUTE",
+      "source_entity_id": "content-entity:e_2dc1055a2f3d",
+      "target_entity_id": "endpoint:12ae7628fc25a1abb76d2d2f",
+      "properties": {
+        "http_method": "GET"
+      }
     }
   ]
 }

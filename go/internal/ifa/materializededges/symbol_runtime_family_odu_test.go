@@ -112,8 +112,8 @@ func TestSymbolRuntimeFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ifa.LoadSymbolRuntimeFamilyOdu: %v", err)
 	}
-	if len(odu.Facts) != 7 {
-		t.Fatalf("expected 7 facts (1 repository, 2 file, 2 content_entity, 2 shared_followup), got %d", len(odu.Facts))
+	if len(odu.Facts) != 8 {
+		t.Fatalf("expected 8 facts (1 repository, 2 file, 3 content_entity, 2 shared_followup), got %d", len(odu.Facts))
 	}
 	kinds := make(map[string]int, len(odu.Facts))
 	for _, fact := range odu.Facts {
@@ -122,14 +122,14 @@ func TestSymbolRuntimeFamilyOduPreservesEnvelopeFields(t *testing.T) {
 			t.Errorf("fact %s (%s) declares no schema_version; this guard would be vacuous", fact.StableFactKey, fact.FactKind)
 		}
 	}
-	want := map[string]int{"repository": 1, "file": 2, "content_entity": 2, "shared_followup": 2}
+	want := map[string]int{"repository": 1, "file": 2, "content_entity": 3, "shared_followup": 2}
 	if !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("fact-kind breakdown = %v, want %v", kinds, want)
 	}
 }
 
 // TestSymbolRuntimeFamilyCanonicalEntityIDLiterals independently reproduces
-// (rather than trusts hand-typed) the two Function uid literals pinned in
+// (rather than trusts hand-typed) the three Function uid literals pinned in
 // symbol_runtime_family_odu.go, mirroring
 // TestShellExecCanonicalEntityIDLiterals.
 func TestSymbolRuntimeFamilyCanonicalEntityIDLiterals(t *testing.T) {
@@ -144,6 +144,17 @@ func TestSymbolRuntimeFamilyCanonicalEntityIDLiterals(t *testing.T) {
 	)
 	if got != ifa.SymbolRuntimeFamilyHandlerFunctionUID {
 		t.Errorf("HandleWidgets canonical uid = %q, want %q", got, ifa.SymbolRuntimeFamilyHandlerFunctionUID)
+	}
+
+	got = content.CanonicalEntityID(
+		ifa.SymbolRuntimeFamilyRepoID,
+		ifa.SymbolRuntimeFamilyServerPath,
+		"Function",
+		ifa.SymbolRuntimeFamilyHealthFunctionName,
+		ifa.SymbolRuntimeFamilyHealthFunctionLine,
+	)
+	if got != ifa.SymbolRuntimeFamilyHealthFunctionUID {
+		t.Errorf("HandleHealth canonical uid = %q, want %q", got, ifa.SymbolRuntimeFamilyHealthFunctionUID)
 	}
 
 	got = content.CanonicalEntityID(
@@ -178,11 +189,21 @@ func TestSymbolRuntimeFamilyWorkloadAndEndpointIDLiterals(t *testing.T) {
 		t.Errorf("WorkloadID = %q, want %q", got, ifa.SymbolRuntimeFamilyWorkloadID)
 	}
 
-	if len(projection.EndpointRows) != 1 {
-		t.Fatalf("expected exactly 1 APIEndpointRow, got %d: %+v", len(projection.EndpointRows), projection.EndpointRows)
+	if len(projection.EndpointRows) != 2 {
+		t.Fatalf("expected exactly 2 APIEndpointRows (one per distinct path), got %d: %+v", len(projection.EndpointRows), projection.EndpointRows)
 	}
-	if got := projection.EndpointRows[0].EndpointID; got != ifa.SymbolRuntimeFamilyEndpointID {
-		t.Errorf("EndpointID = %q, want %q", got, ifa.SymbolRuntimeFamilyEndpointID)
+	wantEndpointIDs := map[string]string{
+		"/widgets": ifa.SymbolRuntimeFamilyEndpointID,
+		"/healthz": ifa.SymbolRuntimeFamilyHealthEndpointID,
+	}
+	for _, row := range projection.EndpointRows {
+		want, ok := wantEndpointIDs[row.Path]
+		if !ok {
+			t.Fatalf("unexpected endpoint path %q in projection: %+v", row.Path, row)
+		}
+		if row.EndpointID != want {
+			t.Errorf("EndpointID for path %q = %q, want %q", row.Path, row.EndpointID, want)
+		}
 	}
 }
 

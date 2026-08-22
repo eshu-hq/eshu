@@ -82,6 +82,50 @@ func TestHandlesRouteRowsToExpectedEdgesDistinctPathsStayDistinct(t *testing.T) 
 	}
 }
 
+// TestHandlesRouteRowsToExpectedEdgesAssertsMethodOnlyWhenUnambiguous proves
+// the asymmetry a live regression needs to be catchable: a route served by
+// exactly one method gets its http_method asserted as a Property (safe,
+// deterministic), while a route served by two-or-more methods on the same
+// path does NOT (the write-order-dependent case), even when both shapes are
+// compared in the same call.
+func TestHandlesRouteRowsToExpectedEdgesAssertsMethodOnlyWhenUnambiguous(t *testing.T) {
+	t.Parallel()
+
+	rows := []reducer.SharedProjectionIntentRow{
+		handlesRouteTestRow("content-entity:widgets", "repo-1", "/widgets", "GET"),
+		handlesRouteTestRow("content-entity:widgets", "repo-1", "/widgets", "POST"),
+		handlesRouteTestRow("content-entity:healthz", "repo-1", "/healthz", "GET"),
+	}
+	endpointIDs := map[string]string{
+		"repo-1\x00/widgets": "endpoint:widgets",
+		"repo-1\x00/healthz": "endpoint:healthz",
+	}
+
+	edges, unresolved := handlesRouteRowsToExpectedEdges(rows, endpointIDs, "HANDLES_ROUTE")
+	if len(unresolved) != 0 {
+		t.Fatalf("unresolved = %v, want none", unresolved)
+	}
+	if len(edges) != 2 {
+		t.Fatalf("expected 2 edges, got %d: %+v", len(edges), edges)
+	}
+
+	byTarget := make(map[string]ExpectedEdge, len(edges))
+	for _, e := range edges {
+		byTarget[e.TargetEntityID] = e
+	}
+
+	multiMethod := byTarget["endpoint:widgets"]
+	if len(multiMethod.Properties) != 0 {
+		t.Errorf("multi-method /widgets edge asserted Properties %v, want none (write-order dependent, unsafe to assert)", multiMethod.Properties)
+	}
+
+	singleMethod := byTarget["endpoint:healthz"]
+	wantProps := map[string]string{"http_method": "GET"}
+	if !reflect.DeepEqual(singleMethod.Properties, wantProps) {
+		t.Errorf("single-method /healthz edge Properties = %v, want %v (deterministic, safe to assert)", singleMethod.Properties, wantProps)
+	}
+}
+
 // TestHandlesRouteRowsToExpectedEdgesReportsUnresolvedEndpoint proves a row
 // whose (repo_id, path) has no committed Endpoint is reported as unresolved
 // rather than silently dropped or given a zero-value target.

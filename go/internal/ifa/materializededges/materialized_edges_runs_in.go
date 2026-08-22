@@ -41,6 +41,18 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // exported field), and emits one ExpectedEdge per (function_id,
 // workload_id) pair -- exactly the cross product a live MATCH with no LIMIT
 // produces.
+//
+// The fixture carries two distinct route-bound handlers (HandleWidgets and
+// HandleHealth, on distinct paths) so this is not a one-edge assertion that
+// could not distinguish "processed every route-bound function" from
+// "processed only the first one": a regression that stopped after the
+// first resolved handler would drop the second edge, and the exact-set
+// comparison below would report it as MISSING by name. The repository
+// DEFINES exactly one Workload in this fixture, so the fan-out per row
+// stays 1-to-1 here (2 rows, 2 edges); the N>1 Workload cross product is
+// proven deterministically by a synthetic offline unit test instead
+// (materialized_edges_runs_in_test.go), not by adding a second Workload to
+// this live fixture.
 func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, runsInFamily)
 	if err != nil {

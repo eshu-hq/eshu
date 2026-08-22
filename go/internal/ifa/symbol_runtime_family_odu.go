@@ -4,9 +4,7 @@
 package ifa
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -73,20 +71,29 @@ const (
 	SymbolRuntimeFamilyDockerfilePath = "Dockerfile"
 	SymbolRuntimeFamilyServerPath     = "server.go"
 
-	// SymbolRuntimeFamilyHandlerFunctionName/Line and
+	// SymbolRuntimeFamilyHandlerFunctionName/Line,
+	// SymbolRuntimeFamilyHealthFunctionName/Line, and
 	// SymbolRuntimeFamilyCallerFunctionName/Line are the (name, start line)
-	// pair for the two Function entities this Odù declares:
-	// HandleWidgets resolves the HANDLES_ROUTE/RUNS_IN route entry, InvokeAWS
-	// contains the two INVOKES_CLOUD_ACTION call sites (one catalog hit, one
-	// non-catalog miss).
+	// triples for the three Function entities this Odù declares, at three
+	// disjoint spans: HandleWidgets [10,20] resolves BOTH route_entries on
+	// /widgets (GET and POST -- the intra-fixture method-collapse proof),
+	// HandleHealth [22,24] resolves the single GET /healthz route (the
+	// distinct-path, distinct-handler proof RUNS_IN's fan-out needs to be
+	// distinguishable from "only the first route was processed"), and
+	// InvokeAWS [30,40] contains the two INVOKES_CLOUD_ACTION call sites (one
+	// catalog hit, one non-catalog miss).
 	SymbolRuntimeFamilyHandlerFunctionName = "HandleWidgets"
 	SymbolRuntimeFamilyHandlerFunctionLine = 10
 	SymbolRuntimeFamilyHandlerFunctionEnd  = 20
+	SymbolRuntimeFamilyHealthFunctionName  = "HandleHealth"
+	SymbolRuntimeFamilyHealthFunctionLine  = 22
+	SymbolRuntimeFamilyHealthFunctionEnd   = 24
 	SymbolRuntimeFamilyCallerFunctionName  = "InvokeAWS"
 	SymbolRuntimeFamilyCallerFunctionLine  = 30
 	SymbolRuntimeFamilyCallerFunctionEnd   = 40
 
-	// SymbolRuntimeFamilyHandlerFunctionUID and
+	// SymbolRuntimeFamilyHandlerFunctionUID,
+	// SymbolRuntimeFamilyHealthFunctionUID, and
 	// SymbolRuntimeFamilyCallerFunctionUID are
 	// content.CanonicalEntityID(SymbolRuntimeFamilyRepoID,
 	// SymbolRuntimeFamilyServerPath, "Function", <name>, <line>): the
@@ -102,15 +109,24 @@ const (
 	// reproduced by TestSymbolRuntimeFamilyCanonicalEntityIDLiterals,
 	// mirroring ShellExecFamilyDeployFunctionUID.
 	SymbolRuntimeFamilyHandlerFunctionUID = "content-entity:e_b802e874e4a3"
+	SymbolRuntimeFamilyHealthFunctionUID  = "content-entity:e_2dc1055a2f3d"
 	SymbolRuntimeFamilyCallerFunctionUID  = "content-entity:e_952ea1843457"
 
-	// SymbolRuntimeFamilyRoutePath and SymbolRuntimeFamilyRouteFramework are
-	// the single route entry HandleWidgets resolves, read identically by the
+	// SymbolRuntimeFamilyRoutePath/RouteMethod/RouteMethodPost are the
+	// GET+POST /widgets route pair HandleWidgets resolves -- two intent rows
+	// sharing one partition key that MUST collapse to ONE graph edge, the
+	// live proof that http_method carries no identity in the HANDLES_ROUTE
+	// MERGE. SymbolRuntimeFamilyHealthRoutePath/RouteMethod is the single
+	// GET /healthz route HandleHealth resolves, on a distinct path with a
+	// distinct handler. All three route entries are read identically by the
 	// workload-side APIEndpointRow derivation and the code-side
 	// handlesRouteEntries.
-	SymbolRuntimeFamilyRoutePath      = "/widgets"
-	SymbolRuntimeFamilyRouteMethod    = "GET"
-	SymbolRuntimeFamilyRouteFramework = "net_http"
+	SymbolRuntimeFamilyRoutePath       = "/widgets"
+	SymbolRuntimeFamilyRouteMethod     = "GET"
+	SymbolRuntimeFamilyRouteMethodPost = "POST"
+	SymbolRuntimeFamilyHealthRoutePath = "/healthz"
+	SymbolRuntimeFamilyHealthMethod    = "GET"
+	SymbolRuntimeFamilyRouteFramework  = "net_http"
 
 	// SymbolRuntimeFamilyCloudActionService/Method are the one (service,
 	// method) call InvokeAWS makes that IS in the closed
@@ -133,15 +149,17 @@ const (
 	// back to the repository's Name (WorkloadName is never set here).
 	SymbolRuntimeFamilyWorkloadID = "workload:" + symbolRuntimeFamilyRepoName
 
-	// SymbolRuntimeFamilyEndpointID is
-	// stableAPIEndpointID(SymbolRuntimeFamilyRepoID,
-	// SymbolRuntimeFamilyWorkloadID, SymbolRuntimeFamilyRoutePath):
-	// "endpoint:" + hex(sha256(repo_id+"|"+workload_id+"|"+path))[:24 hex
-	// chars] (go/internal/reducer/projection_helpers.go). stableAPIEndpointID
-	// itself is unexported; this literal is independently reproduced (not
-	// hand-typed) by TestSymbolRuntimeFamilyEndpointIDLiteral, which computes
-	// the same sha256 over the same three inputs.
-	SymbolRuntimeFamilyEndpointID = "endpoint:f8c7b9f9a7ebdd90ea596f67"
+	// SymbolRuntimeFamilyEndpointID and SymbolRuntimeFamilyHealthEndpointID
+	// are stableAPIEndpointID(SymbolRuntimeFamilyRepoID,
+	// SymbolRuntimeFamilyWorkloadID, <path>): "endpoint:" +
+	// hex(sha256(repo_id+"|"+workload_id+"|"+path))[:24 hex chars]
+	// (go/internal/reducer/projection_helpers.go). stableAPIEndpointID itself
+	// is unexported; both literals are independently reproduced (not
+	// hand-typed) by TestSymbolRuntimeFamilyWorkloadAndEndpointIDLiterals,
+	// which computes the same sha256 over the same three inputs for each
+	// path.
+	SymbolRuntimeFamilyEndpointID       = "endpoint:f8c7b9f9a7ebdd90ea596f67"
+	SymbolRuntimeFamilyHealthEndpointID = "endpoint:12ae7628fc25a1abb76d2d2f"
 
 	// SymbolRuntimeFamilyActionID is cloudActionIDPrefix + the resolved
 	// action: "cloud-action:" + SymbolRuntimeFamilyCloudAction.
@@ -177,12 +195,21 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 
 // symbolRuntimeFamilyOdu carries one repository, one Dockerfile file (the
 // workload signal), one server file (route entries + function calls +
-// functions), two content_entity Function facts, and two shared_followup
+// functions), three content_entity Function facts, and two shared_followup
 // facts -- wired so reducer.ExtractSymbolRuntimeIntentRows derives exactly
-// one HANDLES_ROUTE row, one RUNS_IN row, and one INVOKES_CLOUD_ACTION row
-// (the second, non-catalog function call yields nothing), and
-// reducer.ExtractWorkloadCandidates/BuildProjectionRows derive exactly one
-// Workload and one Endpoint for the same repository.
+// four HANDLES_ROUTE upsert rows (GET+POST /widgets, GET /healthz -- three
+// route entries, but /widgets' two methods share one intent-level dedupe
+// key's method dimension so they remain two distinct rows) collapsing to
+// TWO graph edges, TWO RUNS_IN rows (HandleWidgets dedupes its own GET+POST
+// pair to one row; HandleHealth is a second, distinct row) collapsing to
+// TWO graph edges (one Workload, so no further fan-out), and one
+// INVOKES_CLOUD_ACTION row (the second, non-catalog function call yields
+// nothing), and reducer.ExtractWorkloadCandidates/BuildProjectionRows derive
+// exactly one Workload and two Endpoints (one per distinct path) for the
+// same repository. The GET+POST /widgets pair is the live proof that
+// http_method carries no identity in the HANDLES_ROUTE graph MERGE: a
+// regression that added it to the MERGE identity would split this pair into
+// two graph edges, and the exact-set live assertion would catch it by name.
 func symbolRuntimeFamilyOdu() CatalogOdu {
 	sourceRunID := symbolRuntimeFamilySourceRunID
 	localPath := SymbolRuntimeFamilyLocalPath
@@ -204,6 +231,7 @@ func symbolRuntimeFamilyOdu() CatalogOdu {
 			symbolRuntimeFamilyDockerfileFileFact(dockerfileLanguage),
 			symbolRuntimeFamilyServerFileFact(),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHandlerFunctionName, SymbolRuntimeFamilyHandlerFunctionUID, SymbolRuntimeFamilyHandlerFunctionLine),
+			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHealthFunctionName, SymbolRuntimeFamilyHealthFunctionUID, SymbolRuntimeFamilyHealthFunctionLine),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyCallerFunctionName, SymbolRuntimeFamilyCallerFunctionUID, SymbolRuntimeFamilyCallerFunctionLine),
 			symbolRuntimeFamilyFollowupFact("workload_materialization", "workload:"+repoName),
 			symbolRuntimeFamilyFollowupFact("code_call_materialization", "code-call:"+repoName),
@@ -211,10 +239,11 @@ func symbolRuntimeFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu: odu,
-		Detail: "one repository, a Dockerfile file (workload signal) and a server.go file (one net_http route entry serving GET /widgets via HandleWidgets, " +
-			"plus two function_calls on InvokeAWS: one (s3, PutObject) catalog hit and one (widget, Frobnicate) non-catalog miss), two content_entity Function facts, " +
-			"and two shared_followup facts (workload_materialization, code_call_materialization) -- driving exactly one HANDLES_ROUTE row, one RUNS_IN row, " +
-			"one INVOKES_CLOUD_ACTION row, one Workload, and one Endpoint.",
+		Detail: "one repository, a Dockerfile file (workload signal) and a server.go file (three net_http route entries: GET /widgets and POST /widgets both via " +
+			"HandleWidgets -- proving the method-collapse live -- plus GET /healthz via the distinct handler HandleHealth; plus two function_calls on InvokeAWS: " +
+			"one (s3, PutObject) catalog hit and one (widget, Frobnicate) non-catalog miss), three content_entity Function facts, " +
+			"and two shared_followup facts (workload_materialization, code_call_materialization) -- driving exactly 2 HANDLES_ROUTE edges, 2 RUNS_IN edges, " +
+			"1 INVOKES_CLOUD_ACTION edge, one Workload, and two Endpoints.",
 	}
 }
 
@@ -274,6 +303,7 @@ func symbolRuntimeFamilyServerFileFact() facts.Envelope {
 			"path": SymbolRuntimeFamilyLocalPath + "/" + SymbolRuntimeFamilyServerPath,
 			"functions": []any{
 				symbolRuntimeFamilyFunctionEntry(SymbolRuntimeFamilyHandlerFunctionName, SymbolRuntimeFamilyHandlerFunctionUID, SymbolRuntimeFamilyHandlerFunctionLine, SymbolRuntimeFamilyHandlerFunctionEnd),
+				symbolRuntimeFamilyFunctionEntry(SymbolRuntimeFamilyHealthFunctionName, SymbolRuntimeFamilyHealthFunctionUID, SymbolRuntimeFamilyHealthFunctionLine, SymbolRuntimeFamilyHealthFunctionEnd),
 				symbolRuntimeFamilyFunctionEntry(SymbolRuntimeFamilyCallerFunctionName, SymbolRuntimeFamilyCallerFunctionUID, SymbolRuntimeFamilyCallerFunctionLine, SymbolRuntimeFamilyCallerFunctionEnd),
 			},
 			"framework_semantics": map[string]any{
@@ -284,6 +314,16 @@ func symbolRuntimeFamilyServerFileFact() facts.Envelope {
 							"method":  SymbolRuntimeFamilyRouteMethod,
 							"path":    SymbolRuntimeFamilyRoutePath,
 							"handler": SymbolRuntimeFamilyHandlerFunctionName,
+						},
+						map[string]any{
+							"method":  SymbolRuntimeFamilyRouteMethodPost,
+							"path":    SymbolRuntimeFamilyRoutePath,
+							"handler": SymbolRuntimeFamilyHandlerFunctionName,
+						},
+						map[string]any{
+							"method":  SymbolRuntimeFamilyHealthMethod,
+							"path":    SymbolRuntimeFamilyHealthRoutePath,
+							"handler": SymbolRuntimeFamilyHealthFunctionName,
 						},
 					},
 				},
@@ -393,64 +433,6 @@ func symbolRuntimeFamilyEnvelope(factKind, stableFactKey string, payload map[str
 	}
 }
 
-// symbolRuntimeFamilyCassetteFile mirrors the cassette envelope fields that
-// decide whether a fact is accepted at all, matching
-// deployableUnitFamilyCassetteFile's projection (#5991 precedent).
-type symbolRuntimeFamilyCassetteFile struct {
-	Scopes []struct {
-		ScopeID      string `json:"scope_id"`
-		GenerationID string `json:"generation_id"`
-		Facts        []struct {
-			FactKind         string         `json:"fact_kind"`
-			SchemaVersion    string         `json:"schema_version"`
-			StableFactKey    string         `json:"stable_fact_key"`
-			CollectorKind    string         `json:"collector_kind"`
-			SourceConfidence string         `json:"source_confidence"`
-			IsTombstone      bool           `json:"is_tombstone"`
-			Payload          map[string]any `json:"payload"`
-		} `json:"facts"`
-	} `json:"scopes"`
-}
-
-// LoadSymbolRuntimeFamilyOdu reads the committed cassette and projects it onto
-// the fact envelopes the reducer's extraction seams consume. It is the
-// test-side lockstep loader for the committed cassette: a lockstep test in
-// materializededges compares this strict cassette projection with the
-// compiled symbolRuntimeFamilyOdu() so a one-sided edit fails the focused
-// suite.
-//
-// It fails closed on an empty scope or fact list: an Odù carrying no facts
-// would make every downstream assertion vacuous.
-func LoadSymbolRuntimeFamilyOdu(cassettePath string) (Odu, error) {
-	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
-	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read symbol-runtime cassette %s: %w", cassettePath, err)
-	}
-	var parsed symbolRuntimeFamilyCassetteFile
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse symbol-runtime cassette %s: %w", cassettePath, err)
-	}
-	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
-	}
-	scope := parsed.Scopes[0]
-	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
-	}
-
-	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
-	for _, fact := range scope.Facts {
-		envelopes = append(envelopes, facts.Envelope{
-			ScopeID:          scope.ScopeID,
-			GenerationID:     scope.GenerationID,
-			FactKind:         fact.FactKind,
-			SchemaVersion:    fact.SchemaVersion,
-			StableFactKey:    fact.StableFactKey,
-			CollectorKind:    fact.CollectorKind,
-			SourceConfidence: fact.SourceConfidence,
-			IsTombstone:      fact.IsTombstone,
-			Payload:          fact.Payload,
-		})
-	}
-	return Odu{Name: SymbolRuntimeFamilyOduName, Facts: envelopes}, nil
-}
+// LoadSymbolRuntimeFamilyOdu (the cassette-loading half of this Odù) lives in
+// the sibling file symbol_runtime_family_cassette.go, split out solely to
+// keep this file well clear of the 500-line Go file cap.

@@ -64,6 +64,16 @@
                       "handler": "HandleWidgets",
                       "method": "GET",
                       "path": "/widgets"
+                    },
+                    {
+                      "handler": "HandleWidgets",
+                      "method": "POST",
+                      "path": "/widgets"
+                    },
+                    {
+                      "handler": "HandleHealth",
+                      "method": "GET",
+                      "path": "/healthz"
                     }
                   ]
                 }
@@ -86,6 +96,12 @@
                   "line_number": 10,
                   "name": "HandleWidgets",
                   "uid": "content-entity:e_b802e874e4a3"
+                },
+                {
+                  "end_line": 24,
+                  "line_number": 22,
+                  "name": "HandleHealth",
+                  "uid": "content-entity:e_2dc1055a2f3d"
                 },
                 {
                   "end_line": 40,
@@ -114,6 +130,22 @@
             "relative_path": "server.go",
             "repo_id": "repo-ifa-symbol-runtime-family",
             "start_line": 10
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_2dc1055a2f3d",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "end_line": 23,
+            "entity_id": "content-entity:e_2dc1055a2f3d",
+            "entity_name": "HandleHealth",
+            "entity_type": "Function",
+            "relative_path": "server.go",
+            "repo_id": "repo-ifa-symbol-runtime-family",
+            "start_line": 22
           }
         },
         {
