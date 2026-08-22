@@ -335,7 +335,9 @@ digest. Mid-pipeline kill/reclaim is a NAMED, tracked gap for all three
 (#6208), not claimed by this coverage — any handler-stage kill-worker cell for
 these three would reuse `code_calls`' own wait_key
 (`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new.
-Unlike every other family in this package, these three write through the
-SHARED RUNNER CYCLE rather than `fact_work_items`, so their graph-write cells
-are the only live proof of recovery through that path — a strength of this
-coverage, not a gap.
+These three share the shared-projection runner path
+(`sharedProjectionDomains`, `go/internal/reducer/shared_projection_runner.go:31-43`)
+with eight sibling families in this package, each of which already has an
+equivalent `cell_failgraphwrite_*` cell proving recovery through that path;
+their graph-write cells prove family-scoped Cypher-layer recovery, nothing
+architecturally unique.

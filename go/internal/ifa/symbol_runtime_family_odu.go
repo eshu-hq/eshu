@@ -20,8 +20,7 @@ import (
 // (CodeCallMaterializationHandler.Handle), so one fixture proves all three --
 // mirroring the build plan's "ONE cassette drives all three families" design.
 //
-// Fixture shape (see .trio-notes/family-semantics.md and
-// .trio-notes/seam-and-feasibility.md §C5 for the full derivation):
+// Fixture shape (the full derivation, inline below):
 //   - a repository fact carrying BOTH the typed (repo_id, source_run_id)
 //     identity buildCodeCallProjectionContexts reads AND the (graph_id, name)
 //     pair reducer.ExtractWorkloadCandidates reads -- one fact serves both

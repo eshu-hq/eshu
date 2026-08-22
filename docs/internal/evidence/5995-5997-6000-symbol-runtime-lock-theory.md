@@ -174,7 +174,11 @@ requires every possible fault dimension within the fault-injection gate.
 `sql_relationships` is live precedent for exactly this shape:
 `IFA_FAMILY_BLOCKER_KIND[sql_relationships]="none"`
 (`scripts/lib/ifa_family_registry/rows/01_sql_relationships.sh:15`) while
-resting its fault coverage on `cell_failgraphwrite_sql` alone.
+resting its fault-coverage CLAIM on `cell_failgraphwrite_sql` -- the family
+also dispatches `cell_killworker_sql`, but that cell's own documented
+weakness (no lock is acquired before the kill, so it cannot prove the kill
+landed mid-handler) is why the family's real claim rests on the graph-write
+cell instead, not because no kill-worker cell exists.
 
 Mid-pipeline kill/reclaim coverage is therefore a NAMED, tracked gap for these
 three families, not a silent absence -- see
@@ -187,6 +191,41 @@ domain, used as a `runner_lease_hold` blocker -- is the de-risked design for
 closing that gap, tracked as #6208. A future follow-up should name the
 mechanism (`runner_lease_hold`) and cite #6208 rather than re-run this proof
 from scratch.
+
+## Appendix: HANDLES_ROUTE write-order rationale
+
+Migrated here from a pre-implementation research note that lived under the
+git-excluded `.trio-notes/` (see the earlier note on that exclusion) so the
+citation resolves after merge. Recorded once here rather than duplicated at
+every call site that relies on it
+(`go/internal/ifa/materializededges/materialized_edges_handles_route.go` and
+the `handles_route` expected-edges fixture's own `note` field both point
+back to this section).
+
+The intent-level dedupe key is `functionID + "\x00" + repositoryID + "\x00"
++ routePath + "\x00" + httpMethod` (`go/internal/reducer/handles_route_intents.go:80`)
+-- it includes `http_method`, so GET and POST on the same path produce TWO
+distinct intent rows, each with its own `PartitionKey =
+functionID+"->"+repositoryID+":"+routePath` (`handles_route_intents.go:101`),
+which is identical for both methods since the partition key does NOT include
+the method.
+
+But the graph-write MERGE identity is only `(Function, HANDLES_ROUTE,
+Endpoint)` -- no relationship property, including `http_method`, is part of
+the Cypher MERGE. So both the GET-row and the POST-row MERGE the SAME
+relationship instance; each SETs `rel.http_method` to its own value, and
+whichever row's write lands last -- their shared partition key means they
+are always in the same partition and processed in whatever intra-batch order
+the worker uses, not a documented ordering guarantee -- wins the final
+stored `http_method` value. Net effect: exactly one edge, with a
+non-deterministic `http_method` when more than one method is present.
+
+This is why the `handles_route` vacuity guard asserts `http_method` as a
+SET-only Property only when every intent row that collapses onto one edge
+identity agrees on exactly one method (e.g. GET-only `/healthz`): asserting
+it for a multi-method edge (GET+POST `/widgets`) would be flaky by
+construction, since the value depends on write order the reducer does not
+guarantee.
 
 ## Limits
 

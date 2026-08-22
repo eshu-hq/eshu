@@ -40,6 +40,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			prohibited: []string{
 				"`codeCallFamilyOdu` (`code_call_family_odu.go`",
 				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
 			},
 		},
 		{
@@ -159,6 +165,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 			prohibited: []string{
 				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
 			},
 		},
 		{

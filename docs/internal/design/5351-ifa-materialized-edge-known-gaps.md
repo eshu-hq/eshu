@@ -43,13 +43,15 @@ than living only in a PR description.
   (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive) and prove nothing
   new, so closing this gap needs its own blocker mechanism (a
   runner_lease_hold on the production lease key) -- tracked as a NAMED,
-  tracked gap, #6208, not a silent absence. Unlike every family above,
-  these three families' edges are written through the SHARED RUNNER
-  CYCLE rather than fact_work_items, so their graph-write cells are the
-  only live proof of recovery through that path -- a strength of this
-  coverage, not a gap. See
+  tracked gap, #6208, not a silent absence. These three share the
+  shared-projection runner path (`sharedProjectionDomains`,
+  `go/internal/reducer/shared_projection_runner.go:31-43`) with eight
+  sibling families above, each of which already has an equivalent
+  `cell_failgraphwrite_*` cell proving recovery through that path; their
+  graph-write cells prove family-scoped Cypher-layer recovery, nothing
+  architecturally unique. See
   `docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md`
-  for the blocker-mechanism theory-proof behind that follow-up.
+  for the blocker-mechanism theory-proof behind the #6208 follow-up.
 - No allProjectionDomains family carries a waiver as of the change that
   retired the trio's waivers: the epic #5344 umbrella #5543, decomposed
   into per-domain child issues #5991-#6003, is complete.
