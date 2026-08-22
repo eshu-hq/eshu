@@ -144,13 +144,40 @@ absorbing the git-specific families — snapshot(64), selection(39),
 docs(41), observability, submodule, workflow-image, tfstate-glue,
 service-catalog-glue, codeowners-glue, refs, tracked, webhook, priority,
 fair-dispatch. Root keeps the shared seam every collector kind uses:
-`Service`/`Source`/`Committer`, the `claimed_service*` family (backs ~15
-other collector kinds), `git_source_types.go`, `git_fact_builder*`.
+`Service`/`Source`/`Committer` and the `claimed_service*` family (backs ~15
+other collector kinds).
 git_snapshot↔git_selection↔git_source is a measured 3-way production
 import cycle — they move together into gitrepo, not into separate
 packages, until a dependency-inversion refactor earns the split. Five glue
 families need disambiguated names (gitsubmodule, gittfstate, …) because
 same-named sibling packages already exist.
+
+**Correction, landed with #6056.** This section originally also listed
+`git_source_types.go` and `git_fact_builder*` as staying in the root. They
+do not, and could not. `git_source_types.go` declares `RepositorySnapshot`,
+whose fields reach `GitRef`, `TerraformStateCandidate`,
+`FunctionSummarySnapshot`, `FunctionSourceSnapshot` and
+`DataflowFunctionSnapshot`, and that data model is woven through
+git_snapshot_* and git_selection_*. Pinning the file in the root and letting
+the compiler pull back every declaration it transitively needed converged at
+**103 of the 111** non-test root files — the documented seam would have moved
+eight files and left the directory as it was. Both files moved into
+`gitrepo`, which cuts the root to 19 files and drops its grandfather row
+entirely.
+
+Two consequences worth knowing before the remaining children:
+
+- The leaf emitters could not be peeled on their own either. Every one of
+  them needs the fact-stream writer and the content records that the fact
+  stream also calls into, so a leaf-only move closes an import cycle. The
+  shared half became `gitrepo/gitmodel`, and the leaves sit below it:
+  `gitrepo -> leaf -> gitmodel`, one direction only.
+- `gitrepo` itself stays over the 40-file cap at 66 and carries a
+  grandfather row. The remaining overage is the snapshot/selection/source
+  cycle, which needs the dependency inversion this epic deliberately did not
+  bundle with a move. The ledger still improves: the root's row at 111 is
+  gone and the replacement is 66, and dirgate's ratchet means any later
+  extraction has to re-pin it lower.
 
 **projector (188) + coordinator (124):** projector's ~20 per-provider
 intents families are measured clean (zero cross-family calls; all fan out
