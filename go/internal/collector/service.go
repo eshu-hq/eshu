@@ -37,10 +37,10 @@ type CollectedGeneration struct {
 	// counts. Use FactCount() for the best available count; see its doc for the
 	// exact-vs-conservative-floor semantics after the stream drains.
 	EstimatedFactCount int
-	// factCountAtomic is set by streaming collectors that emit through a
+	// FactCountAtomic is set by streaming collectors that emit through a
 	// goroutine. The goroutine increments it per emitted envelope; after the
 	// Facts channel is drained, Load() returns the exact total.
-	factCountAtomic *atomic.Int64
+	FactCountAtomic *atomic.Int64
 	// FactStreamErr reports asynchronous fact stream failures after Facts has
 	// closed. Committers that receive this callback must check it before
 	// committing durable state.
@@ -70,8 +70,8 @@ type CollectedGeneration struct {
 // eshu_dp_workflow_claim_facts_emitted_total counter); it is never a
 // correctness or completeness gate.
 func (cg CollectedGeneration) FactCount() int {
-	if cg.factCountAtomic != nil {
-		atomicVal := int(cg.factCountAtomic.Load())
+	if cg.FactCountAtomic != nil {
+		atomicVal := int(cg.FactCountAtomic.Load())
 		if atomicVal > cg.EstimatedFactCount {
 			return atomicVal
 		}

@@ -33,7 +33,7 @@ var discoverySafeBackendAttributes = map[string]struct{}{
 // "state_path" was chosen over an earlier "local_path" candidate because the
 // durable `repository` fact ALREADY has an established, differently-scoped
 // "local_path" payload field meaning the repo checkout root (see
-// go/internal/collector/git_content_fact_envelopes.go); reusing that name
+// go/internal/collector/gitrepo/git_content_fact_envelopes.go); reusing that name
 // here for a completely different value (the backend's own path attribute)
 // would recreate the exact class of collision this function exists to avoid
 // (issue #5594).

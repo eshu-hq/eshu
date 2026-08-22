@@ -1,0 +1,495 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package gitrepo
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// FilesystemSyncSelection captures the managed paths and copy-bound commit
+// identities selected during one filesystem synchronization cycle.
+type FilesystemSyncSelection struct {
+	SelectedRepoPaths         []string
+	SourceCommitSHAByRepoPath map[string]string
+	CorpusChanged             bool
+}
+
+// syncFilesystemRepositories materializes the selected filesystem repositories
+// for one collector cycle and reports whether the on-disk corpus changed.
+//
+// The returned bool is the full-corpus changed signal: it is true whenever the
+// FilesystemRoot fingerprint differs from the stored manifest (a new or mutated
+// corpus) and false on an unchanged re-poll. The signal is a property of the
+// whole FilesystemRoot, NOT of the per-shard repositoryIDs subset — fingerprint
+// is computed over the entire root, so every shard observes the same value. This
+// lets the basename-collision diagnostic fire on the designated emitter shard
+// even when that shard owns none of the changed repositoryIDs (issue #3700 P2).
+//
+// selectedPaths is the per-shard set of materialized repo paths and may be empty
+// for a shard that owns no repositoryIDs even when changed is true.
+func syncFilesystemRepositories(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repositoryIDs []string,
+) (FilesystemSyncSelection, error) {
+	if strings.TrimSpace(config.FilesystemRoot) == "" {
+		return FilesystemSyncSelection{}, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
+	}
+	currentManifest, err := fingerprintTree(config.FilesystemRoot)
+	if err != nil {
+		return FilesystemSyncSelection{}, err
+	}
+	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
+	previousManifest, err := os.ReadFile(manifestPath) // #nosec G304 -- reads internal fixture-manifest file at a path derived from config.ReposDir, not user-supplied input
+	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
+		return FilesystemSyncSelection{}, nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return FilesystemSyncSelection{}, fmt.Errorf("read filesystem manifest: %w", err)
+	}
+
+	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal repos workspace directory
+		return FilesystemSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
+	}
+	if config.FilesystemDirect {
+		selectedPaths := make([]string, 0, len(repositoryIDs))
+		for _, repoID := range repositoryIDs {
+			if err := ctx.Err(); err != nil {
+				return FilesystemSyncSelection{}, err
+			}
+			sourcePath, _, err := filesystemRepoPaths(config, repoID)
+			if err != nil {
+				return FilesystemSyncSelection{}, err
+			}
+			selectedPaths = append(selectedPaths, sourcePath)
+		}
+		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
+			return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
+		}
+		return FilesystemSyncSelection{SelectedRepoPaths: selectedPaths, CorpusChanged: true}, nil
+	}
+	if err := cleanManagedWorkspace(config.ReposDir); err != nil {
+		return FilesystemSyncSelection{}, err
+	}
+
+	selectedPaths := make([]string, 0, len(repositoryIDs))
+	copyBoundCommits := make(map[string]string, len(repositoryIDs))
+	for _, repoID := range repositoryIDs {
+		if err := ctx.Err(); err != nil {
+			return FilesystemSyncSelection{}, err
+		}
+		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
+		if err != nil {
+			return FilesystemSyncSelection{}, err
+		}
+		beforeCopyCommit := gitCleanWorktreeCommitSHAFn(ctx, sourcePath)
+		expectation := loadManagedCopyCommitExpectation(ctx, sourcePath, beforeCopyCommit)
+		copyMatchesCommit, err := copyRepositoryTreeFn(ctx, sourcePath, targetPath, expectation)
+		if err != nil {
+			return FilesystemSyncSelection{}, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+		}
+		if expectation != nil && copyMatchesCommit {
+			copyBoundCommits[canonicalLocalPath(targetPath)] = beforeCopyCommit
+		}
+		selectedPaths = append(selectedPaths, targetPath)
+	}
+
+	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
+		return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
+	}
+	return FilesystemSyncSelection{
+		SelectedRepoPaths:         selectedPaths,
+		SourceCommitSHAByRepoPath: copyBoundCommits,
+		CorpusChanged:             true,
+	}, nil
+}
+
+func filesystemRepoPaths(
+	config RepoSyncConfig,
+	repoID string,
+) (string, string, error) {
+	if strings.TrimSpace(repoID) == "." {
+		checkoutName := filepath.Base(filepath.Clean(config.FilesystemRoot))
+		if strings.TrimSpace(checkoutName) == "" || checkoutName == "." || checkoutName == string(filepath.Separator) {
+			return "", "", fmt.Errorf("invalid filesystem root %q", config.FilesystemRoot)
+		}
+		return config.FilesystemRoot, filepath.Join(config.ReposDir, checkoutName), nil
+	}
+
+	checkoutName, err := repoCheckoutName(repoID)
+	if err != nil {
+		return "", "", err
+	}
+	sourcePath := filepath.Join(config.FilesystemRoot, filepath.FromSlash(repoID))
+	targetPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
+	return sourcePath, targetPath, nil
+}
+
+func fingerprintTree(root string) (string, error) {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve fingerprint root %q: %w", root, err)
+	}
+
+	files := make([]string, 0)
+	ignoreCaches := newCollectorIgnoreCaches()
+	// A resolver that resolves nearest git roots but never asks which files git
+	// tracks. The fingerprint needs the same nearest-root ignore scope the
+	// managed copy uses (#5667) — otherwise the copy keeps a nested file the
+	// fingerprint ignores, editing only that file leaves the fingerprint
+	// unchanged, and syncFilesystemRepositories skips the recopy, leaving the
+	// copy and the emitted generation stale.
+	//
+	// It must NOT resolve tracked sets: fingerprintTree runs on every poll, and
+	// spawning `git ls-files` per nested root on a polling path is the cost this
+	// function has always avoided. resolve reports an empty set as RESOLVED
+	// rather than unavailable, which keeps the previous behaviour — a gitignore
+	// match skips, because nothing is tracked — while only the ROOT the match is
+	// evaluated against changes.
+	//
+	// Reporting it as unavailable instead would fire
+	// warnGitTrackedFilesUnavailable for every nested root on every poll, which
+	// is a false alarm: git is available, this path simply does not ask it.
+	ignoreCaches.tracked = &collectorTrackedResolver{
+		resolve:   func(string) (map[string]struct{}, bool) { return nil, true },
+		walkRoot:  root,
+		rootByDir: make(map[string]string),
+		setByRoot: make(map[string]map[string]struct{}),
+	}
+	if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// Skip entries we cannot read (permission denied, etc.)
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if path == root {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		name := entry.Name()
+		// Ignore-control files affect the next collection shape and must
+		// participate in the manifest even though normal hidden files do not.
+		if isCollectorIgnoreControlFile(name) {
+			if !entry.IsDir() {
+				files = append(files, path)
+			}
+			return nil
+		}
+		if shouldSkipFilesystemEntry(root, path, rel, name, entry.IsDir(), ignoreCaches) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	}); err != nil {
+		return "", fmt.Errorf("walk fingerprint root %q: %w", root, err)
+	}
+	sort.Strings(files)
+
+	digest := sha256.New()
+	for _, filePath := range files {
+		rel, err := filepath.Rel(root, filePath)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(filePath)
+		if err != nil {
+			continue
+		}
+		_, _ = digest.Write([]byte(filepath.ToSlash(rel)))
+		_, _ = fmt.Fprintf(digest, "%d:%d", info.ModTime().UnixNano(), info.Size())
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
+}
+
+// copyRepositoryTree materializes one repository's tracked/discoverable files
+// into the managed workspace at targetRoot. sourceRoot IS the git checkout
+// (unlike targetRoot, which carries no .git of its own — issue #5649), so
+// this is the one filesystem-mode walk that resolves git-tracked status via
+// collectorTrackedResolver: doing so lazily, memoized per NEAREST enclosing
+// git root (issue #5658 P1a/P1b — a nested repository under sourceRoot, e.g.
+// a submodule, has its own tracked set the outer repo's ls-files never
+// lists), lets shouldSkipFilesystemEntry keep a gitignore-matched file that
+// git still tracks (issue #5591). fingerprintTree deliberately does NOT
+// resolve a tracked set (its collectorIgnoreCaches.tracked stays nil): it
+// fingerprints the raw FilesystemRoot, which may contain many repositories
+// or no git checkout at all, so there is no single sourceRoot to resolve
+// ls-files against there.
+func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot string) error {
+	_, err := copyRepositoryTreeFn(ctx, sourceRoot, targetRoot, nil)
+	return err
+}
+
+func copyRepositoryTreeWithExpectation(
+	ctx context.Context,
+	sourceRoot string,
+	targetRoot string,
+	expectation *managedCopyCommitExpectation,
+) (bool, error) {
+	sourceRoot, err := filepath.Abs(sourceRoot)
+	if err != nil {
+		return false, fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
+	}
+	info, err := os.Stat(sourceRoot)
+	if err != nil {
+		return false, fmt.Errorf("stat source repo %q: %w", sourceRoot, err)
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("source repo %q is not a directory", sourceRoot)
+	}
+	source, err := openManagedCopySourceRoot(sourceRoot)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		_ = source.Close()
+	}()
+
+	if err := os.RemoveAll(targetRoot); err != nil {
+		return false, fmt.Errorf("reset target repo %q: %w", targetRoot, err)
+	}
+	if err := os.MkdirAll(targetRoot, 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
+		return false, fmt.Errorf("create target repo %q: %w", targetRoot, err)
+	}
+
+	ignoreCaches := newCollectorIgnoreCaches()
+	ignoreCaches.tracked = &collectorTrackedResolver{
+		resolve: func(gitRoot string) (map[string]struct{}, bool) {
+			return gitTrackedFiles(ctx, gitRoot)
+		},
+		walkRoot:  sourceRoot,
+		ctx:       ctx,
+		rootByDir: make(map[string]string),
+		setByRoot: make(map[string]map[string]struct{}),
+	}
+
+	copyMatchesCommit := expectation != nil
+	controlMatchesCommit, err := expectation.bindEshuignoreControl(
+		source, sourceRoot, sourceRoot, ignoreCaches.eshuignore,
+	)
+	if err != nil {
+		return false, err
+	}
+	copyMatchesCommit = copyMatchesCommit && controlMatchesCommit
+	walkErr := filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
+			// Skip entries we cannot read (permission denied, etc.)
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if current == sourceRoot {
+			return nil
+		}
+		rel, err := filepath.Rel(sourceRoot, current)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		name := entry.Name()
+		if err := source.TrimToParent(rel); err != nil {
+			return err
+		}
+
+		// .eshuignore remains a deliberate operator opt-out that can still
+		// skip a file git tracks (issue #5591 leaves this filter's semantics
+		// untouched); unlike a plain untracked-file skip, that decision must
+		// stay individually visible to operators rather than disappearing
+		// into an aggregate count.
+		//
+		// The eshuignore check runs FIRST (issue #5658 P1b): trackedFile
+		// resolves (and may spawn) the nearest git root's `git ls-files`
+		// subprocess, so it must never fire for a file .eshuignore was never
+		// going to skip anyway — mirrors discovery's
+		// recordTrackedEshuIgnoreSkips gating on a non-empty skip set before
+		// touching the tracked set.
+		if !entry.IsDir() &&
+			isCollectorEshuignoredInRepo(sourceRoot, current, ignoreCaches.eshuignore) &&
+			ignoreCaches.tracked.trackedFile(current) {
+			logTrackedFileSkippedByEshuIgnore(ctx, nil, "filesystem_managed_copy", sourceRoot, rel)
+		}
+
+		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), ignoreCaches) {
+			expectation.dischargeSkippedPath(rel, entry.IsDir())
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip symlinks — they cannot be reliably copied into the
+		// managed workspace (a symlink-to-directory looks like a file
+		// to WalkDir but cannot be read with io.Copy).
+		if entry.Type()&os.ModeSymlink != 0 {
+			if !expectation.dischargeSymlink(rel) {
+				copyMatchesCommit = false
+			}
+			return nil
+		}
+
+		targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
+		if entry.IsDir() {
+			if err := source.PinDirectory(rel); err != nil {
+				return err
+			}
+			controlMatchesCommit, err := expectation.bindEshuignoreControl(
+				source, sourceRoot, current, ignoreCaches.eshuignore,
+			)
+			if err != nil {
+				return err
+			}
+			if !controlMatchesCommit {
+				copyMatchesCommit = false
+			}
+			return os.MkdirAll(targetPath, 0o750) // #nosec G301 -- internal managed workspace directory tree
+		}
+		fileMatchesCommit, err := copyRepositoryFile(source, sourceRoot, current, targetPath, rel, expectation)
+		if err != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
+			// Skip files we cannot read (permission denied, etc.)
+			return nil
+		}
+		copyMatchesCommit = copyMatchesCommit && fileMatchesCommit
+		return nil
+	})
+	return copyMatchesCommit && expectation.complete(), walkErr
+}
+
+// copyRepositoryTreeFn is the managed-copy seam used by race regressions that
+// mutate the source at the precise copy boundary.
+var copyRepositoryTreeFn = copyRepositoryTreeWithExpectation
+
+func shouldSkipFilesystemEntry(
+	repoRoot string,
+	fullPath string,
+	rel string,
+	name string,
+	isDir bool,
+	caches collectorIgnoreCaches,
+) bool {
+	if name == ".DS_Store" {
+		return true
+	}
+	if strings.HasPrefix(name, ".") && !preserveFilesystemHiddenPath(rel) {
+		return true
+	}
+	// .eshuignore is the operator's own opt-out and applies unconditionally,
+	// tracked or not. Check it first and independently of the gitignore
+	// check below.
+	if isCollectorEshuignoredInRepo(repoRoot, fullPath, caches.eshuignore) {
+		return true
+	}
+	// A file git tracks is never git-ignored (issue #5591): git itself only
+	// applies .gitignore to untracked paths, so a force-committed
+	// (`git add -f`) file that matches a gitignore rule stays tracked and
+	// must stay discoverable in the managed-copy workspace too. The gitignore
+	// check runs FIRST so trackedFile — which may spawn the nearest git
+	// root's `git ls-files` subprocess — is only ever called on a match
+	// (issue #5658 P1b).
+	// Scoped to the NEAREST enclosing git root rather than the walked root:
+	// an outer .gitignore does not reach inside a nested repository, which is
+	// what git does and what discovery already did (issue #5667).
+	ignoreRoot := caches.tracked.ignoreRootFor(fullPath, repoRoot)
+	if isCollectorGitignoredInRepo(ignoreRoot, fullPath, caches.gitignore) &&
+		!caches.tracked.trackedFile(fullPath) {
+		return true
+	}
+	if isDir {
+		probePath := filepath.Join(fullPath, "__eshu_dir_probe__")
+		if isCollectorEshuignoredInRepo(repoRoot, probePath, caches.eshuignore) {
+			return true
+		}
+		// A directory-level prune (filepath.SkipDir) would hide every
+		// tracked file beneath it too, so a gitignore match on the
+		// directory itself must not prune it when a tracked file lives
+		// somewhere in that subtree (issue #5591) — including a NESTED
+		// repository's own tracked file, which trackedUnderDir resolves
+		// against that nested repo's own git root, not fullPath's outer
+		// repo (issue #5658 P1a).
+		if isCollectorGitignoredInRepo(caches.tracked.ignoreRootFor(probePath, repoRoot), probePath, caches.gitignore) &&
+			!caches.tracked.trackedUnderDir(fullPath) {
+			return true
+		}
+	}
+	return rel == "."
+}
+
+func isCollectorIgnoreControlFile(name string) bool {
+	return name == ".gitignore" || name == ".eshuignore"
+}
+
+// preservedHiddenFilesystemFileNames lists hidden (dot-prefixed) file basenames
+// that the managed-workspace copy must keep even though they would otherwise be
+// pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
+// individual hidden config FILES that can live at the repo root or, for GitLab
+// CI, in a subdirectory referenced via include:. They are matched by basename so
+// the copy preserves them wherever they appear in the tree.
+var preservedHiddenFilesystemFileNames = map[string]struct{}{
+	".gitlab-ci.yml":  {},
+	".gitlab-ci.yaml": {},
+	".gitmodules":     {},
+}
+
+func preserveFilesystemHiddenPath(rel string) bool {
+	normalized := path.Clean(filepath.ToSlash(rel))
+	if normalized == "." {
+		return false
+	}
+
+	if _, ok := preservedHiddenFilesystemFileNames[path.Base(normalized)]; ok {
+		return true
+	}
+
+	return normalized == ".github" ||
+		normalized == ".github/workflows" ||
+		strings.HasPrefix(normalized, ".github/workflows/")
+}
+
+type collectorIgnoreCaches struct {
+	gitignore  map[string]*collectorGitignoreSpec
+	eshuignore map[string]*collectorGitignoreSpec
+	// tracked lazily and memoized resolves, per NEAREST enclosing git root
+	// (issue #5658 P1a), which paths git tracks in the repo being walked
+	// (issue #5591), so a gitignore match never excludes a file git still
+	// tracks. Left nil when the walk root is not resolvable as a git
+	// checkout (fingerprintTree does not set this field at all — see
+	// copyRepositoryTree's doc comment for why only the managed-copy path
+	// resolves it); a nil *collectorTrackedResolver is always safe to query
+	// (see its own doc comment), matching the pre-#5591 behavior of not
+	// knowing which files git tracks.
+	tracked *collectorTrackedResolver
+}
+
+func newCollectorIgnoreCaches() collectorIgnoreCaches {
+	return collectorIgnoreCaches{
+		gitignore:  make(map[string]*collectorGitignoreSpec),
+		eshuignore: make(map[string]*collectorGitignoreSpec),
+	}
+}

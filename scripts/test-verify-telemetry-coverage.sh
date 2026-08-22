@@ -140,6 +140,26 @@ git -C "${case_new_doc}" add .
 git -C "${case_new_doc}" commit -q -m "add reducer evidence note + collector README"
 expect_pass "ignores new non-.go files under stage-owner directories" "${case_new_doc}"
 
+# Case 4c: the git collector now lives in go/internal/collector/gitrepo and its
+# leaf emitters one level below that. Before #6056 every collector source file
+# sat at go/internal/collector/*.go and matched the stage-owner glob directly;
+# after the move a new emitter would have slipped past the new-stage check
+# entirely, so a new pipeline stage could land with no telemetry-coverage row
+# and the gate would still pass. Both depths must be flagged.
+case_gitrepo="$(init_repo case-gitrepo)"
+mkdir -p "${case_gitrepo}/go/internal/collector/gitrepo"
+printf 'package gitrepo\n' >"${case_gitrepo}/go/internal/collector/gitrepo/git_new_stage.go"
+git -C "${case_gitrepo}" add .
+git -C "${case_gitrepo}" commit -q -m "add new gitrepo stage without doc row"
+expect_fail "fails when a new go/internal/collector/gitrepo file is not covered by the doc" "${case_gitrepo}"
+
+case_gitrepo_leaf="$(init_repo case-gitrepo-leaf)"
+mkdir -p "${case_gitrepo_leaf}/go/internal/collector/gitrepo/gitdocs"
+printf 'package gitdocs\n' >"${case_gitrepo_leaf}/go/internal/collector/gitrepo/gitdocs/emitter.go"
+git -C "${case_gitrepo_leaf}" add .
+git -C "${case_gitrepo_leaf}" commit -q -m "add new gitrepo leaf stage without doc row"
+expect_fail "fails when a new gitrepo leaf-package file is not covered by the doc" "${case_gitrepo_leaf}"
+
 # Case 5: the doc has a No-Observability-Change: marker for a stage whose
 # underlying counters are intentionally not registered. The verifier must
 # accept the marker and exit 0.

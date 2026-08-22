@@ -358,13 +358,13 @@ linters:
       - path: 'internal/collector/awscloud/services/iam/scanner\.go'
         linters:
           - funlen
-      - path: 'internal/collector/git_fact_builder\.go'
+      - path: 'internal/collector/gitrepo/git_fact_builder\.go'
         linters:
           - funlen
-      - path: 'internal/collector/git_snapshot_native\.go'
+      - path: 'internal/collector/gitrepo/git_snapshot_native\.go'
         linters:
           - funlen
-      - path: 'internal/collector/git_source_stream\.go'
+      - path: 'internal/collector/gitrepo/git_source_stream\.go'
         linters:
           - funlen
       - path: 'internal/coordinator/service\.go'
@@ -576,7 +576,7 @@ linters:
       - path: 'internal/collector/awscloud/services/kms/awssdk/mappers\.go'
         linters:
           - exhaustive
-      - path: 'internal/collector/git_documentation_archive_helpers\.go'
+      - path: 'internal/collector/gitrepo/gitdocs/git_documentation_archive_helpers\.go'
         linters:
           - exhaustive
       - path: 'internal/collector/ospackagevulnerability/'
@@ -726,10 +726,10 @@ linters:
           - wrapcheck
       # Git selection filesystem layer is at the boundary with the
       # local filesystem and git CLI.
-      - path: 'internal/collector/git_selection_filesystem\.go'
+      - path: 'internal/collector/gitrepo/git_selection_filesystem\.go'
         linters:
           - wrapcheck
-      - path: 'internal/collector/git_selection_.*\.go'
+      - path: 'internal/collector/gitrepo/git_selection_.*\.go'
         linters:
           - wrapcheck
       # Security alerts runtime is at the boundary with hosted
@@ -840,7 +840,7 @@ linters:
       - path: 'internal/collector/tfstateruntime/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/git_documentation_'
+      - path: 'internal/collector/gitrepo/gitdocs/git_documentation_'
         linters:
           - wrapcheck
       - path: 'internal/collector/azurecloud/'
@@ -904,7 +904,7 @@ linters:
       - path: 'internal/collector/ooxmlpreflight/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/priority_selector\.go'
+      - path: 'internal/collector/gitrepo/priority_selector\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/servicecatalog/'
@@ -948,10 +948,10 @@ linters:
       # collector files (git_snapshot_*, git_source.go) are at the
       # filesystem boundary; wrap context is added at the projection
       # handler.
-      - path: 'internal/collector/git_snapshot_'
+      - path: 'internal/collector/gitrepo/git_snapshot_'
         linters:
           - wrapcheck
-      - path: 'internal/collector/git_source\.go'
+      - path: 'internal/collector/gitrepo/git_source\.go'
         linters:
           - wrapcheck
       # Reducer and projector writers are at the boundary with the
@@ -1056,7 +1056,7 @@ linters:
       - path: 'internal/collector/extensionhost/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/git_source_processing\.go'
+      - path: 'internal/collector/gitrepo/git_source_processing\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/fair_claim_dispatcher\.go'

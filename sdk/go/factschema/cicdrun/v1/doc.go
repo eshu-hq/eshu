@@ -20,7 +20,7 @@
 //     deployment_hint_source shell-only signal.
 //   - WorkflowImageEvidence (ci.workflow_image_evidence): one static workflow
 //     command evidence row the git collector extracts from a checked-in
-//     GitHub Actions workflow file (go/internal/collector/git_workflow_image_facts.go),
+//     GitHub Actions workflow file (go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go),
 //     distinct from the ci_cd_run collector's provider-run facts above.
 //
 // The seventh, DeploymentEvent (ci.deployment_event), models a provider

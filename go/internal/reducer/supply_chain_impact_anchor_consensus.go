@@ -176,7 +176,7 @@ func preferContainerImageIdentityLogicalCandidate(
 // SHA-256 whose input embeds generation_id
 // (containerImageIdentityIdentity). For rows derived from a live git
 // snapshot, generation_id is stableID'd from the collector run's wall-clock
-// observed_at (go/internal/collector/git_source_processing.go:
+// observed_at (go/internal/collector/gitrepo/git_source_processing.go:
 // GitCollectorSnapshotRun -> sourceRunID -> buildGeneration), so that
 // factID is a fresh, unpredictable draw every run: the SAME two
 // disagreeing rows can pick a different winner run to run even though

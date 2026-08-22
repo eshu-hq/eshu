@@ -346,7 +346,7 @@ The repository basename-collision diagnostic (issue #3677) lives in
   response) blocks the entire stream start.
 - Large-repo semaphore is acquired inside the worker select loop, not inside
   `processRepo`. This means a worker never blocks waiting for the semaphore while
-  small repos are available (`git_source.go:419-431`).
+  small repos are available (`gitrepo/git_source.go:419-431`).
 - `streamErr` is written by the coordinator goroutine and read by `Next` only
   after the stream channel closes. The happens-before guarantee is that
   `close(s.stream)` happens-before the receive in `Next` that returns

@@ -76,14 +76,14 @@ migrate WITH that surface (Contract System v1 §7).
   pass-through — every kind is flat and fully closed. Do not add one without
   discussing scope; it would be a first for this family.
 - `WorkflowImageEvidence` is emitted by a DIFFERENT collector
-  (`go/internal/collector/git_workflow_image_facts.go`, the git collector's
+  (`go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go`, the git collector's
   static workflow-file scanner) than the other five structs in this package
   (`go/internal/collector/cicdrun`, the ci_cd_run collector's GitHub Actions
   provider path). It shares the `ci.workflow_image_evidence` fact kind and the
   `ci_cd_run` schema version (`facts.CICDSchemaVersion`) and the reducer's
   `ci_cd_run_correlation` domain reads both origins together, which is why it
   lives here rather than in a separate package — verify BOTH emitters
-  (`go/internal/collector/git_workflow_image_facts.go` and
+  (`go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go` and
   `go/internal/workflowimage/extract.go`'s `Evidence` struct) before changing
   its required/optional field set.
 - This package defines seven fact kinds. Typing one of the three deferred

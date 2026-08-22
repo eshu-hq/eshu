@@ -6,7 +6,7 @@ package v1
 // WorkflowImageEvidence is the schema-version-1 typed payload for the
 // "ci.workflow_image_evidence" fact kind: one static workflow command
 // evidence row the git collector extracts from a checked-in GitHub Actions
-// workflow file (go/internal/collector/git_workflow_image_facts.go), distinct
+// workflow file (go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go), distinct
 // from the ci_cd_run collector's provider-run facts (Run, Artifact,
 // EnvironmentObservation, TriggerEdge, Step in this package).
 //

@@ -29,7 +29,7 @@ package v1
 //
 // A candidate fact is Git-discovery provenance: the collector observed a file
 // that looks like a Terraform state file and records where it found it, without
-// parsing its contents (go/internal/collector/tfstate_candidate.go). The
+// parsing its contents (go/internal/collector/gitrepo/tfstate_candidate.go). The
 // emitter unconditionally writes candidate_source, backend_kind, repo_id,
 // relative_path, and path_hash, so those five are REQUIRED — an absent one
 // means the discovery record cannot identify the candidate. FileSize and

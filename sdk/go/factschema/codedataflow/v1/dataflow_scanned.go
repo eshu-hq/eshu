@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A code_dataflow_scanned fact is the git collector's once-per-generation
-// reconciliation marker (go/internal/collector/git_followup_facts.go
+// reconciliation marker (go/internal/collector/gitrepo/git_followup_facts.go
 // dataflowScannedFactEnvelope), emitted whenever the value-flow gate
 // (ESHU_EMIT_DATAFLOW) ran for a repository, regardless of whether the scan
 // produced any taint/interproc findings. It carries no findings; its sole

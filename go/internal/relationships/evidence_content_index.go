@@ -33,7 +33,7 @@ func buildEvidenceContentIndex(envelopes []facts.Envelope) evidenceContentIndex 
 
 func envelopeContentIdentity(envelope facts.Envelope) (string, string, string) {
 	// TODO(#4783 W1): fact kind "content" has no typed struct yet (producer
-	// go/internal/collector/git_content_fact_envelopes.go emits
+	// go/internal/collector/gitrepo/git_content_fact_envelopes.go emits
 	// content_path/content_body/artifact_type). This helper is fact-kind-agnostic
 	// — it also serves the typed "file" kind (codegraphv1.File), which carries no
 	// outer content field by design — so it cannot route through one decode seam

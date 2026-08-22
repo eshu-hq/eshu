@@ -30,7 +30,7 @@ var dataflowGateBenchLanguages = map[string]string{
 }
 
 // dataflowGateBenchOptions mirrors what snapshotParserOptions
-// (go/internal/collector/git_snapshot_parser_options.go) hands the parser on
+// (go/internal/collector/gitrepo/git_snapshot_parser_options.go) hands the parser on
 // the real ingest path, because that is what decides how much value-flow work
 // the gate actually triggers.
 //

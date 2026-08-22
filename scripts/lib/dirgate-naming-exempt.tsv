@@ -57,8 +57,6 @@
 # Seeded at #6054 landing (follow-up pass) from the pre-existing tree (see
 # #6053), computed by walking every dirgate-grandfather.tsv directory's
 # qualifying files against detectNamingViolations.
-internal/collector	discovery_advisory.go
-internal/collector	discovery_env.go
 internal/parser	c_language.go
 internal/parser	cpp_language.go
 internal/parser	csharp_language.go

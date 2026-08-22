@@ -6,11 +6,12 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-func collectorGitSnapshotterForEnv(t *testing.T, env map[string]string) collector.NativeRepositorySnapshotter {
+func collectorGitSnapshotterForEnv(t *testing.T, env map[string]string) gitrepo.NativeRepositorySnapshotter {
 	t.Helper()
 
 	service, err := buildCollectorService(
@@ -21,7 +22,7 @@ func collectorGitSnapshotterForEnv(t *testing.T, env map[string]string) collecto
 	if err != nil {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
-	return service.Source.(*collector.GitSource).Snapshotter.(collector.NativeRepositorySnapshotter)
+	return service.Source.(*gitrepo.GitSource).Snapshotter.(gitrepo.NativeRepositorySnapshotter)
 }
 
 // TestBuildCollectorServiceHonorsEmitDataflowGate covers the one binary that

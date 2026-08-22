@@ -242,7 +242,7 @@ Git Producer Evidence: the Git collector recognizes repo-hosted
 `catalog-info.yaml`/`.yml`, `opslevel.yml`/`.yaml`, and `cortex.yaml`/`.yml`
 descriptors during content streaming and emits these normalizer envelopes under
 the repository scope and generation. Focused coverage lives in
-`go/internal/collector/git_service_catalog_facts_test.go` and proves the
+`go/internal/collector/gitrepo/git_service_catalog_facts_test.go` and proves the
 two-phase and legacy content paths emit catalog facts without absolute path
 leakage or fabricated `repository_id`, `service_id`, or `workload_id`.
 

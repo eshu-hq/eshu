@@ -232,7 +232,7 @@ run_parity_matrix() {
 	# filecap_check_file greps for the literal `nolint:filelength`; shortening
 	# that to `nolint` — or to `lint` — exempts any file carrying ANY directive,
 	# and 39 non-test .go files under go/ carry a different `nolint:` one today.
-	# The longest, go/internal/collector/git_source_processing.go, is at 457
+	# The longest, go/internal/collector/gitrepo/git_source_processing.go, is at 457
 	# lines, so the widening hands it 43 lines of headroom nobody asked for.
 	assert_parity "an unrelated nolint directive is NOT an exemption" \
 		"go/internal/big/othermarked.go" 501 "nolint:gocyclo" 1

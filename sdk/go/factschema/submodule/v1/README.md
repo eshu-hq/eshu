@@ -109,7 +109,7 @@ emission path — see the module `README.md`'s no-observability-change note.
 
 - The git collector emits `submodule.pin`
   (`go/internal/collector/submodule`, wired into
-  `go/internal/collector/git_submodule_facts.go`) and the reducer decodes
+  `go/internal/collector/gitrepo/gitsubmodule/git_submodule_facts.go`) and the reducer decodes
   and projects it (`decodeSubmodulePin`,
   `go/internal/reducer/submodule_pin_materialization.go`) into
   `Repository-[:PINS_SUBMODULE]->Repository` graph edges (issue #5420).

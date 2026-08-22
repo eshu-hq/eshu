@@ -99,7 +99,7 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
 
 **Go benchmarks** (start here for materialization hot spots):
 `go/internal/reducer/*_bench_test.go`,
-`go/internal/collector/git_snapshot_delta_bench_test.go`.
+`go/internal/collector/gitrepo/git_snapshot_delta_bench_test.go`.
 
 ## Evidence rules (binding)
 

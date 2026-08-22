@@ -2117,7 +2117,7 @@ gates:
     # two most likely edits unguarded.
     triggers:
       - "go/internal/content/shape/**"
-      - "go/internal/collector/git_snapshot_entity_buckets.go"
+      - "go/internal/collector/gitrepo/git_snapshot_entity_buckets.go"
       - "go/internal/projector/canonical.go"
       - "specs/ci-gates.v1.yaml"
     local:
@@ -2547,8 +2547,8 @@ gates:
       - "go/internal/ifa/workload_dependency_family_*.go"
       - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
-      - "go/internal/collector/git_fact_builder*.go"
-      - "go/internal/collector/git_followup_facts.go"
+      - "go/internal/collector/gitrepo/git_fact_builder*.go"
+      - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
       - "go/internal/reducer/platform_materialization.go"
@@ -3000,8 +3000,8 @@ gates:
       - "go/internal/ifa/workload_dependency_family_*.go"
       - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
-      - "go/internal/collector/git_fact_builder*.go"
-      - "go/internal/collector/git_followup_facts.go"
+      - "go/internal/collector/gitrepo/git_fact_builder*.go"
+      - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
       - "go/internal/reducer/platform_materialization.go"

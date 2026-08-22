@@ -7,7 +7,7 @@
 // factschema package's kind-keyed seam (decode.go, decode_codedataflow.go).
 //
 // The family has six fact kinds, all emitted only when the value-flow gate
-// (ESHU_EMIT_DATAFLOW) is on (go/internal/collector/git_snapshot_*.go,
+// (ESHU_EMIT_DATAFLOW) is on (go/internal/collector/gitrepo/git_snapshot_*.go,
 // git_followup_facts.go dataflowScannedFactEnvelope):
 //
 //   - DataflowScanned ("code_dataflow_scanned"): a per-generation

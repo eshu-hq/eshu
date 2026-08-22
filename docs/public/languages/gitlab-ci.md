@@ -15,7 +15,7 @@ opaque shell body enters the graph).
 `.gitlab-ci.yml` is a hidden (dot-prefixed) repository file. Filesystem
 ingestion preserves it through the managed-workspace copy via an exact-basename
 allowlist (`preserveFilesystemHiddenPath` in
-`go/internal/collector/git_selection_filesystem.go`), the same mechanism that
+`go/internal/collector/gitrepo/git_selection_filesystem.go`), the same mechanism that
 preserves `.github/workflows`.
 
 ## Parser Contract

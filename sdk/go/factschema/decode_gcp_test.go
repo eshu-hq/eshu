@@ -114,7 +114,7 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// fingerprinted tag values before the envelope is built.
 	{FactKindAzureTagObservation, "tag_value_fingerprints"}: {},
 	// file.parsed_file_data: fileFactEnvelope
-	// (go/internal/collector/git_fact_builder.go:433-439) unconditionally sets
+	// (go/internal/collector/gitrepo/git_fact_builder.go:433-439) unconditionally sets
 	// parsed_file_data to the parser's per-file map on every "file" fact it
 	// builds — there is no conditional-emission path that could omit it for a
 	// valid fact. An absent parsed_file_data must dead-letter, not decode to a

@@ -448,7 +448,7 @@ const (
 	// The code family fact-kind strings are BARE (no family prefix), unlike
 	// every other family in this file: they are the git collector's original,
 	// pre-Contract-System literal kinds ("file", "repository",
-	// go/internal/collector/git_fact_builder.go). TestFactSchemaKindsMatchWireFactKinds
+	// go/internal/collector/gitrepo/git_fact_builder.go). TestFactSchemaKindsMatchWireFactKinds
 	// (reducer side) asserts each stays byte-equal to its facts.*FactKind
 	// counterpart.
 

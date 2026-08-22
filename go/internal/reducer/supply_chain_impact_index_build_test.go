@@ -428,7 +428,7 @@ func TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuild
 // (facts.StableID/StableID) whose input embeds generation_id. Nine of the
 // live corpus's twenty rows for digest sha256:abcdef...ab derive
 // generation_id from GitCollectorSnapshotRun's wall-clock observed_at
-// (go/internal/collector/git_source_processing.go: sourceRunID ->
+// (go/internal/collector/gitrepo/git_source_processing.go: sourceRunID ->
 // buildGeneration -> scope.ScopeGeneration.GenerationID), so their factIDs
 // are a fresh, unpredictable draw on every collector run -- confirmed by
 // reading that source, not assumed.

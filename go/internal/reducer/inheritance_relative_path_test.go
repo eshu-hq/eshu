@@ -13,7 +13,7 @@ import (
 // TestExtractInheritanceRowsPopulatesChildPathFromRelativePath is the #5996
 // regression test. It builds content_entity envelopes shaped exactly like
 // production: contentEntityFactEnvelope
-// (go/internal/collector/git_content_fact_envelopes.go:80) emits
+// (go/internal/collector/gitrepo/git_content_fact_envelopes.go:80) emits
 // "relative_path" and never a top-level "path" key. Before the fix,
 // declaredInheritanceRow's childPath argument read "path" -- a key absent from
 // this fixture, matching every real content_entity fact -- so child_path was

@@ -20,9 +20,9 @@ package main
 // is generated from -- edit those TSVs, then re-run
 // scripts/generate-dirgate-grandfather-go.sh, never this file directly.
 var grandfatheredDirectories = map[string]grandfatherEntry{
-	"internal/collector":          {FileCount: 111, Digest: "aa91a713d77db808654cec9c92705997921abb22b80435e157280e4c4a7c7d63", NamingExempt: []string{"discovery_advisory.go", "discovery_env.go"}},
 	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
+	"internal/collector/gitrepo":  {FileCount: 66, Digest: "774b96b40dbec9964c434c50a6056df7780e8909ecb3a0f43e1ffe17e606eae3"},
 	"internal/coordinator":        {FileCount: 66, Digest: "dc6dce18121aced9bd33abae446b846d3bf2d242a184685c30ac57417f1d7f9b"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
 	"internal/mcp":                {FileCount: 130, Digest: "67990bbaa6c665cc65ad29c4df8cff861a4a39ce749334e6c1156a419d0933d8"},

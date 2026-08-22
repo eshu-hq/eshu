@@ -27,7 +27,7 @@ x-demo-runtime-env: &demo_runtime_env
   # (ESHU_REPOS_DIR) MUST be different directories. In the default (non-direct)
   # filesystem mode, bootstrap-index cleans ESHU_REPOS_DIR and then copies each
   # discovered repo from ESHU_FILESYSTEM_ROOT into it (see
-  # go/internal/collector/git_selection_filesystem.go). Pointing both at the
+  # go/internal/collector/gitrepo/git_selection_filesystem.go). Pointing both at the
   # same dir makes that clean wipe the staged fixtures before the copy reads
   # them. This mirrors scripts/verify-golden-corpus-gate.sh, which stages into
   # a corpus dir and syncs into a separate repos dir.

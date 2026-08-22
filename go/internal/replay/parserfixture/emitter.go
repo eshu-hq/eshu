@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -173,7 +175,7 @@ func (e *Emitter) emit(ctx context.Context) ([]facts.Envelope, error) {
 			// fatal: the recording captures what the parser actually emits.
 			continue
 		}
-		env := collector.ParserFileFactEnvelope(
+		env := gitrepo.ParserFileFactEnvelope(
 			e.opts.TreePath,
 			e.opts.RepoID,
 			e.opts.ScopeID,

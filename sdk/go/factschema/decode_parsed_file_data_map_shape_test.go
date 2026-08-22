@@ -10,7 +10,7 @@ import "testing"
 // (go/internal/storage/postgres/ingestion.go's upsertStreamingFacts callback
 // -> relationships.DiscoverEvidenceWithStats) feeds DiscoverEvidence a
 // facts.Envelope built directly from
-// go/internal/collector/git_fact_builder.go's fileFactEnvelope, which embeds
+// go/internal/collector/gitrepo/git_fact_builder.go's fileFactEnvelope, which embeds
 // the in-memory parser payload map verbatim -- NO JSON marshal/unmarshal
 // round trip. That payload's parsed_file_data inner buckets are exactly what
 // go/internal/parser/shared.AppendBucket produces: []map[string]any, never

@@ -22,7 +22,7 @@ receives one of these structs, validated.
 | `code_interproc_evidence` | `InterprocEvidence` | `factschema.DecodeCodeInterprocEvidence` |
 
 All six kinds are emitted only when the value-flow gate (`ESHU_EMIT_DATAFLOW`)
-is on (`go/internal/collector/git_snapshot_dataflow_function.go`,
+is on (`go/internal/collector/gitrepo/git_snapshot_dataflow_function.go`,
 `git_snapshot_function_summary.go`, `git_snapshot_function_source.go`,
 `git_snapshot_taint_evidence.go`, `git_snapshot_interproc_evidence.go`,
 `git_followup_facts.go`). None are registered in
@@ -49,7 +49,7 @@ extraction, or postgres loading; `go/internal/reducer`
 `go/internal/storage/postgres` (the `Load*` loader files) consume the decoded
 structs but live outside this module. It does not own the git collector
 emitters that build these payloads
-(`go/internal/collector/git_snapshot_*.go`, `git_followup_facts.go`), which
+(`go/internal/collector/gitrepo/git_snapshot_*.go`, `git_followup_facts.go`), which
 also live outside this module.
 
 ## Exported surface
@@ -160,7 +160,7 @@ emission path.
 - Parent module `README.md` (`sdk/go/factschema/README.md`).
 - `sdk/go/factschema/codegraph/v1/README.md` — the sibling family this
   package's precedent (opaque nested shapes, bare wire kinds) mirrors.
-- `go/internal/collector/git_snapshot_dataflow_function.go`,
+- `go/internal/collector/gitrepo/git_snapshot_dataflow_function.go`,
   `git_snapshot_function_summary.go`, `git_snapshot_function_source.go`,
   `git_snapshot_taint_evidence.go`, `git_snapshot_interproc_evidence.go`,
   `git_followup_facts.go` — the collector-side emitters for these six fact

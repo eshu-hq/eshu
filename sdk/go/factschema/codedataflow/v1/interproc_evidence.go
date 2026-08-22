@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A code_interproc_evidence fact is the git collector's per-finding emission
-// (go/internal/collector/git_snapshot_interproc_evidence.go
+// (go/internal/collector/gitrepo/git_snapshot_interproc_evidence.go
 // interprocEvidenceFactEnvelope) for one resolved cross-function value-flow
 // finding: the collector has already resolved BOTH the source and sink
 // functions to their graph Function entity uids before emission, dropping any
