@@ -112,8 +112,8 @@ func TestSymbolRuntimeFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ifa.LoadSymbolRuntimeFamilyOdu: %v", err)
 	}
-	if len(odu.Facts) != 8 {
-		t.Fatalf("expected 8 facts (1 repository, 2 file, 3 content_entity, 2 shared_followup), got %d", len(odu.Facts))
+	if len(odu.Facts) != 9 {
+		t.Fatalf("expected 9 facts (1 repository, 3 file, 3 content_entity, 2 shared_followup), got %d", len(odu.Facts))
 	}
 	kinds := make(map[string]int, len(odu.Facts))
 	for _, fact := range odu.Facts {
@@ -122,7 +122,7 @@ func TestSymbolRuntimeFamilyOduPreservesEnvelopeFields(t *testing.T) {
 			t.Errorf("fact %s (%s) declares no schema_version; this guard would be vacuous", fact.StableFactKey, fact.FactKind)
 		}
 	}
-	want := map[string]int{"repository": 1, "file": 2, "content_entity": 3, "shared_followup": 2}
+	want := map[string]int{"repository": 1, "file": 3, "content_entity": 3, "shared_followup": 2}
 	if !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("fact-kind breakdown = %v, want %v", kinds, want)
 	}

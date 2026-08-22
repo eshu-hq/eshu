@@ -27,11 +27,32 @@ import (
 //     pair reducer.ExtractWorkloadCandidates reads -- one fact serves both
 //     readers because codegraphv1.Repository's GraphID/Name fields encode to
 //     exactly those payload keys;
-//   - a Dockerfile file fact carrying a workload signal
-//     (dockerfile_stages+language=dockerfile) so ExtractWorkloadCandidates
-//     yields a WorkloadCandidate for the repository, at
+//   - a Dockerfile file fact PLUS a Jenkinsfile file fact -- a bare Dockerfile
+//     alone gives the offline reducer.ExtractWorkloadCandidates/
+//     BuildProjectionRows seam a WorkloadCandidate at
 //     DefaultWorkloadSignalConfidence.ConfidenceFor(SignalDockerfileRuntime)
-//     = 0.88, above the 0.82 BuildProjectionRows admission floor;
+//     = 0.88, but the LIVE workload-materialization handler routes every
+//     candidate through the SAME correlation/admission engine
+//     deployable_unit_edges uses
+//     (CorrelatedWorkloadProjectionInputLoader.LoadWorkloadProjectionInputs,
+//     go/internal/reducer/correlated_workload_projection_input_loader.go:71,
+//     -> admittedCorrelatedWorkloadCandidates ->
+//     deployableUnitRulePack), which the pure offline guards never run at
+//     all. A Dockerfile-only candidate selects DockerfileRulePack
+//     (MinAdmissionConfidence 0.90, plus a required "dockerfile"/"image"
+//     evidence pair nothing in this Odù emits) and is correctly REJECTED --
+//     TestDeployableUnitCorrelationHandleRejectsDockerfileOnlyCandidate
+//     already proves that is intended, not a defect. Adding the Jenkinsfile
+//     gives the candidate BOTH dockerfile_runtime and jenkins_pipeline
+//     provenance, which selects JenkinsRulePack (MinAdmissionConfidence
+//     0.84) instead -- admitted on structural evidence alone, with no
+//     resolved relationship needed
+//     (TestDeployableUnitCorrelationHandleAdmitsJenkinsBackedServiceCandidate).
+//     addProvenance takes the max confidence across signals, so the
+//     Jenkinsfile's own low CI-provenance confidence (0.42) never lowers the
+//     candidate's 0.88 -- see deployable_unit_family_catalog.go's
+//     deployableUnitFamilyAdmittedNoDeployRepoID for the exact fixture shape
+//     this mirrors;
 //   - a server file fact carrying framework_semantics.route_entries (read by
 //     BOTH the workload-side APIEndpointRow derivation and the code-side
 //     HANDLES_ROUTE/RUNS_IN handler resolution) and function_calls (read by
@@ -66,10 +87,12 @@ const (
 	runsInExpectedEdgesRelPath             = "go/internal/ifa/testdata/runsin/ifa-runs-in-family-expected-edges.json"
 	invokesCloudActionExpectedEdgesRelPath = "go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json"
 
-	// SymbolRuntimeFamilyDockerfilePath and SymbolRuntimeFamilyServerPath are
-	// the two fixture files' relative_path values.
-	SymbolRuntimeFamilyDockerfilePath = "Dockerfile"
-	SymbolRuntimeFamilyServerPath     = "server.go"
+	// SymbolRuntimeFamilyDockerfilePath, SymbolRuntimeFamilyJenkinsfilePath,
+	// and SymbolRuntimeFamilyServerPath are the three fixture files'
+	// relative_path values.
+	SymbolRuntimeFamilyDockerfilePath  = "Dockerfile"
+	SymbolRuntimeFamilyJenkinsfilePath = "Jenkinsfile"
+	SymbolRuntimeFamilyServerPath      = "server.go"
 
 	// SymbolRuntimeFamilyHandlerFunctionName/Line,
 	// SymbolRuntimeFamilyHealthFunctionName/Line, and
@@ -193,10 +216,11 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, invokesCloudActionExpectedEdgesRelPath)
 }
 
-// symbolRuntimeFamilyOdu carries one repository, one Dockerfile file (the
-// workload signal), one server file (route entries + function calls +
-// functions), three content_entity Function facts, and two shared_followup
-// facts -- wired so reducer.ExtractSymbolRuntimeIntentRows derives exactly
+// symbolRuntimeFamilyOdu carries one repository, one Dockerfile file plus one
+// Jenkinsfile file (the live-admission-passing workload signal pair), one
+// server file (route entries + function calls + functions), three
+// content_entity Function facts, and two shared_followup facts -- wired so
+// reducer.ExtractSymbolRuntimeIntentRows derives exactly
 // four HANDLES_ROUTE upsert rows (GET+POST /widgets, GET /healthz -- three
 // route entries, but /widgets' two methods share one intent-level dedupe
 // key's method dimension so they remain two distinct rows) collapsing to
@@ -229,6 +253,7 @@ func symbolRuntimeFamilyOdu() CatalogOdu {
 				SourceRunID: &sourceRunID,
 			}),
 			symbolRuntimeFamilyDockerfileFileFact(dockerfileLanguage),
+			symbolRuntimeFamilyJenkinsfileFileFact(),
 			symbolRuntimeFamilyServerFileFact(),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHandlerFunctionName, SymbolRuntimeFamilyHandlerFunctionUID, SymbolRuntimeFamilyHandlerFunctionLine),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHealthFunctionName, SymbolRuntimeFamilyHealthFunctionUID, SymbolRuntimeFamilyHealthFunctionLine),
@@ -239,11 +264,12 @@ func symbolRuntimeFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu: odu,
-		Detail: "one repository, a Dockerfile file (workload signal) and a server.go file (three net_http route entries: GET /widgets and POST /widgets both via " +
+		Detail: "one repository, a Dockerfile file plus a Jenkinsfile file (the pair the live correlation/admission engine's JenkinsRulePack admits, unlike a bare " +
+			"Dockerfile which DockerfileRulePack rejects) and a server.go file (three net_http route entries: GET /widgets and POST /widgets both via " +
 			"HandleWidgets -- proving the method-collapse live -- plus GET /healthz via the distinct handler HandleHealth; plus two function_calls on InvokeAWS: " +
 			"one (s3, PutObject) catalog hit and one (widget, Frobnicate) non-catalog miss), three content_entity Function facts, " +
 			"and two shared_followup facts (workload_materialization, code_call_materialization) -- driving exactly 2 HANDLES_ROUTE edges, 2 RUNS_IN edges, " +
-			"1 INVOKES_CLOUD_ACTION edge, one Workload, and two Endpoints.",
+			"1 INVOKES_CLOUD_ACTION edge, one admitted Workload, and two Endpoints.",
 	}
 }
 
@@ -286,6 +312,27 @@ func symbolRuntimeFamilyDockerfileFileFact(language string) facts.Envelope {
 			"dockerfile_stages": []any{
 				map[string]any{"name": "runtime"},
 			},
+		},
+	})
+}
+
+// symbolRuntimeFamilyJenkinsfileFileFact carries the second workload signal
+// (jenkins_pipeline_calls, with language "groovy") needed so this Odù's
+// candidate is admitted by the LIVE correlation/admission engine's
+// JenkinsRulePack rather than rejected by DockerfileRulePack -- see the
+// package doc comment above and deployableUnitFamilyAdmittedNoDeployRepoID's
+// identical fixture shape (deployable_unit_family_catalog.go). Inert for the
+// pure offline guards (isJenkinsArtifact's only structural requirement is
+// the relative_path itself), included solely for live-gate admission
+// fidelity.
+func symbolRuntimeFamilyJenkinsfileFileFact() facts.Envelope {
+	return symbolRuntimeFamilyFileFact(codegraphv1.File{
+		RepoID:       SymbolRuntimeFamilyRepoID,
+		RelativePath: SymbolRuntimeFamilyJenkinsfilePath,
+		Language:     strPtr("groovy"),
+		ParsedFileData: map[string]any{
+			"path":                   SymbolRuntimeFamilyLocalPath + "/" + SymbolRuntimeFamilyJenkinsfilePath,
+			"jenkins_pipeline_calls": []any{"deployShared"},
 		},
 	})
 }

@@ -8,7 +8,7 @@
       "scope_kind": "repository",
       "collector_kind": "git",
       "generation_id": "gen-ifa-symbol-runtime-family-1",
-      "observed_at": "2026-08-21T00:00:00Z",
+      "observed_at": "2026-08-22T00:00:00Z",
       "trigger_kind": "snapshot",
       "facts": [
         {
@@ -43,6 +43,24 @@
               "path": "/repo-ifa-symbol-runtime/Dockerfile"
             },
             "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-symbol-runtime-family:Jenkinsfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "groovy",
+            "parsed_file_data": {
+              "jenkins_pipeline_calls": [
+                "deployShared"
+              ],
+              "path": "/repo-ifa-symbol-runtime/Jenkinsfile"
+            },
+            "relative_path": "Jenkinsfile",
             "repo_id": "repo-ifa-symbol-runtime-family"
           }
         },

@@ -58,6 +58,29 @@ func handlesRouteExpectedEdgesPath(repoRoot string) string {
 // different handler on a different path) additionally proves this is not a
 // one-edge assertion that could not tell "processed every route" apart from
 // "processed only the first one".
+//
+// SCOPE LIMIT this guard does NOT cover (root-caused on a live determinism
+// red): this function calls reducer.ExtractWorkloadCandidates ->
+// reducer.BuildProjectionRows DIRECTLY. It never runs the correlation/
+// admission engine the LIVE workload-materialization handler routes every
+// candidate through -- CorrelatedWorkloadProjectionInputLoader.
+// LoadWorkloadProjectionInputs
+// (go/internal/reducer/correlated_workload_projection_input_loader.go:71) ->
+// admittedCorrelatedWorkloadCandidates -> deployableUnitRulePack's rule-pack
+// selection (go/internal/reducer/deployable_unit_correlation.go:258-273). A
+// candidate this guard's pure projection sees as fully materialized can
+// still be REJECTED live if its provenance selects a rule pack whose
+// MinAdmissionConfidence or RequiredEvidence the candidate does not satisfy.
+// This Odù's own fixture hit exactly that: a bare Dockerfile signal selects
+// DockerfileRulePack (MinAdmissionConfidence 0.90 plus a required
+// "dockerfile"/"image" evidence pair this Odù never emits) and is correctly
+// rejected, so the live gate committed zero Endpoint nodes even though this
+// offline guard reported success -- the Jenkinsfile file fact
+// (symbol_runtime_family_odu.go) exists specifically to select
+// JenkinsRulePack (0.84, structural evidence only) instead. This guard is
+// the authority for whether the projection SEAM reproduces correctly; the
+// LIVE determinism gate is the sole authority for whether the admission
+// engine actually committed the Endpoint this family's edges MATCH against.
 func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, handlesRouteFamily)
 	if err != nil {
