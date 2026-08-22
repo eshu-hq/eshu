@@ -381,6 +381,17 @@ require_shell_exec_lib "shell-exec assert-edges domain" "-domain shell_exec"
 require_shell_exec_lib "shell-exec drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected "${expected_edges}"'
 
+# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
+# share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive
+# function, since they come from the same production entry point
+# (reducer.ExtractSymbolRuntimeIntentRows). Each still asserts its OWN
+# exact-set -- three relationship types, three assertions.
+require_symbol_runtime_lib "handles_route assert-edges domain" "-domain handles_route"
+require_symbol_runtime_lib "runs_in assert-edges domain" "-domain runs_in"
+require_symbol_runtime_lib "invokes_cloud_action assert-edges domain" "-domain invokes_cloud_action"
+require_symbol_runtime_lib "symbol-runtime drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_symbol_runtime_lib "handles_route assert is exact-set, not a digest" '-expected "${expected_edges}"'
+
 declare -A ifa_det_family_cases_hand_authored=(
 	[sql_relationships]="-domain sql_relationships"
 	[code_calls]="-domain code_calls"
@@ -390,6 +401,9 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[submodule_pin_edges]="-domain submodule_pin_edges"
 	[inheritance_edges]="-domain inheritance_edges"
 	[shell_exec]="-domain shell_exec"
+	[handles_route]="-domain handles_route"
+	[runs_in]="-domain runs_in"
+	[invokes_cloud_action]="-domain invokes_cloud_action"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -414,7 +428,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with value '${domain_needle}', which is not this family's own '${expected_needle}' assert-edges flag -- the value must be the family's real domain needle, never a bare acknowledgement or a value copied from another family"
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
-		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" \
+		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

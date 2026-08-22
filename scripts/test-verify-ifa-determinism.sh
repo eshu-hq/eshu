@@ -29,6 +29,7 @@ codeowners_lib="${repo_root}/scripts/lib/ifa_codeowners_live.sh"
 submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 inheritance_lib="${repo_root}/scripts/lib/ifa_inheritance_live.sh"
 shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
+symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
@@ -257,6 +258,7 @@ require_code "sources deployable-unit converge lib" "scripts/lib/ifa_deployable_
 require_code "sources rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 require_code "sources inheritance live lib" "scripts/lib/ifa_inheritance_live.sh"
 require_code "sources shell-exec live lib" "scripts/lib/ifa_shell_exec_live.sh"
+require_code "sources symbol-runtime live lib" "scripts/lib/ifa_symbol_runtime_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"

@@ -69,3 +69,13 @@ require_submodule_pin_lib() {
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${submodule_pin_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (submodule-pin lib): ${needle}, or it survives only inside a comment"
 }
+
+# One helper for all three trio families (handles_route/runs_in/
+# invokes_cloud_action, #5995/#6000/#5997): their drive/assert callbacks
+# live in the SAME shared lib file, scripts/lib/ifa_symbol_runtime_live.sh,
+# since all three share one cassette and one builder pass.
+require_symbol_runtime_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${symbol_runtime_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (symbol-runtime lib): ${needle}, or it survives only inside a comment"
+}

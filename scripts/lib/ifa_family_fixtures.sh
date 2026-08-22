@@ -113,6 +113,20 @@ workload_dependency_cassette="${repo_root}/testdata/cassettes/workloaddependency
 workload_dependency_expected_edges="${repo_root}/go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-expected-edges.json"
 workload_dependency_repo_expected_edges="${repo_root}/go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-repo-prerequisite-expected-edges.json"
 
+# symbol-runtime trio cassette (#5995 handles_route / #6000 runs_in / #5997
+# invokes_cloud_action): ONE shared cassette drives all three families --
+# they come from the same production entry point,
+# reducer.ExtractSymbolRuntimeIntentRows, called inside
+# CodeCallMaterializationHandler.Handle. Same drive placement as the plain
+# reducer families above: uniform on the determinism N-cells (via the
+# registry's shared drive_fn), targeted-only (this trio's own cells) on the
+# fault gate, never drive_all_cassettes. Three SEPARATE expected-edge files
+# because each family asserts its own relationship type's exact set.
+symbol_runtime_cassette="${repo_root}/testdata/cassettes/symbolruntime/ifa-symbol-runtime-family.json"
+handles_route_expected_edges="${repo_root}/go/internal/ifa/testdata/handlesroute/ifa-handles-route-family-expected-edges.json"
+runs_in_expected_edges="${repo_root}/go/internal/ifa/testdata/runsin/ifa-runs-in-family-expected-edges.json"
+invokes_cloud_action_expected_edges="${repo_root}/go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json"
+
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
 # so a missing file is identifiable from the failure line alone; "$1" is the
@@ -146,4 +160,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${workload_dependency_cassette}" ]] || { echo "${gate}: workload-dependency cassette not found: ${workload_dependency_cassette}" >&2; exit 1; }
 	[[ -f "${workload_dependency_expected_edges}" ]] || { echo "${gate}: workload-dependency expected-edge set not found: ${workload_dependency_expected_edges}" >&2; exit 1; }
 	[[ -f "${workload_dependency_repo_expected_edges}" ]] || { echo "${gate}: workload-dependency repo-prerequisite expected-edge set not found: ${workload_dependency_repo_expected_edges}" >&2; exit 1; }
+	[[ -f "${symbol_runtime_cassette}" ]] || { echo "${gate}: symbol-runtime cassette not found: ${symbol_runtime_cassette}" >&2; exit 1; }
+	[[ -f "${handles_route_expected_edges}" ]] || { echo "${gate}: handles-route expected-edge set not found: ${handles_route_expected_edges}" >&2; exit 1; }
+	[[ -f "${runs_in_expected_edges}" ]] || { echo "${gate}: runs-in expected-edge set not found: ${runs_in_expected_edges}" >&2; exit 1; }
+	[[ -f "${invokes_cloud_action_expected_edges}" ]] || { echo "${gate}: invokes-cloud-action expected-edge set not found: ${invokes_cloud_action_expected_edges}" >&2; exit 1; }
 }

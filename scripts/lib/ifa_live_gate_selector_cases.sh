@@ -170,6 +170,12 @@ ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_fault_injection_inheritance_cells.sh|scripts/lib/ifa_fault_injection_inheritance_cells.sh'
 	'scripts/lib/ifa_shell_exec_live.sh|scripts/lib/ifa_shell_exec_live.sh'
 	'scripts/lib/ifa_fault_injection_shell_exec_cells.sh|scripts/lib/ifa_fault_injection_shell_exec_cells.sh'
+	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
+	# same placement as the inheritance/shell_exec pair immediately above --
+	# both the shared live lib (sourced by both gates) and the fault-only
+	# cells file are registered in BOTH gate blocks in specs/ci-gates.v1.yaml.
+	'scripts/lib/ifa_symbol_runtime_live.sh|scripts/lib/ifa_symbol_runtime_live.sh'
+	'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh|scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
 	'scripts/lib/ifa_deployable_unit_live.sh|scripts/lib/ifa_deployable_unit_live.sh'
 	'scripts/lib/ifa_deployable_unit_live_diagnostics.sh|scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
 	'scripts/lib/ifa_deployable_unit_live_converge.sh|scripts/lib/ifa_deployable_unit_live_converge.sh'

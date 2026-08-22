@@ -21,8 +21,8 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Thirty-six cells, each hitting a genuinely different recovery or delivery
-# seam. All thirty-six run by default. Cell functions live in
+# Forty cells, each hitting a genuinely different recovery or delivery
+# seam. All forty run by default. Cell functions live in
 # scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
 # scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
@@ -35,9 +35,10 @@
 # scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue
 # #5999), and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells
 # 25-27, issue #6002), scripts/lib/ifa_fault_injection_inheritance_cells.sh
-# (cells 28-30, issue #5996), and scripts/lib/ifa_fault_injection_shell_exec_cells.sh
-# (cells 31-33, issue #6001), and workload_dependency cells 34-36 (#6003) live
-# in their family libraries.
+# (cells 28-30, issue #5996), scripts/lib/ifa_fault_injection_shell_exec_cells.sh
+# (cells 31-33, issue #6001), workload_dependency cells 34-36 (#6003) live in
+# their family library, and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+# (cells 37-40, issues #5995/#6000/#5997).
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -146,6 +147,13 @@
 #  31. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
 #  32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
 #  33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+#  34. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+#      handles_route/runs_in/invokes_cloud_action (one cassette, one builder
+#      pass); no kill-worker cell (blocker_kind=none for all three -- see
+#      scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh's header).
+#  35. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+#  36. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+#  37. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 #
 # Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -173,7 +181,7 @@
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
 #   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -235,7 +243,7 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
 # 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36's queue-retry lane) -- see go/cmd/reducer/
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -480,6 +488,15 @@ ifa_fault_shard_run cell_failgraphwrite_shell_exec
 ifa_fault_shard_run cell_baseline_workload_dependency
 ifa_fault_shard_run cell_killworker_workload_dependency
 ifa_fault_shard_run cell_failgraphwrite_workload_dependency
+
+# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997), cells
+# 37-40; baseline first (one shared trio drive; see cell 37's header entry
+# above and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh). No
+# kill-worker cell -- blocker_kind=none for all three.
+ifa_fault_shard_run cell_baseline_symbol_runtime
+ifa_fault_shard_run cell_failgraphwrite_handles_route
+ifa_fault_shard_run cell_failgraphwrite_runs_in
+ifa_fault_shard_run cell_failgraphwrite_invokes_cloud_action
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

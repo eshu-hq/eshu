@@ -124,6 +124,7 @@ source "${repo_root}/scripts/lib/ifa_rationale_live.sh"
 # shellcheck source=scripts/lib/ifa_codeowners_live.sh
 source "${repo_root}/scripts/lib/ifa_codeowners_live.sh"; source "${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 source "${repo_root}/scripts/lib/ifa_inheritance_live.sh"; source "${repo_root}/scripts/lib/ifa_shell_exec_live.sh"  # paired sources keep this near-cap gate below 500 lines
+source "${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
