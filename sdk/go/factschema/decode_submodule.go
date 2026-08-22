@@ -12,7 +12,7 @@ import (
 // major per Contract System v1 §3.2. Callers receive either the decoded
 // struct or a classified *DecodeError; they must never substitute a
 // zero-value struct on error. The git collector emits this fact kind
-// (submodule.Emit, go/internal/collector/git_submodule_facts.go) and the
+// (submodule.Emit, go/internal/collector/gitrepo/gitsubmodule/git_submodule_facts.go) and the
 // reducer decodes it through this seam (decodeSubmodulePin,
 // go/internal/reducer/factschema_decode_submodule.go) to materialize
 // Repository-[:PINS_SUBMODULE]->Repository graph edges (issue #5420).

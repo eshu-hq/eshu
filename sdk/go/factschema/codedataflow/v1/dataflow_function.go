@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A code_dataflow_function fact is the git collector's per-function emission
-// of exact parser evidence (go/internal/collector/git_snapshot_dataflow_function.go
+// of exact parser evidence (go/internal/collector/gitrepo/git_snapshot_dataflow_function.go
 // dataflowFunctionFactEnvelope): one function's bounded CFG, reaching-
 // definition, and control-dependence facts, read from the parser's
 // dataflow_functions bucket. Unlike the other five kinds in this family, no

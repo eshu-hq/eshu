@@ -1454,7 +1454,7 @@
         ],
         "fixture_refs": [
           "go/cmd/collector-confluence/service_test.go",
-          "go/internal/collector/git_documentation_facts_test.go"
+          "go/internal/collector/gitrepo/git_documentation_facts_test.go"
         ],
         "truth_profile": "provider_gated"
       }

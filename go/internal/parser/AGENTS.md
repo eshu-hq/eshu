@@ -122,7 +122,7 @@ The README cross-references this section from its tree-sitter support table.
 - **Add a new entity key to an existing adapter** →
   1. Add the key to the adapter's output `map[string]any`.
   2. Add the key to the `snapshotEntityBuckets` table in
-     `go/internal/collector/git_snapshot_native.go` if it is an entity type that
+     `go/internal/collector/gitrepo/git_snapshot_native.go` if it is an entity type that
      the collector materializes into a content entity snapshot.
   3. Update `shape.Materialize` in `internal/content/shape`.
   4. Add a fixture test that asserts the new key appears in output for a known

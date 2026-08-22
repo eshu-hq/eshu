@@ -12,10 +12,10 @@ import "testing"
 // repositoryCatalogIDExpr is what ListRepositories and MatchRepositories
 // select as that same id from the relational catalog (both interpolate this
 // exact constant into their SQL text, so pinning the constant pins the
-// queries). buildScope (go/internal/collector/git_source_processing.go)
+// queries). buildScope (go/internal/collector/gitrepo/git_source_processing.go)
 // mirrors repo.ID into payload->>'repo_id' -- see
 // TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID in
-// go/internal/collector/git_source_processing_test.go -- so this coalesce
+// go/internal/collector/gitrepo/git_source_processing_test.go -- so this coalesce
 // must keep payload->>'repo_id' as its first, highest-priority branch. If a
 // future change reorders the coalesce (for example preferring
 // payload->>'id') or drops a branch, the catalog id can diverge from

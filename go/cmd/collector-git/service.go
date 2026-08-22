@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const defaultCollectorPollInterval = time.Second
@@ -22,11 +24,11 @@ func buildCollectorService(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (collector.Service, error) {
-	config, err := collector.LoadRepoSyncConfig("collector-git", getenv)
+	config, err := gitrepo.LoadRepoSyncConfig("collector-git", getenv)
 	if err != nil {
 		return collector.Service{}, err
 	}
-	discoveryOptions, err := collector.LoadDiscoveryOptionsFromEnv(getenv)
+	discoveryOptions, err := gitrepo.LoadDiscoveryOptionsFromEnv(getenv)
 	if err != nil {
 		return collector.Service{}, err
 	}
@@ -38,16 +40,16 @@ func buildCollectorService(
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD
 	// (epic #2340).
-	selector := collector.RepositorySelector(collector.NativeRepositorySelector{
+	selector := gitrepo.RepositorySelector(gitrepo.NativeRepositorySelector{
 		Config:           config,
 		Logger:           logger,
 		BaselineResolver: committer,
 		Instruments:      instruments,
 	})
-	handoffConfig := collector.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
+	handoffConfig := gitrepo.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {
-		selector = collector.PriorityRepositorySelector{Selectors: []collector.RepositorySelector{
-			collector.WebhookTriggerRepositorySelector{
+		selector = gitrepo.PriorityRepositorySelector{Selectors: []gitrepo.RepositorySelector{
+			gitrepo.WebhookTriggerRepositorySelector{
 				Config:           config,
 				Store:            postgres.NewWebhookTriggerStore(database),
 				Owner:            handoffConfig.Owner,
@@ -61,14 +63,14 @@ func buildCollectorService(
 	}
 
 	return collector.Service{
-		Source: &collector.GitSource{
+		Source: &gitrepo.GitSource{
 			Component: "collector-git",
 			Selector:  selector,
-			Snapshotter: collector.NativeRepositorySnapshotter{
-				SCIP:             collector.LoadSnapshotSCIPConfig(getenv),
+			Snapshotter: gitrepo.NativeRepositorySnapshotter{
+				SCIP:             gitrepo.LoadSnapshotSCIPConfig(getenv),
 				ParseWorkers:     config.ParseWorkers,
 				DiscoveryOptions: discoveryOptions,
-				EmitDataflow:     collector.LoadEmitDataflowGate(getenv),
+				EmitDataflow:     gitrepo.LoadEmitDataflowGate(getenv),
 				Tracer:           tracer,
 				Instruments:      instruments,
 				Logger:           logger,

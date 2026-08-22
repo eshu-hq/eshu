@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A code_taint_evidence fact is the git collector's per-finding emission
-// (go/internal/collector/git_snapshot_taint_evidence.go
+// (go/internal/collector/gitrepo/git_snapshot_taint_evidence.go
 // taintEvidenceFactEnvelope) for one resolved intraprocedural value-flow
 // finding: the collector has already resolved the finding's function to its
 // graph Function entity uid before emission, dropping any finding whose

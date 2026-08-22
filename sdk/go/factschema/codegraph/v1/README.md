@@ -17,7 +17,7 @@ decodes through the parent `factschema` package's kind-keyed seam (for example
 | `repository` | `Repository` | `factschema.DecodeCodegraphRepository` |
 
 Both kinds are emitted once per source file / once per generation by the git
-collector (`go/internal/collector/git_fact_builder.go` `fileFactEnvelope`,
+collector (`go/internal/collector/gitrepo/git_fact_builder.go` `fileFactEnvelope`,
 `repositoryFactEnvelope`). This package types only the OUTER envelope identity
 the code-graph-core reducer handlers (code-call extraction, code-import
 repo-dependency edges) READ to attribute rows to a repository and file. The
@@ -50,8 +50,8 @@ code-call/import-edge extraction; reducer handlers under `go/internal/reducer`
 (`code_call_materialization_extract.go`, `code_import_repo_edge.go`,
 `code_import_repo_edge_retract.go`) consume the decoded structs but live
 outside this module. It does not own the git collector emitters that build
-these payloads (`go/internal/collector/git_fact_builder.go`,
-`go/internal/collector/git_refs.go`), which also live outside this module.
+these payloads (`go/internal/collector/gitrepo/git_fact_builder.go`,
+`go/internal/collector/gitrepo/git_refs.go`), which also live outside this module.
 
 ## Exported surface
 
@@ -236,6 +236,6 @@ emission path — see the module `README.md`'s no-observability-change note.
 - `docs/internal/contract-system-contributor-summary.md`
 - Parent module `README.md` (`sdk/go/factschema/README.md`) — decode seam,
   classified errors, schema generation.
-- `go/internal/collector/git_fact_builder.go`,
-  `go/internal/collector/git_refs.go` — the collector-side emitters for these
+- `go/internal/collector/gitrepo/git_fact_builder.go`,
+  `go/internal/collector/gitrepo/git_refs.go` — the collector-side emitters for these
   two fact kinds.

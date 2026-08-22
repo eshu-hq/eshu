@@ -70,7 +70,7 @@ shape as `language_parse_summary`), and the new
 graph per-language pre_scan cost the same way per-language parse cost is
 already graphed. Verified by
 `TestNativeRepositorySnapshotterLogsPreScanLanguageSummary`
-(`go/internal/collector/git_snapshot_native_test.go`), which asserts the
+(`go/internal/collector/gitrepo/git_snapshot_native_test.go`), which asserts the
 `pre_scan` stage log line for a python+groovy fixture repo carries
 `language_prescan_summary` with both languages' `file_count`,
 `total_duration_seconds`, and `avg_duration_seconds`.

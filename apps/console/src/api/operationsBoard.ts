@@ -372,7 +372,7 @@ export function repoLabel(row: {
 // the same repositoryidentity.CanonicalRepositoryID output
 // ("repository:r_<hash8>", go/internal/repositoryidentity/identity.go): the
 // git collector stores it as both ingestion_scopes.source_key and
-// payload->>'repo_id' (go/internal/collector/git_source_processing.go's
+// payload->>'repo_id' (go/internal/collector/gitrepo/git_source_processing.go's
 // buildScope), and the repository catalog reads the id back from
 // payload->>'repo_id' first (go/internal/query/content_reader_repository_
 // catalog.go's repositoryCatalogIDExpr). Every other collector's scope_kind

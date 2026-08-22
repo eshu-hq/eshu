@@ -9,7 +9,7 @@ package v1
 //
 // A code_function_summary fact is the git collector's once-per-function
 // emission of a function's durable value-flow Effects
-// (go/internal/collector/git_snapshot_function_summary.go
+// (go/internal/collector/gitrepo/git_snapshot_function_summary.go
 // functionSummaryFactEnvelope), read from the parser's dataflow_summaries
 // bucket. The reducer's postgres loader
 // (go/internal/storage/postgres/code_function_summary_loader.go

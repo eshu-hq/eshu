@@ -101,3 +101,53 @@ test_files_reports_evaluated_directory_count() {
 
 	rm -rf "${repo}"
 }
+
+# ---------------------------------------------------------------------------
+# (l) The gate must still evaluate the real tree when git runs it from a
+#     HOOK. Git exports GIT_DIR to every hook it invokes, and with GIT_DIR
+#     set `git rev-parse --show-toplevel` stops discovering the work tree
+#     and simply reports the directory git was run from. verify-dirgate.sh
+#     runs that command with `-C "${script_root}"`, so under a hook it
+#     answered `<root>/scripts`, making go_dir `<root>/scripts/go` -- a
+#     directory that does not exist, which dirgate_evaluate_dir treats as
+#     "nothing to check" and passes. In a normal clone GIT_DIR is the
+#     relative `.git`, the command fails from scripts/, and the `||`
+#     fallback recovered the right root; in a LINKED WORKTREE it is
+#     absolute, the command succeeds, and the gate silently passed every
+#     directory. That is the configuration CLAUDE.md mandates all work
+#     happen in, so the gate was blind exactly where it was needed.
+#
+#     Every other case here sets DIRGATE_REPO_ROOT/DIRGATE_GO_DIR, which
+#     bypasses the derivation entirely -- which is why none of them caught
+#     it. This case deliberately does NOT, so the script has to derive its
+#     own root the way it does in production.
+# ---------------------------------------------------------------------------
+test_hook_env_git_dir_does_not_blind_the_gate() {
+	local repo gf ne
+	repo="$(new_scratch_repo)"
+	# Install the real CLI so ${script_root}/.. is the scratch root, the
+	# same relative layout a checkout has.
+	mkdir -p "${repo}/scripts/lib"
+	cp "${verify_script}" "${repo}/scripts/verify-dirgate.sh"
+	cp "${script_root}/lib/dirgate-core.sh" "${repo}/scripts/lib/dirgate-core.sh"
+	write_numbered_files "${repo}/go/internal/hookenv" 41
+	gf="$(empty_grandfather_tsv "${repo}")"
+	ne="$(empty_naming_exempt_tsv "${repo}")"
+	git -C "${repo}" add -A >/dev/null 2>&1
+	git -C "${repo}" commit -q -m "scratch fixture" >/dev/null 2>&1
+
+	# An ABSOLUTE GIT_DIR is what git exports for a hook run inside a linked
+	# worktree; it is the case that used to succeed-and-lie.
+	DIRGATE_OUT="$(cd "${repo}" && GIT_DIR="${repo}/.git" \
+		DIRGATE_GRANDFATHER_TSV="${gf}" \
+		DIRGATE_NAMING_EXEMPT_TSV="${ne}" \
+		bash "${repo}/scripts/verify-dirgate.sh" --files go/internal/hookenv/file0000.go 2>&1)"
+	DIRGATE_EXIT=$?
+
+	assert_exit "${DIRGATE_EXIT}" 1 \
+		"an absolute GIT_DIR (the hook environment) must not blind the cap check"
+	assert_contains "${DIRGATE_OUT}" "internal/hookenv has 41 non-test .go files" \
+		"the hook-environment run names the over-cap directory it actually evaluated"
+
+	rm -rf "${repo}"
+}

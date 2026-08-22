@@ -16,10 +16,10 @@
    constants this package emits into.
 7. `sdk/go/factschema/submodule/v1/pin.go` — the typed payload struct;
    `sdk/go/factschema/decode_submodule.go` — the encode/decode seam.
-8. `go/internal/collector/git_submodule_facts.go` — the Git collector glue
+8. `go/internal/collector/gitrepo/gitsubmodule/git_submodule_facts.go` — the Git collector glue
    that calls this package during content streaming (candidate discovery,
    accumulation, and the resolve-then-emit call at the end of the stream).
-9. `go/internal/collector/git_submodule_pinned_sha.go` — the Git collector's
+9. `go/internal/collector/gitrepo/gitsubmodule/git_submodule_pinned_sha.go` — the Git collector's
    `gitSubmoduleGitlinkSHA`, the `PinnedSHAResolver` implementation wired in
    by `git_submodule_facts.go` (issue #5420 Phase 2b).
 
@@ -41,7 +41,7 @@
   when no resolver is set. Do not add a gitlink-tree-entry read
   (`git ls-tree` or equivalent) inside this package — that stays the Git
   collector's job (`gitSubmoduleGitlinkSHA`,
-  `go/internal/collector/git_submodule_pinned_sha.go`, issue #5420 Phase 2b);
+  `go/internal/collector/gitrepo/gitsubmodule/git_submodule_pinned_sha.go`, issue #5420 Phase 2b);
   this package only calls the injected resolver.
 - `ResolveRepoID` MUST NOT guess. It returns `""` for anything ambiguous or
   unparseable — most importantly git's own relative submodule URL forms

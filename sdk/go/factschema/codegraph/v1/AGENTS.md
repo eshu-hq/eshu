@@ -83,7 +83,7 @@ remain independent from Eshu internals.
   schema-declared or a future schema change can silently break the projector
   read with no gate to catch it.
 - `GitRef` is a closed sub-struct with no optional fields —
-  `repositoryFactGitRefsPayload` (`go/internal/collector/git_refs.go`) only
+  `repositoryFactGitRefsPayload` (`go/internal/collector/gitrepo/git_refs.go`) only
   emits a ref entry once `name` and `head_sha` are both non-blank, and always
   writes `kind` (defaulted to `"branch"`) and `is_default`.
 - This package defines exactly two fact kinds (`file`, `repository`). A third

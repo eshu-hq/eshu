@@ -18,7 +18,10 @@ func TestRationaleEvidenceDocumentsCurrentCollectorAndReducerCost(t *testing.T) 
 		prohibited []string
 	}{
 		{
-			path: filepath.Join("..", "collector", "doc.go"),
+			// The rationale follow-up contract moved with the git collector into
+			// collector/gitrepo (#6056); the collector root doc.go now describes
+			// only the seam every collector kind plugs into.
+			path: filepath.Join("..", "collector", "gitrepo", "doc.go"),
 			required: []string{
 				"Full and delta Git generations emit one unconditional",
 				"rationale-materialization follow-up after their content-entity facts",

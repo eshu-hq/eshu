@@ -252,7 +252,7 @@ pre-cap baseline is pending and will be added to this note when available.
 
 Observability Evidence: `file_entity_cap_hit_count` is emitted as a structured
 field on the `materialize snapshot-stage` slog line in
-`go/internal/collector/git_snapshot_native.go`. An operator can filter for
+`go/internal/collector/gitrepo/git_snapshot_native.go`. An operator can filter for
 `file_entity_cap_hit_count>0` to identify which repositories and files are
 hitting the cap during a sync run. When `PurgeEntities` fires, the content
 writer logs the path-scoped entity delete at the `prepare_files` stage. No new

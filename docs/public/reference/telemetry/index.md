@@ -826,7 +826,7 @@ sample is used as the stage end time. Verified by
 `TestRecordSnapshotStageAtExcludesPostEndTimeWork`,
 `TestRecordSnapshotStageSelfCapturesEndTimeAtCallTime`, and the existing
 `TestSnapshotRepositoryRecordsPerStageTelemetry` in
-`go/internal/collector/git_snapshot_stage_endtime_test.go` and
+`go/internal/collector/gitrepo/git_snapshot_stage_endtime_test.go` and
 `git_snapshot_stage_telemetry_test.go`.
 
 ## Per-(Domain, Partition) Shared-Projection Drain Telemetry

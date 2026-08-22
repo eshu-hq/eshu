@@ -7,7 +7,7 @@
 // factschema package's kind-keyed seam (decode.go, decode_codegraph.go).
 //
 // The code family has two fact kinds emitted by the git collector
-// (go/internal/collector/git_fact_builder.go): File ("file") and Repository
+// (go/internal/collector/gitrepo/git_fact_builder.go): File ("file") and Repository
 // ("repository"). This package types only the OUTER envelope identity fields
 // the code-graph-core reducer handlers READ to attribute extracted rows to a
 // repository and file. The required set tracks what the reducer reads for

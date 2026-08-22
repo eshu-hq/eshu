@@ -3,7 +3,9 @@
 
 package collector_test
 
-import "github.com/eshu-hq/eshu/go/internal/scope"
+import (
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
 
 // emitBenchCase binds one collector kind to the credential-free cassette that
 // the emit benchmark replays through the real Claim -> ingest -> emit-facts

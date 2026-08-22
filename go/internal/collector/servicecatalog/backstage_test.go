@@ -377,7 +377,7 @@ func activeRepositoryFact(repoID, remoteURL string, tombstone bool) facts.Envelo
 		Payload: map[string]any{
 			// A real git-collector "repository" fact always carries BOTH
 			// graph_id and repo_id, set to the same repository id
-			// (go/internal/collector/git_fact_builder.go repositoryFactEnvelope,
+			// (go/internal/collector/gitrepo/git_fact_builder.go repositoryFactEnvelope,
 			// and the reducer only ever loads these facts through
 			// ListActiveRepositoryFacts, which filters source_system='git').
 			// The reducer's typed decode (Contract System v1 Wave 4f S3) makes

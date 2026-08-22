@@ -6,13 +6,13 @@
    surface, telemetry, and an index of the docs below
 2. `go/internal/collector/service.go` — `Service.Run` and `commitWithTelemetry`;
    understand the poll loop before touching concurrency or `AfterBatchDrained`
-3. `go/internal/collector/git_source.go` — `GitSource.startStream`, the
+3. `go/internal/collector/gitrepo/git_source.go` — `GitSource.startStream`, the
    two-lane scheduling design, and the large-repo semaphore lifecycle; read
    `go/internal/collector/SCHEDULING.md` before changing giant-repo or
    parse-partition scheduling
-4. `go/internal/collector/git_snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
+4. `go/internal/collector/gitrepo/git_snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
    the five snapshot stages and the two-phase memory design
-5. `go/internal/collector/git_selection_config.go` — `RepoSyncConfig` and
+5. `go/internal/collector/gitrepo/git_selection_config.go` — `RepoSyncConfig` and
    `LoadRepoSyncConfig`; env var names and defaults
 6. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
@@ -31,7 +31,7 @@
   generation is `O(1)`, not `O(repo_size)`. Do not store body strings in
   `ContentFileMeta` or `RepositorySnapshot` beyond materialization.
   Enforced by `shapeFiles = nil` and `materialization = content.Materialization{}`
-  at `git_snapshot_native.go:230-236`.
+  at `gitrepo/git_snapshot_native.go:230-236`.
 
 - **Absolute paths before sourceRunID** — `resolveRepositories` calls
   `filepath.Abs` on every repo path before computing `sourceRunID`. Fact IDs
@@ -40,7 +40,7 @@
 - **Large-repo semaphore acquired in select, not in processRepo** — the
   semaphore is acquired inside the worker select loop so workers never block on
   the semaphore while small repos are available. Do not move semaphore
-  acquisition inside `processRepo` (`git_source.go:419-431`).
+  acquisition inside `processRepo` (`gitrepo/git_source.go:419-431`).
 
 - **Repo-local overrides applied before operator-level overlays** —
   `discoveryOptionsWithRepoDiscoveryConfig` applies `.eshu/discovery.json` and
@@ -71,26 +71,26 @@
 - **Add a new repository source mode** → add a new `RepositorySelector`
   implementation in a new file; wire it in `git_selection_*.go`; add an env
   var to `RepoSyncConfig` and `LoadRepoSyncConfig`; add a test case in
-  `git_selection_native_test.go` or a new test file. Do not branch inside
+  `gitrepo/git_selection_native_test.go` or a new test file. Do not branch inside
   `GitSource` on source mode.
 
 - **Add a new snapshot stage** → add the stage in
   `NativeRepositorySnapshotter.SnapshotRepository` between the existing stages;
   call `logSnapshotStageTiming` with the new stage name; add the metric record
   if the stage has measurable duration; add a test in
-  `git_snapshot_native_test.go`. Why: operators use `stage` log fields to
+  `gitrepo/git_snapshot_native_test.go`. Why: operators use `stage` log fields to
   identify bottlenecks.
 
 - **Change large-repo concurrency defaults** → edit `largeRepoThreshold` and
-  `largeRepoMaxConcurrent` in `git_selection_config.go`; update the tuning
+  `largeRepoMaxConcurrent` in `gitrepo/git_selection_config.go`; update the tuning
   comments with production data (date + repo counts + fact percentages); add a
   test. Read `eshu_dp_large_repo_semaphore_wait_seconds` guidance in the
   telemetry reference before changing defaults.
 
 - **Add a new discovery advisory field** → add the field to
   `DiscoveryAdvisoryReport` or one of its nested types in
-  `discovery_advisory.go`; populate it in `buildDiscoveryAdvisoryReport`; add a
-  test in `git_snapshot_native_discovery_test.go`.
+  `gitrepo/discovery_advisory.go`; populate it in `buildDiscoveryAdvisoryReport`; add a
+  test in `gitrepo/git_snapshot_native_discovery_test.go`.
 
 - **Add package-registry support** → keep normalization and fact-envelope work
   in `packageregistry`; keep live registry clients and runtime claim loops in a
@@ -168,7 +168,7 @@
 
 ## What NOT to change without an ADR
 
-- Two-lane scheduling (smallCh + largeCh) in `git_source.go` — changing this
+- Two-lane scheduling (smallCh + largeCh) in `gitrepo/git_source.go` — changing this
   to a single-lane design removes the convoy prevention that prevents
   small-repo starvation behind large-repo clusters.
 - `factStreamBuffer = 500` without a matching Postgres ingestion batch size

@@ -7,7 +7,7 @@
 2. `go/internal/repositoryidentity/identity.go` — `Metadata`, `MetadataFor`,
    `NormalizeRemoteURL`, `NormalizedRemoteKey`, `RepoSlugFromRemoteURL`,
    `CanonicalRepositoryID`; the entire surface fits in one file
-3. `go/internal/collector/git_fact_builder.go` — main caller; shows how
+3. `go/internal/collector/gitrepo/git_fact_builder.go` — main caller; shows how
    `MetadataFor` feeds fact emission
 
 ## Invariants this package enforces

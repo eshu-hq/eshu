@@ -6,7 +6,8 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -26,8 +27,8 @@ func TestBuildIngesterCollectorServiceWiresExplicitSCIPEnable(t *testing.T) {
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*collector.GitSource)
-	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	source := service.Source.(*gitrepo.GitSource)
+	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
 	if !snapshotter.SCIP.Enabled {
 		t.Fatal("buildIngesterCollectorService() SCIP enabled = false, want true")
 	}

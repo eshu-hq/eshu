@@ -55,7 +55,7 @@ import (
 // cloudformation_cross_stack_imports, terraform_blocks,
 // protocol_implementations) are now registered in both contentEntityBuckets
 // and the collector's snapshotEntityBuckets twin
-// (go/internal/collector/git_snapshot_entity_buckets.go). Leaving a stale
+// (go/internal/collector/gitrepo/git_snapshot_entity_buckets.go). Leaving a stale
 // entry here would be silently accepted forever — TestBucketSyncDriftLedgerIsHonest
 // below fails loudly the moment an entry's drift closes, which is exactly what
 // caught this map going stale during the fix.
@@ -82,7 +82,7 @@ func TestContentEntityBucketsMatchCollectorTwin(t *testing.T) {
 	canonical := parseBucketLabelSlice(t,
 		filepath.Join(root, "go/internal/content/shape/materialize_tables.go"), "contentEntityBuckets")
 	twin := parseBucketLabelSlice(t,
-		filepath.Join(root, "go/internal/collector/git_snapshot_entity_buckets.go"), "snapshotEntityBuckets")
+		filepath.Join(root, "go/internal/collector/gitrepo/git_snapshot_entity_buckets.go"), "snapshotEntityBuckets")
 
 	if len(canonical) == 0 || len(twin) == 0 {
 		t.Fatalf("extracted %d canonical and %d twin entries; an empty side means the parser lost the "+
@@ -192,7 +192,7 @@ func TestBucketSyncDriftLedgerIsHonest(t *testing.T) {
 	canonical := parseBucketLabelSlice(t,
 		filepath.Join(root, "go/internal/content/shape/materialize_tables.go"), "contentEntityBuckets")
 	twin := parseBucketLabelSlice(t,
-		filepath.Join(root, "go/internal/collector/git_snapshot_entity_buckets.go"), "snapshotEntityBuckets")
+		filepath.Join(root, "go/internal/collector/gitrepo/git_snapshot_entity_buckets.go"), "snapshotEntityBuckets")
 	projector := parseStringMapValues(t,
 		filepath.Join(root, "go/internal/projector/canonical.go"), "entityTypeLabelMap")
 

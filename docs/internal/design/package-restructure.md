@@ -144,13 +144,66 @@ absorbing the git-specific families — snapshot(64), selection(39),
 docs(41), observability, submodule, workflow-image, tfstate-glue,
 service-catalog-glue, codeowners-glue, refs, tracked, webhook, priority,
 fair-dispatch. Root keeps the shared seam every collector kind uses:
-`Service`/`Source`/`Committer`, the `claimed_service*` family (backs ~15
-other collector kinds), `git_source_types.go`, `git_fact_builder*`.
+`Service`/`Source`/`Committer` and the `claimed_service*` family (backs ~15
+other collector kinds).
 git_snapshot↔git_selection↔git_source is a measured 3-way production
 import cycle — they move together into gitrepo, not into separate
 packages, until a dependency-inversion refactor earns the split. Five glue
 families need disambiguated names (gitsubmodule, gittfstate, …) because
 same-named sibling packages already exist.
+
+**Correction, landed with #6056.** This section originally also listed
+`git_source_types.go` and `git_fact_builder*` as staying in the root. They
+do not, and could not. `git_source_types.go` declares `RepositorySnapshot`,
+whose fields reach `GitRef`, `TerraformStateCandidate`,
+`FunctionSummarySnapshot`, `FunctionSourceSnapshot` and
+`DataflowFunctionSnapshot`, and that data model is woven through
+git_snapshot_* and git_selection_*. Pinning the file in the root and letting
+the compiler pull back every declaration it transitively needed converged at
+**103 of the 111** non-test root files — the documented seam would have moved
+eight files and left the directory as it was. Both files moved into
+`gitrepo`, which cuts the root to 19 files and drops its grandfather row
+entirely.
+
+Two consequences worth knowing before the remaining children:
+
+- The leaf emitters could not be peeled on their own either. Every one of
+  them needs the fact-stream writer and the content records that the fact
+  stream also calls into, so a leaf-only move closes an import cycle. The
+  shared half became `gitrepo/gitmodel`, and the leaves sit below it:
+  `gitrepo -> leaf -> gitmodel`, one direction only.
+- `gitrepo` itself stays over the 40-file cap at 66 and carries a
+  grandfather row. The remaining overage is the snapshot/selection/source
+  cycle, which needs the dependency inversion this epic deliberately did not
+  bundle with a move. The ledger still improves: the root's row at 111 is
+  gone and the replacement is 66, and dirgate's ratchet means any later
+  extraction has to re-pin it lower.
+
+No-Regression Evidence: the collector restructure is a file move. Baseline and
+after measurement are the same tree by construction, and that is asserted rather
+than assumed: `testdata/golden/e2e-20repo-snapshot.json` and every cassette
+under `testdata/cassettes/` are byte-identical to the merge base (empty
+`git diff`, snapshot sha256 `42e75ccf5a34f69d0f92a2e81cc53c0e281f70c37e4dc444d60dddeaf3c0826c`
+on both sides, identical `git ls-tree` digests), so the B-12 contract the B-7
+golden-corpus gate diffs against did not move. Backend and version are unchanged
+(NornicDB, default local profile); input shape is unchanged (the same 20-repo
+corpus); terminal queue and row counts are unchanged because no reducer,
+projector, queue, lease, or Cypher path is touched — the diff is `git mv` plus
+import-path and qualifier edits, with 211 git-detected renames and every
+modified Go line a `collector.X` -> `gitrepo.X` swap. Whole-module `go build
+./...` and `go vet ./...` exit 0 and the collector tree plus its `cmd/` callers
+run green over 485 packages. A restructure that changed projected truth would
+surface as a B-12 diff; there is none.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The `#nosec`, `//nolint:` and `//go:build`
+annotation sets are identical before and after (538 `#nosec` with matching
+per-code breakdown, 103 `//go:build`), and every telemetry-coverage row that
+cited a moved file now cites its new path, with five new rows for the files this
+change creates — four of them inert type/helper files, and
+`gitrepo/gitmodel/factstream.go` mapped to `eshu_dp_workflow_claim_facts_emitted_total`
+because its `Send` increments the counter feeding `CollectedGeneration.FactCount()`.
+`scripts/verify-telemetry-coverage.sh` exits 0.
 
 **projector (188) + coordinator (124):** projector's ~20 per-provider
 intents families are measured clean (zero cross-family calls; all fan out

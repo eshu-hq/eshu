@@ -7,10 +7,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 )
 
-func bootstrapSnapshotterForEnv(t *testing.T, env map[string]string) collector.NativeRepositorySnapshotter {
+func bootstrapSnapshotterForEnv(t *testing.T, env map[string]string) gitrepo.NativeRepositorySnapshotter {
 	t.Helper()
 
 	deps, err := buildBootstrapCollector(
@@ -22,7 +22,7 @@ func bootstrapSnapshotterForEnv(t *testing.T, env map[string]string) collector.N
 	if err != nil {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
-	return deps.source.(*collector.GitSource).Snapshotter.(collector.NativeRepositorySnapshotter)
+	return deps.source.(*gitrepo.GitSource).Snapshotter.(gitrepo.NativeRepositorySnapshotter)
 }
 
 // TestBuildBootstrapCollectorHonorsEmitDataflowGate is the regression guard for

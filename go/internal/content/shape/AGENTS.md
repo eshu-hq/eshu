@@ -53,7 +53,7 @@
   `trailingNewlineLabels` and `sourceFieldContainsCode` if appropriate. Add a
   test case in `materialize_test.go`. Run
   `go test ./internal/content/shape -count=1`. **Also register the same
-  bucket in `go/internal/collector/git_snapshot_entity_buckets.go`'s
+  bucket in `go/internal/collector/gitrepo/git_snapshot_entity_buckets.go`'s
   `snapshotEntityBuckets`** (the collector-side twin `entityBucketsFromParsed`
   walks) **and the label in `go/internal/projector/canonical.go`'s
   `entityTypeLabelMap`** if the bucket is meant to reach the graph. Missing

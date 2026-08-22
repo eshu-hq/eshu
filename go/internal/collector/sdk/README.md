@@ -310,7 +310,7 @@ intentional owner-boundary files:
   status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 
 The broader HTTP/client audit also reviewed
-`go/internal/collector/git_selection_github.go`. That file stays outside this
+`go/internal/collector/gitrepo/git_selection_github.go`. That file stays outside this
 SDK adoption target because it owns repository source selection and GitHub App
 token minting before claimed provider collectors run; it is not a hosted source
 collector client or workflow failure kernel.

@@ -7,7 +7,7 @@ package v1
 // (Contract System v1 §3.1, docs/internal/design/contract-system-v1.md).
 //
 // A file fact is the git collector's per-source-file emission
-// (go/internal/collector/git_fact_builder.go fileFactEnvelope). RepoID,
+// (go/internal/collector/gitrepo/git_fact_builder.go fileFactEnvelope). RepoID,
 // RelativePath, and ParsedFileData are the join identity the code-graph-core
 // reducer handlers key their extraction on
 // (go/internal/reducer/code_call_materialization_extract.go,

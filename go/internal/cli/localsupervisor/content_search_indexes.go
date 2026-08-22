@@ -10,9 +10,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -33,7 +34,7 @@ type localContentSearchIndexDrainState struct {
 	OpenSharedProjectionWork int
 }
 
-var localContentSearchDiscoverRepos = collector.DiscoverFilesystemRepositoryIDs
+var localContentSearchDiscoverRepos = gitrepo.DiscoverFilesystemRepositoryIDs
 
 // startDeferredContentSearchIndexes restores expensive content search indexes
 // after the first local-authoritative queue drain for the discovered repo set.

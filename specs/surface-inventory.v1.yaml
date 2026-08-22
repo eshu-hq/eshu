@@ -44,7 +44,7 @@ surfaces:
       projection_surfaces: [documentation_evidence, documentation_truth_read_model]
       read_surfaces: [GET /api/v0/documentation/facts, GET /api/v0/documentation/findings, get_documentation_target, list_documentation_findings]
       proof_gates: [cd go && go test ./cmd/collector-confluence ./internal/collector ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/git_documentation_facts_test.go, go/cmd/collector-confluence/service_test.go]
+      fixture_refs: [go/internal/collector/gitrepo/git_documentation_facts_test.go, go/cmd/collector-confluence/service_test.go]
       truth_profile: provider_gated
   - category: collector
     name: oci_registry

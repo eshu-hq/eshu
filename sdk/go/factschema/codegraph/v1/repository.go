@@ -7,7 +7,7 @@ package v1
 // kind (Contract System v1 §3.1, docs/internal/design/contract-system-v1.md).
 //
 // A repository fact is the git collector's once-per-generation repository
-// summary (go/internal/collector/git_fact_builder.go repositoryFactEnvelope).
+// summary (go/internal/collector/gitrepo/git_fact_builder.go repositoryFactEnvelope).
 // RepoID is the join identity code-graph-core reducer handlers key
 // repository-scoped intents on
 // (go/internal/reducer/code_call_materialization_intents.go

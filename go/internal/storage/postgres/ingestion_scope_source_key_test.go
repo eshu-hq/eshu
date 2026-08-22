@@ -11,7 +11,7 @@ import (
 
 // TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope pins the storage
 // bridge in the #5192 contract chain: buildScope
-// (go/internal/collector/git_source_processing.go) writes repo.ID into both
+// (go/internal/collector/gitrepo/git_source_processing.go) writes repo.ID into both
 // Metadata["source_key"] and Metadata["repo_id"] (proven by
 // TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID in
 // git_source_processing_test.go), and upsertIngestionScope (ingestion.go:451)

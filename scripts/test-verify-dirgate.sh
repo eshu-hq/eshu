@@ -130,6 +130,7 @@ main() {
 	test_removable_grandfather_note
 	test_qualifying_files_ignores_directory_named_dot_go
 	test_naming_subpackages_ignores_directory_named_dot_go
+	test_hook_env_git_dir_does_not_blind_the_gate
 	test_grandfathered_shrink_requires_repin
 	test_grandfathered_shrink_below_cap_needs_no_repin
 	test_digest_helper

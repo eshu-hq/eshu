@@ -140,6 +140,34 @@ git -C "${case_new_doc}" add .
 git -C "${case_new_doc}" commit -q -m "add reducer evidence note + collector README"
 expect_pass "ignores new non-.go files under stage-owner directories" "${case_new_doc}"
 
+# Case 4c: the git collector lives in go/internal/collector/gitrepo (#6056) and
+# its leaf emitters one level below that, so collector stage files are no longer
+# all at go/internal/collector/*.go.
+#
+# The stage-owner check still reaches them, because these are `case` patterns
+# and not filename globs: in a bash `case`, `*` crosses `/`, so
+# go/internal/collector/*.go already matches at any depth. These two cases pin
+# that rather than fix anything — they were written expecting a coverage gap and
+# found none.
+#
+# They earn their place by making the property load-bearing: deleting the
+# go/internal/collector/*.go arm turns both of them red, so a future edit that
+# narrows the arm (or replaces the `case` with a real glob) cannot silently stop
+# requiring a telemetry-coverage row for new collector stages.
+case_gitrepo="$(init_repo case-gitrepo)"
+mkdir -p "${case_gitrepo}/go/internal/collector/gitrepo"
+printf 'package gitrepo\n' >"${case_gitrepo}/go/internal/collector/gitrepo/git_new_stage.go"
+git -C "${case_gitrepo}" add .
+git -C "${case_gitrepo}" commit -q -m "add new gitrepo stage without doc row"
+expect_fail "fails when a new go/internal/collector/gitrepo file is not covered by the doc" "${case_gitrepo}"
+
+case_gitrepo_leaf="$(init_repo case-gitrepo-leaf)"
+mkdir -p "${case_gitrepo_leaf}/go/internal/collector/gitrepo/gitdocs"
+printf 'package gitdocs\n' >"${case_gitrepo_leaf}/go/internal/collector/gitrepo/gitdocs/emitter.go"
+git -C "${case_gitrepo_leaf}" add .
+git -C "${case_gitrepo_leaf}" commit -q -m "add new gitrepo leaf stage without doc row"
+expect_fail "fails when a new gitrepo leaf-package file is not covered by the doc" "${case_gitrepo_leaf}"
+
 # Case 5: the doc has a No-Observability-Change: marker for a stage whose
 # underlying counters are intentionally not registered. The verifier must
 # accept the marker and exit 0.

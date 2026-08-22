@@ -17,7 +17,7 @@ does not change which repos are indexed.
 The report fires only on a changed batch: it runs after
 `syncFilesystemRepositories`, which returns an empty path set for an unchanged
 corpus (fixture-manifest match,
-[`git_selection_filesystem.go`](git_selection_filesystem.go) lines 29-32). The
+[`gitrepo/git_selection_filesystem.go`](gitrepo/git_selection_filesystem.go) lines 29-32). The
 report is gated on a non-empty sync, so it fires on the first run and whenever
 the on-disk corpus changes, and stays silent on steady-state re-polls under
 `Service.Run` — no per-interval log or metric spam for an unchanged corpus.

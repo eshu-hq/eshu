@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 )
 
 func TestBuildBootstrapCollectorWiresDefaultSCIPDisabled(t *testing.T) {
@@ -23,8 +23,8 @@ func TestBuildBootstrapCollectorWiresDefaultSCIPDisabled(t *testing.T) {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
 
-	source := deps.source.(*collector.GitSource)
-	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	source := deps.source.(*gitrepo.GitSource)
+	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
 	if snapshotter.SCIP.Enabled {
 		t.Fatal("buildBootstrapCollector() SCIP enabled by default = true, want false")
 	}
@@ -48,8 +48,8 @@ func TestBuildBootstrapCollectorWiresExplicitSCIPEnable(t *testing.T) {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
 
-	source := deps.source.(*collector.GitSource)
-	snapshotter := source.Snapshotter.(collector.NativeRepositorySnapshotter)
+	source := deps.source.(*gitrepo.GitSource)
+	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
 	if !snapshotter.SCIP.Enabled {
 		t.Fatal("buildBootstrapCollector() SCIP enabled = false, want true")
 	}

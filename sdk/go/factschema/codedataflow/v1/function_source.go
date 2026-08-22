@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A code_function_source fact is the git collector's per-source emission
-// (go/internal/collector/git_snapshot_function_source.go
+// (go/internal/collector/gitrepo/git_snapshot_function_source.go
 // functionSourceFactEnvelope) for one function parameter that is a value-flow
 // taint entry point (for example an *http.Request argument), read from the
 // parser's dataflow_sources bucket. The reducer's postgres loader

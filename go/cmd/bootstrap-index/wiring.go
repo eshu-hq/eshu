@@ -15,7 +15,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -43,23 +43,23 @@ func buildBootstrapCollector(
 		StoreName:   "bootstrap-index",
 	}
 
-	config, err := collector.LoadRepoSyncConfig("bootstrap-index", getenv)
+	config, err := gitrepo.LoadRepoSyncConfig("bootstrap-index", getenv)
 	if err != nil {
 		return collectorDeps{}, err
 	}
-	discoveryOptions, err := collector.LoadDiscoveryOptionsFromEnv(getenv)
+	discoveryOptions, err := gitrepo.LoadDiscoveryOptionsFromEnv(getenv)
 	if err != nil {
 		return collectorDeps{}, err
 	}
 
-	source := &collector.GitSource{
+	source := &gitrepo.GitSource{
 		Component: "bootstrap-index",
-		Selector:  collector.NativeRepositorySelector{Config: config},
-		Snapshotter: collector.NativeRepositorySnapshotter{
-			SCIP:             collector.LoadSnapshotSCIPConfig(getenv),
+		Selector:  gitrepo.NativeRepositorySelector{Config: config},
+		Snapshotter: gitrepo.NativeRepositorySnapshotter{
+			SCIP:             gitrepo.LoadSnapshotSCIPConfig(getenv),
 			ParseWorkers:     config.ParseWorkers,
 			DiscoveryOptions: discoveryOptions,
-			EmitDataflow:     collector.LoadEmitDataflowGate(getenv),
+			EmitDataflow:     gitrepo.LoadEmitDataflowGate(getenv),
 			Tracer:           tracer,
 			Instruments:      instruments,
 			Logger:           logger,

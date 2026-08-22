@@ -112,7 +112,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			calls: []string{"EncodeTerraformStateWarning"},
 		},
 		{
-			path:  "tfstate_candidate.go",
+			path:  "gitrepo/tfstate_candidate.go",
 			calls: []string{"EncodeTerraformStateCandidate"},
 		},
 		{

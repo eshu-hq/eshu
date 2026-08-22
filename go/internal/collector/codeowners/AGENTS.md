@@ -13,7 +13,7 @@
    constants this package emits into.
 6. `sdk/go/factschema/codeowners/v1/ownership.go` — the typed payload struct;
    `sdk/go/factschema/decode_codeowners.go` — the encode/decode seam.
-7. `go/internal/collector/git_codeowners_facts.go` — the Git collector glue
+7. `go/internal/collector/gitrepo/gitcodeowners/git_codeowners_facts.go` — the Git collector glue
    that calls this package during content streaming (candidate discovery,
    accumulation, and the resolve-then-emit call at the end of the stream).
 

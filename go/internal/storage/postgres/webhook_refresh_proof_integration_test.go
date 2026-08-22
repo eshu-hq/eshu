@@ -43,9 +43,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -145,19 +146,19 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 	t.Run("claim and handoff trigger targeted repository sync", func(t *testing.T) {
 		var syncedRepoIDs []string
 		claimStart := time.Now()
-		selector := collector.WebhookTriggerRepositorySelector{
-			Config:     collector.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		selector := gitrepo.WebhookTriggerRepositorySelector{
+			Config:     gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:      store,
 			Owner:      "collector-git-proof",
 			ClaimLimit: 50,
 			Now:        func() time.Time { return time.Now().UTC() },
-			SyncGit: func(_ context.Context, _ collector.RepoSyncConfig, repositoryIDs []string) (collector.GitSyncSelection, error) {
+			SyncGit: func(_ context.Context, _ gitrepo.RepoSyncConfig, repositoryIDs []string) (gitrepo.GitSyncSelection, error) {
 				syncedRepoIDs = append([]string(nil), repositoryIDs...)
 				paths := make([]string, 0, len(repositoryIDs))
 				for range repositoryIDs {
 					paths = append(paths, t.TempDir())
 				}
-				return collector.GitSyncSelection{SelectedRepoPaths: paths}, nil
+				return gitrepo.GitSyncSelection{SelectedRepoPaths: paths}, nil
 			},
 		}
 		batch, err := selector.SelectRepositories(ctx)
@@ -187,14 +188,14 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 	t.Run("already-drained queue is a no-op for the webhook selector", func(t *testing.T) {
 		// Replay/retry matrix: an empty (already-drained) webhook queue must
 		// return an empty batch without re-syncing the already handed-off repo.
-		selector := collector.WebhookTriggerRepositorySelector{
-			Config: collector.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		selector := gitrepo.WebhookTriggerRepositorySelector{
+			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, collector.RepoSyncConfig, []string) (collector.GitSyncSelection, error) {
+			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
 				t.Fatal("SyncGit called on drained queue, want no targeted sync")
-				return collector.GitSyncSelection{}, nil
+				return gitrepo.GitSyncSelection{}, nil
 			},
 		}
 		batch, err := selector.SelectRepositories(ctx)
@@ -213,28 +214,28 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 		// path. We model scheduled polling with a deterministic selector that
 		// returns the repository the missed webhook would have targeted.
 		var webhookSynced bool
-		webhookSelector := collector.WebhookTriggerRepositorySelector{
-			Config: collector.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		webhookSelector := gitrepo.WebhookTriggerRepositorySelector{
+			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, collector.RepoSyncConfig, []string) (collector.GitSyncSelection, error) {
+			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
 				webhookSynced = true
-				return collector.GitSyncSelection{}, nil
+				return gitrepo.GitSyncSelection{}, nil
 			},
 		}
 		scheduled := &proofScheduledSelector{
-			batch: collector.SelectionBatch{
+			batch: gitrepo.SelectionBatch{
 				ObservedAt: time.Now().UTC(),
-				Repositories: []collector.SelectedRepository{{
+				Repositories: []gitrepo.SelectedRepository{{
 					RepoPath:    t.TempDir(),
 					RemoteURL:   "https://github.com/eshu-fixture/proof-repo.git",
 					DisplayName: "eshu-fixture/proof-repo",
 				}},
 			},
 		}
-		priority := collector.PriorityRepositorySelector{
-			Selectors: []collector.RepositorySelector{webhookSelector, scheduled},
+		priority := gitrepo.PriorityRepositorySelector{
+			Selectors: []gitrepo.RepositorySelector{webhookSelector, scheduled},
 		}
 		start := time.Now()
 		batch, err := priority.SelectRepositories(ctx)
@@ -271,13 +272,13 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 			t.Fatalf("total rows = %d, want 2 (distinct commits do not coalesce)", got)
 		}
 
-		failingSelector := collector.WebhookTriggerRepositorySelector{
-			Config: collector.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		failingSelector := gitrepo.WebhookTriggerRepositorySelector{
+			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, collector.RepoSyncConfig, []string) (collector.GitSyncSelection, error) {
-				return collector.GitSyncSelection{}, errors.New("simulated git sync failure")
+			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
+				return gitrepo.GitSyncSelection{}, errors.New("simulated git sync failure")
 			},
 		}
 		if _, err := failingSelector.SelectRepositories(ctx); err == nil {
@@ -323,11 +324,11 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 // records whether it was consulted so the proof can assert that polling is the
 // authoritative recovery path when a webhook delivery is missed.
 type proofScheduledSelector struct {
-	batch  collector.SelectionBatch
+	batch  gitrepo.SelectionBatch
 	called bool
 }
 
-func (s *proofScheduledSelector) SelectRepositories(context.Context) (collector.SelectionBatch, error) {
+func (s *proofScheduledSelector) SelectRepositories(context.Context) (gitrepo.SelectionBatch, error) {
 	s.called = true
 	return s.batch, nil
 }
