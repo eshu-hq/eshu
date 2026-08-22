@@ -505,6 +505,16 @@ on:
       - 'go/internal/ifa/testdata/handlesroute/**'
       - 'go/internal/ifa/testdata/runsin/**'
       - 'go/internal/ifa/testdata/invokescloudaction/**'
+      # The trio's PRODUCTION paths -- without these an extractor or MERGE
+      # identity edit does not re-run this gate, leaving the unwaived coverage
+      # rows green on a stale live proof. Mirrors specs/ci-gates.v1.yaml.
+      - 'go/internal/reducer/handles_route*.go'
+      - 'go/internal/reducer/runs_in*.go'
+      - 'go/internal/reducer/invokes_cloud_action*.go'
+      - 'go/internal/reducer/symbol_runtime*.go'
+      - 'go/internal/storage/cypher/canonical_handles_route_edges.go'
+      - 'go/internal/storage/cypher/canonical_runs_in_edges.go'
+      - 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go'
       - 'go/internal/ifa/symbol_runtime_family_odu.go'
       - 'scripts/lib/ifa_rationale_live.sh'
       # Shared committed family fixture paths + existence guards, sourced by

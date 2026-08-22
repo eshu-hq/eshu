@@ -81,21 +81,35 @@ func TestIfaFamilyRegistryRunnerWaitKeysAreExclusiveCatchesDuplicate(t *testing.
 // rows. As of this writing handles_route, runs_in, and invokes_cloud_action
 // each declare wait_stage=runner with wait_key=<own family> (verified: three
 // mutually distinct wait_keys), so this is a genuinely exercised, non-vacuous
-// assertion, not merely a placeholder waiting for those rows to land. Unlike
-// its handler-stage sibling (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive),
-// this test does not itself assert checked > 0: a handler-stage row was
-// already guaranteed to exist before that test was written, making its own
-// zero-checked guard a real parse-failure signal, whereas this test was
-// written before any wait_stage=runner row existed and could not make the
-// same guarantee about the future. Leaving that guard out here rather than
-// asserting a stale non-zero count keeps this test honest if the registry
-// ever changes shape again.
+// assertion, not merely a placeholder waiting for those rows to land. It
+// asserts a non-zero runner-stage count for the same reason its handler-stage
+// sibling (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive) asserts one: if
+// the IFA_FAMILY_WAIT_STAGE/IFA_FAMILY_WAIT_KEY parse regexes went stale and
+// matched nothing, checkRunnerWaitKeysAreExclusive would be handed empty maps,
+// return nil, and this test would stay green while proving nothing. An earlier
+// version of this comment declined the guard on the grounds that no
+// wait_stage=runner row existed yet; handles_route, runs_in and
+// invokes_cloud_action all declare one now, so the floor of 3 is non-vacuous
+// and cannot go stale -- the count only grows.
 func TestIfaFamilyRegistryRunnerWaitKeysAreExclusive(t *testing.T) {
 	t.Parallel()
 
 	rowsDir := ifaFamilyRegistryRowsDir(t)
 	waitStages := parseIfaFamilyRegistryWaitStages(t, rowsDir)
 	waitKeys := parseIfaFamilyRegistryWaitKeys(t, rowsDir)
+
+	runnerFamilies := 0
+	for _, stage := range waitStages {
+		if stage == "runner" {
+			runnerFamilies++
+		}
+	}
+	if runnerFamilies < 3 {
+		t.Fatalf("parsed %d wait_stage=runner row(s), want >= 3 (handles_route, runs_in, "+
+			"invokes_cloud_action all declare one); a lower count means the registry parse "+
+			"returned nothing and the exclusivity check below would pass vacuously",
+			runnerFamilies)
+	}
 
 	if err := checkRunnerWaitKeysAreExclusive(waitStages, waitKeys); err != nil {
 		t.Fatal(err)

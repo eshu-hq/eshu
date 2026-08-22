@@ -2471,6 +2471,21 @@ gates:
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"
       - "go/internal/ifa/testdata/invokescloudaction/**"
+      # The trio's PRODUCTION paths. Without these, an edit to an extractor or
+      # to a Cypher writer's MERGE identity does not re-run either live gate,
+      # and the three now-unwaived coverage rows stay green on a stale live
+      # proof -- the offline coverage gate is a projection-seam proof and never
+      # exercises the graph write, so it cannot catch a MERGE regression either.
+      # Every sibling family enumerates its extractor/writer here for the same
+      # reason (shell_exec_intents.go, inheritance_intents.go,
+      # canonical_inheritance_edges.go, ...).
+      - "go/internal/reducer/handles_route*.go"
+      - "go/internal/reducer/runs_in*.go"
+      - "go/internal/reducer/invokes_cloud_action*.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "go/internal/storage/cypher/canonical_handles_route_edges.go"
+      - "go/internal/storage/cypher/canonical_runs_in_edges.go"
+      - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
       - "go/internal/ifa/symbol_runtime_family_odu.go"
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"
@@ -2864,6 +2879,21 @@ gates:
       - "go/internal/ifa/testdata/handlesroute/**"
       - "go/internal/ifa/testdata/runsin/**"
       - "go/internal/ifa/testdata/invokescloudaction/**"
+      # The trio's PRODUCTION paths. Without these, an edit to an extractor or
+      # to a Cypher writer's MERGE identity does not re-run either live gate,
+      # and the three now-unwaived coverage rows stay green on a stale live
+      # proof -- the offline coverage gate is a projection-seam proof and never
+      # exercises the graph write, so it cannot catch a MERGE regression either.
+      # Every sibling family enumerates its extractor/writer here for the same
+      # reason (shell_exec_intents.go, inheritance_intents.go,
+      # canonical_inheritance_edges.go, ...).
+      - "go/internal/reducer/handles_route*.go"
+      - "go/internal/reducer/runs_in*.go"
+      - "go/internal/reducer/invokes_cloud_action*.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "go/internal/storage/cypher/canonical_handles_route_edges.go"
+      - "go/internal/storage/cypher/canonical_runs_in_edges.go"
+      - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
       - "go/internal/ifa/symbol_runtime_family_odu.go"
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"

@@ -79,10 +79,14 @@ func singleRegistryEdgeType(family string, registry map[string]struct{}) (string
 		sort.Strings(types)
 		return "", fmt.Errorf("ifa: family %q registers %d relationship type(s) (%v), want exactly 1 for a single-type symbol-runtime guard", family, len(registry), types)
 	}
+	// len(registry) == 1 is guaranteed by the guard above, so this loop returns
+	// on its first iteration. The panic is unreachable and exists so the
+	// invariant is stated rather than implied by a `return "", nil` that reads
+	// as a real success path returning an empty relationship type.
 	for t := range registry {
 		return t, nil
 	}
-	return "", nil
+	panic("unreachable: len(registry) == 1 was checked above")
 }
 
 // missingSymbolRuntimeExpectedTypes reports any registry-owned relationship
