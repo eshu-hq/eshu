@@ -4,10 +4,16 @@
 // Package materializededges implements Ifá's materialized-edge coverage
 // contract (#5351): one pure vacuity guard per reducer-materialized graph
 // edge family (SQL relationships, documentation edges, code calls, rationale
-// edges, codeowners ownership, deployable-unit edges, repository dependencies,
-// and workload dependencies), plus the
-// replaycoverage.Resolver that dispatches a coverage-manifest row to the
-// right guard by family name.
+// edges, codeowners ownership, deployable-unit edges, repository
+// dependencies, submodule pins, inheritance edges, shell-exec edges,
+// workload dependencies, handles_route, runs_in, and invokes_cloud_action),
+// plus the replaycoverage.Resolver that dispatches a coverage-manifest row
+// to the right guard by family name. The last three (handles_route, runs_in,
+// invokes_cloud_action) share one cassette/Odù and one backend-free
+// extraction seam (materialized_edges_symbol_runtime_shared.go); each has its
+// own hand-derived exact-set fixture (2, 2, and 1 edges respectively),
+// proven live on both the ifa-determinism and ifa-fault-injection gates,
+// with no remaining waiver (#5995/#6000/#5997).
 //
 // # What a vacuity guard proves
 //
@@ -67,4 +73,10 @@
 // Both live matrices drive the committed cassette through its maintenance-backed
 // repository prerequisite and exact-assert the two workload-owned DEPENDS_ON
 // edges without waivers.
+// Handles_route, runs_in, and invokes_cloud_action each require baseline and
+// fault dimensions. Both live matrices drive the shared symbol-runtime
+// cassette and exact-assert each family's own edge set (2/2/1 edges
+// respectively); the fault matrix recovers through a domain-scoped
+// graph-write-failure cell anchored at each family's own MERGE template,
+// without waivers.
 package materializededges

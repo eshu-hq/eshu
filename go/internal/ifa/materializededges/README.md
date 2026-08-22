@@ -26,13 +26,19 @@ split was taken, not over it. It owns:
   (`materialized_edges_rationale.go`), codeowners ownership
   (`materialized_edges_codeowners.go`), deployable-unit edges
   (`materialized_edges_deployable_unit.go`), repository dependencies
-  (`materialized_edges_repo_dependency.go`), and submodule pins
+  (`materialized_edges_repo_dependency.go`), submodule pins
   (`materialized_edges_submodule_pin.go`), inheritance edges
   (`materialized_edges_inheritance.go`), shell-exec edges
-  (`materialized_edges_shell_exec.go`), and workload dependencies
-  (`materialized_edges_workload_dependency.go`).
-  Deliberately uncounted: a count in prose has no gate and drifts the moment a
-  family lands.
+  (`materialized_edges_shell_exec.go`), workload dependencies
+  (`materialized_edges_workload_dependency.go`), handles_route
+  (`materialized_edges_handles_route.go`), runs_in
+  (`materialized_edges_runs_in.go`), and invokes_cloud_action
+  (`materialized_edges_invokes_cloud_action.go`). The last three share one
+  cassette/Odù and backend-free extraction seam, plumbed through
+  `materialized_edges_symbol_runtime_shared.go`; each still owns its own
+  row-to-edge derivation (see "Symbol-runtime trio" below for what that
+  buys and what it does not). Deliberately uncounted: a count in
+  prose has no gate and drifts the moment a family lands.
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture
@@ -294,3 +300,45 @@ exact wording and fails if they drift.
   exact-assert its three DOCUMENTS edges in baseline and domain-scoped recovery
   cells; the fault delta cell keeps those full graph records exact through its
   collateral comparison rather than a separate documentation assertion.
+
+## Symbol-runtime trio — proven live on both gates
+
+`handles_route` (#5995), `runs_in` (#6000), and `invokes_cloud_action` (#5997)
+share one cassette/Odù (`ifa.SymbolRuntimeFamilyOdu`) and one backend-free
+extraction seam (`reducer.ExtractSymbolRuntimeIntentRows`), plumbed through
+`materialized_edges_symbol_runtime_shared.go`. Each family's own guard file
+(`materialized_edges_handles_route.go`, `materialized_edges_runs_in.go`,
+`materialized_edges_invokes_cloud_action.go`) owns only its own row-to-edge
+derivation, because the three bend that relationship three different ways:
+`HANDLES_ROUTE` dedupes N intent rows (one per HTTP method on the same route)
+onto the single edge the MERGE identity actually produces; `RUNS_IN` fans one
+intent row out to N edges for N `Workload`s the live Cypher's unbounded
+`(Repository)-[:DEFINES]->(Workload)` MATCH can resolve to (today's reducer
+candidate path caps a single repository at one `Workload`, so this fixture's
+own fan-out stays 1-to-1; the N>1 direction is proven by a synthetic offline
+unit test instead, see `materialized_edges_runs_in_test.go`);
+`INVOKES_CLOUD_ACTION` is a direct 1:1 mapping. See
+`materialized_edges_symbol_runtime_shared.go`'s own doc comment for the full
+derivation.
+
+Each of the three has a hand-derived expected-edge-set fixture (2, 2, and 1
+edges respectively), is dispatched through
+`MaterializedEdgeOduResolver.Resolve`, and carries a `materialized_edges:<family>`
+coverage row for BOTH `ifa-determinism` and `ifa-fault-injection`, with no
+remaining waiver. Both live gates drive the shared cassette and exact-assert
+each family's own edge set; the determinism gate does so across N=1/2/4
+worker counts, while the fault gate runs its cells at a single worker and
+additionally recovers through a domain-scoped graph-write-failure cell anchored at each
+family's own MERGE template (`cell_failgraphwrite_<family>`, `blocker_kind=none`,
+`wait_stage=runner`), marker-asserted and drained with zero dead letters
+before the exact-set edges are re-asserted against the shared trio baseline
+digest. Mid-pipeline kill/reclaim is a NAMED, tracked gap for all three
+(#6208), not claimed by this coverage — any handler-stage kill-worker cell for
+these three would reuse `code_calls`' own wait_key
+(`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new.
+These three share the shared-projection runner path
+(`sharedProjectionDomains`, `go/internal/reducer/shared_projection_runner.go:31-43`)
+with eight sibling families in this package, each of which already has an
+equivalent `cell_failgraphwrite_*` cell proving recovery through that path;
+their graph-write cells prove family-scoped Cypher-layer recovery, nothing
+architecturally unique.

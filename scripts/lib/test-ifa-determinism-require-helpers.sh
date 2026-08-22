@@ -69,3 +69,46 @@ require_submodule_pin_lib() {
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${submodule_pin_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (submodule-pin lib): ${needle}, or it survives only inside a comment"
 }
+
+# One helper for all three trio families (handles_route/runs_in/
+# invokes_cloud_action, #5995/#6000/#5997): their drive/assert callbacks
+# live in the SAME shared lib file, scripts/lib/ifa_symbol_runtime_live.sh,
+# since all three share one cassette and one builder pass.
+require_symbol_runtime_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${symbol_runtime_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (symbol-runtime lib): ${needle}, or it survives only inside a comment"
+}
+
+# _ifa_det_assert_lib_under_500 folds the 500-line cap into the derived
+# *_lib loop the private-data scan already builds (scripts/test-verify-ifa-
+# determinism.sh), instead of the two hand-typed checks (this mirror itself,
+# the gate script) that used to be the ONLY 500-line coverage here -- every
+# scripts/lib/test-ifa-*-cases.sh case module went unchecked, which is
+# exactly how two of them crossed the cap silently in one review round. A
+# new module is covered the day its *_lib variable is declared.
+_ifa_det_assert_lib_under_500() {
+	local lib_var="$1" lib_path="$2"
+	[[ "$(wc -l <"${lib_path}" | tr -d '[:space:]')" -lt 500 ]] \
+		|| fail "${lib_var} (${lib_path}) must stay under 500 lines"
+}
+
+# _ifa_det_assert_lib_cap_floor floors the *_lib loop that
+# _ifa_det_assert_lib_under_500 runs inside, NOT the private-data scan's
+# private_targets array: that array is ALSO fed by a separate registry-row/pin
+# glob (14 rows + 14 pins + ifa_family_registry.sh + script + BASH_SOURCE[0] =
+# 31 on its own), so if the *_lib derivation collapsed to zero,
+# private_targets would still clear its own floor and this function's caller
+# would run zero times with nothing red -- exactly the hole a caller-supplied
+# count, incremented ONLY inside the loop it guards, closes. 18 is
+# hand-written, below the 25 *_lib vars this mirror actually resolves at the
+# moment the loop runs (observed live: `bash -x` this mirror and count the
+# distinct paths reaching _ifa_det_assert_lib_under_500 -- do NOT re-derive it
+# by regex over the declaration lines, which anchors at column 0 and silently
+# undercounts bindings packed onto a shared line), never derived from the
+# expression it guards.
+_ifa_det_assert_lib_cap_floor() {
+	local checked="$1"
+	[[ "${checked}" -ge 18 ]] \
+		|| fail "500-line cap covered only ${checked} lib(s); the *_lib derivation has collapsed"
+}

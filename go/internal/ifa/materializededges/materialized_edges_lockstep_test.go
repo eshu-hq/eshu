@@ -312,16 +312,27 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	"codeowners_ownership_edges": "codeowners",
 	"deployable_unit_edges":      "deployable_unit",
 	"documentation_edges":        "documentation",
-	"handles_route":              "handles_route",
-	"inheritance_edges":          "inheritance",
-	"invokes_cloud_action":       "invokes_cloud_action",
-	"rationale_edges":            "rationale",
-	"repo_dependency":            "repo_dependency",
-	"runs_in":                    "runs_in",
-	"shell_exec":                 "shell_exec",
-	"sql_relationships":          "sql_relationship",
-	"submodule_pin_edges":        "submodule",
-	"workload_dependency":        "workload_dependency",
+	// handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997) are the
+	// one exception to "stem is a prefix of the family's own name": all three
+	// share ONE cassette and ONE handler-side extraction seam, so their real
+	// ci-gates.v1.yaml triggers are wired under the shared "symbol_runtime"
+	// name (e.g. "go/internal/ifa/symbol_runtime_family_odu.go",
+	// "testdata/cassettes/symbolruntime/**"), not under any of the three
+	// family names individually. A stem of "handles_route" (etc.) matched
+	// nothing in either gate block and went unnoticed while these rows were
+	// still waived -- exactly the WRONG-STEM-goes-loud-only-once-covered case
+	// this map's own doc comment above describes; it went red the moment
+	// their coverage rows landed.
+	"handles_route":        "symbol_runtime",
+	"inheritance_edges":    "inheritance",
+	"invokes_cloud_action": "symbol_runtime",
+	"rationale_edges":      "rationale",
+	"repo_dependency":      "repo_dependency",
+	"runs_in":              "symbol_runtime",
+	"shell_exec":           "shell_exec",
+	"sql_relationships":    "sql_relationship",
+	"submodule_pin_edges":  "submodule",
+	"workload_dependency":  "workload_dependency",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the
@@ -338,9 +349,9 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 // gone stale. This check binds the two.
 //
 // It is keyed to COVERAGE ROWS, not to all families, and deliberately so.
-// Requiring triggers of every family would land 9 red rows for families that
-// are honestly waived and not yet wired, and a check that ships red is a check
-// somebody switches off. Keyed to coverage it lands clean and stays purely
+// Requiring triggers of every family would land a red row for every family
+// that is honestly waived and not yet wired, and a check that ships red is a
+// check somebody switches off. Keyed to coverage it lands clean and stays purely
 // prospective: the next family to claim a row has to wire its triggers in the
 // same change.
 //

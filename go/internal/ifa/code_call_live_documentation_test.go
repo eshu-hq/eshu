@@ -40,6 +40,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			prohibited: []string{
 				"`codeCallFamilyOdu` (`code_call_family_odu.go`",
 				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
 			},
 		},
 		{
@@ -61,7 +67,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"The 3 other allProjectionDomains families are blocked",
+				"No allProjectionDomains family carries a waiver as of this change",
 				"Both live gates drive the rationale cassette and exact-assert its full\n  # EXPLAINS records.",
 			},
 			prohibited: []string{
@@ -112,7 +118,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, and workload dependencies.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, and invokes_cloud_action.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",
@@ -159,6 +165,12 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 			prohibited: []string{
 				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
 			},
 		},
 		{
@@ -250,7 +262,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 3 not-yet-covered allProjectionDomains families",
+				"No allProjectionDomains\n// family carries a waiver as of this change",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",
@@ -264,6 +276,43 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			prohibited: []string{
 				"The 22 waiver rows and the edge-type registries",
 				"The 24 waiver rows and the edge-type registries",
+			},
+		},
+		{
+			// The "SHARED RUNNER CYCLE" / "only live proof" / "Unlike every
+			// family above" false boast (see the reducer package's own
+			// sharedProjectionDomains, shared_projection_runner.go:31-43, which
+			// lists eight sibling families on the identical path) lived here
+			// after the coverage manifest's roadmap prose moved to this file.
+			// Guarding it where the text used to live (materializededges/README.md)
+			// does not guard it here -- a needle placed where the phrase never
+			// travelled proves nothing.
+			path: filepath.Join("docs", "internal", "design", "5351-ifa-materialized-edge-known-gaps.md"),
+			required: []string{
+				"# #5351 Ifá materialized-edge coverage — roadmap / known gaps",
+			},
+			prohibited: []string{
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+			},
+		},
+		{
+			path: filepath.Join("go", "internal", "ifa", "README.md"),
+			required: []string{
+				"proven live on both the\n  `ifa-determinism`/`ifa-fault-injection` gates with no remaining waiver",
+			},
+			prohibited: []string{
+				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
 			},
 		},
 	}

@@ -73,3 +73,7 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_shell_exec_cel
 source "${ifa_fault_sources_root}/scripts/lib/ifa_workload_dependency_live.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_workload_dependency_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_workload_dependency_cells.sh"
+# shellcheck source=scripts/lib/ifa_symbol_runtime_live.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_symbol_runtime_live.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"

@@ -256,13 +256,28 @@ assert_libs_parse() {
 		[[ -f "${lib_path}" ]] \
 			|| fail "${lib_var} points at ${lib_path}, which does not exist -- a renamed or deleted lib must fail here, not be skipped"
 		bash -n "${lib_path}" || fail "${lib_path##*/} has a syntax error"
+		# The 500-line cap used to be asserted on only the mirror itself and the
+		# gate script under test -- four files total across both live-gate
+		# mirrors. Every scripts/lib/test-ifa-*-cases.sh case module went
+		# unchecked, which is exactly how two of them crossed the cap silently in
+		# one review round. Folded into this SAME derived loop rather than a
+		# second hand-typed list, so a new case module is covered the day its
+		# *_lib variable is declared, not the day someone remembers to add it here.
+		[[ "$(wc -l <"${lib_path}" | tr -d '[:space:]')" -lt 500 ]] \
+			|| fail "${lib_path##*/} must stay under 500 lines"
 	done
 	# Floor: this derivation can resolve to NOTHING (an empty `for` word list is not
 	# an error), so one pattern edit would silently skip every lib, where the
 	# explicit `bash -n` lines it replaced could only ever lose one at a time.
-	# Hand-written, below
-	# the current count, never derived from the expression it guards.
-	[[ "${syntax_checked}" -ge 35 ]] \
+	# Hand-written, below the current count, never derived from the expression
+	# it guards. Re-derived after binding the six previously-literal-path case
+	# modules (repo-dependency, workload-dependency, submodule-pin, codeowners,
+	# marker, plus the already-bound repo-dependency-lease sibling) to *_lib
+	# vars: `compgen -v | rg '_lib$'` against the mirror now resolves 50 names
+	# (verified by sourcing the mirror's own var-declaration lines in a
+	# subshell and counting the result), up from the ~37 this floor of 35 was
+	# originally set against.
+	[[ "${syntax_checked}" -ge 45 ]] \
 		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"
 }
 assert_no_private_data() {

@@ -1,0 +1,11 @@
+{
+  "odu": "odu:ifa-symbol-runtime-family",
+  "note": "Hand-derived from reducer.ExtractSymbolRuntimeIntentRows's real extraction path over symbol_runtime_family_odu.go's fixture, filtered to the invokes_cloud_action domain's upsert rows. InvokeAWS makes two function_calls: (s3, PutObject) resolves through the closed cloudActionByServiceMethod table to action \"s3:putobject\" and yields this one edge; (widget, Frobnicate) is NOT in that table and yields nothing, proving the non-catalog exclusion by construction rather than by a separate synthetic test. source_entity_id is InvokeAWS' canonical Function uid (content.CanonicalEntityID). target_entity_id is the deterministic (non-hashed) CloudAction id cloudActionIDPrefix + action = \"cloud-action:s3:putobject\", created inline by the writer's own MERGE ON CREATE -- no cross-acceptance-unit MATCH dependency, unlike HANDLES_ROUTE/RUNS_IN's Endpoint/Workload targets.",
+  "edges": [
+    {
+      "relationship_type": "INVOKES_CLOUD_ACTION",
+      "source_entity_id": "content-entity:e_952ea1843457",
+      "target_entity_id": "cloud-action:s3:putobject"
+    }
+  ]
+}
