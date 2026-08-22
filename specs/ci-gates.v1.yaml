@@ -2454,6 +2454,23 @@ gates:
       - "go/internal/ifa/testdata/shellexec/**"
       - "go/internal/ifa/inheritance_family_odu.go"
       - "go/internal/ifa/shell_exec_family_odu.go"
+      # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
+      # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
+      # in catalog_seed.go's catalogSeed -- live-binary-consumed, not
+      # test-only), three SEPARATE expected-edge directories (one per
+      # family's own exact-set assertion). symbol_runtime_family_cassette.go
+      # is deliberately NOT listed here: LoadSymbolRuntimeFamilyOdu is called
+      # only from a Go unit test
+      # (materializededges/symbol_runtime_family_odu_test.go), never from any
+      # binary either live gate invokes -- same reasoning that already
+      # leaves the sibling registry-shape Go tests
+      # (materialized_edge_family_blocker_shape_test.go,
+      # ifa_family_registry_anchor_test.go) untriggered here.
+      - "testdata/cassettes/symbolruntime/**"
+      - "go/internal/ifa/testdata/handlesroute/**"
+      - "go/internal/ifa/testdata/runsin/**"
+      - "go/internal/ifa/testdata/invokescloudaction/**"
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"
       - "scripts/verify-ifa-determinism.sh"
@@ -2469,6 +2486,10 @@ gates:
       - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
       - "scripts/lib/ifa_shell_exec_live.sh"
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+      # ifa_symbol_runtime_live.sh IS sourced by verify-ifa-determinism.sh
+      # directly (unlike its fault-cells sibling below, which that script
+      # never sources for any family).
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "scripts/lib/ifa_deployable_unit_live.sh"
       - "scripts/lib/ifa_deployable_unit_live_diagnostics.sh"
       - "scripts/lib/ifa_deployable_unit_live_converge.sh"
@@ -2829,6 +2850,17 @@ gates:
       - "go/internal/ifa/testdata/shellexec/**"
       - "go/internal/ifa/inheritance_family_odu.go"
       - "go/internal/ifa/shell_exec_family_odu.go"
+      # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
+      # same cassette/Odù/expected-edges wiring as the determinism block
+      # above -- see that block's comment for why
+      # symbol_runtime_family_cassette.go and ifa_family_registry_anchor_test.go
+      # are deliberately NOT listed (Go-test-only, never invoked by either
+      # live gate's own binary).
+      - "testdata/cassettes/symbolruntime/**"
+      - "go/internal/ifa/testdata/handlesroute/**"
+      - "go/internal/ifa/testdata/runsin/**"
+      - "go/internal/ifa/testdata/invokescloudaction/**"
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
       - "scripts/lib/ifa_rationale_live.sh"
       - "scripts/lib/ifa_family_fixtures.sh"
       - "scripts/verify-ifa-fault-injection.sh"
@@ -2870,6 +2902,12 @@ gates:
       - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
       - "scripts/lib/ifa_shell_exec_live.sh"
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
+      # ifa_symbol_runtime_live.sh is sourced transitively by
+      # verify-ifa-fault-injection.sh via ifa_fault_injection_sources.sh;
+      # ifa_fault_injection_symbol_runtime_cells.sh is fault-ONLY (this
+      # gate's own cells file, never sourced by verify-ifa-determinism.sh).
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
       - "scripts/lib/ifa_fault_injection_deployable_unit_cells.sh"
       - "scripts/lib/ifa_fault_injection_deployable_unit_lock.sh"
       - "scripts/lib/ifa_deployable_unit_live.sh"

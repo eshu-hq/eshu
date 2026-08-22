@@ -170,12 +170,34 @@ ifa_live_gate_common_seams=(
 	'scripts/lib/ifa_fault_injection_inheritance_cells.sh|scripts/lib/ifa_fault_injection_inheritance_cells.sh'
 	'scripts/lib/ifa_shell_exec_live.sh|scripts/lib/ifa_shell_exec_live.sh'
 	'scripts/lib/ifa_fault_injection_shell_exec_cells.sh|scripts/lib/ifa_fault_injection_shell_exec_cells.sh'
-	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
-	# same placement as the inheritance/shell_exec pair immediately above --
-	# both the shared live lib (sourced by both gates) and the fault-only
-	# cells file are registered in BOTH gate blocks in specs/ci-gates.v1.yaml.
+	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997).
+	# Measured per-path with `ci-gates select --tier ci-heavy`, not assumed
+	# from a sibling: ifa_symbol_runtime_live.sh is sourced by BOTH gates
+	# (verify-ifa-determinism.sh directly; verify-ifa-fault-injection.sh
+	# transitively via ifa_fault_injection_sources.sh) -- common seam. Its
+	# fault-cells sibling is fault-ONLY (see ifa_live_gate_fault_only_seams
+	# below): verify-ifa-determinism.sh never sources a *_cells.sh file for
+	# any family, so following the inheritance/shell_exec pair's BOTH-gates
+	# placement here would have been wrong -- submodule_pin's cells file
+	# (fault-only, below) is the correct precedent, not theirs.
 	'scripts/lib/ifa_symbol_runtime_live.sh|scripts/lib/ifa_symbol_runtime_live.sh'
-	'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh|scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
+	# One shared cassette + Odù (symbolRuntimeFamilyOdu() is registered in
+	# catalog_seed.go's catalogSeed, so it is live-binary-consumed by both
+	# gates), three SEPARATE expected-edge directories -- one per family's
+	# own exact-set assertion. symbol_runtime_family_cassette.go and
+	# go/internal/reducer/ifa_family_registry_anchor_test.go are
+	# deliberately NOT here: both are read only by Go unit tests
+	# (materializededges/symbol_runtime_family_odu_test.go and the anchor
+	# test itself), never by a binary either live gate invokes -- confirmed
+	# via `rg` finding zero callers under go/cmd/, matching why the
+	# pre-existing sibling registry-shape test
+	# (materialized_edge_family_blocker_shape_test.go) was never wired here
+	# either.
+	'testdata/cassettes/symbolruntime/**|testdata/cassettes/symbolruntime/ifa-symbol-runtime-family.json'
+	'go/internal/ifa/testdata/handlesroute/**|go/internal/ifa/testdata/handlesroute/ifa-handles-route-family-expected-edges.json'
+	'go/internal/ifa/testdata/runsin/**|go/internal/ifa/testdata/runsin/ifa-runs-in-family-expected-edges.json'
+	'go/internal/ifa/testdata/invokescloudaction/**|go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json'
+	'go/internal/ifa/symbol_runtime_family_odu.go|go/internal/ifa/symbol_runtime_family_odu.go'
 	'scripts/lib/ifa_deployable_unit_live.sh|scripts/lib/ifa_deployable_unit_live.sh'
 	'scripts/lib/ifa_deployable_unit_live_diagnostics.sh|scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
 	'scripts/lib/ifa_deployable_unit_live_converge.sh|scripts/lib/ifa_deployable_unit_live_converge.sh'
@@ -339,6 +361,11 @@ ifa_live_gate_fault_only_seams=(
 	'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh|scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
 	'scripts/lib/ifa_fault_injection_submodule_pin_cells.sh|scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh|scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
+	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
+	# fault-only, same shape as submodule_pin's cells file immediately
+	# above -- verify-ifa-determinism.sh never sources a *_cells.sh file for
+	# any family, so this belongs here and NOT in ifa_live_gate_common_seams.
+	'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh|scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh|scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
 	'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh|scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
 	'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh|scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
