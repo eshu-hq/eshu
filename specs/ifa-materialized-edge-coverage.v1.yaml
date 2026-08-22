@@ -77,10 +77,11 @@
 # BASELINE and FAULT rows, the documentation_edges BASELINE and FAULT rows, the
 # deployable_unit_edges BASELINE and FAULT rows (#5993/#6158), the
 # rationale_edges BASELINE and FAULT rows (#5998), the
-# codeowners_ownership_edges BASELINE and FAULT rows (#5992), and the
-# repo_dependency BASELINE and FAULT rows (#5999), and the submodule_pin_edges
-# BASELINE and FAULT rows (#6002) are proven; none of those eight families
-# carries a waiver. #5555
+# codeowners_ownership_edges BASELINE and FAULT rows (#5992), the
+# repo_dependency BASELINE and FAULT rows (#5999), the submodule_pin_edges
+# BASELINE and FAULT rows (#6002), the inheritance_edges BASELINE and FAULT
+# rows (#5996), and the shell_exec BASELINE and FAULT rows (#6001) are proven;
+# none of those ten families carries a waiver. #5555
 # rebuilt both SQL cells in
 # scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a

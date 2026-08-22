@@ -338,9 +338,9 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 // gone stale. This check binds the two.
 //
 // It is keyed to COVERAGE ROWS, not to all families, and deliberately so.
-// Requiring triggers of every family would land 9 red rows for families that
-// are honestly waived and not yet wired, and a check that ships red is a check
-// somebody switches off. Keyed to coverage it lands clean and stays purely
+// Requiring triggers of every family would land a red row for every family
+// that is honestly waived and not yet wired, and a check that ships red is a
+// check somebody switches off. Keyed to coverage it lands clean and stays purely
 // prospective: the next family to claim a row has to wire its triggers in the
 // same change.
 //

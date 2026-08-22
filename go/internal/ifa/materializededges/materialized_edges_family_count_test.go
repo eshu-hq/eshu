@@ -50,6 +50,21 @@ type materializedEdgeCountClaimFile struct {
 // YAML. Adding a family, or proving one, moves these numbers, and nothing in
 // the build forces the prose to follow — which is how four of the five claims
 // drifted at once.
+//
+// TWO of these five claims are ALSO byte-pinned, word-for-word, as required
+// literals in a DIFFERENT test that does not appear in this list at all:
+// TestMaterializedEdgeLiveProofDocumentationMatchesWiring
+// (go/internal/ifa/code_call_live_documentation_test.go:64 pins
+// specs/ifa-materialized-edge-coverage.v1.yaml's "The 4 other
+// allProjectionDomains families are blocked" line 473; :253 pins
+// go/internal/reducer/materialized_edge_families.go's "current 4
+// not-yet-covered allProjectionDomains families" line 45). Moving either
+// source claim off "4" (to "1", or to "0" if #6003 lands first) without
+// updating both of those pinned literals IN THE SAME COMMIT fails that other
+// test immediately -- the 4 -> 1 edit this comment warns about is a FOUR-file
+// change, not a three-file one. The remaining specs claim (line 373, same
+// wording, no mirror there) and both "14" claims (which never move) have no
+// such second copy to keep in lockstep.
 var materializedEdgeCountClaimFiles = []materializedEdgeCountClaimFile{
 	{filepath.Join("specs", MaterializedEdgeManifestFileName), 2},
 	{filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_lockstep_test.go"), 1},
