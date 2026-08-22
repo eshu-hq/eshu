@@ -277,6 +277,15 @@ func TestSymbolRuntimeFamilyCassetteLineNumbersAgree(t *testing.T) {
 	for _, fact := range odu.Facts {
 		switch fact.FactKind {
 		case "content_entity":
+			// Only Function entities carry a line number the parsed_file_data
+			// functions can be compared against. Collecting every content_entity
+			// and then asserting exactly three couples this invariant to the
+			// fixture's current entity mix: a class or file entity added later
+			// would red the test with a message about function line numbers
+			// disagreeing, when only the count had changed.
+			if anyToStringValue(fact.Payload["entity_type"]) != "Function" {
+				continue
+			}
 			name := anyToStringValue(fact.Payload["entity_name"])
 			if name == "" {
 				continue
@@ -314,7 +323,7 @@ func TestSymbolRuntimeFamilyCassetteLineNumbersAgree(t *testing.T) {
 	}
 
 	if len(entityLines) != 3 || len(parsedLines) != 3 {
-		t.Fatalf("expected 3 content_entity and 3 parsed_file_data functions, got %d and %d; "+
+		t.Fatalf("expected 3 Function content_entity and 3 parsed_file_data functions, got %d and %d; "+
 			"a collapsed extraction would make the comparison below pass vacuously",
 			len(entityLines), len(parsedLines))
 	}
