@@ -46,7 +46,7 @@ than living only in a PR description.
   tracked gap, #6208, not a silent absence. These three share the
   shared-projection runner path (`sharedProjectionDomains`,
   `go/internal/reducer/shared_projection_runner.go:31-43`) with eight
-  sibling families above, each of which already has an equivalent
+  sibling materialized-edge families, each of which already has an equivalent
   `cell_failgraphwrite_*` cell proving recovery through that path; their
   graph-write cells prove family-scoped Cypher-layer recovery, nothing
   architecturally unique. See
