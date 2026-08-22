@@ -79,3 +79,16 @@ require_symbol_runtime_lib() {
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${symbol_runtime_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (symbol-runtime lib): ${needle}, or it survives only inside a comment"
 }
+
+# _ifa_det_assert_lib_under_500 folds the 500-line cap into the derived
+# *_lib loop the private-data scan already builds (scripts/test-verify-ifa-
+# determinism.sh), instead of the two hand-typed checks (this mirror itself,
+# the gate script) that used to be the ONLY 500-line coverage here -- every
+# scripts/lib/test-ifa-*-cases.sh case module went unchecked, which is
+# exactly how two of them crossed the cap silently in one review round. A
+# new module is covered the day its *_lib variable is declared.
+_ifa_det_assert_lib_under_500() {
+	local lib_var="$1" lib_path="$2"
+	[[ "$(wc -l <"${lib_path}" | tr -d '[:space:]')" -lt 500 ]] \
+		|| fail "${lib_var} (${lib_path}) must stay under 500 lines"
+}

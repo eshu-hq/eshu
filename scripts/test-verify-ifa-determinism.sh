@@ -450,6 +450,7 @@ private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:a
 declare -a private_targets=("${script}" "${BASH_SOURCE[0]}")
 while IFS= read -r private_lib_var; do
 	private_targets+=("${!private_lib_var}")
+	_ifa_det_assert_lib_under_500 "${private_lib_var}" "${!private_lib_var}"
 done < <(compgen -v | rg '_lib$' | sort)
 # The registry, its rows and its hand-derived pins are not bound to *_lib vars,
 # so the derivation cannot see them. Globbed, so a seventh row is covered the

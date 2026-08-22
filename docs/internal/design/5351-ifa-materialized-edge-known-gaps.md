@@ -11,7 +11,7 @@ listed here as unproven unless the manifest's own `coverage:` rows say
 otherwise. They are recorded so the honest gaps travel with the gate rather
 than living only in a PR description.
 
-- sql_relationships DELTA-LIVE is proven by the delta_tombstone row above:
+- sql_relationships DELTA-LIVE is proven by the delta_tombstone row in the manifest:
   the ifa-determinism matrix drives gen 1, asserts its exact nine-edge set,
   drives gen 2 with the reused source_run_id, drains again, and asserts the
   accumulated exact nine-edge set with INDEXES retargeted to orders.
