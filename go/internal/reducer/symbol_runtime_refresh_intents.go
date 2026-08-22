@@ -10,6 +10,52 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// ExtractSymbolRuntimeIntentRows builds every symbol->runtime shared-projection
+// intent row -- handles_route, runs_in, and invokes_cloud_action -- from
+// repository and file envelopes, with no backend dependency. It is modeled on
+// ExtractAllCodeRelationshipRows (code_call_materialization_extract.go): it
+// builds the unexported codeEntityIndex internally via
+// extractAllCodeRelationshipRowsWithIndex and never returns it, so a caller
+// outside this package can drive the real production intent builders
+// (buildHandlesRouteIntentRows, buildRunsInIntentRows,
+// buildInvokesCloudActionIntentRows, via their shared entry point
+// buildSymbolRuntimeIntentRows below) without needing a graph backend,
+// Postgres, or a clock -- createdAt is injected by the caller.
+//
+// It lives here, beside buildSymbolRuntimeIntentRows, rather than in its own
+// symbol_runtime_extract.go sibling file (the shape
+// code_call_materialization_extract.go would otherwise suggest), because
+// internal/reducer is at its grandfathered go-dir-gate file cap
+// (scripts/lib/dirgate-grandfather.tsv): a new non-test file cannot land here
+// without lowering that count, which this function does not do.
+//
+// The returned slice is MIXED and callers MUST account for both shapes:
+//
+//   - Per-edge rows, one per resolved HANDLES_ROUTE/RUNS_IN/INVOKES_CLOUD_ACTION
+//     binding, whose payload carries no "action" key (implicitly "upsert").
+//   - Exactly one per-repo, per-domain repo-wide refresh row
+//     (payload "action": "refresh", "intent_type": "repo_refresh"), emitted by
+//     buildRepoWideRetractRefreshIntents below alongside the per-edge rows it
+//     fences. A caller that wants only edges MUST filter on
+//     payload["action"] == "upsert" or absent, mirroring the production
+//     filterUpsertRows gate (shared_projection_readiness.go:246); every
+//     per-edge row here also carries retract_via_refresh=true, pairing it with
+//     its domain's refresh row.
+//
+// Rows for all THREE domains are returned together in one call, distinguished
+// by ProjectionDomain (DomainHandlesRoute, DomainRunsIn,
+// DomainInvokesCloudAction) -- there is no per-domain variant of this seam,
+// matching the single shared production entry point.
+func ExtractSymbolRuntimeIntentRows(
+	envelopes []facts.Envelope,
+	generationID string,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	_, _, _, _, entityIndex, _ := extractAllCodeRelationshipRowsWithIndex(envelopes)
+	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
+	return buildSymbolRuntimeIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)
+}
+
 // buildSymbolRuntimeIntentRows builds every symbol→runtime shared-projection
 // intent (handles_route, runs_in, invokes_cloud_action) for one materialization
 // pass. For each domain it emits the per-edge rows and, paired in the same pass,
