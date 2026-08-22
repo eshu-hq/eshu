@@ -8,12 +8,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
-	"github.com/eshu-hq/eshu/go/internal/collector"
-
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 

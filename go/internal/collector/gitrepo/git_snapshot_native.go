@@ -11,16 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitcodeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitsubmodule"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/workflowimage"
-
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"

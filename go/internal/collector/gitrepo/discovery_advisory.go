@@ -8,11 +8,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
 	"github.com/eshu-hq/eshu/go/internal/collector"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 

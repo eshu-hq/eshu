@@ -8,9 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 

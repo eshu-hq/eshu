@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )

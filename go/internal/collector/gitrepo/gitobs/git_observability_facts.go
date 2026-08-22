@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 

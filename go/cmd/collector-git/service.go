@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const defaultCollectorPollInterval = time.Second

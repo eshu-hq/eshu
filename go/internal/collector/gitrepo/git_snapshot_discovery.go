@@ -10,13 +10,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitcodeowners"
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitsubmodule"
-
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitcodeowners"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitsubmodule"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"

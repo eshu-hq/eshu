@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
+	"gopkg.in/yaml.v3"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
-	"gopkg.in/yaml.v3"
 )
 
 const apiContractMaxSections = 80

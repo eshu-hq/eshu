@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitcodeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
@@ -19,9 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitsvccatalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gittfstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/workflowimage"
-
-	"github.com/eshu-hq/eshu/go/internal/collector"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )

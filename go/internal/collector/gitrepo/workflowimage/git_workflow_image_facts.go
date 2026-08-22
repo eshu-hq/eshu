@@ -12,9 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )

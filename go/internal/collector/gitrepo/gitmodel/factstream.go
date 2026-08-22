@@ -30,7 +30,15 @@ type FactStreamWriter struct {
 // unexported across the package boundary: Send increments count on every
 // envelope, so a caller that could build the struct literally could also build
 // one with a nil counter and panic on the first fact.
+//
+// A nil count is substituted rather than rejected, so the guard is real and not
+// merely documentary. Every current caller passes a non-nil counter; a
+// substituted one keeps Send total and loses only the caller's ability to read
+// the tally back, which is what a nil counter already meant.
 func NewFactStreamWriter(ch chan<- facts.Envelope, count *atomic.Int64, ref string) FactStreamWriter {
+	if count == nil {
+		count = new(atomic.Int64)
+	}
 	return FactStreamWriter{ch: ch, count: count, ref: ref}
 }
 

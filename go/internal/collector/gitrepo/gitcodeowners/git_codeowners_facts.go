@@ -8,10 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
+	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 )
 
 const gitCodeownersCollectorInstanceID = "git-codeowners"
