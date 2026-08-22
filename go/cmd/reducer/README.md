@@ -483,10 +483,13 @@ The direct process contract includes `eshu-reducer --version` and
 Graph writes flow through `storage/cypher.EdgeWriter` and
 `storage/cypher.InstrumentedExecutor`, never through a raw driver.
 
-## Operations and telemetry
+## Telemetry
 
-See [Operations and telemetry](OPERATIONS.md) for runtime signals, scaling
-guidance, and reducer invariants.
+See [Operations and telemetry](OPERATIONS.md) for runtime signals and scaling guidance.
+
+## Gotchas / invariants
+
+See [Gotchas and invariants](OPERATIONS.md#gotchas-and-invariants) for reducer runtime constraints.
 
 ## Related docs
 
