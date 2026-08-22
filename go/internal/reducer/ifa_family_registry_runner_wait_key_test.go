@@ -50,14 +50,14 @@ func checkRunnerWaitKeysAreExclusive(waitStages, waitKeys map[string]string) err
 // TestIfaFamilyRegistryRunnerWaitKeysAreExclusiveCatchesDuplicate is the
 // deliberate-break tooth: it proves checkRunnerWaitKeysAreExclusive itself
 // fires, and names both families, on a synthetic pair of wait_stage=runner
-// rows sharing one wait_key. This is necessary, not merely defensive: as of
-// this writing no real family declares wait_stage=runner
-// (scripts/lib/ifa_fault_generic_runner_wait.sh's own header: "no family in
-// ifa_family_registry_registry.sh declares wait_stage=runner today ... This
-// has never run against a live stack"), so
-// TestIfaFamilyRegistryRunnerWaitKeysAreExclusive alone would pass vacuously
-// today with zero rows exercised -- this tooth is the only proof, before the
-// first runner-stage row lands, that the check logic can fail at all.
+// rows sharing one wait_key. It stays in the suite even though
+// handles_route/runs_in/invokes_cloud_action have since landed their own
+// wait_stage=runner rows and made TestIfaFamilyRegistryRunnerWaitKeysAreExclusive
+// itself exercised (see that test's doc comment): a synthetic, deterministic
+// proof that the check logic can fail at all is worth keeping regardless of
+// what the live registry happens to contain today, the same way
+// TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration keeps
+// its own synthetic tooth after the live bug it modeled was fixed.
 func TestIfaFamilyRegistryRunnerWaitKeysAreExclusiveCatchesDuplicate(t *testing.T) {
 	t.Parallel()
 
@@ -78,19 +78,18 @@ func TestIfaFamilyRegistryRunnerWaitKeysAreExclusiveCatchesDuplicate(t *testing.
 
 // TestIfaFamilyRegistryRunnerWaitKeysAreExclusive runs
 // checkRunnerWaitKeysAreExclusive against the real, live-parsed registry
-// rows. Unlike its handler-stage sibling
-// (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive), it does not fail when
-// zero rows are exercised: a handler-stage row is guaranteed to exist today
-// (every registered family is handler-stage as of this writing), so that
-// test's own zero-checked guard is a real assertion: an empty result there
-// would mean the parse itself broke. A wait_stage=runner row is not
-// guaranteed to exist yet -- see
-// TestIfaFamilyRegistryRunnerWaitKeysAreExclusiveCatchesDuplicate's doc
-// comment -- so this test passing on zero runner-stage rows today is
-// expected, not a parse failure, and it becomes a real, non-vacuous
-// assertion the moment handles_route/runs_in/invokes_cloud_action land their
-// own wait_stage=runner rows (each declaring wait_key=<own family>, which are
-// mutually distinct by construction -- see .trio-notes/build-plan.md).
+// rows. As of this writing handles_route, runs_in, and invokes_cloud_action
+// each declare wait_stage=runner with wait_key=<own family> (verified: three
+// mutually distinct wait_keys), so this is a genuinely exercised, non-vacuous
+// assertion, not merely a placeholder waiting for those rows to land. Unlike
+// its handler-stage sibling (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive),
+// this test does not itself assert checked > 0: a handler-stage row was
+// already guaranteed to exist before that test was written, making its own
+// zero-checked guard a real parse-failure signal, whereas this test was
+// written before any wait_stage=runner row existed and could not make the
+// same guarantee about the future. Leaving that guard out here rather than
+// asserting a stale non-zero count keeps this test honest if the registry
+// ever changes shape again.
 func TestIfaFamilyRegistryRunnerWaitKeysAreExclusive(t *testing.T) {
 	t.Parallel()
 
