@@ -32,6 +32,7 @@ var (
 	ifaFamilyRegistryBlockerKindRE = regexp.MustCompile(`(?m)^IFA_FAMILY_BLOCKER_KIND\[(\w+)\]="([^"]*)"`)
 	ifaFamilyRegistryWaitKeyRE     = regexp.MustCompile(`(?m)^IFA_FAMILY_WAIT_KEY\[(\w+)\]="([^"]*)"`)
 	ifaFamilyRegistryWaitStageRE   = regexp.MustCompile(`(?m)^IFA_FAMILY_WAIT_STAGE\[(\w+)\]="([^"]*)"`)
+	ifaFamilyRegistryAnchorRE      = regexp.MustCompile(`(?m)^IFA_FAMILY_ANCHOR\[(\w+)\]="([^"]*)"`)
 )
 
 // ifaFamilyRegistryRowsDir returns the absolute path to
@@ -84,6 +85,23 @@ func parseIfaFamilyRegistryWaitKeys(t *testing.T, rowsDir string) map[string]str
 func parseIfaFamilyRegistryWaitStages(t *testing.T, rowsDir string) map[string]string {
 	t.Helper()
 	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitStageRE, "IFA_FAMILY_WAIT_STAGE")
+}
+
+// parseIfaFamilyRegistryAnchors reads every family's declared
+// IFA_FAMILY_ANCHOR row -- the Cypher MERGE substring
+// _ifa_generic_cell_failgraphwrite (ifa_fault_generic_cells.sh) matches
+// against to intercept and once-fault exactly that family's graph write,
+// independent of blocker_kind, wait_stage, or which handler produced the row.
+// It exists so TestIfaFamilyRegistryAnchorsAreUnique
+// (ifa_family_registry_anchor_test.go) can prove no two families share one,
+// live from the registry rows -- never a hand-copied Go-side table of
+// anchors, for the same reason every other parse function in this file
+// exists: a hand-copied table can drift from, or worse only ever agree
+// with, the value the shell loader actually reads. See parseIfaFamilyRegistryTable
+// for the shared parsing contract.
+func parseIfaFamilyRegistryAnchors(t *testing.T, rowsDir string) map[string]string {
+	t.Helper()
+	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryAnchorRE, "IFA_FAMILY_ANCHOR")
 }
 
 // parseIfaFamilyRegistryTable reads every *.sh file directly under rowsDir --
