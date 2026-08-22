@@ -4,8 +4,10 @@
 
 This record proves the `runner_lease_hold` fault mechanism against the real
 shared-projection lease path. The first section records the pre-implementation
-diagnostic proof; the final section records the promoted family cells. This is
-a test-harness change, not a production-runtime change.
+diagnostic proof; the later sections record the promoted family cells and the
+post-merge owner-fencing correction. The original #6214 slice changed only the
+test harness. Its follow-up changes the production lease-owner identity while
+leaving worker count, claim SQL, lease duration, and graph writes unchanged.
 
 The three target family fixtures for `handles_route`, `runs_in`, and
 `invokes_cloud_action` were originally owned by prerequisite issues #5995,
@@ -235,10 +237,56 @@ bash scripts/verify-docs-build-changed.sh
 git diff --check
 ```
 
-The change adds no production telemetry or runtime behavior. Its operator
-evidence remains the existing durable intent/lease state, PostgreSQL lock
-views, reducer logs, exact graph assertions, queue drain summary, and
-dead-letter count used by the gate.
+The original merged slice added no production telemetry or runtime behavior.
+Its operator evidence remains the existing durable intent/lease state,
+PostgreSQL lock views, reducer logs, exact graph assertions, queue drain
+summary, and dead-letter count used by the gate.
+
+## Post-merge owner-fencing correction
+
+PR #6214 was squash-merged at `b00c1ce12e45946cbcb9f63bcba17b970c60d199`
+before three review threads were addressed. Two were shell failure-path defects:
+the independent `code_calls` query collapsed its original exit status, and a
+failed holder-release precheck left the holder client tracked. The third was a
+correctness gap in the proof and the production default: both reducer processes
+used `shared-projection-runner`, so the replacement could use the claim SQL's
+same-owner renewal branch before a dead process's lease expired.
+
+The correction gives each reducer process boot a stable owner of the form
+`<configured-prefix>:<hostname>:<pid>:<boot-nonce>`. The environment variable
+still controls the prefix; hostname, PID, and boot nonce make replicas and
+restarts distinct. No worker, partition, batch, retry, heartbeat, or lease-TTL
+setting changes in production.
+
+The live cells use an eight-second lease TTL only to keep the expiry proof
+bounded. After the first reducer is killed, its blocked PostgreSQL claims are
+allowed to commit, and the cell captures their exact partition keys, owner,
+expiry, and update timestamp. A test-local trigger then records lease-owner
+transitions. The replacement starts while the captured leases are still active;
+the cell proves those rows remain owned by the dead process, waits for their
+actual timestamps to expire, releases the advisory holder, and finally requires
+the audit to show the distinct replacement owner claimed every captured key
+after expiry. The final table state must have every captured lease released and
+updated after its post-kill dead-owner capture.
+
+The exact source head `7a54c1a4c057b9c175be83a6275bf1352bc0e7d6`
+passed the full shard with RC 0:
+
+```text
+bash scripts/verify-ifa-fault-injection.sh --shard 2/4
+```
+
+| Cell | Pending intents | Exact waiters | Distinct-owner expiry audit | Dead letters | Wall time |
+| --- | ---: | ---: | --- | ---: | ---: |
+| `killworker_handles_route` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 20 s |
+| `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 21 s |
+| `killworker_invokes_cloud_action` | 2 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
+
+The independent `code_calls` control was `7|0` in every cell. All three graph
+oracles matched their exact edge sets and the baseline digest
+`8e8ab90c85a65099aa34a6f071de98a59e08b79b55e7f78e4a4cca656b994d71`.
+The test-local trigger and audit table are removed before cell teardown. They
+are evidence instrumentation only and do not ship with the reducer schema.
 
 PostgreSQL references:
 
