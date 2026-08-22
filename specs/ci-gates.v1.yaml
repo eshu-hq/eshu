@@ -215,11 +215,17 @@ gates:
       - ".agents/**"
       - ".claude/skills/**"
       - ".codex/skills/**"
+      # verify-agent-canon.sh reads .claude/hooks/skill-nudge.sh to prove every
+      # skill is reachable from a routing arm. Without this trigger a hook-only
+      # edit would not select the gate that validates it, which is the same
+      # silent rot the check exists to catch.
+      - ".claude/hooks/**"
       - ".opencode/agent/**"
       - "AGENTS.md"
       - "CLAUDE.md"
       - "scripts/verify-agent-canon.sh"
       - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/test-agent-hooks.sh"
     local:
       command: "bash scripts/verify-agent-canon.sh"
       test_command: "bash scripts/test-verify-agent-hygiene.sh"

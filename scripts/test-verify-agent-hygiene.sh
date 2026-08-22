@@ -87,10 +87,27 @@ else
   ok "agent-canon fails on the wrapped \"zero\\nP0/P1/P2 findings\" clause"
 fi
 
+# write_nudge_fixture <repo_root> — minimal skill-nudge hook covering the two
+# skills every fixture below declares. The canon gate requires each skill to be
+# assigned by a SKILL= arm or named in the exempt block, so a fixture repo
+# without this file fails for the wrong reason.
+write_nudge_fixture() {
+  mkdir -p "$1/.claude/hooks"
+  {
+    printf '#!/bin/bash\n'
+    printf '# NUDGE_EXEMPT_BEGIN\n'
+    printf '#   example                 fixture skill, no real surface\n'
+    printf '#   eshu-performance-rigor  fixture skill, no real surface\n'
+    printf '# NUDGE_EXEMPT_END\n'
+    printf 'SKILL=""\n'
+  } >"$1/.claude/hooks/skill-nudge.sh"
+}
+
 mkdir -p "$tmp/skill-links/.agents/skills/example" \
   "$tmp/skill-links/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/skill-links/.claude/skills" \
   "$tmp/skill-links/.codex/skills"
+write_nudge_fixture "$tmp/skill-links"
 printf 'shared canon\n' >"$tmp/skill-links/AGENTS.md"
 printf 'shared canon\n' >"$tmp/skill-links/CLAUDE.md"
 printf '%s\n' '---' 'name: example' 'description: example' '---' \
@@ -132,6 +149,7 @@ fi
 mkdir -p "$tmp/perf-contract/.agents/skills/eshu-performance-rigor/references" \
   "$tmp/perf-contract/.claude/skills" \
   "$tmp/perf-contract/.codex/skills"
+write_nudge_fixture "$tmp/perf-contract"
 printf 'shared canon\n' >"$tmp/perf-contract/AGENTS.md"
 printf 'shared canon\n' >"$tmp/perf-contract/CLAUDE.md"
 printf '%s\n' '---' 'name: eshu-performance-rigor' 'description: incomplete' '---' \
@@ -257,6 +275,89 @@ if "$attr" --message "$tmp/msg-human" >/dev/null 2>&1; then
   ok "attribution passes on a human Co-authored-by trailer"
 else
   no "attribution should NOT flag a human Co-authored-by trailer"
+fi
+
+# Nudge-reachability check. A skill nobody can reach from the editor hook is
+# the silent half of skill routing: the hook keeps exiting 0, so only a gate
+# notices. Pin all three ways it can be wrong.
+mkdir -p "$tmp/nudge/.agents/skills/eshu-performance-rigor/references" \
+  "$tmp/nudge/.claude/skills" "$tmp/nudge/.codex/skills"
+printf 'shared canon\n' >"$tmp/nudge/AGENTS.md"
+printf 'shared canon\n' >"$tmp/nudge/CLAUDE.md"
+cat >"$tmp/nudge/.agents/skills/eshu-performance-rigor/SKILL.md" <<'NUDGE_PERF_SKILL'
+## Target Contribution Budget
+required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
+## Resource-Qualified Claims
+absolute_target_applicable same-machine relative
+## Baseline Promotion
+## Retention Modes
+stop-and-preserve git merge-base --is-ancestor
+NUDGE_PERF_SKILL
+cat >"$tmp/nudge/.agents/skills/eshu-performance-rigor/references/run-manifest.md" <<'NUDGE_PERF_MANIFEST'
+target_contribution phase_durations_seconds retention accepted_commit
+hardware_class machine_profile reference_profile resource_envelope memory_bytes
+container_memory_limit_bytes absolute_target_applicable compose_service_limits
+service_usage_summary
+NUDGE_PERF_MANIFEST
+ln -s ../../.agents/skills/eshu-performance-rigor \
+  "$tmp/nudge/.claude/skills/eshu-performance-rigor"
+ln -s ../../.agents/skills/eshu-performance-rigor \
+  "$tmp/nudge/.codex/skills/eshu-performance-rigor"
+write_nudge_fixture "$tmp/nudge"
+
+# Control: the fixture must PASS before the orphan is introduced. Without this,
+# every "fails" assertion below could be failing for an unrelated reason and
+# still read as proof.
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  ok "nudge fixture is clean before the orphan skill is added"
+else
+  no "nudge fixture should be clean before the orphan skill is added"
+fi
+
+mkdir -p "$tmp/nudge/.agents/skills/orphan"
+printf '%s\n' '---' 'name: orphan' 'description: orphan' '---' \
+  >"$tmp/nudge/.agents/skills/orphan/SKILL.md"
+ln -s ../../.agents/skills/orphan "$tmp/nudge/.claude/skills/orphan"
+ln -s ../../.agents/skills/orphan "$tmp/nudge/.codex/skills/orphan"
+
+rm "$tmp/nudge/.claude/hooks/skill-nudge.sh"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when the nudge hook is missing entirely"
+else
+  ok "agent-canon fails when the nudge hook is missing entirely"
+fi
+
+write_nudge_fixture "$tmp/nudge"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should fail when a skill has neither an arm nor an exemption"
+else
+  ok "agent-canon fails when a skill has neither an arm nor an exemption"
+fi
+
+# A bare mention in a comment must NOT satisfy the check. This is the
+# tautological-guard case: scoping the match to the whole file would pass here.
+printf '# orphan is mentioned only in prose\n' \
+  >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should not accept a skill named only in an unrelated comment"
+else
+  ok "agent-canon rejects a skill named only in an unrelated comment"
+fi
+
+# A longer skill name that merely CONTAINS an existing one must not count as
+# covered. Substring matching would pass this and leave the new skill unrouted.
+printf 'SKILL="orphan-extended"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  no "agent-canon should not accept orphan covered by an orphan-extended arm"
+else
+  ok "agent-canon rejects a prefix match against a longer skill name"
+fi
+
+printf 'SKILL="orphan"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  ok "agent-canon passes once the skill has a real SKILL= arm"
+else
+  no "agent-canon should pass once the skill has a real SKILL= arm"
 fi
 
 printf '\nagent-hygiene test mirror: %d passed, %d failed\n' "$pass" "$fail"

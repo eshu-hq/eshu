@@ -39,6 +39,9 @@ jobs:
       - name: Run diff-fragment gate test mirror
         run: scripts/test-verify-no-diff-fragments.sh
 
+      - name: Run agent hooks test mirror
+        run: scripts/test-agent-hooks.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10
