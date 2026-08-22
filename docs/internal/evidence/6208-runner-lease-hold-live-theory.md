@@ -269,8 +269,12 @@ runs the row-level `BEFORE INSERT` trigger before resolving the upsert conflict,
 so the cell requires the distinct replacement owner to attempt every captured
 key before expiry while all rows remain actively dead-owned. It then waits for
 the recorded timestamps and requires committed replacement-owner transitions
-only after expiry. The final table state must have every captured lease released
-and updated after its post-kill dead-owner capture.
+for every captured key. Production compares the stored expiry with the
+replacement process's supplied `now`; a different owner cannot produce that
+transition through the claim SQL until the expiry condition passes. The audit's
+PostgreSQL `observed_at` is not compared with that Go-supplied timestamp because
+they come from separate clocks. The final table state must have every captured
+lease released and updated after its post-kill dead-owner capture.
 
 The exact source head `b16c62db7cbeeb95f2d07fdf2d462d80da67e140`
 passed the full shard with RC 0:

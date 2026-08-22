@@ -449,6 +449,7 @@ test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
 			[[ "${sql}" == *"runner_lease_hold replacement durable lease audit"* &&
 				"${sql}" == *"JOIN ${_IFA_RUNNER_LEASE_AUDIT_TABLE} AS audit"* &&
 				"${sql}" == *"audit.event_kind = 'transition'"* &&
+				"${sql}" != *"audit.observed_at >= captured.dead_expiry"* &&
 				"${sql}" == *":${replacement_pid}:[0-9a-f]{16,32}"* ]] || return 1
 			printf '1'
 			;;
