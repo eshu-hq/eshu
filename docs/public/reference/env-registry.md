@@ -367,6 +367,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_REDUCER_MAX_ATTEMPTS` | int | `3` | Maximum retry attempts for reducer work items. |
 | `ESHU_REDUCER_RETRY_DELAY` | duration | `30s` | Delay between reducer work-item retries. |
 | `ESHU_REDUCER_WORKERS` | int | — | Concurrent reducer workers (default derived from CPU count and backend). |
+| `ESHU_SHARED_PROJECTION_LEASE_OWNER` | string | `shared-projection-runner` | Prefix for the shared-projection partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity. |
 
 ## runtime
 

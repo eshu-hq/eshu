@@ -8,6 +8,7 @@ run_ifa_fault_injection_generic_runner_lease_hold_cases() {
 	test_ifa_runner_lease_hold_starts_exact_transaction_lock_and_tracks_client
 	test_ifa_runner_lease_hold_failed_confirmation_cleans_up
 	test_ifa_runner_lease_hold_release_requires_post_kill_waiter
+	test_ifa_runner_lease_hold_release_query_failure_cleans_up
 	test_ifa_runner_lease_hold_release_orders_terminate_join_then_waiter_drain
 	test_ifa_runner_lease_hold_release_timeout_still_untracks_client
 	test_ifa_runner_lease_hold_negative_control_requires_holder_without_waiter
@@ -15,6 +16,8 @@ run_ifa_fault_injection_generic_runner_lease_hold_cases() {
 	test_ifa_runner_lease_hold_generic_dispatch_rejects_runner_stage
 	test_ifa_runner_lease_hold_wait_uses_fresh_sql_samples
 	test_ifa_runner_lease_hold_query_failure_is_unknown
+	test_ifa_symbol_runtime_control_query_failure_is_unknown
+	test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced
 }
 
 test_ifa_runner_lease_hold_generic_dispatch_rejects_runner_stage() (
@@ -155,8 +158,8 @@ test_ifa_runner_lease_hold_release_requires_post_kill_waiter() (
 	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
 	source "${generic_runner_wait_lib}"
 	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
-	local compose_file=test-compose.yml log_dir events bg_pids=() holder_pid="" rc=0 output
-	log_dir="$(mktemp -d)"; events="${log_dir}/events"
+	local compose_file=test-compose.yml log_dir events output_file bg_pids=() holder_pid="" rc=0 output
+	log_dir="$(mktemp -d)"; events="${log_dir}/events"; output_file="${log_dir}/release-output"
 	# shellcheck disable=SC2064
 	trap "rm -rf '${log_dir}'" EXIT
 
@@ -173,15 +176,49 @@ test_ifa_runner_lease_hold_release_requires_post_kill_waiter() (
 
 	ifa_fault_start_runner_lease_hold no_waiter handles_route holder_pid \
 		|| fail "runner lease holder did not start for release non-vacuity proof"
-	output="$(ifa_fault_release_runner_lease_hold no_waiter handles_route "${holder_pid}" 2>&1)" || rc=$?
+	ifa_fault_release_runner_lease_hold no_waiter handles_route "${holder_pid}" >"${output_file}" 2>&1 || rc=$?
+	output="$(<"${output_file}")"
 	[[ "${rc}" -ne 0 && "${output}" == *"no exact waiter remained before holder release"* ]] \
 		|| fail "runner lease release did not fail closed without a post-kill waiter (rc=${rc}, output=${output})"
-	[[ ! -s "${events}" ]] || fail "runner lease release terminated the holder without a post-kill waiter"
+	[[ -f "${events}" && "$(<"${events}")" == 'terminate' ]] \
+		|| fail "runner lease release did not clean up the holder after the post-kill waiter precheck failed"
+	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
+		|| fail "runner lease release left the holder tracked after the post-kill waiter precheck failed"
+)
 
-	# The public release correctly leaves ownership intact on this proof failure;
-	# stop the hermetic client directly so the subshell cannot leak it.
-	kill "${holder_pid}" 2>/dev/null || true
-	wait "${holder_pid}" 2>/dev/null || true
+test_ifa_runner_lease_hold_release_query_failure_cleans_up() (
+	# shellcheck source=scripts/lib/ifa_determinism_common.sh
+	source "${det_lib}"
+	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+	source "${fault_lib}"
+	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
+	source "${generic_runner_wait_lib}"
+	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
+	local compose_file=test-compose.yml log_dir events output_file bg_pids=() holder_pid="" rc=0 output
+	log_dir="$(mktemp -d)"; events="${log_dir}/events"; output_file="${log_dir}/release-output"
+	# shellcheck disable=SC2064
+	trap "rm -rf '${log_dir}'" EXIT
+
+	psql() { sleep 30; }
+	ifa_det_pg() {
+		case "$4" in
+		*"exact waiter precheck"*) return 9 ;;
+		*pg_terminate_backend*) printf 'terminate\n' >>"${events}"; return 0 ;;
+		*) printf '1\n' ;;
+		esac
+	}
+	sleep() { :; }
+
+	ifa_fault_start_runner_lease_hold query_error handles_route holder_pid \
+		|| fail "runner lease holder did not start for release query-failure proof"
+	ifa_fault_release_runner_lease_hold query_error handles_route "${holder_pid}" >"${output_file}" 2>&1 || rc=$?
+	output="$(<"${output_file}")"
+	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
+		|| fail "runner lease release did not preserve the precheck query failure (rc=${rc}, output=${output})"
+	[[ -f "${events}" && "$(<"${events}")" == 'terminate' ]] \
+		|| fail "runner lease release did not attempt holder cleanup after a precheck query failure"
+	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
+		|| fail "runner lease release left the holder tracked after a precheck query failure"
 )
 
 test_ifa_runner_lease_hold_release_orders_terminate_join_then_waiter_drain() (
@@ -360,4 +397,84 @@ test_ifa_runner_lease_hold_query_failure_is_unknown() (
 	output="$(ifa_fault_require_no_projection_intent_waiter test-project 0 test-dsn test-compose.yml handles_route error_cell 2>&1)" || rc=$?
 	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
 		|| fail "negative control did not propagate an indeterminate query failure (rc=${rc}, output=${output})"
+)
+
+test_ifa_symbol_runtime_control_query_failure_is_unknown() (
+	# shellcheck source=scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+	source "${repo_root}/scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
+	local compose_file=test-compose.yml rc=0 output
+	set +o pipefail
+	ifa_det_pg() { return 9; }
+	sleep() { :; }
+
+	output="$(_ifa_symbol_runtime_wait_for_code_calls_control 1 2>&1)" || rc=$?
+	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
+		|| fail "symbol-runtime control did not preserve an indeterminate query failure (rc=${rc}, output=${output})"
+)
+
+test_ifa_runner_lease_hold_durable_reclaim_is_expiry_fenced() (
+	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
+	source "${generic_runner_wait_lib}"
+	local FAULT_COMPOSE_PROJECT=test-project use_compose=0 ESHU_POSTGRES_DSN=test-dsn
+	local compose_file=test-compose.yml mode=capture captured=""
+	local dead_pid=111 replacement_pid=222 nonce=0123456789abcdef0123456789abcdef
+	local dead_owner="shared-projection-runner:test-host:${dead_pid}:${nonce}"
+	local replacement_owner="shared-projection-runner:test-host:${replacement_pid}:${nonce}"
+
+	ifa_det_pg() {
+		local sql="$4"
+		case "${mode}" in
+		capture)
+			[[ "${sql}" == *"runner_lease_hold capture durable leases"* &&
+				"${sql}" == *"lease_expires_at > clock_timestamp() + INTERVAL '2 seconds'"* &&
+				"${sql}" == *":${dead_pid}:[0-9a-f]{16,32}"* ]] || return 1
+			printf '0|8|%s|200.000000|100.000000' "${dead_owner}"
+			;;
+		preexpiry)
+			[[ "${sql}" == *"runner_lease_hold pre-expiry durable lease fence"* &&
+				"${sql}" == *"(0,8,'${dead_owner}',to_timestamp(200.000000),to_timestamp(100.000000))"* &&
+				"${sql}" == *":${replacement_pid}:[0-9a-f]{16,32}"* ]] || return 1
+			printf '1|1|0'
+			;;
+		install)
+			[[ "${sql}" == *"CREATE TRIGGER ifa_runner_lease_audit_capture"* ]] || return 1
+			;;
+		expiry)
+			[[ "${sql}" == *"runner_lease_hold wait captured expiry"* && "${sql}" == *"MAX(captured.dead_expiry)"* ]] || return 1
+			printf '1'
+			;;
+		audit)
+			[[ "${sql}" == *"runner_lease_hold replacement durable lease audit"* &&
+				"${sql}" == *":${replacement_pid}:[0-9a-f]{16,32}"* ]] || return 1
+			printf '1'
+			;;
+		drop) [[ "${sql}" == *"DROP TRIGGER IF EXISTS ifa_runner_lease_audit_capture"* ]] || return 1 ;;
+		reclaimed)
+			[[ "${sql}" == *"runner_lease_hold post-reclaim durable lease release"* ]] || return 1
+			printf '1|1|1'
+			;;
+		esac
+	}
+
+	ifa_fault_capture_runner_partition_leases proof handles_route "${dead_pid}" 2 captured || return 1
+	[[ "${captured}" == "0|8|${dead_owner}|200.000000|100.000000" ]] || return 1
+	mode=preexpiry
+	ifa_fault_require_runner_leases_expiry_fenced proof handles_route "${replacement_pid}" "${captured}" || return 1
+	mode=install; ifa_fault_install_runner_lease_audit proof handles_route "${captured}" || return 1
+	mode=expiry; ifa_fault_wait_for_runner_lease_expiry proof "${captured}" 1 || return 1
+	mode=audit; ifa_fault_require_replacement_runner_lease_audit proof handles_route "${replacement_pid}" "${captured}" || return 1
+	mode=reclaimed
+	ifa_fault_require_runner_leases_reclaimed proof handles_route "${captured}" || return 1
+	mode=drop; ifa_fault_drop_runner_lease_audit proof || return 1
+	local cell_source
+	cell_source="$(<"${repo_root}/scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh")"
+	[[ "${cell_source}" == *'ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}"'* &&
+		"${cell_source}" == *'ifa_fault_capture_runner_partition_leases'* &&
+		"${cell_source}" == *'ifa_fault_require_runner_leases_expiry_fenced'* &&
+		"${cell_source}" == *'ifa_fault_require_replacement_runner_lease_audit'* &&
+		"${cell_source}" == *'ifa_fault_require_runner_leases_reclaimed'* ]] \
+		|| fail "symbol-runtime runner cells do not prove durable dead-owner expiry and distinct-owner reclaim"
+	[[ "${cell_source}" == *'ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_before}"'*'ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}"'* ]] \
+		|| fail "symbol-runtime runner cell captures the durable lease before the killed advisory waiter can commit it"
 )

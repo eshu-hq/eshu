@@ -207,7 +207,25 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | ESHU_SHARED_PROJECTION_BATCH_LIMIT | `100` | Intents per batch |
 | ESHU_SHARED_PROJECTION_POLL_INTERVAL | `500ms` | Base poll interval |
 | ESHU_SHARED_PROJECTION_LEASE_TTL | `60s` | Partition lease TTL |
+| ESHU_SHARED_PROJECTION_LEASE_OWNER | `shared-projection-runner:<hostname>:<pid>:<boot-nonce>` | Per-process partition lease owner; a configured value replaces only the prefix |
 | ESHU_SHARED_PROJECTION_WORKERS | `min(NumCPU,4)` | Concurrent partition workers |
+
+The process suffix prevents another reducer replica or a restarted process from
+renewing or releasing an active lease under the dead process's identity. The
+prefix stays stable for operator filtering, while heartbeats within one process
+reuse the full owner token.
+
+No-Regression Evidence: focused `cmd/reducer` tests prove the shared-projection
+owner stays stable within one process, differs across two process boots, keeps
+an operator prefix, and reaches `SharedProjectionRunner` through
+`buildReducerService`. The worker count, eight partitions per domain, 60-second
+lease TTL, claim SQL, retry boundary, and graph writes are unchanged. These
+config tests use no graph backend and create no queue, intent, or lease rows;
+the #6208 fault cell owns the live dead-owner row-count and expiry proof.
+
+No-Observability-Change: this adds no metric, span, log field, or status route.
+The existing `shared_projection_partition_leases.lease_owner` column now shows
+the prefix, host, PID, and boot nonce needed to distinguish reducer processes.
 
 ### Symbol→runtime presence gate (#2809, #2855)
 

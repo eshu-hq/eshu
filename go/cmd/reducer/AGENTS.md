@@ -36,6 +36,11 @@ before touching any file in this directory.
 - **Heartbeat renews at `LeaseDuration / 2`** — `main.go:353`
   `HeartbeatInterval: workQueue.LeaseDuration / 2`; do not set
   `ESHU_REDUCER_RETRY_DELAY` shorter than the lease TTL or claims will churn.
+- **Shared-projection lease owners are unique per process boot** —
+  `loadSharedProjectionLeaseOwner` treats
+  `ESHU_SHARED_PROJECTION_LEASE_OWNER` as a prefix and appends hostname, PID,
+  and a boot nonce. Do not replace it with a fixed identity: active same-owner
+  leases can be renewed or released before expiry.
 - **Retry delay is exponential + jittered, not fixed** (#4450) — `failIntent`
   (`reducer_queue_helpers.go`) computes `visible_at` via `computeRetryDelay`
   (`retry_backoff.go`): `ESHU_REDUCER_RETRY_DELAY*(1<<attempt)` capped at

@@ -47,7 +47,12 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+		if name == sharedProjectionLeaseOwnerEnv {
+			return "shared-wiring-test"
+		}
+		return ""
+	}, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -71,6 +76,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	}
 	if service.SharedProjectionRunner.ReadinessPrefetch == nil {
 		t.Fatal("buildReducerService() shared projection readiness prefetch = nil, want non-nil")
+	}
+	if got := service.SharedProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, "shared-wiring-test:") {
+		t.Fatalf("buildReducerService() shared projection lease owner = %q, want configured prefix plus process identity", got)
 	}
 	if service.CodeCallProjectionRunner == nil {
 		t.Fatal("buildReducerService() code call projection runner = nil, want non-nil")

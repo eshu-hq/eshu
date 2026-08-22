@@ -31,6 +31,7 @@ const (
 	queryProfileEnv                         = "ESHU_QUERY_PROFILE"
 	reducerExpectedSourceLocalProjectorsEnv = "ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS"
 	reducerSemanticEntityClaimLimitEnv      = "ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT"
+	sharedProjectionLeaseOwnerEnv           = "ESHU_SHARED_PROJECTION_LEASE_OWNER"
 
 	generationRetentionEnabledEnv                  = "ESHU_GENERATION_RETENTION_ENABLED"
 	generationRetentionPollIntervalEnv             = "ESHU_GENERATION_RETENTION_POLL_INTERVAL"
@@ -84,6 +85,7 @@ const (
 	defaultGraphOrphanSweepBatchLimit   = 100
 	defaultGraphOrphanSweepCountLimit   = 10_000
 	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
+	defaultSharedProjectionLeaseOwner   = "shared-projection-runner"
 )
 
 type generationRetentionConfig struct {

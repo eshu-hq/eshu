@@ -15,7 +15,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
-var repoDependencyProjectionBootNonce = newRepoDependencyProjectionBootNonce()
+var projectionLeaseOwnerBootNonce = newProjectionLeaseOwnerBootNonce()
 
 const (
 	codeCallProjectionPollIntervalEnv        = "ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL"
@@ -115,19 +115,34 @@ func loadRepoDependencyProjectionWorkers(getenv func(string) string, graphBacken
 }
 
 func loadRepoDependencyProjectionLeaseOwner(getenv func(string) string) string {
-	prefix := loadStringOrDefault(
-		getenv,
-		repoDependencyProjectionLeaseOwnerEnv,
-		defaultRepoDependencyProjectionLeaseOwner,
+	return loadProcessUniqueProjectionLeaseOwner(
+		getenv, repoDependencyProjectionLeaseOwnerEnv, defaultRepoDependencyProjectionLeaseOwner,
 	)
+}
+
+func loadSharedProjectionLeaseOwner(getenv func(string) string) string {
+	return loadProcessUniqueProjectionLeaseOwner(
+		getenv, sharedProjectionLeaseOwnerEnv, defaultSharedProjectionLeaseOwner,
+	)
+}
+
+// loadProcessUniqueProjectionLeaseOwner treats the operator value as a label
+// prefix. The process identity suffix prevents another reducer replica or a
+// restarted process from renewing and releasing an active lease as if it were
+// the original owner.
+func loadProcessUniqueProjectionLeaseOwner(getenv func(string) string, envName, defaultPrefix string) string {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	prefix := loadStringOrDefault(getenv, envName, defaultPrefix)
 	hostname, err := os.Hostname()
 	if err != nil || strings.TrimSpace(hostname) == "" {
 		hostname = "unknown-host"
 	}
-	return fmt.Sprintf("%s:%s:%d:%s", prefix, hostname, os.Getpid(), repoDependencyProjectionBootNonce)
+	return fmt.Sprintf("%s:%s:%d:%s", prefix, hostname, os.Getpid(), projectionLeaseOwnerBootNonce)
 }
 
-func newRepoDependencyProjectionBootNonce() string {
+func newProjectionLeaseOwnerBootNonce() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err == nil {
 		return hex.EncodeToString(bytes)

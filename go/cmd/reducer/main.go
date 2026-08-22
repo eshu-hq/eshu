@@ -41,6 +41,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 	sharedCfg := reducer.LoadSharedProjectionConfig(getenv)
+	sharedCfg.LeaseOwner = loadSharedProjectionLeaseOwner(getenv)
 	codeCallCfg := loadCodeCallProjectionConfig(getenv)
 	repoDependencyCfg := loadRepoDependencyProjectionConfig(getenv, graphBackend)
 	repairCfg := loadGraphProjectionPhaseRepairConfig(getenv)
