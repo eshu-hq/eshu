@@ -171,7 +171,7 @@ func TestNornicDBPlatformCommitUniqueConflictRetryStaysNarrow(t *testing.T) {
 func TestLiveNornicDBOnCreateCommitUniqueConflictShapeRequiresSyntaxError(t *testing.T) {
 	t.Parallel()
 
-	const uid = "nornicdb-retry-contract"
+	const platformID = "nornicdb-retry-contract-platform"
 	tests := []struct {
 		name string
 		err  error
@@ -182,8 +182,8 @@ func TestLiveNornicDBOnCreateCommitUniqueConflictShapeRequiresSyntaxError(t *tes
 			err: &neo4jdriver.Neo4jError{
 				Code: nornicDBStatementSyntaxErrorCode,
 				Msg: "commit failed: constraint violation: " +
-					"Constraint violation (UNIQUE on NornicDBRetryContract.[uid]): " +
-					"Node with uid=" + uid + " already exists",
+					"Constraint violation (UNIQUE on Platform.[id]): " +
+					"Node with id=" + platformID + " already exists",
 			},
 			want: true,
 		},
@@ -192,8 +192,8 @@ func TestLiveNornicDBOnCreateCommitUniqueConflictShapeRequiresSyntaxError(t *tes
 			err: &neo4jdriver.Neo4jError{
 				Code: nornicDBTransactionCommitFailedCode,
 				Msg: "commit failed: constraint violation: " +
-					"Constraint violation (UNIQUE on NornicDBRetryContract.[uid]): " +
-					"Node with uid=" + uid + " already exists",
+					"Constraint violation (UNIQUE on Platform.[id]): " +
+					"Node with id=" + platformID + " already exists",
 			},
 			want: false,
 		},
@@ -202,8 +202,28 @@ func TestLiveNornicDBOnCreateCommitUniqueConflictShapeRequiresSyntaxError(t *tes
 			err: &neo4jdriver.Neo4jError{
 				Code: nornicDBStatementSyntaxErrorCode,
 				Msg: "commit failed: constraint violation: " +
-					"Constraint violation (UNIQUE on Other.[uid]): " +
-					"Node with uid=" + uid + " already exists",
+					"Constraint violation (UNIQUE on Other.[id]): " +
+					"Node with id=" + platformID + " already exists",
+			},
+			want: false,
+		},
+		{
+			name: "wrong constrained property",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg: "commit failed: constraint violation: " +
+					"Constraint violation (UNIQUE on Platform.[uid]): " +
+					"Node with uid=" + platformID + " already exists",
+			},
+			want: false,
+		},
+		{
+			name: "different platform id",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg: "commit failed: constraint violation: " +
+					"Constraint violation (UNIQUE on Platform.[id]): " +
+					"Node with id=another-platform already exists",
 			},
 			want: false,
 		},
@@ -212,7 +232,7 @@ func TestLiveNornicDBOnCreateCommitUniqueConflictShapeRequiresSyntaxError(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := isLiveNornicDBOnCreateCommitUniqueConflict(tt.err, uid); got != tt.want {
+			if got := isLiveNornicDBOnCreateCommitUniqueConflict(tt.err, platformID); got != tt.want {
 				t.Fatalf("live compatibility shape = %t, want %t", got, tt.want)
 			}
 		})
