@@ -57,7 +57,7 @@ documentation_barrier_cleanup_cases_lib="${repo_root}/scripts/lib/test-ifa-fault
 rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
 rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"; submodule_pin_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"  # packed for the 500-line cap
-entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"; marker_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"  # packed for the 500-line cap
+entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"; marker_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"; cell_catalog_doc="${repo_root}/docs/internal/ifa-fault-cell-catalog.md"  # packed for the 500-line cap
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 # shellcheck disable=SC2034  # read indirectly by the syntax-check loop below.
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
@@ -112,7 +112,7 @@ assert_libs_parse
 source "${rationale_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh
 source "${entrypoint_cases_lib}"
-run_ifa_fault_entrypoint_static_cases
+run_ifa_fault_entrypoint_static_cases; run_ifa_fault_cell_catalog_cases; run_ifa_fault_lib_cap_coverage_cases  # packed for the 500-line cap
 
 # Both GCP cassettes, generated synth-multiscope once, and the drive verb
 # (now in the driver lib's drive_all_cassettes helper).
@@ -242,8 +242,8 @@ require_delivery_cells_multiline "delta-retract reasserts the unaffected code-ca
 require_delivery_cells "delta-retract compares collateral graph truth outside exactly asserted families" 'ifa_fault_compare_collateral_edges'
 require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
 require_delivery_cells "delta-retract collateral success names every exact family" "outside exact SQL/code-call/rationale assertions"
-require "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
-require "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
+require_catalog "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
+require_catalog "delta-retract overview names the rationale exact proof" "rationale exact-one edge record, Charge survivor, and durable lifecycle"
 [[ "$(_ifa_count_code_matches 'scripts/lib/ifa_sql_delta_live.sh' "${sources_lib}")" -ge 1 ]] \
 	|| fail "gate source inventory omits the shared delta-live helper"
 require_fixture "gate defines the delta expected-edge set" "sql_delta_expected_edges="

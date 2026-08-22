@@ -85,3 +85,67 @@ run_ifa_fault_entrypoint_static_cases() {
 	require_code "exported Neo4j bolt port override" 'export NEO4J_BOLT_PORT='
 	require_code "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 }
+
+# run_ifa_fault_cell_catalog_cases pins the numbered cell catalog in
+# docs/internal/ifa-fault-cell-catalog.md against the gate's actual dispatch
+# list. The catalog used to be a comment block inside verify-ifa-fault-injection.sh
+# and drifted anyway: three workload_dependency cells (#6003) landed dispatched
+# and inventoried but never got numbered entries, leaving the list jumping 33 ->
+# 37 until #6212. Prose nothing parses is prose nothing protects, so this counts
+# both sides and fails when they disagree. It is a count check rather than a
+# name-by-name diff because the catalog labels are human descriptions
+# ("kill-worker-after-claim-shell-exec"), not the shell identifiers
+# (cell_killworker_shell_exec) — a stricter mapping would have to encode that
+# translation and would red on wording changes that are not drift.
+run_ifa_fault_cell_catalog_cases() {
+	local gate="${repo_root}/scripts/verify-ifa-fault-injection.sh"
+	# Read the same ${cell_catalog_doc} require_catalog pins, rather than
+	# rebuilding the path here: two independent spellings of one path is how a
+	# guard ends up asserting against a file nobody else is using.
+	local catalog="${cell_catalog_doc}"
+
+	[[ -f "${catalog}" ]] \
+		|| fail "cell catalog missing: ${catalog} (verify-ifa-fault-injection.sh's header points at it)"
+
+	local dispatched entries
+	dispatched="$(rg --count-matches '^ifa_fault_shard_run ' "${gate}" || printf '0')"
+	entries="$(rg --count-matches '^[0-9]+\. ' "${catalog}" || printf '0')"
+
+	if [[ "${dispatched}" -lt 30 ]]; then
+		fail "only ${dispatched} ifa_fault_shard_run dispatch(es) found in verify-ifa-fault-injection.sh; the dispatch derivation has collapsed and this comparison would pass vacuously"
+	fi
+	if [[ "${entries}" != "${dispatched}" ]]; then
+		fail "cell catalog lists ${entries} entrie(s) but the gate dispatches ${dispatched} cell(s); add or remove the numbered entry in docs/internal/ifa-fault-cell-catalog.md so the two stay in lockstep"
+	fi
+}
+
+# run_ifa_fault_lib_cap_coverage_cases caps EVERY sourced case module by globbing
+# the directory, not by reading the shell's variable table. The mirror's own
+# cap loop walks `compgen -v | rg '_lib$'`, which can only see a binding that
+# already exists when the loop runs: test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh
+# is bound inside another case module, sourced AFTER that loop, so the loop never
+# saw it and the file went uncapped from the day it was written (#6212). That is
+# a lifetime gap, not a list omission, and no static read of the mirror finds it.
+#
+# Globbing sidesteps binding order entirely: a module that exists is checked,
+# whether or not anything has bound it yet, and a module added tomorrow is
+# checked without anyone remembering to register it. IFA_LIB_CAP_GLOB_DIR is
+# injectable so this case can be proven to fail against a synthetic oversized
+# module without writing one into scripts/lib.
+run_ifa_fault_lib_cap_coverage_cases() {
+	local dir="${IFA_LIB_CAP_GLOB_DIR:-${repo_root}/scripts/lib}"
+	local checked=0 f lines
+
+	for f in "${dir}"/test-ifa-*.sh; do
+		[[ -f "${f}" ]] || continue
+		checked=$((checked + 1))
+		lines="$(wc -l <"${f}" | tr -d ' ')"
+		[[ "${lines}" -lt 500 ]] \
+			|| fail "$(basename "${f}") is ${lines} lines; every scripts/lib/test-ifa-*.sh must stay under 500"
+	done
+
+	# Floor, so a glob that matches nothing cannot report success. 20 is
+	# hand-written and below the count on disk; it only grows as families land.
+	[[ "${checked}" -ge 20 ]] \
+		|| fail "line-cap coverage checked only ${checked} test-ifa-*.sh module(s); the glob has collapsed and this case would pass vacuously"
+}
