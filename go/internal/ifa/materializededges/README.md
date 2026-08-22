@@ -326,8 +326,9 @@ edges respectively), is dispatched through
 `MaterializedEdgeOduResolver.Resolve`, and carries a `materialized_edges:<family>`
 coverage row for BOTH `ifa-determinism` and `ifa-fault-injection`, with no
 remaining waiver. Both live gates drive the shared cassette and exact-assert
-each family's own edge set across N=1/2/4; the fault gate additionally
-recovers through a domain-scoped graph-write-failure cell anchored at each
+each family's own edge set; the determinism gate does so across N=1/2/4
+worker counts, while the fault gate runs its cells at a single worker and
+additionally recovers through a domain-scoped graph-write-failure cell anchored at each
 family's own MERGE template (`cell_failgraphwrite_<family>`, `blocker_kind=none`,
 `wait_stage=runner`), marker-asserted and drained with zero dead letters
 before the exact-set edges are re-asserted against the shared trio baseline

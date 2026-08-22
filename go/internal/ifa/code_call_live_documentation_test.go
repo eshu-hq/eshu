@@ -278,6 +278,43 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 				"The 24 waiver rows and the edge-type registries",
 			},
 		},
+		{
+			// The "SHARED RUNNER CYCLE" / "only live proof" / "Unlike every
+			// family above" false boast (see the reducer package's own
+			// sharedProjectionDomains, shared_projection_runner.go:31-43, which
+			// lists eight sibling families on the identical path) lived here
+			// after the coverage manifest's roadmap prose moved to this file.
+			// Guarding it where the text used to live (materializededges/README.md)
+			// does not guard it here -- a needle placed where the phrase never
+			// travelled proves nothing.
+			path: filepath.Join("docs", "internal", "design", "5351-ifa-materialized-edge-known-gaps.md"),
+			required: []string{
+				"# #5351 Ifá materialized-edge coverage — roadmap / known gaps",
+			},
+			prohibited: []string{
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+			},
+		},
+		{
+			path: filepath.Join("go", "internal", "ifa", "README.md"),
+			required: []string{
+				"proven live on both the\n  `ifa-determinism`/`ifa-fault-injection` gates with no remaining waiver",
+			},
+			prohibited: []string{
+				"live-gate activation remains a separate layer",
+				"NOT live-gate coverage",
+				"in-progress change",
+				"none of those exist yet",
+				"Unlike every family above",
+				"only live proof",
+				"SHARED RUNNER CYCLE",
+			},
+		},
 	}
 
 	for _, check := range checks {

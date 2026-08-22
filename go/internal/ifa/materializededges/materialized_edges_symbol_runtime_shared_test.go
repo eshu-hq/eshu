@@ -88,9 +88,12 @@ func corruptTargetEntityID(s string) string {
 // resolveRunsInMaterializedEdges, resolveInvokesCloudActionMaterializedEdges)
 // delegates to. If this function were stubbed to return "" unconditionally,
 // every `materialized_edges:*` coverage row for all three families would
-// resolve covered forever and the rest of this package's committed suite
-// would still be green (proven true in isolation: the resolve*
-// entry-point-driven negative tests below all fail through THIS function).
+// resolve covered forever. That would have been invisible to the rest of
+// this package's committed suite before the resolve*-driven negative tests
+// in materialized_edges_handles_route_test.go, materialized_edges_runs_in_test.go,
+// and materialized_edges_invokes_cloud_action_test.go existed; those now
+// fail through this function too, so the stub is caught there as well as
+// here.
 //
 // The scenario mirrors TestCodeownersOwnershipFamilyGuardDetectsPropertyCorruption:
 // one genuine edge (fn2 -> endpoint:bbb) never got produced, and an unrelated
