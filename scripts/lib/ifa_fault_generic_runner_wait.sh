@@ -151,6 +151,33 @@ _ifa_fault_count_exact_runner_lease_rows() {
 	printf '%s' "${output}"
 }
 
+_ifa_fault_wait_for_exact_runner_lease_rows_drained() {
+	local domain="$1" i remaining query_rc
+	for i in $(seq 1 60); do
+		if remaining="$(_ifa_fault_count_exact_runner_lease_rows "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${domain}")"; then
+			[[ "${remaining}" == "0" ]] && return 0
+		else
+			query_rc=$?
+			return "${query_rc}"
+		fi
+		sleep 0.25
+	done
+	printf 'ifa_fault_release_runner_lease_hold: exact advisory waiters did not drain for domain=%s\n' "${domain}" >&2
+	return 1
+}
+
+_ifa_fault_stop_and_drain_runner_lease_holder_client() {
+	local cell="$1" domain="$2" holder_pid="$3" cleanup_rc
+	_ifa_fault_stop_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}"
+	if _ifa_fault_wait_for_exact_runner_lease_rows_drained "${domain}"; then
+		return 0
+	else
+		cleanup_rc=$?
+		printf 'ifa_fault_release_runner_lease_hold: holder cleanup also FAILED (exit %s)\n' "${cleanup_rc}" >&2
+		return "${cleanup_rc}"
+	fi
+}
+
 _ifa_fault_validate_runner_partition_lease_snapshot() {
 	local reducer_pid="$1" snapshot="$2" row partition_id partition_count owner expires_epoch updated_epoch
 	local owner_re epoch_re='^[0-9]+([.][0-9]+)?$' seen=$'\n'
@@ -344,18 +371,18 @@ ifa_fault_release_runner_lease_hold() {
 		:
 	else
 		waiter_rc=$?
-		_ifa_fault_stop_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}"
+		_ifa_fault_stop_and_drain_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}" || true
 		return "${waiter_rc}"
 	fi
 	IFS='|' read -r holder_count waiter_count <<<"${holder_waiter_pair}"
 	if [[ "${holder_count}" != "1" ]]; then
 		printf 'ifa_fault_release_runner_lease_hold: expected one exact labeled holder before release, observed %s\n' "${holder_count}" >&2
-		_ifa_fault_stop_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}"
+		_ifa_fault_stop_and_drain_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}" || true
 		return 1
 	fi
 	if [[ "${waiter_count}" == "0" ]]; then
 		printf 'ifa_fault_release_runner_lease_hold: no exact waiter remained before holder release for domain=%s; refusing vacuous recovery\n' "${domain}" >&2
-		_ifa_fault_stop_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}"
+		_ifa_fault_stop_and_drain_runner_lease_holder_client "${cell}" "${domain}" "${holder_pid}" || true
 		return 1
 	fi
 
@@ -379,21 +406,9 @@ ifa_fault_release_runner_lease_hold() {
 	wait "${holder_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${holder_pid}"
 
-	local i remaining drain_rc
-	for i in $(seq 1 60); do
-		if remaining="$(_ifa_fault_count_exact_runner_lease_rows "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${domain}")"; then
-			if [[ "${remaining}" == "0" ]]; then
-				[[ "${termination_rc}" -eq 0 ]] && return 0
-				return "${termination_rc}"
-			fi
-		else
-			drain_rc=$?
-			return "${drain_rc}"
-		fi
-		sleep 0.25
-	done
-	printf 'ifa_fault_release_runner_lease_hold: exact advisory waiters did not drain for domain=%s\n' "${domain}" >&2
-	return 1
+	_ifa_fault_wait_for_exact_runner_lease_rows_drained "${domain}" || return $?
+	[[ "${termination_rc}" -eq 0 ]] && return 0
+	return "${termination_rc}"
 }
 
 _ifa_fault_runner_lease_observation() {

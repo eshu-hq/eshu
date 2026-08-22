@@ -204,8 +204,15 @@ test_ifa_runner_lease_hold_release_query_failure_cleans_up() (
 		case "$4" in
 		*"exact waiter precheck"*) return 9 ;;
 		*pg_terminate_backend*) printf 'terminate\n' >>"${events}"; return 0 ;;
+		*"waiter drain"*) printf 'drain\n' >>"${events}"; printf '0\n' ;;
 		*) printf '1\n' ;;
 		esac
+	}
+	ifa_det_untrack_bg_pid() {
+		local pid="$1"
+		kill -0 "${pid}" 2>/dev/null && fail "runner lease client was still live when untracked"
+		printf 'untrack\n' >>"${events}"
+		bg_pids=()
 	}
 	sleep() { :; }
 
@@ -215,8 +222,8 @@ test_ifa_runner_lease_hold_release_query_failure_cleans_up() (
 	output="$(<"${output_file}")"
 	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
 		|| fail "runner lease release did not preserve the precheck query failure (rc=${rc}, output=${output})"
-	[[ -f "${events}" && "$(<"${events}")" == 'terminate' ]] \
-		|| fail "runner lease release did not attempt holder cleanup after a precheck query failure"
+	[[ -f "${events}" && "$(<"${events}")" == $'terminate\nuntrack\ndrain' ]] \
+		|| fail "runner lease release did not terminate and drain after a precheck query failure"
 	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
 		|| fail "runner lease release left the holder tracked after a precheck query failure"
 )
