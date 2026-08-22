@@ -112,7 +112,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, and workload dependencies.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, and invokes_cloud_action.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",

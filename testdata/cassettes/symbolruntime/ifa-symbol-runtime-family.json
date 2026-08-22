@@ -1,0 +1,164 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-symbol-runtime-family",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "generation_id": "gen-ifa-symbol-runtime-family-1",
+      "observed_at": "2026-08-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-symbol-runtime-family",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-ifa-symbol-runtime-family",
+            "graph_kind": "repository",
+            "local_path": "/repo-ifa-symbol-runtime",
+            "name": "symbolruntime",
+            "repo_id": "repo-ifa-symbol-runtime-family",
+            "source_run_id": "run-ifa-symbol-runtime-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-symbol-runtime-family:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "language": "dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "name": "runtime"
+                }
+              ],
+              "path": "/repo-ifa-symbol-runtime/Dockerfile"
+            },
+            "relative_path": "Dockerfile",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-symbol-runtime-family:server.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "parsed_file_data": {
+              "framework_semantics": {
+                "frameworks": [
+                  "net_http"
+                ],
+                "net_http": {
+                  "route_entries": [
+                    {
+                      "handler": "HandleWidgets",
+                      "method": "GET",
+                      "path": "/widgets"
+                    }
+                  ]
+                }
+              },
+              "function_calls": [
+                {
+                  "line_number": 32,
+                  "name": "PutObject",
+                  "receiver_sdk_service": "s3"
+                },
+                {
+                  "line_number": 36,
+                  "name": "Frobnicate",
+                  "receiver_sdk_service": "widget"
+                }
+              ],
+              "functions": [
+                {
+                  "end_line": 20,
+                  "line_number": 10,
+                  "name": "HandleWidgets",
+                  "uid": "content-entity:e_b802e874e4a3"
+                },
+                {
+                  "end_line": 40,
+                  "line_number": 30,
+                  "name": "InvokeAWS",
+                  "uid": "content-entity:e_952ea1843457"
+                }
+              ],
+              "path": "/repo-ifa-symbol-runtime/server.go"
+            },
+            "relative_path": "server.go",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_b802e874e4a3",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "end_line": 11,
+            "entity_id": "content-entity:e_b802e874e4a3",
+            "entity_name": "HandleWidgets",
+            "entity_type": "Function",
+            "relative_path": "server.go",
+            "repo_id": "repo-ifa-symbol-runtime-family",
+            "start_line": 10
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_952ea1843457",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "end_line": 31,
+            "entity_id": "content-entity:e_952ea1843457",
+            "entity_name": "InvokeAWS",
+            "entity_type": "Function",
+            "relative_path": "server.go",
+            "repo_id": "repo-ifa-symbol-runtime-family",
+            "start_line": 30
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-symbol-runtime-family:workload_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "workload:symbolruntime",
+            "reason": "repository snapshot emitted workload_materialization follow-up",
+            "reducer_domain": "workload_materialization",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-symbol-runtime-family:code_call_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "code-call:symbolruntime",
+            "reason": "repository snapshot emitted code_call_materialization follow-up",
+            "reducer_domain": "code_call_materialization",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        }
+      ]
+    }
+  ]
+}

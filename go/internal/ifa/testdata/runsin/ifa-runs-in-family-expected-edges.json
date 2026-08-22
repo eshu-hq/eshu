@@ -1,0 +1,11 @@
+{
+  "odu": "odu:ifa-symbol-runtime-family",
+  "note": "Hand-derived from reducer.ExtractSymbolRuntimeIntentRows's real extraction path over symbol_runtime_family_odu.go's fixture, filtered to the runs_in domain's upsert rows, fanned out against reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRows's WorkloadRows for the same repository (repo-ifa-symbol-runtime-family DEFINES exactly one Workload here, so the fan-out this fixture exercises is 1-row-to-1-edge; the general N-Workload fan-out the live Cypher's unbounded (Repository)-[:DEFINES]->(Workload) MATCH performs -- one RUNS_IN intent row producing N graph edges for N Workloads -- is proven deterministically by a synthetic offline unit test instead (materialized_edges_runs_in_test.go), not by adding a second Workload to this live fixture). source_entity_id is HandleWidgets' canonical Function uid (content.CanonicalEntityID) -- the same handler function_id HANDLES_ROUTE resolves, since runs_in reuses the identical handlesRouteEntries route data. target_entity_id is the deterministic (non-hashed) workload id BuildProjectionRows derives: \"workload:\" + the repository's Name field (WorkloadName is never set in this fixture, so it falls back to RepoName).",
+  "edges": [
+    {
+      "relationship_type": "RUNS_IN",
+      "source_entity_id": "content-entity:e_b802e874e4a3",
+      "target_entity_id": "workload:symbolruntime"
+    }
+  ]
+}
