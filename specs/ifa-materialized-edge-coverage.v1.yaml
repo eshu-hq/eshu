@@ -114,11 +114,15 @@
 # both existed with their own tests but neither was reachable from a production
 # coverage run -- retiring that family's waivers too. #6002 added the
 # submodule_pin_edges Odu, cassette, and expected-edge-set fixture and wired
-# the family into both live gates, retiring its waivers too. Every remaining
-# allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
-# `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
-# #5543, which is now decomposed into per-domain child issues #5991-#6003;
-# each waiver names the child that will retire it.
+# the family into both live gates, retiring its waivers too. #6003 added
+# workload_dependency, retiring its waiver. #5995/#6000/#5997 added
+# handles_route/runs_in/invokes_cloud_action -- the last three families under
+# this umbrella -- sharing one cassette/Odù and each gaining its own
+# anchor-scoped fault cell (blocker_kind=none, wait_stage=runner; mid-pipeline
+# kill/reclaim remains a named, tracked gap for all three, #6208), retiring
+# their waivers too. No allProjectionDomains family carries a waiver as of
+# this change: the epic #5344 umbrella #5543, decomposed into per-domain
+# child issues #5991-#6003, is complete.
 #
 # Only seed a coverage row here once the referenced Odù is genuinely green
 # under the resolution semantics above (the same seed-only-green-rows
@@ -373,6 +377,55 @@ coverage:
     ref: "odu:ifa-submodule-pin-family"
     proof_gate: ifa-fault-injection
 
+  # handles_route (#5995), runs_in (#6000), and invokes_cloud_action (#5997)
+  # share ONE cassette/Odù (odu:ifa-symbol-runtime-family) and ONE
+  # backend-free extraction seam (reducer.ExtractSymbolRuntimeIntentRows)
+  # through CodeCallMaterializationHandler -- the same handler code_calls
+  # already covers -- so a distinct handler-stage kill-worker cell would reuse
+  # code_calls' own wait_key and prove nothing new
+  # (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive,
+  # go/internal/reducer/materialized_edge_family_blocker_shape_test.go). Design
+  # A ships blocker_kind=none, wait_stage=runner instead: each family gets its
+  # own anchor-scoped cell_failgraphwrite_<family> cell, a once-fault injected
+  # at that family's own MERGE template (HANDLES_ROUTE / RUNS_IN /
+  # INVOKES_CLOUD_ACTION), independent of which handler or wait_key produced
+  # the write. The fault row is real coverage, not aspirational: the cell's
+  # durable marker is asserted, the drain gate requires zero dead letters, and
+  # the exact-set edge assertion (2/2/1 edges respectively) reruns against the
+  # shared trio baseline digest after recovery. Mid-pipeline kill/reclaim is a
+  # named, tracked gap for all three (#6208), not claimed here -- see the
+  # known-gaps entry below.
+  - surface: "materialized_edges:handles_route"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:handles_route"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-fault-injection
+  - surface: "materialized_edges:runs_in"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:runs_in"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-fault-injection
+  - surface: "materialized_edges:invokes_cloud_action"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:invokes_cloud_action"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-symbol-runtime-family"
+    proof_gate: ifa-fault-injection
+
 waivers:
   # sql_relationships carries NO waiver. Its fault dimension was waived from
   # 2026-08-08 until #5974, on the belief that cell_failgraphwrite_sql did not
@@ -381,13 +434,6 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 3 other allProjectionDomains families: both live gates unproven. ---
-  # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
-  # waiver. Most still lack an Odù + expected-edge-set fixture; family-specific
-  # comments below name any stronger offline proof that still lacks a live gate.
-  # Each names its own per-domain child issue (#5991-#6003) under the #5344
-  # epic umbrella #5543, not the umbrella itself: a waiver should name the issue
-  # whose closure retires it, and the umbrella retires none of them individually.
   # documentation_edges carries NO waiver. Both dimensions were waived from
   # 2026-08-09 until #5994, when only the EXTRACTOR was proven and neither gate
   # executed the family -- a coverage row would have claimed a gate proves
@@ -415,36 +461,11 @@ waivers:
   # exclusion still holds because both cells are genuine, unwaived coverage --
   # documentation_edges has no remaining named gap for mid-handler
   # interruption.
-  - surface: "materialized_edges:handles_route"
-    proof_gate: ifa-determinism
-    issue: "#5995"
-    waived: "2026-07-20"
-    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending #5995 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:handles_route"
-    proof_gate: ifa-fault-injection
-    issue: "#5995"
-    waived: "2026-07-20"
-    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending #5995 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:runs_in"
-    proof_gate: ifa-determinism
-    issue: "#6000"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending #6000 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:runs_in"
-    proof_gate: ifa-fault-injection
-    issue: "#6000"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending #6000 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:invokes_cloud_action"
-    proof_gate: ifa-determinism
-    issue: "#5997"
-    waived: "2026-07-20"
-    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending #5997 for an Odù + expected-edge-set fixture"
-  - surface: "materialized_edges:invokes_cloud_action"
-    proof_gate: ifa-fault-injection
-    issue: "#5997"
-    waived: "2026-07-20"
-    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending #5997 for an Odù + expected-edge-set fixture"
+  #
+  # No allProjectionDomains family carries a waiver as of this change:
+  # handles_route (#5995), runs_in (#6000), and invokes_cloud_action (#5997)
+  # were the last three, and #5543's decomposition into per-domain child
+  # issues (#5991-#6003) is complete.
 
 # ---------------------------------------------------------------------------
 # Roadmap / known gaps (discoverable from the gate itself, not only a PR body).
@@ -471,7 +492,25 @@ waivers:
 #     exact-one survivor; that delta behavior is not a separate required row.
 #   - deployable_unit_edges BASELINE and FAULT are covered once its vacuity
 #     guard is dispatched and its Odù cataloged (#5993/#6158).
-#   - The 3 other allProjectionDomains families are blocked on the epic #5344
-#     umbrella #5543, decomposed into per-domain child issues #5991-#6003
-#     (both gates each).
+#   - workload_dependency BASELINE and FAULT are covered by its Odù and
+#     expected-edge-set fixture (#6003).
+#   - handles_route, runs_in, and invokes_cloud_action BASELINE and FAULT are
+#     covered by exact-set edge assertions (2/2/1 edges respectively),
+#     reproduced after a domain-scoped graph-write-failure recovery cell
+#     anchored at each family's own MERGE template, marker-asserted, drained
+#     with zero dead letters, and digest-matched against the shared trio
+#     baseline (#5995/#6000/#5997). That is what this fault coverage claims.
+#     It does NOT claim mid-pipeline kill/reclaim: any handler-stage
+#     kill-worker cell for these three would reuse code_calls' own wait_key
+#     (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive) and prove nothing
+#     new, so closing this gap needs its own blocker mechanism (a
+#     runner_lease_hold on the production lease key) -- tracked as a NAMED,
+#     tracked gap, #6208, not a silent absence. Unlike every family above,
+#     these three families' edges are written through the SHARED RUNNER
+#     CYCLE rather than fact_work_items, so their graph-write cells are the
+#     only live proof of recovery through that path -- a strength of this
+#     coverage, not a gap.
+#   - No allProjectionDomains family carries a waiver as of this change: the
+#     epic #5344 umbrella #5543, decomposed into per-domain child issues
+#     #5991-#6003, is complete.
 # ---------------------------------------------------------------------------

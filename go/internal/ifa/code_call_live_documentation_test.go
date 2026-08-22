@@ -61,7 +61,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("specs", "ifa-materialized-edge-coverage.v1.yaml"),
 			required: []string{
 				"The sql_relationships BASELINE, DELTA, and FAULT rows, the code_calls",
-				"The 3 other allProjectionDomains families are blocked",
+				"No allProjectionDomains family carries a waiver as of this change",
 				"Both live gates drive the rationale cassette and exact-assert its full\n  # EXPLAINS records.",
 			},
 			prohibited: []string{
@@ -250,7 +250,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			required: []string{
 				"14 reducer-owned shared/edge projection domains",
 				"codeowners_ownership_edges, submodule_pin_edges",
-				"current 3 not-yet-covered allProjectionDomains families",
+				"No allProjectionDomains\n// family carries a waiver as of this change",
 			},
 			prohibited: []string{
 				"12 reducer-owned shared/edge projection domains",

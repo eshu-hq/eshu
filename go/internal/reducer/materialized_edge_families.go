@@ -40,10 +40,12 @@ import "sort"
 // coverage run -- and #6002 added the submodule_pin_edges Odu, cassette, and
 // expected-edge-set fixture. #5992/#6160 added codeowners_ownership_edges,
 // #5999 added repo_dependency, and #5996/#6001 added inheritance_edges and
-// shell_exec. #6003 added workload_dependency.
-// Those changes removed their families' waivers.
-// The current 3 not-yet-covered allProjectionDomains families remain tracked
-// by #5543 in specs/ifa-materialized-edge-coverage.v1.yaml. Adding direct-materialization
+// shell_exec. #6003 added workload_dependency. #5995/#6000/#5997 added
+// handles_route/runs_in/invokes_cloud_action, the last three families under
+// this umbrella.
+// Those changes removed their families' waivers. No allProjectionDomains
+// family carries a waiver as of this change: #5543's decomposition into
+// per-domain child issues (#5991-#6003) is complete. Adding direct-materialization
 // families to this enumeration remains separate follow-up work under #5543
 // because they bypass the shared intent path this function inventories.
 func MaterializedEdgeFamilies() []string {

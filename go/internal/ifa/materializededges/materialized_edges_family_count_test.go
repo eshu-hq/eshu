@@ -51,24 +51,30 @@ type materializedEdgeCountClaimFile struct {
 // the build forces the prose to follow — which is how four of the five claims
 // drifted at once.
 //
-// TWO of these five claims are ALSO byte-pinned, word-for-word, as required
-// literals in a DIFFERENT test that does not appear in this list at all:
+// specs/ifa-materialized-edge-coverage.v1.yaml is deliberately ABSENT from
+// this list as of the change that retired the last three waivers
+// (handles_route/runs_in/invokes_cloud_action, #5995/#6000/#5997): both of
+// its "N other allProjectionDomains families" sentences were REWRITTEN to
+// completion prose ("No allProjectionDomains family carries a waiver as of
+// this change"), not digit-swapped to "0 other ... families" -- which would
+// have been nonsense grammar presupposing a waiver block that no longer
+// exists. A file that stops making a count claim is dropped from this list
+// deliberately, per the comment below, rather than kept at Claims:0 to
+// simulate its absence.
+//
 // TestMaterializedEdgeLiveProofDocumentationMatchesWiring
-// (go/internal/ifa/code_call_live_documentation_test.go:64 pins
-// specs/ifa-materialized-edge-coverage.v1.yaml's "The 4 other
-// allProjectionDomains families are blocked" line 473; :253 pins
-// go/internal/reducer/materialized_edge_families.go's "current 4
-// not-yet-covered allProjectionDomains families" line 45). Moving either
-// source claim off "4" (to "1", or to "0" if #6003 lands first) without
-// updating both of those pinned literals IN THE SAME COMMIT fails that other
-// test immediately -- the 4 -> 1 edit this comment warns about is a FOUR-file
-// change, not a three-file one. The remaining specs claim (line 373, same
-// wording, no mirror there) and both "14" claims (which never move) have no
-// such second copy to keep in lockstep.
+// (go/internal/ifa/code_call_live_documentation_test.go) previously pinned
+// byte-exact copies of both retired specs sentences and of
+// materialized_edge_families.go's "current N not-yet-covered" sentence; all
+// three pins moved to the shared completion wording above in the same commit
+// that removed the waiver rows here. That is why
+// materialized_edge_families.go's own Claims count below dropped from 2 to
+// 1: its "14 allProjectionDomains families" (total, unchanged) claim remains,
+// but its waived-count claim was rewritten away from the "N ... families"
+// shape the regex below matches, the same way specs' was.
 var materializedEdgeCountClaimFiles = []materializedEdgeCountClaimFile{
-	{filepath.Join("specs", MaterializedEdgeManifestFileName), 2},
 	{filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_lockstep_test.go"), 1},
-	{filepath.Join("go", "internal", "reducer", "materialized_edge_families.go"), 2},
+	{filepath.Join("go", "internal", "reducer", "materialized_edge_families.go"), 1},
 }
 
 // TestMaterializedEdgeFamilyCountClaimsMatchTheCode is a #5543 anti-drift gate.
