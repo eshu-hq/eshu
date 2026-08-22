@@ -1597,12 +1597,22 @@ committed zero nodes.
   wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
   `TransactionCommitFailed` wrapping so the classifier stays current
   across pinned binaries (`retrying_executor.go:227`).
-- The Statement.SyntaxError compatibility path does not broaden syntax-error
-  handling: it additionally requires the commit-failure prefix plus
-  `constraint violation`, `UNIQUE on`, and `already exists`. Its no-contention
-  path is unchanged; only a losing concurrent MERGE pays the existing bounded
-  backoff and increments `eshu_dp_neo4j_deadlock_retries_total` with
-  `reason=commit_unique_conflict`.
+- No-Regression Evidence (#6003 follow-up): the baseline workload determinism
+  run on pinned NornicDB image revision `3722b483c02c` dead-lettered one losing
+  Platform batch and retained one nonterminal fact row. After the classifier
+  change, the opt-in live contract executes two production-sized 500-row
+  implicit batches that share one `Platform.id` and observes the exact typed
+  commit-UNIQUE loser retry; the full N=1/2/4 matrix reaches zero terminal queue
+  residual and the same graph digest at every worker count. The compatibility
+  path still requires the commit-failure prefix, `constraint violation`,
+  `UNIQUE on`, `already exists`, and MERGE-shaped Cypher. Its no-contention path
+  is unchanged; only a losing concurrent MERGE pays the existing bounded retry
+  backoff, with no worker, batch, query, or conflict-key setting change.
+- Observability Evidence (#6003 follow-up): the compatibility path reuses
+  `eshu_dp_neo4j_deadlock_retries_total` with
+  `reason=commit_unique_conflict` and `write_phase=canonical_upsert`. The metric
+  proof requires those bounded attributes and rejects raw graph identifiers;
+  no metric, span, log field, or status contract is added or renamed.
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer
