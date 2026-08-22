@@ -136,7 +136,10 @@ session.
   retains an EXPLAINS edge when either endpoint names that repository or carries
   an expected endpoint identity. Cross-repository attachments and repository
   property drift are therefore extras rather than hidden as foreign data.
-  The live matrices invoke this verb for `sql_relationships`, `code_calls`,
+  This paragraph documents the first five families this verb was wired to
+  prove live, not an exhaustive list of every family `assert-edges` now
+  covers -- see the coverage manifest (`specs/ifa-materialized-edge-coverage.v1.yaml`)
+  for the current, complete set. The live matrices invoke this verb for `sql_relationships`, `code_calls`,
   `documentation_edges`, `rationale_edges`, and `repo_dependency`. They require
   nine SQL edges, five code-call edges, three documentation edges, three full
   rationale records, and seven repository-dependency edges exactly in every

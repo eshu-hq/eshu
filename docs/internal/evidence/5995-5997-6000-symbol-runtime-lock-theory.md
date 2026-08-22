@@ -12,7 +12,7 @@ its result is recorded here rather than only in a PR description.
 
 All three families' rows are built by `buildSymbolRuntimeIntentRows` INSIDE
 `CodeCallMaterializationHandler.Handle` -- the same handler the `code_calls`
-family already covers (`go/internal/reducer/symbol_runtime_refresh_intents.go:20`).
+family already covers (`go/internal/reducer/symbol_runtime_refresh_intents.go:66`).
 That single fact rules out both handler-stage and runner-stage forms of the
 `shared_intent_lock` blocker used by `code_calls`, `rationale_edges`,
 `inheritance_edges`, and `shell_exec`:
@@ -67,7 +67,8 @@ Ephemeral `postgres:18-alpine` (the repo's own image,
 `docker-compose.yaml:47`), one Docker container per run, no concurrent
 writers besides the shim's own psql sessions. Script:
 `.trio-notes/shim1-advisory-lock.sh` (not committed -- `.trio-notes/` is
-git-excluded by design; results quoted here instead).
+excluded via this clone's own `.git/info/exclude`, a per-clone rule rather
+than a repo-tracked convention; results quoted here instead).
 
 The blocker in this first shim takes a SESSION-scoped `pg_advisory_lock` on
 `(hashtext('shared_projection_partition_leases'), hashtext('handles_route'))`

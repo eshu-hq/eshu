@@ -301,7 +301,7 @@ exact wording and fails if they drift.
   cells; the fault delta cell keeps those full graph records exact through its
   collateral comparison rather than a separate documentation assertion.
 
-## Symbol-runtime trio — offline coverage only, live gate proof pending
+## Symbol-runtime trio — proven live on both gates
 
 `handles_route` (#5995), `runs_in` (#6000), and `invokes_cloud_action` (#5997)
 share one cassette/Odù (`ifa.SymbolRuntimeFamilyOdu`) and one backend-free
@@ -313,16 +313,29 @@ derivation, because the three bend that relationship three different ways:
 `HANDLES_ROUTE` dedupes N intent rows (one per HTTP method on the same route)
 onto the single edge the MERGE identity actually produces; `RUNS_IN` fans one
 intent row out to N edges for N `Workload`s the live Cypher's unbounded
-`(Repository)-[:DEFINES]->(Workload)` MATCH can resolve to; `INVOKES_CLOUD_ACTION`
-is a direct 1:1 mapping. See `materialized_edges_symbol_runtime_shared.go`'s own
-doc comment for the full derivation.
+`(Repository)-[:DEFINES]->(Workload)` MATCH can resolve to (today's reducer
+candidate path caps a single repository at one `Workload`, so this fixture's
+own fan-out stays 1-to-1; the N>1 direction is proven by a synthetic offline
+unit test instead, see `materialized_edges_runs_in_test.go`);
+`INVOKES_CLOUD_ACTION` is a direct 1:1 mapping. See
+`materialized_edges_symbol_runtime_shared.go`'s own doc comment for the full
+derivation.
 
-Each of the three has a hand-derived expected-edge-set fixture, is dispatched
-through `MaterializedEdgeOduResolver.Resolve`, and is exercised by `go test`.
-That is offline coverage: the pure vacuity guard, its cataloged Odù, and its
-`Resolve` dispatch arm all exist today. It is NOT live-gate coverage — wiring
-the `ifa-determinism`/`ifa-fault-injection` CI proof gates for these three
-families is a separate, in-progress change and had not landed as of this
-writing. Do not read a `materialized_edges:<family>` coverage-manifest row, a
-retired waiver, or a live-gate pass for any of the three from this section;
-none of those exist yet.
+Each of the three has a hand-derived expected-edge-set fixture (2, 2, and 1
+edges respectively), is dispatched through
+`MaterializedEdgeOduResolver.Resolve`, and carries a `materialized_edges:<family>`
+coverage row for BOTH `ifa-determinism` and `ifa-fault-injection`, with no
+remaining waiver. Both live gates drive the shared cassette and exact-assert
+each family's own edge set across N=1/2/4; the fault gate additionally
+recovers through a domain-scoped graph-write-failure cell anchored at each
+family's own MERGE template (`cell_failgraphwrite_<family>`, `blocker_kind=none`,
+`wait_stage=runner`), marker-asserted and drained with zero dead letters
+before the exact-set edges are re-asserted against the shared trio baseline
+digest. Mid-pipeline kill/reclaim is a NAMED, tracked gap for all three
+(#6208), not claimed by this coverage — any handler-stage kill-worker cell for
+these three would reuse `code_calls`' own wait_key
+(`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new.
+Unlike every other family in this package, these three write through the
+SHARED RUNNER CYCLE rather than `fact_work_items`, so their graph-write cells
+are the only live proof of recovery through that path — a strength of this
+coverage, not a gap.

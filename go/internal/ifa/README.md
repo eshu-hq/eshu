@@ -80,10 +80,9 @@ authoring; it does not build a second coverage framework.
   repository's directory file-count gate. See that package's `README.md` and
   `doc.go` for the exhaustiveness-gate design, the waiver semantics, every
   family's vacuity guard (including the `handles_route`/`runs_in`/
-  `invokes_cloud_action` trio's offline-only coverage -- their
-  `ifa-determinism`/`ifa-fault-injection` live-gate wiring is a separate,
-  in-progress change), and the live-gate proof history this section used to
-  carry.
+  `invokes_cloud_action` trio, proven live on both the
+  `ifa-determinism`/`ifa-fault-injection` gates with no remaining waiver), and
+  the live-gate proof history this section used to carry.
   `cmd/ifa`'s `assert-edges` verb, the `ifa-determinism`/`ifa-fault-injection`
   gates, and every family's Odù catalog entry (still seeded from this
   package's own `catalog_seed.go` and `*_family_catalog.go`/`*_family_odu.go`
