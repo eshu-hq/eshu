@@ -179,6 +179,32 @@ Two consequences worth knowing before the remaining children:
   gone and the replacement is 66, and dirgate's ratchet means any later
   extraction has to re-pin it lower.
 
+No-Regression Evidence: the collector restructure is a file move. Baseline and
+after measurement are the same tree by construction, and that is asserted rather
+than assumed: `testdata/golden/e2e-20repo-snapshot.json` and every cassette
+under `testdata/cassettes/` are byte-identical to the merge base (empty
+`git diff`, snapshot sha256 `42e75ccf5a34f69d0f92a2e81cc53c0e281f70c37e4dc444d60dddeaf3c0826c`
+on both sides, identical `git ls-tree` digests), so the B-12 contract the B-7
+golden-corpus gate diffs against did not move. Backend and version are unchanged
+(NornicDB, default local profile); input shape is unchanged (the same 20-repo
+corpus); terminal queue and row counts are unchanged because no reducer,
+projector, queue, lease, or Cypher path is touched — the diff is `git mv` plus
+import-path and qualifier edits, with 211 git-detected renames and every
+modified Go line a `collector.X` -> `gitrepo.X` swap. Whole-module `go build
+./...` and `go vet ./...` exit 0 and the collector tree plus its `cmd/` callers
+run green over 485 packages. A restructure that changed projected truth would
+surface as a B-12 diff; there is none.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed. The `#nosec`, `//nolint:` and `//go:build`
+annotation sets are identical before and after (538 `#nosec` with matching
+per-code breakdown, 103 `//go:build`), and every telemetry-coverage row that
+cited a moved file now cites its new path, with five new rows for the files this
+change creates — four of them inert type/helper files, and
+`gitrepo/gitmodel/factstream.go` mapped to `eshu_dp_workflow_claim_facts_emitted_total`
+because its `Send` increments the counter feeding `CollectedGeneration.FactCount()`.
+`scripts/verify-telemetry-coverage.sh` exits 0.
+
 **projector (188) + coordinator (124):** projector's ~20 per-provider
 intents families are measured clean (zero cross-family calls; all fan out
 from `scope_generation_intents.go`, 43 call sites). Root keeps `canonical*`,

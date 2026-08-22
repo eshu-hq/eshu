@@ -106,7 +106,7 @@ func discoverFromEnvelopeWithIndex(
 	}
 
 	// TODO(#4783 W1): fact kind "content" has no typed struct yet (producer
-	// go/internal/collector/gitrepo/git_content_fact_envelopes.go emits artifact_type,
+	// go/internal/collector/git_content_fact_envelopes.go emits artifact_type,
 	// content_path/content_body, etc.); route through the decode seam once the
 	// content family lands in sdk/go/factschema.
 	artifactType, _ := envelope.Payload["artifact_type"].(string)
@@ -243,7 +243,7 @@ func sourceRepositoryIDFromEnvelope(envelope facts.Envelope) string {
 	// TODO(#4783 W1): this reads repo_id raw because it is fact-kind-agnostic —
 	// it serves the typed "file" kind (codegraphv1.File) AND the untyped
 	// "content" kind, which has no typed struct yet (producer
-	// go/internal/collector/gitrepo/git_content_fact_envelopes.go). Route each caller
+	// go/internal/collector/git_content_fact_envelopes.go). Route each caller
 	// through its kind's decode seam once the content family lands.
 	if repoID, _ := envelope.Payload["repo_id"].(string); strings.TrimSpace(repoID) != "" {
 		return strings.TrimSpace(repoID)
