@@ -112,9 +112,21 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 		t.Fatalf("read coverage manifest: %v", err)
 	}
 
+	// Count every ref: line first, then require the odù parse to account for all
+	// of them. A pattern-only floor is not enough: `[a-z0-9-]+` silently skips a
+	// ref written with an underscore, uppercase, or a block scalar, and the
+	// skipped family is then absent from wantDirs while a `>= 10` floor still
+	// passes — the same silent skip this test exists to prevent, reached through
+	// the manifest's ref format instead of a commented-out trigger. Comparing
+	// the two counts fails loudly on a format this parse cannot read, and needs
+	// no update when a family is added.
+	declared := regexp.MustCompile(`(?m)^\s*ref:\s*"`).FindAllString(string(manifest), -1)
 	refs := regexp.MustCompile(`ref:\s*"odu:([a-z0-9-]+)"`).FindAllStringSubmatch(string(manifest), -1)
 	if len(refs) < 10 {
 		t.Fatalf("found %d odù ref(s) in the coverage manifest, want >= 10; the parse has collapsed and every assertion below would pass vacuously", len(refs))
+	}
+	if len(refs) != len(declared) {
+		t.Fatalf("the manifest declares %d ref: line(s) but the odù pattern matched %d; a ref this parse cannot read is being silently skipped, and its family would go unchecked below", len(declared), len(refs))
 	}
 
 	wantDirs := make(map[string]string)
