@@ -26,13 +26,19 @@ split was taken, not over it. It owns:
   (`materialized_edges_rationale.go`), codeowners ownership
   (`materialized_edges_codeowners.go`), deployable-unit edges
   (`materialized_edges_deployable_unit.go`), repository dependencies
-  (`materialized_edges_repo_dependency.go`), and submodule pins
+  (`materialized_edges_repo_dependency.go`), submodule pins
   (`materialized_edges_submodule_pin.go`), inheritance edges
   (`materialized_edges_inheritance.go`), shell-exec edges
-  (`materialized_edges_shell_exec.go`), and workload dependencies
-  (`materialized_edges_workload_dependency.go`).
-  Deliberately uncounted: a count in prose has no gate and drifts the moment a
-  family lands.
+  (`materialized_edges_shell_exec.go`), workload dependencies
+  (`materialized_edges_workload_dependency.go`), handles_route
+  (`materialized_edges_handles_route.go`), runs_in
+  (`materialized_edges_runs_in.go`), and invokes_cloud_action
+  (`materialized_edges_invokes_cloud_action.go`). The last three share one
+  cassette/Odù and backend-free extraction seam, plumbed through
+  `materialized_edges_symbol_runtime_shared.go`; each still owns its own
+  row-to-edge derivation (see "Symbol-runtime trio" below for what that
+  buys and what it does not). Deliberately uncounted: a count in
+  prose has no gate and drifts the moment a family lands.
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
   (`materialized_edges_manifest.go`), and the shared expected-edge fixture
@@ -294,3 +300,29 @@ exact wording and fails if they drift.
   exact-assert its three DOCUMENTS edges in baseline and domain-scoped recovery
   cells; the fault delta cell keeps those full graph records exact through its
   collateral comparison rather than a separate documentation assertion.
+
+## Symbol-runtime trio — offline coverage only, live gate proof pending
+
+`handles_route` (#5995), `runs_in` (#6000), and `invokes_cloud_action` (#5997)
+share one cassette/Odù (`ifa.SymbolRuntimeFamilyOdu`) and one backend-free
+extraction seam (`reducer.ExtractSymbolRuntimeIntentRows`), plumbed through
+`materialized_edges_symbol_runtime_shared.go`. Each family's own guard file
+(`materialized_edges_handles_route.go`, `materialized_edges_runs_in.go`,
+`materialized_edges_invokes_cloud_action.go`) owns only its own row-to-edge
+derivation, because the three bend that relationship three different ways:
+`HANDLES_ROUTE` dedupes N intent rows (one per HTTP method on the same route)
+onto the single edge the MERGE identity actually produces; `RUNS_IN` fans one
+intent row out to N edges for N `Workload`s the live Cypher's unbounded
+`(Repository)-[:DEFINES]->(Workload)` MATCH can resolve to; `INVOKES_CLOUD_ACTION`
+is a direct 1:1 mapping. See `materialized_edges_symbol_runtime_shared.go`'s own
+doc comment for the full derivation.
+
+Each of the three has a hand-derived expected-edge-set fixture, is dispatched
+through `MaterializedEdgeOduResolver.Resolve`, and is exercised by `go test`.
+That is offline coverage: the pure vacuity guard, its cataloged Odù, and its
+`Resolve` dispatch arm all exist today. It is NOT live-gate coverage — wiring
+the `ifa-determinism`/`ifa-fault-injection` CI proof gates for these three
+families is a separate, in-progress change and had not landed as of this
+writing. Do not read a `materialized_edges:<family>` coverage-manifest row, a
+retired waiver, or a live-gate pass for any of the three from this section;
+none of those exist yet.

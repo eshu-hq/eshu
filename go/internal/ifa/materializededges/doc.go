@@ -4,10 +4,16 @@
 // Package materializededges implements Ifá's materialized-edge coverage
 // contract (#5351): one pure vacuity guard per reducer-materialized graph
 // edge family (SQL relationships, documentation edges, code calls, rationale
-// edges, codeowners ownership, deployable-unit edges, repository dependencies,
-// and workload dependencies), plus the
-// replaycoverage.Resolver that dispatches a coverage-manifest row to the
-// right guard by family name.
+// edges, codeowners ownership, deployable-unit edges, repository
+// dependencies, submodule pins, inheritance edges, shell-exec edges,
+// workload dependencies, handles_route, runs_in, and invokes_cloud_action),
+// plus the replaycoverage.Resolver that dispatches a coverage-manifest row
+// to the right guard by family name. The last three (handles_route, runs_in,
+// invokes_cloud_action) share one cassette/Odù and one backend-free
+// extraction seam (materialized_edges_symbol_runtime_shared.go); their
+// registered guard and Resolve dispatch arm are offline coverage only -- the
+// ifa-determinism/ifa-fault-injection live-gate wiring for these three is a
+// separate, in-progress change and had not landed as of this writing.
 //
 // # What a vacuity guard proves
 //
