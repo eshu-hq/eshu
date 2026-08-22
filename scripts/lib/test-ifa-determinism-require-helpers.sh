@@ -101,10 +101,12 @@ _ifa_det_assert_lib_under_500() {
 # private_targets would still clear its own floor and this function's caller
 # would run zero times with nothing red -- exactly the hole a caller-supplied
 # count, incremented ONLY inside the loop it guards, closes. 18 is
-# hand-written, below the 22 *_lib vars this mirror currently declares
-# (verified by sourcing this mirror's own var-declaration lines in a subshell
-# and counting `compgen -v | rg '_lib$'`), never derived from the expression
-# it guards.
+# hand-written, below the 25 *_lib vars this mirror actually resolves at the
+# moment the loop runs (observed live: `bash -x` this mirror and count the
+# distinct paths reaching _ifa_det_assert_lib_under_500 -- do NOT re-derive it
+# by regex over the declaration lines, which anchors at column 0 and silently
+# undercounts bindings packed onto a shared line), never derived from the
+# expression it guards.
 _ifa_det_assert_lib_cap_floor() {
 	local checked="$1"
 	[[ "${checked}" -ge 18 ]] \

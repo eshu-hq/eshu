@@ -2178,6 +2178,7 @@ gates:
       - "scripts/lib/ifa_family_registry/**"
       - "testdata/cassettes/sqlrelationships/**"
       - "testdata/cassettes/codecalls/**"
+      - "testdata/cassettes/symbolruntime/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:
