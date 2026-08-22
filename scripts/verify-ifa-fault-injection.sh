@@ -242,8 +242,12 @@ cleanup() {
 		ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-killworkerdocumentation}" \
 			|| { local cleanup_rc=$?; [[ "${barrier_cleanup_rc}" -ne 0 ]] || barrier_cleanup_rc="${cleanup_rc}"; }
 	fi
+	if declare -F ifa_fault_cleanup_runner_lease_audit >/dev/null; then
+		ifa_fault_cleanup_runner_lease_audit \
+			|| { local cleanup_rc=$?; [[ "${barrier_cleanup_rc}" -ne 0 ]] || barrier_cleanup_rc="${cleanup_rc}"; }
+	fi
 	if [[ "${barrier_cleanup_rc}" -ne 0 ]]; then
-		printf 'verify-ifa-fault-injection: documentation ACK barrier EXIT cleanup failed\n' >&2
+		printf 'verify-ifa-fault-injection: database fixture EXIT cleanup failed\n' >&2
 		[[ "${status}" -ne 0 ]] || status="${barrier_cleanup_rc}"
 	fi
 	if [[ "${keep}" -eq 1 ]]; then

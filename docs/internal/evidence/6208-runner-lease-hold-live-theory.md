@@ -282,11 +282,36 @@ bash scripts/verify-ifa-fault-injection.sh --shard 2/4
 | `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 21 s |
 | `killworker_invokes_cloud_action` | 2 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
 
+### No-Regression Evidence:
+
+The baseline is the merged #6214 harness on the same committed symbol-runtime
+cassette, four shared-projection workers, PostgreSQL 18, and Compose-pinned
+NornicDB `eshu-nornicdb-pr290:3722b483c02c`. Its 13 s, 11 s, and 71 s cell
+totals are not speedup baselines because the fixed owner could bypass the
+dead-owner expiry fence. The corrected 20 s, 21 s, and 19 s runs include the
+intentional eight-second proof TTL and wait for the captured timestamps. They
+ended with 3, 3, and 2 target intents complete, every captured lease released,
+the exact graph oracles and digest restored, and zero dead letters. Production
+keeps the 60-second lease TTL and the existing worker, partition, batch, retry,
+heartbeat, claim-SQL, and graph-write paths.
+
+### No-Observability-Change:
+
+The production change adds no metric, span, log field, or status route. An
+operator can distinguish reducer processes in the existing
+`shared_projection_partition_leases.lease_owner` value, while the live gate
+continues to use the existing durable intent and lease rows, PostgreSQL lock
+views, reducer logs, drain summary, dead-letter count, and graph assertions.
+The per-process audit objects exist only during this evidence cell.
+
 The independent `code_calls` control was `7|0` in every cell. All three graph
 oracles matched their exact edge sets and the baseline digest
 `8e8ab90c85a65099aa34a6f071de98a59e08b79b55e7f78e4a4cca656b994d71`.
-The test-local trigger and audit table are removed before cell teardown. They
-are evidence instrumentation only and do not ship with the reducer schema.
+The test-local trigger, function, and audit table use per-process names and are
+removed before cell teardown. Cleanup ownership is registered before the DDL
+runs, and the top-level EXIT path removes the objects after a failed cell,
+including `--no-compose` runs against a caller-owned database. They are evidence
+instrumentation only and do not ship with the reducer schema.
 
 PostgreSQL references:
 
