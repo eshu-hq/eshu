@@ -198,13 +198,22 @@ coverage:
   # graph-write cell proves the DOCUMENTS write retries through a durable
   # marker written by the fault decorator at injection time -- not read from
   # the reducer log, the #5974 failure mode -- before re-asserting the exact
-  # set. This family has no reclaim cell: DocumentationEdgeMaterializationHandler.Handle
-  # has no Postgres write for a kill-worker lock to target, and its ~7ms
-  # completion races a domain-scoped expire-lease UPDATE before it can land
-  # (#6149 follow-up item 8, both attempts and why neither survived). The
-  # fault dimension below is real, unwaived coverage for injected graph-write
-  # failure; mid-handler interruption for this family remains a named,
-  # documented gap, not silent absence.
+  # set. #5998 also added cell_killworker_documentation, a reclaim cell for
+  # this family: scripts/lib/ifa_fault_shard.sh dispatches it in
+  # IFA_FAULT_ALL_CELLS (:102) alongside cell_failgraphwrite_documentation
+  # (:108), and scripts/lib/ifa_family_registry/rows/03_documentation_edges.sh:12
+  # declares IFA_FAMILY_BLOCKER_KIND[documentation_edges]="ack_barrier", not
+  # "none". The #6149 follow-up item 8 gap this comment once recorded (no
+  # Postgres write for a kill-worker lock to target; ~7ms completion racing a
+  # domain-scoped expire-lease UPDATE) is superseded, not merely worked
+  # around: ack_barrier blocks the queue ACK itself via a BEFORE UPDATE
+  # trigger on fact_work_items holding an advisory lock from a separate
+  # session, so handler width no longer matters -- see the header block above
+  # and docs/internal/evidence/5998-rationale-relative-path.md. The fault
+  # dimension below is real, unwaived coverage for BOTH the reclaim
+  # (ack_barrier kill-worker) and injected graph-write failure cells;
+  # documentation_edges has no remaining named gap for mid-handler
+  # interruption.
   - surface: "materialized_edges:documentation_edges"
     scenario: odu
     scenario_type: baseline
