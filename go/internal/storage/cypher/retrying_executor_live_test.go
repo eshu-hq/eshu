@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -68,6 +69,9 @@ func TestLiveNornicDBRetryConflictClassificationContract(t *testing.T) {
 	if conflictErr == nil {
 		t.Fatal("live NornicDB duplicate MERGE committed without conflict")
 	}
+	if !isLiveNornicDBOnCreateCommitUniqueConflict(conflictErr, uid) {
+		t.Fatalf("live NornicDB conflict did not use the exact ON CREATE compatibility shape: %v", conflictErr)
+	}
 	if !isNornicDBCommitTimeUniqueConflictError(conflictErr) {
 		t.Fatalf("live NornicDB conflict was not classified as commit-time UNIQUE conflict: %v", conflictErr)
 	}
@@ -76,16 +80,16 @@ func TestLiveNornicDBRetryConflictClassificationContract(t *testing.T) {
 	}
 
 	retryExecutor := &RetryingExecutor{
-		Inner:      &liveRetryFailingGroupExecutor{err: conflictErr},
+		Inner:      &liveRetryFailingExecutor{err: conflictErr},
 		MaxRetries: 1,
 		BaseDelay:  1 * time.Millisecond,
 	}
-	err = retryExecutor.ExecuteGroup(ctx, []Statement{{
+	err = retryExecutor.Execute(ctx, Statement{
 		Operation: OperationCanonicalUpsert,
 		Cypher:    liveRetryContractMergeCypher,
-	}})
+	})
 	if err != nil {
-		t.Fatalf("RetryingExecutor.ExecuteGroup() error = %v, want nil after live conflict retry", err)
+		t.Fatalf("RetryingExecutor.Execute() error = %v, want nil after live conflict retry", err)
 	}
 }
 
@@ -98,12 +102,24 @@ func liveNornicDBRetryContractEnabled() bool {
 	}
 }
 
+func isLiveNornicDBOnCreateCommitUniqueConflict(err error, uid string) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	if !errors.As(err, &neo4jErr) || neo4jErr.Code != nornicDBStatementSyntaxErrorCode {
+		return false
+	}
+	return strings.Contains(neo4jErr.Msg, "commit failed: constraint violation") &&
+		strings.Contains(neo4jErr.Msg, "UNIQUE on NornicDBRetryContract.[uid]") &&
+		strings.Contains(neo4jErr.Msg, "Node with uid="+uid+" already exists") &&
+		isNornicDBUniqueConflictBody(neo4jErr.Msg)
+}
+
 const liveRetryContractConstraintCypher = `
 CREATE CONSTRAINT nornicdb_retry_contract_uid_unique IF NOT EXISTS
 FOR (n:NornicDBRetryContract) REQUIRE n.uid IS UNIQUE`
 
 const liveRetryContractMergeCypher = `
 MERGE (n:NornicDBRetryContract {uid: $uid})
+ON CREATE SET n.created_by = $observed_by
 SET n.observed_by = $observed_by`
 
 func executeLiveRetryWrite(
@@ -199,16 +215,12 @@ func runLiveRetryMerge(ctx context.Context, tx neo4jdriver.ExplicitTransaction, 
 	return nil
 }
 
-type liveRetryFailingGroupExecutor struct {
+type liveRetryFailingExecutor struct {
 	err   error
 	calls int
 }
 
-func (e *liveRetryFailingGroupExecutor) Execute(context.Context, Statement) error {
-	return nil
-}
-
-func (e *liveRetryFailingGroupExecutor) ExecuteGroup(context.Context, []Statement) error {
+func (e *liveRetryFailingExecutor) Execute(context.Context, Statement) error {
 	e.calls++
 	if e.calls == 1 {
 		return e.err

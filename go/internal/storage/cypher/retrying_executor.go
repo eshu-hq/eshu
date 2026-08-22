@@ -411,8 +411,11 @@ func isNornicDBMergeUniqueConflict(err error, cypher string) bool {
 }
 
 // isNornicDBCommitTimeUniqueConflictError classifies typed Neo4j errors by
-// their stable transaction-commit failure code when the driver exposes one,
-// then falls back to historical string wrapping for older NornicDB surfaces.
+// their transaction-commit failure code when the driver exposes one. It also
+// recognizes NornicDB's narrow Statement.SyntaxError compatibility shape when
+// the body proves the failure occurred at commit on a UNIQUE constraint. The
+// caller still requires MERGE-shaped Cypher before replay. Historical string
+// wrapping remains supported for older NornicDB surfaces.
 func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 	if err == nil {
 		return false
@@ -420,11 +423,21 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 
 	var neo4jErr *neo4jdriver.Neo4jError
 	if errors.As(err, &neo4jErr) && strings.TrimSpace(neo4jErr.Code) != "" {
-		if neo4jErr.Code != nornicDBTransactionCommitFailedCode &&
-			neo4jErr.Code != nornicDBTransactionOutdatedCode {
+		switch neo4jErr.Code {
+		case nornicDBTransactionCommitFailedCode, nornicDBTransactionOutdatedCode:
+			return isNornicDBUniqueConflictBody(neo4jErr.Msg)
+		case nornicDBStatementSyntaxErrorCode:
+			// NornicDB can surface a concurrent MERGE loser under the generic
+			// SyntaxError code even though parsing succeeded and the failure
+			// occurred at commit. Keep this exception narrower than the code:
+			// require both the commit-failure prefix observed on the wire and
+			// the exact UNIQUE-conflict body before the caller's MERGE guard may
+			// replay the statement.
+			return strings.Contains(neo4jErr.Msg, "commit failed: constraint violation") &&
+				isNornicDBUniqueConflictBody(neo4jErr.Msg)
+		default:
 			return false
 		}
-		return isNornicDBUniqueConflictBody(neo4jErr.Msg)
 	}
 
 	return isNornicDBCommitTimeUniqueConflict(err.Error())

@@ -1572,14 +1572,18 @@ committed zero nodes.
   `repository` phase runs the normal id-based MERGE. Keeping this in a separate
   `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
   delete commits and before the new id owns that path.
-- `RetryingExecutor.ExecuteGroup` retries on commit-time UNIQUE conflicts
-  and typed NornicDB relationship-update snapshot conflicts when every
-  statement in the group is MERGE-shaped, sharing the same
+- `RetryingExecutor.Execute` retries commit-time UNIQUE conflicts for a
+  MERGE-shaped statement. `ExecuteGroup` retries that conflict and typed
+  NornicDB relationship-update snapshot conflicts when every statement in the
+  group is MERGE-shaped, sharing the same
   `runWithRetry` loop as `Execute` (`retrying_executor.go:52`). Driver-
   level `session.ExecuteWrite` continues to handle Neo.TransientError.*
   codes for the group path; the Eshu retry layer adds coverage for
   Neo.ClientError.Transaction.TransactionCommitFailed when the message
-  classifies as a NornicDB commit-time UNIQUE conflict. Mixed groups
+  classifies as a NornicDB commit-time UNIQUE conflict. The pinned backend can
+  report the same commit failure as Neo.ClientError.Statement.SyntaxError for
+  `MERGE ... ON CREATE SET`; that code is retryable only with the exact commit
+  UNIQUE body and the existing MERGE guard. Mixed groups
   containing non-MERGE statements are not retried, preserving
   idempotency safety.
 - `ExecuteOnlyExecutor` intentionally hides `GroupExecutor`. Use it when the
@@ -1593,6 +1597,12 @@ committed zero nodes.
   wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
   `TransactionCommitFailed` wrapping so the classifier stays current
   across pinned binaries (`retrying_executor.go:227`).
+- The Statement.SyntaxError compatibility path does not broaden syntax-error
+  handling: it additionally requires the commit-failure prefix plus
+  `constraint violation`, `UNIQUE on`, and `already exists`. Its no-contention
+  path is unchanged; only a losing concurrent MERGE pays the existing bounded
+  backoff and increments `eshu_dp_neo4j_deadlock_retries_total` with
+  `reason=commit_unique_conflict`.
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer

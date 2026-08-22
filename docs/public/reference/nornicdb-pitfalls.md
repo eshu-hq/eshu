@@ -78,28 +78,41 @@ Neo4jError: Neo.ClientError.Transaction.TransactionCommitFailed
  Node with uid=<X> already exists (nodeID: <Y>))
 ```
 
+On the pinned backend, a retry-safe `MERGE` containing `ON CREATE SET` can
+instead surface the same commit failure under
+`Neo.ClientError.Statement.SyntaxError`. NornicDB's retry-safety analyzer
+currently counts `CREATE` inside that modifier as an independent `CREATE`
+clause, so the server does not promote the error to its transaction code even
+though the statement itself remains an idempotent `MERGE`.
+
 That is normal concurrent `MERGE` behavior. Re-executing the same MERGE after
 the winning commit should match the existing node.
 
 ### Eshu status
 
 Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`.
-`RetryingExecutor.ExecuteGroup` retries commit-time unique conflicts when every
+`RetryingExecutor.Execute` retries commit-time unique conflicts for a
+MERGE-shaped statement, and `ExecuteGroup` does the same only when every
 statement in the group is MERGE-shaped. It also retries NornicDB's
 `UNWIND MERGE chain relationship update failed: not found` snapshot conflict
 when the typed error code is `Neo.ClientError.Statement.SyntaxError`. Mixed
 groups are not retried because re-executing non-MERGE statements after partial
 success can be unsafe.
 
-The retry classifier uses the typed Neo4j error code
+The retry classifier normally uses the typed Neo4j error code
 `Neo.ClientError.Transaction.TransactionCommitFailed` or
-`Neo.TransientError.Transaction.Outdated` when the driver exposes one, then
-validates the unique-conflict body. Untyped or wrapped errors keep the
-historical fallback for `failed to commit implicit transaction` and
-`commit failed: constraint violation` shapes.
+`Neo.TransientError.Transaction.Outdated`, then validates the unique-conflict
+body. For the pinned backend's compatibility shape, it accepts
+`Neo.ClientError.Statement.SyntaxError` only when the message also contains
+the observed `commit failed: constraint violation` prefix and the complete
+UNIQUE-conflict body (`constraint violation`, `UNIQUE on`, and
+`already exists`). The caller must still prove the statement is MERGE-shaped;
+ordinary syntax errors and non-MERGE writes remain terminal. Untyped or wrapped
+errors keep the historical fallback for `failed to commit implicit transaction`
+and `commit failed: constraint violation` shapes.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'RelationshipSnapshot|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
+'RelationshipSnapshot|PlatformCommitUniqueConflict|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
 -count=1` proves typed error-code classification, historical substring
 fallbacks, MERGE-only group retry, and mixed-group non-retry behavior.
 `scripts/verify_backend_conformance_live.sh` now runs
@@ -121,7 +134,7 @@ fields, worker knobs, and queue contract remain unchanged.
 
 Do not serialize workers to hide this race, and do not add preflight `MATCH`
 checks as the fix for canonical MERGE re-projection. Route canonical projection
-through the retrying phase-group executor. If the error reappears, verify
+through the retrying executor. If the error reappears, verify
 `retryable_error_test.go` and `retrying_executor_test.go` before changing queue
 or worker knobs.
 
