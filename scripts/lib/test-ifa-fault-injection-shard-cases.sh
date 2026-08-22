@@ -168,17 +168,18 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# original; the CELL LIST is not -- the relocation landed an older
 	# eighteen-cell version of the loop, and the counts went with it; restored.)
 	#
-	# The thirty-seven-cell shape: baseline plus thirty-six cells with a live
+	# The forty-cell shape: baseline plus thirty-nine cells with a live
 	# seam -- four original recovery cells, two SQL-targeted (#5555), two
 	# delivery-shaped (#5544), two code-call-targeted (#5991), two
 	# documentation-targeted (#5994), two rationale-targeted (#5998), a
 	# family-scoped baseline plus two recovery cells each for
 	# deployable_unit_edges (#5993), codeowners_ownership_edges (#6160),
 	# repo_dependency (#5999), submodule_pin_edges (#6002), inheritance_edges
-	# (#5996), and shell_exec (#6001), and ONE shared baseline plus three
-	# family-targeted recovery cells (no killworker -- blocker_kind=none for
-	# all three) for the handles_route/runs_in/invokes_cloud_action trio
-	# (#5995/#6000/#5997). All thirty-seven run by default.
+	# (#5996), shell_exec (#6001), and workload_dependency (#6003), and ONE
+	# shared baseline plus three family-targeted recovery cells (no
+	# killworker -- blocker_kind=none for all three) for the
+	# handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997).
+	# All forty run by default.
 	# Every cell is anchored to its own invocation line, never matched by bare name.
 	# A bare-name needle is satisfied by prose and by longer siblings: "cell_baseline"
 	# matches this file's own comments AND cell_baseline_deployable_unit, so deleting
@@ -186,7 +187,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 	# the sole writer of digests[baseline], so every assert_matches_baseline call
 	# that does not name a family-scoped baseline would then compare against an
 	# unset key. The anchored form was previously applied to only five cells; it
-	# now covers all thirty-three.
+	# now covers all forty.
 	# rg without --fixed-strings so ^...$ binds.
 	#
 	# Prefixed with "ifa_fault_shard_run " (scripts/lib/ifa_fault_shard.sh): every

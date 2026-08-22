@@ -179,7 +179,7 @@ run_ifa_documentation_live_static_cases() {
 	require "once-fired proof inventory includes every graph-write cell" "a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40"
 	require "retry-delay inventory includes every graph-write cell" "cells 4/12/13/14/15/18/21/24/27/30/33/36/38/39/40's queue-retry lane"
 	require "SQL graph-write anchor has its current cell number" "cell_failgraphwrite_sql (cell 12, #5555)"
-	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other thirty-five cells remain bound" "${driver_lib}"
+	require_framing "delta exception leaves all other cells on baseline rationale truth" "The other thirty-nine cells remain bound" "${driver_lib}"
 	# The literal-label pin that used to live here ("Run Ifa fault-injection
 	# matrix (18 cells, fresh stack per cell)") was migrated to
 	# scripts/lib/test-ifa-fault-injection-shard-cases.sh once the

@@ -21,24 +21,21 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Forty cells, each hitting a genuinely different recovery or delivery
-# seam. All forty run by default. Cell functions live in
-# scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
+# Forty cells, each hitting a genuinely different recovery or delivery seam. All forty run by default.
+# Cell functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
 # scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6 and 12, issue #5555),
-# scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue
-# #5991), scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and
-# 14, issue #5994), scripts/lib/ifa_fault_injection_rationale_cells.sh (cells 9
-# and 15, issue #5998), scripts/lib/ifa_fault_injection_delivery_cells.sh
-# (cells 10-11, issue #5544), and
-# scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue
-# #5993), scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
-# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue
-# #5999), and scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells
-# 25-27, issue #6002), scripts/lib/ifa_fault_injection_inheritance_cells.sh
-# (cells 28-30, issue #5996), scripts/lib/ifa_fault_injection_shell_exec_cells.sh
-# (cells 31-33, issue #6001), workload_dependency cells 34-36 (#6003) live in
-# their family library, and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
-# (cells 37-40, issues #5995/#6000/#5997).
+# scripts/lib/ifa_fault_injection_code_call_cells.sh (cells 7 and 13, issue #5991),
+# scripts/lib/ifa_fault_injection_documentation_cells.sh (cells 8 and 14, issue #5994),
+# scripts/lib/ifa_fault_injection_rationale_cells.sh (cells 9 and 15, issue #5998),
+# scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 10-11, issue #5544), and
+# scripts/lib/ifa_fault_injection_deployable_unit_cells.sh (cells 16-18, issue #5993),
+# scripts/lib/ifa_fault_injection_codeowners_cells.sh (cells 19-21, issue #5992), and
+# scripts/lib/ifa_fault_injection_repo_dependency_cells.sh (cells 22-24, issue #5999), and
+# scripts/lib/ifa_fault_injection_submodule_pin_cells.sh (cells 25-27, issue #6002),
+# scripts/lib/ifa_fault_injection_inheritance_cells.sh (cells 28-30, issue #5996),
+# scripts/lib/ifa_fault_injection_shell_exec_cells.sh (cells 31-33, issue #6001), workload_dependency
+# cells 34-36 (#6003), and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh (cells 37-40,
+# issues #5995/#6000/#5997).
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -147,13 +144,12 @@
 #  31. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
 #  32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
 #  33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-#  34. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
-#      handles_route/runs_in/invokes_cloud_action (one cassette, one builder
-#      pass); no kill-worker cell (blocker_kind=none for all three -- see
+#  37. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+#      handles_route/runs_in/invokes_cloud_action; no kill-worker cell (see
 #      scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh's header).
-#  35. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-#  36. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-#  37. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+#  38. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+#  39. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+#  40. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 #
 # Cells 2, 3, 6, 7, 8, and 9 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -483,16 +479,15 @@ ifa_fault_shard_run cell_baseline_shell_exec
 ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
-# workload_dependency (#6003), cells 34-36; its maintenance-backed baseline
-# must run before the two recovery cells in the same atomic shard group.
+# workload_dependency (#6003, cells 34-36) and the handles_route/runs_in/
+# invokes_cloud_action trio (#5995/#6000/#5997, cells 37-40,
+# scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh): each baseline
+# must run before its recovery cells in the same atomic shard group. The
+# trio's shared baseline has no kill-worker cell -- blocker_kind=none for
+# all three.
 ifa_fault_shard_run cell_baseline_workload_dependency
 ifa_fault_shard_run cell_killworker_workload_dependency
 ifa_fault_shard_run cell_failgraphwrite_workload_dependency
-
-# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997), cells
-# 37-40; baseline first (one shared trio drive; see cell 37's header entry
-# above and scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh). No
-# kill-worker cell -- blocker_kind=none for all three.
 ifa_fault_shard_run cell_baseline_symbol_runtime
 ifa_fault_shard_run cell_failgraphwrite_handles_route
 ifa_fault_shard_run cell_failgraphwrite_runs_in
