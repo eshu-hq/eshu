@@ -398,13 +398,22 @@ waivers:
   # graph-write cell, at that time). The MaterializedEdgeDomainEdgeTypes
   # half of that old reason went stale the day after it was written, when
   # a9326630a registered the family -- the single-type registry resolves
-  # documentation_edges to DOCUMENTS. #6149 follow-up item 8 later removed the
+  # documentation_edges to DOCUMENTS. #6149 follow-up item 8 removed the
   # reclaim cell (first a wrong-table kill-worker lock, then a domain-scoped
-  # expire-lease attempt that raced the ~7ms handler and never landed): the
-  # family now has one live fault cell (graph-write failure), and this waiver
-  # exclusion still holds because that cell is genuine, unwaived coverage --
-  # mid-handler-interruption coverage is a documented gap, not a silently
-  # dropped claim.
+  # expire-lease attempt that raced the ~7ms handler and never landed),
+  # leaving the family with one live fault cell (graph-write failure) and
+  # mid-handler-interruption coverage recorded as a named gap. #5998 closed
+  # that gap: cell_killworker_documentation is an ack_barrier reclaim cell
+  # blocking the queue ACK itself via a BEFORE UPDATE trigger on
+  # fact_work_items, not the handler, so the ~7ms handler width that defeated
+  # both earlier attempts no longer matters -- scripts/lib/ifa_fault_shard.sh
+  # dispatches it in IFA_FAULT_ALL_CELLS (:102) alongside
+  # cell_failgraphwrite_documentation (:108), and
+  # scripts/lib/ifa_family_registry/rows/03_documentation_edges.sh:12 declares
+  # IFA_FAMILY_BLOCKER_KIND[documentation_edges]="ack_barrier". This waiver
+  # exclusion still holds because both cells are genuine, unwaived coverage --
+  # documentation_edges has no remaining named gap for mid-handler
+  # interruption.
   - surface: "materialized_edges:handles_route"
     proof_gate: ifa-determinism
     issue: "#5995"
