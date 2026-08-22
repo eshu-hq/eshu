@@ -140,12 +140,20 @@ git -C "${case_new_doc}" add .
 git -C "${case_new_doc}" commit -q -m "add reducer evidence note + collector README"
 expect_pass "ignores new non-.go files under stage-owner directories" "${case_new_doc}"
 
-# Case 4c: the git collector now lives in go/internal/collector/gitrepo and its
-# leaf emitters one level below that. Before #6056 every collector source file
-# sat at go/internal/collector/*.go and matched the stage-owner glob directly;
-# after the move a new emitter would have slipped past the new-stage check
-# entirely, so a new pipeline stage could land with no telemetry-coverage row
-# and the gate would still pass. Both depths must be flagged.
+# Case 4c: the git collector lives in go/internal/collector/gitrepo (#6056) and
+# its leaf emitters one level below that, so collector stage files are no longer
+# all at go/internal/collector/*.go.
+#
+# The stage-owner check still reaches them, because these are `case` patterns
+# and not filename globs: in a bash `case`, `*` crosses `/`, so
+# go/internal/collector/*.go already matches at any depth. These two cases pin
+# that rather than fix anything — they were written expecting a coverage gap and
+# found none.
+#
+# They earn their place by making the property load-bearing: deleting the
+# go/internal/collector/*.go arm turns both of them red, so a future edit that
+# narrows the arm (or replaces the `case` with a real glob) cannot silently stop
+# requiring a telemetry-coverage row for new collector stages.
 case_gitrepo="$(init_repo case-gitrepo)"
 mkdir -p "${case_gitrepo}/go/internal/collector/gitrepo"
 printf 'package gitrepo\n' >"${case_gitrepo}/go/internal/collector/gitrepo/git_new_stage.go"

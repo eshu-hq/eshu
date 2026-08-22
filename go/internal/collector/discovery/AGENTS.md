@@ -57,7 +57,7 @@
   in `discovery.go`, increment it in `collectSupportedFiles`, and update
   `TotalDirsSkipped()` or `TotalFilesSkipped()` if the counter should be
   included in the aggregate. Update the discovery advisory report type in
-  `internal/collector/discovery_advisory.go` if the new stat should surface in
+  `internal/collector/gitrepo/discovery_advisory.go` if the new stat should surface in
   the advisory output.
 
 ## Failure modes and how to debug

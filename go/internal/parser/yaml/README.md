@@ -229,7 +229,7 @@ Observability Evidence: every degraded per-entity position (an unresolved alias
 target, an unattributable merge key, or a missing raw-node match) is counted
 through `eshu_dp_cloudformation_position_fallback_total`
 (`internal/telemetry/instruments.go`, wired at
-`internal/collector/git_snapshot_parse_partitions.go:451`), documented in
+`internal/collector/gitrepo/git_snapshot_parse_partitions.go:451`), documented in
 `docs/public/observability/telemetry-coverage.md`. An operator can use this
 counter to see how often the position walk is not paying for a real
 per-entity line gain.

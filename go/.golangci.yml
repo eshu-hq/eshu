@@ -168,7 +168,7 @@ linters:
         - hugeParam
         # ifElseChain flags every multi-branch if/else as refactor
         # bait, including the deliberately-readable chains in
-        # go/internal/collector/git_snapshot_native.go and friends.
+        # go/internal/collector/gitrepo/git_snapshot_native.go and friends.
         - ifElseChain
         # rangeValCopy flags every range over a value type, including
         # the deliberate value-iteration in the parser pipeline.
