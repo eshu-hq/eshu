@@ -29,7 +29,11 @@ run_ifa_fault_entrypoint_static_cases() {
 		ifa_inheritance_live.sh \
 		ifa_fault_injection_inheritance_cells.sh \
 		ifa_shell_exec_live.sh \
-		ifa_fault_injection_shell_exec_cells.sh; do
+		ifa_fault_injection_shell_exec_cells.sh \
+		ifa_symbol_runtime_live.sh \
+		ifa_fault_injection_symbol_runtime_cells.sh \
+		ifa_workload_dependency_live.sh \
+		ifa_fault_injection_workload_dependency_cells.sh; do
 		[[ "$(_ifa_count_code_matches "scripts/lib/${source_name}" "${sources_lib}")" -ge 1 ]] \
 			|| fail "source-inventory lib does not source ${source_name}"
 	done
@@ -41,7 +45,13 @@ run_ifa_fault_entrypoint_static_cases() {
 	require_source_inventory "source inventory omits rationale live lib" "scripts/lib/ifa_rationale_live.sh"
 	require_source_inventory "source inventory omits rationale cells lib" "scripts/lib/ifa_fault_injection_rationale_cells.sh"
 	require_source_inventory "source inventory omits collateral-node lib" "scripts/lib/ifa_fault_injection_collateral_nodes.sh"
-	require "gate overview names all exact-set cassette families" "relationship, code-call, documentation, rationale, repository-dependency, submodule-pin, inheritance, and shell-exec family cassettes"
+	# Deliberately NOT a per-family enumeration: an exhaustive list here goes
+	# stale every time a family lands (this pin itself used to enumerate eight
+	# families by name and was already missing two before this fix), and
+	# nothing catches a stale "names ALL families" claim short of someone
+	# reading the prose against the current roster. Pin the non-enumerating
+	# framing instead, which cannot go stale by construction.
+	require "gate overview does not claim an exhaustive per-family cassette list" "deliberately not enumerated by name here"
 	require_code "failure log dump" "host binary logs (failure)"
 	# The container-log tail alone cannot name a dead-lettered row: its
 	# failure_message lives only in Postgres, and one real CI failure spent

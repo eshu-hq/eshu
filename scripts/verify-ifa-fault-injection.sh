@@ -11,7 +11,8 @@
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`) PLUS
-# the SQL relationship, code-call, documentation, rationale, repository-dependency, submodule-pin, inheritance, and shell-exec family cassettes
+# every other registered materialized-edge family's own committed cassette (see
+# the numbered cell list below -- deliberately not enumerated by name here, since a fixed family list here goes stale)
 # through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
@@ -145,8 +146,7 @@
 #  32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
 #  33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
 #  37. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
-#      handles_route/runs_in/invokes_cloud_action; no kill-worker cell (see
-#      scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh's header).
+#      handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
 #  38. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
 #  39. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
 #  40. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.

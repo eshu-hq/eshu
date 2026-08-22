@@ -33,6 +33,7 @@ symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
+maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
 teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"
@@ -61,6 +62,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${fixtures_lib}" ]] || fail "missing ${fixtures_lib}"
 [[ -f "${require_helpers_lib}" ]] || fail "missing ${require_helpers_lib}"
 [[ -f "${family_cases_lib}" ]] || fail "missing ${family_cases_lib}"
+[[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
 [[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"
@@ -82,6 +84,7 @@ bash -n "${rationale_lib}" || fail "ifa_rationale_live.sh has a syntax error"
 bash -n "${fixtures_lib}" || fail "ifa_family_fixtures.sh has a syntax error"
 bash -n "${require_helpers_lib}" || fail "test-ifa-determinism-require-helpers.sh has a syntax error"
 bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has a syntax error"
+bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
 bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"
@@ -316,6 +319,13 @@ require_code "combined-graph digest framing" "demo-org + synth-multiscope + SQL 
 # deployable_unit_edges, rationale_edges, documentation_edges) live in a
 # sourced case module so this structural verifier stays below 500 lines
 # (mirroring the fault-injection sibling's per-family case-module split).
+# The maintenance-backed families (repo_dependency, workload_dependency) were
+# split OUT of that module into their own sibling once it crossed the cap;
+# sourced here, before the call below, since
+# run_ifa_determinism_family_cases invokes
+# run_ifa_determinism_maintenance_family_cases from inside its own body.
+# shellcheck source=scripts/lib/test-ifa-determinism-maintenance-family-cases.sh
+source "${maintenance_family_cases_lib}"
 # shellcheck source=scripts/lib/test-ifa-determinism-family-cases.sh
 source "${family_cases_lib}"
 run_ifa_determinism_family_cases

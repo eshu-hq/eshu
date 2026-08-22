@@ -21,6 +21,9 @@
 # invocation code_calls' own cell_killworker_code_calls already proves -- not
 # a distinct structural fact. The missing kill/reclaim dimension is a named,
 # tracked gap (see the trio's coverage-row prose), not an oversight here.
+# Full Prove-The-Theory-First shim proof that both obvious blockers are
+# illegal or vacuous for this trio (run BEFORE any of this file was written):
+# docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md.
 #
 # ONE shared baseline (cell_baseline_symbol_runtime) serves all three
 # families: they share one cassette and one builder pass

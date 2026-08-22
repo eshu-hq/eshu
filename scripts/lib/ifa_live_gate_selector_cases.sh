@@ -347,6 +347,14 @@ ifa_live_gate_common_seams=(
 )
 
 ifa_live_gate_fault_only_seams=(
+	# Split OUT of test-ifa-fault-injection-repo-dependency-cases.sh (which
+	# sits in ifa_live_gate_common_seams above -- an inherited both-gates
+	# wiring this pass did not revisit) once that file crossed the 500-line
+	# cap. This sibling is genuinely fault-only: it is sourced ONLY by
+	# scripts/test-verify-ifa-fault-injection.sh, never by
+	# test-verify-ifa-determinism.sh, matching the same reasoning applied to
+	# ifa_fault_injection_symbol_runtime_cells.sh below.
+	'scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh|scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh'
 	'scripts/lib/ifa_fault_injection_collateral_nodes.sh|scripts/lib/ifa_fault_injection_collateral_nodes.sh'
 	'scripts/lib/ifa_fault_injection_documentation_cells.sh|scripts/lib/ifa_fault_injection_documentation_cells.sh'
 	'scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh|scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh'
@@ -410,6 +418,9 @@ ifa_live_gate_fault_only_seams=(
 # it changes.
 ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-family-cases.sh|scripts/lib/test-ifa-determinism-family-cases.sh'
+	# Split out of the file immediately above once it crossed the 500-line
+	# cap; sourced only by scripts/test-verify-ifa-determinism.sh.
+	'scripts/lib/test-ifa-determinism-maintenance-family-cases.sh|scripts/lib/test-ifa-determinism-maintenance-family-cases.sh'
 	'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh|scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
 	'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh|scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
 	'scripts/lib/test-ifa-determinism-require-helpers.sh|scripts/lib/test-ifa-determinism-require-helpers.sh'
