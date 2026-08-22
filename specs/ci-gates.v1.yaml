@@ -2179,6 +2179,23 @@ gates:
       - "testdata/cassettes/sqlrelationships/**"
       - "testdata/cassettes/codecalls/**"
       - "testdata/cassettes/symbolruntime/**"
+      # Every remaining family that carries a materialized_edges:* coverage row.
+      # This gate RECONCILES that manifest, so a cassette edit which changes facts
+      # while leaving the edge set identical must re-run it -- the two live gates'
+      # exact-set assertions cannot see such an edit, and the compiled-Odu/cassette
+      # lockstep this gate runs is what does. Listing three of twelve made the map
+      # uneven and the rule unstated (#6212); ci-gates/ifa_registry_test.go now
+      # derives the required set from the coverage manifest and fails if one is
+      # missing, so this list cannot drift again by hand.
+      - "testdata/cassettes/codeowners/**"
+      - "testdata/cassettes/deployableunit/**"
+      - "testdata/cassettes/documentation/**"
+      - "testdata/cassettes/inheritance/**"
+      - "testdata/cassettes/rationale/**"
+      - "testdata/cassettes/repodependency/**"
+      - "testdata/cassettes/shellexec/**"
+      - "testdata/cassettes/submodulepin/**"
+      - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
       - "go/internal/ifa/testdata/codecalls/**"
     local:

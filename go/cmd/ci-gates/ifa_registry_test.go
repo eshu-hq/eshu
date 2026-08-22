@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -81,4 +83,83 @@ func TestCommittedRegistrySelectsIfaBlockingGate(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "go", "cmd", "ifa")); err != nil {
 		t.Fatalf("cmd/ifa package missing: %v", err)
 	}
+}
+
+// TestCoverageGateTriggersEveryFamilyCassette derives, rather than hard-codes,
+// the set of cassette directories ifa-materialized-edge-coverage must trigger
+// on: every Odù ref named by a materialized_edges:* row in
+// specs/ifa-materialized-edge-coverage.v1.yaml, resolved to the directory whose
+// cassette file is named for that ref.
+//
+// That gate is the one which RECONCILES the coverage manifest. A cassette edit
+// that changes facts while leaving the edge set identical is invisible to the
+// two live gates — their assertions compare edge sets — and is caught only by
+// the compiled-Odù/cassette lockstep this gate runs. So a family whose cassette
+// is not in its trigger list can have that lockstep silently skipped.
+//
+// The list was hand-maintained and carried three of twelve directories when
+// #6212 measured it, with no stated rule for the other nine. Deriving the
+// requirement here means adding a family cannot quietly omit its cassette: the
+// manifest row is what creates the obligation, and this test is what enforces
+// it. Pair it with scripts/test-verify-ci-gates-registry.sh, which separately
+// asserts each declared glob is mirrored into the workflow filter — together
+// they close both halves of the registry/workflow lockstep.
+func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+
+	manifest, err := os.ReadFile(filepath.Join(root, "specs", "ifa-materialized-edge-coverage.v1.yaml"))
+	if err != nil {
+		t.Fatalf("read coverage manifest: %v", err)
+	}
+	registry, err := os.ReadFile(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatalf("read gate registry: %v", err)
+	}
+
+	refs := regexp.MustCompile(`ref:\s*"odu:([a-z0-9-]+)"`).FindAllStringSubmatch(string(manifest), -1)
+	if len(refs) < 10 {
+		t.Fatalf("found %d odù ref(s) in the coverage manifest, want >= 10; the parse has collapsed and every assertion below would pass vacuously", len(refs))
+	}
+
+	wantDirs := make(map[string]string)
+	for _, match := range refs {
+		ref := match[1]
+		hits, globErr := filepath.Glob(filepath.Join(root, "testdata", "cassettes", "*", ref+".json"))
+		if globErr != nil {
+			t.Fatalf("glob cassette for %s: %v", ref, globErr)
+		}
+		if len(hits) != 1 {
+			t.Fatalf("odù ref %q resolves to %d cassette file(s), want exactly 1; the ref-to-directory derivation this test rests on no longer holds", ref, len(hits))
+		}
+		wantDirs[filepath.Base(filepath.Dir(hits[0]))] = ref
+	}
+	if len(wantDirs) < 10 {
+		t.Fatalf("derived only %d cassette director(ies), want >= 10", len(wantDirs))
+	}
+
+	block := coverageGateBlock(t, string(registry))
+	for dir, ref := range wantDirs {
+		trigger := "testdata/cassettes/" + dir + "/**"
+		if !strings.Contains(block, trigger) {
+			t.Errorf("ifa-materialized-edge-coverage does not trigger on %q (odù %s); a cassette edit that leaves the edge set identical would skip this gate's compiled-Odù lockstep", trigger, ref)
+		}
+	}
+}
+
+// coverageGateBlock returns just the ifa-materialized-edge-coverage entry, so a
+// trigger declared under some OTHER gate cannot satisfy the assertion above.
+func coverageGateBlock(t *testing.T, registry string) string {
+	t.Helper()
+
+	const marker = "id: ifa-materialized-edge-coverage"
+	start := strings.Index(registry, marker)
+	if start < 0 {
+		t.Fatal("ifa-materialized-edge-coverage not found in specs/ci-gates.v1.yaml")
+	}
+	rest := registry[start+len(marker):]
+	if next := strings.Index(rest, "\n  - id:"); next >= 0 {
+		return rest[:next]
+	}
+	return rest
 }
