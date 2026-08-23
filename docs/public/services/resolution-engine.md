@@ -83,8 +83,9 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
 - `SharedProjectionRunner` uses up to `min(NumCPU, 4)` partition workers by
   default. Tune `ESHU_SHARED_PROJECTION_WORKERS` only when telemetry proves
   shared projection is the bottleneck.
-- Each shared-projection process owner includes hostname, PID, and a boot nonce.
-  `ESHU_SHARED_PROJECTION_LEASE_OWNER` changes the readable prefix, not the
+- Each shared-projection and code-call process owner includes hostname, PID,
+  and a boot nonce. `ESHU_SHARED_PROJECTION_LEASE_OWNER` and
+  `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` change the readable prefix, not the
   process suffix. A restarted reducer therefore waits for an active dead-owner
   lease to expire instead of renewing it as the same owner.
 - The main loop, shared projection runner, code-call runner, and

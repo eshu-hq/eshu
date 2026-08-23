@@ -85,7 +85,6 @@ const (
 	defaultGraphOrphanSweepBatchLimit   = 100
 	defaultGraphOrphanSweepCountLimit   = 10_000
 	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
-	defaultSharedProjectionLeaseOwner   = "shared-projection-runner"
 )
 
 type generationRetentionConfig struct {

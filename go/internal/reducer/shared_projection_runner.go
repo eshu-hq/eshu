@@ -26,6 +26,10 @@ const (
 	maxSharedPollInterval     = 5 * time.Second
 )
 
+// DefaultSharedProjectionLeaseOwnerPrefix is the default human-readable label
+// prepended to the production reducer's process-unique shared projection owner.
+const DefaultSharedProjectionLeaseOwnerPrefix = "shared-projection-runner"
+
 // sharedProjectionDomains lists the shared projection domains processed
 // by the partition worker.
 var sharedProjectionDomains = []string{
@@ -91,7 +95,7 @@ func (c SharedProjectionRunnerConfig) evidenceSource() string {
 
 func (c SharedProjectionRunnerConfig) leaseOwner() string {
 	if c.LeaseOwner == "" {
-		return "shared-projection-runner"
+		return DefaultSharedProjectionLeaseOwnerPrefix
 	}
 	return c.LeaseOwner
 }

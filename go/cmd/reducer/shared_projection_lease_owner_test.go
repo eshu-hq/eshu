@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -90,8 +91,8 @@ func TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 	if first == second {
 		t.Fatalf("shared projection lease owner reused across process boots: %q", first)
 	}
-	if !strings.HasPrefix(first, defaultSharedProjectionLeaseOwner+":") ||
-		!strings.HasPrefix(second, defaultSharedProjectionLeaseOwner+":") {
+	if !strings.HasPrefix(first, reducer.DefaultSharedProjectionLeaseOwnerPrefix+":") ||
+		!strings.HasPrefix(second, reducer.DefaultSharedProjectionLeaseOwnerPrefix+":") {
 		t.Fatalf("shared projection lease owner prefixes = %q / %q, want configured default prefix", first, second)
 	}
 	firstParts := strings.Split(first, ":")
@@ -115,7 +116,7 @@ func sharedProjectionLeaseOwnerFromHelperProcess(t *testing.T) string {
 	}
 	for _, line := range strings.Split(output.String(), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, defaultSharedProjectionLeaseOwner+":") {
+		if strings.HasPrefix(line, reducer.DefaultSharedProjectionLeaseOwnerPrefix+":") {
 			return line
 		}
 	}

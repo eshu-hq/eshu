@@ -253,11 +253,13 @@ correctness gap in the proof and the production default: both reducer processes
 used `shared-projection-runner`, so the replacement could use the claim SQL's
 same-owner renewal branch before a dead process's lease expired.
 
-The correction gives each reducer process boot a stable owner of the form
-`<configured-prefix>:<hostname>:<pid>:<boot-nonce>`. The environment variable
-still controls the prefix; hostname, PID, and boot nonce make replicas and
-restarts distinct. No worker, partition, batch, retry, heartbeat, or lease-TTL
-setting changes in production.
+The correction gives the shared-projection and code-call runners a stable owner
+per reducer process boot of the form
+`<configured-prefix>:<hostname>:<pid>:<boot-nonce>`. Each environment variable
+still controls only its runner's prefix; hostname, PID, and boot nonce make
+replicas and restarts distinct. Focused subprocess tests compare the boot nonce
+itself across launches so differing PIDs cannot conceal nonce reuse. No worker,
+partition, batch, retry, heartbeat, or lease-TTL setting changes in production.
 
 The live cells use an eight-second lease TTL only to keep the expiry proof
 bounded. After the first reducer is killed, its blocked PostgreSQL claims are

@@ -220,6 +220,10 @@ Core interfaces:
 
 Exported constants:
 
+- `DefaultSharedProjectionLeaseOwnerPrefix` and
+  `DefaultCodeCallProjectionLeaseOwnerPrefix` — the semantic fallback labels
+  shared by zero-value runner configs and the production process-unique owner
+  loader. Keeping them here prevents the two paths from drifting.
 - `RepoRefreshIntentType` — `shared_projection_worker_refresh_fence.go:38` — the
   `intent_type` payload value a repo-wide refresh intent carries. Exported
   because the graph-write side reads it back rather than keeping its own copy:

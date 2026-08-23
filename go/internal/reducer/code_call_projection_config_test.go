@@ -27,8 +27,8 @@ func TestCodeCallProjectionRunnerConfigDefaults(t *testing.T) {
 	if got := cfg.acceptanceScanLimit(); got != DefaultCodeCallAcceptanceScanLimit {
 		t.Fatalf("acceptanceScanLimit() = %d, want %d", got, DefaultCodeCallAcceptanceScanLimit)
 	}
-	if got := cfg.leaseOwner(); got != defaultCodeCallLeaseOwner {
-		t.Fatalf("leaseOwner() = %q, want %q", got, defaultCodeCallLeaseOwner)
+	if got := cfg.leaseOwner(); got != DefaultCodeCallProjectionLeaseOwnerPrefix {
+		t.Fatalf("leaseOwner() = %q, want %q", got, DefaultCodeCallProjectionLeaseOwnerPrefix)
 	}
 }
 

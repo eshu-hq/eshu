@@ -19,9 +19,12 @@ import (
 )
 
 const (
-	defaultCodeCallLeaseOwner = "code-call-projection-runner"
-	maxCodeCallPollInterval   = 5 * time.Second
+	maxCodeCallPollInterval = 5 * time.Second
 )
+
+// DefaultCodeCallProjectionLeaseOwnerPrefix is the default human-readable
+// label prepended to the production reducer's process-unique code-call owner.
+const DefaultCodeCallProjectionLeaseOwnerPrefix = "code-call-projection-runner"
 
 // DefaultCodeCallAcceptanceScanLimit bounds how many pending code-call intents
 // the runner may scan or load for one authoritative acceptance unit. The runner
@@ -164,7 +167,7 @@ func (c CodeCallProjectionRunnerConfig) acceptanceScanLimit() int {
 
 func (c CodeCallProjectionRunnerConfig) leaseOwner() string {
 	if c.LeaseOwner == "" {
-		return defaultCodeCallLeaseOwner
+		return DefaultCodeCallProjectionLeaseOwnerPrefix
 	}
 	return c.LeaseOwner
 }

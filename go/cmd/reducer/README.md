@@ -234,7 +234,7 @@ never deferred, so the backlog cannot stall.
 | `ESHU_CODE_CALL_PROJECTION_LEASE_TTL` | `60s` |
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` |
-| `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` |
+| `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner:<hostname>:<pid>:<boot-nonce>` |
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` |
 

@@ -9,6 +9,9 @@
 // idempotency across retries and replays. They do not call graph drivers
 // directly; canonical graph writes go through storage/cypher, and durable fact
 // writes go through narrow writer interfaces wired by cmd/reducer.
+// Shared-projection and code-call runner configs retain readable fallback owner
+// prefixes, while the production reducer appends a process-boot identity before
+// either runner claims a partition lease.
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.

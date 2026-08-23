@@ -47,9 +47,9 @@
 // NornicDB SQL relationship writes use one-statement autocommit because its
 // managed-transaction path can acknowledge UNWIND/MATCH/MERGE without
 // persisting the relationship; Neo4j retains grouped transaction dispatch.
-// Shared-projection partition lease owners append hostname, PID, and a boot
-// nonce to the configured ESHU_SHARED_PROJECTION_LEASE_OWNER prefix so a new
-// reducer process cannot renew or release the prior process's active lease.
+// Shared-projection and code-call partition lease owners append hostname, PID,
+// and a boot nonce to their configured label prefixes so a new reducer process
+// cannot renew or release the prior process's active lease.
 // SIGINT and SIGTERM trigger clean shutdown through the hosted runtime drain.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in

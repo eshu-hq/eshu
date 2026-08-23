@@ -45,7 +45,6 @@ const (
 	defaultCodeCallProjectionLeaseTTL            = 60 * time.Second
 	defaultCodeCallProjectionBatchLimit          = 100
 	defaultCodeCallProjectionAcceptanceScanLimit = reducer.DefaultCodeCallAcceptanceScanLimit
-	defaultCodeCallProjectionLeaseOwner          = "code-call-projection-runner"
 	defaultCodeCallProjectionPartitionCount      = 8
 	defaultCodeCallProjectionWorkers             = 4
 	defaultRepoDependencyProjectionPollInterval  = 500 * time.Millisecond
@@ -69,7 +68,9 @@ func loadCodeCallProjectionConfig(getenv func(string) string) reducer.CodeCallPr
 	}
 
 	return reducer.CodeCallProjectionRunnerConfig{
-		LeaseOwner:          loadStringOrDefault(getenv, codeCallProjectionLeaseOwnerEnv, defaultCodeCallProjectionLeaseOwner),
+		LeaseOwner: loadProcessUniqueProjectionLeaseOwner(
+			getenv, codeCallProjectionLeaseOwnerEnv, reducer.DefaultCodeCallProjectionLeaseOwnerPrefix,
+		),
 		PollInterval:        loadDurationOrDefault(getenv, codeCallProjectionPollIntervalEnv, defaultCodeCallProjectionPollInterval),
 		LeaseTTL:            loadDurationOrDefault(getenv, codeCallProjectionLeaseTTLEnv, defaultCodeCallProjectionLeaseTTL),
 		BatchLimit:          loadPositiveIntOrDefault(getenv, codeCallProjectionBatchLimitEnv, defaultCodeCallProjectionBatchLimit),
@@ -122,7 +123,7 @@ func loadRepoDependencyProjectionLeaseOwner(getenv func(string) string) string {
 
 func loadSharedProjectionLeaseOwner(getenv func(string) string) string {
 	return loadProcessUniqueProjectionLeaseOwner(
-		getenv, sharedProjectionLeaseOwnerEnv, defaultSharedProjectionLeaseOwner,
+		getenv, sharedProjectionLeaseOwnerEnv, reducer.DefaultSharedProjectionLeaseOwnerPrefix,
 	)
 }
 

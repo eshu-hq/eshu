@@ -126,6 +126,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_REDUCER_MAX_ATTEMPTS", Type: VarInt, Default: "3", Subsystem: "reducer", Description: "Maximum retry attempts for reducer work items."},
 	{Name: "ESHU_REDUCER_RETRY_DELAY", Type: VarDuration, Default: "30s", Subsystem: "reducer", Description: "Delay between reducer work-item retries."},
 	{Name: "ESHU_REDUCER_WORKERS", Type: VarInt, Subsystem: "reducer", Description: "Concurrent reducer workers (default derived from CPU count and backend)."},
+	{Name: "ESHU_CODE_CALL_PROJECTION_LEASE_OWNER", Type: VarString, Default: "code-call-projection-runner", Subsystem: "reducer", Description: "Prefix for the code-call partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity."},
 	{Name: "ESHU_SHARED_PROJECTION_LEASE_OWNER", Type: VarString, Default: "shared-projection-runner", Subsystem: "reducer", Description: "Prefix for the shared-projection partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity."},
 
 	// projector
