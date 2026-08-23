@@ -50,6 +50,15 @@ case "$FP" in
   */tools/golangci-lint-dirgate/*|*dirgate-grandfather*) SKILL="golang-engineering (dirgate: RECOMPUTE the pin, never side-pick; a count match is not a digest match)";;
   */cmd/eshu/*|*/internal/cli/*)                 SKILL="golang-engineering + eshu-folder-doc-keeper (cobra wrapper vs package split; doc.go/README/AGENTS lockstep)";;
   */doc.go|*/AGENTS.md|*/README.md)              SKILL="eshu-folder-doc-keeper";;
+  # Fallback, and it MUST stay last. Every arm above names a specialist skill
+  # for a specific surface; this one catches the rest of the Go tree, which the
+  # specialist arms miss entirely -- nothing covered go/cmd/ci-gates,
+  # go/cmd/api, go/cmd/reducer, go/cmd/ingester, or go/cmd/bootstrap-index.
+  # Placed any earlier it swallows */doc.go and the surface arms above it,
+  # the same first-match trap that mis-routed security-scan.yml.
+  # Noise cost is one nudge per session, not per edit: the stamp below is keyed
+  # on (session, skill).
+  *.go)                                          SKILL="golang-engineering";;
 esac
 [ -z "$SKILL" ] && exit 0
 

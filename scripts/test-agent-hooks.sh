@@ -81,9 +81,22 @@ nudges '/r/go/internal/reducer/run.go' 'eshu-correlation-truth'
 nudges '/r/go/internal/query/handler.go' 'eshu-mcp-call-rigor'
 nudges '/r/go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
 
-# Unclaimed paths stay quiet: a hook that fires on everything gets ignored.
+# The *.go fallback. Nothing above claims go/cmd/ci-gates, so before the
+# fallback existed these produced no nudge at all.
+nudges '/r/go/cmd/ci-gates/await.go' 'golang-engineering'
+nudges '/r/go/cmd/api/main.go' 'golang-engineering'
+nudges '/r/go/internal/parser/parse.go' 'golang-engineering'
+
+# Placement guard. The fallback must stay BELOW the specialist arms: a *.go arm
+# hoisted above them swallows doc.go and every Go surface arm. Each of these
+# would flip to golang-engineering if someone reorders the case.
+nudges '/r/go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
+nudges '/r/go/internal/telemetry/contract_x.go' 'telemetry-coverage-discipline'
+nudges '/r/go/internal/reducer/project.go' 'eshu-correlation-truth'
+
+# Non-Go unclaimed paths stay quiet: a hook that fires on everything gets ignored.
 silent '/r/README-not-a-package.txt'
-silent '/r/go/internal/parser/parse.go'
+silent '/r/deploy/values.yaml'
 
 # The live-gate guard: blocks a default-port run, allows an explicit override.
 sid=$((sid + 1))

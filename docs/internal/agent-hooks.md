@@ -59,16 +59,50 @@ someone repairs a future mis-route by widening a narrow arm rather than
 ordering it above the broad one. The suite runs in CI as part of
 `verify-agent-hygiene.yml`.
 
-The nudge deliberately stays quiet on ordinary Go files. A hook that fires on
-every edit gets ignored, so only specialist surfaces are mapped.
+The last arm is a `*.go` fallback to `golang-engineering`, and its position is
+part of the contract. The specialist arms above it claim particular surfaces;
+the fallback catches the rest of the Go tree, which nothing else covered —
+`go/cmd/ci-gates`, `go/cmd/api`, `go/cmd/reducer`, `go/cmd/ingester`, and
+`go/cmd/bootstrap-index` all produced no nudge at all before it existed. Hoisted
+above the specialist arms it swallows `doc.go` and every Go surface arm, so
+`test-agent-hooks.sh` pins three paths that flip to `golang-engineering` if
+anyone reorders the case.
+
+The fallback is cheap because the stamp is keyed on `(session, skill)`: one
+nudge per session, not one per edit. Non-Go paths nobody claims stay silent, and
+that stays deliberate — a hook that fires on everything gets ignored.
 
 ## Installing
 
-The hook files and `.claude/settings.json` are committed, so a checkout of a
-branch containing them is already wired. Claude Code reads `settings.json` at
-session start: a session already running when the files arrive will not pick
-them up until it restarts, and it may ask you to approve the new hook commands
-the first time.
+The hook files and `.claude/settings.json` are committed, so once they are on
+`main` any session rooted at the repo picks them up. Two rules decide whether
+they actually load, and both were learned by watching them not load.
+
+**Settings come from the session root, not the working directory.** Claude Code
+reads project settings from the directory the session started in, and expands
+`${CLAUDE_PROJECT_DIR}` to that same directory. A session rooted at the main
+checkout that later moves into a worktree still uses the main checkout's
+settings and hook paths. If the hooks exist only on a branch checked out in that
+worktree, none of them register: the settings file that loaded never mentioned
+them, and the paths it does mention resolve into a tree where they are absent.
+
+That matters for testing an unmerged hook change. Start the session **in the
+worktree** that holds it, not in the main checkout, or the change cannot
+activate no matter how correct it is. It stops mattering after merge, when the
+main checkout has the files.
+
+**Settings are read once, at session start.** A session already running when the
+files arrive will not pick them up, and resuming an existing conversation
+resumes its session rather than starting a new one. Approving the hook
+permission prompt is part of activation; declining it looks exactly like a
+broken hook.
+
+Diagnosing a hook you think should have fired: `skill-nudge.sh` touches
+`/tmp/claude-nudge-<session>-<skill>` **before** it prints. A missing stamp means
+the hook never executed; a stamp with no visible reminder means it ran and the
+output went somewhere you did not look. That distinction is the difference
+between a wiring problem and a logic problem, so check it before editing
+anything.
 
 Nothing here bypasses `scripts/dev/bootstrap-hooks.sh`, which installs the git
 pre-commit and pre-push hooks. The two sets are unrelated: git hooks gate
