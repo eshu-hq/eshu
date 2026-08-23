@@ -256,6 +256,80 @@ func TestEvaluateRequiredChecksTreatsOldGHCancelBucketAsCancelled(t *testing.T) 
 	}
 }
 
+// TestEvaluateRequiredChecksTreatsCancelBucketWithoutCancelledStateAsCancelled
+// covers the other half of the detection. Every other cancellation fixture in
+// this file carries state=CANCELLED, so deleting the bucket check -- the half
+// that survives a gh which renames or drops that field -- left them all green
+// while the README's claim, that a gh upgrade or downgrade on the runner
+// cannot silently restore the overclaim, quietly stopped being true.
+//
+// The state field is left empty rather than set to some other conclusion: the
+// point is a gh that files the row in the "cancel" bucket while reporting a
+// state string this code does not recognise, and an empty state is the
+// clearest way to say that only the bucket carries the signal here.
+func TestEvaluateRequiredChecksTreatsCancelBucketWithoutCancelledStateAsCancelled(t *testing.T) {
+	t.Parallel()
+
+	required := []resolvedRequiredGate{{
+		WorkflowName: "Static Contract Gates",
+		Job:          "Verify docs-refs gate",
+		GateIDs:      []string{"docs-refs"},
+	}}
+	checks := []checkRollup{{
+		Name:     "Verify docs-refs gate",
+		Workflow: "Static Contract Gates",
+		Event:    "pull_request",
+		Bucket:   "cancel",
+		State:    "",
+	}}
+
+	got := evaluateRequiredChecks(required, checks)
+	if len(got.Failed) != 0 {
+		t.Fatalf("a gate bucketed cancel classified as failed: %#v", got.Failed)
+	}
+	if len(got.Pending) != 0 {
+		t.Fatalf("a cancelled gate is terminal and must not be reported pending: %#v", got.Pending)
+	}
+	if len(got.Cancelled) != 1 {
+		t.Fatalf("cancelled = %#v; bucket=cancel alone must be enough to detect a cancellation", got.Cancelled)
+	}
+}
+
+// TestEvaluateRequiredChecksPrefersPendingOverCancelledWithinOneGate pins the
+// precedence inside a single gate, which the two-gate test below cannot see:
+// that one exercises the outer aggregation, where any pending gate keeps the
+// wait alive regardless of what the other gates did.
+//
+// This ordering is defence rather than a property observable through today's
+// reader -- `gh pr checks` de-duplicates by name/workflow/event, the same
+// triple matchingChecks keys on, so a gate resolves to at most one rollup row
+// (see the note on the precedence switch in await.go). Pinning it anyway costs
+// one fixture and stops a silent inversion if that ever stops holding.
+func TestEvaluateRequiredChecksPrefersPendingOverCancelledWithinOneGate(t *testing.T) {
+	t.Parallel()
+
+	required := []resolvedRequiredGate{{
+		WorkflowName: "Build Test",
+		Job:          "go-core",
+		GateIDs:      []string{"go-core"},
+	}}
+	checks := []checkRollup{
+		{Name: "go-core", Workflow: "Build Test", Event: "pull_request", Bucket: "cancel", State: "CANCELLED"},
+		{Name: "go-core", Workflow: "Build Test", Event: "pull_request", Bucket: "pending", State: "IN_PROGRESS"},
+	}
+
+	got := evaluateRequiredChecks(required, checks)
+	if len(got.Failed) != 0 {
+		t.Fatalf("neither leg failed, so nothing may be classified failed: %#v", got.Failed)
+	}
+	if len(got.Pending) != 1 || got.Pending[0].Job != "go-core" {
+		t.Fatalf("pending = %#v; a leg still running may yet go red and must keep the wait alive", got.Pending)
+	}
+	if len(got.Cancelled) != 0 {
+		t.Fatalf("cancelled = %#v; reporting a cancellation while a leg is still in flight understates the head", got.Cancelled)
+	}
+}
+
 // TestEvaluateRequiredChecksKeepsWaitingWhileCancelledAndPendingCoexist keeps
 // the honest verdict reachable. A gate still running may yet go genuinely red,
 // so a cancellation alongside it must not short-circuit the wait -- otherwise

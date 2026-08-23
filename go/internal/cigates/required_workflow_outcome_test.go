@@ -92,3 +92,41 @@ func TestCheckRequiredStatusWorkflows_RequiresCancelledGateArm(t *testing.T) {
 		t.Fatalf("expected a missing cancelled-gate arm error, got %v", errs)
 	}
 }
+
+// TestCheckRequiredStatusWorkflows_RequiresCancelledGateArmToPublishError
+// covers the third way the arm can be wrong: present, not mapped to failure,
+// and still not publishing the one state that keeps the cancellation visible
+// and the merge blocked. The fixture uses `state=success` because that is the
+// worst version of it -- a cancelled dependency waved through as a pass.
+//
+// `state=pending` would exercise the same branch but is a poor fixture here:
+// putting the literal `state=pending` in the terminal step makes the
+// pending-publisher checks latch onto that step, so the fixture also returns
+// "pending status publisher must be unconditional", "pending invalidation must
+// be the publisher job's first step", and "publisher must post pending before
+// await" -- three errors that have nothing to do with the branch under test.
+// `state=success` returns exactly one error, the one this test is about.
+//
+// This is defence in depth rather than the only guard: an arm publishing
+// anything but `error` also reds TestAwaitAllCancelledDependenciesDoNotPublishFailure
+// in cmd/ci-gates, which executes the real workflow's case block. It is here
+// because the two tests above leave this branch of validateCancelledArm the
+// only one nothing exercises.
+func TestCheckRequiredStatusWorkflows_RequiresCancelledGateArmToPublishError(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, "            13) state=error ;;\n", "            13) state=success ;;\n", 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a cancelled-gate arm that publishes neither error nor failure must be rejected")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "must publish state=error") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a cancelled-gate arm state=error error, got %v", errs)
+	}
+}

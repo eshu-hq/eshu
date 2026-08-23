@@ -190,12 +190,28 @@ func evaluateRequiredChecks(required []resolvedRequiredGate, checks []checkRollu
 				gateFailure = check
 			}
 		}
-		// Precedence is failure > pending > cancelled, and the order matters
-		// in both directions (#6189). Failure first: a gate that genuinely
-		// concluded failure must keep blocking even when other legs of the
-		// same gate were cancelled. Pending before cancelled: a leg still
-		// running may yet go red, so reporting "cancelled" while one is in
-		// flight would hide a real failure behind a softer verdict.
+		// Precedence within one gate is failure > pending > cancelled
+		// (#6189).
+		//
+		// Scope, stated honestly: with the reader this command actually has,
+		// `matches` holds at most one row, so no ordering here is observable
+		// today. `gh pr checks` de-duplicates check contexts on
+		// name/workflow/event (read in cli/cli v2.97.0
+		// pkg/cmd/pr/checks/aggregate.go, eliminateDuplicates -- the version
+		// installed here), which is the same triple matchingChecks keys on.
+		// The precedence that decides real verdicts is the one in
+		// awaitPRRequiredChecks, where a non-empty Failed wins over
+		// everything else.
+		//
+		// It is kept, and ordered deliberately, because this repository does
+		// not pin the runner's gh -- the same reason isCancelledCheck below
+		// matches two signals. Failure first: a gate that genuinely concluded
+		// failure must keep blocking even when another leg of the same gate
+		// was cancelled. Pending before cancelled: a leg still running may yet
+		// go red, so reporting "cancelled" while one is in flight would give
+		// the head a softer verdict than it may turn out to deserve.
+		// TestEvaluateRequiredChecksPrefersPendingOverCancelledWithinOneGate
+		// pins that second ordering so it cannot invert unnoticed.
 		switch {
 		case gateFailure != nil:
 			evaluation.Failed = append(evaluation.Failed, findingFor(gate, gateFailure.State))
