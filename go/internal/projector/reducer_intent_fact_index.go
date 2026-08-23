@@ -70,6 +70,12 @@ func (idx *reducerIntentFactIndex) firstOfKind(kind string) (facts.Envelope, boo
 	return idx.inputFacts[positions[0]], true
 }
 
+// FirstOfKind implements intent.FactLookup while the private form keeps
+// existing root family builders unchanged during the staged package move.
+func (idx *reducerIntentFactIndex) FirstOfKind(kind string) (facts.Envelope, bool) {
+	return idx.firstOfKind(kind)
+}
+
 // firstOfKindMatching returns the earliest envelope of the given FactKind,
 // in original order, for which accept returns true. It replaces a
 // single-kind loop that applies an additional payload-derived predicate
@@ -83,6 +89,15 @@ func (idx *reducerIntentFactIndex) firstOfKindMatching(kind string, accept func(
 		}
 	}
 	return facts.Envelope{}, false
+}
+
+// FirstOfKindMatching implements intent.FactLookup while preserving the
+// existing root builder call shape.
+func (idx *reducerIntentFactIndex) FirstOfKindMatching(
+	kind string,
+	accept func(facts.Envelope) bool,
+) (facts.Envelope, bool) {
+	return idx.firstOfKindMatching(kind, accept)
 }
 
 // firstAcrossKinds returns the earliest envelope, in original inputFacts
@@ -127,6 +142,15 @@ func (idx *reducerIntentFactIndex) firstAcrossKinds(accept func(facts.Envelope) 
 	}
 }
 
+// FirstAcrossKinds implements intent.FactLookup and preserves original input
+// order across all candidate kinds.
+func (idx *reducerIntentFactIndex) FirstAcrossKinds(
+	accept func(facts.Envelope) bool,
+	kinds ...string,
+) (facts.Envelope, bool) {
+	return idx.firstAcrossKinds(accept, kinds...)
+}
+
 // firstMatchingKindPredicate returns the earliest envelope, in original
 // order, whose FactKind satisfies kindPredicate AND whose envelope satisfies
 // accept. It is for probes whose trigger kind set is not a small closed
@@ -146,6 +170,15 @@ func (idx *reducerIntentFactIndex) firstMatchingKindPredicate(
 		}
 	}
 	return idx.firstAcrossKinds(accept, kinds...)
+}
+
+// FirstMatchingKindPredicate implements intent.FactLookup for open fact-kind
+// registries while preserving original input order.
+func (idx *reducerIntentFactIndex) FirstMatchingKindPredicate(
+	kindPredicate func(string) bool,
+	accept func(facts.Envelope) bool,
+) (facts.Envelope, bool) {
+	return idx.firstMatchingKindPredicate(kindPredicate, accept)
 }
 
 // documentedReducerIntentProbeCount is the number of distinct

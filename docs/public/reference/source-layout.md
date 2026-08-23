@@ -23,6 +23,7 @@ live in the repository today.
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
+| `go/internal/projector/intent/` | dependency-neutral reducer-intent values and order-preserving fact lookup used by projector family packages |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/recovery/` | replay and repair domain logic |
 | `go/internal/reducer/` | cross-domain reduction and shared projection ownership |

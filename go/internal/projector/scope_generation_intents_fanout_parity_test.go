@@ -248,9 +248,58 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 	},
 }
 
+// fanOutParityExpectedOrder pins the assembly order separately from the
+// per-domain value assertions above. Reducer queue admission preserves this
+// slice order, so a package move must not turn the fan-out into map iteration
+// or otherwise reorder families whose trigger facts coexist.
+var fanOutParityExpectedOrder = []reducer.Domain{
+	reducer.DomainPackageSourceCorrelation,
+	reducer.DomainAWSCloudRuntimeDrift,
+	reducer.DomainMultiCloudRuntimeDrift,
+	reducer.DomainAWSResourceMaterialization,
+	reducer.DomainGCPResourceMaterialization,
+	reducer.DomainGCPRelationshipMaterialization,
+	reducer.DomainAzureResourceMaterialization,
+	reducer.DomainAzureRelationshipMaterialization,
+	reducer.DomainCloudInventoryAdmission,
+	reducer.DomainWorkloadCloudRelationshipMaterialization,
+	reducer.DomainEC2InstanceNodeMaterialization,
+	reducer.DomainAWSRelationshipMaterialization,
+	reducer.DomainAWSCloudImageMaterialization,
+	reducer.DomainObservabilityCoverageMaterialization,
+	reducer.DomainObservabilityCoverageCorrelation,
+	reducer.DomainIncidentRoutingMaterialization,
+	reducer.DomainCodeTaintEvidence,
+	reducer.DomainCodeInterprocEvidence,
+	reducer.DomainCodeFunctionSummary,
+	reducer.DomainIAMCanAssumeMaterialization,
+	reducer.DomainS3LogsToMaterialization,
+	reducer.DomainS3ExternalPrincipalGrantMaterialization,
+	reducer.DomainRDSPostureMaterialization,
+	reducer.DomainEC2InstanceIdentityMaterialization,
+	reducer.DomainEC2UsesProfileMaterialization,
+	reducer.DomainIAMInstanceProfileRoleMaterialization,
+	reducer.DomainEC2InternetExposureMaterialization,
+	reducer.DomainEC2BlockDeviceKMSPostureMaterialization,
+	reducer.DomainS3InternetExposureMaterialization,
+	reducer.DomainContainerImageIdentity,
+	reducer.DomainSBOMAttestationAttachment,
+	reducer.DomainServiceCatalogCorrelation,
+	reducer.DomainSecretsIAMTrustChain,
+	reducer.DomainSupplyChainImpact,
+	reducer.DomainSecurityAlertReconciliation,
+	reducer.DomainKubernetesCorrelation,
+	reducer.DomainKubernetesWorkloadMaterialization,
+	reducer.DomainKubernetesNamespaceMaterialization,
+	reducer.DomainKubernetesCorrelationMaterialization,
+	reducer.DomainSecurityGroupCidrMaterialization,
+	reducer.DomainSecurityGroupRuleMaterialization,
+	reducer.DomainSecurityGroupReachabilityMaterialization,
+}
+
 // TestAppendScopeGenerationReducerIntentsFanOutParity is the #4875 accuracy
 // gate: it proves appendScopeGenerationReducerIntents (and, after the shared
-// reducerIntentFactIndex lands, the 40 build*ReducerIntent probes it fans out
+// reducerIntentFactIndex lands, the 44 build*ReducerIntent probes it fans out
 // to) emits byte-identical intents — same anchor fact, entity key, reason,
 // source system, and payload for every domain — before and after the index
 // refactor. fanOutParityExpectations was captured from the pre-refactor
@@ -263,6 +312,15 @@ func TestAppendScopeGenerationReducerIntentsFanOutParity(t *testing.T) {
 	inputFacts := fanOutParityFixture(scopeValue, generation)
 
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, inputFacts)
+
+	if got, want := len(intents), len(fanOutParityExpectedOrder); got != want {
+		t.Fatalf("ordered intent count = %d, want %d", got, want)
+	}
+	for i, want := range fanOutParityExpectedOrder {
+		if got := intents[i].Domain; got != want {
+			t.Fatalf("ordered intents[%d].Domain = %q, want %q", i, got, want)
+		}
+	}
 
 	byDomain := make(map[reducer.Domain]ReducerIntent, len(intents))
 	for _, intent := range intents {

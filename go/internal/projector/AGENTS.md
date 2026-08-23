@@ -121,6 +121,10 @@
   (`canonical_builder.go:191`).
 - **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
   `EntityKey`, then `FactID` before enqueue. Do not remove this sort.
+- **Intent family dependency direction** — family packages depend on
+  `internal/projector/intent`, never on the root projector package. Root owns
+  the fact index and ordered family assembly, and keeps the public
+  `ReducerIntent` alias for existing callers.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

@@ -244,6 +244,12 @@ candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 exact same "earliest fact in original `inputFacts` order" anchor selection the
 old full scan made — not "earliest fact of the first-checked kind" — so anchor
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
+The root index implements the exported `intent.FactLookup` read port through
+forwarding methods. Family packages can import `internal/projector/intent`
+without importing the root projector package, while existing root builders keep
+using the private helpers until their own move PRs land. `ReducerIntent` in the
+root package is a type alias, so existing writer and command wiring remains
+source-compatible.
 The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
 in `reducer_intent_fact_index.go` pins it, and
 `TestReducerIntentProbeCountMatchesDocumentedCount` parses
@@ -620,8 +626,8 @@ Benchmark Evidence: issue #4875's shared `reducerIntentFactIndex` refactor is
 covered by `BenchmarkAppendScopeGenerationReducerIntentsFanOut`
 (`scope_generation_intents_fanout_bench_test.go`), which runs
 `appendScopeGenerationReducerIntents` against a representative multi-domain
-fixture (`fanOutParityFixture`, spanning all 38 `build*ReducerIntent` domains)
-padded to 5,005 total facts with source-code-domain decoy kinds none of the 38
+fixture (`fanOutParityFixture`, spanning 42 emitted domains across all 44 probes)
+padded to 5,005 total facts with source-code-domain decoy kinds none of the 44
 probes match — the dominant real shape the issue describes: a source-heavy
 generation where most cloud/k8s/supply-chain probes scan the whole generation
 and find nothing. `go test ./internal/projector/... -run '^$' -bench
@@ -647,9 +653,9 @@ no `append`-growth waste), which is expected and bounded by generation size,
 not by the number of probes. `TestAppendScopeGenerationReducerIntentsFanOutParity`
 (`scope_generation_intents_fanout_parity_test.go`) is the accuracy half of this
 proof: it pins the exact anchor `FactID`, `EntityKey`, `Reason`, `SourceSystem`,
-and `Payload` every one of the 38 domains emits for the same fixture, captured
-from the pre-refactor full-scan implementation, and must still pass unchanged —
-a `0/0` symmetric diff of emitted intents old-vs-new.
+and `Payload` every one of the 42 emitted domains produces for the same fixture,
+captured from the pre-refactor full-scan implementation, and must still pass
+unchanged — a `0/0` symmetric diff of emitted intents old-vs-new.
 
 No-Observability-Change: this refactor changes only how
 `appendScopeGenerationReducerIntents` looks up trigger facts internally, not

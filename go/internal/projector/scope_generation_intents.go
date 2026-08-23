@@ -18,7 +18,7 @@ import (
 //
 // It builds one shared reducerIntentFactIndex over inputFacts and passes it to
 // every builder below instead of the raw slice (issue #4875): inputFacts is
-// immutable once a scope generation is claimed for projection, so the 38
+// immutable once a scope generation is claimed for projection, so the 44
 // builders that used to each independently re-scan the full slice can safely
 // share one read-only, pre-grouped index built in a single O(N) pass.
 func appendScopeGenerationReducerIntents(
