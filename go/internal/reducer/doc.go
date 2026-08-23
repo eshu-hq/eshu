@@ -8,8 +8,9 @@
 // handler types plus the domain constant catalog. This package re-exports that
 // surface and retains registry composition, runtime execution, queue behavior,
 // adapters, and telemetry.
-// ParseDomain continues to accept reducer intent domains only; shared-projection
-// constants remain runner names and are not admitted into the durable queue.
+// ParseDomain accepts the known reducer validation identifiers, including the
+// three reserved non-registrable identifiers. Shared-projection constants
+// remain runner names and are not admitted into the durable queue.
 //
 // Reducer handlers admit candidates from committed facts, build canonical graph
 // rows or reducer fact rows, publish graph-readiness phases, and preserve

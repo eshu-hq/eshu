@@ -163,7 +163,8 @@ func (i Intent) Validate() error {
 	return nil
 }
 
-// Clone returns a replay-safe copy of the intent.
+// Clone detaches the intent's slices, top-level payload map, timestamps, and
+// failure record. Values nested inside Payload remain shared.
 func (i Intent) Clone() Intent {
 	cloned := i
 	cloned.EntityKeys = slices.Clone(i.EntityKeys)

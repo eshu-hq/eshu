@@ -35,8 +35,9 @@ spans, counters, and structured logs around contract handlers.
 
 - `KnownDomains` contains 69 validation identifiers. Three are reserved and
   non-registrable, leaving 66 production-registrable domains.
-- `Intent.Clone` preserves replay isolation for slices, payload maps, timestamps,
-  and failure records.
+- `Intent.Clone` detaches slices, the top-level payload map, timestamps, and the
+  failure record. Values nested inside the payload remain shared and must be
+  treated as immutable.
 - A valid ownership shape is cross-source and cross-scope and declares either a
   canonical write or bounded counter emission.
 - The parent package aliases these types; changing a field or method changes the

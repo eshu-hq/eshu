@@ -7,6 +7,7 @@
 // ownership, and handler contracts without importing the parent reducer
 // package. The parent package aliases this surface for compatibility and
 // retains registry assembly, runtime execution, queue behavior, and backend
-// wiring. ParseDomain accepts reducer intent domains only; shared-projection
-// constants remain names for their dedicated runners.
+// wiring. ParseDomain accepts the known validation identifiers, including the
+// three reserved non-registrable identifiers; shared-projection constants
+// remain names for their dedicated runners.
 package contract
