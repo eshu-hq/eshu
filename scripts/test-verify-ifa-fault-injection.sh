@@ -296,7 +296,11 @@ require_code "wall time in summary" "wall=%ss"
 require_lib "once-script function signature" 'ifa_fault_write_once_script() {'
 require_lib "restart-script function signature" 'ifa_fault_write_restart_script() {'
 require_lib "claimed-wait function signature" 'ifa_fault_wait_for_claimed() {'
-require_lib "claimed-wait uses one server-side polling connection" 'pg_temp.ifa_wait_for_claimed'
+# Bind the SELECT that RUNS it, not the name: the CREATE OR REPLACE FUNCTION
+# above carries the same name, so replacing the call with `SELECT 1;` left the
+# pin green with the claimed-wait never executing -- the cell then races the
+# fault against the claim it is supposed to wait for (#6161).
+require_lib "claimed-wait uses one server-side polling connection" 'SELECT pg_temp.ifa_wait_for_claimed(${budget});'
 require_lib "claimed-wait validates the SQL budget" 'budget must be a positive integer'
 require_lib "sentinel-watch function signature" 'ifa_fault_watch_restart_sentinel() {'
 require_lib "dead-letter-count function signature" 'ifa_fault_dead_letter_count() {'

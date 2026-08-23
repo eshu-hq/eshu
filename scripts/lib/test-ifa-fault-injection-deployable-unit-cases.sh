@@ -408,7 +408,9 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# later) is covered without editing this file.
 	run_ifa_fault_injection_atomic_group_ordering_cases "${script}"
 	require_deployable_unit_cells "baseline cell captures digests[baseline_deployable_unit]" "capture_digest baseline_deployable_unit"
-	require_deployable_unit_cells "baseline cell captures the retry baseline" "baseline_deployable_unit_retried="
+	# Same defect as cell 1's baseline: the :-0 default line matched the bare
+	# needle, so the real count could vanish and leave the retry proof vacuous.
+	require_deployable_unit_cells "baseline cell captures the retry baseline" 'baseline_deployable_unit_retried="$(ifa_fault_count_retried'
 	require_deployable_unit_cells "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_assert_empty_before_maintenance"
 	require_deployable_unit_cells "maintenance pass invocation" "ifa_deployable_unit_live_run_maintenance_pass"
 	require_deployable_unit_cells "kill cell scopes the claimed-row wait to deployable_unit_correlation" '"deployable_unit_correlation")"'

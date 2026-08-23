@@ -37,7 +37,10 @@ run_ifa_fault_injection_cell_pins_cases() {
 	require_delivery_cells_multiline "delta-retract drives gen 2 through the shared helper" $'ifa_det_run_sql_delta_live \\\n\t\t1 "${bin_dir}" "${sql_delta_cassette}"'
 
 	require_delivery_cells_multiline "delta-retract reasserts the unaffected code-call family exactly" $'ifa_code_call_assert "deltaretract" "${bin_dir}" "${code_call_expected_edges}"'
-	require_delivery_cells "delta-retract compares collateral graph truth outside exactly asserted families" 'ifa_fault_compare_collateral_edges'
+	# Bind the CALL, not the name: the function's own definition satisfied the old
+	# needle, so the sole call site could be replaced with `true` and the
+	# collateral-edge comparison silently stopped running (#6161).
+	require_delivery_cells_multiline "delta-retract compares collateral graph truth outside exactly asserted families" $'ifa_fault_compare_collateral_edges \\\n\t\t"${work_dir}/graph-baseline.dump"'
 	require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
 	require_delivery_cells "delta-retract collateral success names every exact family" "outside exact SQL/code-call/rationale assertions"
 	require_catalog "delta-retract overview names the combined generation-2 drive" "generation-2 SQL and rationale cassettes"
@@ -80,7 +83,11 @@ run_ifa_fault_injection_cell_pins_cases() {
 	require_cells "queue-retry lane selected" '"queue-retry"'
 	require_cells "ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script}"
 	require_cells "non-vacuity retry check for cell 4 (baseline differential)" "ifa_fault_assert_retried_above"
-	require_cells "fault-free baseline retry snapshot in cell 1" "baseline_retried="
+	# Bind the assignment FROM THE COUNTER. The `${baseline_retried:-0}` default on
+	# the next line matched the old needle too, so the real count could be renamed
+	# away, leaving the baseline at 0 and the later `-gt baseline` retry proof
+	# vacuously true (#6161).
+	require_cells "fault-free baseline retry snapshot in cell 1" 'baseline_retried="$(ifa_fault_count_retried'
 	require_lib "durable retry-signal query" "SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1"
 	require_lib "baseline-differential assert helper" "ifa_fault_assert_retried_above"
 	# Anchored on the emitted `"kind":` line, not the bare string. Both kind names
