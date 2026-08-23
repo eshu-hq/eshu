@@ -43,11 +43,20 @@ const (
 
 // TruthFreshness carries the freshness state and a proven cause when known.
 type TruthFreshness struct {
-	State      FreshnessState      `json:"state"`
-	ObservedAt string              `json:"observed_at,omitempty"`
-	Detail     string              `json:"detail,omitempty"`
-	Cause      FreshnessCause      `json:"cause,omitempty"`
-	NextCheck  *FreshnessNextCheck `json:"next_check,omitempty"`
+	State      FreshnessState `json:"state"`
+	ObservedAt string         `json:"observed_at,omitempty"`
+	Detail     string         `json:"detail,omitempty"`
+	// Cause names WHY the answer is not fresh, drawn from the closed
+	// FreshnessCause enumeration. It is set only when a handler holds the
+	// evidence for the cause (for example a readiness verdict or a
+	// generation-pending signal) and is left empty otherwise; handlers MUST NOT
+	// guess. Causality is not correctness: a cause explains a known lag, it does
+	// not imply the answer is wrong. Attach it through WithFreshnessCause.
+	Cause FreshnessCause `json:"cause,omitempty"`
+	// NextCheck is the bounded follow-up call that drills into Cause (a status,
+	// generation, coverage, citation, or queue surface). It is populated
+	// alongside Cause by WithFreshnessCause and nil when no cause is set.
+	NextCheck *FreshnessNextCheck `json:"next_check,omitempty"`
 }
 
 // TruthEnvelope carries query capability, evidence, and freshness metadata.
@@ -150,7 +159,7 @@ func BuildTruthEnvelope(profile QueryProfile, capability string, basis TruthBasi
 	maxLevel := maxTruthLevel(capability, profile)
 	level := basisLevel(basis)
 	if maxLevel != nil {
-		level = minTruthLevel(level, *maxLevel)
+		level = MinTruthLevel(level, *maxLevel)
 	}
 	return &TruthEnvelope{
 		Level:      level,
@@ -173,7 +182,9 @@ func basisLevel(basis TruthBasis) TruthLevel {
 	}
 }
 
-func minTruthLevel(a, b TruthLevel) TruthLevel {
+// MinTruthLevel returns the lower-authority truth level. An unrecognized value
+// ranks below the closed known vocabulary so callers cannot overstate truth.
+func MinTruthLevel(a, b TruthLevel) TruthLevel {
 	rank := map[TruthLevel]int{TruthLevelExact: 3, TruthLevelDerived: 2, TruthLevelFallback: 1}
 	if rank[a] <= rank[b] {
 		return a

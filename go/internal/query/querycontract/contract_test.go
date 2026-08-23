@@ -138,6 +138,30 @@ func TestCapabilityRegistrationsRejectsInvalidCanonicalOrder(t *testing.T) {
 	}
 }
 
+func TestMinTruthLevelReturnsLowerRank(t *testing.T) {
+	tests := []struct {
+		name string
+		a    TruthLevel
+		b    TruthLevel
+		want TruthLevel
+	}{
+		{name: "exact exact", a: TruthLevelExact, b: TruthLevelExact, want: TruthLevelExact},
+		{name: "exact derived", a: TruthLevelExact, b: TruthLevelDerived, want: TruthLevelDerived},
+		{name: "derived exact", a: TruthLevelDerived, b: TruthLevelExact, want: TruthLevelDerived},
+		{name: "derived fallback", a: TruthLevelDerived, b: TruthLevelFallback, want: TruthLevelFallback},
+		{name: "fallback derived", a: TruthLevelFallback, b: TruthLevelDerived, want: TruthLevelFallback},
+		{name: "unknown is conservative", a: TruthLevelExact, b: TruthLevel("unknown"), want: TruthLevel("unknown")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := MinTruthLevel(tt.a, tt.b); got != tt.want {
+				t.Fatalf("MinTruthLevel(%q, %q) = %q, want %q", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
 func isolateCapabilityRegistry(t *testing.T) {
 	t.Helper()
 	originalRegistry := capabilityRegistry

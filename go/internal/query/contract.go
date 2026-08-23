@@ -112,11 +112,7 @@ func requiredProfile(capability string) QueryProfile {
 }
 
 func minTruthLevel(a, b TruthLevel) TruthLevel {
-	rank := map[TruthLevel]int{TruthLevelExact: 3, TruthLevelDerived: 2, TruthLevelFallback: 1}
-	if rank[a] <= rank[b] {
-		return a
-	}
-	return b
+	return querycontract.MinTruthLevel(a, b)
 }
 
 // BuildTruthEnvelope builds truth metadata from the capability ceiling.
