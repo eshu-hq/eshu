@@ -423,6 +423,20 @@ require_generic_cells() {
 # edge set. The expected count is hand-written by the caller and deliberately NOT
 # derived from the file under test -- a count read out of the artifact it checks
 # proves only that the artifact equals itself.
+# require_documentation_barrier_count is the exact-count form of
+# require_documentation_barrier. The ACK-barrier lock-identity predicates
+# ("NOT barrier.granted", the two-key objsubid, the per-database bindings) each
+# appear in THREE OR FOUR sibling pg_locks queries, and an -ge 1 pin is satisfied
+# by any one survivor: dropping "NOT barrier.granted" from a single query widened
+# it from ungranted-waiters to all locks and the mirror stayed green (#6161).
+# Each of those predicates narrows the join to the exact lock under test, so
+# losing one from one query is a correctness break in a concurrency proof.
+require_documentation_barrier_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_count_code_matches "${needle}" "${documentation_barrier_lib}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected this predicate in ${want} barrier quer(y/ies) in ${documentation_barrier_lib##*/}, found ${got} -- a predicate dropped from one query silently widens it: ${needle}"
+}
 require_generic_cells_count() {
 	local label="$1" needle="$2" want="$3" got
 	got="$(_ifa_count_code_matches "${needle}" "${generic_cells_lib}")"

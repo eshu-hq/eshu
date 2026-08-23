@@ -109,10 +109,10 @@ run_ifa_documentation_live_static_cases() {
 	rg -U --pcre2 --quiet -- 'ifa_documentation_start_ack_holder[^\n]*\|\| return \$\?[\s\S]*ifa_documentation_install_ack_barrier' "${documentation_barrier_setup_lib}" \
 		|| fail "documentation ACK startup does not short-circuit before installer DDL when holder acquisition fails"
 	require_documentation_cells "documentation kill cell proves the ACK connection is blocked" "ifa_documentation_wait_for_blocked_ack"
-	require_documentation_barrier "documentation ACK proof inspects an ungranted advisory lock" "NOT barrier.granted"
-	require_documentation_barrier "documentation ACK proof verifies the exact two-key lock kind" "barrier.objsubid = 2"
-	require_documentation_barrier "documentation ACK proof binds the waiter lock to this database" "barrier.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())"
-	require_documentation_barrier "documentation ACK proof binds the holder lock to this database" "held.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())"
+	require_documentation_barrier_count "documentation ACK proof inspects an ungranted advisory lock" "NOT barrier.granted" 3
+	require_documentation_barrier_count "documentation ACK proof verifies the exact two-key lock kind" "barrier.objsubid = 2" 3
+	require_documentation_barrier_count "documentation ACK proof binds the waiter lock to this database" "barrier.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())" 3
+	require_documentation_barrier_count "documentation ACK proof binds the holder lock to this database" "held.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())" 4
 	require_documentation_barrier "documentation ACK proof verifies its blocker PID" "pg_catalog.pg_blocking_pids(waiter.pid)"
 	require_documentation_cells "documentation kill cell terminates the exact blocked ACK backend" "ifa_documentation_terminate_blocked_ack"
 	require_documentation_cells "documentation kill cell proves the waiter and lock are gone" "ifa_documentation_wait_for_ack_backend_gone"
