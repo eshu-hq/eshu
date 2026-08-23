@@ -8,6 +8,7 @@ import "fmt"
 // TruthLevel describes how directly evidence supports an answer.
 type TruthLevel string
 
+// Truth levels form the ordered evidence-authority scale.
 const (
 	// TruthLevelExact means authoritative evidence directly supports the answer.
 	TruthLevelExact    TruthLevel = "exact"
@@ -18,6 +19,7 @@ const (
 // TruthBasis names the evidence source used to produce an answer.
 type TruthBasis string
 
+// Truth bases identify the evidence source used for an answer.
 const (
 	// TruthBasisAuthoritativeGraph identifies canonical graph evidence.
 	TruthBasisAuthoritativeGraph TruthBasis = "authoritative_graph"
@@ -30,6 +32,7 @@ const (
 // FreshnessState reports whether the evidence is current and available.
 type FreshnessState string
 
+// Freshness states describe current evidence availability.
 const (
 	// FreshnessFresh means the served evidence is current.
 	FreshnessFresh       FreshnessState = "fresh"
@@ -67,6 +70,7 @@ type ErrorProfiles struct {
 // ErrorCode is a stable machine-readable query error code.
 type ErrorCode string
 
+// Error codes form the stable machine-readable query error vocabulary.
 const (
 	// ErrorCodeUnsupportedCapability reports a profile-incompatible capability.
 	ErrorCodeUnsupportedCapability        ErrorCode = "unsupported_capability"
@@ -107,6 +111,7 @@ type ResponseEnvelope struct {
 // AnswerTruthClass is the prompt-facing classification of answer truth.
 type AnswerTruthClass string
 
+// Answer truth classes form the prompt-facing truth vocabulary.
 const (
 	// AnswerTruthDeterministic identifies exact deterministic truth.
 	AnswerTruthDeterministic       AnswerTruthClass = "deterministic"

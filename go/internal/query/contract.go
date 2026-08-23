@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// Root contract identifiers preserve the stable envelope and playbook names.
 const (
 	// EnvelopeMIMEType selects the stable Eshu response envelope.
 	EnvelopeMIMEType = querycontract.EnvelopeMIMEType

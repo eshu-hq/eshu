@@ -11,6 +11,7 @@ import (
 // QueryProfile names one supported query runtime profile.
 type QueryProfile string
 
+// Query profiles define the supported runtime evidence tiers.
 const (
 	// ProfileLocalLightweight serves bounded content-backed local reads.
 	ProfileLocalLightweight   QueryProfile = "local_lightweight"
@@ -22,6 +23,7 @@ const (
 // GraphBackend names one supported graph adapter.
 type GraphBackend string
 
+// Graph backends define the supported canonical and compatibility adapters.
 const (
 	// GraphBackendNeo4j selects the Neo4j compatibility adapter.
 	GraphBackendNeo4j    GraphBackend = "neo4j"

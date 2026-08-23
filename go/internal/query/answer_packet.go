@@ -20,8 +20,8 @@ import (
 // mapping is documented in docs/public/reference/answer-packets.md.
 type AnswerTruthClass = querycontract.AnswerTruthClass
 
+// Answer truth-class aliases preserve the root package's wire values.
 const (
-	// Answer truth-class aliases preserve the root package's wire values.
 	AnswerTruthDeterministic       = querycontract.AnswerTruthDeterministic
 	AnswerTruthDerived             = querycontract.AnswerTruthDerived
 	AnswerTruthFallback            = querycontract.AnswerTruthFallback

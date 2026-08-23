@@ -6,6 +6,7 @@ package querycontract
 // FreshnessCause is the closed reason a truth response is not fresh.
 type FreshnessCause string
 
+// Freshness causes form the closed reason vocabulary for non-fresh truth.
 const (
 	// FreshnessCausePendingRepoGeneration identifies an incomplete repository generation.
 	FreshnessCausePendingRepoGeneration      FreshnessCause = "pending_repo_generation"
