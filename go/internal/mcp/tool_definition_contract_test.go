@@ -33,6 +33,8 @@ func TestToolDefinitionAliasPreservesNeutralContractIdentity(t *testing.T) {
 func TestReadOnlyToolsRegistrationOrderContract(t *testing.T) {
 	const wantHash = "8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b"
 
+	// This hash covers names and registration order only. B-7 and the MCP
+	// schema-drift gate protect tool descriptions and input schemas.
 	hash := sha256.New()
 	tools := ReadOnlyTools()
 	for _, tool := range tools {
