@@ -27,7 +27,9 @@ type OwnershipShape struct {
 	CounterEmit bool
 }
 
-// Validate checks that the ownership shape matches the reducer boundary.
+// Validate checks that the ownership shape matches the reducer boundary: a
+// valid reducer domain is cross-source, cross-scope, and produces canonical
+// truth via at least one of CanonicalWrite or CounterEmit.
 func (o OwnershipShape) Validate() error {
 	if !o.CrossSource {
 		return errors.New("reducers must be cross-source")
@@ -41,7 +43,11 @@ func (o OwnershipShape) Validate() error {
 	return nil
 }
 
-// CrossScopeDependency declares canonical producer domains read across scopes.
+// CrossScopeDependency declares canonical producer domains a consumer reads
+// across scopes. This is convergence ordering, not an admission gate: each
+// successful producer ACK re-schedules the consumer. An empty or unregistered
+// declaration is a registration-time error, not a silent no-op, so a catalog
+// typo fails the build rather than disabling completion-driven replay.
 type CrossScopeDependency struct {
 	// ProducerDomains are the reducer domains whose canonical output this
 	// consumer reads across scopes.
