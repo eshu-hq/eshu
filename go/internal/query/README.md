@@ -840,8 +840,9 @@ proof is recorded in `evidence-5419-codeowners-nornicdb-pagination.md`.
 
 The package exports four groups of contracts:
 
-- Ports and adapters: `GraphQuery`, `ContentStore`, `Neo4jReader`,
-  `ContentReader`, metrics sources, and route-specific stores such as
+- Ports and adapters: root aliases for querycontract's `GraphQuery` and
+  `ContentStore`, plus `Neo4jReader`, `ContentReader`, metrics sources, and
+  route-specific stores such as
   supply-chain readiness, advisory evidence, IaC reachability, freshness, and
   metrics time-series ports.
 - Handler structs: `APIRouter` plus route owners including repository, entity,
@@ -849,13 +850,14 @@ The package exports four groups of contracts:
   documentation, semantic-evidence, supply-chain, incident, work-item,
   codeowners-ownership, freshness, status, metrics, compare, and admin
   handlers.
-- Response contracts: `ResponseEnvelope`, `TruthEnvelope`, `ErrorEnvelope`,
-  `AnswerPacket`, query playbooks, investigation workflows, visualization
+- Response contracts: root aliases for querycontract's `ResponseEnvelope`,
+  `TruthEnvelope`, `ErrorEnvelope`, `AnswerPacket`, query playbooks,
+  investigation workflows, visualization
   packets, and the typed constants that describe truth level, freshness,
   profile, backend, and errors.
-- Helpers: uniform response writers, JSON/path/query parsers, bearer-token
-  middleware, truth-envelope builders, OpenAPI assembly, and graph row
-  extraction helpers.
+- Helpers: compatibility wrappers over querycontract's response writers,
+  JSON/path/query parsers and truth-envelope builder, plus bearer-token
+  middleware, OpenAPI assembly, and graph row extraction helpers.
 
 See `doc.go` for the godoc contract, `read-models.md` for route-specific
 read-model bounds, and public reference docs for long-lived API/MCP wire
@@ -864,6 +866,8 @@ scoped `AGENTS.md` entry instead of expanding this index.
 
 ## Dependencies
 
+- `internal/query/querycontract` — dependency-neutral profiles, envelopes,
+  capability registry, HTTP helpers, ports, and port model types
 - `internal/buildinfo` — `AppVersion()` embedded in the OpenAPI spec
 - `internal/contentrefs` — content reference utilities used in content query paths
 - `internal/correlation/cloudinventory` — `ResolveProviderIdentity`, used by

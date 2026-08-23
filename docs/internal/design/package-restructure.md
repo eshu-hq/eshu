@@ -254,9 +254,8 @@ first. Then clean families first: supplychain(~183), code(~172),
 contentread(42), packagereg(32).
 Tangled families (impact ← repository/service/deployment_trace call its
 unexported helpers) need the helper seam exported before their move. Root
-keeps: APIRouter/Mount + `Write*` helpers, ports.go interfaces, contract.go
-envelopes, the capabilityMatrix init() registry (all 40 `contract_*` files
-until it gets an exported registration API), openapi.go assembly + the 101
+keeps: APIRouter/Mount, compatibility aliases and `Write*` wrappers,
+capability rows in the existing `contract_*` files, openapi.go assembly + the 101
 `openapi_paths_*` constants, and the two cross-cutting test sweeps
 (auth_scoped_routes 41 files, graph_read_error 17).
 
@@ -287,7 +286,7 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 
 | Package | Root reaches into the family | Family needs from root |
 |---|---|---|
-| query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `GraphQuery`, `ContentStore` (`ports.go:15,21`), `QueryProfile` (`contract.go:21`, used at `supply_chain.go:64,122`), the envelopes, the `Write*` helpers |
+| query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `querycontract.GraphQuery`, `ContentStore`, profiles, envelopes, HTTP helpers, and family-local capability registration |
 | reducer | 48 `.Handler = <Family>Handler{}` construction sites across 10 of the 11 `defaults_additive_domains*.go` wiring files — e.g. `defaults_additive_domains_correlation.go:66-67`, which calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `Intent`, `Result` and the `Handler` interface (`container_image_identity.go:52,73`) |
 | projector | `scope_generation_intents.go` has 44 `build*ReducerIntent` call sites, defined across 41 family files | `ReducerIntent` (`runtime.go:50`) |
 | mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |

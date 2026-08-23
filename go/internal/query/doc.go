@@ -14,7 +14,10 @@
 // backend, and retries at most once only for a typed retryable connectivity
 // failure. Parent cancellation attribution remains unchanged, while graph
 // deadline and availability responses stay sanitized. The static capabilities
-// route exposes the embedded capability catalog,
+// contracts themselves live in the dependency-neutral querycontract child
+// package; root aliases and wrappers preserve the public Go surface while
+// allowing family packages to import those contracts without an import cycle.
+// The static capabilities route exposes the embedded capability catalog,
 // including built-in roles, grants, data classes, and per-capability
 // authorization metadata, so API and MCP callers see the same grant contract;
 // profile rows include the capability matrix's p95 latency and max-scope

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // serviceEvidenceReader is the content-store surface service evidence
@@ -198,22 +200,8 @@ type ServiceAPIEndpointEvidence struct {
 	OperationIDs []string `json:"operation_ids,omitempty"`
 }
 
-// FrameworkRouteEvidence captures routes detected by parser framework_semantics
-// from fact_records.
-type FrameworkRouteEvidence struct {
-	Framework    string                        `json:"framework"`
-	RelativePath string                        `json:"relative_path"`
-	RoutePaths   []string                      `json:"route_paths"`
-	RouteMethods []string                      `json:"route_methods"`
-	RouteEntries []FrameworkRouteEntryEvidence `json:"route_entries,omitempty"`
-}
+// FrameworkRouteEvidence captures one framework route's handler evidence.
+type FrameworkRouteEvidence = querycontract.FrameworkRouteEvidence
 
-// FrameworkRouteEntryEvidence preserves one parser-observed route declaration.
-// Handler is the route's handler function symbol when the parser observed an
-// exact binding; it is omitted for inline or middleware-wrapped routes whose
-// handler is ambiguous (#2721).
-type FrameworkRouteEntryEvidence struct {
-	Method  string `json:"method"`
-	Path    string `json:"path"`
-	Handler string `json:"handler,omitempty"`
-}
+// FrameworkRouteEntryEvidence captures one route entrypoint binding.
+type FrameworkRouteEntryEvidence = querycontract.FrameworkRouteEntryEvidence

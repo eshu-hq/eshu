@@ -2,16 +2,12 @@
 
 ## Read first
 
-1. `go/internal/query/contract.go` — `QueryProfile`, `GraphBackend`,
-   `TruthLevel`, `TruthBasis`, `capabilityMatrix`, `BuildTruthEnvelope`, and the
-   profile-gate helpers; every handler that returns truth metadata must understand
-   this file.
-2. `go/internal/query/handler.go` — `APIRouter`, `APIRouter.Mount`, and the four
-   response-writing helpers (`WriteJSON`, `WriteError`, `WriteSuccess`,
-   `WriteContractError`); these are the shared conventions every handler uses.
-3. `go/internal/query/ports.go` — `GraphQuery` and `ContentStore` interface
-   definitions; understand the contract before touching any handler that reads
-   from the graph or content store.
+1. `go/internal/query/querycontract/` — profiles, envelopes, capability
+   registration, HTTP helpers, read ports, and their content-model closure.
+2. `go/internal/query/contract.go`, `handler.go`, and `ports.go` — compatibility
+   aliases and wrappers plus `APIRouter`; existing callers keep the root API.
+3. `go/internal/query/querycontract/capability.go` and the root `contract_*`
+   files — family registration and the canonical 139-capability order.
 4. `go/internal/query/openapi.go` and the `openapi_paths_*.go` files — how the
    OpenAPI spec is assembled; any new or changed route must update the matching
    fragment.
@@ -27,15 +23,13 @@
 - **Capability gate before any read** — handlers call the unexported
   `capabilityUnsupported` helper before touching `GraphQuery` or
   `ContentStore`. A nil max-truth means the capability is blocked at the
-  current profile. `capabilityUnsupported` consults the `capabilityMatrix` map
-  in `contract.go:134` which stores `TruthLevelExact` and `TruthLevelDerived`
-  ceiling values per profile. On failure, handlers call `WriteContractError`
-  (`handler.go:40`).
+  current profile. The helper delegates to querycontract's registry, whose live
+  compatibility view remains `capabilityMatrix`. On failure, handlers call
+  `WriteContractError`.
 
 - **`BuildTruthEnvelope` panics on unknown capability** — every capability
-  string passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
-  (`contract.go:547`). Add the capability to the map before the handler is
-  callable.
+  string passed to `BuildTruthEnvelope` must be registered through
+  querycontract or the compatibility matrix before the handler is callable.
 
 - **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or
   `*sql.DB` directly. All graph reads go through `GraphQuery`, content reads go

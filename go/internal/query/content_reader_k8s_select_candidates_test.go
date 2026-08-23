@@ -70,8 +70,8 @@ func TestContentReaderListRepoK8sSelectCandidatesScansTriState(t *testing.T) {
 
 	// matchInput mirrors k8sSelectMatchInputFromEntity for the equivalent row:
 	// svc-1 SELECTS dep-1 by selector subset, strictly namespace-scoped.
-	target := newK8sWorkloadMatchTarget(dep1.matchInput())
-	matched, reason, _ := target.Match(svc1.matchInput())
+	target := newK8sWorkloadMatchTarget(k8sSelectMatchInputFromCandidate(dep1))
+	matched, reason, _ := target.Match(k8sSelectMatchInputFromCandidate(svc1))
 	if !matched || reason != k8sSelectReasonSelectorMatch {
 		t.Fatalf("svc-1 -> dep-1 match = (%v, %q), want (true, %q)", matched, reason, k8sSelectReasonSelectorMatch)
 	}

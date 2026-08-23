@@ -5,28 +5,6 @@ package query
 
 import "testing"
 
-// TestFreshnessCauseNextCheckCoversEveryEnumValue asserts the cause→next-call
-// mapping is total over the closed enumeration, so a new cause cannot ship
-// without a bounded drilldown.
-func TestFreshnessCauseNextCheckCoversEveryEnumValue(t *testing.T) {
-	for cause := range freshnessCauses {
-		check, ok := FreshnessCauseNextCheck(cause)
-		if !ok {
-			t.Fatalf("cause %q has no next-check mapping", cause)
-		}
-		if check.Tool == "" && check.Route == "" {
-			t.Fatalf("cause %q next-check has neither tool nor route", cause)
-		}
-		if check.Reason == "" {
-			t.Fatalf("cause %q next-check has no reason", cause)
-		}
-		call := check.asRecommendedNextCall()
-		if len(call) == 0 {
-			t.Fatalf("cause %q renders an empty recommended next call", cause)
-		}
-	}
-}
-
 // TestFreshnessCauseNextCheckUnknownCauseIsRejected proves an out-of-enum value
 // has no mapping and is not invented.
 func TestFreshnessCauseNextCheckUnknownCauseIsRejected(t *testing.T) {

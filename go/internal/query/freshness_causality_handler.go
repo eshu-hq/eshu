@@ -69,7 +69,7 @@ func freshnessCausesToSlice(causes []FreshnessCauseStatus) []map[string]any {
 			"observed":      c.Observed,
 			"observability": c.Observability,
 			"detail":        c.Detail,
-			"next_check":    c.NextCheck.asRecommendedNextCall(),
+			"next_check":    freshnessNextCheckAsRecommendedCall(c.NextCheck),
 		})
 	}
 	return result
