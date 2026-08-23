@@ -20,11 +20,29 @@ import (
 //     Local.TestCommand, when present) exists on disk relative to repoRoot.
 //   - For gates with CI.Workflow set: the workflow file exists under
 //     .github/workflows/ relative to repoRoot.
+//   - Every gate trigger names something real: a literal trigger is stat-checked
+//     (#6055), a glob trigger must select at least one tracked path (#6159).
 //
 // CI-only gates (Local==nil) skip the script check but still require the
 // workflow file to be present.
 func (r *Registry) Validate(repoRoot string) []error {
 	errs := r.ValidateRequiredStatusChecks()
+	// Enumerated once for the whole registry, not once per gate or per
+	// trigger: ~500 glob triggers resolve against the same ~22k-path universe.
+	// A failure here is reported once and leaves tracked nil, which suppresses
+	// the per-trigger glob checks that could no longer be trusted — the run
+	// still fails, on the enumeration error rather than on 500 derived ones.
+	var tracked *trackedPaths
+	if r.hasGlobTrigger() {
+		loaded, err := loadTrackedPaths(repoRoot)
+		if err != nil {
+			errs = append(errs, fmt.Errorf(
+				"registry glob triggers cannot be verified: %w — an unverifiable trigger must not read as present",
+				err,
+			))
+		}
+		tracked = loaded
+	}
 	for _, g := range r.Gates {
 		if g.Local != nil {
 			if err := checkScript(repoRoot, g.ID, g.Local.Command); err != nil {
@@ -42,7 +60,7 @@ func (r *Registry) Validate(repoRoot string) []error {
 				errs = append(errs, fmt.Errorf("gate %q: workflow file %q not found", g.ID, wfPath))
 			}
 		}
-		errs = append(errs, checkTriggerPathsExist(repoRoot, g)...)
+		errs = append(errs, checkTriggerPathsExist(repoRoot, g, tracked)...)
 	}
 	for _, check := range r.RequiredStatusChecks {
 		if check.Workflow == "" {
@@ -60,9 +78,8 @@ func (r *Registry) Validate(repoRoot string) []error {
 	return errs
 }
 
-// checkTriggerPathsExist validates that every LITERAL (non-glob, see
-// isLiteralTrigger in pathfilter.go) registry trigger of gate g resolves to
-// a real file or directory at repoRoot (#6055). A trigger activates the gate
+// checkTriggerPathsExist validates that every registry trigger of gate g
+// resolves to something real at repoRoot. A trigger activates the gate
 // when the named path changes; a trigger whose target was deleted, renamed,
 // or moved outside a tracked restructure leaves the gate silently unable to
 // ever select on that surface again, with no signal anywhere that it went
@@ -73,9 +90,14 @@ func (r *Registry) Validate(repoRoot string) []error {
 // string and a stat call, so it belongs in the base (always-on) Validate
 // pass rather than behind the --drift flag.
 //
-// Glob triggers (containing "*") are skipped: a glob can legitimately match
-// zero files today and still be a valid future-proofing trigger.
-func checkTriggerPathsExist(repoRoot string, g Gate) []error {
+// The two trigger shapes need different evidence, so they are checked
+// differently. A LITERAL trigger (see isLiteralTrigger in pathfilter.go) names
+// one path and is stat-checked here, along with the containment and
+// unresolvable-symlink guards below. A GLOB trigger names a set, and is
+// resolved against the tracked path universe by checkGlobTriggerResolves
+// (globtrigger.go, #6159); it used to be skipped outright, on the since-
+// disproven reasoning that a glob matching nothing was valid future-proofing.
+func checkTriggerPathsExist(repoRoot string, g Gate, tracked *trackedPaths) []error {
 	var errs []error
 	// Resolved once: repoRoot is constant for the whole run, and resolving it
 	// per trigger repeated the same filesystem walk for every literal trigger
@@ -90,6 +112,9 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 	}
 	for _, trigger := range g.Triggers {
 		if !isLiteralTrigger(trigger) {
+			if err := checkGlobTriggerResolves(tracked, g.ID, trigger, repoRoot); err != nil {
+				errs = append(errs, err)
+			}
 			continue
 		}
 		full := filepath.Join(repoRoot, filepath.FromSlash(trigger))
