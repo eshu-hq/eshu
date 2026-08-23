@@ -91,11 +91,21 @@ worktree** that holds it, not in the main checkout, or the change cannot
 activate no matter how correct it is. It stops mattering after merge, when the
 main checkout has the files.
 
-**Settings are read once, at session start.** A session already running when the
-files arrive will not pick them up, and resuming an existing conversation
-resumes its session rather than starting a new one. Approving the hook
-permission prompt is part of activation; declining it looks exactly like a
-broken hook.
+**Settings are read at session start, and a resume counts.** A session already
+running when the files arrive will not pick them up. Restarting the app and
+resuming the same conversation does reload them, keeping the same
+`CLAUDE_CODE_SESSION_ID` — that is how these hooks were first observed firing,
+after four null results built on the assumption that only a brand-new
+conversation could load them. Do not plan a hook test around that assumption;
+check the stamp instead. Approving the hook permission prompt is part of
+activation, and declining it looks exactly like a broken hook.
+
+**The hook and the skill it names activate by different paths.** A user-level
+install runs the hook from an absolute path, so it fires anywhere. The skill
+*listing* still comes from the project directory, which for a worktree is the
+main checkout. Before these skills reach `main`, a nudge can therefore name a
+skill that `Skill(...)` reports as unknown. That is expected pre-merge; treat
+the nudge as a pointer rather than a loadable reference until the branch lands.
 
 Diagnosing a hook you think should have fired: `skill-nudge.sh` touches
 `/tmp/claude-nudge-<session>-<skill>` **before** it prints. A missing stamp means
