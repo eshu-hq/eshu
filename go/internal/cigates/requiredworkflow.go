@@ -303,7 +303,25 @@ func validateTrustedAggregator(
 				))
 			}
 		}
-		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=failure") {
+		// Terminal publisher = posts a commit status, and is not the leading
+		// pending publisher (which `pendingStepIndex != 0` below requires to
+		// be step 0). This used to select on the literal `state=failure`
+		// appearing somewhere in the step, which made the entire terminal
+		// contract conditional on one spelling: reword that arm and every
+		// check in validateTerminalPublisher silently stopped running, with
+		// nothing to report that it had (#6218 review round 4, same class as
+		// the anchors that round removed). More than one such step is
+		// reported rather than guessed at, because two publishers mean the
+		// verdict on the head SHA depends on which ran last.
+		if publishesCommitStatus(step.Run) && stepIndex != 0 {
+			if terminalIndex >= 0 {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: publisher job %q has more than one terminal status "+
+						"publisher step; which verdict lands on the head SHA would depend on which ran last",
+					check.Context,
+					check.Job,
+				))
+			}
 			terminalIndex = index
 			errs = append(errs, validateTerminalPublisher(step, check)...)
 		}

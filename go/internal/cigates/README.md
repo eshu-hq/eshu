@@ -76,53 +76,53 @@ for its own reasons. A check that never produced a verdict is the carve-out
 stale one, one skipped because the run that owned the job was cancelled, or one
 missing outright because that run was cancelled before the job was created.
 That is infrastructure state, not a gate result, so the aggregate publishes
-`error` naming the re-run instead of claiming a gate failed, and
-`validateCancelledArm` rejects a publisher whose cancelled-gate arm is missing,
-maps that outcome to `state=failure`, or publishes anything other than
-`state=error`. It locates the arm structurally -- a line inside the
-`AGGREGATE_CODE` case block that begins with `13)`, comment lines skipped --
-and reads the arm's **effective** assignment, the last `state=` that survives,
-because bash runs an arm top to bottom. A substring search finds the marker in
-ordinary prose such as "the cancelled-gate outcome (13)", and a substring
-assertion accepts `state=error; state=success`; each of those left the arm
-deletable or invertible with the validator still green.
+`error` naming the re-run instead of claiming a gate failed.
 
-The arm is read in two layers, both deliberately **narrow** rather than
-general. `requiredworkflow_shell.go` is the word-level reader: it accepts a
-documented grammar -- statements separated by `;`, `&&` and `||`, words built
-from unquoted runs and `'`/`"` segments, `#` starting a comment at a word
-boundary, `;;` ending the arm -- and returns an error for anything else,
-including backslash escapes, command substitution, subshells, and `$'…'`
-ANSI-C quoting, whose value is not the text between its quotes.
-`requiredworkflow_arms.go` is the statement-level reader on top of it: an arm
-may hold a run of assignments (`description=x state=error`, which is how bash
-makes an assignment persist) or a call to `echo` or `exit`, and nothing else.
-Both matter for the same reason: a `state=` token inside a quoted description
-is text and must not be read as the arm's assignment, and an arm built from
-shell the reader does not model has to fail the gate loudly instead of being
-guessed at. [#6194](https://github.com/eshu-hq/eshu/issues/6194) is why -- nine
-review rounds went into growing a textual model of bash one character class at
-a time without ever closing it. The statement layer is a whitelist for that
-same reason: `export state=failure`, `if true; then state=failure; fi` and
-`state=$'failure'` all set `state` in bash, and the earlier rule -- read the
-leading assignment words, stop at the first word that is not one -- read all
-three as assigning nothing at all, which is a still-running arm publishing
-`failure` with the gate green.
+How that is held is worth reading before changing it, because it was got wrong
+four times. The publisher's contract is a mapping: for each await exit code,
+put this state and this description on the head SHA. Four review rounds tried
+to prove that mapping by READING the step's shell -- one check per case arm,
+one for the `-f state=` argument, one for the lines between `esac` and the
+`gh api` call. Each check located its target with a substring, and the step is
+55 lines of which 34 are prose comments, so prose is not an exotic input there.
+Three of the four were defeated by a comment. The last one needed a single
+line: `# the gh api -X POST call below publishes the status`, placed above an
+injected `state=success`, moved two independent guards' anchors past the
+injection and left both green while a genuinely failed gate published
+`success` on the status this repository's ruleset requires.
+[#6194](https://github.com/eshu-hq/eshu/issues/6194) is the same story at
+length -- nine review rounds growing a textual model of bash one bypass at a
+time without ever closing it.
 
-Two more checks cover the consuming end, because pinning the argument alone did
-not. The `gh api` call must post `-f state="${state}"` (and, when it sends one,
-`-f description="${description}"`) rather than a literal: a hard-coded
-`-f state=success` publishes the same status for every outcome, a genuinely
-failed gate included. And nothing between the case block's `esac` and that call
-may assign `state` or `description`: a bare `state=success` there satisfies
-every arm assertion AND the literal check above, overwrites the arm's verdict
-on the way to the publish, and passes the step's own closing
-`[[ "${state}" == "success" ]]` so the job goes green too. The load-bearing
-guard for that second one is not static at all -- `publishedRequiredStatus` in
-`cmd/ci-gates` runs the publisher from its `PENDING_OUTCOME` guard through the
-line before `gh api` under real bash, so the per-code tests observe whatever
-value actually reaches the publish. The static check here is its mirror, so the
-two have to be defeated together.
+So the mapping is no longer read. It is **run**.
+`requiredworkflow_publishrun.go` executes the publisher's own `run:` script
+under bash with `gh` replaced by a recorder, once per exit code, and
+`requiredworkflow_publishcontract.go` asserts on the argv the publisher
+actually handed that recorder: exit 0 posts `success`, 10 posts `failure`, 11
+posts nothing at all, 12 and anything unclassified post `error`, 13 posts
+`error`, every publish carries the required context and targets the head SHA it
+was given, and no two outcomes describe themselves identically. A spelling
+nobody anticipated cannot hide from that, because the assertion never looks at
+the spelling -- `export state=success`, `state=$(printf success)` and a
+reworded arm are not cases to model, they are just inputs that produce an
+observable value.
+
+Two consequences worth knowing. The description is now REQUIRED rather than
+merely bound to a variable: a cancelled gate and a broken aggregation both
+publish `error`, so with the descriptions gone nothing separates them and
+deleting the cancelled arm would be invisible. And distinctness is asserted
+rather than any particular phrase, so the workflow's prose can be reworded
+freely -- an earlier draft that required the word "cancel" turned an ordinary
+rewording into a red, which is the wording-pin failure in miniature.
+
+What the harness does not cover is written down on `EvaluatePublisher` itself:
+the shell flags it runs under, the environment it does not model, the `gh`
+spellings a bash function cannot intercept (all of which fail closed, because
+PATH holds nothing), and the fact that GitHub's API is not modelled at all.
+`cmd/ci-gates` uses the same harness through `TerminalPublisherRun` and
+`EvaluatePublisher` rather than keeping a second copy, so there is one
+mechanism to defeat rather than two that can be defeated separately -- which
+is precisely how round 4's finding got through.
 
 `error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives
