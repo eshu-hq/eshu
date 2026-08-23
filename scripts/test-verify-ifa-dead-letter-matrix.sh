@@ -51,15 +51,20 @@ rg --fixed-strings --quiet -- 'requires bash >= 4.4' "${dld_sibling}" \
 	|| fail "verify-ifa-dead-letter-determinism.sh missing the bash>=4 guard"
 require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
 require "failure log dump" "host binary logs (failure)"
-require "--no-compose flag" "--no-compose"
-require "--keep flag" "--keep"
+# Bind the PARSER cases, not the flag names: both names also appear in the usage
+# text, so the parser could be deleted and the flags become silently inert. This
+# is the same defect the determinism gate's `--teeth` pin had (#6161).
+require "--no-compose flag is parsed" '--no-compose) use_compose=0 ;;'
+require "--keep flag is parsed" '--keep) keep=1 ;;'
 
 # Isolation: a distinct Compose project name and port triple, so a run of
 # this script cannot collide with verify-ifa-determinism.sh,
 # verify-ifa-replay-drive.sh, verify-ifa-dead-letter-determinism.sh, or
 # verify-golden-corpus-gate.sh.
 require "isolated compose project default" 'DEADLETTER_MATRIX_COMPOSE_PROJECT:=eshu-ifa-deadletter-matrix-$$'
-require "compose -p flag on up" '-p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}"'
+# Bind the BRING-UP line, not the bare -p flag: both teardowns carry the same
+# flag, so deleting `up -d` left this pin green with no stack ever started.
+require "compose -p flag on up" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \
@@ -79,7 +84,10 @@ require "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 require "worker-count matrix N in {1,2,4}" "worker_counts=(1 2 4)"
 require "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
 require "schema-major mutation" "-kind schema-major"
-require "mutate-cassette invocation" "mutate-cassette"
+# Bind the INVOCATION: the tee target `mutate-cassette.log` two lines below is
+# code too, so replacing the real call with `true` left this pin green and the
+# matrix driving an UNMUTATED cassette (#6161).
+require "mutate-cassette invocation" '"${bin_dir}/eshu-ifa" mutate-cassette'
 require "drive verb invocation" 'eshu-ifa" drive -cassette'
 require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
@@ -104,7 +112,11 @@ require "per-cell fresh-stack teardown" "fresh stack for the next cell"
 require "per-cell down -v inside the loop" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
 
 # The dead-letter-set capture and identity assertion.
-require "dead-letter set SQL selects the ordered contract" "work_item_id, stage, domain, failure_class"
+# Bind the SQL ASSIGNMENT: the die message on divergence repeats the same tuple
+# in prose-shaped but live code, so a column could be dropped from the real query
+# -- silently narrowing what the determinism comparison compares -- with this pin
+# still green (#6161).
+require "dead-letter set SQL selects the ordered contract" 'dead_letter_set_sql="SELECT work_item_id, stage, domain, failure_class FROM fact_work_items'
 require "dead-letter set ordered by work_item_id" "ORDER BY work_item_id"
 require "per-N dead-letter set storage" "dead_letter_sets[\${n}]="
 require "mismatch detection" "MISMATCH:"

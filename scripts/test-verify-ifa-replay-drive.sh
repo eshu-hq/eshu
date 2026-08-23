@@ -40,14 +40,19 @@ require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 require "parent-shell pid capture" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed.
 require "failure log dump" "host binary logs (failure)"
-require "--no-compose flag" "--no-compose"
-require "--keep flag" "--keep"
+# Bind the PARSER cases, not the flag names -- the usage text names them too.
+require "--no-compose flag is parsed" '--no-compose) use_compose=0 ;;'
+require "--keep flag is parsed" '--keep) keep=1 ;;'
 
 # Isolation: a unique Compose project name and non-default ports, so this
 # script cannot collide with verify-golden-corpus-gate.sh's own defaults
 # (15432/7687/7474) or another stack already running on the host.
 require "unique compose project default" 'REPLAY_DRIVE_COMPOSE_PROJECT:=eshu-replay-drive-$$'
-require "compose -p flag on up" '-p "${REPLAY_DRIVE_COMPOSE_PROJECT}"'
+# Bind the BRING-UP line, not the bare -p flag: the teardown and the two exec
+# probes carry the same flag, so deleting `up -d` entirely left this pin green
+# with the gate never starting its stack (#6161). Same defect as the determinism
+# and dead-letter mirrors carried.
+require "compose -p flag on up" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
 require "compose -p flag on down" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}"'
 if rg --fixed-strings --quiet -- 'ESHU_POSTGRES_PORT:=15432' "${script}"; then
 	fail "must not reuse verify-golden-corpus-gate.sh's default Postgres port 15432"
@@ -67,7 +72,9 @@ require "exported Neo4j bolt port override" 'export NEO4J_BOLT_PORT='
 require "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 
 # Drives every pipeline stage end to end.
-require "schema bootstrap" "eshu-bootstrap-data-plane"
+# Bind the INVOCATION: the log() line above names the binary too, so replacing
+# the real call with `true` left this pin green with the schema never applied.
+require "schema bootstrap" '"${bin_dir}/eshu-bootstrap-data-plane"'
 require "ifa binary build" "build_bin ifa"
 require "drive verb invocation" 'eshu-ifa" drive -cassette'
 require "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
