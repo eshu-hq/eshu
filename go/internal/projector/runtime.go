@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -47,20 +48,9 @@ type Runtime struct {
 	Logger                 *slog.Logger           // optional
 }
 
-type ReducerIntent struct {
-	ScopeID      string
-	GenerationID string
-	Domain       reducer.Domain
-	EntityKey    string
-	Reason       string
-	FactID       string
-	SourceSystem string
-	Payload      map[string]any
-}
-
-func (i ReducerIntent) ScopeGenerationKey() string {
-	return fmt.Sprintf("%s:%s", i.ScopeID, i.GenerationID)
-}
+// ReducerIntent is a compatibility alias for the dependency-neutral intent
+// contract reserved for extracted projector family packages.
+type ReducerIntent = projectorintent.ReducerIntent
 
 // IntentResult reports the outcome of one Enqueue call. Count is the number
 // of reducer intents actually admitted -- for postgres.ReducerQueue's
