@@ -61,6 +61,7 @@ A prior agent's summary is a map, never a measurement.
 | "I'm going offline", "restart", context is about to compact | [pause-safely.md](references/pause-safely.md) |
 | A PR is open and needs watching through review and CI to merge | [babysit-prs.md](references/babysit-prs.md) |
 | `git worktree list` has grown long, disk is tight, trees look abandoned | [worktree-cleanup.md](references/worktree-cleanup.md) |
+| "run until done", "going to bed", a `/loop`, or any goal handed over with no checkpoint schedule | [autonomous-run.md](references/autonomous-run.md) |
 
 Each playbook ends with a **Reply** contract listing what your report must
 contain. Copy its steps into your todo list verbatim. A step you skip stays on
