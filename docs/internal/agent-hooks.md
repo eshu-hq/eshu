@@ -212,15 +212,20 @@ commits and pushes, agent hooks gate tool calls.
 is bound. Those are two independent signals, and only one of them can be
 waived:
 
-- **`ESHU_POSTGRES_PORT` waives the port probe only.** The 15432 check is a
-  proxy for "a live backend is up", and it does not describe a caller who moved
-  off that port. It is not a declaration of a parallel stack: the gate binds
-  seven ports (Postgres, Bolt, HTTP, API 18080, MCP 18091, Prometheus 19090,
-  Ask 19191), so Postgres alone still collides on the rest.
-- **A running `ci-gates` process blocks regardless.** No port override reaches
-  it, because a second run contends for CPU whatever ports it chose — and that
-  check is what actually covers the four ports the hook cannot inspect. The
-  suite pins this as "a port override does not waive the running-process check".
+- **Each port override waives only its own probe.** The guard checks Postgres
+  15432, Bolt 7687, HTTP 7474, API 18080 and MCP 18091, skipping any whose
+  variable the command sets. So `ESHU_POSTGRES_PORT=15532` still gets caught by
+  the Bolt probe — moving one port is not a parallel stack, and a blanket
+  waiver on one override is how a real collision slipped through an earlier
+  revision. Prometheus 19090 and Ask 19191 are omitted deliberately: mock
+  providers rather than the contended backend, and each probe costs an `lsof`
+  on a hook that runs on every Bash call.
+- **A running `ci-gates` process blocks regardless**, and no override reaches
+  it. Be precise about what it covers, though: `ci-gates` runs during the
+  fast-gate phase only. The live lane is `scripts/verify-golden-corpus-gate.sh`,
+  invoked straight from `scripts/dev/pre-pr.sh` with no `ci-gates` process at
+  all — so during the phase that actually binds these ports, this check matches
+  nothing. The port probes are what cover that, which is why they are per-port.
 - **`CLAUDE_HOOK_ALLOW=1`** prefixed on the command waives both, for one call.
   It is the only full override, which is why it is a conscious per-call act
   rather than an environment setting.

@@ -315,6 +315,34 @@ else
   failed=$((failed + 1))
 fi
 
+# The residual collision. A Postgres-only override waives the 15432 probe, but
+# the live lane also binds Bolt, HTTP, API and MCP, and `pgrep -x ci-gates`
+# matches nothing while that lane runs (it is driven straight from pre-pr.sh and
+# spawns no ci-gates process). Before the per-port waiver, a second gate started
+# this way was caught by neither signal.
+sid=$((sid + 1))
+if lsof -nP -iTCP:7687 -sTCP:LISTEN >/dev/null 2>&1; then
+  printf 'ok - SKIPPED bolt-bound case: 7687 already in use\n'
+  passed=$((passed + 1))
+else
+  python3 -m http.server 7687 --bind 127.0.0.1 >/dev/null 2>&1 &
+  bolt_listener=$!
+  sleep 0.6
+  out=$(printf '{"cwd":"%s","tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' "$repo_root" \
+    | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+  rc=$?
+  kill "$bolt_listener" 2>/dev/null
+  wait "$bolt_listener" 2>/dev/null
+  if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq '7687'; then
+    printf 'ok - a Postgres-only override still blocks when Bolt is bound\n'
+    passed=$((passed + 1))
+  else
+    printf 'FAIL - Postgres-only override should not waive the Bolt probe; exit=%s out=%s\n' \
+      "$rc" "$out" >&2
+    failed=$((failed + 1))
+  fi
+fi
+
 # lsof branch: bind 15432 briefly. Skipped rather than failed if something is
 # already listening, since that is a real backend and not this suite's to kill.
 sid=$((sid + 1))

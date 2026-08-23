@@ -53,31 +53,46 @@ while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
 done
 [ "$in_eshu" -eq 0 ] || exit 0
 
-# Two independent signals, and an override waives only one of them.
+# Two kinds of signal, and each is waived only by the thing that invalidates it.
 #
-# A running `ci-gates` process means a gate is in flight whatever ports it
-# chose, so it blocks unconditionally: the second run contends for CPU either
-# way, and an earlier revision let any port override skip this check entirely.
+# `pgrep -x ci-gates` catches the FAST-GATE phase, and only that phase. The live
+# lane is scripts/verify-golden-corpus-gate.sh, invoked directly by
+# scripts/dev/pre-pr.sh; it contains no ci-gates reference and spawns no such
+# process. So while the live lane runs -- the phase that actually binds these
+# ports -- this check matches nothing. An earlier revision claimed the process
+# check covered the ports the hook could not see. It does not, and the port
+# probes below are what make that claim true instead.
 #
-# Port 15432 bound is a proxy for "a live backend is up". That proxy does not
-# apply to a caller who moved off the default Postgres port, so an explicit
-# ESHU_POSTGRES_PORT waives the port check alone.
+# Each default port is probed unless the command overrides THAT variable. A
+# caller who moved Postgres has not moved Bolt, so the Bolt probe still applies
+# and a second gate started with only ESHU_POSTGRES_PORT is still caught. Per
+# port rather than all-or-nothing, because a blanket waiver on one override is
+# how the residual collision got in.
 #
-# Deliberately NOT an exhaustive port match. verify-golden-corpus-gate.sh binds
-# seven defaults (Postgres, Bolt, HTTP, API 18080, MCP 18091, Prometheus 19090,
-# Ask 19191), so a list here would be stale the first time an eighth appears —
-# and the repo's own documented alternate sets move only three of them. Residual
-# risk worth knowing: two gates on different Postgres ports can still collide on
-# the four this hook cannot see. The process check is what actually covers that.
+# Prometheus 19090 and Ask 19191 are deliberately omitted: they are mock
+# providers rather than the contended backend, and every probe costs an lsof on
+# a hook that runs on every Bash call.
 BUSY=""
 pgrep -x ci-gates >/dev/null 2>&1 && BUSY="a ci-gates run is already in flight"
 
 if [ -z "$BUSY" ] && command -v lsof >/dev/null 2>&1; then
-  case "$CMD" in
-    *ESHU_POSTGRES_PORT=*) ;;
-    *) lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1 \
-         && BUSY="port 15432 is already bound (a live backend is up)";;
-  esac
+  for pair in \
+    "ESHU_POSTGRES_PORT 15432" \
+    "NEO4J_BOLT_PORT 7687" \
+    "NEO4J_HTTP_PORT 7474" \
+    "GATE_API_PORT 18080" \
+    "GATE_MCP_PORT 18091"
+  do
+    var="${pair%% *}"
+    port="${pair##* }"
+    case "$CMD" in
+      *"$var"=*) continue;;
+    esac
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      BUSY="port $port is already bound ($var not overridden, so a live stack is up)"
+      break
+    fi
+  done
 fi
 [ -z "$BUSY" ] && exit 0
 
