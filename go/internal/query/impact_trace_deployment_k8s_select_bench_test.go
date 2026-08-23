@@ -56,7 +56,7 @@ func BenchmarkK8sWorkloadMatchTargetDirectedScan(b *testing.B) {
 		target := newK8sWorkloadMatchTarget(workload)
 		matched := 0
 		for _, candidate := range candidates {
-			if ok, _, _ := target.Match(candidate.matchInput()); ok {
+			if ok, _, _ := target.Match(k8sSelectMatchInputFromCandidate(candidate)); ok {
 				matched++
 			}
 		}

@@ -25,6 +25,7 @@ live in the repository today.
 | `go/internal/projector/` | source-local projection stages and failure classification |
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values and fact lookup boundary for forthcoming extracted projector families |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
+| `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/recovery/` | replay and repair domain logic |
 | `go/internal/reducer/` | cross-domain reduction and shared projection ownership |
 | `go/internal/relationships/` | infrastructure/deployment evidence extraction and resolution |
@@ -83,7 +84,8 @@ added, it belongs under these Go packages.
 
 Read and operator surfaces live under:
 
-- `go/internal/query/`: HTTP handlers, request/response contracts, OpenAPI
+- `go/internal/query/`: HTTP handlers, root compatibility aliases, and OpenAPI
+- `go/internal/query/querycontract/`: response contracts, profile gates, and read ports
 - `go/internal/mcp/`: MCP transport and tool routing
 - `go/internal/runtime/`: `/healthz`, `/readyz`, `/metrics`, `/admin/status`,
   retry policy, runtime lifecycle

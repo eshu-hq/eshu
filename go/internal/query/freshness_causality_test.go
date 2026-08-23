@@ -20,7 +20,7 @@ func TestFreshnessCauseNextCheckCoversEveryEnumValue(t *testing.T) {
 		if check.Reason == "" {
 			t.Fatalf("cause %q next-check has no reason", cause)
 		}
-		call := check.asRecommendedNextCall()
+		call := freshnessNextCheckAsRecommendedCall(check)
 		if len(call) == 0 {
 			t.Fatalf("cause %q renders an empty recommended next call", cause)
 		}

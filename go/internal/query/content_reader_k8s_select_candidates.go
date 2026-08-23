@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -29,23 +30,14 @@ import (
 // exactly mirroring the Go comma-ok `metadata[key].(string)` used on the
 // EntityContent path (k8sSelectMatchInputFromEntity), so a candidate converts
 // losslessly to the same k8sSelectMatchInput the entity path would produce.
-type K8sSelectCandidate struct {
-	EntityID                 string
-	EntityName               string
-	Kind                     string
-	Namespace                string
-	Selector                 string
-	SelectorPresent          bool
-	PodTemplateLabels        string
-	PodTemplateLabelsPresent bool
-}
+type K8sSelectCandidate = querycontract.K8sSelectCandidate
 
-// matchInput adapts a K8sSelectCandidate into the shared k8sSelectMatchInput.
+// k8sSelectMatchInputFromCandidate adapts a K8sSelectCandidate into the shared k8sSelectMatchInput.
 // The mapping is 1:1 with k8sSelectMatchInputFromEntity for the same source
 // row, so a directed match over candidates produces byte-for-byte the same
 // verdict the entity-context path would produce over the equivalent
 // EntityContent.
-func (c K8sSelectCandidate) matchInput() k8sSelectMatchInput {
+func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) k8sSelectMatchInput {
 	return k8sSelectMatchInput{
 		kind:                     c.Kind,
 		name:                     c.EntityName,

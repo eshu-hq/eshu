@@ -3,6 +3,8 @@
 
 package query
 
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 // This file holds the capability support matrix extracted from contract.go to
 // keep that file under the repo line cap. The matrix maps each capability to its
 // per-profile maximum truth level and required profile.
@@ -12,7 +14,9 @@ var (
 	truthDerived = TruthLevelDerived
 )
 
-var capabilityMatrix = map[string]capabilitySupport{
+var capabilityMatrix = querycontract.CompatibilityCapabilityMatrix()
+
+var baseCapabilityMatrix = map[string]capabilitySupport{
 	CapabilityQueryPlaybooks: {
 		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,
@@ -480,6 +484,12 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
+}
+
+func init() {
+	for capability, support := range baseCapabilityMatrix {
+		querycontract.SetCapabilitySupport(capability, support)
+	}
 }
 
 // The remaining capability entries live in

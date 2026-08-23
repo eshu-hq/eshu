@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,25 +30,7 @@ func NewContentReader(db *sql.DB) *ContentReader {
 	}
 }
 
-// EntityContent is one parsed entity from the content store.
-type EntityContent struct {
-	EntityID     string         `json:"entity_id"`
-	RepoID       string         `json:"repo_id"`
-	RepoName     string         `json:"repo_name,omitempty"`
-	RelativePath string         `json:"relative_path"`
-	EntityType   string         `json:"entity_type"`
-	EntityName   string         `json:"entity_name"`
-	StartLine    int            `json:"start_line"`
-	EndLine      int            `json:"end_line"`
-	Language     string         `json:"language,omitempty"`
-	SourceCache  string         `json:"source_cache,omitempty"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
-	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
-	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
-	// the lexical content-index order was served, so the lexical truth basis
-	// stays authoritative.
-	SearchBackend string `json:"search_backend,omitempty"`
-}
+type EntityContent = querycontract.EntityContent
 
 // GetFileContent returns one file by repo_id and relative_path.
 func (cr *ContentReader) GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error) {

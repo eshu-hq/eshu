@@ -126,7 +126,7 @@ func (h *ImpactHandler) fetchK8sSelectMatchedServiceIDs(
 		if _, ok := seen[candidate.EntityID]; ok {
 			continue
 		}
-		input := candidate.matchInput()
+		input := k8sSelectMatchInputFromCandidate(candidate)
 		matchedTarget := false
 		mixedVintageWorkloadID := ""
 		for _, target := range targets {

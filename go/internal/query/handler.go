@@ -4,40 +4,23 @@
 package query
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // WriteJSON writes a JSON response with the given status code.
 func WriteJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
+	querycontract.WriteJSON(w, status, v)
 }
 
 // WriteError writes a JSON error response.
 func WriteError(w http.ResponseWriter, status int, message string) {
-	WriteJSON(w, status, map[string]any{
-		"error":  http.StatusText(status),
-		"detail": message,
-	})
+	querycontract.WriteError(w, status, message)
 }
 
 func WriteSuccess(w http.ResponseWriter, r *http.Request, status int, data any, truth *TruthEnvelope) {
-	if acceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{
-			Data:  data,
-			Truth: truth,
-			Error: nil,
-		})
-		return
-	}
-	WriteJSON(w, status, data)
+	querycontract.WriteSuccess(w, r, status, data, truth)
 }
 
 // WriteErrorEnvelope writes an error response using the same envelope/plain split
@@ -46,15 +29,7 @@ func WriteSuccess(w http.ResponseWriter, r *http.Request, status int, data any, 
 // a canonical query error (with its code and details) without re-implementing the
 // content negotiation.
 func WriteErrorEnvelope(w http.ResponseWriter, r *http.Request, status int, errEnv *ErrorEnvelope) {
-	if errEnv == nil {
-		WriteError(w, status, http.StatusText(status))
-		return
-	}
-	if acceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{Error: errEnv})
-		return
-	}
-	WriteError(w, status, errEnv.Message)
+	querycontract.WriteErrorEnvelope(w, r, status, errEnv)
 }
 
 func WriteContractError(
@@ -67,63 +42,32 @@ func WriteContractError(
 	currentProfile QueryProfile,
 	requiredProfile QueryProfile,
 ) {
-	if acceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{
-			Data: nil,
-			Error: &ErrorEnvelope{
-				Code:       errCode,
-				Message:    message,
-				Capability: capability,
-				Profiles: &ErrorProfiles{
-					Current:  currentProfile,
-					Required: requiredProfile,
-				},
-			},
-		})
-		return
-	}
-	WriteError(w, status, message)
+	querycontract.WriteContractError(w, r, status, message, errCode, capability, currentProfile, requiredProfile)
 }
 
 // ReadJSON decodes a JSON request body into v.
 func ReadJSON(r *http.Request, v any) error {
-	if r.Body == nil {
-		return fmt.Errorf("request body is required")
-	}
-	defer func() { _ = r.Body.Close() }()
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(v); err != nil {
-		return fmt.Errorf("invalid JSON: %w", err)
-	}
-	return nil
+	return querycontract.ReadJSON(r, v)
 }
 
 // QueryParam returns a trimmed query parameter value.
 func QueryParam(r *http.Request, key string) string {
-	return strings.TrimSpace(r.URL.Query().Get(key))
+	return querycontract.QueryParam(r, key)
 }
 
 // QueryParamInt returns a query parameter as int with a default.
 func QueryParamInt(r *http.Request, key string, defaultVal int) int {
-	raw := QueryParam(r, key)
-	if raw == "" {
-		return defaultVal
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return defaultVal
-	}
-	return n
+	return querycontract.QueryParamInt(r, key, defaultVal)
 }
 
 // PathParam extracts a path segment by position from a ServeMux pattern.
 // For routes like "/api/v0/repositories/{repo_id}/context", use PathParam(r, "repo_id").
 func PathParam(r *http.Request, name string) string {
-	return strings.TrimSpace(r.PathValue(name))
+	return querycontract.PathParam(r, name)
 }
 
 func capabilityUnsupported(profile QueryProfile, capability string) bool {
-	return maxTruthLevel(capability, profile) == nil
+	return querycontract.CapabilityUnsupported(profile, capability)
 }
 
 // requireContextOverview writes the structured unsupported-capability envelope
