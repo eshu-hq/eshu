@@ -251,3 +251,25 @@ func TestAllDomainsUnionCharacterization(t *testing.T) {
 		t.Fatalf("AllDomains() = %v, want %v", got, want)
 	}
 }
+
+func TestIntentClonePayloadIsTopLevelCopyWithSharedNestedValues(t *testing.T) {
+	t.Parallel()
+
+	nested := map[string]string{"state": "original"}
+	source := Intent{Payload: map[string]any{
+		"top_level": "original",
+		"nested":    nested,
+	}}
+	cloned := source.Clone()
+
+	cloned.Payload["top_level"] = "changed"
+	if got := source.Payload["top_level"]; got != "original" {
+		t.Fatalf("source top-level payload = %v, want original", got)
+	}
+
+	clonedNested := cloned.Payload["nested"].(map[string]string)
+	clonedNested["state"] = "changed"
+	if got := nested["state"]; got != "changed" {
+		t.Fatalf("nested payload = %q, want shared nested value", got)
+	}
+}
