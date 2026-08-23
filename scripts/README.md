@@ -122,7 +122,9 @@ cannot land without the code-level context future agents and reviewers need.
 concrete `ESHU_*` tokens and command-specific long flags in conservative
 fenced `eshu` shell commands. It uses `internal/envregistry` and a real built
 Eshu CLI rather than copied allowlists. The companion mutation harness is
-`test-verify-docs-cli-env-refs.sh`; known legacy environment debt is grouped
+`test-verify-docs-cli-env-refs.sh`, whose piped and chained command-segment
+cases live in `lib/test-verify-docs-cli-env-refs-segment-cases.sh`; known legacy
+environment debt is grouped
 by page in `docs-cli-env-refs-baseline.txt`. The immutable membership authority
 is `docs-cli-env-refs-ceiling.txt`; it must remain the exact frozen #6023 set.
 An exact code-owned count and canonical membership digest reject additions,

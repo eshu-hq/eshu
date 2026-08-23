@@ -90,6 +90,26 @@ func TestScanMarkdownScansEshuSegmentAfterNonEshuPipelineStage(t *testing.T) {
 	}
 }
 
+// TestScanMarkdownSegmentsAPipelineWrappedOverContinuationLines covers the shape
+// docs actually use for a long pipeline: a backslash continuation splits it over
+// physical lines, and the scanner segments the joined logical line.
+func TestScanMarkdownSegmentsAPipelineWrappedOverContinuationLines(t *testing.T) {
+	t.Parallel()
+
+	content := "```bash\n" +
+		"$ eshu first-run --json \\\n" +
+		"  | eshu first-run-benchmark --report-out /tmp/first-run.md\n" +
+		"```\n"
+	got := scanMarkdown("guide.md", content)
+	want := []reference{
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run", Value: "--json"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run-benchmark", Value: "--report-out"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scanMarkdown() = %#v, want %#v", got, want)
+	}
+}
+
 // TestScanMarkdownKeepsQuotedEscapedAndCommentedOperatorsOutOfSegmentBoundaries
 // proves the boundary scanner never splits on an operator that the shell would
 // not treat as one.
