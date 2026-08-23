@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -41,11 +42,20 @@ type routedRunner struct {
 	runs      []byte
 	runsErr   error
 	runsCalls int
+	// runsArgs is the argv of the most recent run lookup. The aggregate's
+	// pagination flags are part of the API contract, not an implementation
+	// detail: without --paginate the endpoint answers with a single
+	// {"workflow_runs":[...]} object rather than an array of pages, so the
+	// decode fails, cancelledRuns goes nil, and every cancellation-skipped
+	// gate quietly returns to publishing failure. That degradation is
+	// fail-closed, which is exactly why no other assertion notices it.
+	runsArgs []string
 }
 
 func (r *routedRunner) Run(_ context.Context, args ...string) ([]byte, error) {
 	if strings.Contains(strings.Join(args, " "), "actions/runs") {
 		r.runsCalls++
+		r.runsArgs = append([]string(nil), args...)
 		if r.runsErr != nil {
 			return nil, r.runsErr
 		}
@@ -162,6 +172,11 @@ func TestAwaitSkipCausedByCancelledRunDoesNotPublishFailure(t *testing.T) {
 	}
 	if runner.runsCalls == 0 {
 		t.Error("the skipped gate must have been resolved against the owning run's conclusion")
+	}
+	for _, want := range []string{"--paginate", "--slurp"} {
+		if !slices.Contains(runner.runsArgs, want) {
+			t.Errorf("run lookup argv %q is missing %q; without it gh answers with a single object instead of an array of pages, the decode fails, and every cancellation-skipped gate silently reverts to publishing failure", runner.runsArgs, want)
+		}
 	}
 }
 
