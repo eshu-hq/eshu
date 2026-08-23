@@ -204,7 +204,7 @@ gates its changed paths select:
   the default branch, never checks out pull-request code, and evaluates the
   exact pull-request head. It maps changed paths to every registry row marked
   `blocking: true`, then waits for the exact workflow/check names declared by
-  those rows. A selected failed, neutral, missing, or timed-out check makes the
+  those rows. A selected failed, neutral, or timed-out check makes the
   aggregate fail. A selected check that never produced a verdict does not: that
   is infrastructure state, not a gate result, so the aggregate publishes
   `error` with a description naming the re-run rather than claiming a gate
