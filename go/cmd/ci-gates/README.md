@@ -99,16 +99,69 @@ ci-gates await \
 Used by the trusted `required-gates-complete` publisher. It verifies the pull
 request head, fetches every changed file, selects all matching blocking gates,
 resolves exact workflow/check identities from the trusted checkout, and polls
-until they pass. Failed, skipped, neutral, missing, and timed-out selected
-checks fail closed. Renames select against both the old and new path, so moving
-a file out of a gated tree cannot bypass its verifier. It verifies the head
-again before returning success. Pending reads back off from 30 seconds to five
-minutes. Per-head workflow concurrency keeps one aggregate running and retains
-only the latest pending run. The retained run starts after the active poller,
-posts pending before setup, and recomputes the current check set. This avoids a
-high steady-state API polling rate. The polling component can add up to five
-minutes before observing a newly completed check; Actions scheduling, runner
-allocation, and serialized pending-run startup can add further delay.
+until they pass. Failed, neutral, missing, and timed-out selected checks fail
+closed, and so does a gate GitHub skipped for its own reasons -- see the skip
+rule below. A selected check that never produced a verdict fails closed too,
+but is not called a gate failure
+([#6189](https://github.com/eshu-hq/eshu/issues/6189)): that is infrastructure
+state, not a gate result, and calling it "A required gate failed" is what
+teaches people to read a red required status as noise. Once every selected gate
+is terminal and at least one never produced a verdict, await exits 13 and the
+publisher posts `error` naming the re-run.
+
+Three shapes qualify, and they cost different things to recognise:
+
+- **Cancelled**, detected from either `state=CANCELLED` or `bucket=cancel`,
+  because the runner's `gh` version is not pinned and older releases folded
+  cancellations into the `fail` bucket.
+- **Stale**, detected from `state=STALE` -- a conclusion only GitHub sets, on a
+  check run it orphaned. gh reports it in the `pending` bucket, so the
+  aggregate has to test for it *before* the pending bucket; otherwise it waits
+  out the full timeout on a check that will never complete and publishes
+  nothing, stranding the status on `pending` with no red check to act on.
+- **Skipped because the run that owned the job was cancelled.** This one is
+  ambiguous and is the only case that costs an API call: GitHub reports the
+  same `SKIPPED` conclusion whether a `needs:` dependency was cancelled or the
+  job's own `if:` excluded it. The aggregate reads the owning workflow run's
+  conclusion (`actions: read`, already granted) and treats the skip as a
+  cancellation artifact only when that run was cancelled.
+
+**A gate skipped for its own reasons still publishes `failure`.** The registry
+selected it for these paths, so a skip the workflow chose is a real
+disagreement about whether the gate should have run. The lookup is made only
+when a selected check is `SKIPPED`, and if it fails the gate stays a failure --
+it degrades to the older behaviour, never to a pass. `NEUTRAL` shares gh's
+`skipping` bucket but is a conclusion a job reached, so it fails closed
+unconditionally.
+
+A cancellation alongside a still-running gate keeps waiting, so a gate
+that goes genuinely red still publishes `failure`. Renames select against both
+the old and new path, so moving a file out of a gated tree cannot bypass its
+verifier. It verifies the head again before returning success. Pending reads
+back off from 30 seconds to five minutes. Per-head workflow concurrency keeps
+one aggregate running and retains only the latest pending run. The retained run
+starts after the active poller, posts pending before setup, and recomputes the
+current check set. This avoids a high steady-state API polling rate. The
+polling component can add up to five minutes before observing a newly completed
+check; Actions scheduling, runner allocation, and serialized pending-run
+startup can add further delay.
+
+The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
+`.github/workflows/required-gates.yml`, and only `10` may publish `failure`:
+
+| Exit | Meaning | Published status |
+| ---: | --- | --- |
+| `0` | every selected blocking gate passed | `success` |
+| `10` | a selected gate concluded failure | `failure` |
+| `11` | selected gates still running (timeout or superseded run) | nothing; the status stays pending for the next run |
+| `12` | aggregation could not reach a verdict (API error, bad token, unreadable registry) | `error` |
+| `13` | every selected gate is terminal and at least one never produced a verdict (cancelled, stale, or skipped by its run's cancellation) | `error` |
+
+Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
+be mistaken for a gate result. `internal/cigates` re-declares `11` and `13` to
+validate those workflow arms statically; `TestStillRunningCodeMatchesAwaitContract`
+and `TestGateCancelledCodeMatchesAwaitContract` pin the mirrors against this
+package's constants.
 
 ### contexts
 

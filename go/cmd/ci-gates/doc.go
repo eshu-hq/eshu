@@ -23,7 +23,16 @@
 // Await verifies an exact PR head, selects every matching blocking gate without
 // applying the local tier ceiling, resolves concrete workflow/check identities
 // from a trusted default-branch checkout, and fails closed until every selected
-// check passes. Contexts exposes the repository-owned required-status manifest,
+// check passes. Its exit code tells the required-gates publisher which kind of
+// non-success it saw: 10 a gate concluded failure (the only code that may
+// publish `failure`), 11 gates still running, 12 aggregation broke, and 13
+// every selected gate terminal with at least one that never produced a verdict
+// (#6189) -- CANCELLED, STALE, or SKIPPED because the workflow run that owned
+// the job was cancelled. That is infrastructure state, not a gate result, so
+// it publishes `error`. A gate GitHub skipped for its own reasons is NOT in
+// that set and still publishes `failure`; separating the two is the one thing
+// await needs the `actions: read` scope for, and a failed lookup keeps the
+// skip a failure. Contexts exposes the repository-owned required-status manifest,
 // including pinned GitHub App integration IDs for live ruleset verification.
 //
 // # select

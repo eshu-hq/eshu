@@ -45,6 +45,7 @@ jobs:
             0) state=success ;;
             10) state=failure ;;
             11) exit 0 ;;
+            13) state=error ;;
             *) state=error ;;
           esac
           gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete

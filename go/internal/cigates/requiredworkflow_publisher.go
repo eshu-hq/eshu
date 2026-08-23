@@ -13,17 +13,22 @@ import (
 // same pattern as requiredworkflow_concurrency.go and
 // requiredworkflow_triggers.go.
 
-// awaitExitStillRunningCode mirrors awaitExitStillRunning in
+// awaitExitStillRunningCode and awaitExitGateCancelledCode mirror
+// awaitExitStillRunning and awaitExitGateCancelled in
 // go/cmd/ci-gates/await_outcome.go. Duplicated rather than imported because
-// that constant is unexported in package main; the pair is asserted in
-// TestStillRunningCodeMatchesAwaitContract so they cannot drift apart.
-const awaitExitStillRunningCode = 11
+// those constants are unexported in package main; both pairs are asserted
+// against the real source in TestStillRunningCodeMatchesAwaitContract and
+// TestGateCancelledCodeMatchesAwaitContract (go/cmd/ci-gates), so they cannot
+// drift apart.
+const (
+	awaitExitStillRunningCode  = 11
+	awaitExitGateCancelledCode = 13
+)
 
-// stillRunningArm extracts the body of the AGGREGATE_CODE case arm for the
-// still-running exit code, up to its `;;` terminator. Returns false when no
-// such arm exists.
-func stillRunningArm(run string) (string, bool) {
-	marker := fmt.Sprintf("%d)", awaitExitStillRunningCode)
+// aggregateCodeArm extracts the body of the AGGREGATE_CODE case arm for one
+// exit code, up to its `;;` terminator. Returns false when no such arm exists.
+func aggregateCodeArm(run string, code int) (string, bool) {
+	marker := fmt.Sprintf("%d)", code)
 	start := strings.Index(run, marker)
 	if start < 0 {
 		return "", false
@@ -84,7 +89,7 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 				"(AGGREGATE_CODE) rather than defaulting every non-success outcome to failure",
 			check.Context,
 		))
-	} else if arm, ok := stillRunningArm(step.Run); !ok {
+	} else if arm, ok := aggregateCodeArm(step.Run, awaitExitStillRunningCode); !ok {
 		errs = append(errs, fmt.Errorf(
 			"required status context %q: terminal publisher has no still-running arm (%d) in its "+
 				"AGGREGATE_CODE branch; gates that have not finished must not publish a terminal status",
@@ -97,5 +102,44 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 			check.Context, awaitExitStillRunningCode,
 		))
 	}
+	errs = append(errs, validateCancelledArm(step, check)...)
 	return errs
+}
+
+// validateCancelledArm is the static mirror of #6189. The aggregate used to
+// classify a CANCELLED dependency gate as a failed gate and publish
+// "A required gate failed" when no gate had failed, which is what teaches
+// people to read a red required status as noise. A workflow-only revert of
+// that arm would restore the overclaim with nothing to catch it, so the arm's
+// existence and its state are asserted here alongside the #6075 contract.
+func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) []error {
+	if !strings.Contains(step.Run, "AGGREGATE_CODE") {
+		// Already reported by the caller; do not pile a second error on the
+		// same root cause.
+		return nil
+	}
+	arm, ok := aggregateCodeArm(step.Run, awaitExitGateCancelledCode)
+	if !ok {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher has no cancelled-gate arm (%d) in its "+
+				"AGGREGATE_CODE branch; a cancelled dependency would fall through to the aggregation-broke "+
+				"description and send an operator hunting a red gate that does not exist",
+			check.Context, awaitExitGateCancelledCode,
+		)}
+	}
+	if strings.Contains(arm, "state=failure") {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher maps the cancelled-gate outcome (%d) to "+
+				"state=failure; that is the #6189 overclaim -- a cancelled gate is not a failed gate",
+			check.Context, awaitExitGateCancelledCode,
+		)}
+	}
+	if !strings.Contains(arm, "state=error") {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher's cancelled-gate arm (%d) must publish "+
+				"state=error so the cancellation stays visible and still blocks the merge",
+			check.Context, awaitExitGateCancelledCode,
+		)}
+	}
+	return nil
 }
