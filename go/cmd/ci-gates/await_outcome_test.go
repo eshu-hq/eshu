@@ -151,7 +151,7 @@ func TestAwaitTimeoutWithPendingGatesIsNotAGateFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer cancel()
 
-	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 1, required, 10*time.Millisecond, io_Discard{})
+	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 1, headSHAFixture, required, 10*time.Millisecond, io_Discard{})
 	if err == nil {
 		t.Fatal("await must not report success while a selected gate is still pending")
 	}

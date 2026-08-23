@@ -155,16 +155,25 @@ jobs:
           # authoritative, and makes any lander abandon a green PR.
           #
           # `failure` is reserved for a gate that genuinely concluded failure.
-          # A CANCELLED dependency gate is not one (#6189): cancellations are
-          # background noise, and calling one "A required gate failed" is the
-          # same overclaim in a different costume. It publishes `error`, which
+          # A gate that never produced a verdict is not one (#6189). Three
+          # shapes qualify: a CANCELLED check, a STALE one GitHub orphaned, and
+          # one GitHub marked SKIPPED because the run that owned it was
+          # cancelled. All three are background noise, all three want the same
+          # repair, and calling any of them "A required gate failed" is the
+          # same overclaim in a different costume. They publish `error`, which
           # still blocks the merge -- the ruleset requires `success`, and a
           # commit status can only be error, failure, pending, or success, so
           # `error` cannot satisfy it by any route -- but it names the actual
-          # repair (re-run the cancelled workflow) instead of sending someone
-          # hunting for a red gate that does not exist. It is not folded into
-          # the `*)` arm because that arm's description blames the aggregator,
-          # which is a different 3 AM investigation.
+          # repair (re-run the workflow) instead of sending someone hunting for
+          # a red gate that does not exist. It is not folded into the `*)` arm
+          # because that arm's description blames the aggregator, which is a
+          # different 3 AM investigation.
+          #
+          # A gate GitHub skipped for its OWN reasons still publishes
+          # `failure`. The registry selected it for these paths, so a skip the
+          # workflow chose is a real disagreement about whether the gate should
+          # have run, and it must keep failing closed. Only the run conclusion
+          # separates the two, which is why the aggregate reads it.
           # Gates still running publish nothing at all -- another Required
           # Gates run for this same head is already queued behind the
           # workflows that are still going, and it is authoritative. Writing
@@ -181,7 +190,7 @@ jobs:
                 echo "::notice::selected gates still running; leaving required-gates-complete pending for the next run"
                 exit 0
                 ;;
-              13) state=error; description='A required gate was cancelled; re-run it (no gate failed)' ;;
+              13) state=error; description='A required gate was cancelled or never ran; re-run it (no gate failed)' ;;
               *) state=error; description='Required gate aggregation broke (not a gate result)' ;;
             esac
           fi

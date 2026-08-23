@@ -204,15 +204,24 @@ gates its changed paths select:
   the default branch, never checks out pull-request code, and evaluates the
   exact pull-request head. It maps changed paths to every registry row marked
   `blocking: true`, then waits for the exact workflow/check names declared by
-  those rows. A selected failed, skipped, missing, or timed-out check makes the
-  aggregate fail. A selected **cancelled** check does not: a cancellation is
-  infrastructure state, not a gate result, so the aggregate publishes `error`
-  with a description naming the re-run rather than claiming a gate failed
-  ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still blocks
-  the merge — the ruleset requires `success` — so nothing is waved through;
-  the status just stops asserting an outcome that never happened. A
-  cancellation alongside a still-running gate keeps waiting, so a gate that
-  goes genuinely red is still reported as `failure`. Per-head concurrency
+  those rows. A selected failed, neutral, missing, or timed-out check makes the
+  aggregate fail. A selected check that never produced a verdict does not: that
+  is infrastructure state, not a gate result, so the aggregate publishes
+  `error` with a description naming the re-run rather than claiming a gate
+  failed ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still
+  blocks the merge — the ruleset requires `success` — so nothing is waved
+  through; the status just stops asserting an outcome that never happened.
+  Three shapes qualify: a **cancelled** check, a **stale** one GitHub
+  orphaned, and one GitHub marked **skipped because the workflow run that
+  owned the job was cancelled**. That last one is why the aggregate reads run
+  conclusions (`actions: read`): GitHub reports the same `SKIPPED` conclusion
+  whether a dependency was cancelled or the job's own `if:` excluded it, and
+  **a gate skipped for its own reasons still fails the aggregate** — the
+  registry selected it for these paths, so a skip the workflow chose is a real
+  disagreement about whether it should have run. If the run conclusions cannot
+  be read, a skipped gate stays a failure. A cancellation alongside a
+  still-running gate keeps waiting, so a gate that goes genuinely red is still
+  reported as `failure`. Per-head concurrency
   keeps one aggregate running and retains only the latest pending run without
   cancelling the active status writer. An aggregate that starts posts pending
   before checkout or setup, then reaches a real terminal result; the retained

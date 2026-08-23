@@ -144,7 +144,7 @@ func TestAwaitAllCancelledDependenciesDoNotPublishFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 6186, required, 10*time.Millisecond, io_Discard{})
+	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 6186, headSHAFixture, required, 10*time.Millisecond, io_Discard{})
 	if err == nil {
 		t.Fatal("cancelled dependencies must not be reported as a clean pass")
 	}
@@ -189,7 +189,7 @@ func TestAwaitCancelledPlusGenuineFailureStillPublishesFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 6186, required, 10*time.Millisecond, io_Discard{})
+	err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 6186, headSHAFixture, required, 10*time.Millisecond, io_Discard{})
 	if err == nil {
 		t.Fatal("a genuinely failed gate must fail the aggregate")
 	}
@@ -221,7 +221,7 @@ func TestEvaluateRequiredChecksSeparatesCancelledFromFailed(t *testing.T) {
 		State:    "CANCELLED",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("cancelled gate classified as failed: %#v", got.Failed)
 	}
@@ -250,7 +250,7 @@ func TestEvaluateRequiredChecksTreatsOldGHCancelBucketAsCancelled(t *testing.T) 
 		State:    "CANCELLED",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("cancelled gate reported under the older gh bucket classified as failed: %#v", got.Failed)
 	}
@@ -283,7 +283,7 @@ func TestEvaluateRequiredChecksTreatsCancelBucketWithoutCancelledStateAsCancelle
 		State:    "",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("a gate bucketed cancel classified as failed: %#v", got.Failed)
 	}
@@ -318,7 +318,7 @@ func TestEvaluateRequiredChecksPrefersPendingOverCancelledWithinOneGate(t *testi
 		{Name: "go-core", Workflow: "Build Test", Event: "pull_request", Bucket: "pending", State: "IN_PROGRESS"},
 	}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("neither leg failed, so nothing may be classified failed: %#v", got.Failed)
 	}
@@ -347,7 +347,7 @@ func TestEvaluateRequiredChecksKeepsWaitingWhileCancelledAndPendingCoexist(t *te
 		{Name: "go-core", Workflow: "Build Test", Event: "pull_request", Bucket: "pending", State: "IN_PROGRESS"},
 	}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("cancelled gate classified as failed: %#v", got.Failed)
 	}

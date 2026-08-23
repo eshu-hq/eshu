@@ -92,7 +92,7 @@ func TestEvaluateRequiredChecks_MatrixRequiresEveryDeclaredLeg(t *testing.T) {
 		{Name: "test (neo4j)", Workflow: "End-to-end Tests", Event: "pull_request", Bucket: "pending"},
 	}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 {
 		t.Fatalf("failed = %v; want none", got.Failed)
 	}
@@ -117,7 +117,7 @@ func TestEvaluateRequiredChecks_SelectedSkipFailsClosed(t *testing.T) {
 		State:    "SKIPPED",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Pending) != 0 {
 		t.Fatalf("pending = %v; want none", got.Pending)
 	}
@@ -135,7 +135,7 @@ func TestEvaluateRequiredChecks_MissingCheckRemainsPending(t *testing.T) {
 		GateIDs:      []string{"console-e2e"},
 	}}
 
-	got := evaluateRequiredChecks(required, nil)
+	got := evaluateRequiredChecks(required, nil, nil)
 	if len(got.Failed) != 0 || len(got.Pending) != 1 {
 		t.Fatalf("evaluation = %#v; want one pending missing check", got)
 	}
@@ -157,7 +157,7 @@ func TestEvaluateRequiredChecks_FailureNamesAllRepresentedGates(t *testing.T) {
 		State:    "FAILURE",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 1 {
 		t.Fatalf("failed = %v; want one", got.Failed)
 	}
@@ -181,7 +181,7 @@ func TestEvaluateRequiredChecks_DoesNotAcceptPushCheckForPR(t *testing.T) {
 		Bucket:   "pass",
 	}}
 
-	got := evaluateRequiredChecks(required, checks)
+	got := evaluateRequiredChecks(required, checks, nil)
 	if len(got.Failed) != 0 || len(got.Pending) != 1 {
 		t.Fatalf("push check must not satisfy a pull-request gate: %#v", got)
 	}
@@ -250,7 +250,7 @@ func TestAwaitPRRequiredChecks_AcceptsPendingGHExitThenPasses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	if err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 42, required, time.Millisecond, io.Discard); err != nil {
+	if err := awaitPRRequiredChecks(ctx, runner, "eshu-hq/eshu", 42, headSHAFixture, required, time.Millisecond, io.Discard); err != nil {
 		t.Fatalf("awaitPRRequiredChecks returned error: %v", err)
 	}
 	if len(runner.calls) != 2 {
@@ -285,6 +285,7 @@ func TestAwaitPRRequiredChecks_FailsClosedOnRedCheck(t *testing.T) {
 		runner,
 		"eshu-hq/eshu",
 		42,
+		headSHAFixture,
 		required,
 		time.Millisecond,
 		io.Discard,

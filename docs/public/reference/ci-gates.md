@@ -19,6 +19,10 @@ Blocking is an enforcement contract, not descriptive metadata. The trusted
 default-branch `required-gates-complete` publisher selects every matching
 blocking row, waits for its exact workflow/check identity on the pull request
 head, and fails closed on a failed, skipped, missing, or timed-out check.
+A check that never produced a verdict fails closed too, but is reported as
+`error` rather than as a gate failure: a cancelled check, a stale one, and
+one GitHub marked skipped because the run that owned it was cancelled. A
+gate skipped for its own reasons is still a gate failure.
 Advisory rows remain visible but do not block merge.
 
 | Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |
