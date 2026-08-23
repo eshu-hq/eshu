@@ -8,7 +8,30 @@ and `eshu-diagnostic-rigor`.
 - **Load is the only entry point for YAML.** Never parse the YAML outside
   `Load`. Add new fields to `registryFile` / `gateFile` and map them in `Load`.
 - **Select is a pure function.** It must not touch git, the filesystem, or any
-  external service. Git access belongs at the CLI boundary in `cmd/ci-gates`.
+  external service, so `ci-gates select --paths-from` is reproducible from its
+  inputs alone. `Validate` is the one exception, and only for trigger
+  resolution: it already stats scripts, workflows, and literal triggers, and
+  since #6159 it also asks git for the tracked path set that glob triggers
+  resolve against (`loadTrackedPaths` in `globtrigger.go` — the only
+  `exec.Command` in this package). Do not widen that seam; anything else
+  needing git belongs at the CLI boundary in `cmd/ci-gates`.
+- **A trigger that matches nothing is an error, never a warning.** A literal
+  trigger is stat-checked (#6055); a glob trigger must select at least one
+  tracked path, plus the directories tracked files imply (#6159). There is no
+  waiver field and no warn-only mode: a trigger matching zero paths can never
+  select its gate, so the gate reads as wired for a surface it no longer
+  guards. If the tracked path set cannot be read, that is an error too, not a
+  skip — an unverifiable trigger must not read as present. Resolve globs
+  against the TRACKED set, never a filesystem walk: a walk lets a build
+  artifact satisfy a trigger CI can never fire on, and makes the verdict
+  depend on the developer's tree.
+- **The tracked path universe is enumerated once per `Validate` call.** ~500
+  glob triggers against ~22k paths is ~11M pattern comparisons; re-enumerating
+  or re-splitting per trigger is the shape `checkTriggerPathsExist` already
+  had to have a comment written about. `matchesAny` reuses `matchSegments`
+  behind a first-segment index rather than calling `MatchGlob` per path, so
+  `TestTrackedPaths_MatchesAnyAgreesWithMatchGlob` is what keeps the two in
+  lockstep — extend it when either side gains a guard clause.
 - **Validate accumulates errors.** Never return early from `Validate`; collect
   all integrity errors in a single pass so a single run surfaces every broken
   reference.

@@ -14,7 +14,8 @@ It answers two related questions:
 | `registry.go` | Types (`Registry`, `Gate`, `Tier`, `Category`, `Requirement`, `Local`, `CI`) and `Load` |
 | `select.go` | `(*Registry).Select` — pure path-trigger matcher |
 | `required.go` | `(*Registry).RequiredGates` — every path-selected blocking CI job, including CI-only and heavy tiers |
-| `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks |
+| `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks, plus literal-trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055)) |
+| `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
 | `requiredworkflow_concurrency.go` | serialized per-head publisher concurrency contract |
@@ -101,6 +102,19 @@ who can both weaken a leaf check and approve or merge the same change.
 - All other characters are literal.
 
 Patterns with a leading `/` or trailing `/` never match.
+
+## Trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055), [#6159](https://github.com/eshu-hq/eshu/issues/6159))
+
+`Validate` requires every trigger to name something real, because a trigger that matches nothing stops selecting its gate silently — the gate still reads as wired for the surface, and the registry gate stays green. #6142 carried two stale glob-shaped entries through a full review round exactly that way.
+
+- A **literal** trigger (no `*`) is stat-checked, and may name a file or a directory. A trigger escaping the root — lexically via `..`, or through a symlink — is reported instead of resolved, and a stat that cannot complete is an error rather than a pass.
+- A **glob** trigger must match at least one path in the tracked path universe: everything `git ls-files` reports at the repo root, plus every directory those files imply (git tracks no directories, and a trigger naming one is legitimate). Zero matches is a hard error. There is no waiver and no warn-only mode.
+
+The tracked set — not a filesystem walk — is the universe because it is what CI selects on. A walk would let an untracked build artifact or a gitignored cache satisfy a trigger that CI can never fire on, and would make the verdict depend on what a developer's tree happens to hold.
+
+If the tracked set cannot be read at all (git missing, `repo-root` not a work tree, git exiting non-zero, an empty tracked set), that is one reported error and the run fails: an unverifiable trigger must not read as present. This is the only place the package runs git; `Select` and `Load` stay pure.
+
+The universe is enumerated once per `Validate` call and indexed by first path segment. Measured on this repository (21,990 paths, 499 glob triggers): 53ms, against 666ms for a per-path `MatchGlob` scan, same verdicts.
 
 ## Drift semantics ([#4220](https://github.com/eshu-hq/eshu/issues/4220))
 
