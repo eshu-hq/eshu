@@ -218,16 +218,33 @@ else
 fi
 
 # --- guard-live-gate ---------------------------------------------------------
+# This is the ONE pass-through case that reaches the port probes, so it is the
+# only one needing a live-backend skip. Measured with Bolt bound: this case
+# returns 2, while CLAUDE_HOOK_ALLOW (early exit) and `go test` (not a guarded
+# command) both still return 0. Guarding those two as well would be cargo.
+#
+# The skip matters because a developer box with a live stack is exactly the
+# machine this guard was written for -- without it the mirror red-lines during
+# `make pre-pr` for the wrong reason, on the one machine most likely to run it.
 sid=$((sid + 1))
-out=$(printf '{"tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' \
-  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
-rc=$?
-if [ "$rc" -eq 0 ]; then
-  printf 'ok - explicit port override is allowed through\n'
+probed_bound=""
+for p in 15432 7687 7474 18080 18091; do
+  lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && { probed_bound="$p"; break; }
+done
+if [ -n "$probed_bound" ]; then
+  printf 'ok - SKIPPED override pass-through: port %s is bound by a real backend\n' "$probed_bound"
   passed=$((passed + 1))
 else
-  printf 'FAIL - port-override run should pass; exit=%s out=%s\n' "$rc" "$out" >&2
-  failed=$((failed + 1))
+  out=$(printf '{"tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' \
+    | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    printf 'ok - explicit port override is allowed through\n'
+    passed=$((passed + 1))
+  else
+    printf 'FAIL - port-override run should pass; exit=%s out=%s\n' "$rc" "$out" >&2
+    failed=$((failed + 1))
+  fi
 fi
 
 sid=$((sid + 1))
