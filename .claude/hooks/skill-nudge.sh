@@ -12,10 +12,29 @@
 set -u
 
 INPUT=$(cat)
+
+# Only act inside an Eshu checkout. This hook can be installed at user level in
+# ~/.claude/settings.json, which puts it in front of every repository on the
+# machine -- and "load eshu-postgres-rigor" is noise in someone else's Go
+# project. Walk up from the edited file looking for a marker that only Eshu
+# has; works identically from the main checkout and from any worktree, since
+# each carries its own copy.
+eshu_root() {
+  local d="${1:-}"
+  [ -n "$d" ] || return 1
+  [ -d "$d" ] || d="$(dirname "$d")"
+  while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
+    [ -e "$d/.agents/skills/eshu-code-review" ] && return 0
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+
 # No eval: file_path can carry shell metacharacters (injection risk).
 SID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("session_id","na")[:12])' 2>/dev/null)
 FP=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("file_path") or "")' 2>/dev/null)
 [ -z "${FP:-}" ] && exit 0
+eshu_root "$FP" || exit 0
 
 # NUDGE_EXEMPT_BEGIN
 # Skills with no characteristic file path. They are triggered by an event or an

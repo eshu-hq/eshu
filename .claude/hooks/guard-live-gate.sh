@@ -29,6 +29,20 @@ fi
 
 CMD=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("command",""))' 2>/dev/null)
 [ -z "${CMD:-}" ] && exit 0
+
+# Only guard inside an Eshu checkout. At user level this hook sees every Bash
+# call on the machine, and another project's `make pre-pr` is none of its
+# business. Port 15432 and the ci-gates binary are Eshu's, so acting on them
+# elsewhere would block a command this guard knows nothing about.
+CWD=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("cwd",""))' 2>/dev/null)
+[ -n "${CWD:-}" ] || CWD="$PWD"
+in_eshu=1
+d="$CWD"
+while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
+  if [ -e "$d/.agents/skills/eshu-code-review" ]; then in_eshu=0; break; fi
+  d="$(dirname "$d")"
+done
+[ "$in_eshu" -eq 0 ] || exit 0
 case "$CMD" in *CLAUDE_HOOK_ALLOW=1*) exit 0;; esac
 
 printf '%s' "$CMD" | rg -q 'make (pre-pr|pre-pr-full)|verify-golden-corpus-gate' 2>/dev/null || exit 0

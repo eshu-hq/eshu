@@ -7,7 +7,20 @@
 # that rules live once; a hook that re-lists obligations becomes a second
 # rulebook that drifts from the first.
 set -u
-cat >/dev/null
+INPUT=$(cat)
+
+# Only speak inside an Eshu checkout. At user level this fires on every
+# compaction on the machine, and telling an unrelated project to load
+# eshu-session-lifecycle is both wrong and unactionable there.
+CWD=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("cwd",""))' 2>/dev/null)
+[ -n "${CWD:-}" ] || CWD="$PWD"
+d="$CWD"
+while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
+  [ -e "$d/.agents/skills/eshu-code-review" ] && break
+  d="$(dirname "$d")"
+done
+[ -e "$d/.agents/skills/eshu-code-review" ] || exit 0
+
 python3 -c '
 import json
 ctx = ("CONTEXT WAS COMPACTED OR RESUMED. Loaded skills are GONE from this "

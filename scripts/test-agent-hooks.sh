@@ -30,9 +30,12 @@ cleanup() { rm -f "/tmp/claude-nudge-${run_tag}"*; }
 trap cleanup EXIT
 
 # nudges <file_path> <expected substring>
+# Paths are repo-relative and resolved against this checkout on purpose. The
+# hook refuses to act outside an Eshu tree, so a synthetic /r/... path would
+# make every case pass by silently exiting instead of by routing correctly.
 nudges() {
   sid=$((sid + 1))
-  local path="$1" want="$2" out
+  local path="$repo_root/$1" want="$2" out
   out=$(printf '{"session_id":"%s%s","tool_input":{"file_path":"%s"}}' \
       "$run_tag" "$sid" "$path" \
     | bash "$hooks_dir/skill-nudge.sh" 2>/dev/null)
@@ -48,7 +51,7 @@ nudges() {
 # silent <file_path> — a path no arm claims must produce no output at all.
 silent() {
   sid=$((sid + 1))
-  local path="$1" out
+  local path="$repo_root/$1" out
   out=$(printf '{"session_id":"%s%s","tool_input":{"file_path":"%s"}}' \
       "$run_tag" "$sid" "$path" \
     | bash "$hooks_dir/skill-nudge.sh" 2>/dev/null)
@@ -63,40 +66,58 @@ silent() {
 
 # Regressions: these two routed to generator-script-discipline before the arms
 # were ordered ahead of the broad .github/workflows and scripts/verify- arms.
-nudges '/r/.github/workflows/security-scan.yml' 'eshu-security-scan-gates'
-nudges '/r/scripts/verify-telemetry-coverage.sh' 'telemetry-coverage-discipline'
+nudges '.github/workflows/security-scan.yml' 'eshu-security-scan-gates'
+nudges 'scripts/verify-telemetry-coverage.sh' 'telemetry-coverage-discipline'
 
 # Control: the broad arms must still catch what they legitimately own. If a
 # mis-route is ever "fixed" by widening a narrow arm, this flips to FAIL.
-nudges '/r/scripts/verify-openapi.sh' 'generator-script-discipline'
-nudges '/r/.github/workflows/test.yml' 'generator-script-discipline'
+nudges 'scripts/verify-openapi.sh' 'generator-script-discipline'
+nudges '.github/workflows/test.yml' 'generator-script-discipline'
 
 # Remaining routed surfaces.
-nudges '/r/go/internal/telemetry/instruments.go' 'telemetry-coverage-discipline'
-nudges '/r/go/internal/queue/claim.go' 'concurrency-deadlock-rigor'
-nudges '/r/go/go.mod' 'eshu-security-scan-gates'
-nudges '/r/docs/internal/remote-validation/x.md' 'eshu-performance-rigor'
-nudges '/r/go/internal/storage/postgres/q.sql' 'eshu-postgres-rigor'
-nudges '/r/go/internal/reducer/run.go' 'eshu-correlation-truth'
-nudges '/r/go/internal/query/handler.go' 'eshu-mcp-call-rigor'
-nudges '/r/go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
+nudges 'go/internal/telemetry/instruments.go' 'telemetry-coverage-discipline'
+nudges 'go/internal/queue/claim.go' 'concurrency-deadlock-rigor'
+nudges 'go/go.mod' 'eshu-security-scan-gates'
+nudges 'docs/internal/remote-validation/x.md' 'eshu-performance-rigor'
+nudges 'go/internal/storage/postgres/q.sql' 'eshu-postgres-rigor'
+nudges 'go/internal/reducer/run.go' 'eshu-correlation-truth'
+nudges 'go/internal/query/handler.go' 'eshu-mcp-call-rigor'
+nudges 'go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
 
 # The *.go fallback. Nothing above claims go/cmd/ci-gates, so before the
 # fallback existed these produced no nudge at all.
-nudges '/r/go/cmd/ci-gates/await.go' 'golang-engineering'
-nudges '/r/go/cmd/api/main.go' 'golang-engineering'
-nudges '/r/go/internal/parser/parse.go' 'golang-engineering'
+nudges 'go/cmd/ci-gates/await.go' 'golang-engineering'
+nudges 'go/cmd/api/main.go' 'golang-engineering'
+nudges 'go/internal/parser/parse.go' 'golang-engineering'
 
 # Placement guard. The fallback must stay BELOW the specialist arms: a *.go arm
 # hoisted above them swallows doc.go and every Go surface arm. Each of these
 # would flip to golang-engineering if someone reorders the case.
-nudges '/r/go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
-nudges '/r/go/internal/telemetry/contract_x.go' 'telemetry-coverage-discipline'
-nudges '/r/go/internal/reducer/project.go' 'eshu-correlation-truth'
+nudges 'go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
+nudges 'go/internal/telemetry/contract_x.go' 'telemetry-coverage-discipline'
+nudges 'go/internal/reducer/project.go' 'eshu-correlation-truth'
 
 # Non-Go unclaimed paths stay quiet: a hook that fires on everything gets ignored.
-silent '/r/README-not-a-package.txt'
-silent '/r/deploy/values.yaml'
+silent 'README-not-a-package.txt'
+silent 'deploy/values.yaml'
+
+# The repo guard. Installed at user level this hook sits in front of every
+# repository on the machine, so a Go file outside an Eshu checkout must produce
+# nothing -- otherwise it nudges Eshu skills into unrelated projects. This case
+# is why the paths above are resolved against the real checkout: if they were
+# synthetic, they would exit here and every assertion would pass for the wrong
+# reason.
+sid=$((sid + 1))
+out=$(printf '{"session_id":"%s%s","tool_input":{"file_path":"/tmp/not-eshu/go/cmd/x/main.go"}}' \
+    "$run_tag" "$sid" \
+  | bash "$hooks_dir/skill-nudge.sh" 2>/dev/null)
+if [ -z "$out" ]; then
+  printf 'ok - a Go file outside an Eshu checkout nudges nothing\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - outside-repo path should be silent, got: %s\n' "$out" >&2
+  failed=$((failed + 1))
+fi
 
 # The live-gate guard: blocks a default-port run, allows an explicit override.
 sid=$((sid + 1))
@@ -143,6 +164,32 @@ if printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys
   passed=$((passed + 1))
 else
   printf 'FAIL - on-compact output bad: %s\n' "${out:-<empty>}" >&2
+  failed=$((failed + 1))
+fi
+
+# Repo guards on the other two hooks. Both read cwd from the payload, and the
+# cases above supply none — so they fall back to $PWD, which is this checkout,
+# and would pass whether the guard worked or not. These pass a cwd outside any
+# Eshu tree, which is the only way to exercise it.
+sid=$((sid + 1))
+out=$(printf '{"cwd":"/tmp/not-eshu","tool_input":{"command":"make pre-pr"}}' \
+  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  printf 'ok - live-gate guard ignores make pre-pr outside an Eshu checkout\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - outside-repo make pre-pr should pass silently, exit=%s out=%s\n' "$rc" "$out" >&2
+  failed=$((failed + 1))
+fi
+
+sid=$((sid + 1))
+out=$(printf '{"cwd":"/tmp/not-eshu"}' | bash "$hooks_dir/on-compact.sh" 2>/dev/null)
+if [ -z "$out" ]; then
+  printf 'ok - on-compact says nothing outside an Eshu checkout\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - on-compact should be silent outside the repo, got: %s\n' "$out" >&2
   failed=$((failed + 1))
 fi
 
