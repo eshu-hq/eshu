@@ -30,6 +30,28 @@
 #   - A quoted heredoc delimiter on a line that also carries other code is
 #     tracked by delimiter only, with no attempt to model quoting.
 
+# IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
+#
+# SOURCE THIS FILE and use the `require` it defines. Do NOT hand-roll a local
+#     require() { rg --fixed-strings --quiet -- "$2" "${script}" || fail ...; }
+# in your new mirror. That form is satisfied by a COMMENT, and it is how
+# test-verify-ifa-dead-letter-matrix.sh and test-verify-ifa-replay-drive.sh
+# between them accumulated 58 assertions that could not fail (#6161). Then call
+# ifa_mirror_assert_pins_bind_code at the very end of your mirror, and pin that
+# call with an exact count the way the two mirrors here do.
+#
+# A KNOWN AND DELIBERATELY UNGUARDED LIMIT: nothing in this repository forces
+# you to do any of that. The probe below makes a weak helper red WITHIN a mirror
+# that runs it, but a brand-new mirror that sources nothing and calls nothing is
+# invisible to every gate in the tree. That hole is left open on purpose. Closing
+# it means detecting pin-helper DEFINITIONS textually across files, and #6173
+# already recorded that exact approach being defeated in review by `require_x ()`,
+# by `function require_x`, by a leading tab, and by a digit in the name -- a guard
+# that looks like it covers the family while missing members is worse than a
+# documented limit, because it invites the trust it has not earned. So the
+# guarantee here is honest and narrow: it binds mirrors that opt in, and this
+# paragraph is the only thing binding the ones that have not yet been written.
+
 # ifa_mirror_count_code_matches counts lines of ${2} whose CODE portion contains
 # ${1}. Lines that are wholly comments, and lines inside a heredoc body, are not
 # code and are skipped.
