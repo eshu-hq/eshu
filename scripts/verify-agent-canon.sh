@@ -80,7 +80,11 @@ if [ -d "$skills_root" ]; then
   # tautological-guard failure this repo keeps relearning. IDS holds the
   # enforced ids and NOTE the human half, deliberately separate, so a word in
   # prose cannot mint a skill id.
-  nudge_arms="$(rg -o 'IDS="[^"]*"' "$nudge_hook" || true)"
+  # Only assignments INSIDE the case block count. An `IDS="x"` appended after
+  # `esac` is unreachable -- no path can ever select it -- but a whole-file
+  # match accepts it and reports the skill routed. Scope to the block first.
+  nudge_case="$(sed -n '/^case /,/^esac/p' "$nudge_hook")"
+  nudge_arms="$(printf '%s' "$nudge_case" | rg -o 'IDS="[^"]*"' || true)"
   nudge_exempt="$(sed -n '/^# NUDGE_EXEMPT_BEGIN/,/^# NUDGE_EXEMPT_END/p' "$nudge_hook")"
   if [ -z "$nudge_exempt" ]; then
     printf 'verify-agent-canon: %s has no NUDGE_EXEMPT_BEGIN/END block\n' \

@@ -32,6 +32,14 @@ This playbook is explicit only. "Keep going", "going to bed, keep going", and
    git commit -m "wip: <one line on where this stopped>"
    ```
 
+   `git add -A` here is the one sanctioned exception to the executor rule in
+   `.opencode/agent/develop-eshu.md` ("Never `git add -A`, stage explicit
+   paths"). That rule exists so a focused change does not sweep up unrelated
+   edits. A pause checkpoint is the opposite job: its whole purpose is to
+   capture the full uncommitted tree, and staging explicit paths is how you
+   discover afterwards that the one file you forgot was the one that mattered.
+   Anywhere other than a pause commit, the executor rule stands.
+
    If the tree is knowingly broken, say so in the commit body in one line.
 
    Never `--no-verify`. Never `git stash` — the stash stack is shared across

@@ -100,7 +100,25 @@ write_nudge_fixture() {
     printf '#   eshu-performance-rigor  fixture skill, no real surface\n'
     printf '# NUDGE_EXEMPT_END\n'
     printf 'IDS=""\n'
+    printf 'case "$FP" in\n'
+    printf '  */placeholder/*) IDS="placeholder";;\n'
+    printf 'esac\n'
   } >"$1/.claude/hooks/skill-nudge.sh"
+}
+
+# add_nudge_arm <repo_root> <skill-id> — insert a REACHABLE arm, inside the
+# case block. Appending at EOF is what an unreachable assignment looks like,
+# and the gate must not accept that; see the EOF case below.
+add_nudge_arm() {
+  local hook="$1/.claude/hooks/skill-nudge.sh" tmpf
+  tmpf="$(mktemp)"
+  while IFS= read -r line; do
+    if [ "$line" = "esac" ]; then
+      printf '  */%s/*) IDS="%s";;\n' "$2" "$2" >>"$tmpf"
+    fi
+    printf '%s\n' "$line" >>"$tmpf"
+  done <"$hook"
+  mv "$tmpf" "$hook"
 }
 
 mkdir -p "$tmp/skill-links/.agents/skills/example" \
@@ -346,18 +364,29 @@ fi
 
 # A longer skill name that merely CONTAINS an existing one must not count as
 # covered. Substring matching would pass this and leave the new skill unrouted.
-printf 'IDS="orphan-extended"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+add_nudge_arm "$tmp/nudge" "orphan-extended"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
   no "agent-canon should not accept orphan covered by an orphan-extended arm"
 else
   ok "agent-canon rejects a prefix match against a longer skill name"
 fi
 
+# An assignment AFTER `esac` is unreachable: no path can select it. A
+# whole-file match would accept it and call the skill routed, which is the
+# false green this case exists to pin -- an earlier revision of this very
+# mirror asserted the opposite and passed.
 printf 'IDS="orphan"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes once the skill has a real IDS= arm"
+  no "agent-canon should not accept an IDS= assignment appended after esac"
 else
-  no "agent-canon should pass once the skill has a real IDS= arm"
+  ok "agent-canon rejects an unreachable IDS= assignment after esac"
+fi
+
+add_nudge_arm "$tmp/nudge" "orphan"
+if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
+  ok "agent-canon passes once the skill has a reachable IDS= arm"
+else
+  no "agent-canon should pass once the skill has a reachable IDS= arm"
 fi
 
 printf '\nagent-hygiene test mirror: %d passed, %d failed\n' "$pass" "$fail"

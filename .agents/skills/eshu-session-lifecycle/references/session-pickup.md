@@ -20,17 +20,27 @@ turn after context compaction.
    local worktree and branch you can point at. If the only evidence is a remote
    branch, treat the tree as live and ask before editing it.
 
-3. **Rebase before you read.** Fetch, then compute the merge base — never diff
-   against a stale local `origin/main`:
+3. **Rebase before you read — actually rebase, not just look.** Fetch, see what
+   moved, then move the branch. Steps 4 and 6 both assume this happened; if you
+   only inspect, you read and implement against stale history while believing
+   you did not.
 
    ```bash
    git fetch origin main
-   git log --oneline "$(git merge-base origin/main HEAD)"..HEAD
-   git diff "$(git merge-base origin/main HEAD)"...HEAD --stat
+   git log --oneline HEAD..origin/main            # what landed while you were away
+   git rebase origin/main                          # the step that is easy to skip
+   git diff --stat "$(git merge-base origin/main HEAD)"...HEAD
    ```
 
    Reading the diff before rebasing means reading conflicts that no longer
-   exist, or missing ones that now do.
+   exist, or missing ones that now do. If the rebase conflicts, resolve it now
+   — a conflict discovered here is cheap, and the same conflict discovered
+   after an hour of work is not.
+
+   A clean rebase on a shared file deserves one look rather than relief: a
+   line-merge of a generated artifact or a counter can be conflict-free and
+   still semantically wrong. Regenerate anything generated and confirm your own
+   change survived.
 
 4. **Read the trail. Do not re-derive it.** In order of value: any resume note
    the prior session left, the PR body and its review threads, commit messages

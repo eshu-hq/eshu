@@ -266,6 +266,95 @@ else
   failed=$((failed + 1))
 fi
 
+# --- the guard's BLOCKING path, which is its whole reason to exist -----------
+# Both detection branches are exercised hermetically. Neither needs a real
+# gate: a typo in the lsof flags or pgrep -x becoming pgrep -f would silently
+# disable detection, and every pass-through case above would still be green.
+
+# pgrep branch: a process whose name is literally ci-gates. `sleep` symlinked
+# under that name satisfies `pgrep -x` without running anything.
+sid=$((sid + 1))
+fakebin="$(mktemp -d)"
+ln -s "$(command -v sleep)" "$fakebin/ci-gates" 2>/dev/null
+"$fakebin/ci-gates" 30 &
+fake_pid=$!
+sleep 0.3
+out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
+  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+rc=$?
+kill "$fake_pid" 2>/dev/null
+wait "$fake_pid" 2>/dev/null
+rm -rf "$fakebin"
+if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq 'ci-gates run is already in flight'; then
+  printf 'ok - a running ci-gates process blocks the gate\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - running ci-gates should block(2); exit=%s out=%s\n' "$rc" "$out" >&2
+  failed=$((failed + 1))
+fi
+
+# A running gate blocks even with a full port override: the second run still
+# contends for CPU, and an earlier revision let any override skip this check.
+sid=$((sid + 1))
+fakebin="$(mktemp -d)"
+ln -s "$(command -v sleep)" "$fakebin/ci-gates" 2>/dev/null
+"$fakebin/ci-gates" 30 &
+fake_pid=$!
+sleep 0.3
+out=$(printf '{"cwd":"%s","tool_input":{"command":"ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 make pre-pr"}}' "$repo_root" \
+  | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+rc=$?
+kill "$fake_pid" 2>/dev/null
+wait "$fake_pid" 2>/dev/null
+rm -rf "$fakebin"
+if [ "$rc" -eq 2 ]; then
+  printf 'ok - a port override does not waive the running-process check\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - override must not bypass the process check; exit=%s out=%s\n' "$rc" "$out" >&2
+  failed=$((failed + 1))
+fi
+
+# lsof branch: bind 15432 briefly. Skipped rather than failed if something is
+# already listening, since that is a real backend and not this suite's to kill.
+sid=$((sid + 1))
+if lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
+  printf 'ok - SKIPPED port-bound case: 15432 already in use by a real backend\n'
+  passed=$((passed + 1))
+else
+  python3 -m http.server 15432 --bind 127.0.0.1 >/dev/null 2>&1 &
+  listener=$!
+  sleep 0.6
+  out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
+    | bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+  rc=$?
+  kill "$listener" 2>/dev/null
+  wait "$listener" 2>/dev/null
+  if [ "$rc" -eq 2 ] && printf '%s' "$out" | rg -Fq '15432'; then
+    printf 'ok - a bound port 15432 blocks the gate\n'
+    passed=$((passed + 1))
+  else
+    printf 'FAIL - bound 15432 should block(2); exit=%s out=%s\n' "$rc" "$out" >&2
+    failed=$((failed + 1))
+  fi
+fi
+
+# A missing interpreter must DEGRADE, not fail closed. An earlier revision
+# hard-blocked on absent rg/python3 before any scope check, so on a machine
+# without them every Bash call in every repository was refused -- the exact
+# interference this hook claims not to cause. PATH is emptied to simulate it.
+sid=$((sid + 1))
+out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
+  | PATH=/nonexistent /bin/bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  printf 'ok - a missing interpreter degrades to pass, not to a machine-wide block\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - missing interpreter must not block; exit=%s out=%s\n' "$rc" "$out" >&2
+  failed=$((failed + 1))
+fi
+
 # --- on-compact --------------------------------------------------------------
 sid=$((sid + 1))
 out=$(printf '{}' | bash "$hooks_dir/on-compact.sh" 2>/dev/null)

@@ -48,7 +48,12 @@ abandoned, or the user asking to clean up.
    decision. Do not decide this one yourself, and do not "helpfully" commit
    someone else's half-finished edits to clear the flag.
 
-   Untracked scratch files are safe to drop, but name them before you do.
+   **Untracked files need the same decision.** It is tempting to treat them as
+   scratch, and the count often is. But an untracked file can be a new source
+   file nobody has staged yet, and it is the only copy — no branch holds it, no
+   stash, no reflog. Once the worktree goes, so does it. List them by name and
+   get the same yes you would get for tracked changes; do not decide on the
+   author's behalf that their unstaged work was disposable.
 
 5. **Remove only the confirmed set, gently first.**
 

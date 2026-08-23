@@ -30,11 +30,17 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
          pending: ([$c[] | select((.status // "") == "QUEUED"
                                 or (.status // "") == "IN_PROGRESS"
                                 or (.state  // "") == "PENDING")] | length),
-         failing: ([$c[] | select((.conclusion // "") == "FAILURE"
-                                or (.conclusion // "") == "TIMED_OUT"
-                                or (.conclusion // "") == "CANCELLED"
-                                or (.state      // "") == "FAILURE")] | length) }'
+         failing: ([$c[]
+                    | select(((.conclusion // "")
+                        | test("FAILURE|TIMED_OUT|CANCELLED|ACTION_REQUIRED|STARTUP_FAILURE|STALE"))
+                      or ((.state // "") | test("FAILURE|ERROR")))] | length) }'
    ```
+
+   Match the failure states as a set, not as the two or three that come to
+   mind. A check run can end `ACTION_REQUIRED`, `STARTUP_FAILURE`, or `STALE`,
+   and a status context can be `ERROR` — none of which is `FAILURE`. Listing
+   only the obvious ones reports `failing: 0` over a red check set and lets the
+   merge step below treat it as clean.
 
 4. **CI is complete only after two consecutive stable reads.** Both
    `pending == 0` and an unchanged `total` across two reads. Check sets on this
