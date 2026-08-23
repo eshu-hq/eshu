@@ -8,6 +8,7 @@ run_ifa_fault_injection_generic_runner_lease_hold_cases() {
 	test_ifa_runner_lease_hold_starts_exact_transaction_lock_and_tracks_client
 	test_ifa_runner_lease_hold_failed_confirmation_cleans_up
 	test_ifa_runner_lease_hold_release_requires_post_kill_waiter
+	test_ifa_runner_lease_hold_release_query_failure_cleans_up
 	test_ifa_runner_lease_hold_release_orders_terminate_join_then_waiter_drain
 	test_ifa_runner_lease_hold_release_timeout_still_untracks_client
 	test_ifa_runner_lease_hold_negative_control_requires_holder_without_waiter
@@ -15,6 +16,7 @@ run_ifa_fault_injection_generic_runner_lease_hold_cases() {
 	test_ifa_runner_lease_hold_generic_dispatch_rejects_runner_stage
 	test_ifa_runner_lease_hold_wait_uses_fresh_sql_samples
 	test_ifa_runner_lease_hold_query_failure_is_unknown
+	test_ifa_symbol_runtime_control_query_failure_is_unknown
 }
 
 test_ifa_runner_lease_hold_generic_dispatch_rejects_runner_stage() (
@@ -155,8 +157,8 @@ test_ifa_runner_lease_hold_release_requires_post_kill_waiter() (
 	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
 	source "${generic_runner_wait_lib}"
 	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
-	local compose_file=test-compose.yml log_dir events bg_pids=() holder_pid="" rc=0 output
-	log_dir="$(mktemp -d)"; events="${log_dir}/events"
+	local compose_file=test-compose.yml log_dir events output_file bg_pids=() holder_pid="" rc=0 output
+	log_dir="$(mktemp -d)"; events="${log_dir}/events"; output_file="${log_dir}/release-output"
 	# shellcheck disable=SC2064
 	trap "rm -rf '${log_dir}'" EXIT
 
@@ -173,15 +175,56 @@ test_ifa_runner_lease_hold_release_requires_post_kill_waiter() (
 
 	ifa_fault_start_runner_lease_hold no_waiter handles_route holder_pid \
 		|| fail "runner lease holder did not start for release non-vacuity proof"
-	output="$(ifa_fault_release_runner_lease_hold no_waiter handles_route "${holder_pid}" 2>&1)" || rc=$?
+	ifa_fault_release_runner_lease_hold no_waiter handles_route "${holder_pid}" >"${output_file}" 2>&1 || rc=$?
+	output="$(<"${output_file}")"
 	[[ "${rc}" -ne 0 && "${output}" == *"no exact waiter remained before holder release"* ]] \
 		|| fail "runner lease release did not fail closed without a post-kill waiter (rc=${rc}, output=${output})"
-	[[ ! -s "${events}" ]] || fail "runner lease release terminated the holder without a post-kill waiter"
+	[[ -f "${events}" && "$(<"${events}")" == 'terminate' ]] \
+		|| fail "runner lease release did not clean up the holder after the post-kill waiter precheck failed"
+	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
+		|| fail "runner lease release left the holder tracked after the post-kill waiter precheck failed"
+)
 
-	# The public release correctly leaves ownership intact on this proof failure;
-	# stop the hermetic client directly so the subshell cannot leak it.
-	kill "${holder_pid}" 2>/dev/null || true
-	wait "${holder_pid}" 2>/dev/null || true
+test_ifa_runner_lease_hold_release_query_failure_cleans_up() (
+	# shellcheck source=scripts/lib/ifa_determinism_common.sh
+	source "${det_lib}"
+	# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+	source "${fault_lib}"
+	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
+	source "${generic_runner_wait_lib}"
+	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
+	local compose_file=test-compose.yml log_dir events output_file bg_pids=() holder_pid="" rc=0 output
+	log_dir="$(mktemp -d)"; events="${log_dir}/events"; output_file="${log_dir}/release-output"
+	# shellcheck disable=SC2064
+	trap "rm -rf '${log_dir}'" EXIT
+
+	psql() { sleep 30; }
+	ifa_det_pg() {
+		case "$4" in
+		*"exact waiter precheck"*) return 9 ;;
+		*pg_terminate_backend*) printf 'terminate\n' >>"${events}"; return 0 ;;
+		*"waiter drain"*) printf 'drain\n' >>"${events}"; printf '0\n' ;;
+		*) printf '1\n' ;;
+		esac
+	}
+	ifa_det_untrack_bg_pid() {
+		local pid="$1"
+		kill -0 "${pid}" 2>/dev/null && fail "runner lease client was still live when untracked"
+		printf 'untrack\n' >>"${events}"
+		bg_pids=()
+	}
+	sleep() { :; }
+
+	ifa_fault_start_runner_lease_hold query_error handles_route holder_pid \
+		|| fail "runner lease holder did not start for release query-failure proof"
+	ifa_fault_release_runner_lease_hold query_error handles_route "${holder_pid}" >"${output_file}" 2>&1 || rc=$?
+	output="$(<"${output_file}")"
+	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
+		|| fail "runner lease release did not preserve the precheck query failure (rc=${rc}, output=${output})"
+	[[ -f "${events}" && "$(<"${events}")" == $'terminate\nuntrack\ndrain' ]] \
+		|| fail "runner lease release did not terminate and drain after a precheck query failure"
+	[[ " ${bg_pids[*]} " != *" ${holder_pid} "* ]] \
+		|| fail "runner lease release left the holder tracked after a precheck query failure"
 )
 
 test_ifa_runner_lease_hold_release_orders_terminate_join_then_waiter_drain() (
@@ -360,4 +403,18 @@ test_ifa_runner_lease_hold_query_failure_is_unknown() (
 	output="$(ifa_fault_require_no_projection_intent_waiter test-project 0 test-dsn test-compose.yml handles_route error_cell 2>&1)" || rc=$?
 	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
 		|| fail "negative control did not propagate an indeterminate query failure (rc=${rc}, output=${output})"
+)
+
+test_ifa_symbol_runtime_control_query_failure_is_unknown() (
+	# shellcheck source=scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh
+	source "${repo_root}/scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+	local use_compose=0 FAULT_COMPOSE_PROJECT=test-project ESHU_POSTGRES_DSN=test-dsn
+	local compose_file=test-compose.yml rc=0 output
+	set +o pipefail
+	ifa_det_pg() { return 9; }
+	sleep() { :; }
+
+	output="$(_ifa_symbol_runtime_wait_for_code_calls_control 1 2>&1)" || rc=$?
+	[[ "${rc}" -eq 9 && "${output}" == *"FAILED (exit 9)"* && "${output}" == *"unknown"* ]] \
+		|| fail "symbol-runtime control did not preserve an indeterminate query failure (rc=${rc}, output=${output})"
 )

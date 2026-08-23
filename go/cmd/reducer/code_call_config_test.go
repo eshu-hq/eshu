@@ -3,7 +3,12 @@
 
 package main
 
-import "testing"
+import (
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+)
 
 func TestLoadCodeCallProjectionConfigReadsAcceptanceScanLimit(t *testing.T) {
 	t.Parallel()
@@ -50,6 +55,32 @@ func TestLoadCodeCallProjectionConfigDefaultsAcceptanceScanLimit(t *testing.T) {
 	}
 	if got, want := cfg.Workers, 4; got != want {
 		t.Fatalf("Workers = %d, want %d", got, want)
+	}
+}
+
+func TestLoadCodeCallProjectionConfigUsesStableProcessLeaseOwner(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(name string) string {
+		if name == codeCallProjectionLeaseOwnerEnv {
+			return "operator-code-call"
+		}
+		return ""
+	}
+	first := loadCodeCallProjectionConfig(getenv).LeaseOwner
+	second := loadCodeCallProjectionConfig(getenv).LeaseOwner
+	if first != second {
+		t.Fatalf("code-call projection lease owner changed within one process boot: %q != %q", first, second)
+	}
+	if first == "operator-code-call" || !strings.HasPrefix(first, "operator-code-call:") {
+		t.Fatalf("code-call projection lease owner = %q, want operator prefix plus process identity", first)
+	}
+	parts := strings.Split(first, ":")
+	if len(parts) < 4 || parts[len(parts)-2] != strconv.Itoa(os.Getpid()) {
+		t.Fatalf("code-call projection lease owner = %q, want hostname, current pid, and boot nonce suffix", first)
+	}
+	if len(parts[len(parts)-1]) < 16 {
+		t.Fatalf("code-call projection lease owner = %q, want boot-unique nonce", first)
 	}
 }
 

@@ -52,6 +52,9 @@
 # ifa_runs_in_assert / ifa_invokes_cloud_action_assert from
 # scripts/lib/ifa_symbol_runtime_live.sh.
 
+_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL='8s'
+_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER='ifa-runner-lease-audit'
+
 # _ifa_symbol_runtime_fault_require_fresh_domains runs the fresh-stack
 # non-vacuity precondition for ALL THREE domains, not only the calling cell's
 # own family: the trio shares one cassette and one builder pass, so a
@@ -77,12 +80,19 @@ _ifa_symbol_runtime_fault_require_fresh_domains() {
 # Each poll is a fresh SQL statement so PostgreSQL cannot reuse a stale
 # activity snapshot across the state change.
 _ifa_symbol_runtime_wait_for_code_calls_control() {
-	local budget="$1" i snapshot total pending
+	local budget="$1" i raw_snapshot snapshot query_rc total pending
 	[[ "${budget}" =~ ^[1-9][0-9]*$ ]] || return 1
 	for i in $(seq 1 "$((budget * 4))"); do
-		snapshot="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		if raw_snapshot="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 			"SELECT count(*) || '|' || count(*) FILTER (WHERE completed_at IS NULL) FROM shared_projection_intents WHERE projection_domain = 'code_calls';" \
-			"${compose_file}" | tail -n 1 | tr -d '[:space:]')" || return 1
+			"${compose_file}")"; then
+			snapshot="${raw_snapshot##*$'\n'}"
+			snapshot="${snapshot//[[:space:]]/}"
+		else
+			query_rc=$?
+			printf 'symbol-runtime control: code_calls query FAILED (exit %s); state is unknown\n' "${query_rc}" >&2
+			return "${query_rc}"
+		fi
 		IFS='|' read -r total pending <<<"${snapshot}"
 		if [[ "${total}" =~ ^[1-9][0-9]*$ && "${pending}" == "0" ]]; then
 			printf '%s' "${snapshot}"
@@ -140,7 +150,8 @@ cell_baseline_symbol_runtime() {
 # function are the only family-specific inputs.
 _ifa_symbol_runtime_cell_killworker() {
 	local family="$1" expected_var="$2" assert_fn="$3"
-	local cell="killworker_${family}" cell_start projector_pid reducer_before reducer_after holder_pid waiter_count control_snapshot
+	local cell="killworker_${family}" cell_start projector_pid reducer_before reducer_after
+	local holder_before waiter_count control_snapshot durable_snapshot
 	cell_start=$(date +%s)
 	log "cell kill-worker-after-runner-lease-wait (${family}): fresh stack"
 	fresh_stack "${cell}"
@@ -149,14 +160,16 @@ _ifa_symbol_runtime_cell_killworker() {
 	ifa_symbol_runtime_drive "${cell}" "${bin_dir}" "${symbol_runtime_cassette}" 1 "${log_dir}" \
 		|| die "${cell}: symbol-runtime cassette drive failed"
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
-	ifa_fault_start_runner_lease_hold "${cell}" "${family}" holder_pid \
+	ifa_fault_start_runner_lease_hold "${cell}" "${family}" holder_before \
 		|| die "${cell}: could not acquire the production runner lease key"
 	ifa_fault_require_no_projection_intent_waiter \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${family}" "${cell}" \
 		|| die "${cell}: pre-reducer negative control found an exact runner waiter"
 	printf '%s: negative control: holder present with zero exact runner waiters before reducer start\n' "${cell}"
-	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_before "${bin_dir}/eshu-reducer"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_before env \
+		ESHU_SHARED_PROJECTION_LEASE_OWNER="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER}" \
+		ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${bin_dir}/eshu-reducer"
 	waiter_count="$(ifa_fault_wait_for_claimed_projection_intent \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${CLAIMED_ROW_WAIT_TIMEOUT}" "${family}" "${cell}")" \
@@ -167,10 +180,31 @@ _ifa_symbol_runtime_cell_killworker() {
 	printf '%s: independent control: code_calls total|pending=%s\n' "${cell}" "${control_snapshot}"
 	ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL \
 		|| die "${cell}: could not kill and join the reducer parked on the lease key"
-	ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_pid}" \
+	ifa_fault_release_runner_lease_hold "${cell}" "${family}" "${holder_before}" \
 		|| die "${cell}: holder release or orphaned waiter drain failed"
-	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after "${bin_dir}/eshu-reducer"
+	ifa_fault_capture_runner_partition_leases "${cell}" "${family}" "${reducer_before}" 4 durable_snapshot \
+		|| die "${cell}: killed reducer's orphaned claims did not commit active durable leases"
+	ifa_fault_install_runner_lease_audit "${cell}" "${family}" "${durable_snapshot}" \
+		|| die "${cell}: could not install the test-local durable lease attempt and transition audit"
+	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after env \
+		ESHU_SHARED_PROJECTION_LEASE_OWNER="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER}" \
+		ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${bin_dir}/eshu-reducer"
+	ifa_fault_wait_for_runner_lease_attempt_fenced \
+		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "${cell}: replacement did not attempt every captured active lease without changing its dead owner"
+	ifa_fault_wait_for_runner_lease_expiry "${cell}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		|| die "${cell}: captured dead-owner leases did not reach the intended expiry boundary"
+	ifa_fault_wait_for_replacement_runner_lease_audit \
+		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		"${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" \
+		|| die "${cell}: replacement did not claim every captured partition under its distinct process owner"
 	run_drain_gate "${cell}"
+	ifa_fault_require_runner_leases_reclaimed "${cell}" "${family}" "${durable_snapshot}" \
+		|| die "${cell}: captured dead-owner durable leases were not reclaimed and released"
+	printf '%s: durable reclaim: dead-owner leases stayed fenced until expiry, then replacement PID %s claimed and released them\n' \
+		"${cell}" "${reducer_after}"
+	ifa_fault_drop_runner_lease_audit "${cell}" \
+		|| die "${cell}: could not remove the test-local durable lease transition audit"
 	assert_no_dead_letters "${cell}"
 	"${assert_fn}" "${cell}" "${bin_dir}" "${!expected_var}" \
 		|| die "${cell}: reclaimed ${family} graph does not match the expected edge set"

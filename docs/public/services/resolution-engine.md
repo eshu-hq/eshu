@@ -83,6 +83,11 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
 - `SharedProjectionRunner` uses up to `min(NumCPU, 4)` partition workers by
   default. Tune `ESHU_SHARED_PROJECTION_WORKERS` only when telemetry proves
   shared projection is the bottleneck.
+- Each shared-projection and code-call process owner includes hostname, PID,
+  and a boot nonce. `ESHU_SHARED_PROJECTION_LEASE_OWNER` and
+  `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` change the readable prefix, not the
+  process suffix. A restarted reducer therefore waits for an active dead-owner
+  lease to expire instead of renewing it as the same owner.
 - The main loop, shared projection runner, code-call runner, and
   repo-dependency runner run as concurrent goroutines inside `Service.Run()`.
 - Repo-dependency projection accepts `1`, `2`, or `4` fixed acceptance-unit
@@ -136,6 +141,7 @@ Important env vars:
 - `ESHU_SHARED_PROJECTION_PARTITION_COUNT`
 - `ESHU_SHARED_PROJECTION_POLL_INTERVAL`
 - `ESHU_SHARED_PROJECTION_LEASE_TTL`
+- `ESHU_SHARED_PROJECTION_LEASE_OWNER`
 - `ESHU_SHARED_PROJECTION_BATCH_LIMIT`
 - `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT`
 - `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT`

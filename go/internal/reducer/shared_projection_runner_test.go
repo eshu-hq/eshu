@@ -121,6 +121,9 @@ func TestSharedProjectionRunnerConfigDefaults(t *testing.T) {
 	if got := cfg.batchLimit(); got != defaultBatchLimit {
 		t.Fatalf("batchLimit() = %d, want %d", got, defaultBatchLimit)
 	}
+	if got := cfg.leaseOwner(); got != DefaultSharedProjectionLeaseOwnerPrefix {
+		t.Fatalf("leaseOwner() = %q, want %q", got, DefaultSharedProjectionLeaseOwnerPrefix)
+	}
 }
 
 func TestSharedProjectionRunnerStopsOnCancelledContext(t *testing.T) {

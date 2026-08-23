@@ -84,8 +84,8 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.CodeCallProjectionRunner.Config.PollInterval; got <= 0 {
 		t.Fatalf("buildReducerService() code call poll interval = %v, want positive", got)
 	}
-	if got := service.CodeCallProjectionRunner.Config.LeaseOwner; got != defaultCodeCallProjectionLeaseOwner {
-		t.Fatalf("buildReducerService() code call lease owner = %q, want %q", got, defaultCodeCallProjectionLeaseOwner)
+	if got := service.CodeCallProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, reducer.DefaultCodeCallProjectionLeaseOwnerPrefix+":") {
+		t.Fatalf("buildReducerService() code call lease owner = %q, want default prefix plus process identity", got)
 	}
 	if got := service.CodeCallProjectionRunner.Config.LeaseTTL; got <= 0 {
 		t.Fatalf("buildReducerService() code call lease TTL = %v, want positive", got)

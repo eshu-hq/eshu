@@ -112,11 +112,12 @@ held time for large repositories.
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | reducer shared projection | Intents per partition batch. |
 | `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | reducer shared projection | Idle poll interval; idle cycles back off up to `5s`. |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | reducer shared projection | Partition lease TTL. |
+| `ESHU_SHARED_PROJECTION_LEASE_OWNER` | `shared-projection-runner:<hostname>:<pid>:<boot-nonce>` | reducer shared projection | Per-process partition lease owner. A configured value replaces the prefix; the process suffix is always appended. |
 | `ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL` | `500ms` | reducer code-call sidecar | Idle poll interval for code-call projection. |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_TTL` | `60s` | reducer code-call sidecar | Lease TTL for code-call projection work. |
 | `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` | reducer code-call sidecar | Claim batch size for code-call work. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | reducer code-call sidecar | Guard for complete accepted repo/run scan before rewriting `CALLS` edges. |
-| `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` | reducer code-call sidecar | Lease owner name. |
+| `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner:<hostname>:<pid>:<boot-nonce>` | reducer code-call sidecar | Per-process partition lease owner. A configured value replaces the prefix; the process suffix is always appended. |
 | `ESHU_CODE_CALL_PROJECTION_PARTITION_COUNT` | `8` | reducer code-call sidecar | Partition count for file-scoped CALLS projection lanes. |
 | `ESHU_CODE_CALL_PROJECTION_WORKERS` | `4` | reducer code-call sidecar | Concurrent partition workers for file-scoped CALLS projection lanes. |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` | reducer repo-dependency sidecar | Idle poll interval. |
