@@ -78,7 +78,13 @@ That is infrastructure state, not a gate result, so the aggregate publishes
 `error` naming the re-run instead of claiming a gate failed, and
 `validateCancelledArm` rejects a publisher whose cancelled-gate arm is missing,
 maps that outcome to `state=failure`, or publishes anything other than
-`state=error`. `error` still blocks the merge, so the carve-out changes what
+`state=error`. It locates the arm structurally -- a line inside the
+`AGGREGATE_CODE` case block that begins with `13)`, comment lines skipped --
+and reads the arm's **effective** assignment, the last `state=` that survives,
+because bash runs an arm top to bottom. A substring search finds the marker in
+ordinary prose such as "the cancelled-gate outcome (13)", and a substring
+assertion accepts `state=error; state=success`; each of those left the arm
+deletable or invertible with the validator still green. `error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives
 in `cmd/ci-gates`; this package only holds the publisher to the arm it implies.
 `DriftCheck` rejects an

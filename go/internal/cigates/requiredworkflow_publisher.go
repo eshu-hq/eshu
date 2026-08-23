@@ -25,19 +25,105 @@ const (
 	awaitExitGateCancelledCode = 13
 )
 
+// aggregateCaseHeader opens the terminal publisher's AGGREGATE_CODE branch.
+// Everything the arm locator reads starts after it, so an assignment on an
+// earlier branch -- the PENDING_OUTCOME guard's own `state=error`, above the
+// case -- can never be mistaken for an arm's.
+const aggregateCaseHeader = `case "${AGGREGATE_CODE}" in`
+
 // aggregateCodeArm extracts the body of the AGGREGATE_CODE case arm for one
 // exit code, up to its `;;` terminator. Returns false when no such arm exists.
+//
+// The arm is located STRUCTURALLY -- a line inside the case block that begins
+// with `<code>)` -- rather than by searching the step for the substring
+// "<code>)". The substring is defeatable, and for the cancelled-gate arm it
+// was defeatable in the fail-OPEN direction (#6189 review). Ordinary prose
+// produces the marker: a comment reading "the cancelled-gate outcome (13) is
+// handled elsewhere" contains "13)". A locator that matched there extracted
+// the region from the comment to the next `;;`, which spans the
+// PENDING_OUTCOME guard's `state=error` and the `0)` arm, so "the arm must
+// publish state=error" was satisfied by an assignment on another branch --
+// while the real arm was deleted, or reverted to `state=failure`, underneath.
+// Skipping comment lines and requiring the marker to START a line closes both.
 func aggregateCodeArm(run string, code int) (string, bool) {
-	marker := fmt.Sprintf("%d)", code)
-	start := strings.Index(run, marker)
-	if start < 0 {
+	header := strings.Index(run, aggregateCaseHeader)
+	if header < 0 {
 		return "", false
 	}
-	rest := run[start+len(marker):]
-	if end := strings.Index(rest, ";;"); end >= 0 {
-		return rest[:end], true
+	marker := fmt.Sprintf("%d)", code)
+	lines := strings.Split(run[header+len(aggregateCaseHeader):], "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "esac" {
+			// Past the end of the case block; anything below it is other
+			// code, not an arm.
+			return "", false
+		}
+		if strings.HasPrefix(trimmed, "#") || !strings.HasPrefix(trimmed, marker) {
+			continue
+		}
+		arm := []string{strings.TrimPrefix(trimmed, marker)}
+		for _, next := range lines[i+1:] {
+			if strings.TrimSpace(next) == "esac" {
+				break
+			}
+			arm = append(arm, next)
+		}
+		body := strings.Join(arm, "\n")
+		if end := strings.Index(body, ";;"); end >= 0 {
+			body = body[:end]
+		}
+		return body, true
 	}
-	return rest, true
+	return "", false
+}
+
+// effectiveStateAssignment returns the value the arm actually leaves in
+// `state`, and whether it assigns it at all.
+//
+// Bash runs an arm top to bottom and the LAST assignment is the one the `gh
+// api` call below the case block reads, so `state=error; state=success`
+// publishes `success`. Asking only whether the arm CONTAINS `state=error`
+// accepts exactly that -- a cancelled dependency satisfying the required merge
+// status (#6189 review). Only the surviving assignment is a claim about what
+// the publisher does.
+//
+// Comment text is dropped for the same reason the locator skips comment lines:
+// a trailing `# should be state=error` must not answer for the code.
+func effectiveStateAssignment(arm string) (string, bool) {
+	value, found := "", false
+	for _, line := range strings.Split(arm, "\n") {
+		for _, statement := range splitShellStatements(stripShellComment(line)) {
+			assigned, ok := strings.CutPrefix(statement, "state=")
+			if !ok {
+				continue
+			}
+			value, found = strings.Trim(assigned, `"'`), true
+		}
+	}
+	return value, found
+}
+
+// stripShellComment drops a `#` that begins a word, which is where bash starts
+// a comment. A `#` inside a word (`PR#6218`) is not one.
+func stripShellComment(line string) string {
+	for i := 0; i < len(line); i++ {
+		if line[i] != '#' {
+			continue
+		}
+		if i == 0 || line[i-1] == ' ' || line[i-1] == '\t' {
+			return line[:i]
+		}
+	}
+	return line
+}
+
+// splitShellStatements breaks a line on the separators that can precede a new
+// assignment, so `state=error; state=success` yields both.
+func splitShellStatements(line string) []string {
+	return strings.FieldsFunc(line, func(r rune) bool {
+		return r == ';' || r == '&' || r == '|' || r == ' ' || r == '\t'
+	})
 }
 
 // validateTerminalPublisher checks the terminal required-status step: that it
@@ -95,7 +181,7 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 				"AGGREGATE_CODE branch; gates that have not finished must not publish a terminal status",
 			check.Context, awaitExitStillRunningCode,
 		))
-	} else if strings.Contains(arm, "state=failure") {
+	} else if state, assigned := effectiveStateAssignment(arm); assigned && state == "failure" {
 		errs = append(errs, fmt.Errorf(
 			"required status context %q: terminal publisher maps the still-running outcome (%d) to "+
 				"state=failure; that is the collapse #6075 removed -- unfinished gates must not publish failure",
@@ -127,18 +213,20 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 			check.Context, awaitExitGateCancelledCode,
 		)}
 	}
-	if strings.Contains(arm, "state=failure") {
+	state, assigned := effectiveStateAssignment(arm)
+	if assigned && state == "failure" {
 		return []error{fmt.Errorf(
 			"required status context %q: terminal publisher maps the cancelled-gate outcome (%d) to "+
 				"state=failure; that is the #6189 overclaim -- a cancelled gate is not a failed gate",
 			check.Context, awaitExitGateCancelledCode,
 		)}
 	}
-	if !strings.Contains(arm, "state=error") {
+	if !assigned || state != "error" {
 		return []error{fmt.Errorf(
 			"required status context %q: terminal publisher's cancelled-gate arm (%d) must publish "+
-				"state=error so the cancellation stays visible and still blocks the merge",
-			check.Context, awaitExitGateCancelledCode,
+				"state=error so the cancellation stays visible and still blocks the merge; its effective "+
+				"assignment is %q",
+			check.Context, awaitExitGateCancelledCode, state,
 		)}
 	}
 	return nil

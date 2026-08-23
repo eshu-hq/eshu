@@ -77,7 +77,10 @@
 // arm of that publisher's AGGREGATE_CODE branch (#6189): the arm must exist,
 // must not map a cancelled dependency gate to state=failure, and must publish
 // state=error, so a workflow-only revert cannot quietly restore "A required
-// gate failed" for a head where nothing failed. Like the rest of the package
+// gate failed" for a head where nothing failed. The arm is found structurally
+// (a line inside the case block beginning with the code, comments skipped) and
+// judged on its effective -- last-wins -- state assignment, so neither prose
+// containing "13)" nor a trailing `state=success` can answer for it. Like the rest of the package
 // it needs no network, Docker, or credentials.
 //
 // # Glob matching
