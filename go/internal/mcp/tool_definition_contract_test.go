@@ -4,6 +4,8 @@
 package mcp
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -25,5 +27,21 @@ func TestToolDefinitionAliasPreservesNeutralContractIdentity(t *testing.T) {
 	}
 	if !reflect.DeepEqual(roundTrip, neutral) {
 		t.Fatalf("round-trip ToolDefinition = %#v, want %#v", roundTrip, neutral)
+	}
+}
+
+func TestReadOnlyToolsRegistrationOrderContract(t *testing.T) {
+	const wantHash = "8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b"
+
+	hash := sha256.New()
+	tools := ReadOnlyTools()
+	for _, tool := range tools {
+		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)
+	}
+	if got, want := len(tools), 162; got != want {
+		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
+	}
+	if got := fmt.Sprintf("%x", hash.Sum(nil)); got != wantHash {
+		t.Fatalf("ReadOnlyTools ordered-name hash = %s, want %s", got, wantHash)
 	}
 }

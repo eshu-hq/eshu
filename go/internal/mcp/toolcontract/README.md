@@ -35,6 +35,7 @@ documentation registrations, and returned them through the existing root
 assembler. Before and after the scratch move, `ReadOnlyTools` contained 162
 tools with the same ordered-name SHA-256
 `8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b`.
+`TestReadOnlyToolsRegistrationOrderContract` retains that ordered-set guard.
 The scratch branch then passed `go test ./internal/mcp/... -count=1`,
 `go build ./...`, and `go vet ./...`. The family move was discarded; only the
 neutral contract and root alias land here.
