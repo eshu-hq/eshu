@@ -138,23 +138,49 @@ func matchSegment(p, s string) bool {
 }
 
 // matchSegmentWild handles segment patterns that contain at least one `*`.
-// It walks through each wildcard, trying every possible split point in s.
+//
+// It advances one pointer through the pattern and one through the string,
+// remembering the most recent `*` and how much of s it had consumed. On a
+// mismatch it returns to that `*` and lets it swallow one more character. Since
+// only the LAST `*` is ever reconsidered, each character of s is revisited at
+// most once per `*`, giving O(len(p)*len(s)) worst case.
+//
+// The previous form recursed per split point, which is exponential in the
+// number of `*` in one segment: measured on this package with the pattern
+// "*a" repeated n times against "a"*(n-1)+"b"*n, 385us at n=12, 5.9ms at n=16
+// and 68.7ms at n=20 -- roughly 2x per added `*`, so seconds by n=30. The `**`
+// fork above is memoized, but that memo does not reach inside a segment, so a
+// pattern like "collector-*-*-*.go" ran unbounded against every candidate on
+// the always-on Validate path (~20k tracked files). No committed trigger has
+// that shape today; this removes the exposure rather than relying on that.
+//
+// Semantics are unchanged: `*` matches any run of characters within one
+// segment, and TestMatchSegmentWild_AgreesWithTheExhaustiveForm pins this
+// against a reference implementation.
 func matchSegmentWild(p, s string) bool {
-	idx := strings.IndexByte(p, '*')
-	if idx == -1 {
-		return p == s
-	}
-	prefix := p[:idx]
-	if !strings.HasPrefix(s, prefix) {
-		return false
-	}
-	tail := p[idx+1:]
-	s = s[len(prefix):]
-	// `*` consumed: try every position in s for the remaining pattern.
-	for i := 0; i <= len(s); i++ {
-		if matchSegmentWild(tail, s[i:]) {
-			return true
+	var (
+		pi, si     int
+		star, mark = -1, 0
+	)
+	for si < len(s) {
+		switch {
+		case pi < len(p) && p[pi] == s[si]:
+			pi++
+			si++
+		case pi < len(p) && p[pi] == '*':
+			star, mark = pi, si
+			pi++
+		case star >= 0:
+			// Back up to the last `*` and let it consume one more character.
+			pi = star + 1
+			mark++
+			si = mark
+		default:
+			return false
 		}
 	}
-	return false
+	for pi < len(p) && p[pi] == '*' {
+		pi++
+	}
+	return pi == len(p)
 }

@@ -4,12 +4,14 @@
 package cigates
 
 import (
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestMain scrubs the git environment for the whole test binary before any
@@ -416,5 +418,86 @@ func TestLoadTrackedPaths_FailsOnAWorkTreeGitTracksNothingIn(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "git reported no tracked files") {
 		t.Fatalf("loadTrackedPaths() error = %v, want one naming the empty tracked set as the reason no glob trigger could be verified", err)
+	}
+}
+
+// TestMatchSegmentWild_AgreesWithTheExhaustiveForm pins the linear matcher
+// against the exponential split-point form it replaced. The rewrite was a
+// performance fix, so the only thing that matters is that no verdict moved: a
+// randomised sweep over a tiny alphabet ("a", "b", "*") explores the collapsing
+// cases -- adjacent stars, trailing stars, a star matching empty -- far more
+// densely than hand-written cases do.
+func TestMatchSegmentWild_AgreesWithTheExhaustiveForm(t *testing.T) {
+	t.Parallel()
+	// exhaustive is the pre-rewrite implementation, inlined so a future edit to
+	// the production matcher cannot silently change both sides together.
+	var exhaustive func(p, s string) bool
+	exhaustive = func(p, s string) bool {
+		idx := strings.IndexByte(p, '*')
+		if idx == -1 {
+			return p == s
+		}
+		prefix := p[:idx]
+		if !strings.HasPrefix(s, prefix) {
+			return false
+		}
+		tail := p[idx+1:]
+		s = s[len(prefix):]
+		for i := 0; i <= len(s); i++ {
+			if exhaustive(tail, s[i:]) {
+				return true
+			}
+		}
+		return false
+	}
+
+	r := rand.New(rand.NewSource(42))
+	patAlpha := []byte("ab*")
+	strAlpha := []byte("ab")
+	compared := 0
+	for i := 0; i < 200000; i++ {
+		pb := make([]byte, 1+r.Intn(8))
+		for j := range pb {
+			pb[j] = patAlpha[r.Intn(len(patAlpha))]
+		}
+		p := string(pb)
+		if !strings.Contains(p, "*") {
+			continue
+		}
+		sb := make([]byte, r.Intn(8))
+		for j := range sb {
+			sb[j] = strAlpha[r.Intn(len(strAlpha))]
+		}
+		s := string(sb)
+		compared++
+		if got, want := matchSegmentWild(p, s), exhaustive(p, s); got != want {
+			t.Fatalf("matchSegmentWild(%q, %q) = %v, exhaustive form = %v", p, s, got, want)
+		}
+	}
+	if compared < 100000 {
+		t.Fatalf("compared only %d pattern/string pairs; the sweep has collapsed", compared)
+	}
+}
+
+// TestMatchSegmentWild_NoMatchIsBoundedWithinASegment is the `*`-spelling
+// counterpart to the `**` bound tests. The `**` memo does not reach inside a
+// segment, so before the rewrite this shape backtracked exponentially on the
+// always-on Validate path: 385us at n=12, 5.9ms at n=16 and 68.7ms at n=20,
+// measured on this package. A deadline rather than a comparison, because the
+// point is that the cost stops growing, not that it hits a particular number.
+func TestMatchSegmentWild_NoMatchIsBoundedWithinASegment(t *testing.T) {
+	t.Parallel()
+	const n = 200
+	pattern := strings.Repeat("*a", n)
+	subject := strings.Repeat("a", n-1) + strings.Repeat("b", n)
+	done := make(chan bool, 1)
+	go func() { done <- matchSegmentWild(pattern, subject) }()
+	select {
+	case got := <-done:
+		if got {
+			t.Fatalf("matchSegmentWild(%d stars, no-match subject) = true, want false", n)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("matchSegmentWild did not answer within 2s for %d stars; within-segment matching has regressed to backtracking", n)
 	}
 }
