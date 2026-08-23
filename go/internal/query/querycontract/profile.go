@@ -12,6 +12,7 @@ import (
 type QueryProfile string
 
 const (
+	// ProfileLocalLightweight serves bounded content-backed local reads.
 	ProfileLocalLightweight   QueryProfile = "local_lightweight"
 	ProfileLocalAuthoritative QueryProfile = "local_authoritative"
 	ProfileLocalFullStack     QueryProfile = "local_full_stack"
@@ -22,6 +23,7 @@ const (
 type GraphBackend string
 
 const (
+	// GraphBackendNeo4j selects the Neo4j compatibility adapter.
 	GraphBackendNeo4j    GraphBackend = "neo4j"
 	GraphBackendNornicDB GraphBackend = "nornicdb"
 )

@@ -200,7 +200,8 @@ type ServiceAPIEndpointEvidence struct {
 	OperationIDs []string `json:"operation_ids,omitempty"`
 }
 
-type (
-	FrameworkRouteEvidence      = querycontract.FrameworkRouteEvidence
-	FrameworkRouteEntryEvidence = querycontract.FrameworkRouteEntryEvidence
-)
+// FrameworkRouteEvidence captures one framework route's handler evidence.
+type FrameworkRouteEvidence = querycontract.FrameworkRouteEvidence
+
+// FrameworkRouteEntryEvidence captures one route entrypoint binding.
+type FrameworkRouteEntryEvidence = querycontract.FrameworkRouteEntryEvidence

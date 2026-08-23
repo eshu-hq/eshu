@@ -7,6 +7,7 @@ package querycontract
 type FreshnessCause string
 
 const (
+	// FreshnessCausePendingRepoGeneration identifies an incomplete repository generation.
 	FreshnessCausePendingRepoGeneration      FreshnessCause = "pending_repo_generation"
 	FreshnessCauseReducerBacklog             FreshnessCause = "reducer_backlog"
 	FreshnessCauseDeadLetteredDomain         FreshnessCause = "dead_lettered_domain"

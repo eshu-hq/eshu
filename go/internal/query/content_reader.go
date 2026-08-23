@@ -30,6 +30,7 @@ func NewContentReader(db *sql.DB) *ContentReader {
 	}
 }
 
+// EntityContent is one indexed entity and its content metadata.
 type EntityContent = querycontract.EntityContent
 
 // GetFileContent returns one file by repo_id and relative_path.

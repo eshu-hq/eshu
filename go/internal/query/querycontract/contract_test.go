@@ -11,6 +11,8 @@ import (
 )
 
 func TestCapabilityProfileAndTruthContracts(t *testing.T) {
+	isolateCapabilityRegistry(t)
+
 	exact := TruthLevelExact
 	derived := TruthLevelDerived
 	RegisterCapabilities(CapabilityRegistration{
@@ -67,6 +69,8 @@ func TestWriteSuccessPreservesEnvelopeNegotiation(t *testing.T) {
 }
 
 func TestRegistrationTracksDuplicatesAndLowLevelSetterStillOverwrites(t *testing.T) {
+	isolateCapabilityRegistry(t)
+
 	first := CapabilitySupport{RequiredProfile: ProfileLocalAuthoritative}
 	second := CapabilitySupport{RequiredProfile: ProfileProduction}
 	RegisterCapabilities(CapabilityRegistration{Capability: "test.duplicate", Support: first})
@@ -82,21 +86,7 @@ func TestRegistrationTracksDuplicatesAndLowLevelSetterStillOverwrites(t *testing
 }
 
 func TestCapabilityOrderCanBeDeclaredBeforeRegistrations(t *testing.T) {
-	originalRegistry := capabilityRegistry
-	originalOrder := capabilityOrder
-	originalRequestedOrder := requestedCapabilityOrder
-	originalDuplicates := duplicateRegistrationKeys
-	t.Cleanup(func() {
-		capabilityRegistry = originalRegistry
-		capabilityOrder = originalOrder
-		requestedCapabilityOrder = originalRequestedOrder
-		duplicateRegistrationKeys = originalDuplicates
-	})
-
-	capabilityRegistry = map[string]CapabilitySupport{}
-	capabilityOrder = nil
-	requestedCapabilityOrder = nil
-	duplicateRegistrationKeys = nil
+	isolateCapabilityRegistry(t)
 
 	SetCapabilityOrder([]string{"second", "first"})
 	SetCapabilitySupport("first", CapabilitySupport{})
@@ -112,4 +102,23 @@ func TestCapabilityOrderCanBeDeclaredBeforeRegistrations(t *testing.T) {
 	if got := registrations[1].Capability; got != "first" {
 		t.Fatalf("registration[1] = %q, want first", got)
 	}
+}
+
+func isolateCapabilityRegistry(t *testing.T) {
+	t.Helper()
+	originalRegistry := capabilityRegistry
+	originalOrder := capabilityOrder
+	originalRequestedOrder := requestedCapabilityOrder
+	originalDuplicates := duplicateRegistrationKeys
+	t.Cleanup(func() {
+		capabilityRegistry = originalRegistry
+		capabilityOrder = originalOrder
+		requestedCapabilityOrder = originalRequestedOrder
+		duplicateRegistrationKeys = originalDuplicates
+	})
+
+	capabilityRegistry = map[string]CapabilitySupport{}
+	capabilityOrder = nil
+	requestedCapabilityOrder = nil
+	duplicateRegistrationKeys = nil
 }

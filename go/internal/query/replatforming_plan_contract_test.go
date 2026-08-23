@@ -156,18 +156,20 @@ func TestReplatformingPlanRollupNeverExceedsCapabilityTruth(t *testing.T) {
 	for _, profile := range []QueryProfile{
 		ProfileLocalAuthoritative, ProfileLocalFullStack, ProfileProduction,
 	} {
-		max := maxTruthLevel(replatformingPlanReadinessCapability, profile)
-		if max == nil {
-			t.Fatalf("profile %q unexpectedly unsupported", profile)
-		}
-		if *max == TruthLevelExact {
+		truth := BuildTruthEnvelope(
+			profile,
+			replatformingPlanReadinessCapability,
+			TruthBasisAuthoritativeGraph,
+			"test capability ceiling",
+		)
+		if truth.Level == TruthLevelExact {
 			t.Fatalf("profile %q caps at exact; a route could over-state plan authority", profile)
 		}
 
 		// Even an all-exact plan must clamp to the capability max when served.
 		exact := validReplatformingPlan()
 		exact.Items[0].SourceState = ReplatformingSourceStateExact
-		served := minTruthLevel(exact.RollupTruthLevel(), *max)
+		served := minTruthLevel(exact.RollupTruthLevel(), truth.Level)
 		if served == TruthLevelExact {
 			t.Fatalf("served truth for profile %q reached exact past the capability cap", profile)
 		}

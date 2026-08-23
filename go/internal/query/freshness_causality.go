@@ -9,11 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-type (
-	FreshnessCause     = querycontract.FreshnessCause
-	FreshnessNextCheck = querycontract.FreshnessNextCheck
-)
+// FreshnessCause is the closed reason a truth response is not fresh.
+type FreshnessCause = querycontract.FreshnessCause
 
+// FreshnessNextCheck is a bounded follow-up call for one freshness cause.
+type FreshnessNextCheck = querycontract.FreshnessNextCheck
+
+// Freshness cause aliases preserve the root package's closed enumeration.
 const (
 	FreshnessCausePendingRepoGeneration      = querycontract.FreshnessCausePendingRepoGeneration
 	FreshnessCauseReducerBacklog             = querycontract.FreshnessCauseReducerBacklog
@@ -25,25 +27,17 @@ const (
 	FreshnessCausePendingSearchVector        = querycontract.FreshnessCausePendingSearchVector
 )
 
-var freshnessCauses = map[FreshnessCause]struct{}{
-	FreshnessCausePendingRepoGeneration:      {},
-	FreshnessCauseReducerBacklog:             {},
-	FreshnessCauseDeadLetteredDomain:         {},
-	FreshnessCauseMissingCollectorCompletion: {},
-	FreshnessCauseContentCoverageUnavailable: {},
-	FreshnessCauseUnsupportedProfile:         {},
-	FreshnessCauseRetentionExpired:           {},
-	FreshnessCausePendingSearchVector:        {},
-}
-
+// ValidFreshnessCause reports whether cause belongs to the closed enumeration.
 func ValidFreshnessCause(cause FreshnessCause) bool {
 	return querycontract.ValidFreshnessCause(cause)
 }
 
+// FreshnessCauseNextCheck returns the bounded follow-up for a known cause.
 func FreshnessCauseNextCheck(cause FreshnessCause) (FreshnessNextCheck, bool) {
 	return querycontract.FreshnessCauseNextCheck(cause)
 }
 
+// WithFreshnessCause attaches a proven cause to a non-fresh envelope.
 func WithFreshnessCause(truth *TruthEnvelope, cause FreshnessCause) {
 	querycontract.WithFreshnessCause(truth, cause)
 }

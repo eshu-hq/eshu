@@ -21,6 +21,7 @@ import (
 type AnswerTruthClass = querycontract.AnswerTruthClass
 
 const (
+	// Answer truth-class aliases preserve the root package's wire values.
 	AnswerTruthDeterministic       = querycontract.AnswerTruthDeterministic
 	AnswerTruthDerived             = querycontract.AnswerTruthDerived
 	AnswerTruthFallback            = querycontract.AnswerTruthFallback

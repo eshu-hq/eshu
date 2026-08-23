@@ -10,26 +10,49 @@ import (
 )
 
 const (
-	EnvelopeMIMEType         = querycontract.EnvelopeMIMEType
+	// EnvelopeMIMEType selects the stable Eshu response envelope.
+	EnvelopeMIMEType = querycontract.EnvelopeMIMEType
+	// CapabilityQueryPlaybooks identifies deterministic playbook catalog reads.
 	CapabilityQueryPlaybooks = "query.playbooks"
 	semanticSearchCapability = "semantic_search.curated_retrieval"
 )
 
-type (
-	QueryProfile      = querycontract.QueryProfile
-	GraphBackend      = querycontract.GraphBackend
-	TruthLevel        = querycontract.TruthLevel
-	TruthBasis        = querycontract.TruthBasis
-	FreshnessState    = querycontract.FreshnessState
-	TruthFreshness    = querycontract.TruthFreshness
-	TruthEnvelope     = querycontract.TruthEnvelope
-	ErrorProfiles     = querycontract.ErrorProfiles
-	ErrorCode         = querycontract.ErrorCode
-	ErrorEnvelope     = querycontract.ErrorEnvelope
-	ResponseEnvelope  = querycontract.ResponseEnvelope
-	capabilitySupport = querycontract.CapabilitySupport
-)
+// QueryProfile names one supported query runtime profile.
+type QueryProfile = querycontract.QueryProfile
 
+// GraphBackend names one supported graph adapter.
+type GraphBackend = querycontract.GraphBackend
+
+// TruthLevel describes how directly evidence supports an answer.
+type TruthLevel = querycontract.TruthLevel
+
+// TruthBasis names the evidence source used to produce an answer.
+type TruthBasis = querycontract.TruthBasis
+
+// FreshnessState reports whether evidence is current and available.
+type FreshnessState = querycontract.FreshnessState
+
+// TruthFreshness carries freshness state and a proven cause when known.
+type TruthFreshness = querycontract.TruthFreshness
+
+// TruthEnvelope carries query capability, evidence, and freshness metadata.
+type TruthEnvelope = querycontract.TruthEnvelope
+
+// ErrorProfiles names the active and minimum required profiles.
+type ErrorProfiles = querycontract.ErrorProfiles
+
+// ErrorCode is a stable machine-readable query error code.
+type ErrorCode = querycontract.ErrorCode
+
+// ErrorEnvelope carries a stable query error and optional profile detail.
+type ErrorEnvelope = querycontract.ErrorEnvelope
+
+// ResponseEnvelope is the negotiated query response wire contract.
+type ResponseEnvelope = querycontract.ResponseEnvelope
+
+type capabilitySupport = querycontract.CapabilitySupport
+
+// Compatibility constants preserve the root query package's public contract.
 const (
 	ProfileLocalLightweight   = querycontract.ProfileLocalLightweight
 	ProfileLocalAuthoritative = querycontract.ProfileLocalAuthoritative
@@ -72,35 +95,16 @@ const (
 	ErrorCodeComponentRegistryUnavailable = querycontract.ErrorCodeComponentRegistryUnavailable
 )
 
+// ParseGraphBackend validates raw against the supported graph adapters.
 func ParseGraphBackend(raw string) (GraphBackend, error) { return querycontract.ParseGraphBackend(raw) }
 
+// NormalizeQueryProfile returns a supported profile or the empty profile.
 func NormalizeQueryProfile(raw string) QueryProfile { return querycontract.NormalizeQueryProfile(raw) }
 
+// ParseQueryProfile validates raw against the supported query profiles.
 func ParseQueryProfile(raw string) (QueryProfile, error) { return querycontract.ParseQueryProfile(raw) }
 
 func acceptsEnvelope(r *http.Request) bool { return querycontract.AcceptsEnvelope(r) }
-
-func maxTruthLevel(capability string, profile QueryProfile) *TruthLevel {
-	support, ok := capabilityMatrix[capability]
-	if !ok {
-		return nil
-	}
-	switch profile {
-	case ProfileLocalLightweight:
-		return support.LocalLightweightMax
-	case ProfileLocalAuthoritative:
-		if support.LocalAuthoritativeMax != nil {
-			return support.LocalAuthoritativeMax
-		}
-		return support.LocalLightweightMax
-	case ProfileLocalFullStack:
-		return support.LocalFullStackMax
-	case ProfileProduction:
-		return support.ProductionMax
-	default:
-		return support.ProductionMax
-	}
-}
 
 func requiredProfile(capability string) QueryProfile {
 	return querycontract.RequiredProfile(capability)
@@ -114,6 +118,7 @@ func minTruthLevel(a, b TruthLevel) TruthLevel {
 	return b
 }
 
+// BuildTruthEnvelope builds truth metadata from the capability ceiling.
 func BuildTruthEnvelope(profile QueryProfile, capability string, basis TruthBasis, reason string) *TruthEnvelope {
 	return querycontract.BuildTruthEnvelope(profile, capability, basis, reason)
 }

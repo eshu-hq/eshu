@@ -9,6 +9,7 @@ import "fmt"
 type TruthLevel string
 
 const (
+	// TruthLevelExact means authoritative evidence directly supports the answer.
 	TruthLevelExact    TruthLevel = "exact"
 	TruthLevelDerived  TruthLevel = "derived"
 	TruthLevelFallback TruthLevel = "fallback"
@@ -18,6 +19,7 @@ const (
 type TruthBasis string
 
 const (
+	// TruthBasisAuthoritativeGraph identifies canonical graph evidence.
 	TruthBasisAuthoritativeGraph TruthBasis = "authoritative_graph"
 	TruthBasisSemanticFacts      TruthBasis = "semantic_facts"
 	TruthBasisContentIndex       TruthBasis = "content_index"
@@ -29,6 +31,7 @@ const (
 type FreshnessState string
 
 const (
+	// FreshnessFresh means the served evidence is current.
 	FreshnessFresh       FreshnessState = "fresh"
 	FreshnessStale       FreshnessState = "stale"
 	FreshnessBuilding    FreshnessState = "building"
@@ -65,6 +68,7 @@ type ErrorProfiles struct {
 type ErrorCode string
 
 const (
+	// ErrorCodeUnsupportedCapability reports a profile-incompatible capability.
 	ErrorCodeUnsupportedCapability        ErrorCode = "unsupported_capability"
 	ErrorCodeAmbiguous                    ErrorCode = "ambiguous"
 	ErrorCodeUnauthenticated              ErrorCode = "unauthenticated"
@@ -104,6 +108,7 @@ type ResponseEnvelope struct {
 type AnswerTruthClass string
 
 const (
+	// AnswerTruthDeterministic identifies exact deterministic truth.
 	AnswerTruthDeterministic       AnswerTruthClass = "deterministic"
 	AnswerTruthDerived             AnswerTruthClass = "derived"
 	AnswerTruthFallback            AnswerTruthClass = "fallback"
