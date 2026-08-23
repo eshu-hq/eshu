@@ -1,7 +1,11 @@
 # Agent Hooks
 
-Harness hooks that enforce the rules CI structurally cannot reach. Detail for
-the hook files under `.claude/hooks/` and `.codex/hooks/`.
+Harness hooks that reach the failures CI structurally cannot. Detail for the
+hook files under `.claude/hooks/` and `.codex/hooks/`.
+
+Two of them block and the rest only speak. The tier column below says which,
+and it is set by the exit code — do not assume a hook stops anything without
+checking it there.
 
 CI fires on a diff. These fire on an action, before the diff exists. That is the
 whole reason they are here rather than in a workflow, and it matches the canon
@@ -18,14 +22,48 @@ Codex's `apply_patch` shape varies by version and names several files at once.
 `.codex/hooks/eshu-doc-staleness.sh` handles that by ignoring the payload and
 rebuilding the whole snapshot, which only works for a hook that needs no path.
 
-| Hook | Harness | Event | What it does |
-|---|---|---|---|
-| `eshu-doc-staleness.sh` | Claude, Codex | PostToolUse on edits | Rebuilds the `go/` doc-drift snapshot |
-| `skill-nudge.sh` | Claude | PreToolUse on edits | Names the project skill governing the edited path |
-| `guard-live-gate.sh` | Claude | PreToolUse on Bash | Blocks a second live gate on the default ports |
-| `on-compact.sh` | Claude | SessionStart, compact or resume | Points a re-grounded session at `eshu-session-lifecycle` |
+| Hook | Harness | Event | Tier | What it does |
+|---|---|---|---|---|
+| `eshu-doc-staleness.sh` | Claude, Codex | PostToolUse on edits | side effect | Rebuilds the `go/` doc-drift snapshot |
+| `skill-nudge.sh` | Claude | PreToolUse on edits | **blocking** | Refuses an edit until the governing skill is loaded |
+| `skill-loaded.sh` | Claude | PostToolUse on `Skill` | side effect | Records which skills were loaded this session |
+| `guard-live-gate.sh` | Claude | PreToolUse on Bash | **blocking** | Blocks a second live gate on the default ports |
+| `on-compact.sh` | Claude | SessionStart, compact or resume | advisory | Points a re-grounded session at `eshu-session-lifecycle` |
 
-Three of those are Claude-only today. Porting them to Codex needs someone to
+## Why the nudge blocks instead of suggesting
+
+The tier is set by the exit code, and the difference is total. Exit 0 with
+`additionalContext` puts a sentence in front of the agent and nothing more.
+Exit 2 fails the tool call.
+
+`skill-nudge.sh` started out advisory, and there is a measurement of what that
+bought. In the session that first observed these hooks firing, the nudge fired
+three times and the agent loaded zero of the named skills. One of the three was
+genuinely unloadable; the other two were available and simply not acted on. An
+advisory hook is prose delivered by a hook — the same rung of the
+prose → skill → hook ladder the repo already found insufficient, just with
+better timing.
+
+It now exits 2, and the requirement is **loading, not acknowledgement**.
+`skill-loaded.sh` records each `Skill` invocation as
+`/tmp/claude-skill-loaded-<session>-<id>`, and the nudge lifts only when every
+id its arm names has a marker. Retrying without loading is refused again, and a
+multi-skill arm names only the ids still missing. Blocking once and then waving
+everything through would be acknowledgement theatre, so the suite asserts the
+repeat refusal directly.
+
+**Escape hatch.** A skill can be genuinely unloadable — most often when it lives
+on a branch the session's project directory cannot see, which is the activation
+split below. A permanent block on editing a whole surface is worse than the rule
+it enforces, so `touch /tmp/claude-skill-override-<session>` lifts it for the
+session. Nothing relaxes automatically: an auto-degrade would be a silent
+fallback hiding exactly the case worth knowing about.
+
+**Ordering.** `IDS=` holds the enforced skill ids and `NOTE=` the human half.
+They are separate so that guidance prose cannot mint a skill id, and so
+`verify-agent-canon.sh` can match on the enforced list alone.
+
+Four of those are Claude-only today. Porting them to Codex needs someone to
 pin the `apply_patch` payload shape for the Codex version in use and confirm
 Codex's pre-tool and session-start equivalents. Do not write a Codex adapter
 against a guessed payload shape; a hook that silently never fires is worse than
@@ -38,9 +76,10 @@ move and every new skill can invalidate an arm, and the failure is silent: the
 hook keeps exiting 0 and nobody learns the arm stopped matching.
 
 `scripts/verify-agent-canon.sh` therefore asserts that every skill under
-`.agents/skills/` is either assigned by a `SKILL=` case arm or named in the
+`.agents/skills/` is either assigned by an `IDS=` case arm or named in the
 `NUDGE_EXEMPT` block. The check reads only those two regions, not the whole
-file, so a passing mention in an unrelated comment cannot satisfy it.
+file, so a passing mention in an unrelated comment cannot satisfy it — and it
+reads `IDS=` rather than `NOTE=` so that guidance prose cannot mint an id.
 
 Skills with no characteristic file path belong in `NUDGE_EXEMPT` with a reason.
 A code review runs against a diff, a release against intent, the humanizer
@@ -68,9 +107,10 @@ above the specialist arms it swallows `doc.go` and every Go surface arm, so
 `test-agent-hooks.sh` pins three paths that flip to `golang-engineering` if
 anyone reorders the case.
 
-The fallback is cheap because the stamp is keyed on `(session, skill)`: one
-nudge per session, not one per edit. Non-Go paths nobody claims stay silent, and
-that stays deliberate — a hook that fires on everything gets ignored.
+The fallback is bounded because the requirement is per `(session, skill)`, not
+per edit: load `golang-engineering` once and every later Go edit in that session
+passes untouched. Non-Go paths nobody claims stay silent, and that stays
+deliberate — a hook that fires on everything gets ignored.
 
 ## Installing
 
@@ -86,10 +126,25 @@ settings and hook paths. If the hooks exist only on a branch checked out in that
 worktree, none of them register: the settings file that loaded never mentioned
 them, and the paths it does mention resolve into a tree where they are absent.
 
-That matters for testing an unmerged hook change. Start the session **in the
-worktree** that holds it, not in the main checkout, or the change cannot
-activate no matter how correct it is. It stops mattering after merge, when the
-main checkout has the files.
+Starting the session inside the worktree does not fix this, which cost two
+attempts to learn: a session rooted at `.worktrees/<name>` still reported
+`${CLAUDE_PROJECT_DIR}` as the main checkout. Project-scoped wiring therefore
+cannot activate an unmerged hook from any worktree.
+
+The scope that does work before merge is a **user-level install** in
+`~/.claude/settings.json`, pointing at `~/.claude/hooks/eshu-hook.sh <name>`.
+That dispatcher resolves the real script main-checkout-first and then the
+worktree, and exits 0 quietly when it finds neither — so it keeps working after
+the branch merges and the worktree is pruned, which a direct path into
+`.worktrees/` does not: `bash` on a missing script exits 127 and prints on every
+matching tool call, in every repository, starting the moment nobody is thinking
+about hook wiring any more.
+
+Note the consequence for iterating: a worktree session runs the **main
+checkout's** copy of each hook, so a branch that edits a hook still executes
+main's version. Script *content* is read at invocation, though, so editing a
+hook the dispatcher already resolves takes effect immediately — only
+`settings.json` changes need a reload.
 
 **Settings are read at session start, and a resume counts.** A session already
 running when the files arrive will not pick them up. Restarting the app and

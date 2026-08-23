@@ -74,11 +74,13 @@ if [ -d "$skills_root" ]; then
     printf 'verify-agent-canon: missing skill nudge hook: %s\n' "$nudge_hook" >&2
     exit 1
   fi
-  # Scope the match to the two places that actually route: the SKILL= values a
+  # Scope the match to the two places that actually route: the IDS= values a
   # case arm assigns, and the explicit exempt block. Matching the whole file
   # would let any passing mention in a comment satisfy the gate, which is the
-  # tautological-guard failure this repo keeps relearning.
-  nudge_arms="$(rg -o 'SKILL="[^"]*"' "$nudge_hook" || true)"
+  # tautological-guard failure this repo keeps relearning. IDS holds the
+  # enforced ids and NOTE the human half, deliberately separate, so a word in
+  # prose cannot mint a skill id.
+  nudge_arms="$(rg -o 'IDS="[^"]*"' "$nudge_hook" || true)"
   nudge_exempt="$(sed -n '/^# NUDGE_EXEMPT_BEGIN/,/^# NUDGE_EXEMPT_END/p' "$nudge_hook")"
   if [ -z "$nudge_exempt" ]; then
     printf 'verify-agent-canon: %s has no NUDGE_EXEMPT_BEGIN/END block\n' \

@@ -89,7 +89,7 @@ fi
 
 # write_nudge_fixture <repo_root> — minimal skill-nudge hook covering the two
 # skills every fixture below declares. The canon gate requires each skill to be
-# assigned by a SKILL= arm or named in the exempt block, so a fixture repo
+# assigned by an IDS= arm or named in the exempt block, so a fixture repo
 # without this file fails for the wrong reason.
 write_nudge_fixture() {
   mkdir -p "$1/.claude/hooks"
@@ -99,7 +99,7 @@ write_nudge_fixture() {
     printf '#   example                 fixture skill, no real surface\n'
     printf '#   eshu-performance-rigor  fixture skill, no real surface\n'
     printf '# NUDGE_EXEMPT_END\n'
-    printf 'SKILL=""\n'
+    printf 'IDS=""\n'
   } >"$1/.claude/hooks/skill-nudge.sh"
 }
 
@@ -346,18 +346,18 @@ fi
 
 # A longer skill name that merely CONTAINS an existing one must not count as
 # covered. Substring matching would pass this and leave the new skill unrouted.
-printf 'SKILL="orphan-extended"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+printf 'IDS="orphan-extended"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
   no "agent-canon should not accept orphan covered by an orphan-extended arm"
 else
   ok "agent-canon rejects a prefix match against a longer skill name"
 fi
 
-printf 'SKILL="orphan"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
+printf 'IDS="orphan"\n' >>"$tmp/nudge/.claude/hooks/skill-nudge.sh"
 if ESHU_AGENT_CANON_REPO_ROOT="$tmp/nudge" "$canon" >/dev/null 2>&1; then
-  ok "agent-canon passes once the skill has a real SKILL= arm"
+  ok "agent-canon passes once the skill has a real IDS= arm"
 else
-  no "agent-canon should pass once the skill has a real SKILL= arm"
+  no "agent-canon should pass once the skill has a real IDS= arm"
 fi
 
 printf '\nagent-hygiene test mirror: %d passed, %d failed\n' "$pass" "$fail"
