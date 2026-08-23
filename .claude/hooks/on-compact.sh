@@ -9,6 +9,24 @@
 set -u
 INPUT=$(cat)
 
+# Clear this session's loaded-skill markers FIRST, before any scope check.
+#
+# skill-nudge.sh treats a marker as "the skill is in this context window", and
+# `skill-loaded.sh` writes it keyed on the session id. A resume keeps that id
+# while discarding the loaded skill content, so without this the marker
+# outlives the thing it stands for: the nudge would wave through an edit whose
+# governing skill is no longer loaded, which is the exact failure the block
+# exists to prevent, and the hook's own message ("having loaded it earlier does
+# not count") would be a lie.
+#
+# Scoped to this session's own markers, so a concurrent session keeps its own.
+# Ahead of the Eshu scope guard on purpose: a stale marker is wrong everywhere,
+# and the compaction that invalidated it does not care which repo you are in.
+CLR_SID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("session_id","")[:12])' 2>/dev/null)
+if [ -n "${CLR_SID:-}" ]; then
+  rm -f "/tmp/claude-skill-loaded-${CLR_SID}-"* 2>/dev/null
+fi
+
 # Only speak inside an Eshu checkout. At user level this fires on every
 # compaction on the machine, and telling an unrelated project to load
 # eshu-session-lifecycle is both wrong and unactionable there.

@@ -58,6 +58,15 @@ marker `claude-skill-loaded-<session>-golang-engineering` written; the same
 edit then passed with exit 0. The `Skill` payload puts the name at
 `tool_input.skill`, read off a real invocation rather than assumed.
 
+**Compaction invalidates the markers**, and `on-compact.sh` is what does it. A
+resume keeps the same session id while discarding loaded skill content, so
+without that step a marker outlives the thing it stands for and the nudge waves
+through an edit whose governing skill is no longer in context — the exact
+failure the block exists to prevent, with the hook's own message ("having
+loaded it earlier does not count") reduced to a lie. It clears only the current
+session's markers, and does so before the Eshu scope check, because a stale
+marker is wrong whatever repository the compaction happened in.
+
 **Escape hatch.** A skill can be genuinely unloadable — most often when it lives
 on a branch the session's project directory cannot see, which is the activation
 split below. A permanent block on editing a whole surface is worse than the rule

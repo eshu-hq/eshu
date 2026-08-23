@@ -355,7 +355,64 @@ else
   failed=$((failed + 1))
 fi
 
+# --- settings integration ----------------------------------------------------
+# Every hook this suite exercises directly must also be REGISTERED, or the
+# behaviour is correct and unreachable. The blocking nudge without its recorder
+# is the worst shape: the agent is refused, loads the skill, no marker is
+# written, and it stays refused until it finds the override. Calling the
+# recorder directly -- as the cases above do -- cannot see that.
+sid=$((sid + 1))
+settings="$repo_root/.claude/settings.json"
+missing_reg=""
+while IFS= read -r hookfile; do
+  rg -Fq -- "$hookfile" "$settings" || missing_reg="${missing_reg}${missing_reg:+ }$hookfile"
+done <<'HOOKLIST'
+skill-nudge.sh
+skill-loaded.sh
+guard-live-gate.sh
+on-compact.sh
+HOOKLIST
+if [ -z "$missing_reg" ]; then
+  printf 'ok - every hook is registered in .claude/settings.json\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - hooks present but unregistered in settings.json: %s\n' "$missing_reg" >&2
+  failed=$((failed + 1))
+fi
+
 # --- on-compact --------------------------------------------------------------
+# Compaction must invalidate loaded-skill markers. A resume keeps the session
+# id while discarding skill content, so a surviving marker makes the nudge wave
+# through an edit whose skill is no longer in context.
+sid=$((sid + 1))
+probe_sid="${run_tag}${sid}"
+touch "/tmp/claude-skill-loaded-${probe_sid}-golang-engineering"
+printf '{"session_id":"%s","cwd":"%s"}' "$probe_sid" "$repo_root" \
+  | bash "$hooks_dir/on-compact.sh" >/dev/null 2>&1
+if [ ! -f "/tmp/claude-skill-loaded-${probe_sid}-golang-engineering" ]; then
+  printf 'ok - compaction clears this session loaded-skill markers\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - on-compact left a stale loaded-skill marker\n' >&2
+  failed=$((failed + 1))
+fi
+
+# ...and only its own. A concurrent session's markers are not ours to drop.
+sid=$((sid + 1))
+probe_sid="${run_tag}${sid}"
+other_sid="${run_tag}other${sid}"
+touch "/tmp/claude-skill-loaded-${other_sid}-golang-engineering"
+printf '{"session_id":"%s","cwd":"%s"}' "$probe_sid" "$repo_root" \
+  | bash "$hooks_dir/on-compact.sh" >/dev/null 2>&1
+if [ -f "/tmp/claude-skill-loaded-${other_sid}-golang-engineering" ]; then
+  printf 'ok - compaction leaves another session markers alone\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - on-compact deleted a marker belonging to another session\n' >&2
+  failed=$((failed + 1))
+fi
+rm -f "/tmp/claude-skill-loaded-${other_sid}-golang-engineering"
+
 sid=$((sid + 1))
 out=$(printf '{}' | bash "$hooks_dir/on-compact.sh" 2>/dev/null)
 if printf '%s' "$out" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "eshu-session-lifecycle" in d["hookSpecificOutput"]["additionalContext"] else 1)' 2>/dev/null; then
