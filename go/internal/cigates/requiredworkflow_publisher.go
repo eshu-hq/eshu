@@ -31,8 +31,11 @@ const (
 // case -- can never be mistaken for an arm's.
 const aggregateCaseHeader = `case "${AGGREGATE_CODE}" in`
 
-// aggregateCodeArm extracts the body of the AGGREGATE_CODE case arm for one
-// exit code, up to its `;;` terminator. Returns false when no such arm exists.
+// aggregateCodeArm parses the AGGREGATE_CODE case arm for one exit code into
+// its statements, stopping at the arm's `;;` terminator. found is false when
+// no such arm exists; err is non-nil when the arm is built from shell outside
+// the grammar requiredworkflow_shell.go accepts, which callers report rather
+// than judge.
 //
 // The arm is located STRUCTURALLY -- a line inside the case block that begins
 // with `<code>)` -- rather than by searching the step for the substring
@@ -45,10 +48,15 @@ const aggregateCaseHeader = `case "${AGGREGATE_CODE}" in`
 // publish state=error" was satisfied by an assignment on another branch --
 // while the real arm was deleted, or reverted to `state=failure`, underneath.
 // Skipping comment lines and requiring the marker to START a line closes both.
-func aggregateCodeArm(run string, code int) (string, bool) {
+//
+// The `;;` that ends the arm is found by the scanner, not by a substring
+// search: `;;` inside a quoted description is text, and truncating there
+// dropped every assignment after it -- which reads as an arm that assigns
+// nothing, and an arm that assigns nothing passes the still-running check.
+func aggregateCodeArm(run string, code int) ([]shellStatement, bool, error) {
 	header := strings.Index(run, aggregateCaseHeader)
 	if header < 0 {
-		return "", false
+		return nil, false, nil
 	}
 	marker := fmt.Sprintf("%d)", code)
 	lines := strings.Split(run[header+len(aggregateCaseHeader):], "\n")
@@ -57,25 +65,38 @@ func aggregateCodeArm(run string, code int) (string, bool) {
 		if trimmed == "esac" {
 			// Past the end of the case block; anything below it is other
 			// code, not an arm.
-			return "", false
+			return nil, false, nil
 		}
 		if strings.HasPrefix(trimmed, "#") || !strings.HasPrefix(trimmed, marker) {
 			continue
 		}
-		arm := []string{strings.TrimPrefix(trimmed, marker)}
-		for _, next := range lines[i+1:] {
-			if strings.TrimSpace(next) == "esac" {
-				break
-			}
-			arm = append(arm, next)
+		statements, err := scanArmBody(append([]string{strings.TrimPrefix(trimmed, marker)}, lines[i+1:]...))
+		if err != nil {
+			return nil, true, fmt.Errorf("%s arm: %w", marker, err)
 		}
-		body := strings.Join(arm, "\n")
-		if end := strings.Index(body, ";;"); end >= 0 {
-			body = body[:end]
-		}
-		return body, true
+		return statements, true, nil
 	}
-	return "", false
+	return nil, false, nil
+}
+
+// scanArmBody parses an arm's lines up to its `;;` terminator, or to the
+// `esac` that closes the case block when the arm has no terminator.
+func scanArmBody(lines []string) ([]shellStatement, error) {
+	var statements []shellStatement
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "esac" {
+			break
+		}
+		parsed, terminated, err := scanShellLine(line)
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, parsed...)
+		if terminated {
+			break
+		}
+	}
+	return statements, nil
 }
 
 // effectiveStateAssignment returns the value the arm actually leaves in
@@ -88,42 +109,25 @@ func aggregateCodeArm(run string, code int) (string, bool) {
 // status (#6189 review). Only the surviving assignment is a claim about what
 // the publisher does.
 //
-// Comment text is dropped for the same reason the locator skips comment lines:
-// a trailing `# should be state=error` must not answer for the code.
-func effectiveStateAssignment(arm string) (string, bool) {
+// A statement's assignments are the run of assignment words that OPENS it,
+// which is bash's own rule: `state=error description=x` sets both, while
+// `echo state=success` sets nothing because `echo` ends the run. Reading only
+// the first word would miss the second assignment of a pair; reading every
+// word would count a command's arguments as assignments.
+func effectiveStateAssignment(statements []shellStatement) (string, bool) {
 	value, found := "", false
-	for _, line := range strings.Split(arm, "\n") {
-		for _, statement := range splitShellStatements(stripShellComment(line)) {
-			assigned, ok := strings.CutPrefix(statement, "state=")
+	for _, statement := range statements {
+		for _, word := range statement {
+			name, assigned, ok := shellAssignment(word)
 			if !ok {
-				continue
+				break
 			}
-			value, found = strings.Trim(assigned, `"'`), true
+			if name == "state" {
+				value, found = assigned, true
+			}
 		}
 	}
 	return value, found
-}
-
-// stripShellComment drops a `#` that begins a word, which is where bash starts
-// a comment. A `#` inside a word (`PR#6218`) is not one.
-func stripShellComment(line string) string {
-	for i := 0; i < len(line); i++ {
-		if line[i] != '#' {
-			continue
-		}
-		if i == 0 || line[i-1] == ' ' || line[i-1] == '\t' {
-			return line[:i]
-		}
-	}
-	return line
-}
-
-// splitShellStatements breaks a line on the separators that can precede a new
-// assignment, so `state=error; state=success` yields both.
-func splitShellStatements(line string) []string {
-	return strings.FieldsFunc(line, func(r rune) bool {
-		return r == ';' || r == '&' || r == '|' || r == ' ' || r == '\t'
-	})
 }
 
 // validateTerminalPublisher checks the terminal required-status step: that it
@@ -175,21 +179,48 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 				"(AGGREGATE_CODE) rather than defaulting every non-success outcome to failure",
 			check.Context,
 		))
-	} else if arm, ok := aggregateCodeArm(step.Run, awaitExitStillRunningCode); !ok {
-		errs = append(errs, fmt.Errorf(
-			"required status context %q: terminal publisher has no still-running arm (%d) in its "+
-				"AGGREGATE_CODE branch; gates that have not finished must not publish a terminal status",
-			check.Context, awaitExitStillRunningCode,
-		))
-	} else if state, assigned := effectiveStateAssignment(arm); assigned && state == "failure" {
-		errs = append(errs, fmt.Errorf(
-			"required status context %q: terminal publisher maps the still-running outcome (%d) to "+
-				"state=failure; that is the collapse #6075 removed -- unfinished gates must not publish failure",
-			check.Context, awaitExitStillRunningCode,
-		))
+	} else {
+		errs = append(errs, validateStillRunningArm(step, check)...)
 	}
 	errs = append(errs, validateCancelledArm(step, check)...)
 	return errs
+}
+
+// validateStillRunningArm holds the #6075 half of the AGGREGATE_CODE contract:
+// the still-running arm must exist, and it must not map an unfinished run back
+// to state=failure.
+func validateStillRunningArm(step requiredWorkflowStep, check RequiredStatusCheck) []error {
+	arm, ok, err := aggregateCodeArm(step.Run, awaitExitStillRunningCode)
+	if err != nil {
+		return []error{unparseableArmError(check, err)}
+	}
+	if !ok {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher has no still-running arm (%d) in its "+
+				"AGGREGATE_CODE branch; gates that have not finished must not publish a terminal status",
+			check.Context, awaitExitStillRunningCode,
+		)}
+	}
+	if state, assigned := effectiveStateAssignment(arm); assigned && state == "failure" {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher maps the still-running outcome (%d) to "+
+				"state=failure; that is the collapse #6075 removed -- unfinished gates must not publish failure",
+			check.Context, awaitExitStillRunningCode,
+		)}
+	}
+	return nil
+}
+
+// unparseableArmError reports an arm the scanner declined to parse. Refusing
+// to judge is the point: a validator that guesses at shell it does not model
+// is the #6194 failure, where nine review rounds grew a textual bash model one
+// bypass at a time without ever closing it.
+func unparseableArmError(check RequiredStatusCheck, err error) error {
+	return fmt.Errorf(
+		"required status context %q: terminal publisher's %w; this validator will not judge an arm it "+
+			"cannot parse -- keep arms to plain name=value assignments and quoted strings",
+		check.Context, err,
+	)
 }
 
 // validateCancelledArm is the static mirror of #6189. The aggregate used to
@@ -204,7 +235,10 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 		// same root cause.
 		return nil
 	}
-	arm, ok := aggregateCodeArm(step.Run, awaitExitGateCancelledCode)
+	arm, ok, err := aggregateCodeArm(step.Run, awaitExitGateCancelledCode)
+	if err != nil {
+		return []error{unparseableArmError(check, err)}
+	}
 	if !ok {
 		return []error{fmt.Errorf(
 			"required status context %q: terminal publisher has no cancelled-gate arm (%d) in its "+

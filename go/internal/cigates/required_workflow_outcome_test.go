@@ -251,3 +251,92 @@ func TestCheckRequiredStatusWorkflows_RejectsAFailureArmBehindAComment(t *testin
 	}
 	requireErrorContaining(t, errs, "cancelled-gate outcome")
 }
+
+// stillRunningArmReplaced swaps the still-running arm out of the real-shaped
+// publisher, asserting the swap applied so an attack cannot pass by replacing
+// nothing.
+func stillRunningArmReplaced(t *testing.T, arm string) string {
+	t.Helper()
+	body := realShapedPublisher(t, "", "              13) state=error ;;\n")
+	mutated := strings.Replace(body, "              11) exit 0 ;;\n", arm, 1)
+	if mutated == body {
+		t.Fatal("the still-running arm moved; this attack would be replacing nothing")
+	}
+	return mutated
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsACancelledArmFailureBehindAQuotedDescription
+// is the quoting half of codex's last-wins finding. Bash does not treat a
+// `state=` token inside a quoted string as an assignment, so a description
+// that merely MENTIONS state=error says nothing about what the arm publishes.
+// A validator that reads the mention as the arm's effective assignment accepts
+// the exact #6189 overclaim it exists to reject.
+func TestCheckRequiredStatusWorkflows_RejectsACancelledArmFailureBehindAQuotedDescription(t *testing.T) {
+	t.Parallel()
+
+	body := realShapedPublisher(t, "",
+		"              13) state=failure; description='cancelled: publishes state=error and blocks' ;;\n")
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a description quoting state=error must not answer for an arm that assigns state=failure")
+	}
+	requireErrorContaining(t, errs, "cancelled-gate outcome")
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsAStillRunningArmFailureBehindAQuotedDescription
+// is the same attack against the #6075 arm: unfinished gates publishing
+// `failure` is the collapse that trains people to ignore the one status the
+// ruleset summarizes every other gate with.
+func TestCheckRequiredStatusWorkflows_RejectsAStillRunningArmFailureBehindAQuotedDescription(t *testing.T) {
+	t.Parallel()
+
+	body := stillRunningArmReplaced(t,
+		"              11) state=failure; description='not state=error, gates still running' ;;\n")
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a description quoting state=error must not answer for a still-running arm that assigns state=failure")
+	}
+	requireErrorContaining(t, errs, "still-running outcome")
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsAStillRunningArmFailureAfterAQuotedHash
+// covers the other half of the same root cause. A `#` inside a quoted string
+// is not a comment, so cutting the line there drops the assignment that
+// follows it -- and an arm the validator reads as assigning nothing passes the
+// still-running check.
+func TestCheckRequiredStatusWorkflows_RejectsAStillRunningArmFailureAfterAQuotedHash(t *testing.T) {
+	t.Parallel()
+
+	body := stillRunningArmReplaced(t,
+		"              11) description='see #6218'; state=failure ;;\n")
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a `#` inside quotes is not a comment; the state=failure after it is still the arm's assignment")
+	}
+	requireErrorContaining(t, errs, "still-running outcome")
+}
+
+// TestCheckRequiredStatusWorkflows_RefusesToJudgeAnUnparseableArm pins the
+// design choice behind requiredworkflow_shell.go: an arm built from shell this
+// validator does not model is a loud error, never a permissive default. The
+// alternative -- guessing -- is how #6194 spent nine rounds growing a textual
+// bash model one bypass at a time.
+func TestCheckRequiredStatusWorkflows_RefusesToJudgeAnUnparseableArm(t *testing.T) {
+	t.Parallel()
+
+	for name, arm := range map[string]string{
+		"command substitution": "              13) state=$(echo error) ;;\n",
+		"unterminated quote":   "              13) state='error ;;\n",
+		"backslash escape":     "              13) state=err\\or ;;\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := realShapedPublisher(t, "", arm)
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			if len(errs) == 0 {
+				t.Fatal("an arm this validator cannot parse must be reported, not judged")
+			}
+			requireErrorContaining(t, errs, "outside the shell shapes")
+		})
+	}
+}

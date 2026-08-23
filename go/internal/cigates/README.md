@@ -84,7 +84,22 @@ and reads the arm's **effective** assignment, the last `state=` that survives,
 because bash runs an arm top to bottom. A substring search finds the marker in
 ordinary prose such as "the cancelled-gate outcome (13)", and a substring
 assertion accepts `state=error; state=success`; each of those left the arm
-deletable or invertible with the validator still green. `error` still blocks the merge, so the carve-out changes what
+deletable or invertible with the validator still green.
+
+The arm is parsed by `requiredworkflow_shell.go`, which is deliberately a
+**narrow** shell reader rather than a general one. It accepts a documented
+grammar -- statements separated by `;`, `&&` and `||`, words built from
+unquoted runs and `'`/`"` segments, `#` starting a comment at a word boundary,
+`;;` ending the arm -- and returns an error for anything else, including
+backslash escapes, command substitution and subshells. That matters twice: a
+`state=` token inside a quoted description is text and must not be read as the
+arm's assignment, and an arm built from shell the reader does not model has to
+fail the gate loudly instead of being guessed at.
+[#6194](https://github.com/eshu-hq/eshu/issues/6194) is why -- nine review
+rounds went into growing a textual model of bash one character class at a time
+without ever closing it.
+
+`error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives
 in `cmd/ci-gates`; this package only holds the publisher to the arm it implies.
 `DriftCheck` rejects an

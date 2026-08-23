@@ -80,7 +80,11 @@
 // gate failed" for a head where nothing failed. The arm is found structurally
 // (a line inside the case block beginning with the code, comments skipped) and
 // judged on its effective -- last-wins -- state assignment, so neither prose
-// containing "13)" nor a trailing `state=success` can answer for it. Like the rest of the package
+// containing "13)" nor a trailing `state=success` can answer for it. The arm
+// is read through the narrow shell grammar in requiredworkflow_shell.go, which
+// keeps quoting straight -- a `state=` token inside a quoted description is
+// text, not an assignment -- and returns an error for shell it does not model
+// rather than guessing at it (#6194). Like the rest of the package
 // it needs no network, Docker, or credentials.
 //
 // # Glob matching
