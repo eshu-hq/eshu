@@ -9,25 +9,27 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // SharedProjectionDomain constants for the shared projection domains.
 const (
-	DomainRepoDependency      = "repo_dependency"
-	DomainWorkloadDependency  = "workload_dependency"
-	DomainCodeCalls           = "code_calls"
-	DomainSQLRelationships    = "sql_relationships"
-	DomainShellExec           = "shell_exec"
-	DomainInheritanceEdges    = "inheritance_edges"
-	DomainDocumentationEdges  = "documentation_edges"
-	DomainRationaleEdges      = "rationale_edges"
-	DomainDeployableUnitEdges = "deployable_unit_edges"
+	DomainRepoDependency      = reducercontract.DomainRepoDependency
+	DomainWorkloadDependency  = reducercontract.DomainWorkloadDependency
+	DomainCodeCalls           = reducercontract.DomainCodeCalls
+	DomainSQLRelationships    = reducercontract.DomainSQLRelationships
+	DomainShellExec           = reducercontract.DomainShellExec
+	DomainInheritanceEdges    = reducercontract.DomainInheritanceEdges
+	DomainDocumentationEdges  = reducercontract.DomainDocumentationEdges
+	DomainRationaleEdges      = reducercontract.DomainRationaleEdges
+	DomainDeployableUnitEdges = reducercontract.DomainDeployableUnitEdges
 	// DomainHandlesRoute projects Function-[:HANDLES_ROUTE]->Endpoint edges from
 	// parser-owned framework route handler bindings (#2721). Functions and
 	// Endpoints are committed by different reducer domains with no ordering
 	// guarantee, so the edge rides the ordering-safe shared-projection path the
 	// same way CALLS edges do.
-	DomainHandlesRoute = "handles_route"
+	DomainHandlesRoute = reducercontract.DomainHandlesRoute
 	// DomainRunsIn projects Function-[:RUNS_IN]->Workload edges binding a route
 	// handler Function to the deployed runtime it runs in (#2722). It scopes to the
 	// same proven entrypoint Functions handles_route resolves and anchors each edge
@@ -35,13 +37,13 @@ const (
 	// Workload its Repository DEFINES. Functions commit at canonical-nodes while
 	// Workloads commit at workload-materialization, so the edge rides the same
 	// ordering-safe shared-projection path and readiness gate as handles_route.
-	DomainRunsIn = "runs_in"
+	DomainRunsIn = reducercontract.DomainRunsIn
 	// DomainInvokesCloudAction projects Function-[:INVOKES_CLOUD_ACTION]->CloudAction
 	// edges from Go AWS SDK call sites whose (service, method) maps to an action
 	// in the closed CAN_PERFORM catalog (#2723). The Function is committed at
 	// canonical-nodes; the CloudAction node is created inline by the same MERGE,
 	// so unlike HANDLES_ROUTE there is no cross-acceptance-unit MATCH dependency.
-	DomainInvokesCloudAction = "invokes_cloud_action"
+	DomainInvokesCloudAction = reducercontract.DomainInvokesCloudAction
 	// DomainCodeownersOwnershipEdges projects Repository-[:DECLARES_CODEOWNER]->
 	// CodeownerTeam edges from directly-emitted codeowners.ownership facts
 	// (issue #5419 Phase 3). It is a distinct shared-projection domain from the
@@ -50,7 +52,7 @@ const (
 	// split: both the Repository and CodeownerTeam nodes are MERGEd inline by the
 	// same edge write, so there is no cross-acceptance-unit MATCH dependency and
 	// no readiness gate is required.
-	DomainCodeownersOwnershipEdges = "codeowners_ownership_edges"
+	DomainCodeownersOwnershipEdges = reducercontract.DomainCodeownersOwnershipEdges
 	// DomainSubmodulePinEdges projects Repository-[:PINS_SUBMODULE]->Repository
 	// edges from directly-emitted submodule.pin facts (issue #5420 Phase 3). It
 	// is a distinct shared-projection domain from the routed DomainSubmodulePin
@@ -60,7 +62,7 @@ const (
 	// write (no new node label, unlike codeowners' CodeownerTeam), so there is
 	// no cross-acceptance-unit MATCH dependency and no readiness gate is
 	// required.
-	DomainSubmodulePinEdges = "submodule_pin_edges"
+	DomainSubmodulePinEdges = reducercontract.DomainSubmodulePinEdges
 )
 
 // allProjectionDomains is the complete set of reducer-owned shared/edge

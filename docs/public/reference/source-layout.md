@@ -28,6 +28,7 @@ live in the repository today.
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/recovery/` | replay and repair domain logic |
 | `go/internal/reducer/` | cross-domain reduction and shared projection ownership |
+| `go/internal/reducer/contract/` | dependency-neutral reducer domain, intent, result, and handler contracts |
 | `go/internal/relationships/` | infrastructure/deployment evidence extraction and resolution |
 | `go/internal/runtime/` | probes, admin/status surfaces, retry policy, lifecycle hooks |
 | `go/internal/scope/` | repository scope and generation identities |

@@ -4,9 +4,9 @@
 package reducer
 
 import (
-	"errors"
-	"fmt"
 	"slices"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // CrossScopeDependency declares that a consumer reducer domain reads canonical
@@ -19,29 +19,7 @@ import (
 // current-generation consumers after a producer ACK. It does not gate reducer
 // admission: cross-scope producer readiness is not available when these intents
 // are first enqueued, so convergence comes from ordered replay instead.
-type CrossScopeDependency struct {
-	// ProducerDomains are the reducer domains whose canonical output this
-	// consumer domain reads across scopes. Each successful producer ACK schedules
-	// the consumer again; this is convergence ordering, not an admission gate.
-	ProducerDomains []Domain
-}
-
-// Validate reports whether the declared dependency names at least one producer
-// and references only registered producer domains. An empty or unregistered
-// declaration is a registration-time error, not a silent no-op, so a typo in the
-// catalog fails the build rather than disabling completion-driven replay.
-func (d CrossScopeDependency) Validate() error {
-	if len(d.ProducerDomains) == 0 {
-		return errors.New("cross-scope dependency must name at least one producer domain")
-	}
-	for _, producer := range d.ProducerDomains {
-		if err := producer.Validate(); err != nil {
-			return fmt.Errorf("cross-scope dependency producer %q: %w", producer, err)
-		}
-	}
-
-	return nil
-}
+type CrossScopeDependency = reducercontract.CrossScopeDependency
 
 // crossScopeDependencyCatalog is the single source of truth for which consumer
 // reducer domains depend, across scopes, on which producer domains. The durable

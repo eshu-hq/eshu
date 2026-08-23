@@ -2324,6 +2324,7 @@ gates:
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
+      - "go/internal/reducer/contract/**"
       - "go/internal/reducer/intent.go"
       - "go/internal/reducer/domain.go"
       - "go/internal/reducer/defaults.go"
@@ -2727,6 +2728,7 @@ gates:
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
+      - "go/internal/reducer/contract/**"
       - "go/internal/reducer/intent.go"
       - "go/internal/reducer/domain.go"
       - "go/internal/reducer/defaults.go"
@@ -3089,6 +3091,7 @@ gates:
       - "go/internal/storage/cypher/timeout_executor.go"
       - "go/internal/storage/postgres/reducer_queue_helpers.go"
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/reducer/contract/intent.go"
       - "go/internal/reducer/intent.go"
     local:
       command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"

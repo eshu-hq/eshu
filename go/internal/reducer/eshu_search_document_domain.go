@@ -3,12 +3,14 @@
 
 package reducer
 
+import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 // DomainEshuSearchDocument is the reducer domain that projects curated
 // EshuSearchDocument records into the Postgres search-lane read model. It is the
 // design-430 curated search projection, kept separate from canonical graph
 // writes. Runtime registration and intent emission for this domain are wired
 // after the design-430 benchmark gate (#2235) selects the search-lane backing.
-const DomainEshuSearchDocument Domain = "eshu_search_document"
+const DomainEshuSearchDocument = reducercontract.DomainEshuSearchDocument
 
 // EshuSearchDocumentFactKind is the durable fact kind for one curated search
 // document persisted in fact_records. Readers join on the active generation, so

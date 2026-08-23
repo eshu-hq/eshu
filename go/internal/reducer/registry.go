@@ -4,12 +4,10 @@
 package reducer
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"sort"
-	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -24,78 +22,10 @@ import (
 // domain, whose v1 truth surface is bounded counter emission rather than
 // canonical graph nodes (graph projection of drift nodes lands in a follow-up
 // chunk per the design doc §10).
-type OwnershipShape struct {
-	CrossSource bool
-	CrossScope  bool
-	// CanonicalWrite marks a domain that persists canonical reducer-owned truth,
-	// either as durable fact rows or as graph nodes/edges.
-	CanonicalWrite bool
-	// CounterEmit marks a domain whose canonical truth contract is satisfied
-	// by emitting bounded metric counters and structured logs rather than
-	// writing canonical graph nodes. At least one of CanonicalWrite or
-	// CounterEmit MUST be true; both may be true for domains that emit
-	// counters alongside durable canonical writes.
-	CounterEmit bool
-}
-
-// Validate checks that the ownership shape matches the reducer boundary.
-//
-// The invariant: a valid reducer domain is cross-source, cross-scope, and
-// produces canonical truth via at least one of CanonicalWrite or CounterEmit.
-// Prior to chunk #43 the rule required CanonicalWrite specifically; it was
-// relaxed to accept CounterEmit so domains whose v1 truth surface is bounded
-// metric emission can register without setting CanonicalWrite to a value the
-// handler does not honor.
-func (o OwnershipShape) Validate() error {
-	if !o.CrossSource {
-		return errors.New("reducers must be cross-source")
-	}
-	if !o.CrossScope {
-		return errors.New("reducers must be cross-scope")
-	}
-	if !o.CanonicalWrite && !o.CounterEmit {
-		return errors.New("reducers must declare CanonicalWrite or CounterEmit")
-	}
-
-	return nil
-}
+type OwnershipShape = reducercontract.OwnershipShape
 
 // DomainDefinition describes one reducer domain and its ownership shape.
-type DomainDefinition struct {
-	Domain        Domain
-	Summary       string
-	Ownership     OwnershipShape
-	TruthContract truth.Contract
-	Handler       Handler
-	// CrossScopeDependencies declares the producer domains this domain reads
-	// across ingestion scopes. The producer-completion fanout derives runtime
-	// scheduling edges from the same catalog used to populate this declaration,
-	// so registered truth and convergence behavior stay in lockstep.
-	CrossScopeDependencies []CrossScopeDependency
-}
-
-// Validate checks the domain definition for registration.
-func (d DomainDefinition) Validate() error {
-	if err := d.Domain.Validate(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(d.Summary) == "" {
-		return errors.New("summary must not be blank")
-	}
-	if err := d.Ownership.Validate(); err != nil {
-		return err
-	}
-	if err := d.TruthContract.Validate(); err != nil {
-		return err
-	}
-	for _, dependency := range d.CrossScopeDependencies {
-		if err := dependency.Validate(); err != nil {
-			return fmt.Errorf("domain %q cross-scope dependency: %w", d.Domain, err)
-		}
-	}
-
-	return nil
-}
+type DomainDefinition = reducercontract.DomainDefinition
 
 // Registry owns the explicit reducer domain catalog and handlers.
 type Registry struct {
@@ -104,17 +34,10 @@ type Registry struct {
 }
 
 // Handler executes one reducer intent for a registered domain.
-type Handler interface {
-	Handle(context.Context, Intent) (Result, error)
-}
+type Handler = reducercontract.Handler
 
 // HandlerFunc adapts a function into a Handler.
-type HandlerFunc func(context.Context, Intent) (Result, error)
-
-// Handle executes the wrapped function.
-func (f HandlerFunc) Handle(ctx context.Context, intent Intent) (Result, error) {
-	return f(ctx, intent)
-}
+type HandlerFunc = reducercontract.HandlerFunc
 
 // NewRegistry constructs an empty reducer registry.
 func NewRegistry() Registry {

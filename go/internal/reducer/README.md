@@ -4,6 +4,13 @@
 shared projection that runs after source-local facts have been committed by
 the projector. It is the authoritative owner of canonical graph truth for
 cross-source and cross-scope domains.
+Dependency-neutral domain, intent, result, and handler vocabulary lives in
+[`contract`](contract/README.md); root aliases preserve existing imports while
+family packages move below the parent without an import cycle. Root domain
+constants re-export the contract catalog, including shared-projection names.
+`ParseDomain` admits the known reducer validation identifiers, including the
+three reserved non-registrable identifiers; shared-projection names remain a
+separate catalog.
 
 Reducer changes carry the highest correctness risk in the codebase. Wrong
 graph truth, query truth, or deployment truth is a product failure. Track the

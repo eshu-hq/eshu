@@ -4,6 +4,14 @@
 // Package reducer owns Eshu's cross-domain materialization, shared projection,
 // queued repair, and reducer-owned fact publication.
 //
+// The contract subpackage owns dependency-neutral domain, intent, result, and
+// handler types plus the domain constant catalog. This package re-exports that
+// surface and retains registry composition, runtime execution, queue behavior,
+// adapters, and telemetry.
+// ParseDomain accepts the known reducer validation identifiers, including the
+// three reserved non-registrable identifiers. Shared-projection constants
+// remain runner names and are not admitted into the durable queue.
+//
 // Reducer handlers admit candidates from committed facts, build canonical graph
 // rows or reducer fact rows, publish graph-readiness phases, and preserve
 // idempotency across retries and replays. They do not call graph drivers
