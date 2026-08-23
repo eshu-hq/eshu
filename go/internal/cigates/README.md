@@ -86,24 +86,42 @@ ordinary prose such as "the cancelled-gate outcome (13)", and a substring
 assertion accepts `state=error; state=success`; each of those left the arm
 deletable or invertible with the validator still green.
 
-The arm is parsed by `requiredworkflow_shell.go`, which is deliberately a
-**narrow** shell reader rather than a general one. It accepts a documented
-grammar -- statements separated by `;`, `&&` and `||`, words built from
-unquoted runs and `'`/`"` segments, `#` starting a comment at a word boundary,
-`;;` ending the arm -- and returns an error for anything else, including
-backslash escapes, command substitution and subshells. That matters twice: a
-`state=` token inside a quoted description is text and must not be read as the
-arm's assignment, and an arm built from shell the reader does not model has to
-fail the gate loudly instead of being guessed at.
-[#6194](https://github.com/eshu-hq/eshu/issues/6194) is why -- nine review
-rounds went into growing a textual model of bash one character class at a time
-without ever closing it.
+The arm is read in two layers, both deliberately **narrow** rather than
+general. `requiredworkflow_shell.go` is the word-level reader: it accepts a
+documented grammar -- statements separated by `;`, `&&` and `||`, words built
+from unquoted runs and `'`/`"` segments, `#` starting a comment at a word
+boundary, `;;` ending the arm -- and returns an error for anything else,
+including backslash escapes, command substitution, subshells, and `$'…'`
+ANSI-C quoting, whose value is not the text between its quotes.
+`requiredworkflow_arms.go` is the statement-level reader on top of it: an arm
+may hold a run of assignments (`description=x state=error`, which is how bash
+makes an assignment persist) or a call to `echo` or `exit`, and nothing else.
+Both matter for the same reason: a `state=` token inside a quoted description
+is text and must not be read as the arm's assignment, and an arm built from
+shell the reader does not model has to fail the gate loudly instead of being
+guessed at. [#6194](https://github.com/eshu-hq/eshu/issues/6194) is why -- nine
+review rounds went into growing a textual model of bash one character class at
+a time without ever closing it. The statement layer is a whitelist for that
+same reason: `export state=failure`, `if true; then state=failure; fi` and
+`state=$'failure'` all set `state` in bash, and the earlier rule -- read the
+leading assignment words, stop at the first word that is not one -- read all
+three as assigning nothing at all, which is a still-running arm publishing
+`failure` with the gate green.
 
-One more check covers the consuming end: the `gh api` call must post
-`-f state="${state}"` (and, when it sends one, `-f description="${description}"`)
-rather than a literal. A hard-coded `-f state=success` publishes the same
-status for every outcome, a genuinely failed gate included, and leaves every
-arm assertion above it green while the status they exist to protect lies.
+Two more checks cover the consuming end, because pinning the argument alone did
+not. The `gh api` call must post `-f state="${state}"` (and, when it sends one,
+`-f description="${description}"`) rather than a literal: a hard-coded
+`-f state=success` publishes the same status for every outcome, a genuinely
+failed gate included. And nothing between the case block's `esac` and that call
+may assign `state` or `description`: a bare `state=success` there satisfies
+every arm assertion AND the literal check above, overwrites the arm's verdict
+on the way to the publish, and passes the step's own closing
+`[[ "${state}" == "success" ]]` so the job goes green too. The load-bearing
+guard for that second one is not static at all -- `publishedRequiredStatus` in
+`cmd/ci-gates` runs the publisher from its `PENDING_OUTCOME` guard through the
+line before `gh api` under real bash, so the per-code tests observe whatever
+value actually reaches the publish. The static check here is its mirror, so the
+two have to be defeated together.
 
 `error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives

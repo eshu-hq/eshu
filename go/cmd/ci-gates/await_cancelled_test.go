@@ -32,15 +32,28 @@ import (
 // while the workflow still published "A required gate failed" -- an
 // expected-fail passing for the wrong reason.
 
-// publishedRequiredStatus evaluates the real publisher's AGGREGATE_CODE case
-// block from .github/workflows/required-gates.yml for one exit code and
-// returns the (state, description) it would post, plus whether it posts at
-// all. The block is executed by bash rather than re-implemented in Go, so the
-// test reads the same shell the runner does; re-implementing the mapping here
-// would let the two drift and still agree with each other.
+// publishedRequiredStatus evaluates the real publisher from
+// .github/workflows/required-gates.yml for one exit code and returns the
+// (state, description) it would post, plus whether it posts at all. The shell
+// is executed by bash rather than re-implemented in Go, so the test reads the
+// same shell the runner does; re-implementing the mapping here would let the
+// two drift and still agree with each other.
 //
-// Only the AGGREGATE_CODE mapping is evaluated. The step's outer
-// PENDING_OUTCOME guard is a separate contract (#5980) and is asserted by
+// The evaluated region runs from the outer PENDING_OUTCOME guard through the
+// line BEFORE the `gh api` call, which is every line that can still change
+// `state` or `description` on the way to the publish. Stopping at the case
+// block's `esac`, as this helper first did, left a gap the publisher could be
+// defeated through without any gate noticing: a bare `state=success` inserted
+// between `esac` and `gh api` published success for an exit code meaning a
+// gate genuinely failed, passed the step's own closing
+// `[[ "${state}" == "success" ]]`, and so turned the one status the ruleset
+// requires green (#6218 review round 3). Reading to the publish means the
+// per-code assertions below observe the value that actually reaches it,
+// whatever spelling put it there -- rather than each new spelling needing its
+// own textual check.
+//
+// PENDING_OUTCOME is set to success so the guard falls through to the case
+// block. Its failure branch is a separate contract (#5980) asserted by
 // checkRequiredStatusWorkflows in internal/cigates.
 func publishedRequiredStatus(t *testing.T, code int) (state, description string, published bool) {
 	t.Helper()
@@ -50,24 +63,31 @@ func publishedRequiredStatus(t *testing.T, code int) (state, description string,
 	if err != nil {
 		t.Fatalf("read %s: %v", workflow, err)
 	}
-	const openMarker = `case "${AGGREGATE_CODE}" in`
-	const closeMarker = "esac"
-	start := bytes.Index(raw, []byte(openMarker))
+	const guardMarker = `if [[ "${PENDING_OUTCOME}" != "success" ]]; then`
+	const caseMarker = `case "${AGGREGATE_CODE}" in`
+	const publishMarker = "gh api -X POST"
+	start := bytes.Index(raw, []byte(guardMarker))
 	if start < 0 {
-		t.Fatalf("required-gates.yml has no %q block; the publisher contract moved", openMarker)
+		t.Fatalf("required-gates.yml has no %q guard; the publisher contract moved", guardMarker)
 	}
 	rest := string(raw[start:])
-	end := strings.Index(rest, closeMarker)
+	end := strings.Index(rest, publishMarker)
 	if end < 0 {
-		t.Fatalf("required-gates.yml %q block is unterminated", openMarker)
+		t.Fatalf("required-gates.yml has no %q after its %q guard; the publisher contract moved",
+			publishMarker, guardMarker)
 	}
-	block := rest[:end+len(closeMarker)]
+	block := rest[:end]
+	if !strings.Contains(block, caseMarker) {
+		t.Fatalf("required-gates.yml publishes without a %q branch between the guard and the status API call",
+			caseMarker)
+	}
 
 	bash, err := exec.LookPath("bash")
 	if err != nil {
-		t.Skipf("bash not available to evaluate the publisher case block: %v", err)
+		t.Skipf("bash not available to evaluate the publisher: %v", err)
 	}
-	script := "set -u\nAGGREGATE_CODE=" + strconv.Itoa(code) + "\nstate=\ndescription=\n" + block +
+	script := "set -u\nPENDING_OUTCOME=success\nAGGREGATE_CODE=" + strconv.Itoa(code) +
+		"\nstate=\ndescription=\n" + block +
 		"\nprintf 'PUBLISH\\t%s\\t%s\\n' \"${state}\" \"${description}\"\n"
 	out, err := exec.Command(bash, "-c", script).CombinedOutput() // #nosec G204 -- script is built from a committed workflow file, not input
 	if err != nil {

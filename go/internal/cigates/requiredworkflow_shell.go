@@ -49,6 +49,10 @@ import (
 //     scanner cannot see.
 //   - `(`, `)`, `<` and `>`. Grouping, subshells and redirection all change
 //     which word starts a statement.
+//   - `$'…'` and `$"…"`. ANSI-C and locale quoting do not evaluate to the text
+//     between the quotes, so reading one literally reports `$'failure'` as the
+//     value `$failure` -- neither what bash sets nor an error, which is a
+//     silent mis-read of exactly the kind this file exists to avoid.
 //
 // Parameter expansion (`${state}`, `$state`) is NOT rejected; it is carried
 // through as literal word text. That is safe in this direction. An arm
@@ -123,6 +127,14 @@ func scanShellLine(line string) (statements []shellStatement, terminated bool, e
 				i++
 			}
 		case c == '\'' || c == '"':
+			if i > 0 && line[i-1] == '$' {
+				// `$'…'` / `$"…"`. A `$` can only sit here unquoted: had it
+				// closed a quoted segment, scanQuotedSegment would have taken
+				// the closing quote with it and this byte would be that quote.
+				return nil, false, fmt.Errorf(
+					"%w: %q quoting, whose value is not the text between the quotes",
+					errUnparseableShell, "$"+string(c))
+			}
 			segment, width, quoteErr := scanQuotedSegment(line[i:])
 			if quoteErr != nil {
 				return nil, false, quoteErr

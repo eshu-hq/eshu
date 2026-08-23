@@ -25,111 +25,6 @@ const (
 	awaitExitGateCancelledCode = 13
 )
 
-// aggregateCaseHeader opens the terminal publisher's AGGREGATE_CODE branch.
-// Everything the arm locator reads starts after it, so an assignment on an
-// earlier branch -- the PENDING_OUTCOME guard's own `state=error`, above the
-// case -- can never be mistaken for an arm's.
-const aggregateCaseHeader = `case "${AGGREGATE_CODE}" in`
-
-// aggregateCodeArm parses the AGGREGATE_CODE case arm for one exit code into
-// its statements, stopping at the arm's `;;` terminator. found is false when
-// no such arm exists; err is non-nil when the arm is built from shell outside
-// the grammar requiredworkflow_shell.go accepts, which callers report rather
-// than judge.
-//
-// The arm is located STRUCTURALLY -- a line inside the case block that begins
-// with `<code>)` -- rather than by searching the step for the substring
-// "<code>)". The substring is defeatable, and for the cancelled-gate arm it
-// was defeatable in the fail-OPEN direction (#6189 review). Ordinary prose
-// produces the marker: a comment reading "the cancelled-gate outcome (13) is
-// handled elsewhere" contains "13)". A locator that matched there extracted
-// the region from the comment to the next `;;`, which spans the
-// PENDING_OUTCOME guard's `state=error` and the `0)` arm, so "the arm must
-// publish state=error" was satisfied by an assignment on another branch --
-// while the real arm was deleted, or reverted to `state=failure`, underneath.
-// Skipping comment lines and requiring the marker to START a line closes both.
-//
-// The `;;` that ends the arm is found by the scanner, not by a substring
-// search: `;;` inside a quoted description is text, and truncating there
-// dropped every assignment after it -- which reads as an arm that assigns
-// nothing, and an arm that assigns nothing passes the still-running check.
-func aggregateCodeArm(run string, code int) ([]shellStatement, bool, error) {
-	header := strings.Index(run, aggregateCaseHeader)
-	if header < 0 {
-		return nil, false, nil
-	}
-	marker := fmt.Sprintf("%d)", code)
-	lines := strings.Split(run[header+len(aggregateCaseHeader):], "\n")
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "esac" {
-			// Past the end of the case block; anything below it is other
-			// code, not an arm.
-			return nil, false, nil
-		}
-		if strings.HasPrefix(trimmed, "#") || !strings.HasPrefix(trimmed, marker) {
-			continue
-		}
-		statements, err := scanArmBody(append([]string{strings.TrimPrefix(trimmed, marker)}, lines[i+1:]...))
-		if err != nil {
-			return nil, true, fmt.Errorf("%s arm: %w", marker, err)
-		}
-		return statements, true, nil
-	}
-	return nil, false, nil
-}
-
-// scanArmBody parses an arm's lines up to its `;;` terminator, or to the
-// `esac` that closes the case block when the arm has no terminator.
-func scanArmBody(lines []string) ([]shellStatement, error) {
-	var statements []shellStatement
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "esac" {
-			break
-		}
-		parsed, terminated, err := scanShellLine(line)
-		if err != nil {
-			return nil, err
-		}
-		statements = append(statements, parsed...)
-		if terminated {
-			break
-		}
-	}
-	return statements, nil
-}
-
-// effectiveStateAssignment returns the value the arm actually leaves in
-// `state`, and whether it assigns it at all.
-//
-// Bash runs an arm top to bottom and the LAST assignment is the one the `gh
-// api` call below the case block reads, so `state=error; state=success`
-// publishes `success`. Asking only whether the arm CONTAINS `state=error`
-// accepts exactly that -- a cancelled dependency satisfying the required merge
-// status (#6189 review). Only the surviving assignment is a claim about what
-// the publisher does.
-//
-// A statement's assignments are the run of assignment words that OPENS it,
-// which is bash's own rule: `state=error description=x` sets both, while
-// `echo state=success` sets nothing because `echo` ends the run. Reading only
-// the first word would miss the second assignment of a pair; reading every
-// word would count a command's arguments as assignments.
-func effectiveStateAssignment(statements []shellStatement) (string, bool) {
-	value, found := "", false
-	for _, statement := range statements {
-		for _, word := range statement {
-			name, assigned, ok := shellAssignment(word)
-			if !ok {
-				break
-			}
-			if name == "state" {
-				value, found = assigned, true
-			}
-		}
-	}
-	return value, found
-}
-
 // validateTerminalPublisher checks the terminal required-status step: that it
 // targets the right context and head SHA, is cancellation-safe, and branches
 // on the await exit code rather than defaulting every non-success outcome to
@@ -184,6 +79,93 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 	}
 	errs = append(errs, validateCancelledArm(step, check)...)
 	errs = append(errs, validatePublishedBindings(step, check)...)
+	errs = append(errs, validatePublishEpilogue(step, check)...)
+	return errs
+}
+
+// publishCommandMarker opens the `gh api` call that posts the status.
+// Everything between the case block's `esac` and this line still runs on the
+// way to the publish.
+const publishCommandMarker = "gh api -X POST"
+
+// validatePublishEpilogue closes the half of the consuming end that binding
+// the ARGUMENT left open (#6218 review round 3). validatePublishedBindings
+// pins the text of `-f state=`; it says nothing about the variable that text
+// reads. One `state=success` on its own line between `esac` and the `gh api`
+// call satisfies every arm check and every argument check above it, publishes
+// `success` for an exit code that means a gate genuinely failed, and also
+// passes the step's own closing `[[ "${state}" == "success" ]]` so the job
+// goes green -- and since the ruleset requires this context, that is a merge
+// on a red gate.
+//
+// The authoritative guard for this is dynamic, not static:
+// publishedRequiredStatus in go/cmd/ci-gates executes the publisher from the
+// PENDING_OUTCOME guard through the line before the `gh api` call under real
+// bash, so the per-code tests observe the value that actually reaches the
+// publish, whatever spelling put it there. This static mirror repeats the
+// narrow part of that in the registry gate, so the two must be defeated
+// together rather than one at a time.
+//
+// Every word is examined, not just a leading assignment run: a prefix
+// assignment on the publish line's predecessor still overwrites `state` for
+// the arm's purposes here, and over-reporting in this region costs a false red
+// on a shape the publisher does not use.
+func validatePublishEpilogue(step requiredWorkflowStep, check RequiredStatusCheck) []error {
+	lines := strings.Split(step.Run, "\n")
+	closing, publish := -1, -1
+	for i, line := range lines {
+		if closing < 0 {
+			if strings.TrimSpace(line) == "esac" {
+				closing = i
+			}
+			continue
+		}
+		if strings.Contains(line, publishCommandMarker) {
+			publish = i
+			break
+		}
+	}
+	if closing < 0 || publish < 0 {
+		// A publisher with no case block, or none of this `gh api` shape, is
+		// already reported above, and publishedRequiredStatus fails loud on
+		// the same two markers. Do not stack a second error on one cause.
+		return nil
+	}
+	var errs []error
+	for _, line := range lines[closing+1 : publish] {
+		errs = append(errs, epilogueLineErrors(line, check)...)
+	}
+	return errs
+}
+
+// epilogueLineErrors reports one line between the case block and the publish:
+// unparseable, or assigning one of the two names the publish reads.
+func epilogueLineErrors(line string, check RequiredStatusCheck) []error {
+	statements, _, err := scanShellLine(line)
+	if err != nil {
+		return []error{fmt.Errorf(
+			"required status context %q: terminal publisher has a line between its AGGREGATE_CODE case "+
+				"block and the status API call that is %w; this validator will not clear a publish path "+
+				"it cannot read",
+			check.Context, err,
+		)}
+	}
+	var errs []error
+	for _, statement := range statements {
+		for _, word := range statement {
+			name, value, ok := shellAssignment(word)
+			if !ok || (name != "state" && name != "description") {
+				continue
+			}
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: terminal publisher assigns %s=%q between its AGGREGATE_CODE "+
+					"case block and the status API call, overwriting whatever the arm chose on the way to "+
+					"the publish; every outcome would post that one value and the whole branch above it "+
+					"would be decorative",
+				check.Context, name, value,
+			))
+		}
+	}
 	return errs
 }
 
@@ -191,7 +173,7 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 // the still-running arm must exist, and it must not map an unfinished run back
 // to state=failure.
 func validateStillRunningArm(step requiredWorkflowStep, check RequiredStatusCheck) []error {
-	arm, ok, err := aggregateCodeArm(step.Run, awaitExitStillRunningCode)
+	state, assigned, ok, err := armStateAssignment(step.Run, awaitExitStillRunningCode)
 	if err != nil {
 		return []error{unparseableArmError(check, err)}
 	}
@@ -202,7 +184,7 @@ func validateStillRunningArm(step requiredWorkflowStep, check RequiredStatusChec
 			check.Context, awaitExitStillRunningCode,
 		)}
 	}
-	if state, assigned := effectiveStateAssignment(arm); assigned && state == "failure" {
+	if assigned && state == "failure" {
 		return []error{fmt.Errorf(
 			"required status context %q: terminal publisher maps the still-running outcome (%d) to "+
 				"state=failure; that is the collapse #6075 removed -- unfinished gates must not publish failure",
@@ -236,7 +218,7 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 		// same root cause.
 		return nil
 	}
-	arm, ok, err := aggregateCodeArm(step.Run, awaitExitGateCancelledCode)
+	state, assigned, ok, err := armStateAssignment(step.Run, awaitExitGateCancelledCode)
 	if err != nil {
 		return []error{unparseableArmError(check, err)}
 	}
@@ -248,7 +230,6 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 			check.Context, awaitExitGateCancelledCode,
 		)}
 	}
-	state, assigned := effectiveStateAssignment(arm)
 	if assigned && state == "failure" {
 		return []error{fmt.Errorf(
 			"required status context %q: terminal publisher maps the cancelled-gate outcome (%d) to "+
@@ -267,8 +248,9 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 	return nil
 }
 
-// validatePublishedBindings closes the consuming end of the AGGREGATE_CODE
-// contract (#6218 review). Every check above asserts what the case block
+// validatePublishedBindings is the ARGUMENT half of the consuming end of the
+// AGGREGATE_CODE contract (#6218 review); validatePublishEpilogue above is the
+// other half, and neither is sufficient alone. Every arm check asserts what the case block
 // ASSIGNS; nothing asserted that the `gh api` call below it POSTS what the
 // block assigned. With `-f state=success` hard-coded there the branch decides
 // nothing: every head gets `success`, a genuinely failed gate included, and
