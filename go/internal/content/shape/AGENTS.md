@@ -15,10 +15,19 @@
 
 ## Invariants this package enforces
 
-- **Fixed bucket order** — `contentEntityBuckets` in `materialize.go` is a
+- **Fixed bucket order** — `contentEntityBuckets` in `materialize_tables.go` is a
   stable ordered list. Inserting a new bucket anywhere except the end changes
   the persisted row order for existing entities and produces downstream churn.
   Always append.
+- **Registration is not reachability** — a bucket listed here, in the collector
+  twin and in `entityTypeLabelMap` still reaches the graph only if a projector
+  write phase claims it. `variables`/`Variable` does not: canonical phase E
+  skips the label on purpose, so plain variables live in the content/search
+  surface and produce no node (#6206). The registered-but-unwritten set is
+  pinned by `canonicalEntityPhaseSkipOwners` in
+  `go/internal/projector/canonical_unwritten_entity_labels_test.go`; a new
+  entry there means a label was stranded, and removing `Variable`'s means
+  re-enabling its projection, which changes projected truth.
 - **Deterministic output** — entities are sorted by `lineNumber()`, then label,
   then `Name` before building `content.EntityRecord` values. Tests assert this
   order; do not remove the sort.
@@ -49,7 +58,7 @@
 ## Common changes and how to scope them
 
 - **Add a new entity bucket** → add an `entityBucketMapping` entry at the end
-  of `contentEntityBuckets` in `materialize.go`. Add the label to
+  of `contentEntityBuckets` in `materialize_tables.go`. Add the label to
   `trailingNewlineLabels` and `sourceFieldContainsCode` if appropriate. Add a
   test case in `materialize_test.go`. Run
   `go test ./internal/content/shape -count=1`. **Also register the same

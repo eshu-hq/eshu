@@ -468,6 +468,15 @@ backend-specific adapters.
   `EntityRow` extraction. They stay in the Postgres content/search surface;
   reducer-owned semantic entity materialization writes the smaller graph-backed
   `Variable` subset for module attributes and TSX component assertions.
+  That exclusion stands, and it is the whole reason a filesystem-parsed repo
+  produces zero `Variable` nodes even though three registries name the label
+  (#6206). `canonicalEntityPhaseSkipOwners` in
+  `canonical_unwritten_entity_labels_test.go` pins that set: every label phase E
+  refuses is listed there with the phase that covers it instead, and `Variable`
+  is the one entry with no writer at all. A new entry means a registered label
+  was stranded; deleting `Variable`'s means re-enabling its projection, which is
+  a projected-truth change needing golden-corpus evidence and, per #6183, makes
+  a B-12 snapshot pin possible for the first time.
 - Terraform entity labels from the content store include backends, imports,
   moved blocks, removed blocks, checks, and lockfile providers. `EntityTypeLabel`
   must know each label before canonical graph writes can project it.

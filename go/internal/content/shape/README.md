@@ -77,6 +77,17 @@ around the `Materialize` call.
 - `contentEntityBuckets` order is fixed. Reordering the bucket list changes the
   persisted row sequence and produces diff churn in existing content-store rows.
   Add new buckets at the end.
+- Being in the table does not mean the label reaches the graph. `variables` /
+  `Variable` is registered here, in the collector twin and in the projector's
+  `entityTypeLabelMap`, and no writer creates the node: the projector's
+  canonical phase E skips plain `Variable` deliberately (by far the largest
+  entity family on the corpus: 12,887 chunks, 21,515s of cumulative graph-write
+  time), and the reducer's semantic-entity path only covers Elixir
+  module attributes and TSX component-type assertions. Plain variables stay
+  searchable through the content index. The registered-but-unwritten set is
+  pinned by `canonicalEntityPhaseSkipOwners` in
+  `go/internal/projector/canonical_unwritten_entity_labels_test.go` (#6206), so
+  stranding another label, or re-enabling this one, has to move that pin.
 - Terraform buckets cover authored configuration and parser evidence such as
   backends, imports, moved blocks, removed blocks, checks, lockfile providers,
   and declared PagerDuty module/tfvars evidence. Keep those labels in step with

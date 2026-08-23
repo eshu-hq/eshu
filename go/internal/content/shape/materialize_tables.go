@@ -18,6 +18,18 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "functions", label: "Function"},
 	{bucket: "classes", label: "Class"},
 	{bucket: "modules", label: "Module"},
+	// UNWRITTEN: this row produces no graph node. Plain source variables stop
+	// at the Postgres content/search surface -- the projector's canonical phase
+	// E skips the Variable label on purpose (canonical_builder.go). At corpus
+	// scale it was by far the largest entity family: 12,887 chunks and 21,515s of
+	// cumulative graph-write time (go/internal/projector/README.md).
+	// The only remaining Variable writer is the reducer's semantic-entity path,
+	// which covers Elixir module attributes and TSX component-type assertions
+	// only and never runs for a filesystem-parsed repo. Full reasoning:
+	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md. The
+	// unwritten set is pinned by canonicalEntityPhaseSkipOwners in
+	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206);
+	// re-enabling projection means moving that pin with golden-corpus proof.
 	{bucket: "variables", label: "Variable"},
 	{bucket: "type_annotations", label: "TypeAnnotation"},
 	{bucket: "traits", label: "Trait"},

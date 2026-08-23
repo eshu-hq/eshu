@@ -200,9 +200,20 @@ type NestedFunctionRow struct {
 // row — the same silent-skip this issue exists to close.
 var entityTypeLabelMap = map[string]string{
 	// Code entities
-	"function":                "Function",
-	"class":                   "Class",
-	"interface":               "Interface",
+	"function":  "Function",
+	"class":     "Class",
+	"interface": "Interface",
+	// Registered, and never written from a source-local generation: phase E in
+	// canonical_builder.go skips the Variable label deliberately, so this entry
+	// exists for the reducer-owned semantic-entity path alone (Elixir module
+	// attributes, TSX component-type assertions). Removing it would strand that
+	// path; reading it as "Variable nodes exist" is the mistake #6206 was filed
+	// for -- a live golden-corpus run measured (Variable) count=0 with no
+	// Variable key in graph.node_counts. Why it is disabled, with the corpus
+	// numbers, is on the contentEntityBuckets row in
+	// go/internal/content/shape/materialize_tables.go; the unwritten set is
+	// pinned by canonicalEntityPhaseSkipOwners in
+	// canonical_unwritten_entity_labels_test.go.
 	"variable":                "Variable",
 	"trait":                   "Trait",
 	"struct":                  "Struct",
