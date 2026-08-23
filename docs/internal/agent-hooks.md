@@ -167,8 +167,9 @@ resuming the same conversation does reload them, keeping the same
 `CLAUDE_CODE_SESSION_ID` — that is how these hooks were first observed firing,
 after four null results built on the assumption that only a brand-new
 conversation could load them. Do not plan a hook test around that assumption;
-check the stamp instead. Approving the hook permission prompt is part of
-activation, and declining it looks exactly like a broken hook.
+make an edit on a governed surface and see whether it is refused. Approving the
+hook permission prompt is part of activation, and declining it looks exactly
+like a broken hook.
 
 **The hook and the skill it names activate by different paths.** A user-level
 install runs the hook from an absolute path, so it fires anywhere. The skill
@@ -177,12 +178,28 @@ main checkout. Before these skills reach `main`, a nudge can therefore name a
 skill that `Skill(...)` reports as unknown. That is expected pre-merge; treat
 the nudge as a pointer rather than a loadable reference until the branch lands.
 
-Diagnosing a hook you think should have fired: `skill-nudge.sh` touches
-`/tmp/claude-nudge-<session>-<skill>` **before** it prints. A missing stamp means
-the hook never executed; a stamp with no visible reminder means it ran and the
-output went somewhere you did not look. That distinction is the difference
-between a wiring problem and a logic problem, so check it before editing
-anything.
+Diagnosing a hook you think should have fired. When the nudge was advisory this
+needed a stamp, because silence was ambiguous — it could mean the hook never
+ran or that its output went somewhere you did not look. Blocking removes that
+ambiguity for free: **a firing nudge fails your edit**, so you cannot miss it.
+
+The question worth asking now is the opposite one. An edit on a governed
+surface that is *not* refused has three explanations, in the order worth
+checking:
+
+1. The skill is already loaded. `ls /tmp/claude-skill-loaded-<session>-*` —
+   `skill-loaded.sh` writes one marker per skill, and the nudge lifts when
+   every id its arm names has one.
+2. An override is in force: `/tmp/claude-skill-override-<session>` exists.
+3. The hook is not wired. Check `.claude/settings.json` for the
+   `(event, matcher, command)` triple, not just the filename —
+   `scripts/test-agent-hooks.sh` asserts all four, and a hook attached to the
+   wrong event is present, silent, and easy to mistake for absent.
+
+Marker names take the first 12 characters of the session id, so a real one
+looks like `claude-skill-loaded-aab79782-96c-golang-engineering`. Scope any
+check to your own session id: markers are shared in `/tmp`, and reading another
+session's is how a "confirmed" result turns out to be someone else's.
 
 Nothing here bypasses `scripts/dev/bootstrap-hooks.sh`, which installs the git
 pre-commit and pre-push hooks. The two sets are unrelated: git hooks gate
@@ -192,12 +209,21 @@ commits and pushes, agent hooks gate tool calls.
 
 `guard-live-gate.sh` blocks a `make pre-pr`, `make pre-pr-full`, or
 `verify-golden-corpus-gate` run while a `ci-gates` process is up or port 15432
-is bound. Two ways past it, both deliberate:
+is bound. Those are two independent signals, and only one of them can be
+waived:
 
-- Run on an alternate port set. The repo defines 15532, 15635, and 15636 for
-  exactly this. A command carrying its own `ESHU_POSTGRES_PORT` is opting into
-  a parallel stack and is not blocked.
-- Prefix the command with `CLAUDE_HOOK_ALLOW=1` for a single call.
+- **`ESHU_POSTGRES_PORT` waives the port probe only.** The 15432 check is a
+  proxy for "a live backend is up", and it does not describe a caller who moved
+  off that port. It is not a declaration of a parallel stack: the gate binds
+  seven ports (Postgres, Bolt, HTTP, API 18080, MCP 18091, Prometheus 19090,
+  Ask 19191), so Postgres alone still collides on the rest.
+- **A running `ci-gates` process blocks regardless.** No port override reaches
+  it, because a second run contends for CPU whatever ports it chose — and that
+  check is what actually covers the four ports the hook cannot inspect. The
+  suite pins this as "a port override does not waive the running-process check".
+- **`CLAUDE_HOOK_ALLOW=1`** prefixed on the command waives both, for one call.
+  It is the only full override, which is why it is a conscious per-call act
+  rather than an environment setting.
 
 The guard exists because a contended run produces a red that belongs to the
 machine rather than to your diff, and reading it as a defect costs more than
