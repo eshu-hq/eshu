@@ -28,14 +28,23 @@ type reference struct {
 	Value    string
 }
 
+// scanCounts records how much of a page the flag scanner actually inspected.
+// AttributedSegments is the denominator -- Eshu command segments whose flags
+// were resolved against a command -- and SkippedLines is the gate's own blind
+// spot: logical lines naming an `eshu` command that fell outside the supported
+// command-segment grammar. Reported together, they separate a genuinely clean
+// run from a scanner that silently stopped reading shell fences; either number
+// alone cannot.
+type scanCounts struct {
+	AttributedSegments int
+	SkippedLines       int
+}
+
 // scanMarkdown returns the concrete references cited by one public Markdown
-// page and the number of logical shell lines that name an `eshu` command but
-// fell outside the supported command-segment grammar. That second value is the
-// gate's own blind spot made visible: a scanner that silently stopped parsing
-// would otherwise report a clean run indistinguishable from a real one.
-func scanMarkdown(document string, content string) ([]reference, int) {
+// page together with the coverage counts above.
+func scanMarkdown(document string, content string) ([]reference, scanCounts) {
 	seen := map[string]reference{}
-	skipped := 0
+	counts := scanCounts{}
 	for _, name := range concreteEnvPattern.FindAllString(content, -1) {
 		ref := reference{Kind: referenceKindEnv, Document: document, Value: name}
 		seen[referenceKey(ref)] = ref
@@ -49,9 +58,12 @@ func scanMarkdown(document string, content string) ([]reference, int) {
 	flush := func() {
 		segments := commandSegments(pending)
 		if segments == nil && mentionsEshuCommand(pending) {
-			skipped++
+			counts.SkippedLines++
 		}
 		for _, segment := range segments {
+			if _, ok := eshuCommandFields(segment); ok {
+				counts.AttributedSegments++
+			}
 			command, flags := flagsFromEshuCommand(segment)
 			for _, flag := range flags {
 				ref := reference{Kind: referenceKindFlag, Document: document, Command: command, Value: flag}
@@ -117,19 +129,7 @@ func scanMarkdown(document string, content string) ([]reference, int) {
 		out = append(out, ref)
 	}
 	sortReferences(out)
-	return out, skipped
-}
-
-// mentionsEshuCommand reports whether a logical line carries a bare `eshu`
-// word. It only feeds the skipped-line count, so a quoted literal `eshu` counts
-// too: over-reporting a diagnostic is safer than under-reporting one.
-func mentionsEshuCommand(line string) bool {
-	for _, field := range splitShellFields(line) {
-		if field == "eshu" {
-			return true
-		}
-	}
-	return false
+	return out, counts
 }
 
 func leadingSpaces(line string) int {
@@ -160,155 +160,14 @@ func isFenceClose(line string, marker string, maxIndent int) bool {
 	return true
 }
 
-// commandSegments returns the command segments of one logical shell line that
-// the flag scanner is willing to attribute flags to, or nil when the line stays
-// outside the gate's scope.
-//
-// The supported grammar is deliberately narrow (#6108):
-//
-//	list    := segment ( SEP segment )*
-//	SEP     := "|" | "&&" | ";"     (unquoted, unescaped, outside a comment)
-//	segment := one literal command with no list operator of its own
-//
-// A line with no unquoted list operator is returned unchanged, so the
-// pre-existing single-command behaviour is untouched. A line that carries any
-// unquoted list operator is admitted only when every one of them is exactly a
-// pipe, an AND list, or a semicolon list, every segment is non-empty, and the
-// line contains no unquoted "(", ")", or backtick. Everything else -- "||",
-// a background "&", "|&", ";;", a subshell, and command substitution -- keeps
-// the pre-#6108 skip, because a segment of those forms is not reliably one
-// literal command and guessing would attribute a flag to the wrong command.
-func commandSegments(line string) []string {
-	segments, separators, grouping, supported := scanShellSegments(line)
-	if !supported {
-		return nil
-	}
-	if separators == 0 {
-		return []string{line}
-	}
-	if grouping {
-		return nil
-	}
-	for _, segment := range segments {
-		if segment == "" {
-			return nil
-		}
-	}
-	return segments
-}
-
-// scanShellSegments walks line once with the same quoting, escaping, and
-// trailing-comment rules as splitShellFields and reports the trimmed segment
-// text between top-level list separators, how many separators it cut on,
-// whether it saw an unquoted grouping or substitution character, and whether
-// every separator it met is one this scanner supports.
-func scanShellSegments(line string) (segments []string, separators int, grouping bool, supported bool) {
-	segments = []string{}
-	start := 0
-	var quote byte
-	escaped := false
-	started := false
-	cut := func(end int) {
-		segments = append(segments, strings.TrimSpace(line[start:end]))
-	}
-	for index := 0; index < len(line); index++ {
-		char := line[index]
-		if escaped {
-			escaped = false
-			started = true
-			continue
-		}
-		if quote != 0 {
-			if char == quote {
-				quote = 0
-			}
-			started = true
-			continue
-		}
-		switch char {
-		case '\\':
-			escaped = true
-			started = true
-		case '\'', '"':
-			quote = char
-			started = true
-		case '#':
-			if !started {
-				cut(index)
-				return segments, separators, grouping, true
-			}
-			started = true
-		case ' ', '\t':
-			started = false
-		case '(', ')', '`':
-			grouping = true
-			started = true
-		case '|', '&', ';':
-			width := shellSeparatorWidth(line, index)
-			if width == 0 {
-				return nil, separators, grouping, false
-			}
-			cut(index)
-			separators++
-			index += width - 1
-			start = index + 1
-			started = false
-		default:
-			started = true
-		}
-	}
-	cut(len(line))
-	return segments, separators, grouping, true
-}
-
-// shellSeparatorWidth returns the byte width of the supported list separator
-// starting at index, or 0 when the operator there is one this scanner refuses
-// to interpret.
-func shellSeparatorWidth(line string, index int) int {
-	next := byte(0)
-	if index+1 < len(line) {
-		next = line[index+1]
-	}
-	switch line[index] {
-	case '|':
-		if next == '|' || next == '&' {
-			return 0
-		}
-		return 1
-	case '&':
-		if next != '&' {
-			return 0
-		}
-		if index+2 < len(line) && line[index+2] == '&' {
-			return 0
-		}
-		return 2
-	case ';':
-		if next == ';' || next == '&' {
-			return 0
-		}
-		return 1
-	}
-	return 0
-}
-
 func flagsFromEshuCommand(line string) (string, []string) {
-	if containsUnquotedShellListOperator(line) {
+	args, ok := eshuCommandFields(line)
+	if !ok {
 		return "", nil
 	}
-	fields := splitShellFields(strings.TrimSpace(line))
-	if len(fields) == 0 {
-		return "", nil
-	}
-	if fields[0] == "$" || fields[0] == ">" {
-		fields = fields[1:]
-	}
-	if len(fields) == 0 || fields[0] != "eshu" {
-		return "", nil
-	}
-	if len(fields) > 1 && strings.HasPrefix(fields[1], "-") {
+	if len(args) > 0 && strings.HasPrefix(args[0], "-") {
 		flags := []string{}
-		for _, field := range fields[1:] {
+		for _, field := range args {
 			if !longFlagPattern.MatchString(field) {
 				break
 			}
@@ -319,7 +178,7 @@ func flagsFromEshuCommand(line string) (string, []string) {
 	}
 	seen := map[string]struct{}{}
 	commandFields := []string{}
-	for _, field := range fields[1:] {
+	for _, field := range args {
 		if !strings.HasPrefix(field, "-") && len(seen) == 0 {
 			commandFields = append(commandFields, field)
 		}

@@ -16,9 +16,11 @@
 # empty segment. Operators inside quotes, after a backslash, or in a trailing
 # `#` comment are not segment boundaries.
 #
-# Every run prints how many `eshu` command lines it skipped that way, zero
-# included, so the deliberate blind spot is a number an operator can watch
-# rather than silence.
+# Every run prints how many command segments it attributed and how many `eshu`
+# command lines it skipped that way, zero included, and asserts both: the skip
+# count is pinned exactly in each direction, the attributed count has a floor.
+# A scanner that quietly stopped reading shell fences fails here instead of
+# reporting a clean run over a shrunken population.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,6 +30,10 @@ ceiling="${ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cl
 gocache="${ESHU_DOCS_CLI_ENV_GOCACHE:-${repo_root}/.gocache-docs-cli-env-refs}"
 eshu_binary="${ESHU_DOCS_CLI_ENV_ESHU_BINARY:-}"
 checker_binary="${ESHU_DOCS_CLI_ENV_CHECKER_BINARY:-}"
+# Empty means "use the checker's code-owned pin/floor". Only the companion
+# suite sets these, so the real gate always runs against the pinned values.
+pinned_skipped="${ESHU_DOCS_CLI_ENV_PINNED_SKIPPED_LINES:-}"
+min_attributed="${ESHU_DOCS_CLI_ENV_MIN_ATTRIBUTED_SEGMENTS:-}"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
@@ -59,6 +65,12 @@ args=(
   -baseline-ceiling "${ceiling}"
   -eshu "${eshu_binary}"
 )
+if [[ -n "${pinned_skipped}" ]]; then
+  args+=(-pinned-skipped-lines "${pinned_skipped}")
+fi
+if [[ -n "${min_attributed}" ]]; then
+  args+=(-min-attributed-segments "${min_attributed}")
+fi
 if [[ "${update}" == true ]]; then
   args+=(-update)
 fi

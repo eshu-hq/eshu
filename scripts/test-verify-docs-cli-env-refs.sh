@@ -69,7 +69,9 @@ run_verifier() {
   local out="$3"
   shift 3
   local ceiling="${ESHU_TEST_BASELINE_CEILING_PATH:-${repo_root}/scripts/docs-cli-env-refs-ceiling.txt}"
-  ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
+  ESHU_DOCS_CLI_ENV_PINNED_SKIPPED_LINES="${ESHU_TEST_PINNED_SKIPPED-0}" \
+    ESHU_DOCS_CLI_ENV_MIN_ATTRIBUTED_SEGMENTS="${ESHU_TEST_MIN_ATTRIBUTED-0}" \
+    ESHU_DOCS_CLI_ENV_DOCS_ROOT="${docs_root}" \
     ESHU_DOCS_CLI_ENV_BASELINE_PATH="${baseline}" \
     ESHU_DOCS_CLI_ENV_BASELINE_CEILING_PATH="${ceiling}" \
     ESHU_DOCS_CLI_ENV_ESHU_BINARY="${tmp_root}/eshu" \
@@ -399,6 +401,9 @@ test_frozen_ceiling_same_count_replacement_fails() {
 test_real_tree_matches_committed_baseline() {
   local baseline="${repo_root}/scripts/docs-cli-env-refs-baseline.txt"
   local out="${tmp_root}/real-tree.out"
+  # Empty overrides mean the wrapper omits the flags, so this case runs against
+  # the checker's code-owned pin and floor. It is the only case that does.
+  export ESHU_TEST_PINNED_SKIPPED= ESHU_TEST_MIN_ATTRIBUTED=
   if run_verifier "${repo_root}/docs/public" "${baseline}" "${out}"; then
     record_pass "real public docs pass with committed baseline"
   else
@@ -415,6 +420,7 @@ test_real_tree_matches_committed_baseline() {
     record_fail "committed baseline matches fresh regeneration"
     diff "${regenerated}" "${baseline}" >&2 || true
   fi
+  unset ESHU_TEST_PINNED_SKIPPED ESHU_TEST_MIN_ATTRIBUTED
 }
 
 # shellcheck source=lib/test-verify-docs-cli-env-refs-segment-cases.sh
@@ -427,6 +433,7 @@ test_hostile_command_and_markdown_forms_fail
 test_precision_exclusions_pass
 test_pipeline_and_chain_segments_are_checked_per_command
 test_unsupported_shell_forms_stay_skipped
+test_scan_coverage_pins_are_enforced
 test_baseline_and_update_are_burn_down_safe
 test_malformed_baseline_fails_closed
 test_atomic_baseline_growth_fails

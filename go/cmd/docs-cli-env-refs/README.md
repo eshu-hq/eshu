@@ -65,11 +65,33 @@ unquoted list operator is parsed exactly as before.
 An unresolved flag is reported with the command it was attributed to, so a
 failure on a piped or chained example says which segment owns the flag.
 
-Every run also reports how many logical lines naming an `eshu` command were
-skipped as unsupported shell forms, including when that number is zero. The
-skip is a deliberate choice, so it has to be countable: a run that reports a
-clean tree and a run whose scanner quietly stopped reading shell fences produce
-the same silence otherwise. Treat a rise in that number as scope lost.
+## Scope honesty
+
+The skip above is a deliberate choice, so it is measured rather than assumed. A
+run that finds nothing to complain about and a run whose scanner quietly stopped
+reading shell fences are otherwise identical, so every run reports two numbers:
+
+```text
+docs-cli-env-refs: 190 Eshu command segment(s) attributed, 1 Eshu command line(s) skipped as unsupported shell forms
+```
+
+Both are asserted, because a number in a summary nobody checks is decoration:
+
+- **Skipped lines** are pinned exactly, in both directions, by
+  `pinnedSkippedEshuLines`. Growth means a new unparseable example slipped into
+  a public page: rewrite it into the supported grammar, or re-pin with the
+  reason. A shrink also fails, demanding a re-pin, so the population cannot
+  creep back up under a stale number. The pinned line today is a backgrounded
+  `eshu graph start ... 2>&1 &` in the profiling runbook.
+- **Attributed segments** have a floor, `minAttributedEshuSegments`, not a pin.
+  That count moves with ordinary documentation edits, so pinning it would fail
+  every docs PR; the floor only has to catch the failure it exists for, a
+  scanner whose coverage collapsed while still exiting zero.
+
+`scripts/verify-docs-cli-env-refs.sh` reads `ESHU_DOCS_CLI_ENV_PINNED_SKIPPED_LINES`
+and `ESHU_DOCS_CLI_ENV_MIN_ATTRIBUTED_SEGMENTS` so the companion suite can drive
+both assertions over scratch fixtures. Leaving them unset — what the real gate
+does — uses the code-owned values.
 
 When a command starts with a root flag before its subcommand, the scanner checks
 the leading root flag but deliberately skips later command-local flags on that

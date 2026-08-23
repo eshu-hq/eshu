@@ -60,9 +60,12 @@ test_pipeline_and_chain_segments_are_checked_per_command() {
   # Every line in this fixture is inside the supported grammar, so NONE may be
   # counted as skipped. A scanner that quietly stopped parsing fences would also
   # emit no diagnostics; only the zero here tells the two apart.
+  # Both numbers on one line: eleven segments attributed across the three
+  # fixtures and nothing skipped. The skip count alone cannot tell a clean run
+  # from a scanner that read no fences; the attributed count is its denominator.
   assert_output_line \
-    '^docs-cli-env-refs: 0 Eshu command line\(s\) skipped as unsupported shell forms$' \
-    "${out}" "no supported segment line is silently skipped"
+    '^docs-cli-env-refs: 11 Eshu command segment\(s\) attributed, 0 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "supported segments are attributed and none is silently skipped"
 }
 
 # test_unsupported_shell_forms_stay_skipped pins the deliberate
@@ -84,7 +87,7 @@ test_unsupported_shell_forms_stay_skipped() {
     'eshu docs verify --not-a-real-flag-before-trailing-pipe |' \
     '```'
   : >"${baseline}"
-  if run_verifier "${root}" "${baseline}" "${out}"; then
+  if ESHU_TEST_PINNED_SKIPPED=8 run_verifier "${root}" "${baseline}" "${out}"; then
     record_pass "unsupported shell forms stay outside the gate's scope"
   else
     record_fail "unsupported shell forms stay outside the gate's scope"
@@ -94,6 +97,65 @@ test_unsupported_shell_forms_stay_skipped() {
   # reported; the count proves the eight lines were SEEN and deliberately
   # declined, not that the scanner stopped reading the fence.
   assert_output_line \
-    '^docs-cli-env-refs: 8 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    '^docs-cli-env-refs: 0 Eshu command segment\(s\) attributed, 8 Eshu command line\(s\) skipped as unsupported shell forms$' \
     "${out}" "every unsupported line is counted, not silently dropped"
+}
+
+# test_scan_coverage_pins_are_enforced proves the coverage numbers are asserted,
+# not printed. Each case moves one number and expects the gate to fail, so a
+# summary line nobody checks cannot pass for a gate.
+test_scan_coverage_pins_are_enforced() {
+  local root="${tmp_root}/coverage/docs/public"
+  local baseline="${tmp_root}/coverage/baseline.txt"
+  local out="${tmp_root}/coverage.out"
+  # Every flag here is real, so the ONLY thing that can fail is the coverage
+  # assertion itself.
+  write_doc "${root}" "supported.md" \
+    '```bash' \
+    'eshu docs verify --json | eshu graph status --workspace-root /repo' \
+    '```'
+  write_doc "${root}" "unsupported.md" \
+    '```bash' \
+    'eshu docs verify --json || eshu docs verify --json' \
+    '```'
+  : >"${baseline}"
+
+  if ESHU_TEST_PINNED_SKIPPED=1 ESHU_TEST_MIN_ATTRIBUTED=2 \
+    run_verifier "${root}" "${baseline}" "${out}"; then
+    record_pass "the pinned coverage shape passes"
+  else
+    record_fail "the pinned coverage shape passes"
+    sed -n '1,160p' "${out}" >&2
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: 2 Eshu command segment\(s\) attributed, 1 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "coverage summary reports both populations"
+
+  if ESHU_TEST_PINNED_SKIPPED=0 run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "a grown skip population fails the gate"
+  else
+    record_pass "a grown skip population fails the gate"
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: skipped Eshu command lines \(unsupported shell forms\) grew from its pinned count of 0 to 1: .*$' \
+    "${out}" "skip growth names the pinned count and what to do"
+
+  if ESHU_TEST_PINNED_SKIPPED=2 run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "an unre-pinned skip shrink fails the gate"
+  else
+    record_pass "an unre-pinned skip shrink fails the gate"
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: skipped Eshu command lines \(unsupported shell forms\) shrank from its pinned count of 2 to 1: re-pin .*$' \
+    "${out}" "skip shrink demands a re-pin instead of passing quietly"
+
+  if ESHU_TEST_PINNED_SKIPPED=1 ESHU_TEST_MIN_ATTRIBUTED=999 \
+    run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "collapsed attribution coverage fails the gate"
+  else
+    record_pass "collapsed attribution coverage fails the gate"
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: scanner attributed only 2 Eshu command segment\(s\), below the code-owned floor of 999: .*$' \
+    "${out}" "coverage collapse is named as a collapse, not a clean run"
 }

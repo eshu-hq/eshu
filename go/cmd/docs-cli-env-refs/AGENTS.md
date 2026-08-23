@@ -2,6 +2,11 @@
 
 - Preserve the precision-first exclusions documented in README.md and the
   wrapper header unless a failing regression proves a safe expansion.
+- `pinnedSkippedEshuLines` is pinned in BOTH directions on purpose. When the
+  gate reports growth, the first move is to rewrite the documented example into
+  the supported grammar; re-pinning is the fallback and needs the reason in the
+  change. Never widen `minAttributedEshuSegments` downward to make a red run
+  green — a falling attributed count is the scanner losing coverage.
 - The simple-list grammar in `commandSegments` is a deliberate
   under-approximation. Widening it needs a hostile collision test first: a later
   segment carrying a flag that is invalid there but valid on an earlier command,

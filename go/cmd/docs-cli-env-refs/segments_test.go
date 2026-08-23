@@ -179,15 +179,15 @@ func TestScanMarkdownFallsBackToSkippingUnsupportedShellForms(t *testing.T) {
 	for name, line := range lines {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, skipped := scanMarkdown("guide.md", "```bash\n"+line+"\n```\n")
+			got, counts := scanMarkdown("guide.md", "```bash\n"+line+"\n```\n")
 			if len(got) != 0 {
 				t.Fatalf("scanMarkdown(%q) = %#v, want the unsupported form skipped", line, got)
 			}
 			// Positive half: the line must be COUNTED as skipped, not merely
 			// produce no references. A scanner that stopped reading the fence
 			// entirely also produces no references.
-			if skipped != 1 {
-				t.Fatalf("scanMarkdown(%q) skipped = %d, want the skip reported once", line, skipped)
+			if counts.SkippedLines != 1 {
+				t.Fatalf("scanMarkdown(%q) skipped = %d, want the skip reported once", line, counts.SkippedLines)
 			}
 		})
 	}
@@ -207,7 +207,7 @@ func TestScanMarkdownReportsSkippedEshuLines(t *testing.T) {
 		"cd go && go build ./cmd/eshu\n" +
 		"docker compose logs eshu | rg BOOTSTRAP\n" +
 		"```\n"
-	got, skipped := scanMarkdown("guide.md", content)
+	got, counts := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--checked"},
@@ -217,7 +217,7 @@ func TestScanMarkdownReportsSkippedEshuLines(t *testing.T) {
 	}
 	// Only the `||` list and the subshell are unsupported AND mention eshu. The
 	// supported `&&` and `|` lines are parsed, not skipped, so they never count.
-	if skipped != 2 {
-		t.Fatalf("scanMarkdown() skipped = %d, want 2", skipped)
+	if counts.SkippedLines != 2 {
+		t.Fatalf("scanMarkdown() skipped = %d, want 2", counts.SkippedLines)
 	}
 }
