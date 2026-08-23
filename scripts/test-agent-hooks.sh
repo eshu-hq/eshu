@@ -29,6 +29,14 @@ run_tag="t$$"
 cleanup() { rm -f "/tmp/claude-nudge-${run_tag}"*; }
 trap cleanup EXIT
 
+# sid is load-bearing, not just a uniqueness counter. The hook checks for its
+# stamp and exits BEFORE printing, so a second assertion for the same skill
+# under the same session id gets silence and passes on absence. Two cases below
+# assert eshu-folder-doc-keeper for the same doc.go — one routing, one placement
+# guard — and they only both fire because sid increments between them. If you
+# ever hardcode a session_id in a case, do not reuse it for a skill another case
+# already asserted.
+
 # nudges <file_path> <expected substring>
 # Paths are repo-relative and resolved against this checkout on purpose. The
 # hook refuses to act outside an Eshu tree, so a synthetic /r/... path would
