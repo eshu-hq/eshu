@@ -371,13 +371,24 @@ fi
 # hard-blocked on absent rg/python3 before any scope check, so on a machine
 # without them every Bash call in every repository was refused -- the exact
 # interference this hook claims not to cause. PATH is emptied to simulate it.
-# PATH=/bin, not an empty PATH: /bin carries cat and bash but no python3, which
-# is the machine being simulated. An empty PATH also removes `cat`, so the hook
-# would exit for the wrong reason and the case would pass without testing the
-# guard at all.
+# Build a PATH that provably lacks python3 instead of naming a directory and
+# hoping. Two earlier attempts got this wrong in opposite directions:
+# PATH=/nonexistent also removed `cat`, so the hook exited before reaching the
+# guard and the case passed without testing it; PATH=/bin works on macOS but
+# not on the Linux runner, where /bin is merged into /usr/bin and python3 is
+# right there — one case then failed in CI and the other passed for the wrong
+# reason. A directory holding only the binaries the hook needs before its guard
+# is deterministic on both.
+nopy="$(mktemp -d)"
+ln -s "$(command -v cat)" "$nopy/cat" 2>/dev/null
+if command -v python3 >/dev/null 2>&1 && PATH="$nopy" command -v python3 >/dev/null 2>&1; then
+  printf 'FAIL - no-python3 PATH fixture still resolves python3; cases below would be vacuous\n' >&2
+  failed=$((failed + 1))
+fi
+
 sid=$((sid + 1))
 out=$(printf '{"cwd":"%s","tool_input":{"command":"make pre-pr"}}' "$repo_root" \
-  | PATH=/bin /bin/bash "$hooks_dir/guard-live-gate.sh" 2>&1)
+  | PATH="$nopy" /bin/bash "$hooks_dir/guard-live-gate.sh" 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
   printf 'ok - guard-live-gate degrades silently without python3\n'
@@ -390,7 +401,7 @@ fi
 # Same for on-compact, the last of the four to get the guard.
 sid=$((sid + 1))
 out=$(printf '{"cwd":"%s"}' "$repo_root" \
-  | PATH=/bin /bin/bash "$hooks_dir/on-compact.sh" 2>&1)
+  | PATH="$nopy" /bin/bash "$hooks_dir/on-compact.sh" 2>&1)
 rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
   printf 'ok - on-compact degrades silently without python3\n'
@@ -399,6 +410,7 @@ else
   printf 'FAIL - on-compact must not print without python3; exit=%s out=%s\n' "$rc" "$out" >&2
   failed=$((failed + 1))
 fi
+rm -rf "$nopy"
 
 # --- settings integration ----------------------------------------------------
 # Every hook this suite exercises directly must also be REGISTERED, or the
