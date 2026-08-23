@@ -109,7 +109,16 @@ and the publisher posts `error` naming the re-run. Cancellation is detected
 from either `state=CANCELLED` or `bucket=cancel`, because the runner's `gh`
 version is not pinned and older releases folded cancellations into the `fail`
 bucket. A cancellation alongside a still-running gate keeps waiting, so a gate
-that goes genuinely red still publishes `failure`.
+that goes genuinely red still publishes `failure`. Renames select against both
+the old and new path, so moving a file out of a gated tree cannot bypass its
+verifier. It verifies the head again before returning success. Pending reads
+back off from 30 seconds to five minutes. Per-head workflow concurrency keeps
+one aggregate running and retains only the latest pending run. The retained run
+starts after the active poller, posts pending before setup, and recomputes the
+current check set. This avoids a high steady-state API polling rate. The
+polling component can add up to five minutes before observing a newly completed
+check; Actions scheduling, runner allocation, and serialized pending-run
+startup can add further delay.
 
 The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
 `.github/workflows/required-gates.yml`, and only `10` may publish `failure`:
@@ -126,15 +135,7 @@ Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
 be mistaken for a gate result. `internal/cigates` re-declares `11` and `13` to
 validate those workflow arms statically; `TestStillRunningCodeMatchesAwaitContract`
 and `TestGateCancelledCodeMatchesAwaitContract` pin the mirrors against this
-package's constants. Renames select against both the old and new path, so moving
-a file out of a gated tree cannot bypass its verifier. It verifies the head
-again before returning success. Pending reads back off from 30 seconds to five
-minutes. Per-head workflow concurrency keeps one aggregate running and retains
-only the latest pending run. The retained run starts after the active poller,
-posts pending before setup, and recomputes the current check set. This avoids a
-high steady-state API polling rate. The polling component can add up to five
-minutes before observing a newly completed check; Actions scheduling, runner
-allocation, and serialized pending-run startup can add further delay.
+package's constants.
 
 ### contexts
 

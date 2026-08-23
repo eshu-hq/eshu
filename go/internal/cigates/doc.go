@@ -73,8 +73,12 @@
 // publisher's workflow_run source, event boundary, serialized per-head
 // concurrency, first-step pending invalidation, permissions, default-branch
 // checkout, secret independence, status-publishing command, and
-// cancellation-safe terminal condition. Like the rest of the package it needs
-// no network, Docker, or credentials.
+// cancellation-safe terminal condition. It also validates the cancelled-gate
+// arm of that publisher's AGGREGATE_CODE branch (#6189): the arm must exist,
+// must not map a cancelled dependency gate to state=failure, and must publish
+// state=error, so a workflow-only revert cannot quietly restore "A required
+// gate failed" for a head where nothing failed. Like the rest of the package
+// it needs no network, Docker, or credentials.
 //
 // # Glob matching
 //

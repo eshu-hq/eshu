@@ -209,18 +209,18 @@ gates its changed paths select:
   infrastructure state, not a gate result, so the aggregate publishes `error`
   with a description naming the re-run rather than claiming a gate failed
   ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still blocks
-  the merge — the ruleset requires `success` — so nothing is waved through; the
-  status just stops asserting an outcome that never happened. A cancellation
-  alongside a still-running gate keeps waiting, so a gate that goes genuinely
-  red is still reported as `failure`. Per-head concurrency keeps one aggregate running and retains
-  only the latest pending run without cancelling the active status writer. An
-  aggregate that starts posts pending before checkout or setup, then reaches a
-  real terminal result; the retained run posts pending again before it
-  recomputes. A manual cancellation after that first step leaves pending
-  instead of inventing a failure. GitHub cannot execute repository code after
-  cancellation before runner allocation, and commit statuses have no atomic
-  generation fence, so this workflow does not claim protection across that
-  operator/API boundary.
+  the merge — the ruleset requires `success` — so nothing is waved through;
+  the status just stops asserting an outcome that never happened. A
+  cancellation alongside a still-running gate keeps waiting, so a gate that
+  goes genuinely red is still reported as `failure`. Per-head concurrency
+  keeps one aggregate running and retains only the latest pending run without
+  cancelling the active status writer. An aggregate that starts posts pending
+  before checkout or setup, then reaches a real terminal result; the retained
+  run posts pending again before it recomputes. A manual cancellation after
+  that first step leaves pending instead of inventing a failure. GitHub cannot
+  execute repository code after cancellation before runner allocation, and
+  commit statuses have no atomic generation fence, so this workflow does not
+  claim protection across that operator/API boundary.
   This closes the gap where a blocking registry row could be visible locally
   yet absent from GitHub's two Go umbrellas.
 - **Trust boundary:** the aggregate policy, selector, and status publisher come

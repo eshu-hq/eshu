@@ -70,7 +70,14 @@ first step after a cancellation that happens before runner allocation, and the
 commit-status API has no compare-and-swap or generation token; the workflow
 does not claim atomic fencing for that operator/API boundary. Success is
 published only after every selected check reports `pass`. Failed, skipped,
-neutral, missing, and timed-out checks fail closed. `DriftCheck` rejects an
+neutral, missing, and timed-out checks fail closed. A **cancelled** check is
+the one carve-out ([#6189](https://github.com/eshu-hq/eshu/issues/6189)): a
+cancellation is infrastructure state, not a gate result, so the aggregate
+publishes `error` naming the re-run instead of claiming a gate failed, and
+`validateCancelledArm` rejects a publisher whose cancelled-gate arm is missing,
+maps that outcome to `state=failure`, or publishes anything other than
+`state=error`. `error` still blocks the merge, so the carve-out changes what
+the status says, not whether it holds the PR. `DriftCheck` rejects an
 aggregator that runs directly on pull-request code, lacks serialized per-head
 concurrency and first-step invalidation, lacks the declared source, uses
 repository secrets, checks out a non-default ref, or lacks its minimal
