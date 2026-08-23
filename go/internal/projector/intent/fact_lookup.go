@@ -13,9 +13,12 @@ type FactLookup struct {
 	positionsByKind map[string][]int
 }
 
-// NewFactLookup indexes one immutable scope generation in two O(N) passes.
-// It borrows inputFacts; callers must not mutate that slice while the lookup is
-// in use.
+// NewFactLookup indexes one immutable scope generation in two O(N) passes: a
+// first pass counts facts per kind, and a second fills exactly-sized position
+// slices. This avoids growth and copying for the skewed kind distribution real
+// generations carry. The lookup borrows inputFacts, which projection keeps
+// immutable for its lifetime, so it is safe to share read-only across every
+// builder probe; callers must not mutate that slice while the lookup is in use.
 func NewFactLookup(inputFacts []facts.Envelope) FactLookup {
 	counts := make(map[string]int)
 	for _, envelope := range inputFacts {
@@ -98,7 +101,9 @@ func (l FactLookup) FirstAcrossKinds(
 }
 
 // FirstMatchingKindPredicate returns the earliest accepted envelope whose kind
-// satisfies kindPredicate.
+// satisfies kindPredicate. It evaluates kindPredicate once per distinct kind
+// in the generation, not once per fact, keeping open-registry lookup cost
+// proportional to kind cardinality rather than fact count.
 func (l FactLookup) FirstMatchingKindPredicate(
 	kindPredicate func(string) bool,
 	accept func(facts.Envelope) bool,
