@@ -15,13 +15,15 @@
 # shellcheck source=scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh
 # shellcheck source=scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh
 # shellcheck source=scripts/lib/test-ifa-fault-injection-generic-runner-lease-hold-cases.sh
+# shellcheck source=scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh
 run_ifa_fault_injection_generic_modules() {
 	local module lib_var runner ran=0
 	for module in \
 		"table_lock_cases_lib:run_ifa_fault_injection_generic_table_lock_cases" \
 		"shared_intent_lock_cases_lib:run_ifa_fault_injection_generic_shared_intent_lock_cases" \
 		"family_drive_cases_lib:run_ifa_fault_injection_generic_family_drive_cases" \
-		"runner_lease_hold_cases_lib:run_ifa_fault_injection_generic_runner_lease_hold_cases"; do
+		"runner_lease_hold_cases_lib:run_ifa_fault_injection_generic_runner_lease_hold_cases" \
+		"runner_lease_audit_cases_lib:run_ifa_fault_injection_generic_runner_lease_audit_cases"; do
 		lib_var="${module%%:*}"
 		runner="${module##*:}"
 		[[ -n "${!lib_var:-}" ]] || fail "generic case module list names ${lib_var}, which the parent does not define"

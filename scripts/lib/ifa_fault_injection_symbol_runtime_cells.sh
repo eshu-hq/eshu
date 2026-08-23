@@ -53,6 +53,7 @@
 # scripts/lib/ifa_symbol_runtime_live.sh.
 
 _IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL='8s'
+_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER='ifa-runner-lease-audit'
 
 # _ifa_symbol_runtime_fault_require_fresh_domains runs the fresh-stack
 # non-vacuity precondition for ALL THREE domains, not only the calling cell's
@@ -167,6 +168,7 @@ _ifa_symbol_runtime_cell_killworker() {
 		|| die "${cell}: pre-reducer negative control found an exact runner waiter"
 	printf '%s: negative control: holder present with zero exact runner waiters before reducer start\n' "${cell}"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_before env \
+		ESHU_SHARED_PROJECTION_LEASE_OWNER="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER}" \
 		ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${bin_dir}/eshu-reducer"
 	waiter_count="$(ifa_fault_wait_for_claimed_projection_intent \
 		"${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
@@ -185,6 +187,7 @@ _ifa_symbol_runtime_cell_killworker() {
 	ifa_fault_install_runner_lease_audit "${cell}" "${family}" "${durable_snapshot}" \
 		|| die "${cell}: could not install the test-local durable lease attempt and transition audit"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-after" reducer_after env \
+		ESHU_SHARED_PROJECTION_LEASE_OWNER="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER}" \
 		ESHU_SHARED_PROJECTION_LEASE_TTL="${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" "${bin_dir}/eshu-reducer"
 	ifa_fault_wait_for_runner_lease_attempt_fenced \
 		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
@@ -193,6 +196,7 @@ _ifa_symbol_runtime_cell_killworker() {
 		|| die "${cell}: captured dead-owner leases did not reach the intended expiry boundary"
 	ifa_fault_wait_for_replacement_runner_lease_audit \
 		"${cell}" "${family}" "${reducer_after}" "${durable_snapshot}" "${CLAIMED_ROW_WAIT_TIMEOUT}" \
+		"${_IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL}" \
 		|| die "${cell}: replacement did not claim every captured partition under its distinct process owner"
 	run_drain_gate "${cell}"
 	ifa_fault_require_runner_leases_reclaimed "${cell}" "${family}" "${durable_snapshot}" \

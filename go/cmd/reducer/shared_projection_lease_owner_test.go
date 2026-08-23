@@ -94,6 +94,13 @@ func TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 		!strings.HasPrefix(second, defaultSharedProjectionLeaseOwner+":") {
 		t.Fatalf("shared projection lease owner prefixes = %q / %q, want configured default prefix", first, second)
 	}
+	firstParts := strings.Split(first, ":")
+	secondParts := strings.Split(second, ":")
+	firstNonce := firstParts[len(firstParts)-1]
+	secondNonce := secondParts[len(secondParts)-1]
+	if firstNonce == secondNonce {
+		t.Fatalf("shared projection boot nonce reused across process boots: %q", firstNonce)
+	}
 }
 
 func sharedProjectionLeaseOwnerFromHelperProcess(t *testing.T) string {
