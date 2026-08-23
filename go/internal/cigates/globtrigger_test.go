@@ -255,3 +255,34 @@ func TestValidate_CommittedRegistryGlobTriggersAllResolve(t *testing.T) {
 		t.Fatalf("committed registry has %d trigger(s) that resolve to nothing:\n%s", len(stale), strings.Join(stale, "\n"))
 	}
 }
+
+// TestValidate_GlobTriggerGoesStaleWhenItsLastFileIsDeleted walks the failure
+// the issue describes, in one test: a registry that validates clean, then the
+// file its glob names is deleted without the registry being updated, and the
+// same registry must now fail. Asserting only the end state would leave the
+// case unable to distinguish a working check from one that rejects the
+// fixture for an unrelated reason, and this is the transition #6142 got no
+// signal from.
+func TestValidate_GlobTriggerGoesStaleWhenItsLastFileIsDeleted(t *testing.T) {
+	t.Parallel()
+	root := hermeticGlobRepo(t)
+	writeTracked(t, root, "go/internal/storage/cypher/documentation_edges.go")
+	reg := globGate("go/internal/storage/cypher/*documentation*.go")
+
+	if errs := reg.Validate(root); len(errs) != 0 {
+		t.Fatalf("Validate() errors = %v before the deletion, want none", errs)
+	}
+
+	// git rm is the whole deletion: index entry and working file both go. -f
+	// because the fixture is never committed, so every file in it reads as a
+	// staged addition git would otherwise refuse to drop.
+	cmd := exec.Command("git", "-C", root, "rm", "-q", "-f", "go/internal/storage/cypher/documentation_edges.go")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git rm: %v\n%s", err, out)
+	}
+
+	errs := reg.Validate(root)
+	if got := errorNaming(errs, "openapi-surface", "go/internal/storage/cypher/*documentation*.go"); got == "" {
+		t.Fatalf("Validate() errors = %v after deleting the only file the trigger named, want one naming the now-stale trigger", errs)
+	}
+}
