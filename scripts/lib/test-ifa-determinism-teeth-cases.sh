@@ -18,7 +18,10 @@ run_ifa_determinism_teeth_cases() {
 	require_code "--teeth flag is parsed" "--teeth) teeth=1 ;;"
 	require_code "teeth build tag is assigned" 'build_tags="ifadeterminismteeth"'
 	require_code "teeth threads tags through every build call" 'ifa_det_build_bin "${bin_dir}" reducer "${build_tags}"'
-	require_code "teeth caught framing" "TEETH: CAUGHT"
+	# Bind the log CALL, not the phrase: the die() two lines below says "see the
+	# TEETH: CAUGHT line above", which is live code, so the marker operators
+	# actually grep for could be renamed with this pin still green (#6161).
+	require_code "teeth caught framing" 'log "TEETH: CAUGHT'
 	require_code "teeth-not-caught is its own failure" "TEETH FAILED"
 	require_code "teeth still forbids lowering N" "lower N, retry, or otherwise normalize this away"
 	require_lib "build_bin accepts an optional tags argument" 'local bin_dir="$1" cmd="$2" tags="${3:-}"'

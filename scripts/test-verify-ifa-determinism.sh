@@ -273,7 +273,10 @@ require_code "--keep flag" "--keep"
 # sibling verify-ifa-*.sh script and verify-golden-corpus-gate.sh's own
 # defaults, so a run of this script cannot collide with any of them.
 require_code "isolated compose project default" 'DETERMINISM_COMPOSE_PROJECT:=eshu-ifa-determinism-$$'
-require_code "compose -p flag on up" '-p "${DETERMINISM_COMPOSE_PROJECT}"'
+# Bind the BRING-UP line, not the bare -p flag: the teardown two hundred lines
+# below carries the same flag, so the old needle stayed satisfied with the whole
+# `up -d` deleted and the gate never starting its stack at all (#6161).
+require_code "compose -p flag on up" 'docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
 for reserved in \
 	'ESHU_POSTGRES_PORT:=15432' 'NEO4J_BOLT_PORT:=7687' 'NEO4J_HTTP_PORT:=7474' \
 	'ESHU_POSTGRES_PORT:=15532' 'NEO4J_BOLT_PORT:=7788' 'NEO4J_HTTP_PORT:=7575' \
@@ -293,7 +296,11 @@ require_code "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 # cassette every sibling Ifá P3 script uses.
 require_code "worker-count matrix N in {1,2,4}" "worker_counts=(1 2 4)"
 require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
-require_code "drive verb invocation" 'eshu-ifa" drive -cassette'
+# Bind the DEMO-ORG drive specifically. The synth-multiscope and contention
+# drives use the same verb, so the shared needle stayed green with the primary
+# cassette drive -- the one the whole matrix rests on -- replaced by `true`.
+# Each sibling drive is anchored by its own distinctive -projects/-seed args.
+require_code "drive verb invocation" '"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${n}"'
 require_code "ifa binary build" "ifa_det_build_bin \"\${bin_dir}\" ifa"
 require_code "projector drain" "eshu-projector"
 require_code "reducer drain" "eshu-reducer"
