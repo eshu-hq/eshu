@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -24,7 +25,7 @@ const (
 // histogram (#4430). The sweep is a reducer-tail sidecar, not a
 // fact-projecting reducer domain, so it has no corresponding Domain used for
 // intent dispatch.
-const DomainSearchVectorBuild Domain = "search_vector_build"
+const DomainSearchVectorBuild = reducercontract.DomainSearchVectorBuild
 
 // Search vector build sweep phases, recorded on
 // telemetry.Instruments.SearchVectorBuildPhaseDuration via

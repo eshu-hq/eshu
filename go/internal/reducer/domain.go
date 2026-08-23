@@ -4,81 +4,20 @@
 package reducer
 
 import (
-	"fmt"
 	"sort"
-	"strings"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-var knownDomains = map[Domain]struct{}{
-	DomainWorkloadIdentity:                         {},
-	DomainDeployableUnitCorrelation:                {},
-	DomainCloudAssetResolution:                     {},
-	DomainDeploymentMapping:                        {},
-	DomainDataLineage:                              {},
-	DomainCodeInterprocEvidence:                    {},
-	DomainCodeTaintEvidence:                        {},
-	DomainCodeFunctionSummary:                      {},
-	DomainOwnership:                                {},
-	DomainGovernance:                               {},
-	DomainWorkloadMaterialization:                  {},
-	DomainCodeCallMaterialization:                  {},
-	DomainPlatformInfraMaterialization:             {},
-	DomainSemanticEntityMaterialization:            {},
-	DomainSQLRelationshipMaterialization:           {},
-	DomainShellExecMaterialization:                 {},
-	DomainInheritanceMaterialization:               {},
-	DomainDocumentationMaterialization:             {},
-	DomainRationaleMaterialization:                 {},
-	DomainCodeownersOwnership:                      {},
-	DomainSubmodulePin:                             {},
-	DomainConfigStateDrift:                         {},
-	DomainPackageSourceCorrelation:                 {},
-	DomainCodeImportRepoEdge:                       {},
-	DomainContainerImageIdentity:                   {},
-	DomainCICDRunCorrelation:                       {},
-	DomainServiceCatalogCorrelation:                {},
-	DomainSBOMAttestationAttachment:                {},
-	DomainSupplyChainImpact:                        {},
-	DomainSecurityAlertReconciliation:              {},
-	DomainSecretsIAMTrustChain:                     {},
-	DomainAWSCloudRuntimeDrift:                     {},
-	DomainMultiCloudRuntimeDrift:                   {},
-	DomainAWSResourceMaterialization:               {},
-	DomainGCPResourceMaterialization:               {},
-	DomainAzureResourceMaterialization:             {},
-	DomainGCPRelationshipMaterialization:           {},
-	DomainAzureRelationshipMaterialization:         {},
-	DomainWorkloadCloudRelationshipMaterialization: {},
-	DomainEC2InstanceNodeMaterialization:           {},
-	DomainEC2InstanceIdentityMaterialization:       {},
-	DomainAWSRelationshipMaterialization:           {},
-	DomainAWSCloudImageMaterialization:             {},
-	DomainObservabilityCoverageCorrelation:         {},
-	DomainObservabilityCoverageMaterialization:     {},
-	DomainKubernetesCorrelation:                    {},
-	DomainKubernetesWorkloadMaterialization:        {},
-	DomainKubernetesCorrelationMaterialization:     {},
-	DomainKubernetesNamespaceMaterialization:       {},
-	DomainCrossplaneSatisfiedByMaterialization:     {},
-	DomainSecurityGroupCidrMaterialization:         {},
-	DomainSecurityGroupRuleMaterialization:         {},
-	DomainSecurityGroupReachabilityMaterialization: {},
-	DomainIAMCanAssumeMaterialization:              {},
-	DomainS3LogsToMaterialization:                  {},
-	DomainS3ExternalPrincipalGrantMaterialization:  {},
-	DomainRDSPostureMaterialization:                {},
-	DomainEC2UsesProfileMaterialization:            {},
-	DomainIAMInstanceProfileRoleMaterialization:    {},
-	DomainEC2InternetExposureMaterialization:       {},
-	DomainEC2BlockDeviceKMSPostureMaterialization:  {},
-	DomainS3InternetExposureMaterialization:        {},
-	DomainIAMEscalationMaterialization:             {},
-	DomainIAMCanPerformMaterialization:             {},
-	DomainIncidentRoutingMaterialization:           {},
-	DomainIncidentRepositoryCorrelation:            {},
-	DomainSecretsIAMGraphProjection:                {},
-	DomainCloudInventoryAdmission:                  {},
-	DomainEshuSearchDocument:                       {},
+var knownDomains = knownDomainSet()
+
+func knownDomainSet() map[Domain]struct{} {
+	domains := reducercontract.KnownDomains()
+	set := make(map[Domain]struct{}, len(domains))
+	for _, domain := range domains {
+		set[domain] = struct{}{}
+	}
+	return set
 }
 
 // AllDomains returns every reducer-owned domain sorted lexicographically: the
@@ -106,20 +45,5 @@ func AllDomains() []Domain {
 
 // ParseDomain converts one raw string into a known reducer domain.
 func ParseDomain(raw string) (Domain, error) {
-	domain := Domain(strings.TrimSpace(raw))
-	if err := domain.Validate(); err != nil {
-		return "", err
-	}
-	return domain, nil
-}
-
-// Validate checks that the reducer domain is explicit and known.
-func (domain Domain) Validate() error {
-	if strings.TrimSpace(string(domain)) == "" {
-		return fmt.Errorf("domain must not be blank")
-	}
-	if _, ok := knownDomains[domain]; !ok {
-		return fmt.Errorf("unknown reducer domain %q", domain)
-	}
-	return nil
+	return reducercontract.ParseDomain(raw)
 }

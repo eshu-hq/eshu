@@ -3,6 +3,8 @@
 
 package reducer
 
+import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 // This file continues the Domain constant catalog started in intent.go
 // (security-group, IAM edge, S3/RDS posture, incident, secrets/IAM graph,
 // and cloud-inventory admission domains), split out to keep intent.go under
@@ -22,7 +24,7 @@ const (
 	// / GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the later
 	// ALLOWS_INGRESS/EGRESS edge slice gates exactly like
 	// DomainAWSRelationshipMaterialization (#805). See issue #1135.
-	DomainSecurityGroupCidrMaterialization Domain = "security_group_cidr_materialization"
+	DomainSecurityGroupCidrMaterialization = reducercontract.DomainSecurityGroupCidrMaterialization
 	// DomainSecurityGroupRuleMaterialization materializes aws_security_group_rule
 	// facts into canonical port-precise :SecurityGroupRule graph nodes (issue #1135
 	// PR2b, Option D). Each live rule whose SecurityGroup anchor resolved to a
@@ -35,7 +37,7 @@ const (
 	// GraphProjectionKeyspaceSecurityGroupRuleUID /
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the edge slice
 	// gates exactly like DomainAWSRelationshipMaterialization (#805). See issue #1135.
-	DomainSecurityGroupRuleMaterialization Domain = "security_group_rule_materialization"
+	DomainSecurityGroupRuleMaterialization = reducercontract.DomainSecurityGroupRuleMaterialization
 	// DomainSecurityGroupReachabilityMaterialization projects aws_security_group_rule
 	// facts into the Option D network-reachability graph: each live rule becomes a
 	// port-precise :SecurityGroupRule node, with a SecurityGroup -> rule
@@ -51,7 +53,7 @@ const (
 	// never resolves against any endpoint that has not committed. Unresolved SG
 	// anchors or endpoints, unknown sources, and tombstoned rules materialize no
 	// node and no edge and are counted, never dropped silently. See issue #1135.
-	DomainSecurityGroupReachabilityMaterialization Domain = "security_group_reachability_materialization"
+	DomainSecurityGroupReachabilityMaterialization = reducercontract.DomainSecurityGroupReachabilityMaterialization
 	// DomainIAMCanAssumeMaterialization projects aws_iam_permission trust
 	// statements into canonical CAN_ASSUME edges between the IAM CloudResource
 	// nodes that DomainAWSResourceMaterialization committed: an assuming
@@ -66,7 +68,7 @@ const (
 	// account-root, and unscanned principals fabricate no edge and are counted.
 	// The escalation edges (CAN_PERFORM, CAN_ESCALATE_TO) are a follow-up design
 	// fork; see docs/internal/design/1134-iam-can-assume-trust-graph.md §8.
-	DomainIAMCanAssumeMaterialization Domain = "iam_can_assume_materialization"
+	DomainIAMCanAssumeMaterialization = reducercontract.DomainIAMCanAssumeMaterialization
 	// DomainIAMEscalationMaterialization projects merged aws_iam_permission facts
 	// into the IAM privilege-escalation graph: each principal that holds a complete,
 	// well-known escalation primitive (all required actions Allow, unconditioned,
@@ -82,7 +84,7 @@ const (
 	// targets materialize no edge and are counted, never dropped silently;
 	// sts:AssumeRole is deferred to the separate CAN_ASSUME trust edge. It is
 	// security-sensitive and conservative by design (issue #1134 PR3).
-	DomainIAMEscalationMaterialization Domain = "iam_escalation_materialization"
+	DomainIAMEscalationMaterialization = reducercontract.DomainIAMEscalationMaterialization
 	// DomainIAMCanPerformMaterialization projects merged aws_iam_permission and
 	// aws_resource_policy_permission facts into the IAM CAN_PERFORM
 	// effective-permission graph: each scanned principal whose trusted-Allow
@@ -104,7 +106,7 @@ const (
 	// permission boundaries, SCPs, condition values, and session policies remain
 	// outside this slice; a MISSING edge does NOT mean "cannot perform." It is
 	// security-sensitive and conservative by design (issue #1134 PR4a/PR4b).
-	DomainIAMCanPerformMaterialization Domain = "iam_can_perform_materialization"
+	DomainIAMCanPerformMaterialization = reducercontract.DomainIAMCanPerformMaterialization
 	// DomainS3LogsToMaterialization projects s3_bucket_posture
 	// logging_target_bucket fields into canonical LOGS_TO edges between the S3
 	// bucket CloudResource nodes that DomainAWSResourceMaterialization committed:
@@ -122,7 +124,7 @@ const (
 	// Cross-account, out-of-scope, and unscanned log targets fabricate no edge and
 	// are counted. The GRANTS_ACCESS_TO :ExternalPrincipal node-then-edge slice is
 	// a deferred follow-up; see docs/internal/design/1144-s3-logs-to-edge.md §8.
-	DomainS3LogsToMaterialization Domain = "s3_logs_to_materialization"
+	DomainS3LogsToMaterialization = reducercontract.DomainS3LogsToMaterialization
 	// DomainRDSPostureMaterialization projects rds_instance_posture facts onto
 	// existing RDS DB instance and Aurora cluster CloudResource nodes. It is a
 	// NODE-PROPERTY-ONLY slice on the cloud_resource_uid keyspace: storage
@@ -135,7 +137,7 @@ const (
 	// for KMS, security groups, subnet groups, IAM roles, parameter groups, and
 	// option groups stay owned by the generic aws_relationship_materialization
 	// path.
-	DomainRDSPostureMaterialization Domain = "rds_posture_materialization"
+	DomainRDSPostureMaterialization = reducercontract.DomainRDSPostureMaterialization
 	// DomainEC2BlockDeviceKMSPostureMaterialization derives EC2 instance
 	// block-device KMS posture from ec2_instance_posture block_devices joined to
 	// scanned aws_ec2_volume, aws_kms_key, and ec2_volume_uses_kms_key facts. It
@@ -148,7 +150,7 @@ const (
 	// key facts, AWS-managed/default keys, detached volumes, tombstones, and
 	// ambiguous evidence stay conservative state=unknown rather than fabricating
 	// encryption ownership. See issue #1304.
-	DomainEC2BlockDeviceKMSPostureMaterialization Domain = "ec2_block_device_kms_posture_materialization"
+	DomainEC2BlockDeviceKMSPostureMaterialization = reducercontract.DomainEC2BlockDeviceKMSPostureMaterialization
 	// DomainS3InternetExposureMaterialization derives conservative internet
 	// exposure state from s3_bucket_posture facts and writes reducer-owned
 	// properties onto existing S3 CloudResource nodes. It is NODE-PROPERTY-ONLY on
@@ -159,7 +161,7 @@ const (
 	// against an S3 node that has not committed. Unknown or partial posture stays
 	// state=unknown with no boolean exposure property, never fabricated false.
 	// See issue #1232.
-	DomainS3InternetExposureMaterialization Domain = "s3_internet_exposure_materialization"
+	DomainS3InternetExposureMaterialization = reducercontract.DomainS3InternetExposureMaterialization
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed
@@ -168,7 +170,7 @@ const (
 	// truth. Drifted, stale, permission-hidden, ambiguous, unresolved, rejected,
 	// derived, and missing routing stays provenance-only in the incident-context
 	// read model. See issue #1168.
-	DomainIncidentRoutingMaterialization Domain = "incident_routing_materialization"
+	DomainIncidentRoutingMaterialization = reducercontract.DomainIncidentRoutingMaterialization
 	// DomainIncidentRepositoryCorrelation correlates applied PagerDuty
 	// incident-routing evidence to its owning config repository through the
 	// durable Terraform backend-locator join, emitting one reducer-owned
@@ -183,13 +185,13 @@ const (
 	// predicate is fail-closed. It is the prerequisite durable edge for scoped
 	// incident-context reads (#2161, blocking #2144) and never lets a PagerDuty
 	// service name create repository truth.
-	DomainIncidentRepositoryCorrelation Domain = "incident_repository_correlation"
+	DomainIncidentRepositoryCorrelation = reducercontract.DomainIncidentRepositoryCorrelation
 	// DomainSecretsIAMGraphProjection projects exact reducer secrets/IAM
 	// trust-chain read-model rows into the SecretsIAM* graph nodes and the five
 	// resolvable SECRETS_IAM_* edges. Only exact rows promote; non-exact states,
 	// privilege-posture observations, and posture gaps stay provenance-only, and a
 	// missing endpoint is skipped and counted, never fabricated (ADR #1314, #1347).
-	DomainSecretsIAMGraphProjection Domain = "secrets_iam_graph_projection"
+	DomainSecretsIAMGraphProjection = reducercontract.DomainSecretsIAMGraphProjection
 	// DomainCloudInventoryAdmission admits provider cloud-inventory source facts
 	// (aws_resource, gcp_cloud_resource, azure_cloud_resource) for the current
 	// generation into the shared canonical cloud_resource_uid keyspace. It
@@ -202,5 +204,5 @@ const (
 	// surfaced, never fabricated into a uid. It is graph-neutral: canonical graph
 	// node and edge projection, the multi-cloud drift join, and API/MCP readback
 	// are deferred follow-ups (issues #1997, #1998).
-	DomainCloudInventoryAdmission Domain = "cloud_inventory_admission"
+	DomainCloudInventoryAdmission = reducercontract.DomainCloudInventoryAdmission
 )

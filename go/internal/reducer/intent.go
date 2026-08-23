@@ -1,131 +1,129 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package reducer defines the durable cross-source and cross-scope reducer
-// substrate used by the Go data plane.
 package reducer
 
-import "errors"
+import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 // Domain identifies a canonical shared-truth reducer domain.
-type Domain string
+type Domain = reducercontract.Domain
 
 const (
 	// DomainWorkloadIdentity resolves canonical workload identity.
-	DomainWorkloadIdentity Domain = "workload_identity"
+	DomainWorkloadIdentity = reducercontract.DomainWorkloadIdentity
 	// DomainDeployableUnitCorrelation correlates cross-source deployable-unit
 	// evidence before workload admission and materialization.
-	DomainDeployableUnitCorrelation Domain = "deployable_unit_correlation"
+	DomainDeployableUnitCorrelation = reducercontract.DomainDeployableUnitCorrelation
 	// DomainCloudAssetResolution resolves canonical cloud asset identity.
-	DomainCloudAssetResolution Domain = "cloud_asset_resolution"
+	DomainCloudAssetResolution = reducercontract.DomainCloudAssetResolution
 	// DomainDeploymentMapping resolves deployment relationships.
-	DomainDeploymentMapping Domain = "deployment_mapping"
+	DomainDeploymentMapping = reducercontract.DomainDeploymentMapping
 	// DomainDataLineage resolves lineage across sources and scopes.
-	DomainDataLineage Domain = "data_lineage"
+	DomainDataLineage = reducercontract.DomainDataLineage
 	// DomainCodeTaintEvidence projects value-flow taint findings into graph
 	// evidence nodes attached to their Function.
-	DomainCodeTaintEvidence Domain = "code_taint_evidence"
+	DomainCodeTaintEvidence = reducercontract.DomainCodeTaintEvidence
 	// DomainCodeInterprocEvidence projects cross-function value-flow findings into
 	// TAINT_FLOWS_TO edges between the source and sink Function nodes.
-	DomainCodeInterprocEvidence Domain = "code_interproc_evidence"
+	DomainCodeInterprocEvidence = reducercontract.DomainCodeInterprocEvidence
 	// DomainCodeFunctionSummary persists each function's durable value-flow
 	// summary (its structural Effects) to the function-summary store so the
 	// interprocedural fixpoint can recompose summaries across runs and repos.
-	DomainCodeFunctionSummary Domain = "code_function_summary"
+	DomainCodeFunctionSummary = reducercontract.DomainCodeFunctionSummary
 	// DomainOwnership resolves ownership and responsibility records.
-	DomainOwnership Domain = "ownership"
+	DomainOwnership = reducercontract.DomainOwnership
 	// DomainGovernance resolves governance and policy attribution.
-	DomainGovernance Domain = "governance"
+	DomainGovernance = reducercontract.DomainGovernance
 	// DomainWorkloadMaterialization materializes canonical workload graph nodes.
-	DomainWorkloadMaterialization Domain = "workload_materialization"
+	DomainWorkloadMaterialization = reducercontract.DomainWorkloadMaterialization
 	// DomainCodeCallMaterialization materializes canonical code call edges.
-	DomainCodeCallMaterialization Domain = "code_call_materialization"
+	DomainCodeCallMaterialization = reducercontract.DomainCodeCallMaterialization
 	// DomainPlatformInfraMaterialization extracts Terraform/terragrunt IaC
 	// platform-provisioning signals from a repository's facts and emits
 	// platform_infra shared-projection intents, which the shared worker writes as
 	// Repository-[:PROVISIONS_PLATFORM]->Platform edges. It owns the
 	// infrastructure-provisioning verb on its own dedicated trigger rather than
 	// riding the deployment_mapping handler as a side-effect.
-	DomainPlatformInfraMaterialization Domain = "platform_infra_materialization"
+	DomainPlatformInfraMaterialization = reducercontract.DomainPlatformInfraMaterialization
 	// DomainSemanticEntityMaterialization materializes Annotation, Typedef,
 	// TypeAlias, and Component semantic nodes.
-	DomainSemanticEntityMaterialization Domain = "semantic_entity_materialization"
+	DomainSemanticEntityMaterialization = reducercontract.DomainSemanticEntityMaterialization
 	// DomainSQLRelationshipMaterialization materializes canonical SQL
 	// relationship edges (READS_FROM, HAS_COLUMN, TRIGGERS).
-	DomainSQLRelationshipMaterialization Domain = "sql_relationship_materialization"
+	DomainSQLRelationshipMaterialization = reducercontract.DomainSQLRelationshipMaterialization
 	// DomainShellExecMaterialization materializes parser command-execution call
 	// evidence into canonical shell-exec graph edges.
-	DomainShellExecMaterialization Domain = "shell_exec_materialization"
+	DomainShellExecMaterialization = reducercontract.DomainShellExecMaterialization
 	// DomainInheritanceMaterialization materializes canonical inheritance,
 	// override, and alias edges from parser entity bases and trait adaptation
 	// metadata.
-	DomainInheritanceMaterialization Domain = "inheritance_materialization"
+	DomainInheritanceMaterialization = reducercontract.DomainInheritanceMaterialization
 	// DomainDocumentationMaterialization materializes canonical DOCUMENTS edges
 	// from exact documentation entity mentions to the code entities or workloads
 	// they resolve to.
-	DomainDocumentationMaterialization Domain = "documentation_materialization"
+	DomainDocumentationMaterialization = reducercontract.DomainDocumentationMaterialization
 	// DomainRationaleMaterialization materializes canonical EXPLAINS edges from
 	// intent-comment rationale to the code entities they precede.
-	DomainRationaleMaterialization Domain = "rationale_materialization"
+	DomainRationaleMaterialization = reducercontract.DomainRationaleMaterialization
 	// DomainCodeownersOwnership materializes canonical DECLARES_CODEOWNER edges
 	// from directly-emitted codeowners.ownership facts to the CodeownerTeam a
 	// CODEOWNERS rule pattern names (issue #5419 Phase 3). One rule with N
 	// owners projects N edges (owners are per-rule), riding the shared-projection
 	// intent-queue path the same way DomainDocumentationMaterialization does.
-	DomainCodeownersOwnership Domain = "codeowners_ownership"
+	DomainCodeownersOwnership = reducercontract.DomainCodeownersOwnership
 	// DomainSubmodulePin materializes canonical Repository-[:PINS_SUBMODULE]->
 	// Repository edges from directly-emitted submodule.pin facts (issue #5420
 	// Phase 3). Each fact is one parent-repository ".gitmodules"/gitlink
 	// declaration; a fact whose submodule URL never resolved to a known
 	// repository (ResolvedRepoID nil) projects no edge, mirroring
 	// DomainCodeownersOwnership's shared-projection intent-queue path.
-	DomainSubmodulePin Domain = "submodule_pin"
+	DomainSubmodulePin = reducercontract.DomainSubmodulePin
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.
 	// Current proof gates are documented in docs/public/reference/local-testing.md
 	// under "Terraform Config-vs-State Drift Compose Proofs".
-	DomainConfigStateDrift Domain = "config_state_drift"
+	DomainConfigStateDrift = reducercontract.DomainConfigStateDrift
 	// DomainPackageSourceCorrelation classifies package-registry source hints
 	// against active repository remotes without promoting package ownership.
-	DomainPackageSourceCorrelation Domain = "package_source_correlation"
+	DomainPackageSourceCorrelation = reducercontract.DomainPackageSourceCorrelation
 	// DomainCodeImportRepoEdge projects repo-to-repo DEPENDS_ON edges from
 	// per-file external import sources correlated to package-registry ownership.
 	// It runs in the git-repository scope so the per-file import facts are
 	// scope-local, and resolves owners from cross-scope package-registry facts
 	// through the same (ecosystem, name) join the package-consumption path uses
 	// (issue #3642).
-	DomainCodeImportRepoEdge Domain = "code_import_repo_edge"
+	DomainCodeImportRepoEdge = reducercontract.DomainCodeImportRepoEdge
 	// DomainContainerImageIdentity joins Git, registry, and runtime image
 	// evidence into digest-correlated, image-reference-keyed identity decisions.
-	DomainContainerImageIdentity Domain = "container_image_identity"
+	DomainContainerImageIdentity = reducercontract.DomainContainerImageIdentity
 	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
 	// environment observations with reducer-owned artifact identity evidence.
-	DomainCICDRunCorrelation Domain = "ci_cd_run_correlation"
+	DomainCICDRunCorrelation = reducercontract.DomainCICDRunCorrelation
 	// DomainServiceCatalogCorrelation correlates service-catalog entity
 	// declarations with repository and ownership evidence without letting
 	// catalog names create workloads.
-	DomainServiceCatalogCorrelation Domain = "service_catalog_correlation"
+	DomainServiceCatalogCorrelation = reducercontract.DomainServiceCatalogCorrelation
 	// DomainSBOMAttestationAttachment attaches SBOM and attestation evidence to
 	// image digests only when subject evidence is explicit.
-	DomainSBOMAttestationAttachment Domain = "sbom_attestation_attachment"
+	DomainSBOMAttestationAttachment = reducercontract.DomainSBOMAttestationAttachment
 	// DomainSupplyChainImpact publishes reducer-owned vulnerability impact
 	// findings only when vulnerability, package, SBOM, image, or repository
 	// evidence forms an explicit path.
-	DomainSupplyChainImpact Domain = "supply_chain_impact"
+	DomainSupplyChainImpact = reducercontract.DomainSupplyChainImpact
 	// DomainSecurityAlertReconciliation compares provider-reported repository
 	// security alerts against Eshu-owned dependency and impact evidence without
 	// promoting provider alerts into impact truth.
-	DomainSecurityAlertReconciliation Domain = "security_alert_reconciliation"
+	DomainSecurityAlertReconciliation = reducercontract.DomainSecurityAlertReconciliation
 	// DomainSecretsIAMTrustChain builds reducer-owned secrets/IAM read models
 	// from AWS IAM, Kubernetes ServiceAccount/RBAC, and Vault metadata source
 	// facts. It writes durable reducer facts only: no graph labels, edges, or DDL
 	// are part of this domain.
-	DomainSecretsIAMTrustChain Domain = "secrets_iam_trust_chain" // #nosec G101 -- domain name identifier, not a credential
+	DomainSecretsIAMTrustChain = reducercontract.DomainSecretsIAMTrustChain // #nosec G101 -- domain name identifier, not a credential
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.
-	DomainAWSCloudRuntimeDrift Domain = "aws_cloud_runtime_drift"
+	DomainAWSCloudRuntimeDrift = reducercontract.DomainAWSCloudRuntimeDrift
 	// DomainMultiCloudRuntimeDrift publishes admitted provider-neutral
 	// runtime-vs-IaC drift findings keyed on canonical cloud_resource_uid for
 	// GCP and Azure (issues #1997, #1998, #5759). It mirrors
@@ -140,12 +138,12 @@ const (
 	// publication (see excludeAWSOwnedRows), so the two domains never disagree
 	// about the same AWS resource. The domain stays graph-neutral until the
 	// drift node and query shape freeze.
-	DomainMultiCloudRuntimeDrift Domain = "multi_cloud_runtime_drift"
+	DomainMultiCloudRuntimeDrift = reducercontract.DomainMultiCloudRuntimeDrift
 	// DomainAWSResourceMaterialization materializes aws_resource facts into
 	// canonical CloudResource graph nodes. It is the node substrate the AWS
 	// relationship edge projection (issue #805) joins against; see
 	// docs/internal/aws-relationship-edge-materialization-design.md.
-	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
+	DomainAWSResourceMaterialization = reducercontract.DomainAWSResourceMaterialization
 	// DomainGCPResourceMaterialization materializes gcp_cloud_resource facts into
 	// canonical CloudResource graph nodes, mirroring DomainAWSResourceMaterialization
 	// for GCP. It is the node substrate the GCP relationship edge projection
@@ -154,14 +152,14 @@ const (
 	// distinct entity key (gcp_resource_materialization:<scope>) so the GCP edge
 	// stage gates on GCP node readiness independently of the AWS node phase. See
 	// docs/internal/gcp-cloud-resource-materialization-design.md.
-	DomainGCPResourceMaterialization Domain = "gcp_resource_materialization"
+	DomainGCPResourceMaterialization = reducercontract.DomainGCPResourceMaterialization
 	// DomainAzureResourceMaterialization materializes azure_cloud_resource facts
 	// into canonical CloudResource graph nodes. It is the node substrate the
 	// Azure relationship edge projection joins against and publishes the
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase under
 	// azure_resource_materialization:<scope> so Azure edges never race AWS or GCP
 	// node readiness.
-	DomainAzureResourceMaterialization Domain = "azure_resource_materialization"
+	DomainAzureResourceMaterialization = reducercontract.DomainAzureResourceMaterialization
 	// DomainGCPRelationshipMaterialization projects gcp_cloud_relationship facts
 	// into canonical GCP relationship edges between the CloudResource nodes that
 	// DomainGCPResourceMaterialization committed. It gates on the
@@ -172,20 +170,20 @@ const (
 	// by the globally-unique CAI full_resource_name; only supported relationships
 	// materialize (partial/unsupported are provenance only). See
 	// docs/internal/gcp-cloud-relationship-edge-materialization-design.md.
-	DomainGCPRelationshipMaterialization Domain = "gcp_relationship_materialization"
+	DomainGCPRelationshipMaterialization = reducercontract.DomainGCPRelationshipMaterialization
 	// DomainAzureRelationshipMaterialization projects azure_cloud_relationship
 	// facts into canonical Azure relationship edges between CloudResource nodes
 	// committed by DomainAzureResourceMaterialization. Endpoints resolve by exact
 	// normalized ARM resource id; partial, unsupported, unresolved, invalid-type,
 	// and self-loop evidence stays provenance-only.
-	DomainAzureRelationshipMaterialization Domain = "azure_relationship_materialization"
+	DomainAzureRelationshipMaterialization = reducercontract.DomainAzureRelationshipMaterialization
 	// DomainWorkloadCloudRelationshipMaterialization projects exact
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming
 	// gates on CloudResource node readiness; the graph writer still uses
 	// MATCH-only endpoint anchoring so missing workload instances are a no-op
 	// instead of fabricated graph truth.
-	DomainWorkloadCloudRelationshipMaterialization Domain = "workload_cloud_relationship_materialization"
+	DomainWorkloadCloudRelationshipMaterialization = reducercontract.DomainWorkloadCloudRelationshipMaterialization
 	// DomainEC2InstanceNodeMaterialization materializes ec2_instance_posture facts
 	// into canonical :CloudResource graph nodes on the existing cloud_resource_uid
 	// keyspace (issue #1146 PR-A). The EC2 scanner deliberately does not emit an
@@ -198,14 +196,14 @@ const (
 	// independently of the aws_resource node phase, exactly like the security-group
 	// reachability edge gates on multiple node phases (#1135). See issue #1146 and
 	// docs/internal/design/1146-ec2-instance-node.md.
-	DomainEC2InstanceNodeMaterialization Domain = "ec2_instance_node_materialization"
+	DomainEC2InstanceNodeMaterialization = reducercontract.DomainEC2InstanceNodeMaterialization
 	// DomainAWSRelationshipMaterialization projects aws_relationship facts into
 	// canonical AWS relationship edges between the CloudResource nodes that
 	// DomainAWSResourceMaterialization committed. It gates on the
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so edges never
 	// resolve against nodes that have not committed (issue #805 PR 2); see
 	// docs/internal/aws-relationship-edge-materialization-design.md §5–§8.
-	DomainAWSRelationshipMaterialization Domain = "aws_relationship_materialization"
+	DomainAWSRelationshipMaterialization = reducercontract.DomainAWSRelationshipMaterialization
 	// DomainAWSCloudImageMaterialization projects the lambda_function_uses_image
 	// aws_relationship into a canonical CloudResource -> ContainerImage edge
 	// (issue #5450), an ADDITIVE SIBLING of DomainAWSRelationshipMaterialization
@@ -228,7 +226,7 @@ const (
 	// keeps it Postgres-only. See
 	// docs/internal/aws-relationship-edge-materialization-design.md and
 	// docs/internal/design/5472-graph-projection-policy.md.
-	DomainAWSCloudImageMaterialization Domain = "aws_cloud_image_materialization"
+	DomainAWSCloudImageMaterialization = reducercontract.DomainAWSCloudImageMaterialization
 	// DomainObservabilityCoverageCorrelation correlates which monitored
 	// CloudResource nodes have observability coverage (CloudWatch alarms,
 	// dashboards, log groups, X-Ray) versus which are uncovered, emitting durable
@@ -237,7 +235,7 @@ const (
 	// cross-scope (a resource in one scan scope may be covered by an alarm
 	// discovered in another). PR1 writes facts only; the optional COVERS graph
 	// edge is a later gated PR. See issue #391 for the design.
-	DomainObservabilityCoverageCorrelation Domain = "observability_coverage_correlation"
+	DomainObservabilityCoverageCorrelation = reducercontract.DomainObservabilityCoverageCorrelation
 	// DomainObservabilityCoverageMaterialization projects the exact-outcome
 	// observability coverage decisions into canonical COVERS edges between the
 	// CloudResource nodes that DomainAWSResourceMaterialization committed: an
@@ -248,7 +246,7 @@ const (
 	// exact coverage with a resolved target uid materializes an edge; derived,
 	// ambiguous, unresolved, stale, and rejected coverage stays provenance-only in
 	// the PR1 read model and fabricates no edge. See issue #391 for the design.
-	DomainObservabilityCoverageMaterialization Domain = "observability_coverage_materialization"
+	DomainObservabilityCoverageMaterialization = reducercontract.DomainObservabilityCoverageMaterialization
 	// DomainKubernetesCorrelation correlates live Kubernetes workload evidence
 	// (kubernetes_live.* facts) against deployment-source image and identity
 	// evidence, emitting durable provenance-only reducer facts with the
@@ -259,7 +257,7 @@ const (
 	// (live facts live in a cluster scope, source facts in repo/cloud scopes).
 	// PR1 writes facts only; the gated canonical graph edge is a later PR. See
 	// issue #388 for the design.
-	DomainKubernetesCorrelation Domain = "kubernetes_correlation"
+	DomainKubernetesCorrelation = reducercontract.DomainKubernetesCorrelation
 	// DomainKubernetesWorkloadMaterialization materializes
 	// kubernetes_live.pod_template facts into canonical KubernetesWorkload graph
 	// nodes keyed by the collector-emitted object_id. It is the live-workload node
@@ -270,7 +268,7 @@ const (
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the later edge
 	// slice gates exactly like DomainAWSRelationshipMaterialization (#805). See
 	// issue #388 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
-	DomainKubernetesWorkloadMaterialization Domain = "kubernetes_workload_materialization"
+	DomainKubernetesWorkloadMaterialization = reducercontract.DomainKubernetesWorkloadMaterialization
 	// DomainKubernetesCorrelationMaterialization projects the exact-outcome live
 	// Kubernetes correlation decisions into canonical RUNS_IMAGE edges between a
 	// KubernetesWorkload node (committed by DomainKubernetesWorkloadMaterialization)
@@ -286,7 +284,7 @@ const (
 	// workload->workload edge rather than a workload->image edge — stay
 	// provenance-only and fabricate no edge. See issue #388 and
 	// docs/internal/design/388-kubernetes-correlation-readmodel.md.
-	DomainKubernetesCorrelationMaterialization Domain = "kubernetes_correlation_materialization"
+	DomainKubernetesCorrelationMaterialization = reducercontract.DomainKubernetesCorrelationMaterialization
 	// DomainKubernetesNamespaceMaterialization materializes
 	// kubernetes_live.namespace facts into canonical KubernetesNamespace graph
 	// nodes keyed by the collector-emitted object_id ((cluster_id, namespace)
@@ -302,7 +300,7 @@ const (
 	// docs/public/reference/environment-alias-contract.md). This is the FIRST
 	// live-cluster namespace->environment binding; ClusterTarget.Environment
 	// stays inert. See issue #5434.
-	DomainKubernetesNamespaceMaterialization Domain = "kubernetes_namespace_materialization"
+	DomainKubernetesNamespaceMaterialization = reducercontract.DomainKubernetesNamespaceMaterialization
 	// DomainCrossplaneSatisfiedByMaterialization projects Crossplane Claim ->
 	// XRD classification decisions into canonical SATISFIED_BY edges between a
 	// K8sResource node (the Claim — never parser-labeled, see issue #5347) and
@@ -315,61 +313,49 @@ const (
 	// against Claims in app repos via ListActiveCrossplaneXRDFacts, mirroring
 	// DomainKubernetesCorrelationMaterialization's cross-scope OCI source
 	// join. See issue #5347.
-	DomainCrossplaneSatisfiedByMaterialization Domain = "crossplane_satisfied_by_materialization"
+	DomainCrossplaneSatisfiedByMaterialization = reducercontract.DomainCrossplaneSatisfiedByMaterialization
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.
-type IntentStatus string
+type IntentStatus = reducercontract.IntentStatus
 
 const (
 	// IntentStatusPending means the intent is ready to be claimed.
-	IntentStatusPending IntentStatus = "pending"
+	IntentStatusPending = reducercontract.IntentStatusPending
 	// IntentStatusClaimed means the intent has been leased for execution.
-	IntentStatusClaimed IntentStatus = "claimed"
+	IntentStatusClaimed = reducercontract.IntentStatusClaimed
 	// IntentStatusRunning means the reducer is actively processing the intent.
-	IntentStatusRunning IntentStatus = "running"
+	IntentStatusRunning = reducercontract.IntentStatusRunning
 	// IntentStatusSucceeded means the intent finished successfully.
-	IntentStatusSucceeded IntentStatus = "succeeded"
+	IntentStatusSucceeded = reducercontract.IntentStatusSucceeded
 	// IntentStatusFailed means the intent is terminally failed.
-	IntentStatusFailed IntentStatus = "failed"
+	IntentStatusFailed = reducercontract.IntentStatusFailed
 )
 
 // ResultStatus captures the terminal outcome of one reducer execution.
-type ResultStatus string
+type ResultStatus = reducercontract.ResultStatus
 
 const (
 	// ResultStatusSucceeded means the execution completed successfully.
-	ResultStatusSucceeded ResultStatus = "succeeded"
+	ResultStatusSucceeded = reducercontract.ResultStatusSucceeded
 	// ResultStatusFailed means the execution failed.
-	ResultStatusFailed ResultStatus = "failed"
+	ResultStatusFailed = reducercontract.ResultStatusFailed
 	// ResultStatusSuperseded means the intent was skipped because a newer
 	// generation is already active for the scope.
-	ResultStatusSuperseded ResultStatus = "superseded"
+	ResultStatusSuperseded = reducercontract.ResultStatusSuperseded
 )
 
 // FailureRecord captures the durable reducer failure classification.
-type FailureRecord struct {
-	FailureClass string
-	Message      string
-	Details      string
-}
+type FailureRecord = reducercontract.FailureRecord
 
 // RetryableError marks reducer failures that should re-enter the durable
 // queue instead of becoming terminal on the first failure.
-type RetryableError interface {
-	error
-	Retryable() bool
-}
+type RetryableError = reducercontract.RetryableError
 
 // IsRetryable reports whether the supplied error explicitly opts into bounded
 // retry behavior.
 func IsRetryable(err error) bool {
-	var retryable RetryableError
-	if !errors.As(err, &retryable) {
-		return false
-	}
-
-	return retryable.Retryable()
+	return reducercontract.IsRetryable(err)
 }
 
 // The durable Intent value type and its lifecycle methods live in the sibling

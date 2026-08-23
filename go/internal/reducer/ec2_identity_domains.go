@@ -3,6 +3,8 @@
 
 package reducer
 
+import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 const (
 	// DomainEC2InstanceIdentityMaterialization projects the #5448 aws_ec2_instance
 	// aws_resource fact's ami_id onto the already-materialized EC2 instance
@@ -15,5 +17,5 @@ const (
 	// on DomainAWSResourceMaterialization's phase — and writes only the disjoint
 	// ami_id / ec2_identity_* properties, never the base identity/posture fields
 	// the node-owning domain already sets.
-	DomainEC2InstanceIdentityMaterialization Domain = "ec2_instance_identity_materialization"
+	DomainEC2InstanceIdentityMaterialization = reducercontract.DomainEC2InstanceIdentityMaterialization
 )

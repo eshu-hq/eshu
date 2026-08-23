@@ -3,6 +3,8 @@
 
 package reducer
 
+import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 const (
 	// DomainEC2UsesProfileMaterialization projects ec2_instance_posture
 	// instance_profile_arn into canonical USES_PROFILE edges between an EC2
@@ -14,7 +16,7 @@ const (
 	// two endpoint nodes publish their canonical_nodes_committed phase under
 	// different entity keys, the edge gates on both phases so it never resolves
 	// against an endpoint that has not committed.
-	DomainEC2UsesProfileMaterialization Domain = "ec2_uses_profile_materialization"
+	DomainEC2UsesProfileMaterialization = reducercontract.DomainEC2UsesProfileMaterialization
 
 	// DomainIAMInstanceProfileRoleMaterialization projects IAM instance-profile
 	// aws_resource role_arns into canonical HAS_ROLE edges between the instance
@@ -23,5 +25,5 @@ const (
 	// types are materialized by DomainAWSResourceMaterialization (#805). Profiles
 	// with no roles produce no edge and are not counted as skips; unscanned roles
 	// are counted and never fabricated.
-	DomainIAMInstanceProfileRoleMaterialization Domain = "iam_instance_profile_role_materialization"
+	DomainIAMInstanceProfileRoleMaterialization = reducercontract.DomainIAMInstanceProfileRoleMaterialization
 )
