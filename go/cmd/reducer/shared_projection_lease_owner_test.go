@@ -104,6 +104,14 @@ func TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots(t *testing.T) {
 	}
 }
 
+func TestProjectionLeaseOwnerBootNonceIsIndependentOfProcessID(t *testing.T) {
+	first := newProjectionLeaseOwnerBootNonce()
+	second := newProjectionLeaseOwnerBootNonce()
+	if first == second {
+		t.Fatalf("projection lease owner boot nonce generator reused %q within one process", first)
+	}
+}
+
 func sharedProjectionLeaseOwnerFromHelperProcess(t *testing.T) string {
 	t.Helper()
 	command := exec.Command(os.Args[0], "-test.run=^TestSharedProjectionLeaseOwnerDiffersAcrossProcessBoots$")
