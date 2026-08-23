@@ -127,13 +127,36 @@ func loadTrackedPaths(repoRoot string) (*trackedPaths, error) {
 // legitimate in this path — not because each was shown to move this one.
 //
 // GIT_INDEX_FILE is deliberately KEPT, which is why this is a filter and not a
-// clean environment. Measured on git 2.50.1: a pre-commit hook exports
-// GIT_INDEX_FILE and NOTHING else — not GIT_DIR, not GIT_WORK_TREE — and under
-// "git commit -a" and "git commit --only" it names a pending index
+// clean environment. A pre-commit hook always exports it, and under
+// "git commit -a" or "git commit --only" it names a pending index
 // (<gitdir>/index.lock, <gitdir>/next-index-<pid>.lock) describing the tree
 // being committed rather than the one on disk. That is the state a pre-commit
 // gate should validate: drop it and a commit that deletes the last file a glob
-// names passes the hook it should fail.
+// names passes the hook it should fail. TestLoadTrackedPaths_HonoursThePending-
+// IndexAHookNames is the guard; adding this name to the map below reds it.
+//
+// A hook does NOT export only that one variable, and the difference is the
+// normal case here rather than the exotic one. Measured on git 2.50.1 (Apple
+// Git-155), with a hook dumping its own GIT_* environment, six ways:
+//
+//	main checkout,   raw hook,           git commit     GIT_INDEX_FILE=.git/index         GIT_DIR absent
+//	main checkout,   raw hook,           git commit -a  GIT_INDEX_FILE=<gitdir>/index.lock GIT_DIR absent
+//	main checkout,   pre-commit 4.6.2,   git commit     GIT_INDEX_FILE=.git/index         GIT_DIR absent
+//	linked worktree, raw hook,           git commit     GIT_INDEX_FILE=<gitdir>/index     GIT_DIR EXPORTED
+//	linked worktree, raw hook,           git commit -a  GIT_INDEX_FILE=<gitdir>/index.lock GIT_DIR EXPORTED
+//	linked worktree, pre-commit 4.6.2,   git commit     GIT_INDEX_FILE=<gitdir>/index     GIT_DIR EXPORTED
+//
+// In a LINKED WORKTREE — the shape this repository mandates, and the one
+// pre-commit 4.6.2 drives here — a hook exports GIT_DIR too, naming that
+// worktree's own gitdir. Dropping it is still right, and is not a no-op on the
+// hook path: git rediscovers the same gitdir from repoRoot, so the value the
+// hook set and the value git derives agree. Verified on the real gate in a
+// linked worktree under the full hook pair
+// (GIT_DIR=<worktree gitdir> GIT_INDEX_FILE=<same>/index
+// scripts/verify-ci-gates-registry.sh) — exit 0 / PASS, identical to a clean
+// run. What the drop protects against is the OTHER GIT_DIR: a hand-exported or
+// inherited one naming a different checkout, measured above to flip the gate to
+// a false PASS.
 //
 // The residual, stated rather than hidden: a GIT_INDEX_FILE naming ANOTHER
 // repository's index is still honoured, and was measured to produce the same

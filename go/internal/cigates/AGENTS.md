@@ -13,7 +13,8 @@ and `eshu-diagnostic-rigor`.
   resolution: it already stats scripts, workflows, and literal triggers, and
   since #6159 it also asks git for the tracked path set that glob triggers
   resolve against (`loadTrackedPaths` in `globtrigger.go` — the only
-  `exec.Command` in this package). Do not widen that seam; anything else
+  `exec.Command` in this package's production code; the test fixtures run git
+  too). Do not widen that seam; anything else
   needing git belongs at the CLI boundary in `cmd/ci-gates`.
 - **A trigger that matches nothing is an error, never a warning.** A literal
   trigger is stat-checked (#6055); a glob trigger must select at least one
@@ -41,10 +42,16 @@ and `eshu-diagnostic-rigor`.
 - **`loadTrackedPaths` runs git under `gitTreeEnv`, never a plain inherit.**
   `git -C <repoRoot>` does not decide which repository git reads: an ambient
   `GIT_DIR` overrides it and the gate then PASSES against another checkout's
-  tree. `GIT_INDEX_FILE` is kept on purpose — it is the one variable a
-  pre-commit hook exports, and it names the pending index the hook should be
-  validating. Do not "simplify" this back to `os.Environ()`, and do not drop
-  `GIT_INDEX_FILE` with it.
+  tree. `GIT_INDEX_FILE` is kept on purpose — a pre-commit hook exports it to
+  name the pending index the hook should be validating, so scrubbing it makes
+  the gate judge the tree on disk instead. Do not "simplify" this back to
+  `os.Environ()`, and do not "finish the scrub" by adding `GIT_INDEX_FILE` to
+  the map; `TestLoadTrackedPaths_HonoursThePendingIndexAHookNames` reds if you
+  do. Note a hook exports GIT_DIR too in a **linked worktree** (measured six
+  ways, including through pre-commit 4.6.2 — see `gitTreeEnv`'s comment), so
+  dropping it is not a no-op on the hook path; it is safe because git
+  rediscovers the same gitdir from `repoRoot`, which was verified against the
+  real gate under the full hook pair.
 - **Validate accumulates errors.** Never return early from `Validate`; collect
   all integrity errors in a single pass so a single run surfaces every broken
   reference.

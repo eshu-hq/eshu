@@ -17,10 +17,12 @@ import (
 // and -C is NOT authoritative: GIT_DIR, GIT_INDEX_FILE, GIT_WORK_TREE and
 // their siblings override it, so an ambient one silently retargets the command
 // at whatever repository the variable names. A git pre-commit hook exports
-// GIT_INDEX_FILE, and running this package under one measured 14 red tests
-// here AND left the other repository's index holding this package's fixture
-// files, its own two tracked entries gone — a test suite that rewrites an
-// unrelated working tree.
+// GIT_INDEX_FILE, and running this package under one turned this suite red AND
+// left the other repository's index holding this package's fixture files, its
+// own two tracked entries gone — a test suite that rewrites an unrelated
+// working tree. (The red count is not recorded here: it depends on the victim
+// tree and on whether subtests are counted, so it would read as a fact about
+// the defect when it is a fact about one machine's run.)
 //
 // The scrub is process-wide rather than per-command because the subject under
 // test reads the process environment too: loadTrackedPaths shells out to git
@@ -36,7 +38,18 @@ import (
 // misses one leaves exactly the defect this closes. GIT_CONFIG_* is then set
 // back so the developer's own global config — a core.excludesFile, an
 // init.templateDir, a hook — cannot decide what a fixture tracks either.
+//
+// The scrub then checks itself, because a harness that silently stops
+// scrubbing looks exactly like a clean machine: narrow the sweep to one name
+// and every case here still passes in a shell that happens to export nothing.
+// A canary planted before the sweep makes the check bite in ANY environment
+// rather than only under a hook, and the survivor sweep afterwards catches an
+// ambient name the loop somehow walked past.
 func TestMain(m *testing.M) {
+	const canary = "GIT_CIGATES_SCRUB_CANARY"
+	if err := os.Setenv(canary, "planted"); err != nil {
+		panic("cigates test: could not plant the scrub canary: " + err.Error())
+	}
 	for _, entry := range os.Environ() {
 		if name, _, ok := strings.Cut(entry, "="); ok && strings.HasPrefix(name, "GIT_") {
 			if err := os.Unsetenv(name); err != nil {
@@ -44,15 +57,26 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
-	for name, value := range map[string]string{
+	pinned := map[string]string{
 		"GIT_CONFIG_GLOBAL":   os.DevNull,
 		"GIT_CONFIG_SYSTEM":   os.DevNull,
 		"GIT_CONFIG_NOSYSTEM": "1",
 		"GIT_TERMINAL_PROMPT": "0",
-	} {
+	}
+	for name, value := range pinned {
 		if err := os.Setenv(name, value); err != nil {
 			panic("cigates test: could not pin " + name + ": " + err.Error())
 		}
+	}
+	for _, entry := range os.Environ() {
+		name, _, ok := strings.Cut(entry, "=")
+		if !ok || !strings.HasPrefix(name, "GIT_") {
+			continue
+		}
+		if _, isPinned := pinned[name]; isPinned {
+			continue
+		}
+		panic("cigates test: " + name + " survived the scrub. Every GIT_* name but the pinned config set must be gone before any fixture runs, or `git -C <root>` is silently retargeted at whatever repository the survivor names — and the suite then rewrites an unrelated working tree instead of failing")
 	}
 	os.Exit(m.Run())
 }
@@ -268,6 +292,55 @@ func TestLoadTrackedPaths_IgnoresAnAmbientGitDir(t *testing.T) {
 	sort.Strings(got)
 	if strings.Join(got, ",") != "under-test.go" {
 		t.Fatalf("universe = %v with GIT_DIR naming another checkout; want only the tree at repoRoot. An ambient repository pointer must not decide which tree a trigger is verified against", got)
+	}
+}
+
+// TestLoadTrackedPaths_HonoursThePendingIndexAHookNames pins the one variable
+// gitTreeEnv deliberately KEEPS, and it exists because the keep is the half of
+// that function no other test can see. Its sibling above proves GIT_DIR is
+// dropped; delete GIT_DIR from the retargeting map and that case goes red. ADD
+// GIT_INDEX_FILE to the same map — the obvious one-line "finish the scrub"
+// edit — and every test in this package and in cmd/ci-gates stayed green
+// before this case existed, while the gate silently stopped doing its job.
+//
+// Why the asymmetry is correct rather than an oversight: a pre-commit hook
+// exports GIT_INDEX_FILE naming the index that describes the tree being
+// COMMITTED, which under `git commit -a` or `--only` is a pending lock file
+// and not the index on disk. That pending tree is precisely what a pre-commit
+// gate must validate its triggers against. Scrub the variable and the gate
+// reads the on-disk index instead, so a commit deleting the last file a glob
+// trigger names passes the very hook #6159 added it to fail. GIT_DIR carries
+// no such meaning for us — dropping it makes git rediscover the same gitdir
+// from repoRoot — which is why one is dropped and the other kept.
+//
+// Not parallel: t.Setenv forbids it, and the ambient variable is the subject.
+func TestLoadTrackedPaths_HonoursThePendingIndexAHookNames(t *testing.T) {
+	root := gitRepoWithFiles(t, "on-disk.go")
+	pending := filepath.Join(t.TempDir(), "pending-index")
+	if err := os.WriteFile(filepath.Join(root, "pending-only.go"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Stage into the pending index ONLY, leaving the on-disk index holding
+	// just on-disk.go. The two indexes now disagree, so the universe names
+	// which one loadTrackedPaths actually read.
+	cmd := exec.Command("git", "-C", root, "add", "--force", "--", "pending-only.go")
+	cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+pending)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add into the pending index: %v\n%s", err, out)
+	}
+	t.Setenv("GIT_INDEX_FILE", pending)
+
+	tp, err := loadTrackedPaths(root)
+	if err != nil {
+		t.Fatalf("loadTrackedPaths() error = %v", err)
+	}
+	var got []string
+	for _, segments := range tp.all {
+		got = append(got, strings.Join(segments, "/"))
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != "pending-only.go" {
+		t.Fatalf("universe = %v; want only the pending index's entry. A pre-commit hook names the index describing the tree being committed; scrub GIT_INDEX_FILE and the gate validates the tree on disk instead, so a commit deleting the last file a glob names passes the hook it should fail", got)
 	}
 }
 
