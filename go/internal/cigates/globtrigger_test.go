@@ -216,6 +216,17 @@ func TestValidate_GlobTriggerFailsWhenTrackedPathsCannotBeEnumerated(t *testing.
 	if got := errorNaming(errs, "tracked paths"); got == "" {
 		t.Fatalf("Validate() errors = %v, want one reporting that the tracked path set could not be enumerated; an unverifiable glob trigger must not pass silently", errs)
 	}
+	// The enumeration failure must be reported ONCE, not once per glob
+	// trigger. Skipping the per-trigger check when the universe is unknown is
+	// what keeps it to one: without that skip every glob derives its own
+	// "matches no tracked path" error from a set that was never loaded, so the
+	// committed registry's 499 glob triggers would emit 500 errors instead of
+	// 1 -- each confidently naming a trigger that is in fact fine, sending an
+	// operator to rewrite a registry that is correct. validate.go, this file's
+	// enumeration guard, and README.md all promise this; nothing asserted it.
+	if len(errs) != 1 {
+		t.Fatalf("Validate() returned %d errors (%v), want exactly 1: the unenumerable universe is reported once, not derived per glob trigger", len(errs), errs)
+	}
 }
 
 // TestValidate_GlobTriggerEscapingRootFails covers the glob-shaped sibling of
