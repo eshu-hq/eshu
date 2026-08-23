@@ -109,9 +109,10 @@ type requiredCheckEvaluation struct {
 	Pending []requiredCheckFinding
 	Failed  []requiredCheckFinding
 	// Cancelled holds gates whose check never produced a verdict (#6189):
-	// CANCELLED, STALE, or SKIPPED because the workflow run that owned the job
-	// was cancelled. All three are infrastructure state rather than a gate
-	// result, and all three want the same operator repair, so they share one
+	// CANCELLED, STALE, SKIPPED because the workflow run that owned the job was
+	// cancelled, or MISSING because that run was cancelled before the job was
+	// created at all. All four are infrastructure state rather than a gate
+	// result, and all four want the same operator repair, so they share one
 	// bucket and one exit code. It keeps the name `Cancelled` because that is
 	// what exit 13, errGateCancelled, the publisher arm, and the four
 	// documents describing this contract all call it; see isNotAGateResult in
@@ -181,6 +182,13 @@ func evaluateRequiredChecks(
 	for _, gate := range required {
 		matches := matchingChecks(gate, checks)
 		if len(matches) == 0 {
+			// No check run for this job exists at all; only the owning run's
+			// conclusion says whether one ever will. See
+			// missingCheckIsCancellationArtifact for both directions (#6189).
+			if missingCheckIsCancellationArtifact(gate, runs) {
+				evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, "MISSING (run cancelled)"))
+				continue
+			}
 			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "MISSING"))
 			continue
 		}
@@ -375,18 +383,22 @@ func awaitPRRequiredChecks(
 		if err != nil {
 			return err
 		}
-		// Only a SKIPPED selected check needs the run conclusions, and a
-		// skipped selected check is rare, so the call is not made on the
-		// common path (#6189). A lookup failure is reported and then treated
-		// as "nothing known cancelled", which leaves a skipped gate publishing
-		// `failure` exactly as it did before this change -- degraded to the
-		// old behaviour, never to a pass.
+		// A SKIPPED selected check, or a selected gate with no check at all
+		// once nothing else is still running, needs the run conclusions;
+		// neither is the common path, so the call is not made on it (#6189).
+		// needsRunConclusions carries why each is gated the way it is.
+		//
+		// A lookup failure is reported and then treated as "nothing known
+		// cancelled", which leaves a skipped gate publishing `failure` exactly
+		// as it did before this change and a missing gate pending exactly as
+		// it did -- degraded to the old behaviour, never to a pass.
 		var runs runConclusions
-		if anySelectedCheckSkipped(required, checks) {
+		if needsRunConclusions(required, checks) {
 			runs, err = workflowRunConclusions(ctx, runner, repo, headSHA)
 			if err != nil {
 				_, _ = fmt.Fprintf(out,
-					"required-gates: could not read workflow run conclusions (%v); a skipped gate stays a failure\n", err)
+					"required-gates: could not read workflow run conclusions (%v); "+
+						"a skipped gate stays a failure and a missing gate stays pending\n", err)
 				runs = nil
 			}
 		}

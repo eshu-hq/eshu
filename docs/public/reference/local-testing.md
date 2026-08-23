@@ -211,9 +211,14 @@ gates its changed paths select:
   failed ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still
   blocks the merge — the ruleset requires `success` — so nothing is waved
   through; the status just stops asserting an outcome that never happened.
-  Three shapes qualify: a **cancelled** check, a **stale** one GitHub
-  orphaned, and one GitHub marked **skipped because the workflow run that
-  owned the job was cancelled**. That last one is why the aggregate reads run
+  Four shapes qualify: a **cancelled** check, a **stale** one GitHub
+  orphaned, one GitHub marked **skipped because the workflow run that
+  owned the job was cancelled**, and one **missing entirely because that run
+  was cancelled before the job was created** — no check run exists, so nothing
+  will ever report it. A check missing for any other reason keeps the
+  aggregate waiting rather than resolving, because a gate the registry
+  selected whose job simply never ran is a real disagreement, not
+  infrastructure noise. The skipped shape is why the aggregate reads run
   conclusions (`actions: read`): GitHub reports the same `SKIPPED` conclusion
   whether a dependency was cancelled or the job's own `if:` excluded it, and
   **a gate skipped for its own reasons still fails the aggregate** — the

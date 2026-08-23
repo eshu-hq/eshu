@@ -73,7 +73,8 @@ published only after every selected check reports `pass`. Failed, neutral,
 missing, and timed-out checks fail closed, and so does a check GitHub skipped
 for its own reasons. A check that never produced a verdict is the carve-out
 ([#6189](https://github.com/eshu-hq/eshu/issues/6189)) -- a cancelled check, a
-stale one, or one skipped because the run that owned the job was cancelled.
+stale one, one skipped because the run that owned the job was cancelled, or one
+missing outright because that run was cancelled before the job was created.
 That is infrastructure state, not a gate result, so the aggregate publishes
 `error` naming the re-run instead of claiming a gate failed, and
 `validateCancelledArm` rejects a publisher whose cancelled-gate arm is missing,

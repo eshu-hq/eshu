@@ -50,6 +50,9 @@ type routedRunner struct {
 	// gate quietly returns to publishing failure. That degradation is
 	// fail-closed, which is exactly why no other assertion notices it.
 	runsArgs []string
+	// checksCalls counts `gh pr checks` polls, so a test can prove a verdict
+	// was reached on the first poll rather than by waiting out the timeout.
+	checksCalls int
 }
 
 func (r *routedRunner) Run(_ context.Context, args ...string) ([]byte, error) {
@@ -61,6 +64,7 @@ func (r *routedRunner) Run(_ context.Context, args ...string) ([]byte, error) {
 		}
 		return r.runs, nil
 	}
+	r.checksCalls++
 	return r.checks, nil
 }
 
