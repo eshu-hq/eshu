@@ -2,12 +2,19 @@
 #
 # Verify concrete ESHU_* citations and long flags in fenced Eshu shell commands.
 #
-# Precision-first flag scope: bash/sh/shell/console fences only; logical lines
-# beginning with `eshu` (optionally after `$` or `>`); concrete long flags only.
-# Prose, inline code, non-shell fences, and logical lines containing an
-# unquoted shell-list operator (`|`, `&`, or `;`) are deliberately skipped,
-# as are short flags, shell-expanded flag names, command-local flags after a
-# leading root flag, and wildcard ESHU_* family prefixes.
+# Precision-first flag scope: bash/sh/shell/console fences only; command
+# segments beginning with `eshu` (optionally after `$` or `>`); concrete long
+# flags only. Prose, inline code, non-shell fences, short flags, shell-expanded
+# flag names, command-local flags after a leading root flag, and wildcard ESHU_*
+# family prefixes are deliberately skipped.
+#
+# Since #6108 a logical line may be a simple list: segments separated by an
+# unquoted `|`, `&&`, or `;`, each checked against its own command so one
+# command's flags are never attributed to another. Any other shell form on the
+# line -- `||`, a background `&`, `|&`, `;;`, a subshell, or command
+# substitution -- keeps the whole line outside the gate's scope, and so does an
+# empty segment. Operators inside quotes, after a backslash, or in a trailing
+# `#` comment are not segment boundaries.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"

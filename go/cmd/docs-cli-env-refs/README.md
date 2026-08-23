@@ -37,10 +37,33 @@ and failure diagnostics to standard error.
 The scanner is precision-first. It includes indented or list-contained
 `bash`, `sh`, `shell`, and `console` fences, including literal single- or
 double-quoted long flags. It skips prose, inline flags, non-shell fences, short
-flags, dynamic flag names, wildcard environment-variable prefixes, and whole
-logical lines containing an unquoted shell-list operator such as a pipeline or
-`&&` list. Operators inside quoted values, escaped values, or trailing shell
-comments do not exclude the line.
+flags, dynamic flag names, and wildcard environment-variable prefixes.
+
+A logical line may be a **simple list**, and each of its segments is checked
+against its own command (#6108):
+
+```text
+list    := segment ( SEP segment )*
+SEP     := "|" | "&&" | ";"     unquoted, unescaped, outside a comment
+segment := one literal command carrying no list operator of its own
+```
+
+So `eshu first-run --json | eshu first-run-benchmark --path local_binary`
+resolves `--json` against `first-run` and `--path` against
+`first-run-benchmark`. Neither command inherits the other's flags, which is what
+makes a stale flag on a later segment fail instead of resolving by accident
+against an earlier one.
+
+The grammar is a deliberate under-approximation, and everything outside it keeps
+the pre-#6108 behaviour of skipping the whole logical line rather than guessing:
+`||`, a background `&`, `|&`, `;;`, an unquoted `(`, `)`, or backtick anywhere
+on a list line, and an empty segment from a leading, trailing, or doubled
+separator. Operators inside quoted values, escaped values, or trailing shell
+comments are not segment boundaries and do not exclude the line. A line with no
+unquoted list operator is parsed exactly as before.
+
+An unresolved flag is reported with the command it was attributed to, so a
+failure on a piped or chained example says which segment owns the flag.
 
 When a command starts with a root flag before its subcommand, the scanner checks
 the leading root flag but deliberately skips later command-local flags on that

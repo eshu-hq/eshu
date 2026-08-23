@@ -102,12 +102,26 @@ func run(ctx context.Context, args []string) error {
 	newRefs := difference(unresolved, baseline)
 	if len(newRefs) > 0 {
 		for _, ref := range newRefs {
-			fmt.Fprintf(os.Stderr, "docs-cli-env-refs: %s cites unknown %s %s (not in %s)\n", ref.Document, ref.Kind, ref.Value, opts.baseline)
+			fmt.Fprintf(os.Stderr, "docs-cli-env-refs: %s cites unknown %s %s%s (not in %s)\n", ref.Document, ref.Kind, ref.Value, referenceScope(ref), opts.baseline)
 		}
 		return fmt.Errorf("%d documentation reference(s) are not registered or baselined", len(newRefs))
 	}
 	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: OK: %d reference(s) checked, %d unresolved reference(s) baselined\n", len(refs), len(unresolved))
 	return nil
+}
+
+// referenceScope names the command an unresolved flag was attributed to, so a
+// failure on a piped or chained example says which segment owns the flag rather
+// than leaving an operator to guess (#6108). Environment references have no
+// command scope and render as an empty suffix.
+func referenceScope(ref reference) string {
+	if ref.Kind != referenceKindFlag {
+		return ""
+	}
+	if ref.Command == "" {
+		return " on command `eshu`"
+	}
+	return " on command `eshu " + strings.ReplaceAll(ref.Command, "/", " ") + "`"
 }
 
 func validateFrozenCeiling(ceiling map[string]struct{}) error {

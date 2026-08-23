@@ -27,6 +27,34 @@ assert_contains() {
   fi
 }
 
+# assert_output_line matches a WHOLE diagnostic line, not a substring anywhere
+# in the file. A per-segment attribution bug still prints the document name and
+# the flag, so a substring assertion on either would pass while the command
+# scope is wrong; only the full line pins which command owns the flag.
+assert_output_line() {
+  local regex="$1"
+  local file="$2"
+  local label="$3"
+  if rg -q --regexp "${regex}" "${file}"; then
+    record_pass "${label}"
+  else
+    record_fail "${label} (no line matching ${regex})"
+    sed -n '1,160p' "${file}" >&2
+  fi
+}
+
+assert_absent() {
+  local needle="$1"
+  local file="$2"
+  local label="$3"
+  if rg -q --fixed-strings -- "${needle}" "${file}"; then
+    record_fail "${label} (unexpected ${needle})"
+    sed -n '1,160p' "${file}" >&2
+  else
+    record_pass "${label}"
+  fi
+}
+
 write_doc() {
   local root="$1"
   local rel="$2"
@@ -180,6 +208,13 @@ test_hostile_command_and_markdown_forms_fail() {
   assert_contains "fence-close-nbsp.md" "${out}" "non-ASCII fence suffix does not hide flags"
   assert_contains "fence-close-over-indented.md" "${out}" "over-indented pseudo-close does not hide flags"
   assert_contains "quoted-operators.md" "${out}" "quoted and escaped operators remain in scanner scope"
+  # Whole-line, not substring: splitting on any of these operators would drop the
+  # flag on the wrong side of an unbalanced quote and print no line at all.
+  for quoted_case in quoted-pipe quoted-semicolon escaped-ampersand; do
+    assert_output_line \
+      "^docs-cli-env-refs: quoted-operators\\.md cites unknown flag --${quoted_case}-invalid on command .eshu docs verify. \\(not in .*\\)$" \
+      "${out}" "${quoted_case} stays inside one command segment"
+  done
   if rg --fixed-strings --quiet -- "literal-block.md" "${out}"; then
     record_fail "top-level indented literal stays outside fenced-command scope"
   else
@@ -203,11 +238,6 @@ test_precision_exclusions_pass() {
     'eshu docs verify --not-a-real-flag' \
     '```' \
     '```bash' \
-    'cat input.json | eshu service-report --not-a-real-flag' \
-    'eshu docs verify --json | eshu definitely-not-a-command --json' \
-    'eshu docs verify --json | eshu definitely-not-a-command --not-a-real-flag' \
-    'eshu docs verify --json && eshu definitely-not-a-command --not-a-real-flag' \
-    'eshu docs verify --json ; eshu definitely-not-a-command --not-a-real-flag' \
     'eshu docs verify \"--not-a-real-flag\"' \
     '```'
   : >"${baseline}"
@@ -387,11 +417,16 @@ test_real_tree_matches_committed_baseline() {
   fi
 }
 
+# shellcheck source=lib/test-verify-docs-cli-env-refs-segment-cases.sh
+source "$(dirname "$0")/lib/test-verify-docs-cli-env-refs-segment-cases.sh"
+
 build_real_cli
 test_registered_references_pass
 test_new_unknowns_fail
 test_hostile_command_and_markdown_forms_fail
 test_precision_exclusions_pass
+test_pipeline_and_chain_segments_are_checked_per_command
+test_unsupported_shell_forms_stay_skipped
 test_baseline_and_update_are_burn_down_safe
 test_malformed_baseline_fails_closed
 test_atomic_baseline_growth_fails

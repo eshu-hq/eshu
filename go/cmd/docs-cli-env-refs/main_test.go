@@ -34,6 +34,7 @@ func TestScanMarkdownFindsConcreteEnvTokensAndFencedEshuFlags(t *testing.T) {
 		{Kind: referenceKindFlag, Document: "reference/example.md", Command: "docs/verify/docs/public", Value: "--fail-on"},
 		{Kind: referenceKindFlag, Document: "reference/example.md", Command: "docs/verify/docs/public", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "reference/example.md", Command: "graph/status", Value: "--workspace-root"},
+		{Kind: referenceKindFlag, Document: "reference/example.md", Command: "service-report", Value: "--from"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("scanMarkdown() = %#v, want %#v", got, want)
@@ -71,7 +72,12 @@ func TestScanMarkdownSkipsCommandFlagsAfterLeadingRootFlag(t *testing.T) {
 	}
 }
 
-func TestScanMarkdownSkipsEshuLeadingShellLists(t *testing.T) {
+// TestScanMarkdownAttributesEshuLeadingShellListsPerSegment inverts the #6023
+// v1 expectation that the same fixture was skipped outright. Since #6108 each
+// segment of a simple pipeline or list is checked against its own command, so
+// an unknown command or an unknown flag in a later segment is reported instead
+// of hidden.
+func TestScanMarkdownAttributesEshuLeadingShellListsPerSegment(t *testing.T) {
 	t.Parallel()
 
 	content := "```bash\n" +
@@ -79,8 +85,27 @@ func TestScanMarkdownSkipsEshuLeadingShellLists(t *testing.T) {
 		"eshu docs verify --json && eshu docs verify --unknown-after-and\n" +
 		"eshu docs verify --json ; eshu docs verify --unknown-after-semicolon\n" +
 		"```\n"
-	if got := scanMarkdown("guide.md", content); len(got) != 0 {
-		t.Fatalf("scanMarkdown() = %#v, want pipeline/list lines outside v1 scope", got)
+	got := scanMarkdown("guide.md", content)
+	want := []reference{
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "definitely-not-a-command", Value: "--json"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--json"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--unknown-after-and"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--unknown-after-semicolon"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scanMarkdown() = %#v, want %#v", got, want)
+	}
+}
+
+// TestFlagsFromEshuCommandRefusesAnUnsegmentedList keeps the single-command
+// parser honest: segmentation is commandSegments' job, and the parser must not
+// fold a whole list into one command if it is ever handed one.
+func TestFlagsFromEshuCommandRefusesAnUnsegmentedList(t *testing.T) {
+	t.Parallel()
+
+	command, flags := flagsFromEshuCommand("eshu docs verify --json | eshu graph status --workspace-root /repo")
+	if command != "" || len(flags) != 0 {
+		t.Fatalf("flagsFromEshuCommand() = %q, %#v, want no attribution for an unsegmented list", command, flags)
 	}
 }
 
