@@ -44,10 +44,12 @@
 // The two trigger shapes carry different evidence. A literal trigger is
 // stat-checked, with guards against one that escapes the repository root
 // directly or through a symlink (#6055). A glob trigger must select at least
-// one path git tracks at repoRoot, plus the directories those files imply
-// (#6159); zero matches is an error, because a trigger that matches nothing
-// can never select its gate, leaving the gate reading as wired for a surface
-// it no longer guards. Resolving that is the one place this package runs git,
+// one FILE git tracks at repoRoot (#6159); zero matches is an error, because a
+// trigger that matches nothing can never select its gate, leaving the gate
+// reading as wired for a surface it no longer guards. Both shapes reject a
+// trigger naming a directory: Select is handed changed paths, and those are
+// always files, so a trigger stopping at a directory can never select either.
+// The spelling that works is "dir/**", which the error names. Resolving that is the one place this package runs git,
 // and it is why Validate — unlike Select — is a reader of the work tree rather
 // than a pure function; a tracked path set that cannot be read, or that comes
 // back empty, is an error too, never a skip. That git call runs with the

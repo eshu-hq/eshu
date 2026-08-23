@@ -12,11 +12,10 @@ import (
 )
 
 // trackedPaths is the path universe a glob registry trigger is resolved
-// against: every repo-relative path git tracks at a repo root, plus every
-// directory implied by one. Paths are stored pre-split on "/" so a match costs
-// no allocation, and indexed by first segment so a trigger whose own first
-// segment is a literal ("go/**", "scripts/lib/*.sh") never looks at the other
-// buckets.
+// against: every repo-relative FILE path git tracks at a repo root. Paths are
+// stored pre-split on "/" so a match costs no allocation, and indexed by first
+// segment so a trigger whose own first segment is a literal ("go/**",
+// "scripts/lib/*.sh") never looks at the other buckets.
 //
 // # Why the tracked set, and not a filesystem walk
 //
@@ -32,13 +31,37 @@ import (
 // The cost of that choice is a dependency on git and on repoRoot being a work
 // tree. That is deliberate and fails closed: see loadTrackedPaths.
 //
-// # Why directories are in the universe
+// # Why the universe is files, and holds no directories
 //
-// git tracks files, never directories, but a trigger naming a directory is
-// legitimate — the literal half of this check accepts one, because os.Stat
-// does. A glob such as "go/internal/*" whose only hits are directory prefixes
-// is a working trigger, so the implied ancestors of every tracked file are
-// part of the universe.
+// The universe must be the set of paths Select can actually receive, because
+// the only question this check asks is "could this trigger ever select its
+// gate". Select matches a trigger against CHANGED paths (select.go), and both
+// callers hand it files: `git diff --name-only` names files, and GitHub's
+// pull-files response names files. Neither ever names a directory.
+//
+// So a trigger matching only a DIRECTORY is dead, not working, and the
+// distinction is not academic. MatchGlob is segment-wise:
+//
+//	MatchGlob("go/internal/*", "go/internal/cigates")         == true   // a directory
+//	MatchGlob("go/internal/*", "go/internal/cigates/glob.go") == false  // what Select gets
+//
+// An earlier draft of this file derived every ancestor directory of every
+// tracked file into the universe, reasoning that a directory-shaped trigger is
+// legitimate because the literal half of this check accepts one. That reasoning
+// was wrong in the same way for both halves — a literal trigger naming a
+// directory cannot select either, and validate.go now rejects that too — and it
+// cost a real finding: "go/cmd/collector-**" sat in the committed registry as
+// the golden-corpus gate's only claim on the collector binaries, matching the
+// DIRECTORY "go/cmd/collector-tempo" and none of the files under it, so a
+// change to any collector command selected none of that gate's 86 triggers. It
+// was copied from the gate workflow's on.pull_request.paths, where GitHub's "**"
+// crosses "/" and the pattern does work; in this package's dialect "**" is a
+// whole segment, so the registry copy was dead. Deriving ancestors made the
+// validator pass it (#6223 review).
+//
+// A trigger that means "this directory" is spelled "dir/**", which matches
+// every file beneath it. checkGlobTriggerResolves says so by name when a
+// trigger's only matches are directories.
 type trackedPaths struct {
 	// all holds every path in the universe, pre-split on "/".
 	all [][]string
@@ -48,7 +71,7 @@ type trackedPaths struct {
 
 // loadTrackedPaths enumerates the tracked path universe at repoRoot ONCE per
 // Validate call. The committed registry carries ~500 glob triggers against a
-// ~22k-path universe, so resolving triggers against a per-trigger enumeration
+// ~20k-path universe, so resolving triggers against a per-trigger enumeration
 // would repeat the same work 500 times — the shape checkTriggerPathsExist's
 // own comment records a previous version of this file falling into.
 //
@@ -96,17 +119,6 @@ func loadTrackedPaths(repoRoot string) (*trackedPaths, error) {
 			continue
 		}
 		tp.add(path, seen)
-		// git tracks no directories, so every ancestor of a tracked file is
-		// added here or a directory-shaped trigger would read as stale. An
-		// ancestor already in the universe brought its own ancestors with it,
-		// so the walk stops there rather than re-deriving the whole prefix
-		// chain once per file in the tree.
-		for i := strings.LastIndexByte(path, '/'); i > 0; i = strings.LastIndexByte(path, '/') {
-			path = path[:i]
-			if !tp.add(path, seen) {
-				break
-			}
-		}
 	}
 	if len(tp.all) == 0 {
 		return nil, fmt.Errorf(
@@ -198,19 +210,22 @@ func gitTreeEnv(env []string) []string {
 	return kept
 }
 
-// add records path in the universe, reporting whether it was new. Ancestor
-// directories are shared by many files, so the dedupe is what keeps the
-// universe proportional to the tree rather than to the file count times its
-// depth.
-func (t *trackedPaths) add(path string, seen map[string]struct{}) bool {
+// add records path in the universe once.
+//
+// The dedupe is not belt-and-braces: `git ls-files` prints an UNMERGED path
+// once per index stage, so a tree in the middle of a conflicted merge reports
+// the same file three times (measured on git 2.50.1: a one-file conflict lists
+// it at stages 1, 2 and 3). Nothing here would be wrong without the dedupe,
+// only three times as large for every conflicted path — but a pre-commit hook
+// is exactly the caller that can run against such a tree.
+func (t *trackedPaths) add(path string, seen map[string]struct{}) {
 	if _, ok := seen[path]; ok {
-		return false
+		return
 	}
 	seen[path] = struct{}{}
 	segments := strings.Split(path, "/")
 	t.all = append(t.all, segments)
 	t.byHead[segments[0]] = append(t.byHead[segments[0]], segments)
-	return true
 }
 
 // matchesAny reports whether pattern selects at least one path in the
@@ -219,20 +234,21 @@ func (t *trackedPaths) add(path string, seen map[string]struct{}) bool {
 // (leading or trailing "/") matches nothing at all.
 //
 // It shares MatchGlob's matcher rather than calling MatchGlob per path, which
-// would re-split the pattern and the path on every one of the ~11M
+// would re-split the pattern and the path on every one of the ~10M
 // (trigger, path) pairs the committed registry produces. Measured on this
-// repository (21,993 paths — 20,197 tracked files plus the directories they
-// imply — against 499 glob triggers), median of repeated runs on one machine:
-// 48ms for this form against 830ms for the per-path MatchGlob form, same
-// verdicts (499/499 resolve either way). Building the universe costs a further
-// 14ms end to end, of which ~9ms is the git ls-files subprocess and ~5ms the
+// repository (20,220 tracked files against 499 glob triggers), median of 7 runs
+// in one process on one machine: 47.9ms for this form against 552.5ms for the
+// per-path MatchGlob form — both stopping at a trigger's first match — with the
+// same verdicts (499/499 resolve either way). Building the universe costs a
+// further 38.6ms end to end on that machine (best of 9), split about evenly
+// between the git ls-files subprocess (19.7ms, 1.1MB of output) and the
 // in-memory split and index.
 //
 // TestTrackedPaths_MatchesAnyAgreesWithMatchGlob pins the equivalence, since
 // the two share a matcher core but not the guard clauses around it, and
 // TestTrackedPaths_MatchesAnyConsultsTheFirstSegmentIndex pins the index
 // itself — the verdicts are identical either way, so nothing else in the
-// package notices this collapsing back into the 830ms form.
+// package notices this collapsing back into the per-path form.
 func (t *trackedPaths) matchesAny(pattern string) bool {
 	if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
 		return false
@@ -245,8 +261,11 @@ func (t *trackedPaths) matchesAny(pattern string) bool {
 	if !strings.Contains(patternSegments[0], "*") {
 		candidates = t.byHead[patternSegments[0]]
 	}
+	// Decided once per pattern, not once per candidate: see
+	// matchSegmentsBounded for the 49ms -> 62ms this hoist is worth.
+	memoize := doubleStarSegments(patternSegments) > 1
 	for _, path := range candidates {
-		if matchSegments(patternSegments, path) {
+		if matchSegmentsBounded(patternSegments, path, memoize) {
 			return true
 		}
 	}
@@ -289,8 +308,46 @@ func checkGlobTriggerResolves(tracked *trackedPaths, gateID, trigger, repoRoot s
 	if tracked == nil || tracked.matchesAny(trigger) {
 		return nil
 	}
+	if dir := tracked.directoryMatch(trigger); dir != "" {
+		return fmt.Errorf(
+			"gate %q: trigger %q matches no tracked file under %q — it matches the directory %q, but selection only ever sees file paths (a git diff and a GitHub pull-files list both name files), so a trigger that stops at a directory can never select this gate; write %q instead",
+			gateID, trigger, repoRoot, dir, dir+"/**",
+		)
+	}
 	return fmt.Errorf(
-		"gate %q: trigger %q matches no tracked path under %q — a glob that resolves to nothing can never select this gate, so the surface it names silently loses its guard",
+		"gate %q: trigger %q matches no tracked file under %q — a glob that resolves to nothing can never select this gate, so the surface it names silently loses its guard",
 		gateID, trigger, repoRoot,
 	)
+}
+
+// directoryMatch returns one directory the pattern matches, or "" when it
+// matches none. It exists only to turn a failure into an actionable message:
+// the "go/cmd/collector-**" case in the trackedPaths doc comment reads as a
+// deleted surface without it, when the surface is present and the trigger is
+// simply one segment short.
+//
+// Directories are derived HERE rather than kept in the universe, which is the
+// whole point: they must never be able to satisfy a trigger, only explain one.
+// The cost is paid only on a path already known to be failing — zero times
+// against the committed registry — so it is a plain scan with no index.
+func (t *trackedPaths) directoryMatch(pattern string) string {
+	if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
+		return ""
+	}
+	patternSegments := strings.Split(pattern, "/")
+	memoize := doubleStarSegments(patternSegments) > 1
+	seen := make(map[string]struct{})
+	for _, path := range t.all {
+		for depth := len(path) - 1; depth > 0; depth-- {
+			dir := strings.Join(path[:depth], "/")
+			if _, ok := seen[dir]; ok {
+				break
+			}
+			seen[dir] = struct{}{}
+			if matchSegmentsBounded(patternSegments, path[:depth], memoize) {
+				return dir
+			}
+		}
+	}
+	return ""
 }

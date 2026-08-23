@@ -1883,7 +1883,14 @@ gates:
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
       - "go/cmd/reducer/**"
-      - "go/cmd/collector-**"
+      # #6159: this read "go/cmd/collector-**", copied verbatim from the
+      # workflow's on.pull_request.paths. GitHub's "**" crosses "/", so the
+      # pattern works there; the registry's own matcher treats "**" as a whole
+      # segment, so "collector-**" was a single-segment wildcard that matched
+      # the DIRECTORY "go/cmd/collector-tempo" and no file under it. A change
+      # to any collector command selected none of this gate's triggers. The
+      # workflow copy is correct in its own dialect and is left alone.
+      - "go/cmd/collector-*/**"
       - "go/cmd/api/**"
       - "go/cmd/golden-corpus-gate/**"
       - "go/cmd/mock-prometheus-mimir/**"

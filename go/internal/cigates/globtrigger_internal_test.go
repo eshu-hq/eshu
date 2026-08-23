@@ -197,19 +197,26 @@ func TestTrackedPaths_MatchesAnyConsultsTheFirstSegmentIndex(t *testing.T) {
 	}
 }
 
-// TestLoadTrackedPaths_DerivesEveryAncestorDirectory pins the universe's shape
-// against the real enumerator. git tracks files only, so the directory
-// entries a directory-shaped trigger resolves against exist only because this
-// derives them — and it stops walking at the first ancestor it has already
-// seen, which is sound only while every recorded path brought its own
-// ancestors with it. A regression there drops directories silently and turns
-// working registry triggers into reported-stale ones.
-func TestLoadTrackedPaths_DerivesEveryAncestorDirectory(t *testing.T) {
+// TestLoadTrackedPaths_EnumeratesTrackedFilesOnly pins the universe's shape
+// against the real enumerator. This case used to assert the opposite — that
+// loadTrackedPaths DERIVES every ancestor directory of every tracked file, so
+// that a directory-shaped trigger would resolve.
+//
+// It must not. The universe answers one question: could this trigger ever
+// select its gate. Select is handed changed paths, and both callers supply
+// files (`git diff --name-only`, GitHub's pull-files response), so a directory
+// in the universe can only ever manufacture a match Select will not reproduce.
+// It did: "go/cmd/collector-**" passed validation on the directory
+// "go/cmd/collector-tempo" while selecting none of the files under it (#6223
+// review).
+//
+// The fixture keeps two files sharing a prefix because that is the shape the
+// deleted ancestor walk short-circuited on; if the derivation ever returns,
+// this is where it shows up as extra entries.
+func TestLoadTrackedPaths_EnumeratesTrackedFilesOnly(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	// Two files sharing a prefix: the second reaches an ancestor the first
-	// already recorded, which is the case the short-circuit walks into.
 	for _, rel := range []string{"go/internal/cigates/glob.go", "go/internal/cigates/validate.go", "README.md"} {
 		p := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -241,14 +248,11 @@ func TestLoadTrackedPaths_DerivesEveryAncestorDirectory(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"README.md",
-		"go",
-		"go/internal",
-		"go/internal/cigates",
 		"go/internal/cigates/glob.go",
 		"go/internal/cigates/validate.go",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("universe =\n%s\nwant (every file plus every implied directory, each once) =\n%s",
+		t.Fatalf("universe =\n%s\nwant (every tracked file, each once, and no directory) =\n%s",
 			strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

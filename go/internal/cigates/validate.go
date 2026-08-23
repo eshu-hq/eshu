@@ -28,7 +28,7 @@ import (
 func (r *Registry) Validate(repoRoot string) []error {
 	errs := r.ValidateRequiredStatusChecks()
 	// Enumerated once for the whole registry, not once per gate or per
-	// trigger: ~500 glob triggers resolve against the same ~22k-path universe.
+	// trigger: ~500 glob triggers resolve against the same ~20k-path universe.
 	// A failure here is reported once and leaves tracked nil, which suppresses
 	// the per-trigger glob checks that could no longer be trusted — the run
 	// still fails, on the enumeration error rather than on 500 derived ones.
@@ -146,7 +146,8 @@ func checkTriggerPathsExist(repoRoot string, g Gate, tracked *trackedPaths) []er
 		// trigger this function never actually validated — a permission denial
 		// or a symlink loop's ELOOP would read as "present". That is the same
 		// fail-open shape the existence check itself was added to remove.
-		if _, err := os.Stat(full); err != nil {
+		info, err := os.Stat(full)
+		if err != nil {
 			if os.IsNotExist(err) {
 				errs = append(errs, fmt.Errorf(
 					"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
@@ -180,6 +181,29 @@ func checkTriggerPathsExist(repoRoot string, g Gate, tracked *trackedPaths) []er
 			errs = append(errs, fmt.Errorf(
 				"gate %q: trigger %q resolves through a symlink to %q, outside the repository root %q — a trigger must name a path inside the repo",
 				g.ID, trigger, resolved, resolvedRoot,
+			))
+			continue
+		}
+		// Existing on disk is necessary but not sufficient: a literal trigger
+		// naming a DIRECTORY passes every check above and still can never
+		// select its gate. Select matches triggers against changed paths, and
+		// those are files — `git diff --name-only` and GitHub's pull-files
+		// response both name files, never the directories containing them —
+		// so MatchGlob("go/internal/cigates", "go/internal/cigates/glob.go")
+		// is false and always will be. #6055 accepted a directory here
+		// because os.Stat does; that was the same mistake the glob half made
+		// by deriving ancestor directories into its universe, and it is
+		// corrected on both halves together so the two shapes answer the same
+		// question (#6223 review). Reported last so an escaping or
+		// unresolvable trigger still gets its own, more specific message.
+		//
+		// The committed registry carries no such trigger today (measured:
+		// 0 of 916 literal triggers stat as a directory), so this closes the
+		// shape rather than fixing a live break.
+		if info.IsDir() {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q names the directory %q — selection only ever sees file paths, so a trigger naming a directory can never select this gate; write %q instead",
+				g.ID, trigger, full, trigger+"/**",
 			))
 		}
 	}

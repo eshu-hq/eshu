@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
@@ -142,22 +143,164 @@ func TestValidate_GlobTriggerMatchingTrackedFilePasses(t *testing.T) {
 	}
 }
 
-// TestValidate_GlobTriggerMatchingOnlyADirectoryPasses proves the path
-// universe carries directories, not only files. A trigger naming a directory
-// is legitimate — the literal half of this check accepts one via os.Stat — so
-// a glob whose only hits are directory prefixes must pass too. Enumerating
-// `git ls-files` output alone, without the implied ancestor directories, would
-// fail this case and would make the check reject working registry entries.
-func TestValidate_GlobTriggerMatchingOnlyADirectoryPasses(t *testing.T) {
+// TestValidate_GlobTriggerMatchingOnlyADirectoryFails pins the universe to the
+// paths Select can actually receive. This case used to assert the opposite —
+// that a directory-only glob PASSES — on the reasoning that the literal half of
+// the check accepts a directory via os.Stat, so the glob half should too. That
+// reasoning made the validator certify a trigger that can never fire, which is
+// the exact defect #6159 exists to remove.
+//
+// Select matches triggers against CHANGED paths, and every caller supplies
+// files: `git diff --name-only` names files, and GitHub's pull-files response
+// names files. So MatchGlob("go/internal/*", "go/internal/cigates") is true
+// while MatchGlob("go/internal/*", "go/internal/cigates/glob.go") is false, and
+// only the second is a question Select ever asks. Deriving ancestor directories
+// into the universe let "go/cmd/collector-**" sit in the committed registry as
+// the golden-corpus gate's only claim on the collector binaries while selecting
+// nothing (#6223 review).
+//
+// The error must name the directory and the "dir/**" spelling: without that a
+// reader sees "matches nothing" and concludes the surface was deleted, when the
+// surface is present and the trigger is one segment short.
+func TestValidate_GlobTriggerMatchingOnlyADirectoryFails(t *testing.T) {
 	t.Parallel()
 	root := hermeticGlobRepo(t)
 	writeTracked(t, root, "go/internal/cigates/glob.go")
 	// "go/internal/*" is three segments; the tracked file is four, so the only
-	// possible match is the directory "go/internal/cigates".
+	// possible match is the directory "go/internal/cigates" — which Select is
+	// never handed.
 	reg := globGate("go/internal/*")
 
-	if errs := reg.Validate(root); len(errs) != 0 {
-		t.Fatalf("Validate() errors = %v, want none for a glob whose only match is a directory", errs)
+	errs := reg.Validate(root)
+	got := errorNaming(errs, "openapi-surface", "go/internal/*")
+	if got == "" {
+		t.Fatalf("Validate() errors = %v, want one naming the trigger: a glob whose only match is a directory can never select its gate", errs)
+	}
+	for _, want := range []string{"go/internal/cigates", "go/internal/cigates/**"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Validate() error = %q, want it to contain %q so the reader is told the surface exists and how to spell the trigger", got, want)
+		}
+	}
+}
+
+// TestValidate_GlobTriggerGlueingDoubleStarToASegmentFails is the live
+// registry defect this rule caught, kept as its own case because the spelling
+// is the trap rather than the concept. GitHub Actions and dorny/paths-filter
+// let "**" cross "/", so "go/cmd/collector-**" matches every file under every
+// collector command there and the gate workflow using it is correct. This
+// package's MatchGlob treats "**" as a WHOLE segment, so glued to a prefix it
+// degrades to an ordinary single-segment wildcard and stops at the directory.
+//
+// Copying a trigger from a workflow's on.pull_request.paths is the normal way
+// the registry is kept in lockstep with CI (#5538 did exactly that), so this
+// dialect gap is a mistake that will be made again, and the check must catch
+// it rather than manufacture a directory match for it.
+func TestValidate_GlobTriggerGlueingDoubleStarToASegmentFails(t *testing.T) {
+	t.Parallel()
+	root := hermeticGlobRepo(t)
+	writeTracked(t, root, "go/cmd/collector-tempo/main.go")
+	reg := globGate("go/cmd/collector-**")
+
+	errs := reg.Validate(root)
+	if got := errorNaming(errs, "openapi-surface", "go/cmd/collector-**"); got == "" {
+		t.Fatalf("Validate() errors = %v, want one naming the trigger: \"**\" glued to a segment does not cross \"/\" in this dialect, so it matches only the directory", errs)
+	}
+
+	// The corrected spelling must pass, or the message above sends the reader
+	// somewhere that does not work either.
+	if errs := globGate("go/cmd/collector-*/**").Validate(root); len(errs) != 0 {
+		t.Fatalf("Validate() errors = %v, want none: \"go/cmd/collector-*/**\" is the spelling that does select the tracked file", errs)
+	}
+}
+
+// TestValidate_LiteralTriggerNamingADirectoryFails closes the same hole on the
+// literal half. #6055 stat-checked a literal trigger and accepted a directory
+// because os.Stat does, which is the assumption the glob half was then built to
+// match. It is wrong for the same reason and in the same way: selection is
+// handed file paths, and MatchGlob("go/internal/cigates",
+// "go/internal/cigates/glob.go") is false, so a literal trigger naming a
+// directory can never select its gate either.
+//
+// No trigger in the committed registry has this shape today (measured: 0 of
+// 916 literal triggers stat as a directory), so this closes the shape rather
+// than repairing a live break — but leaving the two halves disagreeing would
+// invite exactly the "make the glob half accept directories too" fix that
+// caused the defect above.
+func TestValidate_LiteralTriggerNamingADirectoryFails(t *testing.T) {
+	t.Parallel()
+	root := hermeticGlobRepo(t)
+	writeTracked(t, root, "go/internal/cigates/glob.go")
+	reg := globGate("go/internal/cigates")
+
+	errs := reg.Validate(root)
+	got := errorNaming(errs, "openapi-surface", "go/internal/cigates")
+	if got == "" {
+		t.Fatalf("Validate() errors = %v, want one naming the trigger: a literal trigger naming a directory can never select its gate", errs)
+	}
+	if !strings.Contains(got, "go/internal/cigates/**") {
+		t.Errorf("Validate() error = %q, want it to name the \"dir/**\" spelling that does select", got)
+	}
+
+	// The file the directory contains is still a perfectly good literal
+	// trigger: this rejects directories, not the literal shape.
+	if errs := globGate("go/internal/cigates/glob.go").Validate(root); len(errs) != 0 {
+		t.Fatalf("Validate() errors = %v, want none for a literal trigger naming a tracked file", errs)
+	}
+}
+
+// TestValidate_GlobTriggerNoMatchIsBoundedOnAdversarialPattern pins the cost
+// of resolution on the path Validate actually takes. matchesAny does not go
+// through MatchGlob — it shares the matcher core via matchSegmentsBounded and
+// decides memoization once per pattern — so the bound pinned in
+// TestMatchGlob_NoMatchIsBoundedOnAdversarialPattern does not cover this
+// caller, and a mutation disabling the memo here survives that test.
+//
+// This is the exposure the always-on check creates: MatchGlob answers one
+// (trigger, path) pair, while Validate runs every trigger against the whole
+// ~20k-file universe. A pattern that takes 24.7s to answer "no match" for ONE
+// candidate does not make the gate slow, it stops the gate finishing.
+//
+// Sizes and budget are the same measured pair the MatchGlob case uses, and for
+// the same reason — see that comment for the growth table and why a 2s budget
+// over a smaller fixture would not separate memoized from unmemoized at all.
+// Both spellings are here because collapsing consecutive "**" into one, the
+// cheaper fix offered alongside memoization, answers only the first.
+//
+// The DEEP tracked file is load-bearing and is the reason this case is not a
+// copy of the MatchGlob one. The blow-up is exponential in the number of "**"
+// segments AND the length of the path they are matched against, and the
+// standard fixture's deepest tracked path is four segments — against which even
+// 17 "**" resolves instantly. Written without it, this case passed with the
+// memo disabled: it asserted the right thing about a candidate too shallow to
+// make the assertion mean anything.
+func TestValidate_GlobTriggerNoMatchIsBoundedOnAdversarialPattern(t *testing.T) {
+	t.Parallel()
+	root := hermeticGlobRepo(t)
+	// 32 segments, matching the longest candidate in the growth table above.
+	writeTracked(t, root, strings.TrimSuffix(strings.Repeat("s/", 32), "/")+".go")
+
+	for _, tc := range []struct {
+		name    string
+		trigger string
+	}{
+		{"consecutive double stars", strings.Repeat("**/", 17) + "zzz-no-such-literal"},
+		{"double stars separated by literals", strings.Repeat("**/s/", 15) + "zzz-no-such-literal"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const budget = 2 * time.Second
+			done := make(chan []error, 1)
+			go func() { done <- globGate(tc.trigger).Validate(root) }()
+			select {
+			case errs := <-done:
+				if errorNaming(errs, "openapi-surface", tc.trigger) == "" {
+					t.Fatalf("Validate() errors = %v, want one naming the trigger: it matches nothing", errs)
+				}
+			case <-time.After(budget):
+				t.Fatalf("Validate() did not answer within %v for %q — the exponential \"**\" backtracking is back on the resolution path", budget, tc.trigger)
+			}
+		})
 	}
 }
 
