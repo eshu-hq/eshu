@@ -361,22 +361,69 @@ fi
 # is the worst shape: the agent is refused, loads the skill, no marker is
 # written, and it stays refused until it finds the override. Calling the
 # recorder directly -- as the cases above do -- cannot see that.
+# Assert the full (event, matcher, command) triple, not that the filename
+# appears somewhere in the file. A bare substring match is satisfied by a hook
+# wired to the wrong event: move skill-loaded.sh to PreToolUse/Edit and the
+# recorder fires on edits instead of skill loads, so the nudge never lifts --
+# unreachable behaviour, which is the failure this block claims to catch.
 sid=$((sid + 1))
 settings="$repo_root/.claude/settings.json"
-missing_reg=""
-while IFS= read -r hookfile; do
-  rg -Fq -- "$hookfile" "$settings" || missing_reg="${missing_reg}${missing_reg:+ }$hookfile"
-done <<'HOOKLIST'
-skill-nudge.sh
-skill-loaded.sh
-guard-live-gate.sh
-on-compact.sh
-HOOKLIST
+wiring_report() { python3 -c '
+import json, sys
+hooks = json.load(open(sys.argv[1])).get("hooks", {})
+want = [
+    ("PostToolUse",  "Skill",                   "skill-loaded.sh"),
+    ("PreToolUse",   "Edit|MultiEdit|Write",    "skill-nudge.sh"),
+    ("PreToolUse",   "Bash",                    "guard-live-gate.sh"),
+    ("SessionStart", "compact|resume",          "on-compact.sh"),
+]
+bad = []
+for event, matcher, name in want:
+    ok = any(
+        group.get("matcher") == matcher and name in hook.get("command", "")
+        for group in hooks.get(event, [])
+        for hook in group.get("hooks", [])
+    )
+    if not ok:
+        bad.append("%s[%s]->%s" % (event, matcher, name))
+print(" ".join(bad))
+' "$1" 2>/dev/null; }
+
+missing_reg=$(wiring_report "$settings")
 if [ -z "$missing_reg" ]; then
-  printf 'ok - every hook is registered in .claude/settings.json\n'
+  printf 'ok - every hook is wired to the right event and matcher\n'
   passed=$((passed + 1))
 else
-  printf 'FAIL - hooks present but unregistered in settings.json: %s\n' "$missing_reg" >&2
+  printf 'FAIL - hook wiring wrong or missing: %s\n' "$missing_reg" >&2
+  failed=$((failed + 1))
+fi
+
+# ...and the check must actually catch a wrong wiring. Without this case it
+# only ever runs against a correct file and would pass if it were a no-op --
+# which is precisely how the substring version it replaced went unnoticed.
+sid=$((sid + 1))
+bad_settings="$(mktemp)"
+python3 -c '
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+# Move the recorder to the wrong event: it would then fire on edits rather
+# than on skill loads, and the nudge would never lift.
+post = cfg["hooks"].get("PostToolUse", [])
+cfg["hooks"]["PostToolUse"] = [
+    g for g in post
+    if not any("skill-loaded.sh" in h.get("command", "") for h in g.get("hooks", []))
+]
+cfg["hooks"].setdefault("PreToolUse", []).append(
+    {"matcher": "Edit", "hooks": [{"type": "command", "command": "x/skill-loaded.sh"}]})
+json.dump(cfg, open(sys.argv[2], "w"))
+' "$settings" "$bad_settings" 2>/dev/null
+caught=$(wiring_report "$bad_settings")
+rm -f "$bad_settings"
+if printf '%s' "$caught" | rg -Fq 'skill-loaded.sh'; then
+  printf 'ok - the wiring check catches a hook moved to the wrong event\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - wiring check missed a misplaced hook; report was: %s\n' "${caught:-<empty>}" >&2
   failed=$((failed + 1))
 fi
 
