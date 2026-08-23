@@ -263,20 +263,22 @@ The live cells use an eight-second lease TTL only to keep the expiry proof
 bounded. After the first reducer is killed, its blocked PostgreSQL claims are
 allowed to commit, and the cell captures their exact partition keys, owner,
 expiry, and update timestamp. Test-local triggers record both lease-upsert
-attempts and committed owner transitions. The replacement starts without a
-second advisory holder while the captured leases are still active. PostgreSQL
-runs the row-level `BEFORE INSERT` trigger before resolving the upsert conflict,
-so the cell requires the distinct replacement owner to attempt every captured
-key before expiry while all rows remain actively dead-owned. It then waits for
-the recorded timestamps and requires committed replacement-owner transitions
-for every captured key. Production compares the stored expiry with the
-replacement process's supplied `now`; a different owner cannot produce that
-transition through the claim SQL until the expiry condition passes. The audit's
-PostgreSQL `observed_at` is not compared with that Go-supplied timestamp because
-they come from separate clocks. The final table state must have every captured
-lease released and updated after its post-kill dead-owner capture.
+attempts and committed owner transitions, including each transition's new lease
+expiry. The replacement starts without a second advisory holder while the
+captured leases are still active. Both reducer launches use the test-local
+`ifa-runner-lease-audit` prefix, so an inherited operator prefix cannot change
+the audit parser; hostname, PID, and boot nonce still distinguish the processes.
+PostgreSQL runs the row-level `BEFORE INSERT` trigger before resolving the upsert
+conflict, so the cell requires the distinct replacement owner to try every
+captured key before expiry while all rows remain actively dead-owned. It then
+requires a committed transition for every key and zero early transitions. The
+claim instant is derived as the new lease expiry minus the configured eight-second
+TTL, which uses the same Go-supplied clock as the production claim condition.
+The audit's PostgreSQL `observed_at` is not compared with that timestamp. The
+final table state must have every captured lease released and updated after its
+post-kill dead-owner capture.
 
-The exact source head `8abc847add173ea00684faf1cc261e0cdc1a0038`
+The exact source head `0988c671e7ce6ac42178f94af6b967e3fc370c49`
 passed the full shard with RC 0:
 
 ```text
@@ -286,8 +288,8 @@ bash scripts/verify-ifa-fault-injection.sh --shard 2/4
 | Cell | Pending intents | Exact waiters | Attempt fence and distinct-owner transition audit | Dead letters | Wall time |
 | --- | ---: | ---: | --- | ---: | ---: |
 | `killworker_handles_route` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
-| `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 20 s |
-| `killworker_invokes_cloud_action` | 2 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
+| `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
+| `killworker_invokes_cloud_action` | 2 | 4 | all captured keys claimed after expiry and released | 0 | 20 s |
 
 ### No-Regression Evidence:
 
@@ -295,7 +297,7 @@ The baseline is the merged #6214 harness on the same committed symbol-runtime
 cassette, four shared-projection workers, PostgreSQL 18, and Compose-pinned
 NornicDB `eshu-nornicdb-pr290:3722b483c02c`. Its 13 s, 11 s, and 71 s cell
 totals are not speedup baselines because the fixed owner could bypass the
-dead-owner expiry fence. The corrected 19 s, 20 s, and 19 s runs include the
+dead-owner expiry fence. The corrected 19 s, 19 s, and 20 s runs include the
 intentional eight-second proof TTL and wait for the captured timestamps. They
 ended with 3, 3, and 2 target intents complete, every captured lease released,
 the exact graph oracles and digest restored, and zero dead letters. Production
