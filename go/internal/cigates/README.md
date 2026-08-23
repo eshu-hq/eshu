@@ -99,6 +99,12 @@ fail the gate loudly instead of being guessed at.
 rounds went into growing a textual model of bash one character class at a time
 without ever closing it.
 
+One more check covers the consuming end: the `gh api` call must post
+`-f state="${state}"` (and, when it sends one, `-f description="${description}"`)
+rather than a literal. A hard-coded `-f state=success` publishes the same
+status for every outcome, a genuinely failed gate included, and leaves every
+arm assertion above it green while the status they exist to protect lies.
+
 `error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives
 in `cmd/ci-gates`; this package only holds the publisher to the arm it implies.

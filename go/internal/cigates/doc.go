@@ -84,7 +84,9 @@
 // is read through the narrow shell grammar in requiredworkflow_shell.go, which
 // keeps quoting straight -- a `state=` token inside a quoted description is
 // text, not an assignment -- and returns an error for shell it does not model
-// rather than guessing at it (#6194). Like the rest of the package
+// rather than guessing at it (#6194). Finally the `gh api` call itself must
+// post the `${state}` and `${description}` the branch assigned: a literal
+// there makes every arm above it decorative. Like the rest of the package
 // it needs no network, Docker, or credentials.
 //
 // # Glob matching

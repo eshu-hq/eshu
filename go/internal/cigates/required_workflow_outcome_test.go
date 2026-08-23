@@ -340,3 +340,63 @@ func TestCheckRequiredStatusWorkflows_RefusesToJudgeAnUnparseableArm(t *testing.
 		})
 	}
 }
+
+// TestCheckRequiredStatusWorkflows_RejectsAPublishedStateLiteral is the
+// consuming half of the whole #6075/#6189 contract. Everything above asserts
+// what the case block ASSIGNS; if the `gh api` call below it posts a literal,
+// the branch is decorative and every head gets the same status whatever the
+// gates did.
+func TestCheckRequiredStatusWorkflows_RejectsAPublishedStateLiteral(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, `-f state="${state}"`, "-f state=success", 1)
+	if body == trustedRequiredWorkflow {
+		t.Fatal("the terminal publisher's -f state= argument moved; this attack would be replacing nothing")
+	}
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a publisher that posts a literal state must be rejected; the AGGREGATE_CODE branch would decide nothing")
+	}
+	requireErrorContaining(t, errs, "literal -f state=")
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsAPublishedDescriptionLiteral covers
+// the same exposure on the operator-facing half: a hard-coded description
+// sends every outcome the same sentence, so "A required gate failed" comes
+// back for a head where nothing failed -- #6189 in a different place.
+func TestCheckRequiredStatusWorkflows_RejectsAPublishedDescriptionLiteral(t *testing.T) {
+	t.Parallel()
+
+	// Anchored on the terminal publisher's own argument list: the pending
+	// publisher posts to the same context, so an unanchored replace would
+	// mutate the wrong step and prove nothing about this one.
+	body := strings.Replace(trustedRequiredWorkflow,
+		`-f state="${state}" -f context=required-gates-complete`,
+		`-f state="${state}" -f context=required-gates-complete -f description='A required gate failed'`, 1)
+	if body == trustedRequiredWorkflow {
+		t.Fatal("the terminal publisher's argument list moved; this attack would be replacing nothing")
+	}
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a publisher that posts a literal description must be rejected")
+	}
+	requireErrorContaining(t, errs, "literal -f description=")
+}
+
+// TestCheckRequiredStatusWorkflows_AcceptsBoundPublishedValues is the positive
+// control for the two attacks above: the bound form both arguments actually
+// ship in must validate, or those tests would pass against a check that
+// rejects everything.
+func TestCheckRequiredStatusWorkflows_AcceptsBoundPublishedValues(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow,
+		`-f state="${state}" -f context=required-gates-complete`,
+		`-f state="${state}" -f context=required-gates-complete -f description="${description}"`, 1)
+	if body == trustedRequiredWorkflow {
+		t.Fatal("the terminal publisher's arguments moved; this control would be asserting nothing")
+	}
+	if errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry()); len(errs) != 0 {
+		t.Fatalf("a publisher whose state and description both come from the case block must validate, got %v", errs)
+	}
+}

@@ -183,6 +183,7 @@ func validateTerminalPublisher(step requiredWorkflowStep, check RequiredStatusCh
 		errs = append(errs, validateStillRunningArm(step, check)...)
 	}
 	errs = append(errs, validateCancelledArm(step, check)...)
+	errs = append(errs, validatePublishedBindings(step, check)...)
 	return errs
 }
 
@@ -264,4 +265,98 @@ func validateCancelledArm(step requiredWorkflowStep, check RequiredStatusCheck) 
 		)}
 	}
 	return nil
+}
+
+// validatePublishedBindings closes the consuming end of the AGGREGATE_CODE
+// contract (#6218 review). Every check above asserts what the case block
+// ASSIGNS; nothing asserted that the `gh api` call below it POSTS what the
+// block assigned. With `-f state=success` hard-coded there the branch decides
+// nothing: every head gets `success`, a genuinely failed gate included, and
+// the arm validators stay green while the status they protect lies.
+//
+// The description carries the same exposure one step over. Hard-code it and
+// "A required gate failed" comes back for a head where nothing failed, which
+// is the #6189 overclaim in a different argument. It is required to be BOUND
+// rather than required to be PRESENT: no validator here depends on a
+// description existing, and dropping it costs an operator a sentence rather
+// than making a wrong status look right.
+func validatePublishedBindings(step requiredWorkflowStep, check RequiredStatusCheck) []error {
+	var errs []error
+	states := publishedArgumentValues(step.Run, "state")
+	if len(states) == 0 {
+		errs = append(errs, fmt.Errorf(
+			"required status context %q: terminal publisher passes no -f state= argument to the status API; "+
+				"nothing carries the AGGREGATE_CODE branch's verdict to the head SHA",
+			check.Context,
+		))
+	}
+	for _, value := range states {
+		if !referencesShellVariable(value, "state") {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: terminal publisher posts a literal -f state= argument (beginning %q) "+
+					"instead of the ${state} its AGGREGATE_CODE branch assigns; every outcome would publish that "+
+					"one status and the whole branch would be decorative",
+				check.Context, value,
+			))
+		}
+	}
+	for _, value := range publishedArgumentValues(step.Run, "description") {
+		if !referencesShellVariable(value, "description") {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: terminal publisher posts a literal -f description= argument "+
+					"(beginning %q) instead of the ${description} its AGGREGATE_CODE branch assigns; every "+
+					"outcome would carry that one sentence, which is how a cancelled gate gets described as "+
+					"a failed one",
+				check.Context, value,
+			))
+		}
+	}
+	return errs
+}
+
+// publishedArgumentValues returns the leading non-blank run of every
+// `-f <name>=` argument in the step, in order. For an unquoted value that is
+// the whole argv entry; for a quoted one it is only the first word.
+//
+// The truncation is deliberate, not a second attempt to parse shell --
+// requiredworkflow_shell.go records why this package does not do that -- and
+// it errs in the safe direction. A value that mentions `${state}` only after a
+// blank reads as a literal and gets REPORTED, so the failure mode is a false
+// red on a shape this workflow does not use, never a literal slipping past.
+func publishedArgumentValues(run, name string) []string {
+	flag := "-f " + name + "="
+	var values []string
+	for i := 0; ; {
+		found := strings.Index(run[i:], flag)
+		if found < 0 {
+			return values
+		}
+		start := i + found + len(flag)
+		end := start
+		for end < len(run) && run[end] != ' ' && run[end] != '\t' && run[end] != '\n' {
+			end++
+		}
+		values = append(values, run[start:end])
+		i = end
+	}
+}
+
+// referencesShellVariable reports whether an argument takes its value from the
+// named shell variable rather than a literal. Both spellings the workflow
+// could use count; the trailing check keeps `$statement` from passing as
+// `$state`.
+func referencesShellVariable(value, name string) bool {
+	if strings.Contains(value, "${"+name+"}") {
+		return true
+	}
+	plain := "$" + name
+	at := strings.Index(value, plain)
+	if at < 0 {
+		return false
+	}
+	rest := value[at+len(plain):]
+	if rest == "" {
+		return true
+	}
+	return !isShellNameByte(rest[0])
 }

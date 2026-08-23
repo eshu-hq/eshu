@@ -159,3 +159,24 @@ esac
 		t.Fatalf("err = %v; the message must name which arm could not be parsed", err)
 	}
 }
+
+// TestReferencesShellVariableDoesNotMatchALongerName keeps the `gh api`
+// binding check honest: `$statement` is not `$state`, and accepting it would
+// let an unbound publisher pass.
+func TestReferencesShellVariableDoesNotMatchALongerName(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]bool{
+		`"${state}"`:  true,
+		`$state`:      true,
+		`"$state"`:    true,
+		`$statement`:  false,
+		`success`:     false,
+		`"${states}"`: false,
+	}
+	for value, want := range tests {
+		if got := referencesShellVariable(value, "state"); got != want {
+			t.Errorf("referencesShellVariable(%q) = %v, want %v", value, got, want)
+		}
+	}
+}
