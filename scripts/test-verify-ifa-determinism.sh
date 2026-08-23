@@ -35,7 +35,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"  # packed for the 500-line cap
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -64,7 +64,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -86,7 +86,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -433,57 +433,21 @@ source "${teeth_cases_lib}"
 run_ifa_determinism_teeth_cases
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-#
-# DERIVED, not hand-typed. The previous form named five targets out of the
-# fourteen *_lib variables this mirror declares, and missed every one this
-# branch adds -- codeowners, fixtures, family-cases, registry-lockstep-cases,
-# pins and registry-family. A hand-typed scan does not grow when the tree does,
-# which is the same defect the sibling fault mirror carried until it was
-# derived; this is that fix applied here.
-#
-# The pattern brackets one character per alternative so it does not match its
-# own definition now that the scan covers this file too. A bracketed
-# single-character class matches exactly the text the bare character does, so
-# detection is unchanged -- verified alternative by alternative.
-private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
-declare -a private_targets=("${script}" "${BASH_SOURCE[0]}")
-lib_cap_checked=0 # floors the *_lib loop itself -- see _ifa_det_assert_lib_cap_floor's own comment
-while IFS= read -r private_lib_var; do
-	private_targets+=("${!private_lib_var}")
-	_ifa_det_assert_lib_under_500 "${private_lib_var}" "${!private_lib_var}"; lib_cap_checked=$((lib_cap_checked + 1))
-done < <(compgen -v | rg '_lib$' | sort)
-_ifa_det_assert_lib_cap_floor "${lib_cap_checked}"
-# The registry, its rows and its hand-derived pins are not bound to *_lib vars,
-# so the derivation cannot see them. Globbed, so a seventh row is covered the
-# day it lands.
-for private_target in "${repo_root}"/scripts/lib/ifa_family_registry.sh \
-	"${repo_root}"/scripts/lib/ifa_family_registry/rows/*.sh \
-	"${repo_root}"/scripts/lib/ifa_family_registry_pins/*.sh; do
-	[[ -e "${private_target}" ]] && private_targets+=("${private_target}")
-done
-# EXACTLY TWO: the glob block itself, and this pin's own line. An at-least-one
-# form is useless here -- a pin whose needle lives in the same file is always
-# satisfied by itself, which is how the previous version stayed green with the
-# whole glob block deleted. Counting is what makes an in-file pin able to fail.
-[[ "$(_ifa_det_count_code_matches 'ifa_family_registry_pins/*.sh' "${BASH_SOURCE[0]}")" -eq 2 ]] \
-	|| fail "the determinism private-data scan no longer globs the registry rows and pins (expected the glob block plus this pin line)"
-# Floor against a collapsed derivation: if the *_lib expression stops matching,
-# the loop silently scans almost nothing and passes. Hand-written, below the
-# current count, never derived from the expression it guards.
-[[ "${#private_targets[@]}" -ge 20 ]] \
-	|| fail "private-data scan covers only ${#private_targets[@]} file(s); the derivation has collapsed"
-# The glob block above is otherwise bound only by the floor, and only by a 3-file
-# margin -- three more *_lib declarations and deleting it would stop reddening,
-# which is the exact silent revert the sibling mirror was fixed for. Pin it
-# directly so the margin stops mattering.
-for private_target in "${private_targets[@]}"; do
-	[[ -f "${private_target}" ]] \
-		|| fail "private-data scan target ${private_target} does not exist -- a scan that skips a missing file proves nothing"
-	if rg --pcre2 --quiet -- "${private_pattern}" "${private_target}"; then
-		fail "$(basename "${private_target}") looks like it contains private data"
-	fi
-done
-printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
+# The scan derives its own file list, so it lives in a sourced case module for
+# the same reason the teeth and pin-behaviour checks do -- this mirror sits
+# against the 500-line cap and a scan plus its floor is one coherent unit.
+# Sourced HERE, not at the top, because the *_lib derivation inside it reads
+# `compgen -v`: it must see every case module's variables already bound.
+# shellcheck source=scripts/lib/test-ifa-determinism-private-data-cases.sh
+source "${private_data_cases_lib}"
+run_ifa_determinism_private_data_cases "${BASH_SOURCE[0]}"
+# Pin this gate's OWN call site, the same way the pin-behaviour call below is
+# pinned: deleting the two lines above would otherwise take the whole
+# private-data scan with it and leave this mirror green. EXACTLY THREE (the
+# call, this needle, and the name in the message) because an in-file pin is
+# always satisfied by its own line.
+[[ "$(_ifa_det_count_code_matches 'run_ifa_determinism_private_data_cases' "${BASH_SOURCE[0]}")" -eq 3 ]] \
+	|| fail "this mirror no longer calls run_ifa_determinism_private_data_cases (expected the call, this pin, and the name in this message) -- nothing would scan it for private data"
 
 # shellcheck source=scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh
 source "${pin_behaviour_cases_lib}"
