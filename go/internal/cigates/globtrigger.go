@@ -63,6 +63,16 @@ type trackedPaths struct {
 // does not pin which repository git reads, and enumerating a different one
 // still produces a verdict.
 func loadTrackedPaths(repoRoot string) (*trackedPaths, error) {
+	// #nosec G204 -- the binary is the literal "git" and every argument but
+	// repoRoot is a constant, so nothing here is assembled from a string. Note
+	// this runs BEFORE any per-trigger containment check (validate.go calls it
+	// at the top of Validate, ahead of checkTriggerPathsExist), so the safety
+	// does not come from that: repoRoot is the operator-supplied --repo-root
+	// flag of a local and CI validation tool, the same trust level as the
+	// registry path beside it, and is never untrusted external data. git is
+	// invoked directly rather than through a shell, so a hostile value can at
+	// worst name a different directory -- which the enumeration guard then
+	// reports rather than passing silently.
 	cmd := exec.Command("git", "-C", repoRoot, "ls-files", "-z")
 	cmd.Env = gitTreeEnv(os.Environ())
 	var stderr bytes.Buffer
