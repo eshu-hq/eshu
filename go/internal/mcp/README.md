@@ -432,8 +432,8 @@ membership as trust.
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
 | `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
-| `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all registered tool definitions in stable order |
+| `ToolDefinition` | `types.go:12` | `Name`, `Description`, `InputSchema` |
+| `ReadOnlyTools` | `types.go:15` | returns all registered tool definitions in stable order |
 
 ## SSE session model
 
