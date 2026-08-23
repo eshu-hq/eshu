@@ -8,8 +8,15 @@ run_ifa_determinism_teeth_cases() {
 	# --teeth: the acceptance clause's negative-path proof that the matrix
 	# catches a deliberately non-idempotent write, built behind a Go build tag
 	# so it never ships in a normal/CI/production binary.
-	require_code "--teeth flag" "--teeth"
-	require_code "teeth build tag" "ifadeterminismteeth"
+	# Both of these bind the LOAD-BEARING line, not the bare word. Each word also
+	# appears in this gate's own log/die message strings, which are code, so the
+	# earlier `-ge 1` form on the bare word stayed satisfied by a message with the
+	# real thing gone: deleting the `--teeth) teeth=1 ;;` parser left the gate
+	# unable to enter teeth mode at all, and misspelling the build tag left it
+	# building without the injected non-idempotent write -- both GREEN (#6161).
+	# A needle that occurs more than once needs the occurrence that DOES the work.
+	require_code "--teeth flag is parsed" "--teeth) teeth=1 ;;"
+	require_code "teeth build tag is assigned" 'build_tags="ifadeterminismteeth"'
 	require_code "teeth threads tags through every build call" 'ifa_det_build_bin "${bin_dir}" reducer "${build_tags}"'
 	require_code "teeth caught framing" "TEETH: CAUGHT"
 	require_code "teeth-not-caught is its own failure" "TEETH FAILED"
