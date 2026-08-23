@@ -175,7 +175,7 @@ func resolveRequiredGateWorkflows(repoRoot string, gates []cigates.RequiredGate)
 func evaluateRequiredChecks(
 	required []resolvedRequiredGate,
 	checks []checkRollup,
-	cancelledRuns map[string]bool,
+	runs runConclusions,
 ) requiredCheckEvaluation {
 	var evaluation requiredCheckEvaluation
 	for _, gate := range required {
@@ -195,8 +195,14 @@ func evaluateRequiredChecks(
 			// Before the pending bucket, deliberately: gh reports STALE
 			// with bucket "pending", so testing pending first would file a
 			// permanently-stale check as still-running and wait it out.
-			case isNotAGateResult(*check, cancelledRuns):
+			case isNotAGateResult(*check, runs):
 				gateCancellation = check
+			// Before the pending-bucket test for the same reason STALE is:
+			// gh files SKIPPED in its "skipping" bucket, so a skip whose
+			// owning run is still executing would otherwise fall to
+			// `default:` and be called a gate failure (#6189, third round).
+			case isAwaitingRunConclusion(*check, runs):
+				gatePending = true
 			case strings.EqualFold(check.Bucket, "pending"):
 				gatePending = true
 			default:
@@ -375,16 +381,16 @@ func awaitPRRequiredChecks(
 		// as "nothing known cancelled", which leaves a skipped gate publishing
 		// `failure` exactly as it did before this change -- degraded to the
 		// old behaviour, never to a pass.
-		var cancelledRuns map[string]bool
+		var runs runConclusions
 		if anySelectedCheckSkipped(required, checks) {
-			cancelledRuns, err = cancelledWorkflowRuns(ctx, runner, repo, headSHA)
+			runs, err = workflowRunConclusions(ctx, runner, repo, headSHA)
 			if err != nil {
 				_, _ = fmt.Fprintf(out,
 					"required-gates: could not read workflow run conclusions (%v); a skipped gate stays a failure\n", err)
-				cancelledRuns = nil
+				runs = nil
 			}
 		}
-		evaluation := evaluateRequiredChecks(required, checks, cancelledRuns)
+		evaluation := evaluateRequiredChecks(required, checks, runs)
 		if len(evaluation.Failed) > 0 {
 			// Wrapped so classifyAwaitOutcome recognises this structurally
 			// (#6075): this is the one outcome allowed to publish `failure`.

@@ -219,7 +219,10 @@ gates its changed paths select:
   **a gate skipped for its own reasons still fails the aggregate** — the
   registry selected it for these paths, so a skip the workflow chose is a real
   disagreement about whether it should have run. If the run conclusions cannot
-  be read, a skipped gate stays a failure. A cancellation alongside a
+  be read, a skipped gate stays a failure. While a re-run of the cancelled
+  workflow is still executing, its conclusion is neither cancelled nor a
+  verdict, so the aggregate keeps waiting rather than publishing either answer;
+  the re-run's own completion re-triggers it. A cancellation alongside a
   still-running gate keeps waiting, so a gate that goes genuinely red is still
   reported as `failure`. Per-head concurrency
   keeps one aggregate running and retains only the latest pending run without

@@ -124,7 +124,16 @@ Three shapes qualify, and they cost different things to recognise:
   same `SKIPPED` conclusion whether a `needs:` dependency was cancelled or the
   job's own `if:` excluded it. The aggregate reads the owning workflow run's
   conclusion (`actions: read`, already granted) and treats the skip as a
-  cancellation artifact only when that run was cancelled.
+  cancellation artifact only when that run was cancelled. A run that exists but
+  has **not concluded** is neither: that is the window the `gh run rerun`
+  repair passes through, where the replacement run is executing but its check
+  runs have not yet replaced the cancelled run's in the rollup. Calling it
+  "cancelled" would publish `error` against a run that may still pass, and
+  calling it "not cancelled" would publish "A required gate failed" against a
+  run that has not failed, so the aggregate keeps waiting instead. That wait
+  terminates: the replacement run's own completion re-triggers the aggregate
+  with a rollup it can decide. A workflow with no run on this head at all is
+  unknown, not in flight, and keeps failing closed.
 
 **A gate skipped for its own reasons still publishes `failure`.** The registry
 selected it for these paths, so a skip the workflow chose is a real
