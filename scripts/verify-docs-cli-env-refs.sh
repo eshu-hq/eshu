@@ -15,6 +15,10 @@
 # substitution -- keeps the whole line outside the gate's scope, and so does an
 # empty segment. Operators inside quotes, after a backslash, or in a trailing
 # `#` comment are not segment boundaries.
+#
+# Every run prints how many `eshu` command lines it skipped that way, zero
+# included, so the deliberate blind spot is a number an operator can watch
+# rather than silence.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"

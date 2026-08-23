@@ -19,7 +19,7 @@ func TestScanMarkdownAttributesPipelineSegmentsToTheirOwnCommands(t *testing.T) 
 		"eshu docs verify --json && eshu graph status --unknown-after-and\n" +
 		"eshu docs verify --json ; eshu graph status --unknown-after-semicolon\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--unknown-after-and"},
@@ -42,7 +42,7 @@ func TestScanMarkdownHostileFlagCollisionAcrossPipelineSegments(t *testing.T) {
 	content := "```bash\n" +
 		"eshu first-run --json | eshu first-run-benchmark --report-out /tmp/first-run.md\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run-benchmark", Value: "--report-out"},
@@ -62,7 +62,7 @@ func TestScanMarkdownChecksDocumentedFirstRunBenchmarkPipeline(t *testing.T) {
 	content := "```bash\n" +
 		"eshu first-run --json | eshu first-run-benchmark --path local_binary\n" +
 		"```\n"
-	got := scanMarkdown("reference/local-testing/first-five-minutes-benchmark.md", content)
+	got, _ := scanMarkdown("reference/local-testing/first-five-minutes-benchmark.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "reference/local-testing/first-five-minutes-benchmark.md", Command: "first-run", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "reference/local-testing/first-five-minutes-benchmark.md", Command: "first-run-benchmark", Value: "--path"},
@@ -81,7 +81,7 @@ func TestScanMarkdownScansEshuSegmentAfterNonEshuPipelineStage(t *testing.T) {
 	content := "```bash\n" +
 		"cat service-story.json | eshu service-report --not-a-real-flag   # or pipe on stdin\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "service-report", Value: "--not-a-real-flag"},
 	}
@@ -100,7 +100,7 @@ func TestScanMarkdownSegmentsAPipelineWrappedOverContinuationLines(t *testing.T)
 		"$ eshu first-run --json \\\n" +
 		"  | eshu first-run-benchmark --report-out /tmp/first-run.md\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "first-run-benchmark", Value: "--report-out"},
@@ -150,7 +150,7 @@ func TestScanMarkdownKeepsQuotedEscapedAndCommentedOperatorsOutOfSegmentBoundari
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			got := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
+			got, _ := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
 			if !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("scanMarkdown(%q) = %#v, want %#v", test.line, got, test.want)
 			}
@@ -179,9 +179,45 @@ func TestScanMarkdownFallsBackToSkippingUnsupportedShellForms(t *testing.T) {
 	for name, line := range lines {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := scanMarkdown("guide.md", "```bash\n"+line+"\n```\n"); len(got) != 0 {
+			got, skipped := scanMarkdown("guide.md", "```bash\n"+line+"\n```\n")
+			if len(got) != 0 {
 				t.Fatalf("scanMarkdown(%q) = %#v, want the unsupported form skipped", line, got)
 			}
+			// Positive half: the line must be COUNTED as skipped, not merely
+			// produce no references. A scanner that stopped reading the fence
+			// entirely also produces no references.
+			if skipped != 1 {
+				t.Fatalf("scanMarkdown(%q) skipped = %d, want the skip reported once", line, skipped)
+			}
 		})
+	}
+}
+
+// TestScanMarkdownReportsSkippedEshuLines makes the deliberate
+// under-approximation observable. A gate that silently inspects nothing and
+// exits 0 is indistinguishable from a clean run, so the scanner counts the
+// Eshu command lines it declined to parse and the verifier reports the number.
+func TestScanMarkdownReportsSkippedEshuLines(t *testing.T) {
+	t.Parallel()
+
+	content := "```bash\n" +
+		"eshu docs verify --json || eshu docs verify --after-or\n" +
+		"(eshu docs verify --json ; eshu docs verify --in-subshell)\n" +
+		"eshu docs verify --json | eshu graph status --checked\n" +
+		"cd go && go build ./cmd/eshu\n" +
+		"docker compose logs eshu | rg BOOTSTRAP\n" +
+		"```\n"
+	got, skipped := scanMarkdown("guide.md", content)
+	want := []reference{
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--json"},
+		{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--checked"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scanMarkdown() refs = %#v, want %#v", got, want)
+	}
+	// Only the `||` list and the subshell are unsupported AND mention eshu. The
+	// supported `&&` and `|` lines are parsed, not skipped, so they never count.
+	if skipped != 2 {
+		t.Fatalf("scanMarkdown() skipped = %d, want 2", skipped)
 	}
 }

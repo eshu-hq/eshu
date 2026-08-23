@@ -28,8 +28,14 @@ type reference struct {
 	Value    string
 }
 
-func scanMarkdown(document string, content string) []reference {
+// scanMarkdown returns the concrete references cited by one public Markdown
+// page and the number of logical shell lines that name an `eshu` command but
+// fell outside the supported command-segment grammar. That second value is the
+// gate's own blind spot made visible: a scanner that silently stopped parsing
+// would otherwise report a clean run indistinguishable from a real one.
+func scanMarkdown(document string, content string) ([]reference, int) {
 	seen := map[string]reference{}
+	skipped := 0
 	for _, name := range concreteEnvPattern.FindAllString(content, -1) {
 		ref := reference{Kind: referenceKindEnv, Document: document, Value: name}
 		seen[referenceKey(ref)] = ref
@@ -41,7 +47,11 @@ func scanMarkdown(document string, content string) []reference {
 	listContentIndent := 0
 	pending := ""
 	flush := func() {
-		for _, segment := range commandSegments(pending) {
+		segments := commandSegments(pending)
+		if segments == nil && mentionsEshuCommand(pending) {
+			skipped++
+		}
+		for _, segment := range segments {
 			command, flags := flagsFromEshuCommand(segment)
 			for _, flag := range flags {
 				ref := reference{Kind: referenceKindFlag, Document: document, Command: command, Value: flag}
@@ -107,7 +117,19 @@ func scanMarkdown(document string, content string) []reference {
 		out = append(out, ref)
 	}
 	sortReferences(out)
-	return out
+	return out, skipped
+}
+
+// mentionsEshuCommand reports whether a logical line carries a bare `eshu`
+// word. It only feeds the skipped-line count, so a quoted literal `eshu` counts
+// too: over-reporting a diagnostic is safer than under-reporting one.
+func mentionsEshuCommand(line string) bool {
+	for _, field := range splitShellFields(line) {
+		if field == "eshu" {
+			return true
+		}
+	}
+	return false
 }
 
 func leadingSpaces(line string) int {

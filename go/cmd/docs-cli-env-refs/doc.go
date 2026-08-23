@@ -7,7 +7,9 @@
 // logical line that is a simple list -- segments separated by an unquoted pipe,
 // AND, or semicolon -- is split so each segment is checked against its own
 // command; every other shell form keeps the whole line out of scope rather than
-// risk attributing one command's flags to another. If the baseline or frozen
+// risk attributing one command's flags to another. Every run reports how many
+// Eshu command lines it skipped that way, so the deliberate blind spot stays
+// countable instead of silent. If the baseline or frozen
 // ceiling is malformed, the verifier fails closed. The mutable baseline may
 // shrink only within that frozen initial-debt ceiling.
 package main

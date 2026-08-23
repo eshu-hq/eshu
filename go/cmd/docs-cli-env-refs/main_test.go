@@ -28,7 +28,7 @@ func TestScanMarkdownFindsConcreteEnvTokensAndFencedEshuFlags(t *testing.T) {
 		"eshu docs verify --ignored-text-fence\n" +
 		"```\n"
 
-	got := scanMarkdown("reference/example.md", content)
+	got, _ := scanMarkdown("reference/example.md", content)
 	want := []reference{
 		{Kind: referenceKindEnv, Document: "reference/example.md", Value: "ESHU_API_KEY"},
 		{Kind: referenceKindFlag, Document: "reference/example.md", Command: "docs/verify/docs/public", Value: "--fail-on"},
@@ -63,7 +63,7 @@ func TestScanMarkdownSkipsCommandFlagsAfterLeadingRootFlag(t *testing.T) {
 	t.Parallel()
 
 	content := "~~~bash\neshu --database nornicdb docs verify --not-scanned\n~~~\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Value: "--database"},
 	}
@@ -85,7 +85,7 @@ func TestScanMarkdownAttributesEshuLeadingShellListsPerSegment(t *testing.T) {
 		"eshu docs verify --json && eshu docs verify --unknown-after-and\n" +
 		"eshu docs verify --json ; eshu docs verify --unknown-after-semicolon\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "definitely-not-a-command", Value: "--json"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--json"},
@@ -199,7 +199,7 @@ func TestScanMarkdownFindsQuotedFlagsInNestedShellFences(t *testing.T) {
 		"    ```bash\n" +
 		"    eshu docs verify \"--quoted-invalid\" --plain-invalid\n" +
 		"    ```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--plain-invalid"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--quoted-invalid"},
@@ -224,7 +224,7 @@ func TestScanMarkdownDistinguishesIndentedLiteralAndFenceCloseSuffix(t *testing.
 		"```not-a-close\n" +
 		"eshu docs verify --after-suffix\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--after-suffix"},
 	}
@@ -243,7 +243,7 @@ func TestScanMarkdownRejectsInvalidFenceClosers(t *testing.T) {
 		"    ```\n" +
 		"eshu docs verify --after-over-indent\n" +
 		"```\n"
-	got := scanMarkdown("guide.md", content)
+	got, _ := scanMarkdown("guide.md", content)
 	want := []reference{
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--after-nbsp"},
 		{Kind: referenceKindFlag, Document: "guide.md", Command: "docs/verify", Value: "--after-over-indent"},
@@ -276,7 +276,7 @@ func TestScanDocsRejectsSymlinkOutsideRoot(t *testing.T) {
 		t.Skipf("symlink fixture is unavailable: %v", err)
 	}
 
-	refs, err := scanDocs(docsRoot)
+	refs, _, err := scanDocs(docsRoot)
 	if err == nil {
 		t.Fatalf("scanDocs() = %#v, nil, want fail-closed error for a symlink escaping the docs root", refs)
 	}

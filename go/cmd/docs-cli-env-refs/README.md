@@ -65,6 +65,12 @@ unquoted list operator is parsed exactly as before.
 An unresolved flag is reported with the command it was attributed to, so a
 failure on a piped or chained example says which segment owns the flag.
 
+Every run also reports how many logical lines naming an `eshu` command were
+skipped as unsupported shell forms, including when that number is zero. The
+skip is a deliberate choice, so it has to be countable: a run that reports a
+clean tree and a run whose scanner quietly stopped reading shell fences produce
+the same silence otherwise. Treat a rise in that number as scope lost.
+
 When a command starts with a root flag before its subcommand, the scanner checks
 the leading root flag but deliberately skips later command-local flags on that
 logical line. Documentation should use `eshu <command> --flag` when it needs

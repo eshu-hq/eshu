@@ -57,6 +57,12 @@ test_pipeline_and_chain_segments_are_checked_per_command() {
     "hostile collision does not misattribute the later flag to the earlier command"
   assert_absent "valid-pipeline.md" "${out}" \
     "a pipeline whose segments each own their flags stays green"
+  # Every line in this fixture is inside the supported grammar, so NONE may be
+  # counted as skipped. A scanner that quietly stopped parsing fences would also
+  # emit no diagnostics; only the zero here tells the two apart.
+  assert_output_line \
+    '^docs-cli-env-refs: 0 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "no supported segment line is silently skipped"
 }
 
 # test_unsupported_shell_forms_stay_skipped pins the deliberate
@@ -84,4 +90,10 @@ test_unsupported_shell_forms_stay_skipped() {
     record_fail "unsupported shell forms stay outside the gate's scope"
     sed -n '1,160p' "${out}" >&2
   fi
+  # The positive half of the same claim. Exiting 0 proves only that nothing was
+  # reported; the count proves the eight lines were SEEN and deliberately
+  # declined, not that the scanner stopped reading the fence.
+  assert_output_line \
+    '^docs-cli-env-refs: 8 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "every unsupported line is counted, not silently dropped"
 }

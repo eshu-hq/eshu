@@ -64,10 +64,13 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("-eshu is required")
 	}
 
-	refs, err := scanDocs(opts.docsRoot)
+	refs, skipped, err := scanDocs(opts.docsRoot)
 	if err != nil {
 		return err
 	}
+	// Always reported, including when it is zero: a silent skip count cannot be
+	// told apart from a scanner that stopped seeing shell fences at all.
+	fmt.Fprintf(os.Stderr, "docs-cli-env-refs: %d Eshu command line(s) skipped as unsupported shell forms\n", skipped)
 	cliCtx, cancel := context.WithTimeout(ctx, defaultCLITimeout)
 	defer cancel()
 	knownFlags, err := collectCLIFlags(cliCtx, opts.eshu)
@@ -184,10 +187,10 @@ func validateBaselineUpdate(unresolved []reference, baseline map[string]struct{}
 	return fmt.Errorf("baseline update would add %d unresolved reference(s): %s", len(newRefs), strings.Join(values, ", "))
 }
 
-func scanDocs(root string) (refs []reference, resultErr error) {
+func scanDocs(root string) (refs []reference, skipped int, resultErr error) {
 	docsRoot, err := os.OpenRoot(root)
 	if err != nil {
-		return nil, fmt.Errorf("open docs root: %w", err)
+		return nil, 0, fmt.Errorf("open docs root: %w", err)
 	}
 	defer func() {
 		if closeErr := docsRoot.Close(); closeErr != nil && resultErr == nil {
@@ -196,10 +199,10 @@ func scanDocs(root string) (refs []reference, resultErr error) {
 	}()
 	info, err := docsRoot.Stat(".")
 	if err != nil {
-		return nil, fmt.Errorf("stat opened docs root: %w", err)
+		return nil, 0, fmt.Errorf("stat opened docs root: %w", err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("docs root is not a directory: %s", root)
+		return nil, 0, fmt.Errorf("docs root is not a directory: %s", root)
 	}
 
 	refs = []reference{}
@@ -214,15 +217,17 @@ func scanDocs(root string) (refs []reference, resultErr error) {
 		if err != nil {
 			return err
 		}
-		refs = append(refs, scanMarkdown(filepath.ToSlash(path), string(content))...)
+		pageRefs, pageSkipped := scanMarkdown(filepath.ToSlash(path), string(content))
+		refs = append(refs, pageRefs...)
+		skipped += pageSkipped
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("scan docs: %w", err)
+		return nil, 0, fmt.Errorf("scan docs: %w", err)
 	}
 	refs = uniqueReferences(refs)
 	sortReferences(refs)
-	return refs, nil
+	return refs, skipped, nil
 }
 
 func unresolvedReferences(refs []reference, knownFlags map[string]map[string]struct{}) []reference {
