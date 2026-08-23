@@ -207,7 +207,7 @@ because its `Send` increments the counter feeding `CollectedGeneration.FactCount
 
 **projector (188) + coordinator (124):** projector's per-provider intent
 families are measured clean (zero cross-family calls; all 44 calls fan out
-from `scope_generation_intents.go` across 42 family files). Root keeps `canonical*`,
+from `scope_generation_intents.go` across 41 family files). Root keeps `canonical*`,
 `runtime_*`, `stage_*`, decode helpers, payload readers, the dispatcher,
 and failure/retry infra (~70 files). Hazard: canonical Row types are
 consumed by 182 external files; family moves need qualifier updates or root
@@ -289,7 +289,7 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 |---|---|---|
 | query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `GraphQuery`, `ContentStore` (`ports.go:15,21`), `QueryProfile` (`contract.go:21`, used at `supply_chain.go:64,122`), the envelopes, the `Write*` helpers |
 | reducer | 48 `.Handler = <Family>Handler{}` construction sites across 10 of the 11 `defaults_additive_domains*.go` wiring files — e.g. `defaults_additive_domains_correlation.go:66-67`, which calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `Intent`, `Result` and the `Handler` interface (`container_image_identity.go:52,73`) |
-| projector | `scope_generation_intents.go` has 44 `build*ReducerIntent` call sites, defined across 42 family files | `ReducerIntent` (`runtime.go:50`) |
+| projector | `scope_generation_intents.go` has 44 `build*ReducerIntent` call sites, defined across 41 family files | `ReducerIntent` (`runtime.go:50`) |
 | mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |
 
 Collector and coordinator are genuinely clear: their families are constructed
