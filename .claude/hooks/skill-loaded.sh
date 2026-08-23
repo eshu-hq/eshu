@@ -5,11 +5,14 @@
 #
 # Never blocks. Its only job is to write a marker.
 #
-# Payload shape: the Skill tool takes {skill, args}, so the name is expected at
-# tool_input.skill. Several fallbacks are read anyway, and the first payload of
-# each session is captured to /tmp/claude-skill-payload-<sid>.json so the shape
-# can be confirmed against a real invocation instead of assumed. Delete that
-# capture line once the shape is pinned.
+# Payload shape, read off a real invocation rather than assumed:
+#
+#   {"hook_event_name":"PostToolUse","tool_name":"Skill",
+#    "session_id":"...","tool_input":{"skill":"golang-engineering"}, ...}
+#
+# So the name is at tool_input.skill. The `skill_name`/`name` fallbacks below
+# are kept as cheap insurance against a future rename; if one of them ever
+# starts matching, the shape changed and this comment is stale.
 set -u
 
 INPUT=$(cat)
@@ -18,11 +21,7 @@ command -v python3 >/dev/null 2>&1 || exit 0
 SID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("session_id","na")[:12])' 2>/dev/null)
 [ -n "${SID:-}" ] || exit 0
 
-# One capture per session, for shape verification.
-CAPTURE="/tmp/claude-skill-payload-${SID}.json"
-[ -f "$CAPTURE" ] || printf '%s' "$INPUT" >"$CAPTURE" 2>/dev/null
-
-# Read the skill name from the most likely field, then fall back. Normalise by
+# Read the skill name from the verified field, then fall back. Normalise by
 # dropping any plugin prefix (`superpowers:brainstorming` -> `brainstorming`)
 # so the marker matches the bare id the nudge table uses.
 NAME=$(printf '%s' "$INPUT" | python3 -c '

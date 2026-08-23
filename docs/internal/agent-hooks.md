@@ -52,6 +52,12 @@ multi-skill arm names only the ids still missing. Blocking once and then waving
 everything through would be acknowledgement theatre, so the suite asserts the
 repeat refusal directly.
 
+Verified live, in that order, against `go/cmd/api/main.go`: edit refused with
+exit 2 naming `golang-engineering`; `Skill(golang-engineering)` invoked;
+marker `claude-skill-loaded-<session>-golang-engineering` written; the same
+edit then passed with exit 0. The `Skill` payload puts the name at
+`tool_input.skill`, read off a real invocation rather than assumed.
+
 **Escape hatch.** A skill can be genuinely unloadable — most often when it lives
 on a branch the session's project directory cannot see, which is the activation
 split below. A permanent block on editing a whole surface is worse than the rule
