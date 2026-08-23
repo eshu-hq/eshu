@@ -56,7 +56,8 @@ full projector tree preserve exact trigger, value, and order behavior. The
 measurement above shows no allocation or byte regression and comparable CPU
 cost on the same host and fixture.
 
-No-Observability-Change: the boundary adds no metric, span, log, status field,
+No-Observability-Change (Azure extraction): the boundary adds no metric, span,
+log, status field,
 queue behavior, or runtime setting. Existing projection and reducer-intent
 enqueue telemetry remains owned by the root projector package; the telemetry
 coverage verifier confirms the moved stages remain mapped to
