@@ -248,10 +248,11 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 	},
 }
 
-// fanOutParityExpectedOrder pins the assembly order separately from the
-// per-domain value assertions above. Reducer queue admission preserves this
-// slice order, so a package move must not turn the fan-out into map iteration
-// or otherwise reorder families whose trigger facts coexist.
+// fanOutParityExpectedOrder pins root family assembly order separately from the
+// per-domain value assertions above. Production sorts these intents by domain,
+// entity key, and fact ID before enqueue, so this is not a queue-order claim.
+// It keeps staged family moves mechanical and catches an accidental switch to
+// map iteration or family repositioning in this assembler.
 var fanOutParityExpectedOrder = []reducer.Domain{
 	reducer.DomainPackageSourceCorrelation,
 	reducer.DomainAWSCloudRuntimeDrift,

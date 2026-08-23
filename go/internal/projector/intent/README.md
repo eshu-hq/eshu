@@ -2,14 +2,15 @@
 
 ## Purpose
 
-This package defines the small contract shared by projector assembly and the
-intent-family packages that assembly calls.
+This package defines the small contract that root projector assembly owns today
+and forthcoming extracted intent-family packages will share.
 
 ## Ownership boundary
 
 The package owns the reducer-intent value and the read-only fact-selection
-port. The root `internal/projector` package still owns fact indexing, family
-order, projection lifecycle, writes, retries, and telemetry.
+port. The root `internal/projector` package is currently the only production
+consumer and still owns fact indexing, family order, projection lifecycle,
+writes, retries, and telemetry.
 
 ## Exported surface
 

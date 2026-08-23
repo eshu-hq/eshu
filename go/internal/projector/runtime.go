@@ -49,7 +49,7 @@ type Runtime struct {
 }
 
 // ReducerIntent is a compatibility alias for the dependency-neutral intent
-// contract used by projector family packages.
+// contract reserved for extracted projector family packages.
 type ReducerIntent = projectorintent.ReducerIntent
 
 // IntentResult reports the outcome of one Enqueue call. Count is the number

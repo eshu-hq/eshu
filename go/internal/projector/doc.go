@@ -18,8 +18,9 @@
 // explicit repo_id; cloud, registry, and provider scopes without repository
 // ownership still project canonical and reducer-owned evidence but do not write
 // repository content rows or source ref metadata.
-// Reducer-intent family packages depend on the neutral internal/projector/intent
-// contract; this root package owns their ordered assembly and fact index.
+// The neutral internal/projector/intent contract is the boundary for forthcoming
+// reducer-intent family packages; this root package currently remains its sole
+// production consumer and owns family assembly and the fact index.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
