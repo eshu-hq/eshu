@@ -27,7 +27,7 @@ func fanOutParityScopeAndGeneration() (scope.IngestionScope, scope.ScopeGenerati
 }
 
 // fanOutParityFixture builds one inputFacts slice spanning 42 emitted domains
-// across the 44 build*ReducerIntent probes
+// across the 44 reducer-intent builder probes
 // appendScopeGenerationReducerIntents fans out to
 // (issue #4875). It exists to prove the shared reducerIntentFactIndex
 // refactor is behavior-preserving: TestAppendScopeGenerationReducerIntentsFanOutParity
@@ -49,7 +49,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 	scopeID, generationID := scopeValue.ScopeID, generation.GenerationID
 
 	return []facts.Envelope{
-		// Irrelevant decoys: no build*ReducerIntent probe matches this kind.
+		// Irrelevant decoys: no reducer-intent builder probe matches this kind.
 		// Their only job is to widen inputFacts so a full O(N) scan (the
 		// pre-#4875 behavior) is not accidentally free on this fixture.
 		{FactID: "decoy-0", FactKind: "code_symbol_reference"},

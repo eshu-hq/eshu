@@ -4,9 +4,8 @@
 package projector
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -64,8 +63,5 @@ func buildCloudInventoryAdmissionReducerIntent(
 // for the admission intent, preferring the fact's source ref and falling back to
 // its collector kind.
 func cloudInventoryAdmissionSourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
+	return projectorintent.SourceSystem(envelope)
 }

@@ -23,7 +23,8 @@ live in the repository today.
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
-| `go/internal/projector/intent/` | dependency-neutral reducer-intent values and fact lookup boundary for forthcoming extracted projector families |
+| `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
+| `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/recovery/` | replay and repair domain logic |

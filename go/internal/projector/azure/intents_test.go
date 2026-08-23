@@ -9,18 +9,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func TestBuildMaterializationReducerIntents(t *testing.T) {
 	t.Parallel()
 
-	scopeValue := scope.IngestionScope{ScopeID: "azure:subscription:sub-1"}
-	generation := scope.ScopeGeneration{GenerationID: "generation-1"}
+	scopeID := "azure:subscription:sub-1"
+	generationID := "generation-1"
 	tests := []struct {
 		name          string
 		fact          facts.Envelope
-		build         func(scope.IngestionScope, scope.ScopeGeneration, projectorintent.FactLookup) (projectorintent.ReducerIntent, bool)
+		build         func(string, string, projectorintent.FactLookup) (projectorintent.ReducerIntent, bool)
 		wantDomain    reducer.Domain
 		wantReason    string
 		wantSource    string
@@ -38,7 +37,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			wantDomain:    reducer.DomainAzureResourceMaterialization,
 			wantReason:    "azure runtime resource facts observed",
 			wantSource:    "azure-resource-graph",
-			wantEntityKey: "azure_resource_materialization:" + scopeValue.ScopeID,
+			wantEntityKey: "azure_resource_materialization:" + scopeID,
 		},
 		{
 			name: "relationship falls back to collector",
@@ -51,7 +50,7 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 			wantDomain:    reducer.DomainAzureRelationshipMaterialization,
 			wantReason:    "azure runtime relationship facts observed",
 			wantSource:    "azure-collector",
-			wantEntityKey: "azure_resource_materialization:" + scopeValue.ScopeID,
+			wantEntityKey: "azure_resource_materialization:" + scopeID,
 		},
 	}
 
@@ -59,12 +58,12 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := test.build(scopeValue, generation, projectorintent.NewFactLookup([]facts.Envelope{test.fact}))
+			got, ok := test.build(scopeID, generationID, projectorintent.NewFactLookup([]facts.Envelope{test.fact}))
 			if !ok {
 				t.Fatal("build intent ok = false, want true")
 			}
-			if got.ScopeID != scopeValue.ScopeID || got.GenerationID != generation.GenerationID {
-				t.Fatalf("scope generation = %q/%q, want %q/%q", got.ScopeID, got.GenerationID, scopeValue.ScopeID, generation.GenerationID)
+			if got.ScopeID != scopeID || got.GenerationID != generationID {
+				t.Fatalf("scope generation = %q/%q, want %q/%q", got.ScopeID, got.GenerationID, scopeID, generationID)
 			}
 			if got.Domain != test.wantDomain {
 				t.Fatalf("Domain = %q, want %q", got.Domain, test.wantDomain)
@@ -88,14 +87,14 @@ func TestBuildMaterializationReducerIntents(t *testing.T) {
 func TestBuildMaterializationReducerIntentsSkipMissingKinds(t *testing.T) {
 	t.Parallel()
 
-	scopeValue := scope.IngestionScope{ScopeID: "azure:subscription:sub-1"}
-	generation := scope.ScopeGeneration{GenerationID: "generation-1"}
+	scopeID := "azure:subscription:sub-1"
+	generationID := "generation-1"
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: facts.AWSResourceFactKind}})
 
-	if got, ok := BuildResourceMaterializationReducerIntent(scopeValue, generation, lookup); ok {
+	if got, ok := BuildResourceMaterializationReducerIntent(scopeID, generationID, lookup); ok {
 		t.Fatalf("resource intent = %#v, want no intent", got)
 	}
-	if got, ok := BuildRelationshipMaterializationReducerIntent(scopeValue, generation, lookup); ok {
+	if got, ok := BuildRelationshipMaterializationReducerIntent(scopeID, generationID, lookup); ok {
 		t.Fatalf("relationship intent = %#v, want no intent", got)
 	}
 }

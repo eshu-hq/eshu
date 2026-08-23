@@ -18,8 +18,9 @@
   not priority.
 - Keep `FactLookup` concrete unless a replacement proves zero added allocations
   on the 44-probe fan-out benchmark.
-- Do not move family assembly, indexing, projection lifecycle, queue writes, or
-  telemetry into this package.
+- Keep lookup construction and lifetime, family assembly, projection lifecycle,
+  queue writes, and telemetry in the root projector package. This package owns
+  only the dependency-neutral lookup implementation and shared intent contract.
 
 ## Verification
 

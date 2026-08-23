@@ -7,29 +7,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildAzureRelationshipMaterializationReducerIntent enqueues one reducer intent
-// that projects azure_cloud_relationship facts into canonical Azure relationship
-// graph edges. It shares the Azure resource materialization entity key so the
-// edge handler gates on the same canonical-nodes readiness publication.
+// BuildRelationshipMaterializationReducerIntent returns one reducer intent when
+// azure_cloud_relationship facts are present. The reducer projects canonical
+// Azure relationship graph edges. This builder shares the Azure resource entity
+// key so the edge handler gates on the same canonical-nodes publication.
 func BuildRelationshipMaterializationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
+	scopeID string,
+	generationID string,
 	lookup projectorintent.FactLookup,
-) (ReducerIntent, bool) {
+) (projectorintent.ReducerIntent, bool) {
 	envelope, ok := lookup.FirstOfKind(facts.AzureCloudRelationshipFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainAzureRelationshipMaterialization,
-		EntityKey:    "azure_resource_materialization:" + scopeValue.ScopeID,
+		EntityKey:    "azure_resource_materialization:" + scopeID,
 		Reason:       "azure runtime relationship facts observed",
 		FactID:       envelope.FactID,
-		SourceSystem: cloudInventoryAdmissionSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }

@@ -48,10 +48,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildGCPRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorazure.BuildResourceMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
+	if intent, ok := projectorazure.BuildResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorazure.BuildRelationshipMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
+	if intent, ok := projectorazure.BuildRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildCloudInventoryAdmissionReducerIntent(scopeValue, generation, index); ok {

@@ -32,8 +32,9 @@ projection waits for the corresponding canonical-node readiness publication.
 - The earliest matching fact anchors `FactID` through the order-preserving
   lookup contract.
 - A nonblank source-ref system wins; collector kind is the trimmed fallback.
-- Empty, duplicate, retry, and ordering behavior remains owned by root assembly
-  and the reducer queue contract.
+- Empty generations and duplicate matching facts follow the neutral lookup
+  contract: no match emits no intent, and the earliest match wins. Root owns
+  family assembly order; reducer queue contracts continue to own retries.
 
 ## Telemetry
 
