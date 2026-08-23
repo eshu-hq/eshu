@@ -241,6 +241,7 @@ jobs:
               - 'go/internal/storage/cypher/timeout_executor.go'
               - 'go/internal/storage/postgres/reducer_queue_helpers.go'
               - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
+              - 'go/internal/reducer/contract/intent.go'
               - 'go/internal/reducer/intent.go'
             ifareplaydrive:
               - '.github/workflows/static-contract-gates.yml'

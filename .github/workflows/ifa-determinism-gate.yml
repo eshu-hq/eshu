@@ -209,6 +209,7 @@ on:
       - 'go/cmd/reducer/config.go'
       - 'go/cmd/reducer/config_projection.go'
       - 'go/cmd/reducer/main_helpers.go'
+      - 'go/internal/reducer/contract/**'
       - 'go/internal/reducer/intent.go'
       - 'go/internal/reducer/domain.go'
       - 'go/internal/reducer/defaults.go'

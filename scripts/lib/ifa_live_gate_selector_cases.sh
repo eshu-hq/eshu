@@ -205,6 +205,7 @@ ifa_live_gate_common_seams=(
 	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
 	'go/cmd/reducer/run.go|go/cmd/reducer/run.go'
 	'go/cmd/reducer/config_projection.go|go/cmd/reducer/config_projection.go'
+	'go/internal/reducer/contract/**|go/internal/reducer/contract/intent.go'
 	'go/internal/reducer/intent.go|go/internal/reducer/intent.go'
 	'go/internal/reducer/domain.go|go/internal/reducer/domain.go'
 	'go/internal/reducer/defaults.go|go/internal/reducer/defaults.go'
