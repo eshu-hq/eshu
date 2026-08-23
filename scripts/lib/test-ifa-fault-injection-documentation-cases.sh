@@ -113,14 +113,17 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_barrier_count "documentation ACK proof verifies the exact two-key lock kind" "barrier.objsubid = 2" 3
 	require_documentation_barrier_count "documentation ACK proof binds the waiter lock to this database" "barrier.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())" 3
 	require_documentation_barrier_count "documentation ACK proof binds the holder lock to this database" "held.database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database())" 4
-	require_documentation_barrier "documentation ACK proof verifies its blocker PID" "pg_catalog.pg_blocking_pids(waiter.pid)"
+	require_documentation_barrier_count "documentation ACK proof verifies its blocker PID" "pg_catalog.pg_blocking_pids(waiter.pid)" 2
 	require_documentation_cells "documentation kill cell terminates the exact blocked ACK backend" "ifa_documentation_terminate_blocked_ack"
 	require_documentation_cells "documentation kill cell proves the waiter and lock are gone" "ifa_documentation_wait_for_ack_backend_gone"
 	require_documentation_cells "documentation kill cell snapshots the claimed row" "ifa_documentation_claim_snapshot"
 	require_documentation_barrier "documentation ACK barrier cleanup drops its trigger" "DROP TRIGGER IF EXISTS ifa_documentation_ack_barrier ON public.fact_work_items"
 	require_documentation_barrier "documentation ACK barrier cleanup drops its function" "DROP FUNCTION IF EXISTS public.ifa_documentation_block_ack()"
 	require_documentation_barrier "documentation backend termination proves one PostgreSQL true result" '"1|true"'
-	require_documentation_barrier_setup "documentation ACK barrier uses a validated run identity" "ifa_documentation_validate_ack_identity"
+	# Bind the CALL: the function's own definition matched the bare name, so the
+	# call could be replaced with `true` and the run-identity validation stopped
+	# running with this pin still green (#6161).
+	require_documentation_barrier_setup "documentation ACK barrier uses a validated run identity" 'ifa_documentation_validate_ack_identity "${ifa_documentation_ack_run_id}"'
 	require_documentation_barrier "documentation ACK cleanup always censuses tagged waiters" "ifa_documentation_census_ack_waiter"
 	require_documentation_barrier "documentation ACK cleanup censuses uncaptured holders" "ifa_documentation_census_ack_holder"
 	require_documentation_barrier_setup "documentation ACK preflight rejects an occupied advisory key" "documentation ACK barrier key is already in use"
@@ -141,8 +144,11 @@ run_ifa_documentation_live_static_cases() {
 		|| fail "documentation ACK Postgres probe has no terminal non-vacuity marker"
 	require_documentation_barrier "documentation producer shutdown signals before joining" "ifa_documentation_signal_ack_producers"
 	require_documentation_barrier "documentation producer shutdown joins after signaling" "ifa_documentation_join_ack_producers"
-	require_documentation_barrier "documentation ACK trigger cleanup is bounded" "SET LOCAL lock_timeout = '2s'"
-	require_documentation_barrier "documentation ACK function cleanup is independently bounded" "SET LOCAL statement_timeout = '5s'"
+	# Both DDL drops must stay bounded. An at-least-one pin let the timeout be
+	# dropped from one statement, leaving that DROP able to block forever on the
+	# barrier lock it is trying to remove (#6161).
+	require_documentation_barrier_count "documentation ACK cleanup DDL is time-bounded" "SET LOCAL lock_timeout = '2s'" 2
+	require_documentation_barrier_count "documentation ACK cleanup DDL is statement-bounded" "SET LOCAL statement_timeout = '5s'" 2
 	require_code "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
 	require_code "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
