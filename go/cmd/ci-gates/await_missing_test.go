@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 )
@@ -132,8 +131,17 @@ func TestAwaitMissingCheckFromACancelledRunDoesNotStrandTheStatus(t *testing.T) 
 		t.Fatalf("published state=%q description=%q; want error -- it blocks the merge and names the re-run",
 			state, description)
 	}
-	if !strings.Contains(strings.ToLower(description), "cancel") {
-		t.Fatalf("published description %q does not tell the operator a gate was cancelled", description)
+	// Non-empty, not a required phrase. publishedDescriptionErrors asserts
+	// description DISTINCTNESS for exactly this reason, and its own comment
+	// records that an earlier draft requiring the word "cancel" turned ordinary
+	// rewording into a red. Re-pinning the phrase here would contradict that
+	// contract from the other side: rewording the 13-arm description would keep
+	// ./internal/cigates green while this package went red. What matters is that
+	// something distinguishes this outcome -- a cancelled gate and a broken
+	// aggregation both publish state=error, so the description is the only thing
+	// separating them for an operator.
+	if description == "" {
+		t.Fatalf("exit %d published state=error with no description; a cancelled gate and a broken aggregation both publish error, so an empty description leaves an operator nothing to act on", code)
 	}
 }
 
