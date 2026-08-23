@@ -126,7 +126,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupPreservesConnectedCandidate(t *te
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			RepositoryID: "repo-a",
-			Payload:      map[string]any{"repo_id": "repo-a"},
+			Payload:      wholeScopeRefreshPayload("repo-a"),
 		},
 	}
 
@@ -153,7 +153,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsWriteWhenAllConnected(t *tes
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			RepositoryID: "repo-a",
-			Payload:      map[string]any{"repo_id": "repo-a"},
+			Payload:      wholeScopeRefreshPayload("repo-a"),
 		},
 	}
 
@@ -178,7 +178,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *tes
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			RepositoryID: "repo-a",
-			Payload:      map[string]any{"repo_id": "repo-a"},
+			Payload:      wholeScopeRefreshPayload("repo-a"),
 		},
 	}
 
@@ -204,7 +204,7 @@ func TestEdgeWriterRetractEdgesShellExecRequiresReader(t *testing.T) {
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			RepositoryID: "repo-a",
-			Payload:      map[string]any{"repo_id": "repo-a"},
+			Payload:      wholeScopeRefreshPayload("repo-a"),
 		},
 	}
 
@@ -339,9 +339,7 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			RepositoryID: "repo-a",
-			Payload: map[string]any{
-				"repo_id": "repo-a",
-			},
+			Payload:      wholeScopeRefreshPayload("repo-a"),
 		},
 	}
 

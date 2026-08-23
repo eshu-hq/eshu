@@ -17,15 +17,30 @@ import (
 )
 
 // collectRepoIDs returns every distinct repository id in the batch, with NO
-// intent_type filter. That asymmetry with its sibling
-// collectWholeScopeRefreshRepoIDs is deliberate and load-bearing to know
-// about: the sibling requires reducer.RepoRefreshIntentType precisely so an
-// unmarked legacy per-edge row cannot pull a whole-repository retract, while
-// this function is the pre-#5998 batch-wide collector and still can. A
-// no-delta batch carrying such a row therefore still reaches a repo-wide
-// DELETE for that repository. That is pre-existing behavior, unchanged by the
-// #5998 probe guard and deliberately left alone by it, and it is tracked in
-// #6166 -- do not read the sibling's guard as covering this path too.
+// intent_type filter. It now serves only the REPO-KEYED retract domains: code
+// calls, repo dependency, submodule pin, codeowners ownership, workload
+// dependency, and the remaining buildRetractStatement cases.
+//
+// The missing filter is required, not an oversight, and #6166 measured what
+// adding one costs. Every one of those domains synthesises its retract rows in
+// the caller rather than draining them from the shared-projection queue --
+// buildCodeCallRepoRetractRows (reducer/code_call_projection_work.go),
+// buildRepoDependencyRetractRows (reducer/repo_dependency_projection_replay.go),
+// buildSubmodulePinRepoRetractRows (reducer/submodule_pin_delta_scope.go), the
+// nil-payload rows codeowners selects on
+// (reducer/codeowners_ownership_materialization.go), and the workload
+// dependency reconcile rows -- and none of them carries an intent_type,
+// because none of them came from a refresh intent. Requiring
+// reducer.RepoRefreshIntentType here empties the bound repo_ids for all of
+// them and every one of those retracts silently stops running, leaving stale
+// edges with no error and no dead letter. That is a worse failure than the
+// over-delete it would prevent: a retract that no longer fires is wrong graph
+// truth, and wrong graph truth is a product failure.
+//
+// The four FENCED repo-wide-retract domains do NOT use this collector on their
+// whole-scope path any more; they use collectWholeScopeRefreshRepoIDs. The
+// difference between the two groups is where the rows come from, not what the
+// DELETE looks like. See RetractEdges (edge_writer_retract.go) for the split.
 func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
@@ -47,7 +62,24 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 }
 
 // collectWholeScopeRefreshRepoIDs is collectRepoIDs restricted to repo-wide
-// REFRESH rows that are not delta-scoped. It exists for the rationale EXPLAINS
+// REFRESH rows that are not delta-scoped. Every whole-scope retract in a
+// FENCED repo-wide-retract domain binds this collector: the rationale
+// mixed-batch branch it was written for, and -- since #6166 -- the non-delta
+// branches of inheritance, rationale, SQL relationships and shell exec.
+//
+// #6166: those four non-delta branches used to bind the batch-wide
+// collectRepoIDs. planRepoWideRetractWork routes unmarked legacy per-edge rows
+// into the retract alongside the refresh rows
+// (reducer/shared_projection_worker_refresh_fence.go), so one such row handed
+// its repository a whole-repository DELETE that erased its edges across every
+// file while only that batch's rows were rewritten. Each of the four domains
+// now carries a reachability test proving no current emitter can produce an
+// unmarked row -- every per-edge intent is stamped retract_via_refresh at
+// emission -- so the narrowing is a no-op on today's input and a guard for the
+// day an emitter changes. Narrowing the shared collectRepoIDs instead was
+// measured and rejected; see its doc for the five domains it breaks.
+//
+// It was originally written for the rationale EXPLAINS
 // domain's mixed-batch retract (#5998 review F6): one ProcessPartitionOnce
 // batch can legitimately contain some repositories' refresh rows correctly
 // flagged delta_projection:true (buildRationaleRefreshIntents,

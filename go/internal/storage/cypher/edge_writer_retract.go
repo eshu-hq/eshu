@@ -116,27 +116,56 @@ func (w *EdgeWriter) RetractEdges(
 		)
 	}
 
+	// Two groups share the batch-wide repoIDs below, and which group a domain
+	// is in decides whether narrowing it is a fix or a lost retract (#6166).
+	// Check the group before changing any call here.
+	//
+	// REPO-KEYED domains keep the batch-wide list. Their retract rows are
+	// synthesised per repository by the caller and carry no intent_type at
+	// all, so filtering on one empties the list and the retract silently stops
+	// running -- measured across code calls, repo dependency, submodule pin,
+	// codeowners and workload dependency. See the code-call note below.
+	//
+	// FENCED repo-wide-retract domains (inheritance, rationale, SQL
+	// relationships, shell exec) narrow to collectWholeScopeRefreshRepoIDs
+	// instead. Their retract rows come from planRepoWideRetractWork
+	// (reducer/shared_projection_worker_refresh_fence.go), which routes only
+	// per-repo refresh rows and unmarked legacy per-edge rows into the
+	// retract. A whole-repository DELETE is what the refresh row asked for; an
+	// unmarked per-edge row asked for a write, and binding it here erases its
+	// repository's edges across every file while only this batch's rows get
+	// rewritten. Each of the four has a reachability test proving no current
+	// emitter can produce such a row, so narrowing is a no-op on today's
+	// input and a guard against the emitters changing under us.
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainCodeCalls {
+		// Deliberately the batch-wide repoIDs, and NOT the narrowing the three
+		// fenced siblings below apply -- this branch looks like them and is
+		// not one (#6166). DomainCodeCalls is absent from
+		// domainHasRepoWideRetract, so its rows never pass through
+		// planRepoWideRetractWork at all; they are synthesised by
+		// buildCodeCallRepoRetractRows (reducer/code_call_projection_work.go),
+		// which emits a bare {"repo_id": ...} payload with no intent_type.
+		// Requiring the refresh intent_type here empties repoIDs and the
+		// code-call retract stops running entirely, leaving stale CALLS edges
+		// behind. Do not "fix" this for symmetry with its neighbours.
 		stmts := BuildRetractCodeCallEdgeStatements(repoIDs, evidenceSource)
 		return w.executeCodeCallRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainInheritanceEdges {
-		stmts := BuildRetractInheritanceEdgeStatements(repoIDs, evidenceSource)
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			return nil
+		}
+		stmts := BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
 		return w.executeInheritanceRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainRationaleEdges {
-		// Deliberately the batch-wide repoIDs, not the narrower
-		// collectWholeScopeRefreshRepoIDs the mixed-batch branch above uses.
-		// This is the no-delta-rows-in-the-batch case, and it retracts exactly
-		// the set the pre-#5998 dispatch did (buildRetractStatement's shared
-		// repo-id path); the probe guard is the only change. The narrower
-		// collector exists for the mixed branch because that branch is NEW
-		// code deciding which of a mixed batch's repositories deserve a
-		// whole-repository delete. Narrowing this path too would change which
-		// repositories get retracted, which is a scope change rather than a
-		// guard, and belongs in its own change with its own proof.
-		return w.retractRationaleEdgesWithProbe(ctx, repoIDs, evidenceSource)
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			return nil
+		}
+		return w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
 	}
 	if domain == reducer.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
@@ -147,7 +176,11 @@ func (w *EdgeWriter) RetractEdges(
 			stmts := BuildRetractSQLRelationshipEdgeStatementsByFilePath(filePaths, evidenceSource)
 			return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 		}
-		stmts := BuildRetractSQLRelationshipEdgeStatements(repoIDs, evidenceSource)
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			return nil
+		}
+		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
 		return w.executeSQLRelationshipRetractStatements(ctx, stmts)
 	}
 	if domain == reducer.DomainShellExec {
@@ -158,7 +191,11 @@ func (w *EdgeWriter) RetractEdges(
 		if hasDeltaScope {
 			return w.retractShellExecEdgesByFilePath(ctx, filePaths, evidenceSource)
 		}
-		return w.retractShellExecEdges(ctx, repoIDs, evidenceSource)
+		wholeScopeRepoIDs := collectWholeScopeRefreshRepoIDs(rows)
+		if len(wholeScopeRepoIDs) == 0 {
+			return nil
+		}
+		return w.retractShellExecEdges(ctx, wholeScopeRepoIDs, evidenceSource)
 	}
 	if domain == reducer.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)

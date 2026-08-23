@@ -285,7 +285,7 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
 	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
@@ -319,7 +319,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDispatch(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
 	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")

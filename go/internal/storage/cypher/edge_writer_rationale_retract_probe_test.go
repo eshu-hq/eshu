@@ -123,7 +123,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeSkipsDeleteWhenProbeFindsNothing(t 
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
@@ -135,6 +135,11 @@ func TestEdgeWriterRetractEdgesRationaleProbeSkipsDeleteWhenProbeFindsNothing(t 
 	if got := len(executor.executeCalls); got != 0 {
 		t.Fatalf("DELETE calls = %d, want 0 (probe found nothing, delete must be skipped)", got)
 	}
+	// The probe must have asked about repo-a specifically. Counting calls
+	// cannot tell "probed repo-a and found nothing" from "probed an empty
+	// repo_ids list", and the second would skip the DELETE for the wrong
+	// reason (#6166).
+	assertBoundRepoIDs(t, executor.probeCalls, []string{"repo-a"})
 }
 
 // TestEdgeWriterRetractEdgesRationaleProbeRunsDeleteWhenProbeFindsRows proves
@@ -148,7 +153,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeRunsDeleteWhenProbeFindsRows(t *tes
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
@@ -163,6 +168,10 @@ func TestEdgeWriterRetractEdgesRationaleProbeRunsDeleteWhenProbeFindsRows(t *tes
 	if !strings.Contains(executor.executeCalls[0].Cypher, "DELETE rel") {
 		t.Fatalf("executed statement = %q, want the DELETE retract", executor.executeCalls[0].Cypher)
 	}
+	// The Cypher assertion above is true even when repo_ids is empty, so the
+	// binding is what proves the delete would actually remove repo-a's edges
+	// rather than running over nothing (#6166).
+	assertBoundRepoIDs(t, executor.executeCalls, []string{"repo-a"})
 }
 
 // TestEdgeWriterRetractEdgesRationaleProbeUnsupportedRunsDeleteUnconditionally
@@ -177,7 +186,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUnsupportedRunsDeleteUnconditionall
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
@@ -189,6 +198,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUnsupportedRunsDeleteUnconditionall
 	if !strings.Contains(executor.calls[0].Cypher, "DELETE rel") {
 		t.Fatalf("executed statement = %q, want the DELETE retract", executor.calls[0].Cypher)
 	}
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 }
 
 // TestEdgeWriterRetractEdgesRationaleProbeErrorRunsDeleteUnconditionally
@@ -202,7 +212,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeErrorRunsDeleteUnconditionally(t *t
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
@@ -214,6 +224,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeErrorRunsDeleteUnconditionally(t *t
 	if got := len(executor.executeCalls); got != 1 {
 		t.Fatalf("DELETE calls = %d, want 1 (probe error must fail safe to unconditional delete)", got)
 	}
+	assertBoundRepoIDs(t, executor.executeCalls, []string{"repo-a"})
 }
 
 // TestEdgeWriterRetractEdgesRationaleProbeUsesSameParametersAsDelete proves
@@ -228,7 +239,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUsesSameParametersAsDelete(t *testi
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
