@@ -100,7 +100,33 @@ Used by the trusted `required-gates-complete` publisher. It verifies the pull
 request head, fetches every changed file, selects all matching blocking gates,
 resolves exact workflow/check identities from the trusted checkout, and polls
 until they pass. Failed, skipped, neutral, missing, and timed-out selected
-checks fail closed. Renames select against both the old and new path, so moving
+checks fail closed. A **cancelled** selected check does not
+([#6189](https://github.com/eshu-hq/eshu/issues/6189)): a cancelled run is
+infrastructure state, not a gate result, and calling it "A required gate
+failed" is what teaches people to read a red required status as noise. Once
+every selected gate is terminal and at least one was cancelled, await exits 13
+and the publisher posts `error` naming the re-run. Cancellation is detected
+from either `state=CANCELLED` or `bucket=cancel`, because the runner's `gh`
+version is not pinned and older releases folded cancellations into the `fail`
+bucket. A cancellation alongside a still-running gate keeps waiting, so a gate
+that goes genuinely red still publishes `failure`.
+
+The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
+`.github/workflows/required-gates.yml`, and only `10` may publish `failure`:
+
+| Exit | Meaning | Published status |
+| ---: | --- | --- |
+| `0` | every selected blocking gate passed | `success` |
+| `10` | a selected gate concluded failure | `failure` |
+| `11` | selected gates still running (timeout or superseded run) | nothing; the status stays pending for the next run |
+| `12` | aggregation could not reach a verdict (API error, bad token, unreadable registry) | `error` |
+| `13` | every selected gate is terminal and at least one was cancelled | `error` |
+
+Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
+be mistaken for a gate result. `internal/cigates` re-declares `11` and `13` to
+validate those workflow arms statically; `TestStillRunningCodeMatchesAwaitContract`
+and `TestGateCancelledCodeMatchesAwaitContract` pin the mirrors against this
+package's constants. Renames select against both the old and new path, so moving
 a file out of a gated tree cannot bypass its verifier. It verifies the head
 again before returning success. Pending reads back off from 30 seconds to five
 minutes. Per-head workflow concurrency keeps one aggregate running and retains

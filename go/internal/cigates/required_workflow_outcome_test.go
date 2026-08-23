@@ -26,6 +26,7 @@ func TestCheckRequiredStatusWorkflows_RequiresOutcomeBranchedPublisher(t *testin
             0) state=success ;;
             10) state=failure ;;
             11) exit 0 ;;
+            13) state=error ;;
             *) state=error ;;
           esac
 `, "          state=failure\n", 1)
@@ -41,5 +42,53 @@ func TestCheckRequiredStatusWorkflows_RequiresOutcomeBranchedPublisher(t *testin
 	}
 	if !found {
 		t.Fatalf("expected an await-exit-code branching error, got %v", errs)
+	}
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsCancelledGateMappedToFailure is the
+// static mirror of #6189. The aggregate published "A required gate failed" for
+// heads where eleven dependency gates were CANCELLED and none had failed. The
+// Go classification is only half the contract; the other half is this case
+// arm, and a workflow-only revert of it would restore the overclaim with
+// nothing to catch it.
+func TestCheckRequiredStatusWorkflows_RejectsCancelledGateMappedToFailure(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, "            13) state=error ;;\n", "            13) state=failure ;;\n", 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a publisher mapping the cancelled-gate outcome to failure must be rejected")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "cancelled-gate outcome") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a cancelled-gate overclaim error, got %v", errs)
+	}
+}
+
+// TestCheckRequiredStatusWorkflows_RequiresCancelledGateArm catches deletion
+// rather than inversion: with no `13)` arm at all, a cancelled dependency
+// falls through to the `*)` arm and is described as the aggregator breaking,
+// which is a different -- and wrong -- 3 AM investigation.
+func TestCheckRequiredStatusWorkflows_RequiresCancelledGateArm(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, "            13) state=error ;;\n", "", 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("a publisher with no cancelled-gate arm must be rejected")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "no cancelled-gate arm") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a missing cancelled-gate arm error, got %v", errs)
 	}
 }

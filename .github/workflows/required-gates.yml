@@ -152,6 +152,14 @@ jobs:
           # authoritative, and makes any lander abandon a green PR.
           #
           # `failure` is reserved for a gate that genuinely concluded failure.
+          # A CANCELLED dependency gate is not one (#6189): cancellations are
+          # background noise, and calling one "A required gate failed" is the
+          # same overclaim in a different costume. It publishes `error`, which
+          # still blocks the merge -- branch protection requires success -- but
+          # names the actual repair (re-run the cancelled workflow) instead of
+          # sending someone hunting for a red gate that does not exist. It is
+          # not folded into the `*)` arm because that arm's description blames
+          # the aggregator, which is a different 3 AM investigation.
           # Gates still running publish nothing at all -- another Required
           # Gates run for this same head is already queued behind the
           # workflows that are still going, and it is authoritative. Writing
@@ -168,6 +176,7 @@ jobs:
                 echo "::notice::selected gates still running; leaving required-gates-complete pending for the next run"
                 exit 0
                 ;;
+              13) state=error; description='A required gate was cancelled; re-run it (no gate failed)' ;;
               *) state=error; description='Required gate aggregation broke (not a gate result)' ;;
             esac
           fi

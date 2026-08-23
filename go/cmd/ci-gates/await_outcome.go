@@ -53,6 +53,31 @@ const (
 	// awaitExitBroken means aggregation could not reach a verdict at all
 	// (API error, bad token, unreadable registry). A publisher problem.
 	awaitExitBroken = 12
+	// awaitExitGateCancelled means every selected gate reached a terminal
+	// state and at least one of them was CANCELLED (#6189). Infrastructure
+	// state, not a gate result, so it publishes `error` rather than
+	// `failure`.
+	//
+	// Why `error` and not "re-await it as still running": a cancelled check
+	// run is TERMINAL. GitHub does not restart it on its own -- only a new
+	// push (which produces a different head SHA, and therefore a different
+	// aggregate) or an explicit rerun recreates it. Re-awaiting would poll an
+	// unchanging terminal state until --timeout 55m, return
+	// awaitExitStillRunning, and hit the publisher's `11` arm, which
+	// deliberately publishes NOTHING. `required-gates-complete` would then sit
+	// on the `pending` posted by the first step, forever, on every subsequent
+	// aggregate run for that head -- a required status stuck pending with zero
+	// red checks, which blocks the merge with nothing an operator can act on.
+	// It also burns a 55-minute runner slot per triggering workflow. So the
+	// re-await option cannot terminate, and `error` is the honest answer: it
+	// blocks the merge (branch protection requires success), stays visible,
+	// and does not assert a gate outcome that never happened.
+	//
+	// It is deliberately NOT folded into awaitExitBroken (12): that arm
+	// publishes "Required gate aggregation broke (not a gate result)", which
+	// would send an operator hunting a broken aggregator at 3 AM when the
+	// actual repair is `gh run rerun` on the cancelled workflow.
+	awaitExitGateCancelled = 13
 )
 
 // awaitOutcome is what the await loop concluded, as opposed to how it exited.
@@ -63,6 +88,7 @@ const (
 	awaitOutcomeGateFailed
 	awaitOutcomeStillRunning
 	awaitOutcomeBroken
+	awaitOutcomeGateCancelled
 )
 
 func (o awaitOutcome) String() string {
@@ -75,6 +101,8 @@ func (o awaitOutcome) String() string {
 		return "still_running"
 	case awaitOutcomeBroken:
 		return "broken"
+	case awaitOutcomeGateCancelled:
+		return "gate_cancelled"
 	}
 	return "unknown"
 }
@@ -90,6 +118,8 @@ func (o awaitOutcome) exitCode() int {
 		return awaitExitStillRunning
 	case awaitOutcomeBroken:
 		return awaitExitBroken
+	case awaitOutcomeGateCancelled:
+		return awaitExitGateCancelled
 	}
 	return awaitExitBroken
 }
@@ -102,9 +132,14 @@ func (o awaitOutcome) exitCode() int {
 var (
 	errGateFailed   = errors.New("selected blocking gate failed")
 	errStillRunning = errors.New("selected blocking gates still running")
+	// errGateCancelled is the #6189 sentinel: every selected gate is terminal
+	// and at least one was CANCELLED. Same structural-wrapping reason as the
+	// other two -- a text match would reclassify silently the first time
+	// someone reworded the message.
+	errGateCancelled = errors.New("selected blocking gate cancelled")
 )
 
-// classifyAwaitOutcome decides which of the three non-success meanings an
+// classifyAwaitOutcome decides which of the four non-success meanings an
 // await error carries. Anything unrecognized is `broken`, not `gate_failed`:
 // an unclassified error means the publisher does not know what happened, and
 // reporting "a gate failed" on that basis is the overclaim this fixes.
@@ -117,6 +152,8 @@ func classifyAwaitOutcome(err error) awaitOutcome {
 		return awaitOutcomeGateFailed
 	case errors.Is(err, errStillRunning):
 		return awaitOutcomeStillRunning
+	case errors.Is(err, errGateCancelled):
+		return awaitOutcomeGateCancelled
 	default:
 		return awaitOutcomeBroken
 	}

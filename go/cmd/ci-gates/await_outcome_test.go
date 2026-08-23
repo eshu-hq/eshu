@@ -102,6 +102,7 @@ func TestAwaitOutcomeExitCodesAreDistinct(t *testing.T) {
 		awaitOutcomeGateFailed,
 		awaitOutcomeStillRunning,
 		awaitOutcomeBroken,
+		awaitOutcomeGateCancelled,
 	} {
 		if prev, dup := seen[o.exitCode()]; dup {
 			t.Fatalf("outcomes %v and %v share exit code %d", prev, o, o.exitCode())
@@ -123,6 +124,7 @@ func TestAwaitOutcomeIgnoresLookalikeText(t *testing.T) {
 	for _, err := range []error{
 		errors.New("selected blocking checks failed: go-core (Build Test)"),
 		errors.New("timed out waiting for selected blocking checks (go-race (2))"),
+		errors.New("selected blocking checks cancelled: docs-helm-hygiene=CANCELLED"),
 	} {
 		if got := classifyAwaitOutcome(err); got != awaitOutcomeBroken {
 			t.Errorf("classifyAwaitOutcome(unwrapped %q) = %v, want %v — classification must be structural, not textual", err, got, awaitOutcomeBroken)
@@ -184,7 +186,12 @@ func TestAwaitExitCodesAvoidToolchainRange(t *testing.T) {
 	t.Parallel()
 
 	for _, reserved := range []int{1, 2} {
-		for _, o := range []awaitOutcome{awaitOutcomeGateFailed, awaitOutcomeStillRunning, awaitOutcomeBroken} {
+		for _, o := range []awaitOutcome{
+			awaitOutcomeGateFailed,
+			awaitOutcomeStillRunning,
+			awaitOutcomeBroken,
+			awaitOutcomeGateCancelled,
+		} {
 			if o.exitCode() == reserved {
 				t.Errorf("outcome %v uses exit code %d, which `go run` or a usage error can produce on its own", o, reserved)
 			}

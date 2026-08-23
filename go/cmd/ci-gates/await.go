@@ -108,6 +108,10 @@ type requiredCheckFinding struct {
 type requiredCheckEvaluation struct {
 	Pending []requiredCheckFinding
 	Failed  []requiredCheckFinding
+	// Cancelled holds gates whose check concluded CANCELLED (#6189). A
+	// cancellation is infrastructure state, not a gate result, so it is kept
+	// apart from Failed: only Failed may publish `failure`.
+	Cancelled []requiredCheckFinding
 }
 
 func resolveRequiredGateWorkflows(repoRoot string, gates []cigates.RequiredGate) ([]resolvedRequiredGate, error) {
@@ -172,27 +176,51 @@ func evaluateRequiredChecks(required []resolvedRequiredGate, checks []checkRollu
 		}
 
 		gatePending := false
-		var gateFailure *checkRollup
+		var gateFailure, gateCancellation *checkRollup
 		for i := range matches {
 			check := &matches[i]
-			switch strings.ToLower(check.Bucket) {
-			case "pass":
+			switch {
+			case strings.EqualFold(check.Bucket, "pass"):
 				continue
-			case "pending":
+			case strings.EqualFold(check.Bucket, "pending"):
 				gatePending = true
+			case isCancelledCheck(*check):
+				gateCancellation = check
 			default:
 				gateFailure = check
 			}
 		}
-		if gateFailure != nil {
+		// Precedence is failure > pending > cancelled, and the order matters
+		// in both directions (#6189). Failure first: a gate that genuinely
+		// concluded failure must keep blocking even when other legs of the
+		// same gate were cancelled. Pending before cancelled: a leg still
+		// running may yet go red, so reporting "cancelled" while one is in
+		// flight would hide a real failure behind a softer verdict.
+		switch {
+		case gateFailure != nil:
 			evaluation.Failed = append(evaluation.Failed, findingFor(gate, gateFailure.State))
-			continue
-		}
-		if gatePending {
+		case gatePending:
 			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "PENDING"))
+		case gateCancellation != nil:
+			evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, gateCancellation.State))
 		}
 	}
 	return evaluation
+}
+
+// isCancelledCheck reports whether a check rollup entry describes a run that
+// was CANCELLED rather than one that failed.
+//
+// Both signals are accepted because the runner's `gh` version is not pinned by
+// this repository. gh buckets CANCELLED as "cancel" (verified in cli/cli
+// v2.97.0 pkg/cmd/pr/checks/aggregate.go, the version installed here); older
+// gh releases folded CANCELLED into the "fail" bucket alongside ERROR and
+// TIMED_OUT. The `state` field carries the literal GitHub conclusion in both,
+// which is why the #6189 transcript could report `=CANCELLED` on findings the
+// aggregate had already filed as failures. Matching either signal means a gh
+// upgrade or downgrade on the runner cannot silently restore the overclaim.
+func isCancelledCheck(check checkRollup) bool {
+	return strings.EqualFold(check.State, "CANCELLED") || strings.EqualFold(check.Bucket, "cancel")
 }
 
 func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRollup {
@@ -332,6 +360,13 @@ func awaitPRRequiredChecks(
 			return fmt.Errorf("%w: %s", errGateFailed, formatFindings(evaluation.Failed))
 		}
 		if len(evaluation.Pending) == 0 {
+			if len(evaluation.Cancelled) > 0 {
+				// Every remaining gate is terminal and at least one was
+				// cancelled (#6189). Wrapped so classifyAwaitOutcome
+				// recognises this structurally: it is infrastructure state,
+				// not a gate result, and must not publish `failure`.
+				return fmt.Errorf("%w: %s", errGateCancelled, formatFindings(evaluation.Cancelled))
+			}
 			_, _ = fmt.Fprintf(out, "required-gates: all %d selected blocking workflow job(s) passed\n", len(required))
 			return nil
 		}

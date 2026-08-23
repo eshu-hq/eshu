@@ -205,7 +205,14 @@ gates its changed paths select:
   exact pull-request head. It maps changed paths to every registry row marked
   `blocking: true`, then waits for the exact workflow/check names declared by
   those rows. A selected failed, skipped, missing, or timed-out check makes the
-  aggregate fail. Per-head concurrency keeps one aggregate running and retains
+  aggregate fail. A selected **cancelled** check does not: a cancellation is
+  infrastructure state, not a gate result, so the aggregate publishes `error`
+  with a description naming the re-run rather than claiming a gate failed
+  ([#6189](https://github.com/eshu-hq/eshu/issues/6189)). `error` still blocks
+  the merge — the ruleset requires `success` — so nothing is waved through; the
+  status just stops asserting an outcome that never happened. A cancellation
+  alongside a still-running gate keeps waiting, so a gate that goes genuinely
+  red is still reported as `failure`. Per-head concurrency keeps one aggregate running and retains
   only the latest pending run without cancelling the active status writer. An
   aggregate that starts posts pending before checkout or setup, then reaches a
   real terminal result; the retained run posts pending again before it
