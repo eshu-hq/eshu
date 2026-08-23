@@ -399,14 +399,51 @@ func TestValidate_CommittedRegistryGlobTriggersAllResolve(t *testing.T) {
 		t.Fatalf("Load(specs/ci-gates.v1.yaml): %v", err)
 	}
 
-	var stale []string
-	for _, e := range reg.Validate(repoRoot) {
-		if msg := e.Error(); strings.Contains(msg, "tracked path") {
-			stale = append(stale, msg)
+	// No substring filter. An earlier version of this guard collected only
+	// errors containing "tracked path", but the stale-trigger error says
+	// "matches no tracked file" -- so seeding a stale glob into the committed
+	// registry left this test GREEN, which is precisely the defect #6159
+	// exists to remove, sitting inside the test written to catch it. Asserting
+	// on the whole error set instead cannot drift when a message is reworded:
+	// the committed registry is expected to validate completely clean, which
+	// is the same thing scripts/verify-ci-gates-registry.sh asserts.
+	if errs := reg.Validate(repoRoot); len(errs) != 0 {
+		msgs := make([]string, 0, len(errs))
+		for _, e := range errs {
+			msgs = append(msgs, e.Error())
+		}
+		t.Fatalf("committed registry produced %d validation error(s):\n%s", len(errs), strings.Join(msgs, "\n"))
+	}
+}
+
+// TestValidate_CommittedRegistryGuardCatchesAStaleGlob proves the guard above
+// can actually fail. It rebuilds the committed registry in memory with one
+// bogus glob trigger appended and asserts Validate reports it -- the negative
+// half the original guard lacked, which is how a filter that matched no real
+// error survived review as a passing test.
+func TestValidate_CommittedRegistryGuardCatchesAStaleGlob(t *testing.T) {
+	t.Parallel()
+	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	reg, err := cigates.Load(filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatalf("Load(specs/ci-gates.v1.yaml): %v", err)
+	}
+	if len(reg.Gates) == 0 {
+		t.Fatal("committed registry has no gates")
+	}
+	reg.Gates[0].Triggers = append(reg.Gates[0].Triggers, "go/internal/cigates/*this-surface-does-not-exist*.go")
+	errs := reg.Validate(repoRoot)
+	if len(errs) == 0 {
+		t.Fatal("Validate() accepted a glob trigger matching no tracked file; the committed-registry guard cannot fail and would not notice a real stale trigger")
+	}
+	var named bool
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "this-surface-does-not-exist") {
+			named = true
 		}
 	}
-	if len(stale) != 0 {
-		t.Fatalf("committed registry has %d trigger(s) that resolve to nothing:\n%s", len(stale), strings.Join(stale, "\n"))
+	if !named {
+		t.Fatalf("Validate() errored but named no trigger: %v", errs)
 	}
 }
 
