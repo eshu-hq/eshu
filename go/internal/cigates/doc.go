@@ -49,8 +49,10 @@
 // can never select its gate, leaving the gate reading as wired for a surface
 // it no longer guards. Resolving that is the one place this package runs git,
 // and it is why Validate — unlike Select — is a reader of the work tree rather
-// than a pure function; a tracked path set that cannot be read is an error
-// too, never a skip.
+// than a pure function; a tracked path set that cannot be read, or that comes
+// back empty, is an error too, never a skip. That git call runs with the
+// ambient repository pointers stripped, so an inherited GIT_DIR cannot make it
+// verify triggers against a different checkout and still report success.
 //
 // # Drift (#4220)
 //

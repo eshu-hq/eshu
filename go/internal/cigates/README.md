@@ -114,7 +114,9 @@ The tracked set — not a filesystem walk — is the universe because it is what
 
 If the tracked set cannot be read at all (git missing, `repo-root` not a work tree, git exiting non-zero, an empty tracked set), that is one reported error and the run fails: an unverifiable trigger must not read as present. This is the only place the package runs git; `Select` and `Load` stay pure.
 
-The universe is enumerated once per `Validate` call and indexed by first path segment. Measured on this repository (21,990 paths, 499 glob triggers): 53ms, against 666ms for a per-path `MatchGlob` scan, same verdicts.
+The universe is enumerated once per `Validate` call and indexed by first path segment. Measured on this repository — 21,993 paths (20,197 tracked files plus the directories they imply) against 499 glob triggers, median of repeated runs on one machine: matching costs 48ms, against 830ms for a per-path `MatchGlob` scan, with the same verdicts (499/499 resolve either way). Building the universe costs a further 14ms end to end, of which roughly 9ms is the `git ls-files` subprocess and 5ms the in-memory split and index.
+
+`git -C <repo-root>` does not by itself decide which repository git reads. An ambient `GIT_DIR` overrides it, and pointed at a second checkout of the same repository the gate exits 0 and prints `PASS` having resolved every trigger against the other tree — measured at 20,194 paths from the wrong checkout against 20,197 from the right one. `loadTrackedPaths` therefore drops `GIT_DIR` and its siblings from the child environment. `GIT_INDEX_FILE` is kept, because a pre-commit hook exports it (and nothing else) to name the pending index of the tree being committed; a hand-exported one naming another repository's index is a residual the code comment records.
 
 ## Drift semantics ([#4220](https://github.com/eshu-hq/eshu/issues/4220))
 

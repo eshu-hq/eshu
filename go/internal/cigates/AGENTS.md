@@ -29,9 +29,22 @@ and `eshu-diagnostic-rigor`.
   glob triggers against ~22k paths is ~11M pattern comparisons; re-enumerating
   or re-splitting per trigger is the shape `checkTriggerPathsExist` already
   had to have a comment written about. `matchesAny` reuses `matchSegments`
-  behind a first-segment index rather than calling `MatchGlob` per path, so
-  `TestTrackedPaths_MatchesAnyAgreesWithMatchGlob` is what keeps the two in
-  lockstep — extend it when either side gains a guard clause.
+  behind a first-segment index rather than calling `MatchGlob` per path, and
+  the two tests guarding that are not interchangeable:
+  `TestTrackedPaths_MatchesAnyAgreesWithMatchGlob` keeps the two matchers in
+  lockstep on VERDICTS — extend it when either side gains a guard clause — and
+  `TestTrackedPaths_MatchesAnyConsultsTheFirstSegmentIndex` keeps the index
+  itself. Only the second one notices `matchesAny` collapsing back into the
+  per-path scan, because both forms answer identically and differ only in
+  cost. It works by handing `matchesAny` a deliberately desynchronised
+  universe; keep that, or the design has no guard again.
+- **`loadTrackedPaths` runs git under `gitTreeEnv`, never a plain inherit.**
+  `git -C <repoRoot>` does not decide which repository git reads: an ambient
+  `GIT_DIR` overrides it and the gate then PASSES against another checkout's
+  tree. `GIT_INDEX_FILE` is kept on purpose — it is the one variable a
+  pre-commit hook exports, and it names the pending index the hook should be
+  validating. Do not "simplify" this back to `os.Environ()`, and do not drop
+  `GIT_INDEX_FILE` with it.
 - **Validate accumulates errors.** Never return early from `Validate`; collect
   all integrity errors in a single pass so a single run surfaces every broken
   reference.

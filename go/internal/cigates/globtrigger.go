@@ -6,6 +6,7 @@ package cigates
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -58,12 +59,12 @@ type trackedPaths struct {
 // present. That is the same fail-closed rule the literal check applies to a
 // stat it could not complete.
 //
-// The child process inherits this process's environment on purpose. Under a
-// git hook, GIT_DIR and GIT_INDEX_FILE describe the very tree being committed,
-// which is the state a pre-commit gate should be validating; clearing them
-// would silently validate a different one.
+// The child runs under gitTreeEnv, not a plain inherit: "-C repoRoot" alone
+// does not pin which repository git reads, and enumerating a different one
+// still produces a verdict.
 func loadTrackedPaths(repoRoot string) (*trackedPaths, error) {
 	cmd := exec.Command("git", "-C", repoRoot, "ls-files", "-z")
+	cmd.Env = gitTreeEnv(os.Environ())
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	// -z keeps paths raw: without it git applies core.quotepath and would hand
@@ -106,6 +107,64 @@ func loadTrackedPaths(repoRoot string) (*trackedPaths, error) {
 	return tp, nil
 }
 
+// gitTreeEnv returns env with the variables that retarget a git command at a
+// different repository removed, so that "git -C repoRoot" actually describes
+// repoRoot.
+//
+// "-C" is not authoritative, and the failure is silent rather than loud.
+// Measured on this repository with --repo-root naming one worktree and the
+// variable naming a second checkout of the same repository (the normal state of
+// a machine that develops in worktrees): under GIT_DIR the gate exited 0 and
+// printed PASS while git had enumerated 20,194 paths from the OTHER checkout
+// instead of 20,197 from the tree under test. A trigger whose last file was
+// just deleted here then passes on the strength of a copy that still has it —
+// the #6159 defect arriving through the environment instead of the registry.
+//
+// Only GIT_DIR and GIT_INDEX_FILE were measured to change what `git ls-files`
+// returns; GIT_WORK_TREE and GIT_COMMON_DIR did not, because ls-files reads the
+// index rather than the work tree. The rest of the list below is dropped as
+// belt-and-braces — each retargets some git command, none is set by anything
+// legitimate in this path — not because each was shown to move this one.
+//
+// GIT_INDEX_FILE is deliberately KEPT, which is why this is a filter and not a
+// clean environment. Measured on git 2.50.1: a pre-commit hook exports
+// GIT_INDEX_FILE and NOTHING else — not GIT_DIR, not GIT_WORK_TREE — and under
+// "git commit -a" and "git commit --only" it names a pending index
+// (<gitdir>/index.lock, <gitdir>/next-index-<pid>.lock) describing the tree
+// being committed rather than the one on disk. That is the state a pre-commit
+// gate should validate: drop it and a commit that deletes the last file a glob
+// names passes the hook it should fail.
+//
+// The residual, stated rather than hidden: a GIT_INDEX_FILE naming ANOTHER
+// repository's index is still honoured, and was measured to produce the same
+// false PASS. Separating that from the hook's own pending index means
+// discovering repoRoot's git-dir and comparing both paths through symlinks,
+// which is a design decision with a real trade-off against the hook case, not a
+// mechanical fix. No hook produces that value; only a hand-exported one does.
+func gitTreeEnv(env []string) []string {
+	retargeting := map[string]struct{}{
+		"GIT_DIR":                          {},
+		"GIT_WORK_TREE":                    {},
+		"GIT_COMMON_DIR":                   {},
+		"GIT_OBJECT_DIRECTORY":             {},
+		"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
+		"GIT_NAMESPACE":                    {},
+		"GIT_CEILING_DIRECTORIES":          {},
+		"GIT_DISCOVERY_ACROSS_FILESYSTEM":  {},
+	}
+	kept := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, drop := retargeting[name]; drop {
+				continue
+			}
+		}
+		kept = append(kept, entry)
+	}
+	return kept
+}
+
 // add records path in the universe, reporting whether it was new. Ancestor
 // directories are shared by many files, so the dedupe is what keeps the
 // universe proportional to the tree rather than to the file count times its
@@ -129,10 +188,18 @@ func (t *trackedPaths) add(path string, seen map[string]struct{}) bool {
 // It shares MatchGlob's matcher rather than calling MatchGlob per path, which
 // would re-split the pattern and the path on every one of the ~11M
 // (trigger, path) pairs the committed registry produces. Measured on this
-// repository: 666ms for the per-path MatchGlob form against 53ms for this one
-// (plus 3ms to build the index), same verdicts.
-// TestTrackedPaths_MatchesAnyAgreesWithMatchGlob pins that equivalence, since
-// the two now share a matcher core but not the guard clauses around it.
+// repository (21,993 paths — 20,197 tracked files plus the directories they
+// imply — against 499 glob triggers), median of repeated runs on one machine:
+// 48ms for this form against 830ms for the per-path MatchGlob form, same
+// verdicts (499/499 resolve either way). Building the universe costs a further
+// 14ms end to end, of which ~9ms is the git ls-files subprocess and ~5ms the
+// in-memory split and index.
+//
+// TestTrackedPaths_MatchesAnyAgreesWithMatchGlob pins the equivalence, since
+// the two share a matcher core but not the guard clauses around it, and
+// TestTrackedPaths_MatchesAnyConsultsTheFirstSegmentIndex pins the index
+// itself — the verdicts are identical either way, so nothing else in the
+// package notices this collapsing back into the 830ms form.
 func (t *trackedPaths) matchesAny(pattern string) bool {
 	if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
 		return false
