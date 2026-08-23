@@ -220,6 +220,10 @@ gates:
       # edit would not select the gate that validates it, which is the same
       # silent rot the check exists to catch.
       - ".claude/hooks/**"
+      # settings.json for the same reason: test-agent-hooks.sh asserts the
+      # (event, matcher, command) triple in it, so a wiring-only edit -- moving
+      # a hook to the wrong event -- must select the gate that would catch it.
+      - ".claude/settings.json"
       - ".opencode/agent/**"
       - "AGENTS.md"
       - "CLAUDE.md"

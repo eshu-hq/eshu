@@ -9,6 +9,14 @@
 set -u
 INPUT=$(cat)
 
+# Degrade on a missing interpreter, like every sibling hook. Without this the
+# hook prints "python3: command not found" on every session start and skips the
+# marker clearing anyway. No correctness hole -- skill-nudge.sh degrades too, so
+# nothing consults a marker this failed to clear -- but "degrade, never fail
+# closed" is a documented property of this set, and three of four honouring it
+# is how the fourth becomes the surprise.
+command -v python3 >/dev/null 2>&1 || exit 0
+
 # Clear this session's loaded-skill markers FIRST, before any scope check.
 #
 # skill-nudge.sh treats a marker as "the skill is in this context window", and

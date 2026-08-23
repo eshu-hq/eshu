@@ -96,5 +96,5 @@ if [ -z "$BUSY" ] && command -v lsof >/dev/null 2>&1; then
 fi
 [ -z "$BUSY" ] && exit 0
 
-echo "BLOCKED: $BUSY. A second live gate now would contend for the same fixed ports and CPU, and any failure it produced would not be attributable to your diff. Wait for the running gate to finish, or move the whole stack: ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575 (all three -- Postgres alone still collides on Bolt and HTTP). One-off override: prefix CLAUDE_HOOK_ALLOW=1." >&2
+echo "BLOCKED: $BUSY. A second live gate now would contend for the same fixed ports and CPU, and any failure it produced would not be attributable to your diff. Wait for the running gate to finish, or move every probed port: ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575 GATE_API_PORT=18081 GATE_MCP_PORT=18092 (all five -- each probe is waived only by its own variable, so moving a subset still trips the rest). One-off override: prefix CLAUDE_HOOK_ALLOW=1." >&2
 exit 2
