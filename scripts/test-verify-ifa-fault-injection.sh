@@ -118,7 +118,7 @@ run_ifa_fault_entrypoint_static_cases; run_ifa_fault_cell_catalog_cases; run_ifa
 # (now in the driver lib's drive_all_cassettes helper).
 require_code "demo-org cassette" "testdata/cassettes/gcpcloud/supply-chain-demo.json"
 require_code "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
-require_driver "drive verb invocation" 'eshu-ifa" drive -cassette'
+require_driver "demo-org drive in every cell" 'eshu-ifa" drive -cassette "${cassette}" -workers "${drive_workers}"'; require_driver "synth drive in every cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${drive_workers}"'  # packed for the 500-line cap; bind each drive, not the shared verb -- the SQL and deployable-unit drives below have their own pins, so the bare verb stayed green with either of these two replaced by `true` (#6161)
 require_driver "vacuous-drive guard" "vacuous drain proof"
 
 # SQL relationship family cassette (#5351): driven into every cell so cells
