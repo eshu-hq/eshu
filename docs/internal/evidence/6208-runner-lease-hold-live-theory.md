@@ -276,7 +276,7 @@ PostgreSQL `observed_at` is not compared with that Go-supplied timestamp because
 they come from separate clocks. The final table state must have every captured
 lease released and updated after its post-kill dead-owner capture.
 
-The exact source head `e296f90854e65b16b00c655e205f75e3206fd392`
+The exact source head `8abc847add173ea00684faf1cc261e0cdc1a0038`
 passed the full shard with RC 0:
 
 ```text
@@ -286,7 +286,7 @@ bash scripts/verify-ifa-fault-injection.sh --shard 2/4
 | Cell | Pending intents | Exact waiters | Attempt fence and distinct-owner transition audit | Dead letters | Wall time |
 | --- | ---: | ---: | --- | ---: | ---: |
 | `killworker_handles_route` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
-| `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
+| `killworker_runs_in` | 3 | 4 | all captured keys claimed after expiry and released | 0 | 20 s |
 | `killworker_invokes_cloud_action` | 2 | 4 | all captured keys claimed after expiry and released | 0 | 19 s |
 
 ### No-Regression Evidence:
@@ -295,7 +295,7 @@ The baseline is the merged #6214 harness on the same committed symbol-runtime
 cassette, four shared-projection workers, PostgreSQL 18, and Compose-pinned
 NornicDB `eshu-nornicdb-pr290:3722b483c02c`. Its 13 s, 11 s, and 71 s cell
 totals are not speedup baselines because the fixed owner could bypass the
-dead-owner expiry fence. The corrected 19 s, 19 s, and 19 s runs include the
+dead-owner expiry fence. The corrected 19 s, 20 s, and 19 s runs include the
 intentional eight-second proof TTL and wait for the captured timestamps. They
 ended with 3, 3, and 2 target intents complete, every captured lease released,
 the exact graph oracles and digest restored, and zero dead letters. Production
