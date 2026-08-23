@@ -2,7 +2,7 @@
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
 MCP server, the JSON-RPC dispatcher, the SSE session model, the HTTP transport
-authentication (issue #5168), and the 159 read-only tool definitions. Tool
+authentication (issue #5168), and the registered read-only tool definitions. Tool
 dispatch calls into the same `http.Handler` chain the HTTP API uses, so a tool
 response and the corresponding HTTP query response share the same truth. Dispatch wraps each handler request in a
 bounded context with a deterministic 30s default, so MCP calls cannot run
@@ -18,6 +18,11 @@ default roles, and sensitive-data marker.
 structured response preserves collector `collector_contract` provenance, so MCP
 callers can trace fact kinds to projection/read consumers, proof gates, fixture
 refs, and deterministic/provider-gated/optional-semantic truth profiles.
+
+The dependency-neutral `toolcontract` child package owns the
+`ToolDefinition` data shape. `mcp.ToolDefinition` remains an alias for source
+compatibility, while ordered registration, routing, dispatch, transport, and
+authorization stay in this root package.
 
 ## Where this fits in the pipeline
 
@@ -131,7 +136,7 @@ dispatch observability surface.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 160 tools from the tool definition files.
+`ReadOnlyTools` assembles the registered tools from the tool definition files.
 `ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
 count; the per-group table below lists the major static groups for orientation
 and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
@@ -427,8 +432,8 @@ membership as trust.
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
 | `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
-| `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 159 tool definitions |
+| `ToolDefinition` | `types.go:12` | `Name`, `Description`, `InputSchema` |
+| `ReadOnlyTools` | `types.go:15` | returns all registered tool definitions in stable order |
 
 ## SSE session model
 
@@ -494,6 +499,8 @@ with a giant body.
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
+`internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
+shape),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
 and `internal/telemetry` (`transport_auth_metrics.go` registers one counter

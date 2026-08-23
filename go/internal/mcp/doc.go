@@ -3,6 +3,11 @@
 
 // Package mcp implements the Model Context Protocol tool surface for Eshu.
 //
+// ToolDefinition aliases the dependency-neutral toolcontract definition so
+// domain registration packages can be extracted without importing this parent
+// package. ReadOnlyTools remains the sole ordered assembler; routing, dispatch,
+// transport, authorization, and query execution remain owned here.
+//
 // MCP tools dispatch into the same HTTP query handlers that power the public
 // HTTP API, so a tool response and the corresponding HTTP query response
 // share truth. Dispatch gives each handler request a bounded child context with

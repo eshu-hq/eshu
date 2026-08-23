@@ -20,6 +20,7 @@ live in the repository today.
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP transport and tool wiring |
+| `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |

@@ -3,16 +3,17 @@
 
 package mcp
 
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
 // ToolDefinition describes one MCP tool exposed to clients.
-type ToolDefinition struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	InputSchema any    `json:"inputSchema"`
-}
+//
+// It aliases the dependency-neutral toolcontract definition so registration
+// families can move below internal/mcp without importing their parent package.
+type ToolDefinition = toolcontract.ToolDefinition
 
 // ReadOnlyTools returns all read-only MCP tool definitions.
 func ReadOnlyTools() []ToolDefinition {
-	tools := make([]ToolDefinition, 0, 160)
+	tools := make([]ToolDefinition, 0, 162)
 	tools = append(tools, codebaseTools()...)
 	tools = append(tools, codeFlowTools()...)
 	tools = append(tools, repositoryLanguageTools()...)
