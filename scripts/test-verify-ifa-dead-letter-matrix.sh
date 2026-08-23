@@ -17,19 +17,23 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-dead-letter-matrix.sh"
 lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
+pins_lib="${repo_root}/scripts/lib/ifa_mirror_pins.sh"
 
 fail() { printf 'test-verify-ifa-dead-letter-matrix: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-ifa-dead-letter-matrix.sh must be executable"
 [[ -f "${lib}" ]] || fail "missing ${lib}"
+[[ -f "${pins_lib}" ]] || fail "missing ${pins_lib}"
+bash -n "${pins_lib}" || fail "ifa_mirror_pins.sh has a syntax error"
 
 bash -n "${script}" || fail "verify-ifa-dead-letter-matrix.sh has a syntax error"
 
-require() {
-	local label="$1" needle="$2"
-	rg --fixed-strings --quiet -- "${needle}" "${script}" || fail "missing ${label}: ${needle}"
-}
+# Pin helpers are shared with the sibling mirror so there is ONE matcher, not a
+# private copy per mirror that drifts. `require` binds LIVE CODE: the bare
+# whole-file match this used to be was satisfied by a comment, which is #6161.
+# shellcheck source=scripts/lib/ifa_mirror_pins.sh
+source "${pins_lib}"
 
 # Strict mode and self-cleanup, shared with every sibling verify-ifa-*.sh.
 require "strict mode" "set -euo pipefail"
@@ -112,8 +116,23 @@ require "at-least-one-dead-letter guard" "produced 0 durable dead-letter rows"
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
-	fail "verify-ifa-dead-letter-matrix.sh looks like it contains private data"
-fi
+# Scans the shared pin lib too, not just the gate: it was added by #6161 and
+# nothing else in the tree covers it -- the determinism mirror's derived scan
+# only reaches *_lib variables bound in ITS scope.
+for private_target in "${script}" "${pins_lib}"; do
+	if rg --pcre2 --quiet -- "${private_pattern}" "${private_target}"; then
+		fail "$(basename "${private_target}") looks like it contains private data"
+	fi
+done
+
+# Every pin helper above must BIND CODE. Run last, so `compgen -A function`
+# sees them all. This is what stops #6161 from being reintroduced: a helper
+# added later is discovered and executed, not trusted.
+ifa_mirror_assert_pins_bind_code
+# Pin this gate's OWN call site. EXACTLY TWO -- the call and this needle --
+# because an in-file pin is always satisfied by its own line, which is the
+# defect #6173 had to fix twice.
+[[ "$(ifa_mirror_count_code_matches 'ifa_mirror_assert_pins_bind_code' "${BASH_SOURCE[0]}")" -eq 2 ]] \
+	|| fail "this mirror no longer runs the pin-helper behaviour check -- nothing would prove its pins bind code"
 
 printf 'test-verify-ifa-dead-letter-matrix: pass\n'
