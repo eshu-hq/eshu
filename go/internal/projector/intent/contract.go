@@ -5,10 +5,20 @@ package intent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+// SourceSystem returns the bounded source label used to anchor a reducer
+// intent. Explicit source-ref identity wins; collector kind is the fallback.
+func SourceSystem(envelope facts.Envelope) string {
+	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
+		return value
+	}
+	return strings.TrimSpace(envelope.CollectorKind)
+}
 
 // ReducerIntent describes one shared-domain work item emitted after
 // source-local projection.
@@ -27,17 +37,4 @@ type ReducerIntent struct {
 // intent.
 func (i ReducerIntent) ScopeGenerationKey() string {
 	return fmt.Sprintf("%s:%s", i.ScopeID, i.GenerationID)
-}
-
-// FactLookup is the read-only fact-selection contract used by intent-family
-// builders. Implementations must return the earliest matching fact in the
-// original generation order.
-type FactLookup interface {
-	FirstOfKind(kind string) (facts.Envelope, bool)
-	FirstOfKindMatching(kind string, accept func(facts.Envelope) bool) (facts.Envelope, bool)
-	FirstAcrossKinds(accept func(facts.Envelope) bool, kinds ...string) (facts.Envelope, bool)
-	FirstMatchingKindPredicate(
-		kindPredicate func(string) bool,
-		accept func(facts.Envelope) bool,
-	) (facts.Envelope, bool)
 }

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package azure
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -13,12 +14,12 @@ import (
 // that projects azure_cloud_relationship facts into canonical Azure relationship
 // graph edges. It shares the Azure resource materialization entity key so the
 // edge handler gates on the same canonical-nodes readiness publication.
-func buildAzureRelationshipMaterializationReducerIntent(
+func BuildRelationshipMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
+	lookup projectorintent.FactLookup,
 ) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.AzureCloudRelationshipFactKind)
+	envelope, ok := lookup.FirstOfKind(facts.AzureCloudRelationshipFactKind)
 	if !ok {
 		return ReducerIntent{}, false
 	}

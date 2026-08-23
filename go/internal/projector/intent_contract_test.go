@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	_ projectorintent.FactLookup     = (*reducerIntentFactIndex)(nil)
 	_ *projectorintent.ReducerIntent = (*ReducerIntent)(nil)
 	_ *ReducerIntent                 = (*projectorintent.ReducerIntent)(nil)
 )

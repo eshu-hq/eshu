@@ -5,6 +5,7 @@ package projector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -47,10 +48,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildGCPRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildAzureResourceMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorazure.BuildResourceMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildAzureRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorazure.BuildRelationshipMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildCloudInventoryAdmissionReducerIntent(scopeValue, generation, index); ok {

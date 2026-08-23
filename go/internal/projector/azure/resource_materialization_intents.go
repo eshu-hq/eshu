@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package azure
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -13,12 +14,12 @@ import (
 // that materializes azure_cloud_resource facts into canonical CloudResource
 // nodes. The entity key is the readiness unit consumed by Azure relationship
 // projection.
-func buildAzureResourceMaterializationReducerIntent(
+func BuildResourceMaterializationReducerIntent(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
+	lookup projectorintent.FactLookup,
 ) (ReducerIntent, bool) {
-	envelope, ok := index.firstOfKind(facts.AzureCloudResourceFactKind)
+	envelope, ok := lookup.FirstOfKind(facts.AzureCloudResourceFactKind)
 	if !ok {
 		return ReducerIntent{}, false
 	}
