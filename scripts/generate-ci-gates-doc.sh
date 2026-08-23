@@ -51,7 +51,7 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf 'Blocking is an enforcement contract, not descriptive metadata. The trusted\n'
 	printf 'default-branch `required-gates-complete` publisher selects every matching\n'
 	printf 'blocking row, waits for its exact workflow/check identity on the pull request\n'
-	printf 'head, and fails closed on a failed, skipped, missing, or timed-out check.\n'
+	printf 'head, and fails closed on a failed, neutral, missing, or timed-out check.\n'
 	printf 'A check that never produced a verdict fails closed too, but is reported as\n'
 	printf '`error` rather than as a gate failure: a cancelled check, a stale one, and\n'
 	printf 'one GitHub marked skipped because the run that owned it was cancelled. A\n'

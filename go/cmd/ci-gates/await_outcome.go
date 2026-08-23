@@ -7,7 +7,7 @@ import "errors"
 
 // Why this file exists (#6075).
 //
-// `required-gates-complete` is branch protection's summary of every other
+// `required-gates-complete` is the repository ruleset's summary of every other
 // gate, and it was publishing `failure` for any non-success await outcome. So
 // "a required gate went red", "the gates are still running", and "the
 // aggregation itself broke" all landed on the head SHA as the same red
@@ -70,7 +70,7 @@ const (
 	// red checks, which blocks the merge with nothing an operator can act on.
 	// It also burns a 55-minute runner slot per triggering workflow. So the
 	// re-await option cannot terminate, and `error` is the honest answer: it
-	// blocks the merge (branch protection requires success), stays visible,
+	// blocks the merge (the ruleset requires success), stays visible,
 	// and does not assert a gate outcome that never happened.
 	//
 	// It is deliberately NOT folded into awaitExitBroken (12): that arm

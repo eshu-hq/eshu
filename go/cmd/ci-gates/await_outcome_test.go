@@ -18,14 +18,14 @@ import (
 // head SHA as the same red status (#6075).
 //
 // That makes the status uninformative in the worst possible place: it is
-// branch protection's summary of every other gate, and the correct reaction to
+// the repository ruleset's summary of every other gate, and the correct reaction to
 // a red became "wait and look again", which is indistinguishable from how you
 // would treat a flake. These pin the classification the publisher needs to
 // tell the three apart.
 
 // TestAwaitOutcomeForGenuineGateFailure keeps the case that MUST stay red.
 // Weakening this is the false-green risk in the whole change: if a real gate
-// failure is ever classified as "still running", branch protection stops
+// failure is ever classified as "still running", the ruleset stops
 // blocking on it.
 func TestAwaitOutcomeForGenuineGateFailure(t *testing.T) {
 	t.Parallel()
