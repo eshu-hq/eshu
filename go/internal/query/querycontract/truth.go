@@ -108,18 +108,37 @@ type ResponseEnvelope struct {
 	Error *ErrorEnvelope `json:"error"`
 }
 
-// AnswerTruthClass is the prompt-facing classification of answer truth.
+// AnswerTruthClass is the prompt-facing classification of an answer's truth.
+//
+// It folds the two existing truth axes — TruthLevel (exact, derived, fallback)
+// and TruthBasis (authoritative_graph, semantic_facts, content_index, hybrid)
+// — into a single label so prompt surfaces can choose presentation and caution
+// without re-implementing the capability matrix. It does not introduce a new
+// truth source; it is derived entirely from an existing TruthEnvelope. The
+// mapping is documented in docs/public/reference/answer-packets.md.
 type AnswerTruthClass string
 
-// Answer truth classes form the prompt-facing truth vocabulary.
 const (
-	// AnswerTruthDeterministic identifies exact deterministic truth.
-	AnswerTruthDeterministic       AnswerTruthClass = "deterministic"
-	AnswerTruthDerived             AnswerTruthClass = "derived"
-	AnswerTruthFallback            AnswerTruthClass = "fallback"
+	// AnswerTruthDeterministic marks authoritative graph truth: an exact
+	// TruthLevel with an authoritative_graph basis. Safe to present as fact.
+	AnswerTruthDeterministic AnswerTruthClass = "deterministic"
+	// AnswerTruthDerived marks a deterministic result computed from indexed
+	// entities, content, or relational state rather than authoritative graph
+	// topology.
+	AnswerTruthDerived AnswerTruthClass = "derived"
+	// AnswerTruthFallback marks an exploratory result that is useful but not
+	// authoritative for the capability.
+	AnswerTruthFallback AnswerTruthClass = "fallback"
+	// AnswerTruthSemanticObservation marks durable semantic truth from facts
+	// (an exact TruthLevel with a semantic_facts basis) rather than graph
+	// topology.
 	AnswerTruthSemanticObservation AnswerTruthClass = "semantic_observation"
-	AnswerTruthCodeHint            AnswerTruthClass = "code_hint"
-	AnswerTruthUnsupported         AnswerTruthClass = "unsupported"
+	// AnswerTruthCodeHint marks a content-index or search signal: a hint, not a
+	// verified relationship.
+	AnswerTruthCodeHint AnswerTruthClass = "code_hint"
+	// AnswerTruthUnsupported marks an answer with no truth to classify, built
+	// from an ErrorEnvelope or missing required evidence.
+	AnswerTruthUnsupported AnswerTruthClass = "unsupported"
 )
 
 // BuildTruthEnvelope builds truth metadata from the registered capability ceiling.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -101,6 +102,39 @@ func TestCapabilityOrderCanBeDeclaredBeforeRegistrations(t *testing.T) {
 	}
 	if got := registrations[1].Capability; got != "first" {
 		t.Fatalf("registration[1] = %q, want first", got)
+	}
+}
+
+func TestCapabilityRegistrationsRejectsInvalidCanonicalOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		order []string
+	}{
+		{name: "incomplete", order: []string{"first"}},
+		{name: "duplicate", order: []string{"first", "first"}},
+		{name: "unknown", order: []string{"first", "missing"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isolateCapabilityRegistry(t)
+			SetCapabilitySupport("first", CapabilitySupport{})
+			SetCapabilitySupport("second", CapabilitySupport{})
+			SetCapabilityOrder(tt.order)
+
+			defer func() {
+				got := recover()
+				if got == nil {
+					t.Fatal("CapabilityRegistrations did not reject invalid canonical order")
+				}
+				message, ok := got.(string)
+				if !ok || !strings.Contains(message, "canonical capability order") {
+					t.Fatalf("panic = %v, want canonical capability order diagnostic", got)
+				}
+			}()
+
+			_ = CapabilityRegistrations()
+		})
 	}
 }
 

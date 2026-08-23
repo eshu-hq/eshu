@@ -7,31 +7,39 @@ import "time"
 
 // FileContent is one file from the content store.
 type FileContent struct {
-	RepoID        string `json:"repo_id"`
-	RelativePath  string `json:"relative_path"`
-	CommitSHA     string `json:"commit_sha,omitempty"`
-	Content       string `json:"content"`
-	ContentHash   string `json:"content_hash"`
-	LineCount     int    `json:"line_count"`
-	Language      string `json:"language,omitempty"`
-	ArtifactType  string `json:"artifact_type,omitempty"`
+	RepoID       string `json:"repo_id"`
+	RelativePath string `json:"relative_path"`
+	CommitSHA    string `json:"commit_sha,omitempty"`
+	Content      string `json:"content"`
+	ContentHash  string `json:"content_hash"`
+	LineCount    int    `json:"line_count"`
+	Language     string `json:"language,omitempty"`
+	ArtifactType string `json:"artifact_type,omitempty"`
+	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
+	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
+	// the lexical content-index order was served, so the lexical truth basis
+	// stays authoritative.
 	SearchBackend string `json:"search_backend,omitempty"`
 }
 
 // EntityContent is one parsed entity from the content store.
 type EntityContent struct {
-	EntityID      string         `json:"entity_id"`
-	RepoID        string         `json:"repo_id"`
-	RepoName      string         `json:"repo_name,omitempty"`
-	RelativePath  string         `json:"relative_path"`
-	EntityType    string         `json:"entity_type"`
-	EntityName    string         `json:"entity_name"`
-	StartLine     int            `json:"start_line"`
-	EndLine       int            `json:"end_line"`
-	Language      string         `json:"language,omitempty"`
-	SourceCache   string         `json:"source_cache,omitempty"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
-	SearchBackend string         `json:"search_backend,omitempty"`
+	EntityID     string         `json:"entity_id"`
+	RepoID       string         `json:"repo_id"`
+	RepoName     string         `json:"repo_name,omitempty"`
+	RelativePath string         `json:"relative_path"`
+	EntityType   string         `json:"entity_type"`
+	EntityName   string         `json:"entity_name"`
+	StartLine    int            `json:"start_line"`
+	EndLine      int            `json:"end_line"`
+	Language     string         `json:"language,omitempty"`
+	SourceCache  string         `json:"source_cache,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	// SearchBackend is set to "hybrid" only on rows reordered by the bounded
+	// in-request BM25+vector re-rank; it is empty (and omitted on the wire) when
+	// the lexical content-index order was served, so the lexical truth basis
+	// stays authoritative.
+	SearchBackend string `json:"search_backend,omitempty"`
 }
 
 // K8sSelectCandidate is the narrow content projection used for SELECTS matching.

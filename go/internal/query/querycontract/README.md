@@ -37,7 +37,9 @@ Capability registration is ordered and rejects duplicate initialization in the
 contract tests. The low-level compatibility setter remains last-write-wins for
 existing root-package tests. Unknown capabilities still panic when building a
 truth envelope, and an unknown required profile still defaults to
-`local_full_stack`.
+`local_full_stack`. Once root declares the canonical capability order, an
+incomplete, duplicated, or unknown entry fails closed instead of returning a
+partial inventory.
 
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states

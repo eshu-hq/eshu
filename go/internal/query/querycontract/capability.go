@@ -57,9 +57,14 @@ func CapabilitySupportFor(capability string) (CapabilitySupport, bool) {
 }
 
 // CapabilityRegistrations returns a copy in canonical registry order.
+// It panics rather than serving a partial inventory when a declared order is
+// incomplete, duplicated, or names an unregistered capability.
 func CapabilityRegistrations() []CapabilityRegistration {
 	order := capabilityOrder
-	if validCapabilityOrder(requestedCapabilityOrder) {
+	if requestedCapabilityOrder != nil {
+		if !validCapabilityOrder(requestedCapabilityOrder) {
+			panic("querycontract: canonical capability order is incomplete, duplicated, or names an unknown capability")
+		}
 		order = requestedCapabilityOrder
 	}
 	registrations := make([]CapabilityRegistration, 0, len(order))

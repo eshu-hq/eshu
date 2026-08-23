@@ -7,7 +7,8 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // canonicalCapabilityOrder mirrors capability-matrix.v1.yaml followed by its
 // fragments in filename order. The contract test locks this snapshot to the
-// same loader used for matrix parity.
+// same loader used for matrix parity, and querycontract fails closed if this
+// order is not an exact permutation of the live registry.
 var canonicalCapabilityOrder = []string{
 	"code_search.exact_symbol",
 	"code_search.fuzzy_symbol",

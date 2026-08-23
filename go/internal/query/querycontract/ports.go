@@ -5,39 +5,89 @@ package querycontract
 
 import "context"
 
-// GraphQuery is the concurrent-safe, read-only graph traversal port.
+// GraphQuery is the read-only graph traversal surface used by query handlers.
+// Implementations must permit concurrent Run calls. Neo4jReader satisfies that
+// contract with the driver's concurrent-safe connection pool and opens a
+// separate read session for every attempt; callers must never share a session.
 type GraphQuery interface {
 	Run(context.Context, string, map[string]any) ([]map[string]any, error)
 	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
 }
 
-// ContentStore is the relational content-query port used by query families.
+// ContentStore is the relational content-query surface used by read handlers.
 type ContentStore interface {
-	GetFileContent(context.Context, string, string) (*FileContent, error)
-	GetFileLines(context.Context, string, string, int, int) (*FileContent, error)
-	GetEntityContent(context.Context, string) (*EntityContent, error)
-	SearchFileContent(context.Context, string, string, int) ([]FileContent, error)
-	SearchFileContentAnyRepo(context.Context, string, int) ([]FileContent, error)
-	SearchFileContentAnyRepoExactCase(context.Context, string, int) ([]FileContent, error)
-	SearchEntityContent(context.Context, string, string, int) ([]EntityContent, error)
-	SearchEntityContentAnyRepo(context.Context, string, int) ([]EntityContent, error)
-	SearchEntitiesByName(context.Context, string, string, string, int) ([]EntityContent, error)
-	SearchEntitiesByNameAnyRepo(context.Context, string, string, int) ([]EntityContent, error)
-	SearchEntitiesReferencingComponent(context.Context, string, string, int) ([]EntityContent, error)
-	ListRepoFiles(context.Context, string, int) ([]FileContent, error)
-	ListRepoEntities(context.Context, string, int) ([]EntityContent, error)
-	ListRepoEntitiesByType(context.Context, string, string, int) ([]EntityContent, error)
-	ListRepoEntitiesByTypes(context.Context, string, []string, int) ([]EntityContent, error)
-	ListRepoEntitiesByPaths(context.Context, string, []string, int) ([]EntityContent, error)
-	ListRepoEntitiesByIDs(context.Context, string, []string, int) ([]EntityContent, error)
-	ListRepoK8sSelectCandidates(context.Context, string, int) ([]K8sSelectCandidate, error)
-	SearchEntitiesByLanguageAndType(context.Context, string, string, string, string, int) ([]EntityContent, error)
-	ListFrameworkRoutes(context.Context, string) ([]FrameworkRouteEvidence, error)
-	RepositoryCoverage(context.Context, string) (RepositoryContentCoverage, error)
-	CountRepositoriesByLanguage(context.Context, []string, bool, []string, []string) (RepositoryLanguageAggregate, error)
-	ListRepositoriesByLanguage(context.Context, []string, int, int, bool, []string, []string) ([]RepositoryLanguageRepository, error)
-	RepositoryLanguageInventory(context.Context, int, int, bool, []string, []string) ([]RepositoryLanguageInventoryRow, error)
-	ListRepositories(context.Context) ([]RepositoryCatalogEntry, error)
-	MatchRepositories(context.Context, string) ([]RepositoryCatalogEntry, error)
-	ResolveRepository(context.Context, string) (*RepositoryCatalogEntry, error)
+	GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error)
+	GetFileLines(ctx context.Context, repoID, relativePath string, startLine, endLine int) (*FileContent, error)
+	GetEntityContent(ctx context.Context, entityID string) (*EntityContent, error)
+	SearchFileContent(ctx context.Context, repoID, pattern string, limit int) ([]FileContent, error)
+	SearchFileContentAnyRepo(ctx context.Context, pattern string, limit int) ([]FileContent, error)
+	SearchFileContentAnyRepoExactCase(ctx context.Context, pattern string, limit int) ([]FileContent, error)
+	SearchEntityContent(ctx context.Context, repoID, pattern string, limit int) ([]EntityContent, error)
+	SearchEntityContentAnyRepo(ctx context.Context, pattern string, limit int) ([]EntityContent, error)
+	SearchEntitiesByName(ctx context.Context, repoID, entityType, name string, limit int) ([]EntityContent, error)
+	SearchEntitiesByNameAnyRepo(ctx context.Context, entityType, name string, limit int) ([]EntityContent, error)
+	SearchEntitiesReferencingComponent(ctx context.Context, repoID, componentName string, limit int) ([]EntityContent, error)
+	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
+	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
+	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
+	// ListRepoEntitiesByTypes returns entities filtered to a SET of
+	// entity_type values in one query (`entity_type = ANY($types)`), so a
+	// caller that cares about several types together -- such as the
+	// repository infrastructure panel spanning K8sResource, TerraformResource,
+	// ArgoCDApplication, and the rest of isRepositoryInfrastructureType's list
+	// -- can bound its LIMIT on that combined type-filtered set instead of
+	// either the repo's total entity count (ListRepoEntities, which can push
+	// the caller's actual type family past LIMIT while irrelevant types fill
+	// the page) or issuing one ListRepoEntitiesByType call per type (#5764 P1
+	// review follow-up).
+	ListRepoEntitiesByTypes(ctx context.Context, repoID string, entityTypes []string, limit int) ([]EntityContent, error)
+	ListRepoEntitiesByPaths(ctx context.Context, repoID string, relativePaths []string, limit int) ([]EntityContent, error)
+	// ListRepoEntitiesByIDs hydrates the wide EntityContent rows for a bounded
+	// entity-ID set (the impact-trace directed SELECTS scan re-fetches only the
+	// Services that actually selector-match the traced Deployment; #5363).
+	ListRepoEntitiesByIDs(ctx context.Context, repoID string, entityIDs []string, limit int) ([]EntityContent, error)
+	// ListRepoK8sSelectCandidates returns the narrow matcher projection consumed
+	// by K8s service-selector matching instead of hydrating EntityContent for the
+	// candidate scan (#5363); it never carries the wide metadata JSONB.
+	ListRepoK8sSelectCandidates(ctx context.Context, repoID string, limit int) ([]K8sSelectCandidate, error)
+	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
+	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
+	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
+	// CountRepositoriesByLanguage, ListRepositoriesByLanguage, and
+	// RepositoryLanguageInventory all aggregate over content_files, which is
+	// keyed by repo_id but carries no scope grant of its own (#5167 Group B).
+	// allScopes selects the admin/all-scopes path (no row filtering, byte-
+	// identical to the pre-#5167 query). When allScopes is false, rows MUST be
+	// restricted to allowedRepositoryIDs/allowedScopeIDs so a scoped caller
+	// never observes another tenant's repository or language coverage; the
+	// query handler (repository_language_inventory.go) short-circuits to an
+	// empty page before calling these methods at all when a scoped caller
+	// holds no grants, matching the #5137 LiveActivityStore precedent.
+	CountRepositoriesByLanguage(
+		ctx context.Context,
+		languages []string,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) (RepositoryLanguageAggregate, error)
+	ListRepositoriesByLanguage(
+		ctx context.Context,
+		languages []string,
+		limit int,
+		offset int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]RepositoryLanguageRepository, error)
+	RepositoryLanguageInventory(
+		ctx context.Context,
+		limit int,
+		offset int,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]RepositoryLanguageInventoryRow, error)
+	ListRepositories(ctx context.Context) ([]RepositoryCatalogEntry, error)
+	MatchRepositories(ctx context.Context, selector string) ([]RepositoryCatalogEntry, error)
+	ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error)
 }
