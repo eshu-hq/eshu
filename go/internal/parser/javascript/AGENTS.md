@@ -22,6 +22,8 @@
    package public source mapping
 11. fastify_threading_bench_test.go - external-package benchmark of the public
     parent Engine.ParsePath path
+12. engine_typescript_implements_test.go - external-package regression for
+    implemented-interface metadata through the public parent engine
 
 ## Invariants this package enforces
 
@@ -78,8 +80,8 @@
 
 ## Common changes and how to scope them
 
-- Add parser behavior by writing a focused parent parser test first when the
-  public Engine.ParsePath contract is the behavior under test.
+- Add JavaScript-family behavior by writing a focused external-package test
+  here when the public Engine.ParsePath contract is under test.
 - Add tsconfig behavior by writing a focused test in tsconfig_test.go first.
 - Add package.json behavior by writing a focused test in package_json_test.go
   first.
