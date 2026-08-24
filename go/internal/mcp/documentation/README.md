@@ -33,10 +33,9 @@ telemetry remain in `internal/mcp`.
 
 ## Gotchas / invariants
 
-- The import path ends in `documentation`, but the Go package name is
-  `doctools`. Go 1.26 ignores files declared as `package documentation` when it
-  loads packages, so changing this package clause makes the directory appear
-  to contain no buildable Go source.
+- The import path ends in `documentation`, while the declared Go package is
+  `doctools`. The root uses an explicit import alias so registration ownership
+  remains obvious at the assembly call sites.
 - The parent registry inserts `Tools` and `FindingAggregateTools` at two
   different positions. Combining them changes the client-visible 162-tool
   order.

@@ -11,8 +11,8 @@
 
 - Keep this package registration-only. Routing and argument mapping stay in
   `internal/mcp/dispatch_documentation*.go`.
-- Keep the package clause as `package doctools`. Go 1.26 ignores package files
-  declared as `package documentation`.
+- Keep the package clause as `package doctools`; the root imports this
+  registration package with an explicit `doctools` alias.
 - Preserve all six tool names, descriptions, input schemas, and constructor
   order.
 - Keep `Tools` and `FindingAggregateTools` separate because the root registry
@@ -32,8 +32,8 @@
 
 ## Failure modes
 
-- Declaring `package documentation` makes Go report that build constraints
-  exclude every file in this directory.
+- Renaming the declared package without updating its tests and the root import
+  breaks the package boundary.
 - Combining both constructors moves the aggregate tools earlier in
   `ReadOnlyTools` and breaks the ordered-name contract.
 - Importing the MCP root creates a parent-child cycle. Use `toolcontract` only.

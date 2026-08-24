@@ -73,7 +73,7 @@
   3. Add the route mapping to the tool-to-route table in `README.md`.
   4. Add a test in `dispatch_test.go` asserting the route, method, and body.
   5. Update the `ReadOnlyTools` count test count in `tools_test.go`.
-  6. Run `cd go && go test ./internal/mcp -count=1`.
+  6. Run `cd go && go test ./internal/mcp/... -count=1`.
   Why: the dispatch route test will catch a missing route;
   the `ReadOnlyTools` count test will catch a count mismatch.
 

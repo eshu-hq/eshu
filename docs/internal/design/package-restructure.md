@@ -228,6 +228,13 @@ isolated. Wave 2: extract per-family Route funcs out of the two hub
 switches, then move. The consumer-existence gates and ~35 package-wide
 contract/authz test sweeps stay in root.
 
+The documentation registration family is the first extracted MCP family. Its
+six definitions live under `internal/mcp/documentation`, while the root keeps
+both existing assembly positions, documentation routing, dispatch,
+authorization, and transport ownership. The move uses the dependency-neutral
+`internal/mcp/toolcontract` shape and does not combine the two constructor
+groups or change the 162-tool order.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
