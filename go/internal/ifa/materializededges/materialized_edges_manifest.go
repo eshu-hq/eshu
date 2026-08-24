@@ -114,8 +114,16 @@ func LoadMaterializedEdgeWaivers(path string) ([]MaterializedEdgeWaiver, error) 
 // Reading only one of them is the failure mode this whole gate exists to
 // prevent: a family whose ledger file is never opened produces no row, no
 // finding and no output, and the gate reports green without knowing it exists.
-// So every caller that reconciles the gate MUST come through here rather than
-// calling LoadMaterializedEdgeWaivers on one path.
+// So every caller reconciling the whole surface, and every rule asserted over
+// all waivers, MUST come through here rather than calling
+// LoadMaterializedEdgeWaivers on one path.
+//
+// A caller reconciling ONE half deliberately is the only exception, and it must
+// pass that half's families alongside: the two shared-half fixtures in
+// materialized_edges_falsegreen_test.go and
+// materialized_edges_waiver_granularity_test.go run against
+// reducer.MaterializedEdgeFamilies(), which the direct half's waivers do not
+// name. Both say so at the call site.
 //
 // A (surface, proof_gate) waiver declared in BOTH files is rejected. Within one
 // file LoadMaterializedEdgeWaivers already rejects a duplicate; across the two

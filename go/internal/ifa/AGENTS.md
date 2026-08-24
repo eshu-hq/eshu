@@ -88,9 +88,18 @@
   merge relationships under names carrying no `Edges` suffix (#6181).
 - Reconciling only ONE half is the blindness #6181 reported: a family whose
   enumeration or ledger half is never read produces no row, no finding and no
-  output, so the gate reports green without knowing it exists. Load both
-  ledger halves through `materializededges.LoadMaterializedEdgeLedger`, never
-  `LoadMaterializedEdgeWaivers` on a single path.
+  output, so the gate reports green without knowing it exists. Any caller that
+  reconciles the gate, or that holds every waiver to a rule, MUST load both
+  halves through `materializededges.LoadMaterializedEdgeLedger` rather than
+  calling `LoadMaterializedEdgeWaivers` on a single path.
+  Two fixtures are the exception and are the only ones:
+  `materialized_edges_falsegreen_test.go` and
+  `materialized_edges_waiver_granularity_test.go` each build a
+  `RunMaterializedEdgeCoverage` input scoped to
+  `reducer.MaterializedEdgeFamilies()`, so handing them the direct half would
+  add waivers for families that run does not enumerate. A single-path read is
+  correct only where the families passed beside it are the same half's, and
+  the call site has to say so. Everything else goes through the loader.
 - A `materialized_edges:<family>` coverage row is not exhaustively covered
   until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
   (proof_gate `ifa-fault-injection`) scenario_type rows resolve covered.

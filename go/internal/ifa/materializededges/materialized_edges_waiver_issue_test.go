@@ -7,10 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// materializedEdgeFamilyChildIssue binds each waivable family to the ONE child
-// issue whose closure retires its waivers (#5543's decomposition).
+// materializedEdgeFamilyChildIssue binds each waivable SHARED-projection family
+// to the ONE child issue whose closure retires its waivers (#5543's
+// decomposition).
 //
 // The binding is exact on purpose. A rule that merely rejected umbrella issues
 // would accept any other number, so repointing repo_dependency's waiver at the
@@ -20,6 +23,10 @@ import (
 // A family gaining full coverage drops out of the waivers entirely; it does not
 // need removing from this map, and leaving it here documents which child owned
 // the gap.
+//
+// The direct-materialization half is bound separately, by
+// directMaterializedEdgeFamilyIssue below, because it is not a decomposition:
+// one issue owns all of it.
 var materializedEdgeFamilyChildIssue = map[string]string{
 	"code_calls":                 "#5991",
 	"codeowners_ownership_edges": "#5992",
@@ -36,8 +43,38 @@ var materializedEdgeFamilyChildIssue = map[string]string{
 	"workload_dependency":        "#6003",
 }
 
-// TestMaterializedEdgeWaiversNameTheIssueThatRetiresThem holds every waiver to
-// naming the specific child issue that retires it.
+// directMaterializedEdgeFamilyIssue is the issue whose closure retires a
+// direct-materialization waiver (#6228).
+//
+// One issue rather than a per-family map, because #6228 is not an umbrella in
+// the sense #5543 was. #5543 was decomposed into thirteen children and then
+// closed while thirteen waivers still pointed at it; #6228 stays open until the
+// last direct family moves, and its own body says so. Binding all of them to it
+// therefore still names work whose completion removes the row — the property
+// this whole guard is about — and a per-family map of twenty-eight identical
+// values would only invite the same number to be typed twenty-eight ways.
+//
+// If #6228 is later decomposed the way #5543 was, this constant becomes a map
+// on the same day, and the same exactness argument applies to it.
+const directMaterializedEdgeFamilyIssue = "#6228"
+
+// materializedEdgeRetiringIssue returns the issue whose closure retires a
+// waiver on family, and reports whether the family has such an issue at all.
+//
+// Both halves of the ledger are resolved here so a waiver cannot be tracked in
+// one half's terms while living in the other's file.
+func materializedEdgeRetiringIssue(family string, direct map[string]struct{}) (string, bool) {
+	if issue, ok := materializedEdgeFamilyChildIssue[family]; ok {
+		return issue, true
+	}
+	if _, ok := direct[family]; ok {
+		return directMaterializedEdgeFamilyIssue, true
+	}
+	return "", false
+}
+
+// TestMaterializedEdgeWaiversNameTheIssueThatRetiresThem holds every waiver in
+// BOTH ledger halves to naming the specific issue that retires it.
 //
 // A waiver is a promise that a gap is tracked. Pointed at an umbrella, that
 // promise cannot be kept by anyone in particular: #5543 covered all thirteen
@@ -45,15 +82,36 @@ var materializedEdgeFamilyChildIssue = map[string]string{
 // retired by it. Thirteen waivers pointed there and none moved. Pointed at the
 // wrong child, it is worse than vague — it is wrong, and it reads as precise.
 //
+// Both halves, through LoadMaterializedEdgeLedger, because reading one file is
+// the blindness #6181 reported one level down: this guard read only the shared
+// manifest, so the fifty-six direct waivers it added were held to nothing, and
+// repointing one of them at closed #5543 — the exact stale pointer #6181 exists
+// to remove — passed. LoadMaterializedEdgeWaivers alone enforces non-blank and
+// nothing more.
+//
 // The manifest already treats a waiver whose surface gains real coverage as
 // stale. This is the same discipline one step earlier.
 func TestMaterializedEdgeWaiversNameTheIssueThatRetiresThem(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
+	_, waivers, err := LoadMaterializedEdgeLedger(filepath.Join(repoRoot, "specs"))
 	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
+	}
+
+	direct := setOf(reducer.DirectMaterializedEdgeFamilies())
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; every direct waiver would report as untracked for the wrong reason")
+	}
+	// The two bindings are resolved in order, so a family in both maps would be
+	// silently graded by the shared one. The enumerations are disjoint today and
+	// the resolution order only stays honest while they are.
+	for family := range direct {
+		if issue, clash := materializedEdgeFamilyChildIssue[family]; clash {
+			t.Errorf("family %q is enumerated as a direct-materialization family and also bound to %s in materializedEdgeFamilyChildIssue; one family cannot be retired by two different issues, and the shared binding would silently win here",
+				family, issue)
+		}
 	}
 
 	// An empty waiver set is the SUCCESS state, not a failure: it means every
@@ -74,9 +132,9 @@ func TestMaterializedEdgeWaiversNameTheIssueThatRetiresThem(t *testing.T) {
 	// down here. An unreachable guard reads like coverage and is not.
 	for _, w := range waivers {
 		family := strings.TrimPrefix(w.Surface, MaterializedEdgeSurfacePrefix)
-		want, known := materializedEdgeFamilyChildIssue[family]
+		want, known := materializedEdgeRetiringIssue(family, direct)
 		if !known {
-			t.Errorf("waiver %s/%s names family %q, which has no per-domain child issue in materializedEdgeFamilyChildIssue; add the child that retires it rather than leaving the row pointed at nothing in particular",
+			t.Errorf("waiver %s/%s names family %q, which is bound to no retiring issue — it is in neither materializedEdgeFamilyChildIssue nor reducer.DirectMaterializedEdgeFamilies(); bind it to the work that retires it rather than leaving the row pointed at nothing in particular",
 				w.Surface, w.ProofGate, family)
 			continue
 		}
@@ -85,5 +143,5 @@ func TestMaterializedEdgeWaiversNameTheIssueThatRetiresThem(t *testing.T) {
 				w.Surface, w.ProofGate, w.Issue, family, want, w.Issue)
 		}
 	}
-	t.Logf("checked %d waiver(s) against their retiring child issue", len(waivers))
+	t.Logf("checked %d waiver(s) across both ledger halves against their retiring issue", len(waivers))
 }

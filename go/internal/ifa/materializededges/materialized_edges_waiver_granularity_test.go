@@ -202,6 +202,10 @@ func TestMaterializedEdgeSQLFaultHonestlyCovered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadManifest: %v", err)
 	}
+	// Shared manifest alone, not LoadMaterializedEdgeLedger, for the same
+	// reason as the false-green fixture: Families below is the shared half, so
+	// the direct half's waivers would name families this run cannot see
+	// (#6181).
 	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
 	if err != nil {
 		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
