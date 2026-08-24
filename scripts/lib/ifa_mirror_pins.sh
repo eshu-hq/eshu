@@ -40,6 +40,15 @@
 # ifa_mirror_assert_pins_bind_code at the very end of your mirror, and pin that
 # call with an exact count the way the two mirrors here do.
 #
+# A SECOND LIMIT, and the one most likely to bite: discovery is
+# `compgen -A function | rg '^require'`, so the probe executes only helpers whose
+# NAME starts with `require`. An identically weak helper named `pin_foo` is
+# invisible to it -- measured, not assumed: adding `pin_foo()` with the old
+# whole-file body plus a call site left the mirror green, while the same body
+# named `require_foo()` went red. Name new pin helpers `require*`. The narrower
+# rule is deliberate for the same reason as the paragraph below: matching every
+# plausible helper name would put the guard back in the business of guessing.
+#
 # A KNOWN AND DELIBERATELY UNGUARDED LIMIT: nothing in this repository forces
 # you to do any of that. The probe below makes a weak helper red WITHIN a mirror
 # that runs it, but a brand-new mirror that sources nothing and calls nothing is
@@ -84,6 +93,23 @@ require() {
 		|| fail "missing ${label}, or it survives only inside a comment or heredoc: ${needle}"
 }
 
+# require_count pins a needle that must appear an EXACT number of times. Reach
+# for it when the same line legitimately appears more than once and EVERY
+# occurrence is load-bearing, because `require` is satisfied by any one survivor:
+# verify-ifa-dead-letter-matrix.sh carries the identical `down -v` teardown twice
+# -- once in the exit trap, once per cell inside the loop -- and deleting the
+# per-cell one left the mirror green while cells N=1/2/4 ran against a
+# contaminated stack, so the cross-worker dead-letter-set comparison compared
+# accumulated state (#6161). No single-line needle can tell two identical lines
+# apart, so the count is what binds them. Copied from the shape settled on the
+# fault-injection side (require_documentation_barrier_count).
+require_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(ifa_mirror_count_code_matches "${needle}" "${script}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s), found ${got} -- an identical sibling line keeps a -ge 1 pin green when one of the two is deleted: ${needle}"
+}
+
 # IFA_MIRROR_PROSE_HELPERS lists helpers exempt from the behavioural probe
 # because they deliberately bind DOCUMENTATION rather than behaviour. It is
 # empty on purpose: neither mirror currently has a prose pin. Before adding a
@@ -98,8 +124,10 @@ require() {
 # against synthetic targets where the needle appears only in a comment, then only
 # inside a heredoc, then as real code. A helper that accepts either negative is
 # not binding code, whatever it is implemented with -- so a new helper added
-# tomorrow is covered the moment it is defined, and a forgotten conversion is a
-# RED rather than a review finding. Earlier textual versions of this idea were
+# tomorrow is covered the moment it is defined AND NAMED `require*`, and a
+# forgotten conversion is a RED rather than a review finding. The naming half of
+# that is a real condition, not a formality: see the second limit above.
+# Earlier textual versions of this idea were
 # defeated by `require_x ()`, `function require_x`, and by bodies that merely
 # MENTIONED the matcher; none of that survives being run.
 #
@@ -111,13 +139,23 @@ ifa_mirror_assert_pins_bind_code() {
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
+	local -a extra=()
 	while IFS= read -r fn; do
 		case " ${IFA_MIRROR_PROSE_HELPERS} " in *" ${fn} "*) continue ;; esac
 		checked=$((checked + 1))
-		_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" \
-			|| fail "${fn}() rejected a needle that IS live code -- the probe cannot tell binding from broken"
+		# Arity is discovered by TRIAL, not declared: require_count takes an
+		# expected count as a third argument, and probing it with two arguments
+		# fails on real code, which the loop below would then misread as "this
+		# helper binds code". Find the call shape that passes on live code first,
+		# then run the negatives with that same shape.
+		extra=()
+		if ! _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}"; then
+			extra=(1)
+			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
+				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
+		fi
 		for probe in comment_only heredoc_only; do
-			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}"; then
+			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi
 		done

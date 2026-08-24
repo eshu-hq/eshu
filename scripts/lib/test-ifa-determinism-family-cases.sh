@@ -88,9 +88,15 @@ require_fixture "deployable-unit expected-edge set existence guard" "deployable-
 require_code "sixth binary: bootstrap-index build" "ifa_det_build_bin \"\${bin_dir}\" bootstrap-index"
 require_code "standalone cell helper invocation" "ifa_deployable_unit_live_run_standalone_cell"
 require_deployable_unit_lib "standalone cell function definition" "ifa_deployable_unit_live_run_standalone_cell()"
-require_deployable_unit_lib "drive helper invocation inside the standalone cell" "ifa_deployable_unit_live_drive"
+# These two carry their first ARGUMENT, so they bind the CALL and not the
+# definition. A bare function name has two code occurrences in that lib -- the
+# `name() {` header and the single call -- so replacing either call with `true`
+# left the pin green on the surviving definition, with the family cassette never
+# replayed and the non-vacuity assertion never run (#6161). The sibling pins on
+# either side already had an argument or a `()` suffix and were never exposed.
+require_deployable_unit_lib "drive helper invocation inside the standalone cell" 'ifa_deployable_unit_live_drive "${bin_dir}"'
 require_deployable_unit_lib "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_drain pre"
-require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" "ifa_deployable_unit_live_assert_empty_before_maintenance"
+require_deployable_unit_lib "empty-before-maintenance non-vacuity assertion" 'ifa_deployable_unit_live_assert_empty_before_maintenance "${bin_dir}"'
 require_deployable_unit_lib "bootstrap-index maintenance pass invocation" "eshu-bootstrap-index"
 require_deployable_unit_lib "post-maintenance drain" "ifa_deployable_unit_live_drain post"
 require_deployable_unit_lib "exact-set assert-edges domain" "-domain deployable_unit_edges"

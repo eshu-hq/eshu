@@ -53,7 +53,12 @@ require "unique compose project default" 'REPLAY_DRIVE_COMPOSE_PROJECT:=eshu-rep
 # with the gate never starting its stack (#6161). Same defect as the determinism
 # and dead-letter mirrors carried.
 require "compose -p flag on up" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres'
-require "compose -p flag on down" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}"'
+# Bind the TEARDOWN line for the same reason, which the round above missed: the
+# bare -p flag has five code occurrences (the project default, this teardown, the
+# bring-up, and two exec probes), so deleting the teardown outright left this pin
+# green on any of the other four. Losing it leaks the containers and the volume,
+# which is exactly the isolation the comment block above claims.
+require "compose -p flag on down" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
 if rg --fixed-strings --quiet -- 'ESHU_POSTGRES_PORT:=15432' "${script}"; then
 	fail "must not reuse verify-golden-corpus-gate.sh's default Postgres port 15432"
 fi

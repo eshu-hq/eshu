@@ -109,7 +109,13 @@ require "fact_work_items populated check" "SELECT count(*) FROM fact_work_items;
 
 # Fresh-DB-per-cell teardown, matching every sibling matrix script.
 require "per-cell fresh-stack teardown" "fresh stack for the next cell"
-require "per-cell down -v inside the loop" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
+# EXACTLY TWO, not "at least one": the exit trap and the per-cell teardown are
+# the same line character for character, so no single-line needle can tell them
+# apart and `require` was satisfied by whichever one survived. Deleting the
+# per-cell one left this pin green with cells N=1/2/4 running against a
+# contaminated stack -- so the cross-worker dead-letter-set identity comparison,
+# the whole point of the matrix, compared accumulated state (#6161).
+require_count "exit-trap and per-cell down -v" 'docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f "${compose_file}" down -v' 2
 
 # The dead-letter-set capture and identity assertion.
 # Bind the SQL ASSIGNMENT: the die message on divergence repeats the same tuple
