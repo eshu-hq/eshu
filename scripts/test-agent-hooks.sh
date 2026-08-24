@@ -228,11 +228,26 @@ fi
 # `make pre-pr` for the wrong reason, on the one machine most likely to run it.
 sid=$((sid + 1))
 probed_bound=""
-for p in 15432 7687 7474 18080 18091; do
-  lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && { probed_bound="$p"; break; }
-done
+# The process check belongs in the skip predicate too, not just the ports. This
+# mirror is itself run by the gate runner during `make pre-pr`, so a `ci-gates`
+# process can be alive while the case executes -- and the guard blocks on that
+# unconditionally, by design. Verified directly: with ci-gates alive, this exact
+# payload returns 2.
+#
+# It has not actually red-lined a run: two consecutive `make pre-pr` runs passed
+# this case, so the timing currently works out. That is the point. The case was
+# depending on an accident of when the runner happens to be alive, and a skip
+# predicate that only knows about ports cannot see the signal most likely to
+# fire here.
+if pgrep -x ci-gates >/dev/null 2>&1; then
+  probed_bound="ci-gates process"
+else
+  for p in 15432 7687 7474 18080 18091; do
+    lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 && { probed_bound="port $p"; break; }
+  done
+fi
 if [ -n "$probed_bound" ]; then
-  printf 'ok - SKIPPED override pass-through: port %s is bound by a real backend\n' "$probed_bound"
+  printf 'ok - SKIPPED override pass-through: %s in flight\n' "$probed_bound"
   passed=$((passed + 1))
 else
   out=$(printf '{"tool_input":{"command":"ESHU_POSTGRES_PORT=15532 make pre-pr"}}' \
@@ -338,8 +353,8 @@ fi
 # spawns no ci-gates process). Before the per-port waiver, a second gate started
 # this way was caught by neither signal.
 sid=$((sid + 1))
-if lsof -nP -iTCP:7687 -sTCP:LISTEN >/dev/null 2>&1; then
-  printf 'ok - SKIPPED bolt-bound case: 7687 already in use\n'
+if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:7687 -sTCP:LISTEN >/dev/null 2>&1; then
+  printf 'ok - SKIPPED bolt-bound case: a gate or 7687 is already in use\n'
   passed=$((passed + 1))
 else
   python3 -m http.server 7687 --bind 127.0.0.1 >/dev/null 2>&1 &
@@ -363,8 +378,8 @@ fi
 # lsof branch: bind 15432 briefly. Skipped rather than failed if something is
 # already listening, since that is a real backend and not this suite's to kill.
 sid=$((sid + 1))
-if lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
-  printf 'ok - SKIPPED port-bound case: 15432 already in use by a real backend\n'
+if pgrep -x ci-gates >/dev/null 2>&1 || lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
+  printf 'ok - SKIPPED port-bound case: a gate or 15432 is already in use\n'
   passed=$((passed + 1))
 else
   python3 -m http.server 15432 --bind 127.0.0.1 >/dev/null 2>&1 &
