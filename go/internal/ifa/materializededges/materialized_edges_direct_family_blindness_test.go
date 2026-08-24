@@ -17,6 +17,16 @@ import (
 // line in the committed ledger.
 var manifestSurfaceKey = regexp.MustCompile(`surface:\s*"` + regexp.QuoteMeta(MaterializedEdgeSurfacePrefix) + `([^"]+)"`)
 
+// directMaterializedEdgeFamilyTableFile is where directMaterializedEdgeFamilyByPort
+// is declared, repo-relative.
+//
+// A constant, and checked to exist below, because the failures here are the one
+// line a 3-AM operator gets and they shipped naming
+// go/internal/reducer/direct_materialized_edge_families.go — a file that has
+// never existed. A message that sends the reader to nothing is worse than a
+// vague one: it reads as precise.
+const directMaterializedEdgeFamilyTableFile = "go/internal/reducer/materialized_edge_families.go"
+
 // TestDirectMaterializedEdgePortsMatchTheExecutedCypher is the drift guard for
 // reducer.DirectMaterializedEdgeFamilies() (#6181).
 //
@@ -58,6 +68,10 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
+	if _, err := os.Stat(filepath.Join(repoRoot, directMaterializedEdgeFamilyTableFile)); err != nil {
+		t.Fatalf("stat %s: %v; every failure below tells the operator to edit that file, so it has to be there", directMaterializedEdgeFamilyTableFile, err)
+	}
+
 	ports := scanReducerInterfacePorts(t, filepath.Join(repoRoot, "go", "internal", "reducer"))
 	src := parseCypherPackage(t, filepath.Join(repoRoot, "go", "internal", "storage", "cypher"))
 	classified := classifyCypherPorts(src, ports)
@@ -90,13 +104,20 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 			if isEdge || isNode {
 				t.Errorf("%s is the shared-projection port and must be in neither direct table", row.Port)
 			}
+		// Node-only first. A port declared node-only has isEdge == false, so
+		// the undeclared case below subsumes it: ordered the other way this
+		// branch never fires and the operator gets the generic message for a
+		// port they can see is already declared. An unreachable guard reads
+		// like coverage and is not — the argument this package's own
+		// waiver-issue guard makes about a branch it deliberately omits.
+		case isNode && row.WritesEdges:
+			t.Errorf("%s is declared node-only but MERGEs a relationship in %s: %q. It materializes an edge family the ledger cannot see — move it from directMaterializedEdgeNodeOnlyPorts to directMaterializedEdgeFamilyByPort (%s)",
+				row.Port, row.Impl, row.Evidence, directMaterializedEdgeFamilyTableFile)
 		case row.WritesEdges && !isEdge:
-			t.Errorf("reducer graph-write port %s (%s) MERGEs a relationship — %q — but is not a declared direct materialized-edge family. The Ifá ledger cannot see the family it writes: declare it in directMaterializedEdgeFamilyByPort (go/internal/reducer/direct_materialized_edge_families.go) and give it a ledger row.",
-				row.Port, row.Impl, row.Evidence)
+			t.Errorf("reducer graph-write port %s (%s) MERGEs a relationship — %q — but is not a declared direct materialized-edge family. The Ifá ledger cannot see the family it writes: declare it in directMaterializedEdgeFamilyByPort (%s) and give it a ledger row in specs/%s.",
+				row.Port, row.Impl, row.Evidence, directMaterializedEdgeFamilyTableFile, MaterializedEdgeDirectManifestFileName)
 		case isEdge && !row.WritesEdges:
 			t.Errorf("%s is declared a direct materialized-edge family but reaches no relationship MERGE in %s; either the writer stopped materializing its family, or the declaration is stale", row.Port, row.Impl)
-		case isNode && row.WritesEdges:
-			t.Errorf("%s is declared node-only but MERGEs a relationship in %s: %q. It materializes an edge family the ledger cannot see — move it to directMaterializedEdgeFamilyByPort", row.Port, row.Impl, row.Evidence)
 		}
 	}
 
@@ -159,11 +180,12 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 		}
 	}
 	if len(blind) > 0 {
-		t.Errorf("%d direct-materialization edge famil(ies) are absent from specs/%s entirely — not waived, UNENUMERATED, so the exhaustiveness gate cannot know they exist and reports green without them (#6181):", len(blind), MaterializedEdgeManifestFileName)
+		t.Errorf("%d direct-materialization edge famil(ies) are absent from both specs/%s and specs/%s — not waived, UNENUMERATED, so the exhaustiveness gate cannot know they exist and reports green without them (#6181):",
+			len(blind), MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName)
 		for _, family := range blind {
 			t.Errorf("  %s", family)
 		}
-		t.Errorf("each needs a row in specs/%s — a coverage row, or an explicit waiver naming a tracked issue, but PRESENT either way", MaterializedEdgeManifestFileName)
+		t.Errorf("each needs a row in specs/%s, the direct half — a coverage row, or an explicit waiver naming a tracked issue, but PRESENT either way", MaterializedEdgeDirectManifestFileName)
 	}
 
 	// The reverse direction: a ledger row naming nothing the code enumerates is
@@ -178,7 +200,10 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	}
 	sort.Strings(orphaned)
 	for _, family := range orphaned {
-		t.Errorf("specs/%s names family %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale row", MaterializedEdgeManifestFileName, family)
+		// ledger[family], not a hardcoded file name: the surfaces come from
+		// BOTH halves, and naming the shared manifest for a row that lives in
+		// the direct one sends the operator to a file the row is not in.
+		t.Errorf("specs/%s names family %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale row", ledger[family], family)
 	}
 }
 
@@ -197,10 +222,16 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 // Both files, because reading one is the very failure being tested for: a
 // family whose ledger half is never opened looks identical to a family nobody
 // enumerated.
-func loadMaterializedEdgeLedgerSurfaces(t *testing.T, specsDir string) map[string]struct{} {
+//
+// The value is the file the surface was found in, so a failure about a row can
+// name the half that actually carries it. A family named in both halves keeps
+// the first, which is the shared manifest; the coverage gate rejects a waiver
+// declared twice across the halves, so the ambiguity is caught there rather
+// than being resolved here.
+func loadMaterializedEdgeLedgerSurfaces(t *testing.T, specsDir string) map[string]string {
 	t.Helper()
 
-	out := map[string]struct{}{}
+	out := map[string]string{}
 	for _, name := range []string{MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName} {
 		path := filepath.Join(specsDir, name)
 		raw, err := os.ReadFile(path) // #nosec G304 -- repo-relative path built from a package constant.
@@ -209,7 +240,9 @@ func loadMaterializedEdgeLedgerSurfaces(t *testing.T, specsDir string) map[strin
 		}
 		found := 0
 		for _, m := range manifestSurfaceKey.FindAllStringSubmatch(string(raw), -1) {
-			out[m[1]] = struct{}{}
+			if _, dup := out[m[1]]; !dup {
+				out[m[1]] = name
+			}
 			found++
 		}
 		if found == 0 {
