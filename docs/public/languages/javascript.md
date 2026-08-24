@@ -166,7 +166,7 @@ Fastify (#4905).
 
 Performance Evidence: microbenchmark against a synthetic 4500-line Fastify-fixture
 file (500 routes each over GET/POST/PUT, 500 handlers) measured before-and-after
-on an Apple M5 Max, `go test -bench BenchmarkParseFastifyFixture -benchmem`:
+on an Apple M5 Max, `go test ./internal/parser/javascript -run '^$' -bench '^BenchmarkParseFastifyFixture$' -benchmem`:
 
 - Before (3× compute): 226 ms/op, 133.0 MB/op, 1,398,488 allocs/op
 - After  (1× compute): 200 ms/op, 128.5 MB/op, 1,239,340 allocs/op

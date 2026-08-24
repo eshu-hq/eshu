@@ -20,11 +20,15 @@
    ordering
 10. package_json_test.go - behavior coverage for nearest package ownership and
    package public source mapping
+11. fastify_threading_bench_test.go - external-package benchmark of the public
+    parent Engine.ParsePath path
 
 ## Invariants this package enforces
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
+- Production dependency direction stays one way: parent parser code may import
+  this package, but production files here must not import internal/parser. An
+  external `javascript_test` file may import the parent only to test or benchmark
+  its public engine contract.
 - `Parse` receives a `ParserFactory` from the parent wrapper. Do not pass or
   store parent Engine values here.
 - Payload buckets must stay deterministic. Sort named buckets before returning
@@ -101,7 +105,9 @@
 
 ## Anti-patterns specific to this package
 
-- Importing the parent parser package to reuse payload helpers.
+- Importing the parent parser package from production files or same-package
+  tests to reuse payload helpers. Keep the external-test exception limited to
+  black-box coverage of the public parent engine.
 - Accepting parent Options or Engine types instead of shared parser types.
 - Resolving absolute aliases or paths outside repoRoot.
 - Marking every exported TypeScript symbol live without package or re-export

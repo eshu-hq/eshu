@@ -43,7 +43,9 @@ bucket sorting.
 The parent `internal/parser` package owns registry dispatch, runtime grammar
 caching, Engine.ParsePath, Engine.PreScanRepositoryPathsWithWorkers, and the
 thin JavaScript wrapper that converts parent options into shared parser
-options. This package must not import the parent parser package.
+options. Production files in this package must not import the parent parser
+package. External black-box tests may import it to exercise the public engine
+without giving child production code a reverse dependency.
 
 ## Exported surface
 
@@ -67,9 +69,10 @@ collector runs full parse immediately afterward.
 
 This package imports tree-sitter, the Go standard library, and
 `internal/parser/shared` for payload, source, tree, path, and option helpers.
-The local alias file only exposes helper names with package-local callers. It
-must not import the parent parser package, collector packages, graph storage,
-or reducer code.
+The local alias file only exposes helper names with package-local callers.
+Production code must not import the parent parser package, collector packages,
+graph storage, or reducer code. The external Fastify benchmark is test-only and
+imports the parent parser to measure the public `Engine.ParsePath` path.
 
 ## AST extraction and retained within-string regexes
 
@@ -270,6 +273,11 @@ parser engine and runtime instrumentation.
 
 `Parse` accepts a `ParserFactory` instead of a parent Engine so the child
 package cannot depend on `internal/parser`.
+
+`fastify_threading_bench_test.go` uses the external `javascript_test` package.
+It may import `internal/parser` because Go compiles it only for tests; production
+files remain parent-independent. Keep that exception limited to black-box tests
+of the public parent engine.
 
 TypeScript config files use JSONC, so comments and trailing commas are accepted
 before unmarshalling.
