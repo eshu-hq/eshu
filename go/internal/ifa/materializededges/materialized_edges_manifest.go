@@ -125,10 +125,11 @@ func LoadMaterializedEdgeWaivers(path string) ([]MaterializedEdgeWaiver, error) 
 // reducer.MaterializedEdgeFamilies(), which the direct half's waivers do not
 // name. Both say so at the call site.
 //
-// A (surface, proof_gate) waiver declared in BOTH files is rejected. Within one
-// file LoadMaterializedEdgeWaivers already rejects a duplicate; across the two
-// nothing would, and the pair would silently double-count in every waiver total
-// a maintainer reads.
+// A (surface, proof_gate) waiver declared in BOTH files is rejected, and so is
+// a (surface, scenario_type) coverage row. Within one file
+// LoadMaterializedEdgeWaivers and replaycoverage.LoadManifest already reject a
+// duplicate; across the two nothing would, and the pair would silently
+// double-count in every total a maintainer reads.
 func LoadMaterializedEdgeLedger(specsDir string) (replaycoverage.Manifest, []MaterializedEdgeWaiver, error) {
 	shared := filepath.Join(specsDir, MaterializedEdgeManifestFileName)
 	direct := filepath.Join(specsDir, MaterializedEdgeDirectManifestFileName)
@@ -140,6 +141,19 @@ func LoadMaterializedEdgeLedger(specsDir string) (replaycoverage.Manifest, []Mat
 	directManifest, err := replaycoverage.LoadManifest(direct)
 	if err != nil {
 		return replaycoverage.Manifest{}, nil, fmt.Errorf("ifa: load direct materialized-edge ledger %s: %w", direct, err)
+	}
+	seenCoverage := make(map[materializedEdgeCoverageKey]struct{}, len(manifest.Coverage))
+	for _, entry := range manifest.Coverage {
+		seenCoverage[materializedEdgeCoverageKey{Surface: entry.Surface, ScenarioType: string(entry.ScenarioType)}] = struct{}{}
+	}
+	for _, entry := range directManifest.Coverage {
+		key := materializedEdgeCoverageKey{Surface: entry.Surface, ScenarioType: string(entry.ScenarioType)}
+		if _, dup := seenCoverage[key]; dup {
+			return replaycoverage.Manifest{}, nil, fmt.Errorf(
+				"ifa: coverage row (%q, scenario_type %q) is declared in both %s and %s; a family belongs to exactly one ledger half, and the pair resolves covered twice",
+				entry.Surface, entry.ScenarioType, MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName)
+		}
+		seenCoverage[key] = struct{}{}
 	}
 	manifest.Coverage = append(manifest.Coverage, directManifest.Coverage...)
 

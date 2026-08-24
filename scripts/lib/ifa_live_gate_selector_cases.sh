@@ -52,6 +52,12 @@ ifa_live_gate_common_seams=(
 	'.github/workflows/ifa-determinism-gate.yml|.github/workflows/ifa-determinism-gate.yml'
 	'specs/ci-gates.v1.yaml|specs/ci-gates.v1.yaml'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
+	# The direct-materialization half of the same ledger (#6181). Both
+	# halves are loaded by one gate run, so a change to either has to
+	# retrigger both live matrices; the trigger is a literal, and this row
+	# is what proves the real matcher SELECTS on it rather than proving
+	# only that the string appears in the registry.
+	'specs/ifa-materialized-edge-coverage-direct.v1.yaml|specs/ifa-materialized-edge-coverage-direct.v1.yaml'
 	'go/internal/ifa/graphdump/**|go/internal/ifa/graphdump/canonical.go'
 	'go/internal/ifa/graphdump/**|go/internal/ifa/graphdump/reader.go'
 	'go/cmd/ifa/**|go/cmd/ifa/main.go'

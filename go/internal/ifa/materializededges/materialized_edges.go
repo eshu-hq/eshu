@@ -41,8 +41,11 @@ const (
 	//
 	// A separate file rather than more rows in the one above, for the reason
 	// that file's own footer already gives for moving its roadmap prose out: the
-	// repository caps a file at 500 lines, and 56 waiver rows would put it near
-	// 760. Splitting also keeps each half readable on its own terms, matching
+	// repository caps a file at 500 lines, the sibling manifest already sits
+	// just under it, and two waiver rows per direct family -- one per proof
+	// gate -- would push it far past. Stated as a ratio rather than a digit
+	// because a digit here goes stale the day a family is added, with nothing
+	// red. Splitting also keeps each half readable on its own terms, matching
 	// the split between the two enumerations they reconcile against.
 	//
 	// Load both through LoadMaterializedEdgeLedger, never one directly.
@@ -90,6 +93,15 @@ func materializedEdgeWaiverProofGateFor(scenarioType replaycoverage.DepthScenari
 type materializedEdgeWaiverKey struct {
 	Surface   string
 	ProofGate string
+}
+
+// materializedEdgeCoverageKey is the (surface, scenario_type) identity a
+// coverage row is declared under — the same key replaycoverage.LoadManifest
+// rejects a duplicate of within one file, so LoadMaterializedEdgeLedger can
+// apply it across the two halves as well.
+type materializedEdgeCoverageKey struct {
+	Surface      string
+	ScenarioType string
 }
 
 // EnumerateMaterializedEdgeSurfaces flattens the drift-proof family list

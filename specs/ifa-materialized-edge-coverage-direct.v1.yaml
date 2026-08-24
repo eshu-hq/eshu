@@ -18,9 +18,13 @@
 # WHY A SECOND FILE. The repository caps a file at 500 lines (CLAUDE.md), and
 # the sibling manifest's own footer records that its roadmap prose was moved to
 # docs/internal/design/5351-ifa-materialized-edge-known-gaps.md for that reason.
-# It sits at 478 lines; the 56 rows below would put it near 760. Splitting also
-# keeps each half readable on its own terms and mirrors the split between the
-# two enumerations they reconcile against.
+# It already sits just under the cap, and every direct family below carries two
+# waiver rows -- one per proof gate -- so folding them in would push it far past
+# 500. Counted rather than quoted as a digit here on purpose: a number in prose
+# goes stale the day a family is added, and that drift is what
+# TestMaterializedEdgeFamilyCountClaimsMatchTheCode exists to catch in the
+# claims it can see. Splitting also keeps each half readable on its own terms
+# and mirrors the split between the two enumerations they reconcile against.
 #
 # THE CAP IS CONVENTION HERE, NOT ENFORCEMENT. Nothing mechanically gates the
 # length of a YAML file: the 500-line cap runs from scripts/dev/precommit-go.sh,

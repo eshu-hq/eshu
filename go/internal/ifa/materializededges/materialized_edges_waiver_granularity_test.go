@@ -266,3 +266,73 @@ func findFinding(t *testing.T, gate *goldengate.Report, check string) goldengate
 	t.Fatalf("no finding with check %q in %+v", check, gate.Findings)
 	return goldengate.Finding{}
 }
+
+// TestMaterializedEdgeLedgerRejectsCoverageDeclaredInBothHalves holds the
+// coverage rows to the same cross-file rule LoadMaterializedEdgeLedger already
+// applies to waivers (#6181, #6228).
+//
+// LoadManifest rejects a (surface, scenario_type) declared twice inside one
+// file. Across the two halves nothing did: LoadMaterializedEdgeLedger appended
+// the direct half's coverage to the shared half's unchecked, so the same
+// dimension claimed in both would resolve covered twice and inflate every
+// covered total a maintainer reads — the exact reason the waiver merge rejects
+// its own cross-file duplicate.
+//
+// Unreachable while the direct half has zero coverage rows, and reachable the
+// day #6228 converts its first waiver into one, which is the file's whole
+// purpose.
+func TestMaterializedEdgeLedgerRejectsCoverageDeclaredInBothHalves(t *testing.T) {
+	t.Parallel()
+
+	const row = `version: "1"
+coverage:
+  - surface: "materialized_edges:assumes_iam_role"
+    scenario: odu
+    scenario_type: %s
+    ref: "odu:ifa-review-probe"
+    proof_gate: ifa-determinism
+`
+	writeHalves := func(t *testing.T, sharedType, directType string) string {
+		t.Helper()
+		dir := t.TempDir()
+		for name, scenarioType := range map[string]string{
+			MaterializedEdgeManifestFileName:       sharedType,
+			MaterializedEdgeDirectManifestFileName: directType,
+		} {
+			content := strings.Replace(row, "%s", scenarioType, 1)
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+				t.Fatalf("write %s: %v", name, err)
+			}
+		}
+		return dir
+	}
+
+	t.Run("same dimension in both halves is rejected", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := LoadMaterializedEdgeLedger(writeHalves(t, "baseline", "baseline"))
+		if err == nil {
+			t.Fatal("a (surface, scenario_type) coverage row declared in BOTH ledger halves must fail to load; appended blindly it double-counts as covered")
+		}
+		for _, want := range []string{
+			MaterializedEdgeManifestFileName,
+			MaterializedEdgeDirectManifestFileName,
+			"assumes_iam_role",
+			"baseline",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error does not name %q, so the operator cannot find the duplicate: %v", want, err)
+			}
+		}
+	})
+
+	t.Run("different dimensions of one surface still load", func(t *testing.T) {
+		t.Parallel()
+		manifest, _, err := LoadMaterializedEdgeLedger(writeHalves(t, "baseline", "fault"))
+		if err != nil {
+			t.Fatalf("a surface split across halves by scenario_type is not a duplicate and must load: %v", err)
+		}
+		if len(manifest.Coverage) != 2 {
+			t.Errorf("merged coverage has %d row(s), want 2; the halves stopped merging", len(manifest.Coverage))
+		}
+	})
+}
