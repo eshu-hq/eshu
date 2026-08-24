@@ -30,8 +30,23 @@ const (
 
 	// MaterializedEdgeManifestFileName is Ifá's own materialized-edge coverage
 	// manifest inside specs/, sibling to ManifestFileName
-	// (ifa-coverage-manifest.v1.yaml).
+	// (ifa-coverage-manifest.v1.yaml). It holds the shared-projection half of
+	// the ledger: the reducer.MaterializedEdgeFamilies() families.
 	MaterializedEdgeManifestFileName = "ifa-materialized-edge-coverage.v1.yaml"
+
+	// MaterializedEdgeDirectManifestFileName holds the direct-materialization
+	// half of the ledger: the reducer.DirectMaterializedEdgeFamilies() families,
+	// each written by its own port straight to a storage/cypher writer rather
+	// than through the shared intent path (#6181, coverage tracked by #6228).
+	//
+	// A separate file rather than more rows in the one above, for the reason
+	// that file's own footer already gives for moving its roadmap prose out: the
+	// repository caps a file at 500 lines, and 56 waiver rows would put it near
+	// 760. Splitting also keeps each half readable on its own terms, matching
+	// the split between the two enumerations they reconcile against.
+	//
+	// Load both through LoadMaterializedEdgeLedger, never one directly.
+	MaterializedEdgeDirectManifestFileName = "ifa-materialized-edge-coverage-direct.v1.yaml"
 
 	// materializedEdgeProofGateBaseline and materializedEdgeProofGateFault are
 	// the two CI proof gates the exhaustiveness contract pairs with each

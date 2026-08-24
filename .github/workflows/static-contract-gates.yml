@@ -217,6 +217,7 @@ jobs:
               - 'go/internal/storage/cypher/canonical_code_call_edges.go'
               - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
               - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+              - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
               - 'testdata/cassettes/sqlrelationships/**'
               - 'testdata/cassettes/codecalls/**'
               - 'testdata/cassettes/symbolruntime/**'

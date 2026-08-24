@@ -6,10 +6,13 @@ package materializededges
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // waiverDateLayout is the required format for a MaterializedEdgeWaiver.Waived
@@ -96,4 +99,63 @@ func LoadMaterializedEdgeWaivers(path string) ([]MaterializedEdgeWaiver, error) 
 		out = append(out, MaterializedEdgeWaiver{Surface: surface, ProofGate: proofGate, Issue: issue, Waived: waived, Reason: reason})
 	}
 	return out, nil
+}
+
+// LoadMaterializedEdgeLedger reads BOTH halves of the materialized-edge claims
+// ledger from specsDir and returns their merged coverage rows and waivers.
+//
+// The ledger is split across two files because the reducer's materialized-edge
+// surface is two surfaces (#6181). MaterializedEdgeManifestFileName holds the
+// shared-projection families that reach the graph through the ordering-safe
+// intent path; MaterializedEdgeDirectManifestFileName holds the direct
+// families, each written by its own port straight to a storage/cypher writer,
+// whose coverage is tracked by #6228.
+//
+// Reading only one of them is the failure mode this whole gate exists to
+// prevent: a family whose ledger file is never opened produces no row, no
+// finding and no output, and the gate reports green without knowing it exists.
+// So every caller that reconciles the gate MUST come through here rather than
+// calling LoadMaterializedEdgeWaivers on one path.
+//
+// A (surface, proof_gate) waiver declared in BOTH files is rejected. Within one
+// file LoadMaterializedEdgeWaivers already rejects a duplicate; across the two
+// nothing would, and the pair would silently double-count in every waiver total
+// a maintainer reads.
+func LoadMaterializedEdgeLedger(specsDir string) (replaycoverage.Manifest, []MaterializedEdgeWaiver, error) {
+	shared := filepath.Join(specsDir, MaterializedEdgeManifestFileName)
+	direct := filepath.Join(specsDir, MaterializedEdgeDirectManifestFileName)
+
+	manifest, err := replaycoverage.LoadManifest(shared)
+	if err != nil {
+		return replaycoverage.Manifest{}, nil, fmt.Errorf("ifa: load shared materialized-edge ledger %s: %w", shared, err)
+	}
+	directManifest, err := replaycoverage.LoadManifest(direct)
+	if err != nil {
+		return replaycoverage.Manifest{}, nil, fmt.Errorf("ifa: load direct materialized-edge ledger %s: %w", direct, err)
+	}
+	manifest.Coverage = append(manifest.Coverage, directManifest.Coverage...)
+
+	waivers, err := LoadMaterializedEdgeWaivers(shared)
+	if err != nil {
+		return replaycoverage.Manifest{}, nil, err
+	}
+	directWaivers, err := LoadMaterializedEdgeWaivers(direct)
+	if err != nil {
+		return replaycoverage.Manifest{}, nil, err
+	}
+
+	seen := make(map[materializedEdgeWaiverKey]struct{}, len(waivers))
+	for _, w := range waivers {
+		seen[materializedEdgeWaiverKey{Surface: w.Surface, ProofGate: w.ProofGate}] = struct{}{}
+	}
+	for _, w := range directWaivers {
+		key := materializedEdgeWaiverKey{Surface: w.Surface, ProofGate: w.ProofGate}
+		if _, dup := seen[key]; dup {
+			return replaycoverage.Manifest{}, nil, fmt.Errorf(
+				"ifa: waiver (%q, %q) is declared in both %s and %s; a waiver belongs to exactly one ledger half",
+				w.Surface, w.ProofGate, MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName)
+		}
+		seen[key] = struct{}{}
+	}
+	return manifest, append(waivers, directWaivers...), nil
 }

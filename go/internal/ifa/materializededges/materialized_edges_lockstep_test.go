@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -24,27 +25,40 @@ import (
 // one of the 14 allProjectionDomains families must be either genuinely
 // covered (baseline and fault rows resolve) or carry a waiver naming a tracked
 // issue. SQL relationships additionally requires a live delta row.
+//
+// It reconciles the direct-materialization families (#6181) on the same terms.
+// Reconciling only the shared half is what made the gate blind to them: an
+// unenumerated family produces no row, no finding and no output, so the gate
+// reported green without knowing it existed. Their coverage is tracked by
+// #6228 and every one of them currently resolves through a waiver.
 func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
 
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
+	manifest, waivers, err := LoadMaterializedEdgeLedger(specsDir)
 	if err != nil {
-		t.Fatalf("LoadManifest(materialized-edge manifest): %v", err)
-	}
-	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(specsDir, MaterializedEdgeManifestFileName))
-	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
 	proofGates, err := cigates.Load(filepath.Join(specsDir, "ci-gates.v1.yaml"))
 	if err != nil {
 		t.Fatalf("cigates.Load(real): %v", err)
 	}
 
-	families := reducer.MaterializedEdgeFamilies()
-	if len(families) == 0 {
+	// Both halves of the reducer's materialized-edge surface, because the gate
+	// is only as honest as the family list it reconciles against. Running it on
+	// the shared half alone is exactly the blindness #6181 reported: the direct
+	// families produce no row, no finding and no output, and the gate reports
+	// green without ever knowing they exist.
+	shared := reducer.MaterializedEdgeFamilies()
+	if len(shared) == 0 {
 		t.Fatal("reducer.MaterializedEdgeFamilies() returned zero families; the registry itself is broken")
 	}
+	direct := reducer.DirectMaterializedEdgeFamilies()
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; the registry itself is broken")
+	}
+	families := append(append([]string{}, shared...), direct...)
+	sort.Strings(families)
 
 	cov, gate, dangling := RunMaterializedEdgeCoverage(MaterializedEdgeCoverageInputs{
 		Families:   families,

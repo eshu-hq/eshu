@@ -111,27 +111,42 @@ func TestMaterializedEdgeFamilyCountClaimsMatchTheCode(t *testing.T) {
 	//
 	// "Families with at least one remaining waiver" is what the sentences mean
 	// by "the N other allProjectionDomains families".
-	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
+	_, waivers, err := LoadMaterializedEdgeLedger(filepath.Join(repoRoot, "specs"))
 	if err != nil {
-		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+		t.Fatalf("LoadMaterializedEdgeLedger: %v", err)
 	}
-	waivedFamilies := map[string]struct{}{}
+	// Two different questions are being asked of the same waiver list, and
+	// conflating them is what would break here first.
+	//
+	// The PROSE claim ("the N other allProjectionDomains families") is about the
+	// shared half only, so its count must ignore direct-materialization waivers
+	// entirely — otherwise the 28 direct waivers (#6228) would make waived
+	// exceed total and the sentence would be held to a number it never meant.
+	//
+	// The VALIDATION question is whether every waiver names a family that
+	// actually exists, and that is asked against the union of both
+	// enumerations. A waiver naming neither is still a hard error.
+	direct := reducer.DirectMaterializedEdgeFamilies()
+	waivedShared := map[string]struct{}{}
 	for _, w := range waivers {
 		name, ok := strings.CutPrefix(w.Surface, MaterializedEdgeSurfacePrefix)
 		if !ok {
 			continue
 		}
-		waivedFamilies[name] = struct{}{}
+		switch {
+		case slices.Contains(families, name):
+			waivedShared[name] = struct{}{}
+		case slices.Contains(direct, name):
+			// A direct-materialization waiver, tracked by #6228. Real and
+			// validated, but not part of the allProjectionDomains prose count.
+		default:
+			t.Errorf("waiver names %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; the ledger and the code disagree", name)
+		}
 	}
-	waived := len(waivedFamilies)
+	waived := len(waivedShared)
 
 	if total == 0 || waived > total {
 		t.Fatalf("derived counts are nonsense: total=%d waived=%d", total, waived)
-	}
-	for name := range waivedFamilies {
-		if !slices.Contains(families, name) {
-			t.Errorf("waiver names %q, which is not an allProjectionDomains family; the ledger and reducer.MaterializedEdgeFamilies() disagree", name)
-		}
 	}
 
 	checked := 0

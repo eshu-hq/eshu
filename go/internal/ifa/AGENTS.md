@@ -75,10 +75,22 @@
   including `FailureClass`. Do not narrow it to `WorkItemID`-only equality —
   the ADR's step 3a teeth test requires catching a divergent `failure_class`
   on an otherwise-matching work item.
-- `reducer.MaterializedEdgeFamilies()` is the ONLY enumeration source for
-  `materialized_edges:<domain>` surfaces. Do not hand-list families in
-  `materializededges/materialized_edges.go` or the manifest; a family must come from that
-  function (locked to `allProjectionDomains` by a reducer-package test).
+- `reducer.MaterializedEdgeFamilies()` and
+  `reducer.DirectMaterializedEdgeFamilies()` are the ONLY enumeration sources
+  for `materialized_edges:<domain>` surfaces, and BOTH must be reconciled. Do
+  not hand-list families in `materializededges/materialized_edges.go` or in
+  either ledger file; a family must come from one of those two functions. The
+  first is locked to `allProjectionDomains` by a reducer-package test. The
+  second is held to the Cypher its ports actually execute by
+  `TestDirectMaterializedEdgePortsMatchTheExecutedCypher` — every reducer port
+  reaching a relationship MERGE must be a declared family. Do NOT re-derive
+  either list from port names: the guard that did so missed six ports that
+  merge relationships under names carrying no `Edges` suffix (#6181).
+- Reconciling only ONE half is the blindness #6181 reported: a family whose
+  enumeration or ledger half is never read produces no row, no finding and no
+  output, so the gate reports green without knowing it exists. Load both
+  ledger halves through `materializededges.LoadMaterializedEdgeLedger`, never
+  `LoadMaterializedEdgeWaivers` on a single path.
 - A `materialized_edges:<family>` coverage row is not exhaustively covered
   until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
   (proof_gate `ifa-fault-injection`) scenario_type rows resolve covered.

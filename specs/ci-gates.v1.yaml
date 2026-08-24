@@ -2179,6 +2179,7 @@ gates:
       - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       # The Go blocker-shape lockstep test PARSES these shell files: it reads
       # each family's declared blocker_kind from the registry rows and binds
       # it to the real handler's write shape. Without these triggers a row
@@ -2279,6 +2280,7 @@ gates:
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       - "docker-compose.yaml"
       - "testdata/cassettes/gcpcloud/supply-chain-demo.json"
       - "testdata/golden/e2e-20repo-snapshot.json"
@@ -2677,6 +2679,7 @@ gates:
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage-direct.v1.yaml"
       - "go/internal/ifa/graphdump/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"

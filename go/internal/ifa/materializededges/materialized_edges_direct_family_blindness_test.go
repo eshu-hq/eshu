@@ -146,7 +146,7 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
+	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs"))
 	direct := reducer.DirectMaterializedEdgeFamilies()
 	if len(direct) == 0 {
 		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; the enumeration itself is broken")
@@ -182,9 +182,9 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	}
 }
 
-// loadMaterializedEdgeLedgerSurfaces reads the committed coverage manifest as
-// TEXT and returns every family named by a `surface:` key, from the coverage:
-// and waivers: sections alike.
+// loadMaterializedEdgeLedgerSurfaces reads BOTH halves of the committed claims
+// ledger as TEXT and returns every family named by a `surface:` key, from the
+// coverage: and waivers: sections alike.
 //
 // Text rather than the typed loaders (replaycoverage.LoadManifest /
 // LoadMaterializedEdgeWaivers) on purpose: those validate rows against the
@@ -193,19 +193,28 @@ func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 // able to see — a ledger entry for a family the enumeration is blind to would
 // be invisible to a typed read, and the orphaned-row check would then pass by
 // construction.
-func loadMaterializedEdgeLedgerSurfaces(t *testing.T, path string) map[string]struct{} {
+//
+// Both files, because reading one is the very failure being tested for: a
+// family whose ledger half is never opened looks identical to a family nobody
+// enumerated.
+func loadMaterializedEdgeLedgerSurfaces(t *testing.T, specsDir string) map[string]struct{} {
 	t.Helper()
 
-	raw, err := os.ReadFile(path) // #nosec G304 -- repo-relative path built from a package constant.
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
 	out := map[string]struct{}{}
-	for _, m := range manifestSurfaceKey.FindAllStringSubmatch(string(raw), -1) {
-		out[m[1]] = struct{}{}
-	}
-	if len(out) == 0 {
-		t.Fatalf("no %q surface keys parsed from %s; the ledger format changed and this check went vacuous", MaterializedEdgeSurfacePrefix, path)
+	for _, name := range []string{MaterializedEdgeManifestFileName, MaterializedEdgeDirectManifestFileName} {
+		path := filepath.Join(specsDir, name)
+		raw, err := os.ReadFile(path) // #nosec G304 -- repo-relative path built from a package constant.
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		found := 0
+		for _, m := range manifestSurfaceKey.FindAllStringSubmatch(string(raw), -1) {
+			out[m[1]] = struct{}{}
+			found++
+		}
+		if found == 0 {
+			t.Fatalf("no %q surface keys parsed from %s; the ledger format changed and this check went vacuous", MaterializedEdgeSurfacePrefix, path)
+		}
 	}
 	return out
 }
