@@ -60,16 +60,27 @@
 #     counted file has that shape today (all 61 detected openers are genuine
 #     `cat <<WORD`), and the direction is false-RED, but a counted file that
 #     gained one would blind every pin after it.
-#   - Why delimiter false positives are survivable at all: a spurious opener
-#     puts the counter into heredoc mode, and heredoc mode SKIPS lines, so a
-#     wrong delimiter can only make counts go DOWN. Every comparison these
-#     mirrors make on a counter is `-ge 1` or `-eq N`, and the one absence pin
-#     (`-eq 0`, deployable-unit kill-isolation) is paired with an `-eq 1` over
-#     the same file, so a lower count reds it too. No comparison here can be
-#     SATISFIED by a lower count, which is what makes this class structurally
-#     false-RED-only rather than merely false-RED in today's corpus. Widening
-#     the delimiter is safe in that direction; narrowing what counts as code
-#     is not, and is what the probe set below guards.
+#   - Why delimiter false positives are survivable IN THIS TREE. A spurious
+#     opener puts the counter into heredoc mode, and heredoc mode SKIPS lines,
+#     so a wrong delimiter can only push counts DOWN. For a `-ge 1` or an
+#     `-eq N` with N>0 that is always a RED, which covers almost every pin here.
+#     It is NOT a general guarantee, and an earlier version of this block said
+#     it was. Two consumers can be SATISFIED by a lower count:
+#       * the `lines`-mode uniqueness predicate at
+#         test-verify-ifa-determinism.sh:174 tests the SHAPE `^[0-9]+$`, not a
+#         number. Two occurrences give "2\n3" and fail; one gives "2" and
+#         passes, so an opener between two call sites makes a duplicate look
+#         unique. Measured.
+#       * the absence pin at
+#         test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh:15 is
+#         paired with an `-eq 1`, but POSITIONALLY: an opener before both
+#         needles reds it, an opener BETWEEN them gives pre=1 post=0 and the pin
+#         PASSES over a regression it exists to catch. Measured.
+#     What actually makes this safe today is the corpus, not the algebra: all 61
+#     lines the recogniser calls an opener are genuine `cat <<WORD`, and the
+#     old-vs-new differential over 587 files disagrees nowhere. Widening the
+#     delimiter is cheap; narrowing what counts as code is not, and that is the
+#     direction the probe set below guards.
 
 # IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
 #
