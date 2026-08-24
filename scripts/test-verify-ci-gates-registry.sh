@@ -190,13 +190,23 @@ printf '%s\n' "${selection}" |
 # trigger came to be missing — the same cap-driven extraction that created the
 # merge_group lib. A read-as-data dependency false-greens exactly like a
 # sourced one, so it belongs in this list.
-while IFS='|' read -r sourced_gate sourced_lib sourced_tier; do
+#
+# The fourth field is the trigger STRING expected to do the selecting, which is
+# not always the helper's own path: #6200 replaced the scripts/lib/ Ifá
+# enumeration with globs, and a row that could only ever name a literal would
+# have forced one filename to stay pinned in the registry purely to keep this
+# test green -- re-creating, in the guard against dark triggers, the per-file
+# list the guard exists to retire. Both halves still bite: the trigger must be
+# declared verbatim in the gate block, and the concrete helper path must select
+# that gate THROUGH that trigger and no other.
+while IFS='|' read -r sourced_gate sourced_lib sourced_tier sourced_trigger; do
 	[[ -n "${sourced_gate}" ]] || continue
+	[[ -n "${sourced_trigger}" ]] || sourced_trigger="${sourced_lib}"
 	sourced_gate_block="$(
 		sed -n "/^  - id: ${sourced_gate}\$/,/^  - id: /p" "${registry}"
 	)"
-	require_path_line "${sourced_gate_block}" "${sourced_lib}" \
-		"${sourced_gate} registry triggers omit a scripts/lib helper it uses"
+	require_path_line "${sourced_gate_block}" "${sourced_trigger}" \
+		"${sourced_gate} registry triggers omit the trigger covering a scripts/lib helper it uses"
 	sourced_selection="$(
 		printf '%s\n' "${sourced_lib}" |
 			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
@@ -206,13 +216,13 @@ while IFS='|' read -r sourced_gate sourced_lib sourced_tier; do
 		rg --quiet "^SELECTED[[:space:]]+${sourced_gate}[[:space:]]" ||
 		fail "${sourced_lib} did not select ${sourced_gate}"
 	printf '%s\n' "${sourced_selection}" |
-		rg --fixed-strings --quiet -- "matched trigger \"${sourced_lib}\" on path \"${sourced_lib}\"" ||
-		fail "${sourced_gate} selected for the wrong reason (${sourced_lib})"
+		rg --fixed-strings --quiet -- "matched trigger \"${sourced_trigger}\" on path \"${sourced_lib}\"" ||
+		fail "${sourced_gate} selected for the wrong reason (${sourced_lib} via ${sourced_trigger})"
 done <<'SOURCED_LIB_GATES'
-parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-pr
-ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
-ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
-docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
+parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-pr|
+ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr|scripts/lib/ifa_*_live*.sh
+ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr|
+docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push|
 maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
 ci-gate-registry|scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh|pre-pr
 SOURCED_LIB_GATES

@@ -32,62 +32,53 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
       - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
       - 'scripts/lib/ifa_private_data_pattern.sh'
-      - 'scripts/lib/ifa_live_gate_selector_cases.sh'
-      # The family registry and the libraries that consume it. The registry
-      # decides which families each gate drives and which blocker every kill
-      # cell takes, so a wrong edit here changes what both live gates actually
-      # prove -- and until these globs existed, editing any of them re-ran
-      # nothing at all. A gate that never runs is worse than one that cannot
-      # fail: it does not even look like a check.
-      - 'scripts/lib/ifa_family_registry.sh'
+      # The scripts/lib/ Ifá surface as globs, not the 65 filenames that were
+      # here (#6200). This filter is shared by all four jobs below -- there is
+      # no per-job `if:` -- so it is the single thing that decides whether ANY
+      # Ifá live proof re-runs on a change. It named files one at a time, and
+      # the blocking 500-line cap splits this directory more often than any Go
+      # package: each split left the original filename in place, so nothing
+      # dangled, while the new half started no job at all. Two files were dark
+      # that way on main --
+      # test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh and
+      # test-ifa-fault-injection-generic-runner-lease-audit-cases.sh.
+      #
+      # These strings must stay spelled EXACTLY as specs/ci-gates.v1.yaml
+      # spells them: the registry-subset-of-workflow lockstep in
+      # scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh compares
+      # trigger STRINGS without expanding globs, so a registry-only glob
+      # leaves both gates selectable-but-never-started (#6164's shape).
+      #
+      # Several of these also close a hole the sourced-to-triggered drift walk
+      # cannot see on its own: the fault dispatcher and the mirrors load their
+      # modules through VARIABLE paths, and internal/cigates/scripttrigger.go
+      # only resolves a literal "scripts/" inside a source line.
+      - 'scripts/lib/ifa_live_gate_*.sh'
+      - 'scripts/lib/ifa_determinism_*.sh'
+      - 'scripts/lib/ifa_family_*.sh'
+      - 'scripts/lib/ifa_*_live*.sh'
+      - 'scripts/lib/ifa_fault_*.sh'
+      - 'scripts/lib/test-ifa-determinism-*.sh'
+      - 'scripts/lib/test-ifa-family-registry-*.sh'
+      - 'scripts/lib/test-ifa-fault-injection-*.sh'
+      # #6161 landed scripts/lib/ifa_mirror_pins.sh, the shared helper both
+      # smaller Ifá mirrors now load; ifa-dead-letter-matrix shares this
+      # filter, so the glob covers that helper and the next sibling a split adds.
+      - 'scripts/lib/ifa_mirror_*.sh'
       # The per-family row files, not just the orchestrator. The orchestrator
       # holds no family data at all -- every blocker_kind, wait_key and anchor
       # lives under rows/. Naming only the parent file would leave the exact
       # edit we make most often (correcting one family's row) triggering
       # nothing.
       - 'scripts/lib/ifa_family_registry/**'
-      - 'scripts/lib/test-ifa-determinism-family-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-maintenance-family-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh'
-      - 'scripts/lib/test-ifa-determinism-require-helpers.sh'
-      - 'scripts/lib/test-ifa-determinism-teeth-cases.sh'
-      - 'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
-      - 'scripts/lib/ifa_fault_shard.sh'
-      # Glob, not one literal: the dispatcher sources its three mechanism files
-      # through a VARIABLE path, so the sourced-to-triggered drift check cannot
-      # see them (it only resolves a literal "scripts/" inside a source line).
-      # ifa_fault_generic_shared_intent_lock.sh holds the mandatory
-      # non-vacuity precondition the whole change rests on -- without this,
-      # weakening that precondition would re-run no gate at all.
-      # The literal stays alongside the glob: the registry lists this exact
-      # path, and the registry-subset-of-workflow lockstep compares trigger
-      # strings rather than expanding globs, so dropping the literal makes the
-      # gate selectable-but-never-started.
-      - 'scripts/lib/ifa_fault_generic_cells.sh'
-      - 'scripts/lib/ifa_fault_generic_*.sh'
-      - 'scripts/lib/test-ifa-fault-injection-shard-cases.sh'
-      # The table_lock precondition's ONLY committed proof. The dispatcher
-      # sources it by variable path, so the sourced-to-triggered drift walk
-      # cannot see it, and the `ifa_fault_generic_*.sh` glob above does not
-      # match a `test-`-prefixed, hyphenated name. Without this line, weakening
-      # the one test standing behind that file's "unit-tested" claim re-runs
-      # nothing at all.
-      - 'scripts/lib/test-ifa-fault-injection-generic-table-lock-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-hold-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-generic-modules.sh'
       # The per-family pin files, sourced by variable path from the pins
       # module. Their governing rule is that pins are hand-derived and never
       # generated from the registry; editing one to "just make it match" has
       # to re-run the gate that would object.
       - 'scripts/lib/ifa_family_registry_pins/**'
-      - 'scripts/lib/ifa_repo_dependency_live.sh'
       - 'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh'
       - 'testdata/cassettes/repodependency/**'
       - 'go/internal/ifa/testdata/repodependency/**'
       # The ifa package root, replacing 12 filenames and two <family>_* globs
@@ -103,7 +94,6 @@ on:
       # lockstep compares trigger STRINGS without expanding globs (#6200).
       - 'go/internal/ifa/mutate.go'
       - 'go/internal/ifa/dead_letters.go'
-      - 'scripts/lib/ifa_workload_dependency_live.sh'
       - 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh'
       - 'testdata/cassettes/workloaddependency/**'
@@ -301,7 +291,6 @@ on:
       - 'scripts/verify-ifa-dead-letter-matrix.sh'
       - 'scripts/test-verify-ifa-dead-letter-matrix.sh'
       - 'scripts/lib/ifa_determinism_common.sh'
-      - 'scripts/lib/ifa_determinism_lifecycle.sh'
       # P6 (#4580) deterministic fault-injection: the in-binary decorator, its
       # build-tagged classification regression test, the reducer fault wiring,
       # and the Docker gate that proves real recovery (zero dead letters, graph
@@ -319,19 +308,6 @@ on:
       # and the gate's preconditions shell out to rg.
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/test-verify-ifa-fault-injection.sh'
-      - 'scripts/lib/test-ifa-fault-injection-assertions.sh'
-      - 'scripts/lib/test-ifa-fault-injection-review-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-marker-cases.sh'
-      - 'scripts/lib/ifa_fault_injection_collateral_nodes.sh'
-      - 'scripts/lib/ifa_fault_injection_common.sh'
-      - 'scripts/lib/ifa_fault_injection_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_driver.sh'
-      - 'scripts/lib/ifa_fault_injection_sources.sh'
-      - 'scripts/lib/ifa_fault_injection_sql_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_delivery_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_code_call_cells.sh'
-      - 'scripts/lib/ifa_code_call_live.sh'
-      - 'scripts/lib/ifa_sql_delta_live.sh'
       # #5351 materialized-edge exhaustiveness gate: the SQL relationship family
       # cassette is driven into every determinism cell (with a per-cell
       # `ifa assert-edges`) and every fault-injection cell (with a baseline
@@ -368,11 +344,6 @@ on:
       # is what covers edge_writer_documentation_labels.go -- buildDocumentationRowMap's
       # target_kind switch, whose routing the family guard defers to the live assert.
       - 'go/internal/storage/cypher/*documentation*.go'
-      - 'scripts/lib/ifa_documentation_live.sh'
-      - 'scripts/lib/ifa_fault_injection_documentation_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_documentation_ack_barrier.sh'
-      - 'scripts/lib/ifa_fault_injection_documentation_ack_setup.sh'
-      - 'scripts/lib/test-ifa-fault-injection-documentation-cases.sh'
       # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
       # set, reducer stage, writer, and live/fault helpers are all inputs to
       # what the live lanes assert, so each one must retrigger them.
@@ -383,19 +354,12 @@ on:
       - 'go/internal/storage/cypher/*codeowners*.go'
       - 'testdata/cassettes/codeowners/**'
       - 'go/internal/ifa/testdata/codeowners/**'
-      - 'scripts/lib/ifa_codeowners_live.sh'
-      - 'scripts/lib/ifa_inheritance_live.sh'
       - 'scripts/lib/ifa_fault_injection_inheritance_cells.sh'
-      - 'scripts/lib/ifa_shell_exec_live.sh'
       - 'scripts/lib/ifa_fault_injection_shell_exec_cells.sh'
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared live lib (sourced by BOTH gates), one fault-ONLY cells
       # file (verify-ifa-determinism.sh never sources a *_cells.sh file for
       # any family -- only its live-lib companion).
-      - 'scripts/lib/ifa_symbol_runtime_live.sh'
-      - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_codeowners_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-codeowners-cases.sh'
       # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
       # reducer stage, and live/fault helpers are all inputs to what the live
       # lanes assert, so each one must retrigger them. The family's guard
@@ -415,33 +379,20 @@ on:
       - 'go/internal/storage/cypher/*submodule*.go'
       - 'testdata/cassettes/submodulepin/**'
       - 'go/internal/ifa/testdata/submodulepin/**'
-      - 'scripts/lib/ifa_fault_injection_submodule_pin_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh'
-      - 'scripts/lib/ifa_submodule_pin_live.sh'
       # deployable_unit_edges (#5993) is driven and exact-set asserted in its own
       # standalone determinism cell (after the shared N-loop, since materializing
       # anything requires a bootstrap-index maintenance pass none of the other
       # cells run) and in the family-scoped baseline plus two domain-scoped
-      # recovery cells on the fault-injection gate. The live lib was split to
-      # keep it under the 500-line cap: the diagnostics probes that moved into
-      # ifa_deployable_unit_live_diagnostics.sh are sourced by both gates but
-      # triggered no re-run without their own row here.
+      # recovery cells on the fault-injection gate. Its live lib was split
+      # three ways under the 500-line cap and each half needed its own row
+      # here until the ifa_*_live*.sh glob above replaced all three -- that
+      # split is the exact shape #6200 is about, and the next one now needs no
+      # row at all.
       - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
       - 'go/internal/storage/cypher/edge_writer_rowmaps.go'
       - 'testdata/cassettes/deployableunit/**'
       - 'go/internal/ifa/testdata/deployableunit/**'
       - 'go/cmd/bootstrap-index/**'
-      - 'scripts/lib/ifa_deployable_unit_live.sh'
-      - 'scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
-      - 'scripts/lib/ifa_deployable_unit_live_converge.sh'
-      - 'scripts/lib/ifa_fault_injection_deployable_unit_cells.sh'
-      - 'scripts/lib/ifa_fault_injection_deployable_unit_lock.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-documentation-ack-barrier-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-documentation-ack-cleanup-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-code-call-cases.sh'
-      - 'scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh'
       # Pre-existing gap surfaced by the registry-derived check below: the fault
       # gate triggers on this in the registry and the selector table, but the
       # workflow never listed it.
@@ -485,12 +436,8 @@ on:
       - 'go/internal/storage/cypher/canonical_handles_route_edges.go'
       - 'go/internal/storage/cypher/canonical_runs_in_edges.go'
       - 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go'
-      - 'scripts/lib/ifa_rationale_live.sh'
       # Shared committed family fixture paths + existence guards, sourced by
       # BOTH live gates: a change here changes what every cell drives.
-      - 'scripts/lib/ifa_family_fixtures.sh'
-      - 'scripts/lib/ifa_fault_injection_rationale_cells.sh'
-      - 'scripts/lib/test-ifa-fault-injection-rationale-cases.sh'
       - 'go/internal/storage/cypher/materialized_edge_*.go'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
