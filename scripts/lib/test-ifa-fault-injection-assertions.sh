@@ -3,16 +3,16 @@
 # File-scoped assertion helpers for scripts/test-verify-ifa-fault-injection.sh.
 # The parent verifier owns strict mode, fail(), and all target path variables.
 
-# require pins a needle ANYWHERE in the gate, comments included. TEN call sites
-# still use it, and every one deliberately binds FRAMING -- overview text,
-# rationale, and the inventory comments that enumerate which cells a proof
-# covers. Those exist only as prose, so routing them through require_code could
-# never pass.
+# require pins a needle ANYWHERE in the gate, comments included. The call sites
+# that still use it all deliberately bind FRAMING -- overview text, rationale,
+# and the inventory comments that enumerate which cells a proof covers. Those
+# exist only as prose, so routing them through require_code could never pass.
 #
-# The rest bind code and use require_code. The exact number is deliberately
-# not spelled here: it drifted twice (45 vs 44) because a prose count in a
-# comment has no gate, which is the same trap three public docs hit with
-# "thirty cells". The split was established
+# Neither that number nor the require_code one is spelled here. The require_code
+# count drifted twice (45 vs 44) because a prose count in a comment has no gate,
+# which is the same trap three public docs hit with "thirty cells" -- and the
+# count on this side drifted the same way, sitting at "TEN" through several
+# rounds while the real figure was eight (#6161). The split was established
 # empirically, not by reading labels: every call site was converted, the mirror
 # run, and only the ones that genuinely could not pass were moved back.
 require() {

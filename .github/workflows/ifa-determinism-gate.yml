@@ -18,6 +18,14 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      # NOTHING GATES THIS LIST against specs/ci-gates.v1.yaml. The registry's
+      # drift check (scripts/verify-ci-gates-registry.sh) compares trigger
+      # strings only for workflows that select jobs with a dorny/paths-filter
+      # step; this workflow uses a plain `on.paths` list, so a path deleted here
+      # while its registry trigger stays leaves that check at exit 0 -- measured,
+      # not assumed. Keep this list in step with the `ifa-determinism`,
+      # `ifa-dead-letter-matrix` and `ifa-fault-injection` triggers by hand.
+      # `push:` above has no paths filter, so main-push coverage is unaffected.
       - 'scripts/lib/ifa_mirror_pins.sh'
       - 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh'
       - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
