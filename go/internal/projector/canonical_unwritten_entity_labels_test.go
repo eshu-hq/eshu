@@ -23,8 +23,12 @@ import (
 // entityTypeLabelMap here -- and the #5531 bucket-sync gate enforces that they
 // agree. Agreement was read as reachability. It is not: phase E skips Variable,
 // no other source-local phase picks it up, and a live golden-corpus run
-// measured (Variable) count=0 with no Variable key in graph.node_counts at all.
-// Nothing failed, because nothing was counting.
+// measured (Variable) count=0 with no Variable key in graph.node_counts at all
+// (REPORTED, carried from #5156). Nothing failed, because nothing was counting.
+// That zero is corpus-specific, not proof the label is unreachable: the golden
+// corpus stages no Elixir or TSX fixture (scripts/lib/golden-corpus-fixtures.sh),
+// and those are the only two shapes the reducer's semantic-entity path accepts
+// as a Variable.
 //
 // The rule for editing this map: an entry with an owner is a label written by a
 // different phase, and the owner string must name a writer the tests below
@@ -40,13 +44,16 @@ var canonicalEntityPhaseSkipOwners = map[string]string{
 		"(name, language), not uid, so phase E would violate its constraint",
 	"Parameter": "canonical phase G, extractRelationships over param_name facts: " +
 		"Parameter MERGEs on a composite function-scoped key, not uid",
-	// No owner on purpose. See go/internal/content/shape/materialize_tables.go
-	// and go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md.
-	// Plain source Variables stay in the Postgres content/search surface; the
-	// reducer's semantic-entity path writes Variable nodes only for Elixir
+	// No owner on purpose, and "owner" here means SOURCE-LOCAL owner. See
+	// go/internal/content/shape/materialize_tables.go and
+	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md.
+	// Plain source Variables stay in the Postgres content/search surface. The
+	// reducer's semantic-entity path does write Variable nodes -- for Elixir
 	// module attributes and TSX component-type assertions, under
-	// evidence_source='parser/semantic-entities', and that domain does not run
-	// for filesystem-parsed repo scopes.
+	// evidence_source='parser/semantic-entities' -- and it reaches them from
+	// ordinary filesystem parsing of .ex/.tsx files. That path is reducer-owned
+	// rather than source-local, which is why it is not an owner in this ledger,
+	// NOT because it never runs.
 	"Variable": "",
 }
 
@@ -118,10 +125,13 @@ func TestCanonicalPhaseESkipsAreDeclared(t *testing.T) {
 // "Source-local" is load-bearing, and the failure text below repeats it rather
 // than saying "no graph writer". SemanticEntityWriter
 // (go/internal/storage/cypher/semantic_entity.go) does write Variable nodes,
-// for Elixir module attributes and TSX component-type assertions; that domain
-// just never runs for a filesystem-parsed repo scope. A reader who trusted an
-// unqualified "no graph writer" could delete that writer's Variable support as
-// dead code.
+// for Elixir module attributes and TSX component-type assertions, and it does
+// so for repos read straight off the filesystem: the .ex parser stamps
+// attribute_kind=module_attribute and the .tsx parser stamps
+// component_type_assertion on rows in this same variables bucket. That path is
+// reducer-owned, not source-local, which is the only reason Variable sits here
+// with an empty owner. A reader who trusted an unqualified "no graph writer"
+// could delete that writer's Variable support as dead code.
 //
 // Variable is the whole set today. If this test fails with the set grown, a
 // registered label was quietly stranded. If it fails with the set shrunk to

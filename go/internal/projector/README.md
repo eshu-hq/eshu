@@ -467,16 +467,19 @@ backend-specific adapters.
 - Plain `Variable` content entities are excluded from source-local canonical
   `EntityRow` extraction. They stay in the Postgres content/search surface;
   reducer-owned semantic entity materialization writes the smaller graph-backed
-  `Variable` subset for module attributes and TSX component assertions.
-  That exclusion stands, and it is the whole reason a filesystem-parsed repo
-  produces zero `Variable` nodes even though three registries name the label
-  (#6206). `canonicalEntityPhaseSkipOwners` in
+  `Variable` subset for Elixir module attributes and TSX component-type
+  assertions. That exclusion stands, and it is why a repo whose variables are
+  all plain source variables produces zero `Variable` nodes even though three
+  registries name the label (#6206). It is not a claim that the label is
+  unreachable: those two semantic shapes come out of ordinary filesystem
+  parsing of `.ex` and `.tsx` files, so a repo in either language does get
+  `Variable` nodes. `canonicalEntityPhaseSkipOwners` in
   `canonical_unwritten_entity_labels_test.go` pins that set: every label phase E
   refuses is listed there with the phase that covers it instead, and `Variable`
-  is the one entry with no writer at all. A new entry means a registered label
-  was stranded; deleting `Variable`'s means re-enabling its projection, which is
-  a projected-truth change needing golden-corpus evidence and, per #6183, makes
-  a B-12 snapshot pin possible for the first time.
+  is the one entry with no *source-local* writer. A new entry means a registered
+  label was stranded; deleting `Variable`'s means re-enabling its projection,
+  which is a projected-truth change needing golden-corpus evidence and, per
+  #6183, makes a B-12 snapshot pin possible for the first time.
 - Terraform entity labels from the content store include backends, imports,
   moved blocks, removed blocks, checks, and lockfile providers. `EntityTypeLabel`
   must know each label before canonical graph writes can project it.

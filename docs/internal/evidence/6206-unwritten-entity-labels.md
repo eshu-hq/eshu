@@ -1,4 +1,4 @@
-# 6206 — pinning the entity labels that are registered but never written
+# 6206 — pinning the entity labels that are registered but have no source-local writer
 
 ## What changed
 
@@ -15,7 +15,13 @@ REPORTED, not re-run here — two committed figures record what the unwritten
 state actually is. The comment on `entityTypeLabelMap` in
 `go/internal/projector/canonical.go` records a live golden-corpus run
 measuring `(Variable) count=0`, with no `Variable` key in `graph.node_counts`
-at all. The `contentEntityBuckets` row in
+at all. That zero and the label's reachability are not in conflict, and the
+comment now says so: the only `Variable` writer left is the reducer's
+semantic-entity path, which accepts Elixir module attributes and TSX
+component-type assertions, and the golden corpus stages no Elixir or TSX
+fixture (`scripts/lib/golden-corpus-fixtures.sh`). Nothing in that corpus can
+match, so the count is zero for corpus reasons, not because the writer is
+dead. The `contentEntityBuckets` row in
 `go/internal/content/shape/materialize_tables.go` records why that skip is
 worth keeping: at corpus scale `Variable` was by far the largest entity
 family, at **12,887 chunks and 21,515s of cumulative graph-write time**
@@ -66,10 +72,12 @@ being written.
 
 Nothing operator-facing moves.
 
-No metric, span, or log is added, removed, or renamed. The `Variable` label was
-already never written, and it still is never written; `graph.node_counts`
-carried no `Variable` key before this change and carries none after. An operator
-sees exactly the same series with the same values.
+No metric, span, or log is added, removed, or renamed. Which rows become
+`Variable` nodes is exactly what it was before this change — plain source
+variables no, Elixir module attributes and TSX component-type assertions yes —
+and `graph.node_counts` carried no `Variable` key on the golden corpus before
+this change and carries none after, because that corpus stages neither
+language. An operator sees exactly the same series with the same values.
 
 Accepting no new telemetry is reasonable because this change adds no runtime
 behaviour to observe. What it adds is a build-time guard, and a drift between

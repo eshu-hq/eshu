@@ -18,18 +18,30 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "functions", label: "Function"},
 	{bucket: "classes", label: "Class"},
 	{bucket: "modules", label: "Module"},
-	// UNWRITTEN: this row produces no graph node. Plain source variables stop
-	// at the Postgres content/search surface -- the projector's canonical phase
-	// E skips the Variable label on purpose (canonical_builder.go). At corpus
-	// scale it was by far the largest entity family: 12,887 chunks and 21,515s of
-	// cumulative graph-write time (go/internal/projector/README.md).
-	// The only remaining Variable writer is the reducer's semantic-entity path,
-	// which covers Elixir module attributes and TSX component-type assertions
-	// only and never runs for a filesystem-parsed repo. Full reasoning:
+	// UNWRITTEN for a plain source variable: this row produces no graph node
+	// for one. Plain variables stop at the Postgres content/search surface --
+	// the projector's canonical phase E skips the Variable label on purpose
+	// (canonical_builder.go:201). At corpus scale it was by far the largest
+	// entity family: 12,887 chunks and 21,515s of cumulative graph-write time
+	// (go/internal/projector/README.md).
+	// One narrower Variable writer remains, and it IS reachable from filesystem
+	// parsing: the reducer's semantic-entity path writes Variable nodes for
+	// Elixir module attributes (language=elixir, attribute_kind=module_attribute)
+	// and TSX component-type assertions (language=tsx, non-empty
+	// component_type_assertion). Both come out of the .ex/.tsx parsers into this
+	// very bucket, so an Elixir or TSX repo read off disk does get Variable
+	// nodes -- see isElixirModuleAttributeSemanticEntity and
+	// isTypeScriptJSXComponentTypeAssertionSemanticEntity in
+	// go/internal/projector/semantic_entity_intents.go, the same two predicates
+	// in go/internal/reducer/semantic_entity_materialization_helpers.go, and the
+	// MERGE (n:Variable {uid}) in
+	// go/internal/storage/cypher/semantic_entity_statements.go. Full reasoning:
 	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md. The
-	// unwritten set is pinned by canonicalEntityPhaseSkipOwners in
-	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206);
-	// re-enabling projection means moving that pin with golden-corpus proof.
+	// pinned set is canonicalEntityPhaseSkipOwners in
+	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206),
+	// and it means "no SOURCE-LOCAL writer", not "no writer at all";
+	// re-enabling plain-Variable projection means moving that pin with
+	// golden-corpus proof.
 	{bucket: "variables", label: "Variable"},
 	{bucket: "type_annotations", label: "TypeAnnotation"},
 	{bucket: "traits", label: "Trait"},
