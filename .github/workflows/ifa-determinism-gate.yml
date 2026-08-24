@@ -77,6 +77,7 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-generic-shared-intent-lock-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-generic-family-drive-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-hold-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-generic-runner-lease-audit-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-generic-modules.sh'
       # The per-family pin files, sourced by variable path from the pins
       # module. Their governing rule is that pins are hand-derived and never
