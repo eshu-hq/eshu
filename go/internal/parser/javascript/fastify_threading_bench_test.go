@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package javascript_test
 
 import (
 	"os"
@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
-// buildSyntheticFastifyFixture returns ~3000 lines of JavaScript with a
+// buildSyntheticFastifyFixture returns ~4500 lines of JavaScript with a
 // Fastify import, many routes, and many handlers, so the 3x-vs-1x base
 // computation difference is measurable in the benchmark.
 func buildSyntheticFastifyFixture() string {
@@ -60,7 +62,7 @@ const app = fastify();
 // It establishes the pre-threading baseline so the before/after delta is measured
 // against the exact same input shape.
 func BenchmarkParseFastifyFixture(b *testing.B) {
-	engine, err := DefaultEngine()
+	engine, err := parser.DefaultEngine()
 	if err != nil {
 		b.Fatalf("DefaultEngine() error = %v, want nil", err)
 	}
@@ -75,7 +77,7 @@ func BenchmarkParseFastifyFixture(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, err := engine.ParsePath(dir, filePath, false, Options{})
+		_, err := engine.ParsePath(dir, filePath, false, parser.Options{})
 		if err != nil {
 			b.Fatalf("ParsePath() error = %v, want nil", err)
 		}
