@@ -4,8 +4,8 @@
 // Package mcp implements the Model Context Protocol tool surface for Eshu.
 //
 // ToolDefinition aliases the dependency-neutral toolcontract definition. The
-// documentation child package owns its six registration definitions without
-// importing this parent package. ReadOnlyTools remains the sole ordered
+// cloud and documentation child packages own their registration definitions
+// without importing this parent package. ReadOnlyTools remains the sole ordered
 // assembler; routing, dispatch, transport, authorization, and query execution
 // remain owned here.
 //

@@ -235,6 +235,12 @@ authorization, and transport ownership. The move uses the dependency-neutral
 `internal/mcp/toolcontract` shape and does not combine the two constructor
 groups or change the 162-tool order.
 
+The cloud registration family is the second extracted MCP family. Its inventory
+and runtime-drift definitions live under `internal/mcp/cloud`, while the root
+keeps both assembly positions and all cloud routing, dispatch, authorization,
+and transport ownership. The move uses `internal/mcp/toolcontract` and leaves
+the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

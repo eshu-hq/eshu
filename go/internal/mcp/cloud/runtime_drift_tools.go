@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package cloudtools
 
-// cloudRuntimeDriftTools returns the runtime drift readback tool spanning all
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// RuntimeDriftTools returns the runtime drift readback tool spanning all
 // three providers (issues #1997, #1998, #5759 follow-up). It mirrors the
 // POST /api/v0/cloud/runtime-drift/findings route: a bounded, paginated,
 // truth-labeled list aggregating reducer-owned
@@ -15,8 +17,8 @@ package mcp
 // tool is read-only and never returns raw provider locators (including the
 // AWS ARN) or raw evidence atoms; unsafe findings are reported as rejected,
 // not omitted.
-func cloudRuntimeDriftTools() []ToolDefinition {
-	return []ToolDefinition{
+func RuntimeDriftTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_cloud_runtime_drift_findings",
 			Description: "List runtime drift findings for a bounded canonical scope across aws, gcp, and azure, aggregating reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws) in one query. Filterable by provider, canonical cloud_resource_uid, and finding_kind; cloud_resource_uid filtering matches only gcp/azure findings. Returns provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture; an aws-origin finding's safety verdict is derived through the same classification list_aws_runtime_drift_findings uses, so the identical row never disagrees across the two tools. Unsafe findings are reported as rejected, not omitted. Unsupported on lightweight local runtime.",

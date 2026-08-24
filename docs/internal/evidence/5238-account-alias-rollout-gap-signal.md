@@ -422,7 +422,7 @@ Fix: `cloudInventoryAccountAliasRequiredProviders` (`cloud_inventory_readback.go
 maps each alias to its one documented provider (`account_id`→`aws`,
 `project_id`→`gcp`, `subscription_id`→`azure`); `filterFromRequest` rejects
 any mismatch as `invalid_argument`. OpenAPI (`openapi_paths_cloud_inventory.go`),
-the MCP tool description (`tools_cloud_inventory.go`), and `http-api.md` were
+the MCP tool description (`cloud/inventory_tools.go`), and `http-api.md` were
 updated in lockstep.
 
 Proof: `TestCloudInventoryHandlerAccountAliasProviderMismatchRejected` covers
