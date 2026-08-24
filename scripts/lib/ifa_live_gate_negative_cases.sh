@@ -29,10 +29,28 @@
 #   docs/public/architecture.md            a bare '**' or 'docs/**'
 #   sdk/go/factschema/{aws,azure}/v1/...   'sdk/go/factschema/**' -- these
 #                                          sibling packages are deliberately
-#                                          OUT: Go package scope keeps their
-#                                          helpers away from the decode path
-#                                          the driven cassettes take, and no
-#                                          cassette carries their facts
+#                                          OUT for one reason only: no
+#                                          aws_*/azure_* fact kind appears in
+#                                          any of the 15 cassette files these
+#                                          gates drive, so nothing they run
+#                                          decodes one. The two aws_ tokens
+#                                          that do appear are payload data --
+#                                          Terraform source text and a
+#                                          gcp/v1-decoded aws_account_id
+#                                          attribute. NOT because the
+#                                          binary cannot reach the code --
+#                                          24 non-test .go files under
+#                                          go/internal/reducer/ import aws/v1
+#                                          and 4 import azure/v1, so both
+#                                          packages link into eshu-reducer.
+#                                          "Which package the file is in, not
+#                                          who calls it today" is the rule
+#                                          the rest of this change applies,
+#                                          and it does not carve these out;
+#                                          the fixture does. gcp/v1 is IN for
+#                                          the mirror-image reason: the
+#                                          gcpcloud cassette both gates
+#                                          generate does carry gcp_* facts.
 #   go/internal/{parser,query,telemetry,mcp}/...
 #                                          'go/**' or 'go/internal/**'
 #   go/internal/ifa/{saturation,throughput}/...

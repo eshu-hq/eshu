@@ -61,10 +61,6 @@ on:
       - 'scripts/lib/test-ifa-determinism-*.sh'
       - 'scripts/lib/test-ifa-family-registry-*.sh'
       - 'scripts/lib/test-ifa-fault-injection-*.sh'
-      # #6161 landed scripts/lib/ifa_mirror_pins.sh, the shared helper both
-      # smaller Ifá mirrors now load; ifa-dead-letter-matrix shares this
-      # filter, so the glob covers that helper and the next sibling a split adds.
-      - 'scripts/lib/ifa_mirror_*.sh'
       # The per-family row files, not just the orchestrator. The orchestrator
       # holds no family data at all -- every blocker_kind, wait_key and anchor
       # lives under rows/. Naming only the parent file would leave the exact

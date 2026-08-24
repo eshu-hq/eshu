@@ -2325,9 +2325,21 @@ gates:
       # decoder decodes into) and gcp/v1/resource.go and relationship.go were
       # dark beside the two codegraph filenames that were listed. Sibling
       # packages under sdk/go/factschema/ whose facts no driven cassette
-      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out: Go package scope
-      # confines their helpers to themselves, so they cannot reach this
-      # decode path. Both measured +0 armed commits in 300.
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out on that ground and
+      # only that ground. Not on reachability: 24 non-test .go files under
+      # go/internal/reducer/ import aws/v1 and 4 import azure/v1, so their
+      # code links into eshu-reducer like every other package this glob set
+      # covers. What keeps them out is that nothing these gates drive decodes
+      # an aws or azure fact: no aws_*/azure_* fact kind appears in any of the
+      # 15 driven family cassette files (checked at this commit). Two aws_
+      # tokens do appear, both payload data rather than a fact kind, and
+      # neither reaches an aws/v1 decoder: Terraform source text inside a
+      # content_body in the repodependency cassette, and an aws_account_id
+      # attribute on a workload-identity-pool fact in the gcpcloud cassette,
+      # which the gcp/v1 decoder reads. No azure_ token appears at all.
+      # gcp/v1 is IN above for the mirror-image reason: the gcpcloud cassette
+      # both gates generate carries 234 gcp_* occurrences. Both measured +0
+      # armed commits in 300.
       - "sdk/go/factschema/codegraph/v1/**"
       - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
@@ -2785,9 +2797,21 @@ gates:
       # decoder decodes into) and gcp/v1/resource.go and relationship.go were
       # dark beside the two codegraph filenames that were listed. Sibling
       # packages under sdk/go/factschema/ whose facts no driven cassette
-      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out: Go package scope
-      # confines their helpers to themselves, so they cannot reach this
-      # decode path. Both measured +0 armed commits in 300.
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out on that ground and
+      # only that ground. Not on reachability: 24 non-test .go files under
+      # go/internal/reducer/ import aws/v1 and 4 import azure/v1, so their
+      # code links into eshu-reducer like every other package this glob set
+      # covers. What keeps them out is that nothing these gates drive decodes
+      # an aws or azure fact: no aws_*/azure_* fact kind appears in any of the
+      # 15 driven family cassette files (checked at this commit). Two aws_
+      # tokens do appear, both payload data rather than a fact kind, and
+      # neither reaches an aws/v1 decoder: Terraform source text inside a
+      # content_body in the repodependency cassette, and an aws_account_id
+      # attribute on a workload-identity-pool fact in the gcpcloud cassette,
+      # which the gcp/v1 decoder reads. No azure_ token appears at all.
+      # gcp/v1 is IN above for the mirror-image reason: the gcpcloud cassette
+      # both gates generate carries 234 gcp_* occurrences. Both measured +0
+      # armed commits in 300.
       - "sdk/go/factschema/codegraph/v1/**"
       - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
@@ -3219,7 +3243,11 @@ gates:
       # a glob trigger matching no tracked file is now a hard registry error,
       # because a trigger that resolves to nothing stops selecting its gate
       # for good and nothing dangles. The file gets its trigger when the file
-      # lands.
+      # lands. That policy binds ifa-determinism-gate.yml's paths: filter
+      # too, even though #6223's rule is registry-only and GitHub tolerates a
+      # glob that matches nothing: a workflow half that starts all four Ifá
+      # jobs on a path the registry selects no gate for is the same
+      # divergence as #6164, pointed the other way.
     local:
       command: "bash scripts/test-verify-ifa-replay-drive.sh"
       test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
