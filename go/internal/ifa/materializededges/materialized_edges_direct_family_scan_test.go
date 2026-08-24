@@ -248,8 +248,8 @@ func forEachGoFile(t *testing.T, dir string, fn func(name string, file *ast.File
 	}
 }
 
-// collectStringValues records every package-level const or var bound to a
-// string literal (or a concatenation of them) into out.
+// collectStringValues records every package-level const or var whose value
+// resolves to static string text into out.
 func collectStringValues(decl *ast.GenDecl, out map[string]string) {
 	if decl.Tok != token.CONST && decl.Tok != token.VAR {
 		return
@@ -270,8 +270,16 @@ func collectStringValues(decl *ast.GenDecl, out map[string]string) {
 	}
 }
 
-// staticStringValue renders a string literal, or a concatenation of string
-// literals, as its value.
+// staticStringValue renders an expression's static string text, if it has any.
+//
+// A composite literal is walked rather than skipped. A Cypher template is as
+// executable held in a `map[string]string{...}`, a slice, or a struct field as
+// it is in a bare const, and the templates in this package are routinely
+// grouped that way. Resolving only literals and `+` concatenations left a
+// relationship MERGE reachable from a reducer port and invisible to the scan —
+// a hole in the guard whose whole claim is that EVERY port reaching a MERGE is
+// a declared family. Elements are joined with newlines so relationshipMergeLine
+// still reports one real source line as evidence rather than a run-on.
 func staticStringValue(expr ast.Expr) (string, bool) {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -293,6 +301,26 @@ func staticStringValue(expr ast.Expr) (string, bool) {
 			return "", false
 		}
 		return left + right, true
+	case *ast.CompositeLit:
+		var parts []string
+		for _, elt := range e.Elts {
+			// A keyed element carries text on either side: a map key can be the
+			// template and a struct field name cannot, and staticStringValue
+			// rejects the identifier either way, so both are simply offered.
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				if key, ok := staticStringValue(kv.Key); ok {
+					parts = append(parts, key)
+				}
+				elt = kv.Value
+			}
+			if value, ok := staticStringValue(elt); ok {
+				parts = append(parts, value)
+			}
+		}
+		if len(parts) == 0 {
+			return "", false
+		}
+		return strings.Join(parts, "\n"), true
 	}
 	return "", false
 }
