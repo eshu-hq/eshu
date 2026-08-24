@@ -187,19 +187,36 @@ ifa_live_gate_common_seams=(
 	'go/internal/storage/postgres/reducer_queue_readiness_sql.go|go/internal/storage/postgres/reducer_queue_readiness_sql.go'
 	'go/internal/storage/postgres/reducer_queue_validation.go|go/internal/storage/postgres/reducer_queue_validation.go'
 	'go/internal/storage/postgres/reducer_queue_ack.go|go/internal/storage/postgres/reducer_queue_ack.go'
-	'go/internal/ifa/catalog_seed.go|go/internal/ifa/catalog_seed.go'
-	'go/internal/ifa/code_call_family_catalog.go|go/internal/ifa/code_call_family_catalog.go'
-	'go/internal/ifa/documentation_family_catalog.go|go/internal/ifa/documentation_family_catalog.go'
+	# go/internal/ifa/*.go replaced 12 filenames and two <family>_* globs on
+	# both live gates (#6200). Formerly-dark paths first -- the shared Odù
+	# machinery every family's derivation runs through, and the two compiled
+	# Odù the issue's own follow-up comment named -- then paths the old list
+	# did cover, so a narrowed pattern fails here instead of arming nothing.
+	'go/internal/ifa/*.go|go/internal/ifa/code_call_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/rationale_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/catalog.go'
+	'go/internal/ifa/*.go|go/internal/ifa/expectations.go'
+	'go/internal/ifa/*.go|go/internal/ifa/coverage.go'
+	'go/internal/ifa/*.go|go/internal/ifa/roundtrip.go'
+	'go/internal/ifa/*.go|go/internal/ifa/schema.go'
+	'go/internal/ifa/*.go|go/internal/ifa/sql_relationship_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/repo_dependency_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/symbol_runtime_family_cassette.go'
+	'go/internal/ifa/*.go|go/internal/ifa/catalog_seed.go'
+	'go/internal/ifa/*.go|go/internal/ifa/codeowners_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/documentation_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/submodule_pin_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/symbol_runtime_family_odu.go'
+	'go/internal/ifa/*.go|go/internal/ifa/repo_dependency_family_catalog.go'
+	'go/internal/ifa/*.go|go/internal/ifa/workload_dependency_family_odu.go'
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_code_calls.go'
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_documentation.go'
 	'testdata/cassettes/documentation/**|testdata/cassettes/documentation/ifa-documentation-family.json'
 	'go/internal/ifa/testdata/documentation/**|go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json'
-	'go/internal/ifa/documentation_family_odu.go|go/internal/ifa/documentation_family_odu.go'
 	'sdk/go/factschema/documentation/v1/**|sdk/go/factschema/documentation/v1/shared.go'
 	'go/internal/storage/cypher/*documentation*.go|go/internal/storage/cypher/edge_writer_documentation_labels.go'
 	'scripts/lib/ifa_documentation_live.sh|scripts/lib/ifa_documentation_live.sh'
-	'go/internal/ifa/codeowners_family_odu.go|go/internal/ifa/codeowners_family_odu.go'
-	'go/internal/ifa/codeowners_family_catalog.go|go/internal/ifa/codeowners_family_catalog.go'
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_codeowners.go'
 	'sdk/go/factschema/codeowners/v1/**|sdk/go/factschema/codeowners/v1/ownership.go'
 	'go/internal/storage/cypher/*codeowners*.go|go/internal/storage/cypher/canonical_codeowners_edges.go'
@@ -210,10 +227,10 @@ ifa_live_gate_common_seams=(
 	# gate trigger at all (`rg -c submodule specs/ci-gates.v1.yaml` returned 0
 	# before this row), so this family had never retriggered either live gate
 	# on any of these paths -- the gate was dark for its entire surface, not
-	# merely for the new live lib. Registered as one block, mirroring
-	# codeowners_ownership_edges' block above.
-	'go/internal/ifa/submodule_pin_family_odu.go|go/internal/ifa/submodule_pin_family_odu.go'
-	'go/internal/ifa/submodule_pin_family_catalog.go|go/internal/ifa/submodule_pin_family_catalog.go'
+	# merely for the new live lib. Its Odù and catalog rows moved into the
+	# go/internal/ifa/*.go group near the top of this array when #6200
+	# replaced the family's filenames with the package glob; what remains
+	# here is the family's own non-ifa surface.
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_submodule_pin.go'
 	'sdk/go/factschema/submodule/v1/**|sdk/go/factschema/submodule/v1/pin.go'
 	# The SDK-side decode seam (DecodeSubmodulePin, FactKindSubmodulePin)
@@ -245,19 +262,18 @@ ifa_live_gate_common_seams=(
 	# catalog_seed.go's catalogSeed, so it is live-binary-consumed by both
 	# gates), three SEPARATE expected-edge directories -- one per family's
 	# own exact-set assertion. symbol_runtime_family_cassette.go and
-	# go/internal/reducer/ifa_family_registry_anchor_test.go are
-	# deliberately NOT here: both are read only by Go unit tests
-	# (materializededges/symbol_runtime_family_odu_test.go and the anchor
-	# test itself), never by a binary either live gate invokes -- confirmed
-	# via `rg` finding zero callers under go/cmd/, matching why the
-	# pre-existing sibling registry-shape test
-	# (materialized_edge_family_blocker_shape_test.go) was never wired here
-	# either.
+	# go/internal/reducer/{ifa_family_registry_anchor,
+	# materialized_edge_family_blocker_shape}_test.go used to be excluded
+	# here as Go-test-only, on the grounds that no binary either live gate
+	# invokes ever reads them. #6200 retired that carve-out: all three sit
+	# inside packages both gates now glob, and file membership rather than
+	# call graph is what decides whether an edit reaches the binary. The
+	# cassette file has its own row in the ifa package group near the top of
+	# this array.
 	'testdata/cassettes/symbolruntime/**|testdata/cassettes/symbolruntime/ifa-symbol-runtime-family.json'
 	'go/internal/ifa/testdata/handlesroute/**|go/internal/ifa/testdata/handlesroute/ifa-handles-route-family-expected-edges.json'
 	'go/internal/ifa/testdata/runsin/**|go/internal/ifa/testdata/runsin/ifa-runs-in-family-expected-edges.json'
 	'go/internal/ifa/testdata/invokescloudaction/**|go/internal/ifa/testdata/invokescloudaction/ifa-invokes-cloud-action-family-expected-edges.json'
-	'go/internal/ifa/symbol_runtime_family_odu.go|go/internal/ifa/symbol_runtime_family_odu.go'
 	'scripts/lib/ifa_deployable_unit_live.sh|scripts/lib/ifa_deployable_unit_live.sh'
 	'scripts/lib/ifa_deployable_unit_live_diagnostics.sh|scripts/lib/ifa_deployable_unit_live_diagnostics.sh'
 	'scripts/lib/ifa_deployable_unit_live_converge.sh|scripts/lib/ifa_deployable_unit_live_converge.sh'
@@ -333,15 +349,12 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/shellexec/**|testdata/cassettes/shellexec/ifa-shell-exec-family.json'
 	'go/internal/ifa/testdata/inheritance/**|go/internal/ifa/testdata/inheritance/ifa-inheritance-family-expected-edges.json'
 	'go/internal/ifa/testdata/shellexec/**|go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json'
-	'go/internal/ifa/inheritance_family_odu.go|go/internal/ifa/inheritance_family_odu.go'
-	'go/internal/ifa/shell_exec_family_odu.go|go/internal/ifa/shell_exec_family_odu.go'
 	'scripts/lib/ifa_family_fixtures.sh|scripts/lib/ifa_family_fixtures.sh'
 	'scripts/lib/ifa_repo_dependency_live.sh|scripts/lib/ifa_repo_dependency_live.sh'
 	'scripts/lib/ifa_fault_injection_repo_dependency_cells.sh|scripts/lib/ifa_fault_injection_repo_dependency_cells.sh'
 	'scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh|scripts/lib/test-ifa-fault-injection-repo-dependency-cases.sh'
 	'testdata/cassettes/repodependency/**|testdata/cassettes/repodependency/ifa-repo-dependency-family.json'
 	'go/internal/ifa/testdata/repodependency/**|go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json'
-	'go/internal/ifa/repo_dependency_family_*.go|go/internal/ifa/repo_dependency_family_odu.go'
 	'go/internal/collector/gitrepo/git_fact_builder*.go|go/internal/collector/gitrepo/git_fact_builder.go'
 	'go/internal/collector/gitrepo/git_fact_builder*.go|go/internal/collector/gitrepo/git_fact_builder_delta.go'
 	'go/internal/collector/gitrepo/git_followup_facts.go|go/internal/collector/gitrepo/git_followup_facts.go'
@@ -461,6 +474,17 @@ ifa_live_gate_determinism_only_seams=(
 #                                          cassette carries their facts
 #   go/internal/{parser,query,telemetry,mcp}/...
 #                                          'go/**' or 'go/internal/**'
+#   go/internal/ifa/{saturation,throughput}/...
+#                                          'go/internal/ifa/**' where the
+#                                          package root 'go/internal/ifa/*.go'
+#                                          is what was meant. Those two are
+#                                          sibling PACKAGES that neither
+#                                          go/cmd/ifa nor the ifa root package
+#                                          imports -- they are the
+#                                          ifa-load-saturation gate's
+#                                          `go test -race` surface, and
+#                                          nothing the live Docker lanes run
+#                                          links them.
 #
 # The consuming loop also asserts each path still EXISTS. Without that, a
 # rename turns a negative control into a check of nothing, which is the same
@@ -473,4 +497,6 @@ ifa_live_gate_negative_seams=(
 	'go/internal/query/openapi.go'
 	'go/internal/telemetry/instruments.go'
 	'go/internal/mcp/server.go'
+	'go/internal/ifa/saturation/saturation.go'
+	'go/internal/ifa/throughput/throughput.go'
 )

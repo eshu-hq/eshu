@@ -90,13 +90,24 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-repo-dependency-lease-cases.sh'
       - 'testdata/cassettes/repodependency/**'
       - 'go/internal/ifa/testdata/repodependency/**'
-      - 'go/internal/ifa/repo_dependency_family_*.go'
+      # The ifa package root, replacing 12 filenames and two <family>_* globs
+      # (#6200). go/cmd/ifa imports this package from its own production
+      # files, so every non-test file in it compiles into the binary both live
+      # jobs run; 19 were dark, including the shared Odù machinery (odu.go,
+      # expectations.go, coverage.go) and the compiled Odù for code_call and
+      # rationale. Same string-exact registry lockstep as the two globs above.
+      - 'go/internal/ifa/*.go'
+      # ifa-dead-letter-matrix's own two registry triggers, kept as literals
+      # beside the glob that already covers them: that gate shares this
+      # workflow's single paths: filter, and the registry-subset-of-workflow
+      # lockstep compares trigger STRINGS without expanding globs (#6200).
+      - 'go/internal/ifa/mutate.go'
+      - 'go/internal/ifa/dead_letters.go'
       - 'scripts/lib/ifa_workload_dependency_live.sh'
       - 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh'
       - 'scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh'
       - 'testdata/cassettes/workloaddependency/**'
       - 'go/internal/ifa/testdata/workloaddependency/**'
-      - 'go/internal/ifa/workload_dependency_family_*.go'
       # One entry, not the ~40 filenames that were here (#6200). Both live
       # jobs below build the whole eshu-reducer binary, so any non-test file
       # in this package can change what they prove; a hand-picked subset went
@@ -206,9 +217,6 @@ on:
       - 'go/internal/storage/postgres/reducer_queue_validation.go'
       - 'go/internal/storage/postgres/reducer_queue_ack.go'
       - 'go/internal/ifa/graphdump/**'
-      - 'go/internal/ifa/catalog_seed.go'
-      - 'go/internal/ifa/code_call_family_catalog.go'
-      - 'go/internal/ifa/documentation_family_catalog.go'
       # The guards moved to go/internal/ifa/materializededges/ (#6053), so the
       # former per-file glob for those guards matched nothing once they moved, so
       # it was dropped here and from all three gate blocks in ci-gates.v1.yaml
@@ -284,8 +292,6 @@ on:
       # that broke scope disjointness would make the worker matrix go inert, so
       # it MUST retrigger this gate.
       - 'go/internal/synth/gcp/**'
-      - 'go/internal/ifa/mutate.go'
-      - 'go/internal/ifa/dead_letters.go'
       - 'go/cmd/ifa/**'
       - 'go/internal/storage/cypher/cloud_resource_node_writer.go'
       - 'go/internal/storage/cypher/cloud_resource_node_writer_teeth.go'
@@ -357,7 +363,6 @@ on:
       # what the live lanes assert and MUST retrigger them.
       - 'testdata/cassettes/documentation/**'
       - 'go/internal/ifa/testdata/documentation/**'
-      - 'go/internal/ifa/documentation_family_odu.go'
       - 'sdk/go/factschema/documentation/v1/**'
       # Glob, not the canonical_ literal: the registry declares this shape, and it
       # is what covers edge_writer_documentation_labels.go -- buildDocumentationRowMap's
@@ -371,8 +376,6 @@ on:
       # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
       # set, reducer stage, writer, and live/fault helpers are all inputs to
       # what the live lanes assert, so each one must retrigger them.
-      - 'go/internal/ifa/codeowners_family_odu.go'
-      - 'go/internal/ifa/codeowners_family_catalog.go'
       - 'sdk/go/factschema/codeowners/v1/**'
       # Glob though only canonical_codeowners_edges.go exists today: the
       # documentation family's literal was correct until its writer split into
@@ -408,8 +411,6 @@ on:
       # package glob subsumes it. A change that quarantined or mis-decoded
       # every cassette pin at that seam would leave the coverage rows #6002
       # unwaived backed by stale results, with no gate re-running to notice.
-      - 'go/internal/ifa/submodule_pin_family_odu.go'
-      - 'go/internal/ifa/submodule_pin_family_catalog.go'
       - 'sdk/go/factschema/submodule/v1/**'
       - 'go/internal/storage/cypher/*submodule*.go'
       - 'testdata/cassettes/submodulepin/**'
@@ -427,8 +428,6 @@ on:
       # triggered no re-run without their own row here.
       - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
       - 'go/internal/storage/cypher/edge_writer_rowmaps.go'
-      - 'go/internal/ifa/deployable_unit_family_catalog.go'
-      - 'go/internal/ifa/deployable_unit_family_odu.go'
       - 'testdata/cassettes/deployableunit/**'
       - 'go/internal/ifa/testdata/deployableunit/**'
       - 'go/cmd/bootstrap-index/**'
@@ -467,8 +466,6 @@ on:
       - 'testdata/cassettes/shellexec/**'
       - 'go/internal/ifa/testdata/inheritance/**'
       - 'go/internal/ifa/testdata/shellexec/**'
-      - 'go/internal/ifa/inheritance_family_odu.go'
-      - 'go/internal/ifa/shell_exec_family_odu.go'
       # handles_route/runs_in/invokes_cloud_action trio (#5995/#6000/#5997):
       # one shared cassette and Odù (symbolRuntimeFamilyOdu() is registered
       # in catalog_seed.go's catalogSeed, so it is live-binary-consumed, not
@@ -488,7 +485,6 @@ on:
       - 'go/internal/storage/cypher/canonical_handles_route_edges.go'
       - 'go/internal/storage/cypher/canonical_runs_in_edges.go'
       - 'go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go'
-      - 'go/internal/ifa/symbol_runtime_family_odu.go'
       - 'scripts/lib/ifa_rationale_live.sh'
       # Shared committed family fixture paths + existence guards, sourced by
       # BOTH live gates: a change here changes what every cell drives.
