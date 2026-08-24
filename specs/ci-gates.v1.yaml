@@ -2686,7 +2686,6 @@ gates:
       - "go/internal/ifa/symbol_runtime_family_odu.go"
       - "go/internal/reducer/symbol_runtime*.go"
       - "scripts/lib/ifa_symbol_runtime_live.sh"
-      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/sql_relationship_*.go"
     local:

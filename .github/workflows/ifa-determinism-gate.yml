@@ -438,6 +438,31 @@ on:
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
       - '.github/workflows/ifa-determinism-gate.yml'
+      #
+      # Mirrors of the registry rows the materialized-edge lockstep pins by
+      # literal text. Broader globs above already cover these files, but
+      # test-ifa-determinism-registry-lockstep-cases.sh compares the registry
+      # against this list with rg --fixed-strings: a registry trigger absent
+      # here marks both gates BLOCKING while GitHub never starts them, and the
+      # required-gates publisher then waits forever on checks that never
+      # arrive. Keep this list and the registry rows in lockstep (#6200).
+      - 'go/internal/ifa/catalog_seed.go'
+      - 'go/internal/ifa/code_call_family_catalog.go'
+      - 'go/internal/ifa/deployable_unit_family_catalog.go'
+      - 'go/internal/ifa/deployable_unit_family_odu.go'
+      - 'go/internal/ifa/documentation_family_catalog.go'
+      - 'go/internal/ifa/documentation_family_odu.go'
+      - 'go/internal/reducer/code_call*.go'
+      - 'go/internal/reducer/deployable_unit*.go'
+      - 'go/internal/reducer/documentation_edge*.go'
+      - 'scripts/lib/ifa_rationale_live.sh'
+      - 'sdk/go/factschema/codegraph/v1/repository.go'
+      - 'go/internal/ifa/symbol_runtime_family_odu.go'
+      - 'go/internal/reducer/symbol_runtime*.go'
+      - 'scripts/lib/ifa_symbol_runtime_live.sh'
+      - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
+      - 'go/internal/ifa/sql_relationship_odu*.go'
+      - 'go/internal/reducer/sql_relationship_*.go'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
