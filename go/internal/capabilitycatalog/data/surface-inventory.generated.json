@@ -1450,7 +1450,7 @@
           "list_documentation_findings"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-confluence ./internal/collector ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-confluence ./internal/collector ./internal/query ./internal/mcp/... -count=1"
         ],
         "fixture_refs": [
           "go/cmd/collector-confluence/service_test.go",

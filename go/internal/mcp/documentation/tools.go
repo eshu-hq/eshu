@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package doctools
 
-func documentationTools() []ToolDefinition {
-	return []ToolDefinition{
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// Tools returns the four documentation read registrations in their canonical
+// order within the parent MCP registry.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_documentation_findings",
 			Description: "List durable documentation truth findings by bounded filters.",

@@ -21,8 +21,9 @@ version used for a run, then check packet freshness before publish.
 ## Verified Read Surface
 
 The HTTP routes are mounted by `go/internal/query/documentation.go`. MCP tools
-route to the same handlers through `go/internal/mcp/tools_documentation.go` and
-`go/internal/mcp/dispatch_documentation.go`.
+are registered in `go/internal/mcp/documentation/tools.go` and
+`go/internal/mcp/documentation/finding_aggregate_tools.go`, then route to the
+same handlers through `go/internal/mcp/dispatch_documentation.go`.
 
 | Purpose | HTTP route | MCP tool |
 | --- | --- | --- |

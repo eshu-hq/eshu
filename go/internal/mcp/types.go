@@ -3,7 +3,10 @@
 
 package mcp
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import (
+	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
+	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+)
 
 // ToolDefinition describes one MCP tool exposed to clients.
 //
@@ -58,4 +61,16 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, askTools()...)
 	tools = append(tools, []ToolDefinition{relationshipEdgesTool(), repositoryFilesTool()}...)
 	return tools
+}
+
+// documentationTools preserves the root package's constructor name while the
+// documentation package owns the registration definitions.
+func documentationTools() []ToolDefinition {
+	return doctools.Tools()
+}
+
+// documentationFindingAggregateTools preserves the root package's constructor
+// name while the documentation package owns the registration definitions.
+func documentationFindingAggregateTools() []ToolDefinition {
+	return doctools.FindingAggregateTools()
 }

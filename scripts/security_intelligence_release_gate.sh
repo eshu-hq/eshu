@@ -274,7 +274,7 @@ run_phase_focused() {
         ./internal/vulnerabilityparity
         ./internal/reducer
         ./internal/query
-        ./internal/mcp
+        ./internal/mcp/...
         ./internal/collector/vulnerabilityintelligence
         ./internal/collector/scannerworker
         ./cmd/scanner-worker

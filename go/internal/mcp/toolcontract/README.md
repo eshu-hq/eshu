@@ -39,18 +39,15 @@ telemetry remains in `internal/mcp`.
 wire contract. Tool membership and order remain owned by `mcp.ReadOnlyTools`.
 A family move must preserve the registered set, order, and schemas.
 
-No-Regression Evidence: the landed change preserves MCP output. A disposable
-`internal/mcp/doctools` package imported `toolcontract`, owned the four
-documentation registrations, and returned them through the existing root
-assembler. Before and after the scratch move, `ReadOnlyTools` contained 162
-tools with the same ordered-name SHA-256
+No-Regression Evidence: `internal/mcp/documentation` imports `toolcontract` and
+owns the six documentation registrations. Its characterization test pins the
+serialized names, descriptions, input schemas, and local order at SHA-256
+`51ee1b7788fce89e28d89aabe738b8e497f21bc9e92cb1cbc2d99bd3a3d8eb02`.
+The root assembler still contains 162 tools with ordered-name SHA-256
 `8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b`.
-`TestReadOnlyToolsRegistrationOrderContract` retains that ordered-set guard.
-The root assembler's capacity hint was corrected from 160 to the existing 162
-registrations; its append sequence and output are unchanged. The scratch branch
-passed `go test ./internal/mcp/... -count=1`, `go build ./...`, and
-`go vet ./...`. The family move was discarded; only the neutral contract and
-root alias land here.
+`TestReadOnlyToolsRegistrationOrderContract` retains that global order guard,
+and the two documentation constructors remain at their previous assembly
+positions.
 
 No-Observability-Change: tool assembly, routing, dispatch, authorization, and
 telemetry remain owned by `internal/mcp`.

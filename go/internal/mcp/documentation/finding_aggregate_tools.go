@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package doctools
 
-// documentationFindingAggregateTools returns the cheap-summary aggregate
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// FindingAggregateTools returns the cheap-summary aggregate
 // tools shipped alongside the existing list_documentation_findings tool.
 // They give callers an O(1) answer to ecosystem-level questions like
 // "how many findings per status?" without paging through the list endpoint.
@@ -12,8 +14,8 @@ package mcp
 // uses (`viewer_can_read_source`, `source_acl_evaluated`,
 // `permission_decision`), so a caller cannot use these tools to enumerate
 // counts from documents they could not read directly.
-func documentationFindingAggregateTools() []ToolDefinition {
-	return []ToolDefinition{
+func FindingAggregateTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "count_documentation_findings",
 			Description: "Return durable documentation finding totals for one optional scope without paging through individual findings. Provides total findings and rollups by status, truth_level, and freshness_state. Inherits the same per-document read permissions as list_documentation_findings.",

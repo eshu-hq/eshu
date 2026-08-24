@@ -200,4 +200,4 @@ jobs:
 
       - name: Run MCP test suite
         working-directory: go
-        run: go test ./internal/mcp/ -count=1 -timeout 120s
+        run: go test ./internal/mcp/... -count=1 -timeout 120s
