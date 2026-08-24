@@ -241,6 +241,13 @@ keeps both assembly positions and all cloud routing, dispatch, authorization,
 and transport ownership. The move uses `internal/mcp/toolcontract` and leaves
 the 162-tool order unchanged.
 
+The visualization registration family is the third extracted MCP family. Its
+single definition lives under `internal/mcp/visualization`, while the root keeps
+its assembly position between work-item and freshness tools plus all
+visualization routing, dispatch, authorization, summaries, and transport
+ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
+order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —

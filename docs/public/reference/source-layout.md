@@ -23,6 +23,7 @@ live in the repository today.
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
+| `go/internal/mcp/visualization/` | visualization-packet MCP tool registration definition |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
 | `go/internal/projector/azure/` | Azure resource and relationship reducer-intent family builders |
