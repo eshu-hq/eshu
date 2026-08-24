@@ -169,7 +169,7 @@ done
 # Negative controls (#6200). Every loop above asks whether a path STILL selects
 # the gate it should, and none of them can catch the opposite failure: a
 # trigger widened past what the gates actually observe. That went from
-# theoretical to live when ~40 reducer filenames and six SDK filenames were
+# theoretical to live when ~40 reducer filenames and six SDK entries were
 # replaced by package globs -- 'go/internal/reducer/**' one keystroke from
 # 'go/internal/**', and each of the two gates a Docker matrix. Over-triggering
 # fails no assertion anywhere; it just spends CI.

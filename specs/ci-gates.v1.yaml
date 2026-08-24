@@ -2437,7 +2437,8 @@ gates:
       # under-approximation by construction (#6200): splitting a file to get
       # under the blocking 500-line cap left the original entry in place, so
       # nothing dangled and no drift check fired, while the new pieces went
-      # dark. 26 load-bearing files were dark that way -- the whole
+      # dark. #6200's audit confirmed 26 load-bearing files dark that way,
+      # and the glob covers far more than those 26 -- the whole
       # sql_relationships family past its two pinned filenames, the shared
       # projection helpers (admission_decisions.go, projection_helpers.go,
       # candidate_loader.go), and graph_projection_phase_publish.go plus the
@@ -2446,8 +2447,10 @@ gates:
       # subsumes the earlier per-family point fixes (factschema_decode_*.go
       # among them). Six other gates in this registry already glob this
       # package. Measured cost before landing: over the last 300 merged
-      # commits on main, gates armed 157/300 before and 168/300 after -- 11
-      # more, on a rate that was already above half.
+      # commits on main, at least one live lane armed on 160/300 before and
+      # 169/300 after. Attributed one glob at a time against the same 300,
+      # this one is +8 and sdk/go/factschema/*.go is +1; the rest are +0. The
+      # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
       # semantic_entity_materialization.go among them, which #6200 had
@@ -2577,13 +2580,16 @@ gates:
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      # The scripts/lib/ Ifá surface as five globs, not the 27 filenames that
-      # were here (#6200). Same defect as the reducer and factschema entries
-      # above, on a directory the blocking 500-line cap splits far more often
-      # than any Go package: the registry named 103 scripts/lib/ files one at
-      # a time and carried no glob for the directory at all, so every split
-      # dropped the new half out of both live gates while the original
-      # filename kept its entry and nothing dangled. Two files are dark that
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 32
+      # literal scripts/lib/ filenames and two directory globs to 6 literals
+      # and 8 globs. Same defect as the reducer and factschema entries above,
+      # on a directory the blocking 500-line cap splits far more often than
+      # any Go package: across the four Ifá gates the registry named 71
+      # scripts/lib/ files one at a time and carried only three globs there
+      # (ifa_family_registry/**, ifa_family_registry_pins/** and, on the fault
+      # gate, ifa_fault_generic_*.sh), so every split dropped the new half out
+      # of both live gates while the original filename kept its entry and
+      # nothing dangled. Two files are dark that
       # way on main today -- test-ifa-fault-injection-deployable-unit-kill-
       # isolation-cases.sh and test-ifa-fault-injection-generic-runner-lease-
       # audit-cases.sh, both split out under the cap, both absent from this
@@ -2775,7 +2781,8 @@ gates:
       # under-approximation by construction (#6200): splitting a file to get
       # under the blocking 500-line cap left the original entry in place, so
       # nothing dangled and no drift check fired, while the new pieces went
-      # dark. 26 load-bearing files were dark that way -- the whole
+      # dark. #6200's audit confirmed 26 load-bearing files dark that way,
+      # and the glob covers far more than those 26 -- the whole
       # sql_relationships family past its two pinned filenames, the shared
       # projection helpers (admission_decisions.go, projection_helpers.go,
       # candidate_loader.go), and graph_projection_phase_publish.go plus the
@@ -2784,8 +2791,10 @@ gates:
       # subsumes the earlier per-family point fixes (factschema_decode_*.go
       # among them). Six other gates in this registry already glob this
       # package. Measured cost before landing: over the last 300 merged
-      # commits on main, gates armed 157/300 before and 168/300 after -- 11
-      # more, on a rate that was already above half.
+      # commits on main, at least one live lane armed on 160/300 before and
+      # 169/300 after. Attributed one glob at a time against the same 300,
+      # this one is +8 and sdk/go/factschema/*.go is +1; the rest are +0. The
+      # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
       # semantic_entity_materialization.go among them, which #6200 had
@@ -3018,13 +3027,16 @@ gates:
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
-      # The scripts/lib/ Ifá surface as four globs, not the 56 filenames that
-      # were here (#6200). Same defect as the reducer and factschema entries
-      # above, on a directory the blocking 500-line cap splits far more often
-      # than any Go package: the registry named 103 scripts/lib/ files one at
-      # a time and carried no glob for the directory at all, so every split
-      # dropped the new half out of both live gates while the original
-      # filename kept its entry and nothing dangled. This gate had two files
+      # The scripts/lib/ Ifá surface as globs (#6200). This gate went from 63
+      # literal scripts/lib/ filenames and two globs to 5 literals and 6
+      # globs. Same defect as the reducer and factschema entries above, on a
+      # directory the blocking 500-line cap splits far more often than any Go
+      # package: across the four Ifá gates the registry named 71 scripts/lib/
+      # files one at a time and carried only three globs there
+      # (ifa_family_registry/**, ifa_family_registry_pins/** and this gate's
+      # own ifa_fault_generic_*.sh), so every split dropped the new half out
+      # of both live gates while the original filename kept its entry and
+      # nothing dangled. This gate had two files
       # dark that way on main --
       # test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh and
       # test-ifa-fault-injection-generic-runner-lease-audit-cases.sh, both

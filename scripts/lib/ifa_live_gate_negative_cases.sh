@@ -6,8 +6,9 @@
 # scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh sees one array.
 #
 # This split is the thing #6200 is about, done deliberately instead of by
-# accident. Before this change the registry named 103 scripts/lib/ paths one at
-# a time and carried no glob for the directory, so a split here would have left
+# accident. Before this change the four Ifá gates named 71 scripts/lib/ files
+# one at a time and carried three globs between them, none reaching this file,
+# so a split here would have left
 # the new half selecting nothing while the original filename kept its entry --
 # nothing dangling, no drift check firing, and the table that proves the live
 # gates select correctly half-invisible to them. Both halves are covered by
