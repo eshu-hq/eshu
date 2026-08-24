@@ -2292,8 +2292,40 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "sdk/go/factschema/go.mod"
-      - "sdk/go/factschema/decode.go"
-      - "sdk/go/factschema/fact_kinds.go"
+      # The factschema root package, not a list of its filenames, for the
+      # reason above (#6200). Every Decode* funnels through decodeMapIntoWith
+      # and assignField in decode_map.go, every required-field rejection
+      # through requiredPayloadKeys in fields.go, and the synth cassette both
+      # gates generate is built by the encode_direct.go helpers -- none of
+      # which any filename-shaped trigger named, all of which split out from
+      # decode.go under the line cap. The per-family decode seams that sit in
+      # this package root rather than a */v1/ subtree (decode_codeowners.go,
+      # fact_kinds_codeowners.go, decode_documentation.go, decode_gcp.go, the
+      # ArgoCD gitops decoder) were dark for the same reason, and this
+      # supersedes #6198's *submodule*.go point fix. Go package scope is what
+      # makes the package the right granularity: a helper any decode path
+      # reaches can live in any file in it, so no name pattern bounds the
+      # set. Measured: +1 armed commit in 300. A narrower set of seven
+      # hand-aimed globs measured the same +1 and would have kept the
+      # filename fragility, so it bought nothing.
+      #
+      # Sweeps in envelope.go, which #6200 excluded as already compile-pinned
+      # by decode.go -- harmless, it was excluded as unnecessary rather than
+      # unwanted -- and the import-extraction decoders, which #6200 excluded
+      # because every parsed_file_data.imports bucket in every driven
+      # cassette is empty. Editing those now arms two live lanes that cannot
+      # fail on the change until that fixture gap is closed.
+      - "sdk/go/factschema/*.go"
+      # codegraph/v1 and gcp/v1 are separate packages, globbed for the same
+      # reason and no wider: parsed_file_data_gitops.go (the ArgoCD struct the
+      # decoder decodes into) and gcp/v1/resource.go and relationship.go were
+      # dark beside the two codegraph filenames that were listed. Sibling
+      # packages under sdk/go/factschema/ whose facts no driven cassette
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out: Go package scope
+      # confines their helpers to themselves, so they cannot reach this
+      # decode path. Both measured +0 armed commits in 300.
+      - "sdk/go/factschema/codegraph/v1/**"
+      - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
@@ -2365,44 +2397,33 @@ gates:
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
-      - "go/internal/reducer/contract/**"
-      - "go/internal/reducer/intent.go"
-      - "go/internal/reducer/domain.go"
-      - "go/internal/reducer/defaults.go"
-      - "go/internal/reducer/defaults_registry.go"
-      - "go/internal/reducer/registry.go"
-      - "go/internal/reducer/defaults_domain_catalog.go"
-      - "go/internal/reducer/code_call*.go"
-      - "go/internal/reducer/documentation_edge*.go"
-      - "go/internal/reducer/codeowners_ownership*.go"
-      - "go/internal/reducer/submodule_pin*.go"
-      - "go/internal/reducer/python_metaclass_materialization.go"
-      - "go/internal/reducer/factschema_decode_codegraph.go"
-      - "go/internal/reducer/factschema_decode.go"
-      # Glob, not two more literals. factschema_decode_<family>.go is matched
-      # by no <family>_* glob: go/internal/reducer/** catches those decoders in
-      # the static gates, but no gate that MATERIALIZES a family's edge re-runs
-      # when the decoder feeding it is edited. One entry closes that for every
-      # family at once.
-      - "go/internal/reducer/factschema_decode_*.go"
-      - "go/internal/reducer/fact_kind_loader.go"
-      - "go/internal/reducer/graph_projection_phase.go"
-      - "sdk/go/factschema/decode_codegraph.go"
-      - "sdk/go/factschema/codegraph/v1/file.go"
-      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Every non-test file in this package compiles into the eshu-reducer
+      # binary both live gates build and run, so any of them can change what
+      # the gates prove. A hand-picked subset of ~40 filenames was an
+      # under-approximation by construction (#6200): splitting a file to get
+      # under the blocking 500-line cap left the original entry in place, so
+      # nothing dangled and no drift check fired, while the new pieces went
+      # dark. 26 load-bearing files were dark that way -- the whole
+      # sql_relationships family past its two pinned filenames, the shared
+      # projection helpers (admission_decisions.go, projection_helpers.go,
+      # candidate_loader.go), and graph_projection_phase_publish.go plus the
+      # repair runner that moved out of the still-listed
+      # graph_projection_phase.go. This one entry replaces all of them, and
+      # subsumes the earlier per-family point fixes (factschema_decode_*.go
+      # among them). Six other gates in this registry already glob this
+      # package. Measured cost before landing: over the last 300 merged
+      # commits on main, gates armed 157/300 before and 168/300 after -- 11
+      # more, on a rate that was already above half.
+      #
+      # It also arms the lanes on reducer files no driven cassette exercises,
+      # semantic_entity_materialization.go among them, which #6200 had
+      # deliberately left untriggered because no cassette either gate drives
+      # produces a semantic-entity intent. That is the price of the glob and
+      # it is the right trade: per-file precision is what rotted.
+      - "go/internal/reducer/**"
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
-      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
-      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
-      # decode seam reducer.decodeSubmodulePin dispatches into
-      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
-      # under submodule/v1/, so the glob above misses them; a decode/quarantine
-      # regression there would leave #6002's coverage rows backed by stale
-      # results with no gate re-running to notice.
-      - "sdk/go/factschema/*submodule*.go"
-      - "go/internal/reducer/service*.go"
-      - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"
       - "go/internal/storage/cypher/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
@@ -2453,14 +2474,9 @@ gates:
       - "schema/data-plane/postgres/012_graph_projection_phase_state.sql"
       - "go/internal/synth/gcp/**"
       - "go/cmd/ifa/**"
-      - "go/internal/reducer/gcp_resource_materialization.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth_off.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
-      - "go/internal/reducer/sql_relationship_materialization.go"
-      - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
@@ -2475,7 +2491,6 @@ gates:
       - "go/internal/ifa/testdata/documentation/**"
       - "go/internal/ifa/testdata/codeowners/**"
       - "go/internal/ifa/testdata/submodulepin/**"
-      - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/storage/cypher/canonical_deployable_unit_edges.go"
       - "go/internal/storage/cypher/edge_writer_rowmaps.go"
       - "go/internal/ifa/deployable_unit_family_catalog.go"
@@ -2483,13 +2498,6 @@ gates:
       - "testdata/cassettes/deployableunit/**"
       - "go/internal/ifa/testdata/deployableunit/**"
       - "go/cmd/bootstrap-index/**"
-      - "go/internal/reducer/rationale_edge_materialization.go"
-      - "go/internal/reducer/rationale_delta_scope.go"
-      - "go/internal/reducer/rationale_edge_intents.go"
-      - "go/internal/reducer/semantic_entity_delta_scope.go"
-      - "go/internal/reducer/semantic_entity_materialization_helpers.go"
-      - "go/internal/reducer/intent_emission.go"
-      - "go/internal/reducer/dependency_domain.go"
       - "go/internal/replay/canonical.go"
       - "go/internal/storage/cypher/canonical_rationale_edges.go"
       - "go/internal/storage/cypher/edge_writer_rationale_labels.go"
@@ -2497,16 +2505,9 @@ gates:
       - "go/internal/storage/cypher/backpressure_executor.go"
       - "testdata/cassettes/rationale/**"
       - "go/internal/ifa/testdata/rationale/**"
-      - "go/internal/reducer/inheritance_materialization*.go"
-      - "go/internal/reducer/inheritance_delta_scope.go"
-      - "go/internal/reducer/inheritance_implements.go"
-      - "go/internal/reducer/inheritance_intents.go"
-      - "go/internal/reducer/inheritance_php_trait_adaptations.go"
       - "go/internal/storage/cypher/canonical_implements_edges.go"
       - "go/internal/storage/cypher/canonical_inheritance_retract.go"
       - "go/internal/storage/cypher/edge_writer_inheritance_labels.go"
-      - "go/internal/reducer/shell_exec_materialization.go"
-      - "go/internal/reducer/shell_exec_intents.go"
       - "go/internal/storage/cypher/edge_writer_shell_exec.go"
       - "testdata/cassettes/inheritance/**"
       - "testdata/cassettes/shellexec/**"
@@ -2535,13 +2536,12 @@ gates:
       # and the three now-unwaived coverage rows stay green on a stale live
       # proof -- the offline coverage gate is a projection-seam proof and never
       # exercises the graph write, so it cannot catch a MERGE regression either.
-      # Every sibling family enumerates its extractor/writer here for the same
-      # reason (shell_exec_intents.go, inheritance_intents.go,
-      # canonical_inheritance_edges.go, ...).
-      - "go/internal/reducer/handles_route*.go"
-      - "go/internal/reducer/runs_in*.go"
-      - "go/internal/reducer/invokes_cloud_action*.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      # The trio's reducer-side extractors are no longer named here; the
+      # go/internal/reducer/** entry above covers them, and every sibling
+      # family, without depending on anyone remembering to add a filename
+      # (#6200). The Cypher writers below still need naming: internal/storage/
+      # cypher is not globbed by either gate, so each family enumerates its
+      # own writer there (canonical_inheritance_edges.go, ...).
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
@@ -2604,25 +2604,12 @@ gates:
       - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/workloaddependency/**"
       - "go/internal/ifa/workload_dependency_family_*.go"
-      - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
       - "go/internal/collector/gitrepo/git_fact_builder*.go"
       - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
-      - "go/internal/reducer/platform_materialization.go"
-      - "go/internal/reducer/platform_materialization_writer.go"
-      - "go/internal/reducer/workload_materialization_repo_phase.go"
-      - "go/internal/reducer/workload_materializer.go"
-      - "go/internal/reducer/workload_materializer_retract_instances.go"
       - "go/internal/storage/postgres/ingestion_reopen*.go"
-      - "go/internal/reducer/repo_dependency*.go"
-      - "go/internal/reducer/cross_repo_intent_row.go"
-      - "go/internal/reducer/cross_repo_resolution.go"
-      - "go/internal/reducer/projection.go"
-      - "go/internal/reducer/workload_materialization_handler.go"
-      - "go/internal/reducer/platforms.go"
-      - "go/internal/reducer/infrastructure_platform_materializer.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
     local:
@@ -2697,8 +2684,40 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "sdk/go/factschema/go.mod"
-      - "sdk/go/factschema/decode.go"
-      - "sdk/go/factschema/fact_kinds.go"
+      # The factschema root package, not a list of its filenames, for the
+      # reason above (#6200). Every Decode* funnels through decodeMapIntoWith
+      # and assignField in decode_map.go, every required-field rejection
+      # through requiredPayloadKeys in fields.go, and the synth cassette both
+      # gates generate is built by the encode_direct.go helpers -- none of
+      # which any filename-shaped trigger named, all of which split out from
+      # decode.go under the line cap. The per-family decode seams that sit in
+      # this package root rather than a */v1/ subtree (decode_codeowners.go,
+      # fact_kinds_codeowners.go, decode_documentation.go, decode_gcp.go, the
+      # ArgoCD gitops decoder) were dark for the same reason, and this
+      # supersedes #6198's *submodule*.go point fix. Go package scope is what
+      # makes the package the right granularity: a helper any decode path
+      # reaches can live in any file in it, so no name pattern bounds the
+      # set. Measured: +1 armed commit in 300. A narrower set of seven
+      # hand-aimed globs measured the same +1 and would have kept the
+      # filename fragility, so it bought nothing.
+      #
+      # Sweeps in envelope.go, which #6200 excluded as already compile-pinned
+      # by decode.go -- harmless, it was excluded as unnecessary rather than
+      # unwanted -- and the import-extraction decoders, which #6200 excluded
+      # because every parsed_file_data.imports bucket in every driven
+      # cassette is empty. Editing those now arms two live lanes that cannot
+      # fail on the change until that fixture gap is closed.
+      - "sdk/go/factschema/*.go"
+      # codegraph/v1 and gcp/v1 are separate packages, globbed for the same
+      # reason and no wider: parsed_file_data_gitops.go (the ArgoCD struct the
+      # decoder decodes into) and gcp/v1/resource.go and relationship.go were
+      # dark beside the two codegraph filenames that were listed. Sibling
+      # packages under sdk/go/factschema/ whose facts no driven cassette
+      # carries -- aws/v1, azure/v1, sbom/v1 -- stay out: Go package scope
+      # confines their helpers to themselves, so they cannot reach this
+      # decode path. Both measured +0 armed commits in 300.
+      - "sdk/go/factschema/codegraph/v1/**"
+      - "sdk/go/factschema/gcp/v1/**"
       - ".github/workflows/ifa-determinism-gate.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
@@ -2706,8 +2725,30 @@ gates:
       - "go/internal/ifa/graphdump/**"
       - "go/cmd/ifa/**"
       - "go/internal/synth/gcp/**"
-      - "go/internal/reducer/gcp_resource_materialization.go"
-      - "go/internal/reducer/gcp_resource_materialization_teeth_off.go"
+      # Every non-test file in this package compiles into the eshu-reducer
+      # binary both live gates build and run, so any of them can change what
+      # the gates prove. A hand-picked subset of ~40 filenames was an
+      # under-approximation by construction (#6200): splitting a file to get
+      # under the blocking 500-line cap left the original entry in place, so
+      # nothing dangled and no drift check fired, while the new pieces went
+      # dark. 26 load-bearing files were dark that way -- the whole
+      # sql_relationships family past its two pinned filenames, the shared
+      # projection helpers (admission_decisions.go, projection_helpers.go,
+      # candidate_loader.go), and graph_projection_phase_publish.go plus the
+      # repair runner that moved out of the still-listed
+      # graph_projection_phase.go. This one entry replaces all of them, and
+      # subsumes the earlier per-family point fixes (factschema_decode_*.go
+      # among them). Six other gates in this registry already glob this
+      # package. Measured cost before landing: over the last 300 merged
+      # commits on main, gates armed 157/300 before and 168/300 after -- 11
+      # more, on a rate that was already above half.
+      #
+      # It also arms the lanes on reducer files no driven cassette exercises,
+      # semantic_entity_materialization.go among them, which #6200 had
+      # deliberately left untriggered because no cassette either gate drives
+      # produces a semantic-entity intent. That is the price of the glob and
+      # it is the right trade: per-file precision is what rotted.
+      - "go/internal/reducer/**"
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
       - "docker-compose.yaml"
@@ -2776,44 +2817,9 @@ gates:
       - "go/cmd/reducer/config.go"
       - "go/cmd/reducer/config_projection.go"
       - "go/cmd/reducer/main_helpers.go"
-      - "go/internal/reducer/contract/**"
-      - "go/internal/reducer/intent.go"
-      - "go/internal/reducer/domain.go"
-      - "go/internal/reducer/defaults.go"
-      - "go/internal/reducer/defaults_registry.go"
-      - "go/internal/reducer/registry.go"
-      - "go/internal/reducer/defaults_domain_catalog.go"
-      - "go/internal/reducer/code_call*.go"
-      - "go/internal/reducer/documentation_edge*.go"
-      - "go/internal/reducer/codeowners_ownership*.go"
-      - "go/internal/reducer/submodule_pin*.go"
-      - "go/internal/reducer/python_metaclass_materialization.go"
-      - "go/internal/reducer/factschema_decode_codegraph.go"
-      - "go/internal/reducer/factschema_decode.go"
-      # Glob, not two more literals. factschema_decode_<family>.go is matched
-      # by no <family>_* glob: go/internal/reducer/** catches those decoders in
-      # the static gates, but no gate that MATERIALIZES a family's edge re-runs
-      # when the decoder feeding it is edited. One entry closes that for every
-      # family at once.
-      - "go/internal/reducer/factschema_decode_*.go"
-      - "go/internal/reducer/fact_kind_loader.go"
-      - "go/internal/reducer/graph_projection_phase.go"
-      - "sdk/go/factschema/decode_codegraph.go"
-      - "sdk/go/factschema/codegraph/v1/file.go"
-      - "sdk/go/factschema/codegraph/v1/repository.go"
       - "sdk/go/factschema/documentation/v1/**"
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
-      # sdk/go/factschema/decode_submodule.go (DecodeSubmodulePin) and
-      # fact_kinds_submodule.go (FactKindSubmodulePin) are the SDK-side
-      # decode seam reducer.decodeSubmodulePin dispatches into
-      # (go/internal/reducer/factschema_decode_submodule.go). Neither sits
-      # under submodule/v1/, so the glob above misses them; a decode/quarantine
-      # regression there would leave #6002's coverage rows backed by stale
-      # results with no gate re-running to notice.
-      - "sdk/go/factschema/*submodule*.go"
-      - "go/internal/reducer/service*.go"
-      - "go/internal/reducer/shared_projection*.go"
       - "go/internal/storage/cypher/*code_call*.go"
       - "go/internal/storage/cypher/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
@@ -2868,9 +2874,6 @@ gates:
       - "go/internal/projector/gcp/resource_materialization_intents.go"
       - "go/internal/projector/gcp/relationship_materialization_intents.go"
       - "go/internal/projector/security/group_reachability_intents.go"
-      - "go/internal/reducer/defaults_additive_domains.go"
-      - "go/internal/reducer/defaults_additive_domains_cloud_nodes.go"
-      - "go/internal/reducer/defaults_additive_domains_gcp.go"
       - "go/cmd/reducer/canonical_graph_writers.go"
       - "go/internal/graphowner/family_writers.go"
       - "go/internal/graphowner/gated_writer.go"
@@ -2883,8 +2886,6 @@ gates:
       - "go/cmd/reducer/ifa_fault_wiring.go"
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
       - "go/cmd/ifa/assert_edges.go"
-      - "go/internal/reducer/sql_relationship_materialization.go"
-      - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "go/internal/storage/cypher/materialized_edge_*.go"
       - "go/internal/storage/cypher/canonical_code_call_edges.go"
@@ -2899,7 +2900,6 @@ gates:
       - "go/internal/ifa/testdata/documentation/**"
       - "go/internal/ifa/testdata/codeowners/**"
       - "go/internal/ifa/testdata/submodulepin/**"
-      - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/storage/cypher/canonical_deployable_unit_edges.go"
       - "go/internal/storage/cypher/edge_writer_rowmaps.go"
       - "go/internal/ifa/deployable_unit_family_catalog.go"
@@ -2907,13 +2907,6 @@ gates:
       - "testdata/cassettes/deployableunit/**"
       - "go/internal/ifa/testdata/deployableunit/**"
       - "go/cmd/bootstrap-index/**"
-      - "go/internal/reducer/rationale_edge_materialization.go"
-      - "go/internal/reducer/rationale_delta_scope.go"
-      - "go/internal/reducer/rationale_edge_intents.go"
-      - "go/internal/reducer/semantic_entity_delta_scope.go"
-      - "go/internal/reducer/semantic_entity_materialization_helpers.go"
-      - "go/internal/reducer/intent_emission.go"
-      - "go/internal/reducer/dependency_domain.go"
       - "go/internal/replay/canonical.go"
       - "go/internal/storage/cypher/canonical_rationale_edges.go"
       - "go/internal/storage/cypher/edge_writer_rationale_labels.go"
@@ -2921,16 +2914,9 @@ gates:
       - "go/internal/storage/cypher/backpressure_executor.go"
       - "testdata/cassettes/rationale/**"
       - "go/internal/ifa/testdata/rationale/**"
-      - "go/internal/reducer/inheritance_materialization*.go"
-      - "go/internal/reducer/inheritance_delta_scope.go"
-      - "go/internal/reducer/inheritance_implements.go"
-      - "go/internal/reducer/inheritance_intents.go"
-      - "go/internal/reducer/inheritance_php_trait_adaptations.go"
       - "go/internal/storage/cypher/canonical_implements_edges.go"
       - "go/internal/storage/cypher/canonical_inheritance_retract.go"
       - "go/internal/storage/cypher/edge_writer_inheritance_labels.go"
-      - "go/internal/reducer/shell_exec_materialization.go"
-      - "go/internal/reducer/shell_exec_intents.go"
       - "go/internal/storage/cypher/edge_writer_shell_exec.go"
       - "testdata/cassettes/inheritance/**"
       - "testdata/cassettes/shellexec/**"
@@ -2953,13 +2939,12 @@ gates:
       # and the three now-unwaived coverage rows stay green on a stale live
       # proof -- the offline coverage gate is a projection-seam proof and never
       # exercises the graph write, so it cannot catch a MERGE regression either.
-      # Every sibling family enumerates its extractor/writer here for the same
-      # reason (shell_exec_intents.go, inheritance_intents.go,
-      # canonical_inheritance_edges.go, ...).
-      - "go/internal/reducer/handles_route*.go"
-      - "go/internal/reducer/runs_in*.go"
-      - "go/internal/reducer/invokes_cloud_action*.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      # The trio's reducer-side extractors are no longer named here; the
+      # go/internal/reducer/** entry above covers them, and every sibling
+      # family, without depending on anyone remembering to add a filename
+      # (#6200). The Cypher writers below still need naming: internal/storage/
+      # cypher is not globbed by either gate, so each family enumerates its
+      # own writer there (canonical_inheritance_edges.go, ...).
       - "go/internal/storage/cypher/canonical_handles_route_edges.go"
       - "go/internal/storage/cypher/canonical_runs_in_edges.go"
       - "go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go"
@@ -3078,25 +3063,12 @@ gates:
       - "testdata/cassettes/workloaddependency/**"
       - "go/internal/ifa/testdata/workloaddependency/**"
       - "go/internal/ifa/workload_dependency_family_*.go"
-      - "go/internal/reducer/workload_dependency*.go"
       - "go/internal/storage/cypher/materialized_edge_endpoints.go"
       - "go/internal/collector/gitrepo/git_fact_builder*.go"
       - "go/internal/collector/gitrepo/git_followup_facts.go"
       - "go/internal/projector/canonical_import_extract.go"
       - "go/internal/projector/workload_dependency_cassette_admission_test.go"
-      - "go/internal/reducer/platform_materialization.go"
-      - "go/internal/reducer/platform_materialization_writer.go"
-      - "go/internal/reducer/workload_materialization_repo_phase.go"
-      - "go/internal/reducer/workload_materializer.go"
-      - "go/internal/reducer/workload_materializer_retract_instances.go"
       - "go/internal/storage/postgres/ingestion_reopen*.go"
-      - "go/internal/reducer/repo_dependency*.go"
-      - "go/internal/reducer/cross_repo_intent_row.go"
-      - "go/internal/reducer/cross_repo_resolution.go"
-      - "go/internal/reducer/projection.go"
-      - "go/internal/reducer/workload_materialization_handler.go"
-      - "go/internal/reducer/platforms.go"
-      - "go/internal/reducer/infrastructure_platform_materializer.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
     local:

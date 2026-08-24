@@ -165,4 +165,30 @@ for seam in "${ifa_live_gate_determinism_only_seams[@]}"; do
 		fail "determinism-only input must not select ifa-fault-injection: ${concrete_path}"
 	fi
 done
+
+# Negative controls (#6200). Every loop above asks whether a path STILL selects
+# the gate it should, and none of them can catch the opposite failure: a
+# trigger widened past what the gates actually observe. That went from
+# theoretical to live when ~40 reducer filenames and six SDK filenames were
+# replaced by package globs -- 'go/internal/reducer/**' one keystroke from
+# 'go/internal/**', and each of the two gates a Docker matrix. Over-triggering
+# fails no assertion anywhere; it just spends CI.
+#
+# So: named unrelated paths that must select NEITHER live gate. The existence
+# check is load-bearing, not defensive tidiness -- a renamed or deleted file
+# would leave a control that passes because it tests nothing, which is exactly
+# the false-green this issue exists to remove.
+for negative_path in "${ifa_live_gate_negative_seams[@]}"; do
+	[[ -e "${repo_root}/${negative_path}" ]] \
+		|| fail "negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
+	selection="$(printf '%s\n' "${negative_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	for gate in ifa-determinism ifa-fault-injection; do
+		if printf '%s\n' "${selection}" | rg --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]"; then
+			fail "unrelated path must not arm the live ${gate} matrix: ${negative_path}"
+		fi
+	done
+done
 }

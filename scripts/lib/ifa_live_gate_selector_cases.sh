@@ -47,8 +47,32 @@ ifa_live_gate_common_seams=(
 	'go/go.mod|go/go.mod'
 	'go/go.sum|go/go.sum'
 	'sdk/go/factschema/go.mod|sdk/go/factschema/go.mod'
-	'sdk/go/factschema/decode.go|sdk/go/factschema/decode.go'
-	'sdk/go/factschema/fact_kinds.go|sdk/go/factschema/fact_kinds.go'
+	# sdk/go/factschema/*.go replaced decode.go, fact_kinds.go,
+	# decode_codegraph.go and #6198's *submodule*.go (#6200). Same evidence
+	# shape as the reducer block above: formerly-dark decode machinery first,
+	# then the filenames the old list did name.
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_map.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_map_coerce.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_map_numbers.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/fields.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/encode_direct.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_codeowners.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/fact_kinds_codeowners.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_documentation.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_gcp.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_parsed_file_data_gitops.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/fact_kinds.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_codegraph.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/decode_submodule.go'
+	'sdk/go/factschema/*.go|sdk/go/factschema/fact_kinds_submodule.go'
+	# The two v1 packages the driven cassettes reach. A '*' here would not
+	# cross '/', so these paths are what catches a narrowed pattern.
+	'sdk/go/factschema/codegraph/v1/**|sdk/go/factschema/codegraph/v1/parsed_file_data_gitops.go'
+	'sdk/go/factschema/codegraph/v1/**|sdk/go/factschema/codegraph/v1/file.go'
+	'sdk/go/factschema/codegraph/v1/**|sdk/go/factschema/codegraph/v1/repository.go'
+	'sdk/go/factschema/gcp/v1/**|sdk/go/factschema/gcp/v1/resource.go'
+	'sdk/go/factschema/gcp/v1/**|sdk/go/factschema/gcp/v1/relationship.go'
 	'.github/workflows/ifa-determinism-gate.yml|.github/workflows/ifa-determinism-gate.yml'
 	'specs/ci-gates.v1.yaml|specs/ci-gates.v1.yaml'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
@@ -64,8 +88,45 @@ ifa_live_gate_common_seams=(
 	'go/cmd/ifa/**|go/cmd/ifa/assert_edges.go'
 	'go/internal/synth/gcp/**|go/internal/synth/gcp/generator.go'
 	'go/internal/synth/gcp/**|go/internal/synth/gcp/multiscope.go'
-	'go/internal/reducer/gcp_resource_materialization.go|go/internal/reducer/gcp_resource_materialization.go'
-	'go/internal/reducer/gcp_resource_materialization_teeth_off.go|go/internal/reducer/gcp_resource_materialization_teeth_off.go'
+	# go/internal/reducer/** replaced ~40 hand-picked filenames on both live
+	# gates (#6200). One pattern, so one seam entry would satisfy the string
+	# checks -- and that is exactly the shape this file exists to distrust.
+	# The paths below are the concrete evidence: the first block is files
+	# that were DARK before the glob (no live gate re-ran when they changed),
+	# the second is files the old literal list did name, kept so a glob
+	# narrowed to something that no longer reaches them fails here instead of
+	# quietly selecting nothing.
+	'go/internal/reducer/**|go/internal/reducer/admission_decisions.go'
+	'go/internal/reducer/**|go/internal/reducer/projection_helpers.go'
+	'go/internal/reducer/**|go/internal/reducer/candidate_loader.go'
+	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_publish.go'
+	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_repair_runner.go'
+	# The five files that split off sql_relationships, the one reducer family
+	# that had been pinned to two literal filenames. They decide which edges
+	# `ifa assert-edges -domain sql_relationships` sees.
+	'go/internal/reducer/**|go/internal/reducer/sql_relationship_delta_scope.go'
+	'go/internal/reducer/**|go/internal/reducer/sql_relationship_intents.go'
+	'go/internal/reducer/**|go/internal/reducer/sql_relationship_metadata.go'
+	'go/internal/reducer/**|go/internal/reducer/sql_relationship_names.go'
+	'go/internal/reducer/**|go/internal/reducer/sql_relationship_table_targets.go'
+	# Previously-listed literals, now covered by the glob.
+	'go/internal/reducer/**|go/internal/reducer/intent.go'
+	'go/internal/reducer/**|go/internal/reducer/shared_projection.go'
+	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase.go'
+	'go/internal/reducer/**|go/internal/reducer/factschema_decode_submodule.go'
+	# go/internal/reducer/contract/ is a subpackage, and it arrived on main as
+	# its own literal trigger (#6222) while this branch was open. The glob
+	# subsumes it, so the literal is gone -- this seam is what proves the
+	# subsumption, since "**" crossing a "/" is the one property the whole
+	# replacement rests on.
+	'go/internal/reducer/**|go/internal/reducer/contract/intent.go'
+	# Previously fault-ONLY, and no longer: the glob is on both gates, so
+	# these three now arm the determinism matrix as well. Listed here rather
+	# than left in ifa_live_gate_fault_only_seams so the widening is written
+	# down where the proof runs, not just in a commit message.
+	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains.go'
+	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains_cloud_nodes.go'
+	'go/internal/reducer/**|go/internal/reducer/defaults_additive_domains_gcp.go'
 	'go/internal/storage/cypher/cloud_resource_node_writer.go|go/internal/storage/cypher/cloud_resource_node_writer.go'
 	'go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go|go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go'
 	'docker-compose.yaml|docker-compose.yaml'
@@ -134,17 +195,12 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/documentation/**|testdata/cassettes/documentation/ifa-documentation-family.json'
 	'go/internal/ifa/testdata/documentation/**|go/internal/ifa/testdata/documentation/ifa-documentation-family-live-expected-edges.json'
 	'go/internal/ifa/documentation_family_odu.go|go/internal/ifa/documentation_family_odu.go'
-	'go/internal/reducer/documentation_edge*.go|go/internal/reducer/documentation_edge_materialization.go'
 	'sdk/go/factschema/documentation/v1/**|sdk/go/factschema/documentation/v1/shared.go'
 	'go/internal/storage/cypher/*documentation*.go|go/internal/storage/cypher/edge_writer_documentation_labels.go'
 	'scripts/lib/ifa_documentation_live.sh|scripts/lib/ifa_documentation_live.sh'
 	'go/internal/ifa/codeowners_family_odu.go|go/internal/ifa/codeowners_family_odu.go'
 	'go/internal/ifa/codeowners_family_catalog.go|go/internal/ifa/codeowners_family_catalog.go'
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_codeowners.go'
-	'go/internal/reducer/codeowners_ownership*.go|go/internal/reducer/codeowners_ownership_materialization.go'
-	'go/internal/reducer/codeowners_ownership*.go|go/internal/reducer/codeowners_ownership_delta_scope.go'
-	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_codeowners.go'
-	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_documentation.go'
 	'sdk/go/factschema/codeowners/v1/**|sdk/go/factschema/codeowners/v1/ownership.go'
 	'go/internal/storage/cypher/*codeowners*.go|go/internal/storage/cypher/canonical_codeowners_edges.go'
 	'testdata/cassettes/codeowners/**|testdata/cassettes/codeowners/ifa-codeowners-family.json'
@@ -159,15 +215,13 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/submodule_pin_family_odu.go|go/internal/ifa/submodule_pin_family_odu.go'
 	'go/internal/ifa/submodule_pin_family_catalog.go|go/internal/ifa/submodule_pin_family_catalog.go'
 	'go/internal/ifa/materializededges/**|go/internal/ifa/materializededges/materialized_edges_submodule_pin.go'
-	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_materialization.go'
-	'go/internal/reducer/submodule_pin*.go|go/internal/reducer/submodule_pin_delta_scope.go'
-	'go/internal/reducer/factschema_decode_*.go|go/internal/reducer/factschema_decode_submodule.go'
 	'sdk/go/factschema/submodule/v1/**|sdk/go/factschema/submodule/v1/pin.go'
 	# The SDK-side decode seam (DecodeSubmodulePin, FactKindSubmodulePin)
 	# sits directly under sdk/go/factschema/, not submodule/v1/, so the glob
-	# above misses it -- verified dark (SKIPPED both gates) before this row.
-	'sdk/go/factschema/*submodule*.go|sdk/go/factschema/decode_submodule.go'
-	'sdk/go/factschema/*submodule*.go|sdk/go/factschema/fact_kinds_submodule.go'
+	# above misses it. #6198 covered it with a '*submodule*.go' row here;
+	# #6200 replaced that with the package glob, whose rows are grouped near
+	# the top of this array (decode_submodule.go and fact_kinds_submodule.go
+	# are both in that group).
 	'go/internal/storage/cypher/*submodule*.go|go/internal/storage/cypher/canonical_submodule_edges.go'
 	'testdata/cassettes/submodulepin/**|testdata/cassettes/submodulepin/ifa-submodule-pin-family.json'
 	'go/internal/ifa/testdata/submodulepin/**|go/internal/ifa/testdata/submodulepin/ifa-submodule-pin-family-expected-edges.json'
@@ -211,27 +265,6 @@ ifa_live_gate_common_seams=(
 	'go/cmd/reducer/main.go|go/cmd/reducer/main.go'
 	'go/cmd/reducer/run.go|go/cmd/reducer/run.go'
 	'go/cmd/reducer/config_projection.go|go/cmd/reducer/config_projection.go'
-	'go/internal/reducer/contract/**|go/internal/reducer/contract/intent.go'
-	'go/internal/reducer/intent.go|go/internal/reducer/intent.go'
-	'go/internal/reducer/domain.go|go/internal/reducer/domain.go'
-	'go/internal/reducer/defaults.go|go/internal/reducer/defaults.go'
-	'go/internal/reducer/defaults_registry.go|go/internal/reducer/defaults_registry.go'
-	'go/internal/reducer/registry.go|go/internal/reducer/registry.go'
-	'go/internal/reducer/defaults_domain_catalog.go|go/internal/reducer/defaults_domain_catalog.go'
-	'go/internal/reducer/code_call*.go|go/internal/reducer/code_call_projection_runner.go'
-	'go/internal/reducer/python_metaclass_materialization.go|go/internal/reducer/python_metaclass_materialization.go'
-	'go/internal/reducer/factschema_decode_codegraph.go|go/internal/reducer/factschema_decode_codegraph.go'
-	'go/internal/reducer/factschema_decode.go|go/internal/reducer/factschema_decode.go'
-	'go/internal/reducer/fact_kind_loader.go|go/internal/reducer/fact_kind_loader.go'
-	'go/internal/reducer/graph_projection_phase.go|go/internal/reducer/graph_projection_phase.go'
-	'sdk/go/factschema/decode_codegraph.go|sdk/go/factschema/decode_codegraph.go'
-	'sdk/go/factschema/codegraph/v1/file.go|sdk/go/factschema/codegraph/v1/file.go'
-	'sdk/go/factschema/codegraph/v1/repository.go|sdk/go/factschema/codegraph/v1/repository.go'
-	'go/internal/reducer/service*.go|go/internal/reducer/service_side_runners.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_runner.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_worker.go'
-	'go/internal/reducer/shared_projection*.go|go/internal/reducer/shared_projection_readiness.go'
 	'go/internal/storage/cypher/*code_call*.go|go/internal/storage/cypher/canonical_code_call_edges.go'
 	'go/internal/storage/cypher/edge_writer_payload.go|go/internal/storage/cypher/edge_writer_payload.go'
 	'go/internal/storage/cypher/canonical_instantiates_edges.go|go/internal/storage/cypher/canonical_instantiates_edges.go'
@@ -282,13 +315,6 @@ ifa_live_gate_common_seams=(
 	'schema/data-plane/postgres/012_graph_projection_phase_state.sql|schema/data-plane/postgres/012_graph_projection_phase_state.sql'
 	'go/cmd/reducer/config.go|go/cmd/reducer/config.go'
 	'go/cmd/reducer/main_helpers.go|go/cmd/reducer/main_helpers.go'
-	'go/internal/reducer/rationale_edge_materialization.go|go/internal/reducer/rationale_edge_materialization.go'
-	'go/internal/reducer/rationale_delta_scope.go|go/internal/reducer/rationale_delta_scope.go'
-	'go/internal/reducer/rationale_edge_intents.go|go/internal/reducer/rationale_edge_intents.go'
-	'go/internal/reducer/semantic_entity_delta_scope.go|go/internal/reducer/semantic_entity_delta_scope.go'
-	'go/internal/reducer/semantic_entity_materialization_helpers.go|go/internal/reducer/semantic_entity_materialization_helpers.go'
-	'go/internal/reducer/intent_emission.go|go/internal/reducer/intent_emission.go'
-	'go/internal/reducer/dependency_domain.go|go/internal/reducer/dependency_domain.go'
 	'go/internal/replay/canonical.go|go/internal/replay/canonical.go'
 	'go/internal/storage/cypher/canonical_rationale_edges.go|go/internal/storage/cypher/canonical_rationale_edges.go'
 	'go/internal/storage/cypher/edge_writer_rationale_labels.go|go/internal/storage/cypher/edge_writer_rationale_labels.go'
@@ -299,17 +325,9 @@ ifa_live_gate_common_seams=(
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-expected-edges.json'
 	'go/internal/ifa/testdata/rationale/**|go/internal/ifa/testdata/rationale/ifa-rationale-family-delta-live-expected-records.json'
 	'scripts/lib/ifa_rationale_live.sh|scripts/lib/ifa_rationale_live.sh'
-	'go/internal/reducer/inheritance_materialization*.go|go/internal/reducer/inheritance_materialization.go'
-	'go/internal/reducer/inheritance_materialization*.go|go/internal/reducer/inheritance_materialization_diagnostics.go'
-	'go/internal/reducer/inheritance_delta_scope.go|go/internal/reducer/inheritance_delta_scope.go'
-	'go/internal/reducer/inheritance_implements.go|go/internal/reducer/inheritance_implements.go'
-	'go/internal/reducer/inheritance_intents.go|go/internal/reducer/inheritance_intents.go'
-	'go/internal/reducer/inheritance_php_trait_adaptations.go|go/internal/reducer/inheritance_php_trait_adaptations.go'
 	'go/internal/storage/cypher/canonical_implements_edges.go|go/internal/storage/cypher/canonical_implements_edges.go'
 	'go/internal/storage/cypher/canonical_inheritance_retract.go|go/internal/storage/cypher/canonical_inheritance_retract.go'
 	'go/internal/storage/cypher/edge_writer_inheritance_labels.go|go/internal/storage/cypher/edge_writer_inheritance_labels.go'
-	'go/internal/reducer/shell_exec_materialization.go|go/internal/reducer/shell_exec_materialization.go'
-	'go/internal/reducer/shell_exec_intents.go|go/internal/reducer/shell_exec_intents.go'
 	'go/internal/storage/cypher/edge_writer_shell_exec.go|go/internal/storage/cypher/edge_writer_shell_exec.go'
 	'testdata/cassettes/inheritance/**|testdata/cassettes/inheritance/ifa-inheritance-family.json'
 	'testdata/cassettes/shellexec/**|testdata/cassettes/shellexec/ifa-shell-exec-family.json'
@@ -329,20 +347,8 @@ ifa_live_gate_common_seams=(
 	'go/internal/collector/gitrepo/git_followup_facts.go|go/internal/collector/gitrepo/git_followup_facts.go'
 	'go/internal/projector/canonical_import_extract.go|go/internal/projector/canonical_import_extract.go'
 	'go/internal/projector/workload_dependency_cassette_admission_test.go|go/internal/projector/workload_dependency_cassette_admission_test.go'
-	'go/internal/reducer/platform_materialization.go|go/internal/reducer/platform_materialization.go'
-	'go/internal/reducer/platform_materialization_writer.go|go/internal/reducer/platform_materialization_writer.go'
-	'go/internal/reducer/workload_materialization_repo_phase.go|go/internal/reducer/workload_materialization_repo_phase.go'
-	'go/internal/reducer/workload_materializer.go|go/internal/reducer/workload_materializer.go'
-	'go/internal/reducer/workload_materializer_retract_instances.go|go/internal/reducer/workload_materializer_retract_instances.go'
 	'go/internal/storage/postgres/ingestion_reopen*.go|go/internal/storage/postgres/ingestion_reopen_correlation.go'
 	'go/internal/storage/postgres/ingestion_reopen*.go|go/internal/storage/postgres/ingestion_reopen_deployment_mapping.go'
-	'go/internal/reducer/repo_dependency*.go|go/internal/reducer/repo_dependency_projection_runner.go'
-	'go/internal/reducer/cross_repo_intent_row.go|go/internal/reducer/cross_repo_intent_row.go'
-	'go/internal/reducer/cross_repo_resolution.go|go/internal/reducer/cross_repo_resolution.go'
-	'go/internal/reducer/projection.go|go/internal/reducer/projection.go'
-	'go/internal/reducer/workload_materialization_handler.go|go/internal/reducer/workload_materialization_handler.go'
-	'go/internal/reducer/platforms.go|go/internal/reducer/platforms.go'
-	'go/internal/reducer/infrastructure_platform_materializer.go|go/internal/reducer/infrastructure_platform_materializer.go'
 	'go/internal/storage/cypher/materialized_edge_repo_dependency.go|go/internal/storage/cypher/materialized_edge_repo_dependency.go'
 	'go/internal/storage/cypher/canonical_relationships.go|go/internal/storage/cypher/canonical_relationships.go'
 	'specs/ifa-materialized-edge-coverage.v1.yaml|specs/ifa-materialized-edge-coverage.v1.yaml'
@@ -398,9 +404,6 @@ ifa_live_gate_fault_only_seams=(
 	'go/internal/projector/gcp/resource_materialization_intents.go|go/internal/projector/gcp/resource_materialization_intents.go'
 	'go/internal/projector/gcp/relationship_materialization_intents.go|go/internal/projector/gcp/relationship_materialization_intents.go'
 	'go/internal/projector/security/group_reachability_intents.go|go/internal/projector/security/group_reachability_intents.go'
-	'go/internal/reducer/defaults_additive_domains.go|go/internal/reducer/defaults_additive_domains.go'
-	'go/internal/reducer/defaults_additive_domains_cloud_nodes.go|go/internal/reducer/defaults_additive_domains_cloud_nodes.go'
-	'go/internal/reducer/defaults_additive_domains_gcp.go|go/internal/reducer/defaults_additive_domains_gcp.go'
 	'go/cmd/reducer/canonical_graph_writers.go|go/cmd/reducer/canonical_graph_writers.go'
 	'go/internal/graphowner/family_writers.go|go/internal/graphowner/family_writers.go'
 	'go/internal/graphowner/gated_writer.go|go/internal/graphowner/gated_writer.go'
@@ -437,4 +440,37 @@ ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-teeth-cases.sh|scripts/lib/test-ifa-determinism-teeth-cases.sh'
 	'scripts/lib/test-ifa-family-registry-derived-pins-cases.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
 	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
+)
+
+# Negative controls (#6200). Every array above answers "does this path still
+# select the gate it must". None of them can answer the opposite question, and
+# that question got sharper the moment per-file trigger lists were replaced by
+# package globs: an over-wide glob does not fail anything, it just quietly arms
+# a four-shard Docker matrix and a three-cell determinism matrix on edits they
+# cannot observe, and the bill lands on whoever is waiting for CI.
+#
+# Each path below is a real file that MUST NOT select either live gate, chosen
+# so that a specific plausible over-widening trips it:
+#
+#   docs/public/architecture.md            a bare '**' or 'docs/**'
+#   sdk/go/factschema/{aws,azure}/v1/...   'sdk/go/factschema/**' -- these
+#                                          sibling packages are deliberately
+#                                          OUT: Go package scope keeps their
+#                                          helpers away from the decode path
+#                                          the driven cassettes take, and no
+#                                          cassette carries their facts
+#   go/internal/{parser,query,telemetry,mcp}/...
+#                                          'go/**' or 'go/internal/**'
+#
+# The consuming loop also asserts each path still EXISTS. Without that, a
+# rename turns a negative control into a check of nothing, which is the same
+# false-green shape as the dark triggers this issue is about.
+ifa_live_gate_negative_seams=(
+	'docs/public/architecture.md'
+	'sdk/go/factschema/aws/v1/resource.go'
+	'sdk/go/factschema/azure/v1/resource.go'
+	'go/internal/parser/registry.go'
+	'go/internal/query/openapi.go'
+	'go/internal/telemetry/instruments.go'
+	'go/internal/mcp/server.go'
 )
