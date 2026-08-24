@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 )
@@ -73,4 +74,16 @@ func documentationTools() []ToolDefinition {
 // name while the documentation package owns the registration definitions.
 func documentationFindingAggregateTools() []ToolDefinition {
 	return doctools.FindingAggregateTools()
+}
+
+// cloudInventoryTools preserves the root package's constructor name while the
+// cloud package owns the inventory registration definition.
+func cloudInventoryTools() []ToolDefinition {
+	return cloudtools.InventoryTools()
+}
+
+// cloudRuntimeDriftTools preserves the root package's constructor name while
+// the cloud package owns the runtime-drift registration definition.
+func cloudRuntimeDriftTools() []ToolDefinition {
+	return cloudtools.RuntimeDriftTools()
 }

@@ -20,6 +20,7 @@ live in the repository today.
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP transport and tool wiring |
+| `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |

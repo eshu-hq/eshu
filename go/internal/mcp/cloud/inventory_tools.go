@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package cloudtools
 
-// cloudInventoryTools returns the canonical multi-cloud resource inventory
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// InventoryTools returns the canonical multi-cloud resource inventory
 // readback tool. It mirrors the GET /api/v0/cloud/inventory route: a bounded,
 // paginated, truth-labeled list of reducer-owned reducer_cloud_resource_identity
 // rows filterable by provider, canonical scope, and management_origin. The tool
 // is read-only and never returns raw provider locators, raw actors, raw
 // identities, tags, assignment scopes, or credentials.
-func cloudInventoryTools() []ToolDefinition {
-	return []ToolDefinition{
+func InventoryTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_cloud_resource_inventory",
 			Description: "List canonical multi-cloud resource identities (reducer_cloud_resource_identity) by bounded provider, scope, and management_origin filters. Returns provider, normalized identity, management_origin, per-layer evidence flags, provider-neutral source state, optional keyed tag fingerprints, optional bounded identity-policy evidence, and optional sanitized freshness evidence. Unsupported on lightweight local runtime. account_id/project_id/subscription_id are provider-SPECIFIC aliases (account_id->aws, project_id->gcp, subscription_id->azure): all three resolve against one shared canonical key with no per-provider disambiguation, so a numeric value (an AWS account id and a GCP project number can be the identical decimal string) could otherwise match the wrong provider's resource. Each alias REQUIRES its matching provider exactly; omitting provider, or supplying a mismatched provider (e.g. provider=gcp with account_id), is rejected as invalid_argument. When an account_id/project_id/subscription_id-filtered call returns zero resources, check the response's warning_flags array before concluding the account does not exist: account_alias_rollout_gap means a canonical row in the same provider/access scope predates the account_id rollout (it will resolve once that scope's next collector sync re-admits it, so zero rows does NOT prove no such account), and account_alias_rollout_gap_check_failed means that disambiguation check itself could not run. warning_flags is absent when the check ran and found no such gap -- a genuine no-such-account result -- and is never present for a scope_id-filtered or unfiltered call, or any call that already returned resources.",

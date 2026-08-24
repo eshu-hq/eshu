@@ -39,14 +39,18 @@ telemetry remains in `internal/mcp`.
 wire contract. Tool membership and order remain owned by `mcp.ReadOnlyTools`.
 A family move must preserve the registered set, order, and schemas.
 
-No-Regression Evidence: `internal/mcp/documentation` imports `toolcontract` and
-owns the six documentation registrations. Its characterization test pins the
-serialized names, descriptions, input schemas, and local order at SHA-256
-`51ee1b7788fce89e28d89aabe738b8e497f21bc9e92cb1cbc2d99bd3a3d8eb02`.
+No-Regression Evidence: `internal/mcp/documentation` and `internal/mcp/cloud`
+import `toolcontract` and own their registration definitions. Their
+characterization tests pin the serialized names, descriptions, input schemas,
+and local order at SHA-256
+`51ee1b7788fce89e28d89aabe738b8e497f21bc9e92cb1cbc2d99bd3a3d8eb02`
+for documentation and
+`460ff89408273b10319f5656568df06241b10b137c3d77b3f8c8eba8c709e9d6`
+for cloud.
 The root assembler still contains 162 tools with ordered-name SHA-256
 `8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b`.
 `TestReadOnlyToolsRegistrationOrderContract` retains that global order guard,
-and the two documentation constructors remain at their previous assembly
+and all four extracted constructors remain at their previous assembly
 positions.
 
 No-Observability-Change: tool assembly, routing, dispatch, authorization, and

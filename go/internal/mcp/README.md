@@ -24,7 +24,8 @@ The dependency-neutral `toolcontract` child package owns the
 compatibility, while ordered registration, routing, dispatch, transport, and
 authorization stay in this root package. The `documentation` child package
 owns the six documentation registration definitions; documentation routing
-stays here.
+stays here. The `cloud` child package owns the cloud inventory and runtime-drift
+registration definitions; cloud routing also stays here.
 
 ## Where this fits in the pipeline
 
@@ -151,8 +152,8 @@ are assembled dynamically and are not broken out here).
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `tools_ecosystem.go`, `tools_graph_summary_packet.go`, `tools_prechange_impact.go`, `tools_contract_impact.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
-| `cloudInventoryTools` | 1 | `tools_cloud_inventory.go` |
-| `cloudRuntimeDriftTools` | 1 | `tools_cloud_runtime_drift.go` |
+| `cloudInventoryTools` | 1 | `cloud/inventory_tools.go` |
+| `cloudRuntimeDriftTools` | 1 | `cloud/runtime_drift_tools.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
 | `admissionDecisionTools` | 1 | `tools_admission_decisions.go` |
 | `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
@@ -501,6 +502,7 @@ with a giant body.
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
+`internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape),
