@@ -4,30 +4,32 @@
 package mcp
 
 import (
-	"strings"
 	"testing"
 )
 
-func TestAskToolIsRegistered(t *testing.T) {
+func TestReadOnlyToolsKeepsAskRegistrationPosition(t *testing.T) {
 	t.Parallel()
 
-	tool := requireToolDefinition(t, "ask")
-	if !strings.Contains(strings.ToLower(tool.Description), "natural-language") {
-		t.Fatalf("description = %q, want natural-language guidance", tool.Description)
-	}
-	schema, ok := tool.InputSchema.(map[string]any)
-	if !ok {
-		t.Fatalf("InputSchema type = %T, want map[string]any", tool.InputSchema)
-	}
-	properties, ok := schema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
-	}
-	for _, field := range []string{"question", "format"} {
-		if _, ok := properties[field]; !ok {
-			t.Fatalf("tool properties missing %q", field)
+	tools := ReadOnlyTools()
+	for index, tool := range tools {
+		if tool.Name != "ask" {
+			continue
 		}
+		if got, want := index+1, 160; got != want {
+			t.Fatalf("ask registration position = %d, want %d", got, want)
+		}
+		if index == 0 || index+1 >= len(tools) {
+			t.Fatalf("ask registration index = %d, want two neighbors", index)
+		}
+		if got, want := tools[index-1].Name, "trace_exposure_path"; got != want {
+			t.Fatalf("tool before ask = %q, want %q", got, want)
+		}
+		if got, want := tools[index+1].Name, "list_relationship_edges"; got != want {
+			t.Fatalf("tool after ask = %q, want %q", got, want)
+		}
+		return
 	}
+	t.Fatal("ask tool is not registered")
 }
 
 func TestResolveRouteMapsAsk(t *testing.T) {

@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
@@ -93,4 +94,10 @@ func cloudRuntimeDriftTools() []ToolDefinition {
 // visualization package owns the registration definition.
 func visualizationTools() []ToolDefinition {
 	return visualizationtools.Tools()
+}
+
+// askTools preserves the root package's constructor name while the ask
+// package owns the registration definition.
+func askTools() []ToolDefinition {
+	return asktools.Tools()
 }

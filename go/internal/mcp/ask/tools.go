@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package asktools
 
-// askTools returns the MCP tool definition for the Ask Eshu natural-language
-// answer tool. The tool is default-off: when no agent_reasoning provider
+import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+
+// Tools returns the MCP tool definition for the Ask Eshu natural-language
+// answer tool. The advertised tool is default-off: when no agent_reasoning provider
 // profile is configured on the server, every call returns an unavailable
-// response with state "unavailable". When enabled, it wires the bounded
+// response with state "unavailable". When enabled, the server wires the bounded
 // Tier-1 engine and returns the answer with evidence-backed truth metadata.
-func askTools() []ToolDefinition {
-	return []ToolDefinition{
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "ask",
 			Description: "Ask Eshu a free-form natural-language question about your repositories, services, dependencies, infrastructure, or runtime environment. The engine plans the most efficient retrieval path, assembles evidence-backed AnswerPackets, and returns the answer with truth metadata. This tool is default-off: it requires ESHU_ASK_ENABLED=true and a configured agent_reasoning provider profile. When unavailable, it returns state='unavailable'.",

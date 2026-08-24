@@ -248,6 +248,12 @@ visualization routing, dispatch, authorization, summaries, and transport
 ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
 order unchanged.
 
+The Ask registration family is the fourth extracted MCP family. Its single
+definition lives under `internal/mcp/ask`, while the root keeps its assembly
+position after reachability and before relationship-edge tools plus all Ask
+routing, dispatch, authorization, summaries, and transport ownership. The move
+uses `internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+
 **cmd/eshu (233):** `package main` — subdirectories are impossible by
 language rule. The lever is extracting business logic to new
 `internal/cli/<family>` packages, leaving thin cobra RunE wrappers —
