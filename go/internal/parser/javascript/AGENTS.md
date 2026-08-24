@@ -22,7 +22,9 @@
    package public source mapping
 11. fastify_threading_bench_test.go - external-package benchmark of the public
     parent Engine.ParsePath path
-12. engine_typescript_implements_test.go - external-package regression for
+12. fastify_threading_characterization_test.go - internal-package equivalence
+    tests for package-local Fastify computations; it does not import the parent
+13. engine_typescript_implements_test.go - external-package regression for
     implemented-interface metadata through the public parent engine
 
 ## Invariants this package enforces
@@ -30,7 +32,10 @@
 - Production dependency direction stays one way: parent parser code may import
   this package, but production files here must not import internal/parser. An
   external `javascript_test` file may import the parent only to test or benchmark
-  its public engine contract.
+  its public engine contract. The Fastify characterization test stays in
+  `package javascript` and must not import the parent; the external Fastify
+  benchmark and TypeScript implemented-interface regression are the black-box
+  exceptions.
 - `Parse` receives a `ParserFactory` from the parent wrapper. Do not pass or
   store parent Engine values here.
 - Payload buckets must stay deterministic. Sort named buckets before returning
