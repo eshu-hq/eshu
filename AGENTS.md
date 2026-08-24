@@ -150,8 +150,24 @@ procedure and the incident behind each rule below.
 - MUST use `rg` for all text searches. NEVER use `grep`.
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
 - MUST read local repo docs before searching code or the web.
-- MUST ask when intent, architecture, risk, or active design ownership is
-  unclear.
+- When something is unclear, MUST route by why, not by discomfort. If a
+  committed fact — code, a local doc, an ADR, a measurement, or a cheap
+  experiment — can settle it, MUST research it, cite the settling evidence, and
+  proceed; architecture questions under a settled design intent are research
+  tasks, per
+  [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
+  MUST NOT put a question to the owner that a Deep-tier model could answer:
+  dispatch one first with the codebase, the issue, and this canon, and escalate
+  only if it reports the answer cannot be inferred. A recommendation is a
+  judgment, not a request for validation — on reversible work, act on it and
+  say what would change your mind. MUST ask, carrying that recommendation, when
+  the owner, design intent, performance contract, or verification gate is
+  unsettled, or when complete evidence would still leave a product-taste or
+  business trade-off. Consent for an irreversible act needs no such
+  precondition, and MUST always be sought: push, merge, deploy, delete, data
+  mutation, golden-standard (cassette/snapshot) change, or anything
+  outward-facing. Research never waives Prove-The-Theory-First or the pre-PR
+  proof ladder.
 - MUST apply TDD when writing or modifying code.
 - MUST keep files under 500 lines; split before they approach the limit.
 - MUST NOT add AI attribution to commits, PRs, or docs.
@@ -263,6 +279,11 @@ skills are active.
   change, edits to `sdk/go/factschema` or `sdk/go/collector`, edits to
   `specs/fact-kind-registry.v1.yaml`, fixture packs, or an Odù overlapping a
   cassette or the B-12 snapshot.
+- MUST add `eshu-session-lifecycle` when the session itself starts, stops, or
+  hands off rather than when code changes: taking over a branch or transcript,
+  resuming stale work, pausing before going offline or before compaction,
+  watching an open PR through review and CI, judging whether a subagent is
+  alive, or pruning worktrees.
 - MUST add `eshu-humanizer` as the last pass over anything a human reads: PR
   titles and bodies, review comments and replies, issue comments, commit
   messages, evidence docs, CHANGELOG entries, and status updates. Applies to

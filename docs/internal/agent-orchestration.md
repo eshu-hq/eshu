@@ -205,6 +205,13 @@ Push target/transport, worktree discipline, external writes, and
 ask-when-unclear remain worth inlining because a wrong action happens before
 CI can reject it.
 
+The same test decides what belongs in a harness hook. A hook fires on an action,
+before a diff exists, which is the only way to reach a failure CI cannot see —
+a skill nobody loaded, two live gates contending for one port, a session that
+came back from compaction without its rules. [Agent Hooks](agent-hooks.md)
+covers the files, why they are per-harness rather than symlinked, and the gate
+that keeps the skill-nudge table from rotting.
+
 ## Token-budget optimization
 
 Use focused local proof for discovery and reserve the expensive promotion gate

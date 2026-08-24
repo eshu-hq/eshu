@@ -63,6 +63,61 @@ if [ -d "$skills_root" ]; then
   done
   printf 'verify-agent-canon: shared skill discovery links are complete.\n'
 
+  # Every project skill must be reachable from the editor-side nudge hook, or be
+  # explicitly exempt. The nudge table is an Eshu path->skill map, so it rots
+  # silently every time a directory moves or a skill is added: the hook keeps
+  # exiting 0 and nobody learns the arm stopped matching. Session-triggered
+  # skills (review, release, humanizer) have no characteristic file path and
+  # belong in NUDGE_EXEMPT rather than in an arm.
+  nudge_hook="$repo_root/.claude/hooks/skill-nudge.sh"
+  if [ ! -f "$nudge_hook" ]; then
+    printf 'verify-agent-canon: missing skill nudge hook: %s\n' "$nudge_hook" >&2
+    exit 1
+  fi
+  # Scope the match to the two places that actually route: the IDS= values a
+  # case arm assigns, and the explicit exempt block. Matching the whole file
+  # would let any passing mention in a comment satisfy the gate, which is the
+  # tautological-guard failure this repo keeps relearning. IDS holds the
+  # enforced ids and NOTE the human half, deliberately separate, so a word in
+  # prose cannot mint a skill id.
+  # Only assignments INSIDE the case block count. An `IDS="x"` appended after
+  # `esac` is unreachable -- no path can ever select it -- but a whole-file
+  # match accepts it and reports the skill routed. Scope to the block first.
+  nudge_case="$(sed -n '/^case /,/^esac/p' "$nudge_hook")"
+  nudge_arms="$(printf '%s' "$nudge_case" | rg -o 'IDS="[^"]*"' || true)"
+  nudge_exempt="$(sed -n '/^# NUDGE_EXEMPT_BEGIN/,/^# NUDGE_EXEMPT_END/p' "$nudge_hook")"
+  if [ -z "$nudge_exempt" ]; then
+    printf 'verify-agent-canon: %s has no NUDGE_EXEMPT_BEGIN/END block\n' \
+      "$nudge_hook" >&2
+    exit 1
+  fi
+  missing_arms=()
+  for skill_file in "$skills_root"/*/SKILL.md; do
+    [ -f "$skill_file" ] || continue
+    skill_name="$(basename "$(dirname "$skill_file")")"
+    # Whole-name match, not substring: a future `golang-engineering-v2` must not
+    # count as covered because the `golang-engineering` arm mentions a prefix of
+    # it. Hyphens are word characters here, so \b is not enough.
+    skill_pattern="(^|[^A-Za-z0-9-])${skill_name}([^A-Za-z0-9-]|$)"
+    if printf '%s' "$nudge_arms" | rg -q -- "$skill_pattern"; then
+      continue
+    fi
+    if printf '%s' "$nudge_exempt" | rg -q -- "$skill_pattern"; then
+      continue
+    fi
+    missing_arms+=("$skill_name")
+  done
+  if [ "${#missing_arms[@]}" -gt 0 ]; then
+    printf 'verify-agent-canon: skill(s) unreachable from %s:\n' "$nudge_hook" >&2
+    for skill_name in "${missing_arms[@]}"; do
+      printf '  %s\n' "$skill_name" >&2
+    done
+    printf 'Fix: add a case arm mapping its surface paths, or add it to NUDGE_EXEMPT\n' >&2
+    printf 'with a one-line reason if it has no characteristic file path.\n' >&2
+    exit 1
+  fi
+  printf 'verify-agent-canon: every project skill is reachable from the nudge hook.\n'
+
   performance_skill="$skills_root/eshu-performance-rigor/SKILL.md"
   performance_manifest="$skills_root/eshu-performance-rigor/references/run-manifest.md"
   if [ ! -f "$performance_skill" ]; then

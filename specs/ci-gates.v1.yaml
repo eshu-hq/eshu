@@ -215,14 +215,28 @@ gates:
       - ".agents/**"
       - ".claude/skills/**"
       - ".codex/skills/**"
+      # verify-agent-canon.sh reads .claude/hooks/skill-nudge.sh to prove every
+      # skill is reachable from a routing arm. Without this trigger a hook-only
+      # edit would not select the gate that validates it, which is the same
+      # silent rot the check exists to catch.
+      - ".claude/hooks/**"
+      # settings.json for the same reason: test-agent-hooks.sh asserts the
+      # (event, matcher, command) triple in it, so a wiring-only edit -- moving
+      # a hook to the wrong event -- must select the gate that would catch it.
+      - ".claude/settings.json"
       - ".opencode/agent/**"
       - "AGENTS.md"
       - "CLAUDE.md"
       - "scripts/verify-agent-canon.sh"
       - "scripts/test-verify-agent-hygiene.sh"
+      - "scripts/test-agent-hooks.sh"
     local:
       command: "bash scripts/verify-agent-canon.sh"
-      test_command: "bash scripts/test-verify-agent-hygiene.sh"
+      # Both mirrors. .claude/hooks/** is a trigger for this gate, so a hook
+      # change selects it -- but running only the canon mirror would skip the
+      # behavioural hook suite, and an exit-code or routing regression would
+      # first appear in Actions despite being credential-free.
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"
