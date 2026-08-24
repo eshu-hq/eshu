@@ -33,6 +33,13 @@ import (
 // The lost retract is silent by construction -- the early return never reaches
 // recordGroupedWrite -- so this also asserts the warning that makes it
 // greppable.
+//
+// All four narrowed domains are exercised, including shell exec, which needs no
+// OrphanSweepReader here: on an all-unmarked batch the empty-list early return
+// happens BEFORE the orphan sweep, so the Reader is never consulted. That is
+// the property under test, so the absence of a Reader is not a gap -- if the
+// early return ever moved below the sweep, this test would fail on a nil Reader
+// rather than pass quietly.
 func TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete(t *testing.T) {
 	t.Parallel()
 
@@ -54,6 +61,8 @@ func TestRetractEdgesNilFenceShapeSkipsWholeScopeDelete(t *testing.T) {
 	for _, domain := range []string{
 		reducer.DomainInheritanceEdges,
 		reducer.DomainRationaleEdges,
+		reducer.DomainSQLRelationships,
+		reducer.DomainShellExec,
 	} {
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
