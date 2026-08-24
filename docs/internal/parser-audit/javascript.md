@@ -167,7 +167,7 @@ engine_javascript_type_parameters_test.go)**:
 **Embedded shell**:
   `embedded_shell_test.go:TestDefaultEngineParsePathJavaScriptEmbeddedShellCommands`
 
-**Value-flow (js_cfg_dataflow_test.go, jsdataflow/)**:
+**Value-flow (javascript_cfg_dataflow_test.go, jsdataflow/)**:
 - JS CFG dataflow tests
 - Lowering tests
 - Precision tests
