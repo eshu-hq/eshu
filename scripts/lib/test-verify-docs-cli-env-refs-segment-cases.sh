@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Piped and chained command-segment cases for
+# Piped, chained, and diagnostic-scope cases for
 # scripts/test-verify-docs-cli-env-refs.sh (#6108). Sourced by that suite, which
 # owns tmp_root, run_verifier, write_doc, record_pass/record_fail, and the
 # assert_* helpers these cases call.
@@ -158,4 +158,33 @@ test_scan_coverage_pins_are_enforced() {
   assert_output_line \
     '^docs-cli-env-refs: scanner attributed only 2 Eshu command segment\(s\), below the code-owned floor of 999: .*$' \
     "${out}" "coverage collapse is named as a collapse, not a clean run"
+}
+
+# test_root_flag_and_env_diagnostics_name_their_scope pins the two branches of
+# the #6108 command-scope suffix that no other case reaches: a root-level flag
+# names the bare binary, and an environment reference carries no command scope
+# at all. Both assertions are whole-line -- a substring assertion on the flag or
+# the variable passes no matter what scope is appended after it, which is how a
+# wrong suffix could ship through this suite.
+test_root_flag_and_env_diagnostics_name_their_scope() {
+  local root="${tmp_root}/root-scope/docs/public"
+  local baseline="${tmp_root}/root-scope/baseline.txt"
+  local out="${tmp_root}/root-scope.out"
+  write_doc "${root}" "root-scope.md" \
+    'Use `ESHU_NOT_REGISTERED_ROOT`.' \
+    '```bash' \
+    'eshu --not-a-real-root-flag' \
+    '```'
+  : >"${baseline}"
+  if run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "an unknown root-level flag fails the gate"
+  else
+    record_pass "an unknown root-level flag fails the gate"
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: root-scope\.md cites unknown flag --not-a-real-root-flag on command .eshu. \(not in .*\)$' \
+    "${out}" "a root-level flag is scoped to the bare eshu command"
+  assert_output_line \
+    '^docs-cli-env-refs: root-scope\.md cites unknown env ESHU_NOT_REGISTERED_ROOT \(not in .*\)$' \
+    "${out}" "an environment reference carries no command scope"
 }
