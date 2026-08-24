@@ -155,7 +155,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipRunsPerLabelStatementsSequentially
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
 	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
@@ -171,6 +171,9 @@ func TestEdgeWriterRetractEdgesSQLRelationshipRunsPerLabelStatementsSequentially
 	if got, want := len(executor.calls), len(sqlRelationshipRetractSourceLabels); got != want {
 		t.Fatalf("Execute calls = %d, want %d (one per source label)", got, want)
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	for i, label := range sqlRelationshipRetractSourceLabels {
 		assertSQLRetractStatement(t, executor.calls[i], label)
 	}

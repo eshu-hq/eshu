@@ -174,6 +174,33 @@ func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*sourcecyph
 	return sourcecypher.NewEdgeWriter(wrapped, 0), session
 }
 
+// wholeScopeRationaleRefreshRow builds the retract row the two gate-wired probe
+// tests below hand RetractEdges: the per-repo refresh intent
+// buildRationaleRefreshIntents emits (go/internal/reducer/rationale_edge_intents.go),
+// which stamps intent_type unconditionally.
+//
+// The intent_type is what makes these tests exercise anything. Since #6166 the
+// rationale non-delta branch binds collectWholeScopeRefreshRepoIDs
+// (go/internal/storage/cypher/edge_writer_retract_scope.go), which keeps only
+// rows carrying the refresh intent_type. These tests previously passed a bare
+// map[string]any{"repo_id": "repo-a"} -- an unmarked legacy per-edge row, a
+// shape no emitter can produce because every per-edge rationale intent is
+// stamped retract_via_refresh at emission. RetractEdges returns on the empty
+// repo-id list before it reaches the probe, so probeCalls stays 0 and neither
+// test proves the probe survives the gate-wrapped executor chain. Do not
+// "simplify" this back to a bare repo_id payload.
+func wholeScopeRationaleRefreshRow(intentID, repoID string) reducer.SharedProjectionIntentRow {
+	return reducer.SharedProjectionIntentRow{
+		IntentID:     intentID,
+		RepositoryID: repoID,
+		Payload: map[string]any{
+			"repo_id":     repoID,
+			"intent_type": reducer.RepoRefreshIntentType,
+			"action":      "refresh",
+		},
+	}
+}
+
 // TestReducerGraphWriteGateWiredChainSkipsRationaleDeleteOnEmptyProbe is the
 // end-to-end proof that Change 2 actually lands the capability in production:
 // with the exact reducerGraphWriteGate.boundExecutor(reducerNeo4jExecutor)
@@ -186,11 +213,7 @@ func TestReducerGraphWriteGateWiredChainSkipsRationaleDeleteOnEmptyProbe(t *test
 	t.Parallel()
 
 	writer, session := gateWiredEdgeWriterForProbeTest(t, false)
-	rows := []reducer.SharedProjectionIntentRow{{
-		IntentID:     "i1",
-		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
-	}}
+	rows := []reducer.SharedProjectionIntentRow{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
@@ -210,11 +233,7 @@ func TestReducerGraphWriteGateWiredChainRunsRationaleDeleteWhenProbeFindsRows(t 
 	t.Parallel()
 
 	writer, session := gateWiredEdgeWriterForProbeTest(t, true)
-	rows := []reducer.SharedProjectionIntentRow{{
-		IntentID:     "i1",
-		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
-	}}
+	rows := []reducer.SharedProjectionIntentRow{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)

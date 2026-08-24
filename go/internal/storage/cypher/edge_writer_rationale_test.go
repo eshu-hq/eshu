@@ -69,7 +69,7 @@ func TestEdgeWriterRetractEdgesRationaleFullCleansCanonicalAndLegacyEvidenceSour
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
@@ -78,6 +78,9 @@ func TestEdgeWriterRetractEdgesRationaleFullCleansCanonicalAndLegacyEvidenceSour
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("Execute calls = %d, want %d combined canonical-plus-legacy retract", got, want)
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	stmt := executor.calls[0]
 	if !strings.Contains(stmt.Cypher, "rationale.repo_id IN $repo_ids") {
 		t.Fatalf("full retract is not repo-scoped: %q", stmt.Cypher)
@@ -102,7 +105,7 @@ func TestEdgeWriterRetractEdgesRationaleDoesNotBroadenUnknownEvidenceSource(t *t
 	rows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
-		Payload:      map[string]any{"repo_id": "repo-a"},
+		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
 	const source = "custom/rationale"
@@ -112,6 +115,7 @@ func TestEdgeWriterRetractEdgesRationaleDoesNotBroadenUnknownEvidenceSource(t *t
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("Execute calls = %d, want %d for an unknown source", got, want)
 	}
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	if got := executor.calls[0].Parameters["evidence_source"]; got != source {
 		t.Fatalf("evidence_source = %#v, want %#v", got, source)
 	}

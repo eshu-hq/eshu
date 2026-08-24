@@ -177,13 +177,16 @@ func TestEdgeWriterRetractEdgesInheritanceRepoScope(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
 	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}

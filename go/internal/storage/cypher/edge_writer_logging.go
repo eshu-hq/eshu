@@ -225,3 +225,35 @@ func sharedEdgeStatementSummaries(stmts []Statement) []string {
 	}
 	return summaries
 }
+
+// logWholeScopeRetractSkipped reports the one outcome of the #6166 narrowing
+// that would otherwise leave no trace anywhere.
+//
+// The four fenced domains bind collectWholeScopeRefreshRepoIDs, so a retract
+// row that carries no refresh intent_type contributes no repository id. When
+// EVERY row in a batch is unmarked the list comes back empty and the whole-repo
+// DELETE is skipped: the rows still write, and any edge the DELETE would have
+// removed stays behind. That is a lost retract, and unlike the over-delete it
+// replaced it produces no error, no dead letter, and no grouped-write record --
+// recordGroupedWrite is never reached, so even the statement counter stays
+// silent.
+//
+// Today no production emitter can produce such a row (every per-edge intent
+// builder stamps retract_via_refresh unconditionally, and planRepoWideRetractWork
+// routes a marked row to the write path), which is what
+// TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows and its rationale
+// sibling pin. This log is the safety net for the day that stops being true:
+// it fires only on the anomalous path, so it costs nothing on the normal one,
+// and it turns an invisible failure into a greppable one.
+func (w *EdgeWriter) logWholeScopeRetractSkipped(domain string, evidenceSource string, rowCount int) {
+	if w.Logger == nil || rowCount == 0 {
+		return
+	}
+	w.Logger.Warn(
+		"whole-scope retract skipped: no rows carried the refresh intent_type",
+		"domain", domain,
+		"evidence_source", evidenceSource,
+		"retract_row_count", rowCount,
+		"repo_ids_bound", 0,
+	)
+}

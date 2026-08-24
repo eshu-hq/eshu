@@ -76,12 +76,23 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			name:          "repository scope",
 			controlRepoID: sqlRetractOutRepoID,
 			controlPath:   sqlRetractOutPath,
+			// The per-repo refresh payload buildSQLRelationshipRefreshIntents
+			// emits on a full generation (#6166). sql_relationships binds
+			// collectWholeScopeRefreshRepoIDs on its non-delta branch, so the
+			// nil payload this case used to carry builds no statement, and the
+			// case then fails on fixtures it wrote and never retracted.
+			retractPayload: wholeScopeRefreshRetractPayload(sqlRetractInRepoID),
 		},
 		{
 			name:          "delta file scope",
 			controlRepoID: sqlRetractInRepoID,
 			controlPath:   sqlRetractOutPath,
+			// Same emitter, delta generation: the refresh carries the changed
+			// paths alongside the same intent_type.
 			retractPayload: map[string]any{
+				"repo_id":          sqlRetractInRepoID,
+				"intent_type":      reducer.RepoRefreshIntentType,
+				"action":           "refresh",
 				"delta_projection": true,
 				"delta_file_paths": []string{sqlRetractInPath},
 			},

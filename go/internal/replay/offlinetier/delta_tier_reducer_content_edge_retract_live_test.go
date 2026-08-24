@@ -152,7 +152,10 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	// Shell-exec whole-repo retract: edge DELETE + orphan ShellCommand cleanup,
 	// run sequentially (the grouped path under-applies on v1.1.11).
 	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, []reducer.SharedProjectionIntentRow{
-		{IntentID: "retract-shell", RepositoryID: ctInRepo, Payload: map[string]any{"repo_id": ctInRepo}},
+		// shell_exec is a FENCED repo-wide-retract domain, so its whole-repo
+		// row must carry the refresh intent_type buildShellExecRefreshIntents
+		// stamps (#6166); a bare {"repo_id": ...} payload builds no statement.
+		{IntentID: "retract-shell", RepositoryID: ctInRepo, Payload: wholeScopeRefreshRetractPayload(ctInRepo)},
 	}, ctShellSource); err != nil {
 		t.Fatalf("RetractEdges(shell): %v", err)
 	}
