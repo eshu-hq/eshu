@@ -25,7 +25,9 @@ compatibility, while ordered registration, routing, dispatch, transport, and
 authorization stay in this root package. The `documentation` child package
 owns the six documentation registration definitions; documentation routing
 stays here. The `cloud` child package owns the cloud inventory and runtime-drift
-registration definitions; cloud routing also stays here.
+registration definitions; cloud routing also stays here. The `visualization`
+child package owns the visualization-packet registration definition;
+visualization routing stays here.
 
 ## Where this fits in the pipeline
 
@@ -171,7 +173,7 @@ are assembled dynamically and are not broken out here).
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `workItemTools` | 1 | `tools_work_item.go` |
-| `visualizationTools` | 1 | `tools_visualization.go` |
+| `visualizationTools` | 1 | `visualization/tools.go` |
 | `freshnessTools` | 3 | `tools_freshness.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
@@ -505,7 +507,7 @@ Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
-shape),
+shape), `internal/mcp/visualization` (visualization-packet tool registration),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
 and `internal/telemetry` (`transport_auth_metrics.go` registers one counter

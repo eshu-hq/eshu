@@ -7,6 +7,7 @@ import (
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
 
 // ToolDefinition describes one MCP tool exposed to clients.
@@ -86,4 +87,10 @@ func cloudInventoryTools() []ToolDefinition {
 // the cloud package owns the runtime-drift registration definition.
 func cloudRuntimeDriftTools() []ToolDefinition {
 	return cloudtools.RuntimeDriftTools()
+}
+
+// visualizationTools preserves the root package's constructor name while the
+// visualization package owns the registration definition.
+func visualizationTools() []ToolDefinition {
+	return visualizationtools.Tools()
 }
