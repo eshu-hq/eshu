@@ -137,6 +137,9 @@ func TestEdgeWriterRetractEdgesShellExecCleanupPreservesConnectedCandidate(t *te
 	if got, want := len(executor.calls), 2; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	assertShellExecDeleteByUIDStatement(t, executor.calls[1], []string{"shell-command:orphan"})
 }
 
@@ -166,6 +169,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsWriteWhenAllConnected(t *tes
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d (no write should fire when every candidate is connected)", got, want)
 	}
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 }
 
 func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *testing.T) {
@@ -189,6 +193,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *tes
 	if got, want := len(executor.readCalls), 1; got != want {
 		t.Fatalf("reader calls = %d, want %d (S1 empty should skip S2)", got, want)
 	}
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d (S1 empty should skip the delete write)", got, want)
 	}
@@ -360,6 +365,7 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 	if !strings.Contains(stmts[0].Cypher, "MATCH ()-[rel:EXECUTES_SHELL]->(target)") {
 		t.Fatalf("first statement should retract EXECUTES_SHELL relationships: %s", stmts[0].Cypher)
 	}
+	assertBoundRepoIDs(t, stmts, []string{"repo-a"})
 	assertShellExecDeleteByUIDStatement(t, stmts[1], []string{"shell-command:abc123"})
 }
 

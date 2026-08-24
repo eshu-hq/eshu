@@ -179,6 +179,9 @@ func TestEdgeWriterRetractEdgesInheritanceIncludesOverrides(t *testing.T) {
 	if err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	// One statement per child label (#5116/#4367).
 	if got, want := len(executor.calls), len(inheritanceRetractChildLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)

@@ -248,6 +248,9 @@ func TestEdgeWriterRetractEdgesRationaleProbeUsesSameParametersAsDelete(t *testi
 	if len(executor.probeCalls) != 1 || len(executor.executeCalls) != 1 {
 		t.Fatalf("probe calls = %d, execute calls = %d, want 1 and 1", len(executor.probeCalls), len(executor.executeCalls))
 	}
+	// Statement counts and Cypher text read the same when repo_ids binds an
+	// EMPTY list, so pin the binding itself (#6166).
+	assertBoundRepoIDs(t, executor.executeCalls, []string{"repo-a"})
 	probeStmt := executor.probeCalls[0]
 	deleteStmt := executor.executeCalls[0]
 	if !reflect.DeepEqual(probeStmt.Parameters, deleteStmt.Parameters) {
