@@ -131,3 +131,107 @@ func stringValuesFromSource(t *testing.T, decl string) map[string]string {
 	}
 	return out
 }
+
+// TestRelationshipMergeReadsNestedNodePatternParens holds the
+// relationship-MERGE reader to node patterns that contain parentheses of their
+// own (#6181).
+//
+// The reader matched a node pattern with `[^()]*`, so the first `(` INSIDE the
+// pattern ended the match early and the whole clause stopped looking like a
+// relationship merge. `MERGE (n:Label {id: coalesce($a, $b)})-[r:TYPE]->(m)` is
+// ordinary Cypher — a merge keyed on a coalesced identity — and it read as
+// node-only. A port whose only write site is such a template is then classified
+// node-only, its family never enters the enumeration, and the ledger has no row
+// to be missing: the false-green direction the whole guard exists to prevent,
+// reproduced inside it.
+//
+// No production template is written this way today, which is exactly why the
+// case has to be stated here rather than derived from the tree: a fixture taken
+// from the tree passes with the hole open. The negative cases below are the
+// other half — widening the reader until it reports a relationship merge in a
+// MATCH, or in a relationship-index DDL, would trade a silent miss for a loud
+// wrong answer on every retract port in the package.
+func TestRelationshipMergeReadsNestedNodePatternParens(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		cypher string
+		want   bool
+	}{
+		{
+			name:   "flat node pattern",
+			cypher: "MERGE (a:Thing)-[rel:REVIEW_PROBE_FLOWS_TO]->(b:Thing)",
+			want:   true,
+		},
+		{
+			name:   "function call in the node pattern",
+			cypher: "MERGE (n:Label {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:   true,
+		},
+		{
+			name:   "nested function calls in the node pattern",
+			cypher: "MERGE (n:Label {id: coalesce(toString($a), $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:   true,
+		},
+		{
+			name:   "left-pointing relationship after a call",
+			cypher: "MERGE (n:Label {id: coalesce($a, $b)})<-[rel:REVIEW_PROBE_FLOWS_TO]-(m)",
+			want:   true,
+		},
+		{
+			name:   "CREATE with a call in the node pattern",
+			cypher: "CREATE (n {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:   true,
+		},
+		{
+			name:   "node-only merge whose pattern calls a function",
+			cypher: "MERGE (n:Label {id: coalesce($a, $b)})",
+			want:   false,
+		},
+		{
+			name:   "MATCH is not a merge",
+			cypher: "MATCH (n:Label {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m) DELETE rel",
+			want:   false,
+		},
+		{
+			name:   "relationship index DDL is not a merge",
+			cypher: "CREATE INDEX probe_rel IF NOT EXISTS FOR ()-[rel:REVIEW_PROBE_FLOWS_TO]-() ON (rel.id)",
+			want:   false,
+		},
+		{
+			name:   "unbalanced node pattern resolves nothing",
+			cypher: "MERGE (n:Label {id: coalesce($a, $b)-[rel:REVIEW_PROBE_FLOWS_TO]->(m)",
+			want:   false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			line, merges := relationshipMergeLine(tc.cypher)
+			if merges != tc.want {
+				t.Fatalf("relationshipMergeLine(%q) merges = %t, want %t", tc.cypher, merges, tc.want)
+			}
+			if tc.want && line != tc.cypher {
+				t.Errorf("evidence line = %q, want %q", line, tc.cypher)
+			}
+		})
+	}
+}
+
+// TestNestedNodePatternMergeIsVisibleThroughAPortDeclaration is the same hole
+// stated end to end: a package-level template written the way the case above
+// describes has to reach the scan's classification, not merely the line reader.
+func TestNestedNodePatternMergeIsVisibleThroughAPortDeclaration(t *testing.T) {
+	t.Parallel()
+
+	const decl = "const tmpl = `MERGE (n:Label {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)`"
+	values := stringValuesFromSource(t, decl)
+	value, resolved := values["tmpl"]
+	if !resolved {
+		t.Fatalf("collectStringValues did not resolve tmpl from %q", decl)
+	}
+	if _, merges := relationshipMergeLine(value); !merges {
+		t.Errorf("a port reaching %q is classified node-only, so its family never enters the enumeration and no ledger row is ever missing for it", value)
+	}
+}
