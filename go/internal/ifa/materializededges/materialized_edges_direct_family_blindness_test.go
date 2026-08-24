@@ -4,60 +4,128 @@
 package materializededges
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// directEdgeWritePortName matches a reducer edge-write PORT: an interface
-// method the reducer declares to hand a batch of materialized edge rows to a
-// go/internal/storage/cypher writer.
-//
-// The `(.+)` between Write and Edges is what separates a DIRECT port from the
-// shared-projection one. go/internal/reducer/shared_projection_worker.go
-// declares the shared path as the bare `WriteEdges(ctx, domain string, ...)` —
-// no family in the name, because the family travels as a runtime `domain`
-// argument, and its 14 possible values are exactly allProjectionDomains and
-// therefore exactly reducer.MaterializedEdgeFamilies(). Every OTHER port bakes
-// its family into the method name because it writes one family and only that
-// family. Requiring a non-empty middle group is therefore not a spelling trick:
-// it is the structural difference between "enumerated by the gate" and "not".
-var directEdgeWritePortName = regexp.MustCompile(`^Write(.+)Edges$`)
-
-// camelBoundary splits a Go exported identifier at the points a snake_case
-// rendering needs an underscore: a lower-or-digit followed by an upper, or an
-// acronym run followed by a new word (IAMCanPerform -> IAM|Can|Perform).
-var camelBoundary = regexp.MustCompile(`([a-z0-9])([A-Z])|([A-Z]+)([A-Z][a-z])`)
-
 // manifestSurfaceKey pulls the family out of a `surface: "materialized_edges:x"`
 // line in the committed ledger.
 var manifestSurfaceKey = regexp.MustCompile(`surface:\s*"` + regexp.QuoteMeta(MaterializedEdgeSurfacePrefix) + `([^"]+)"`)
 
-// directEdgeWritePort is one reducer-declared direct edge-write port: a graph
-// edge family the reducer can write without passing through the shared
-// projection intent path.
-type directEdgeWritePort struct {
-	// File is the repo-relative reducer source file declaring the port.
-	File string
-	// Method is the interface method name, e.g. "WriteIAMCanPerformEdges".
-	Method string
-	// Family is the snake_case family token derived from Method, e.g.
-	// "iam_can_perform". See TestDirectMaterializationFamiliesAreEnumerated's
-	// doc comment for why this derived name does not weaken the assertion.
-	Family string
+// TestDirectMaterializedEdgePortsMatchTheExecutedCypher is the drift guard for
+// reducer.DirectMaterializedEdgeFamilies() (#6181).
+//
+// # What it guards, and why the obvious guard is not enough
+//
+// The direct half of the reducer's materialized-edge surface has no runtime
+// registry to derive from: each family is written by its own port straight to a
+// go/internal/storage/cypher writer, with nothing binding them together. So the
+// enumeration is a table, and a table needs a guard that fails when reality
+// moves without it.
+//
+// The guard this replaces derived the family set by matching port names against
+// `^Write(.+)Edges$` and asserted, in its own doc comment, that the shape was
+// structural. It is a convention. Six production ports break it — a port named
+// for nodes that MERGEs TARGETS_ENVIRONMENT, two named for evidence that MERGE
+// TAINT_FLOWS_TO and HAS_TAINT_EVIDENCE, one named for entities that MERGEs
+// CONTAINS — and a name-derived guard reports green with all six invisible.
+// That is the nominally-covered false green the whole exhaustiveness effort
+// exists to prevent, so this guard reads the Cypher instead.
+//
+// # What makes it bite rather than pass vacuously
+//
+// The check that matters is stated over the Cypher, not over the tables: EVERY
+// port that reaches a relationship MERGE must be a declared direct family (or
+// the one shared-projection port). Checking only the ports already declared
+// would pass on the commit that adds a new one, which is the whole failure being
+// fixed. Stated this way, a new port that merges a relationship fails on the
+// commit that adds it no matter what it is named — the property the old guard
+// lacked.
+//
+// Retract, read, and sweep ports are not exempted by name. They pass because
+// the scan finds no relationship MERGE behind them: a retract template MATCHes
+// an existing relationship and DELETEs it. If one ever starts merging, it is
+// caught like anything else.
+//
+// Both directions are checked. A declared family whose port stops merging fails
+// too, so the tables cannot keep claiming a family the code no longer writes.
+func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+
+	ports := scanReducerInterfacePorts(t, filepath.Join(repoRoot, "go", "internal", "reducer"))
+	src := parseCypherPackage(t, filepath.Join(repoRoot, "go", "internal", "storage", "cypher"))
+	classified := classifyCypherPorts(src, ports)
+	if len(classified) == 0 {
+		t.Fatal("no reducer interface port resolved to a cypher implementation; the scan went vacuous and would pass no matter how many families are blind")
+	}
+
+	declaredEdge := setOf(reducer.DirectMaterializedEdgeWritePorts())
+	declaredNode := setOf(reducer.DirectMaterializedEdgeNodeOnlyWritePorts())
+	sharedPort := reducer.SharedProjectionEdgeWritePort()
+
+	merging := 0
+	seen := map[string]struct{}{}
+	for _, row := range classified {
+		seen[row.Port] = struct{}{}
+		_, isEdge := declaredEdge[row.Port]
+		_, isNode := declaredNode[row.Port]
+
+		if isEdge && isNode {
+			t.Errorf("%s is declared both as a direct edge family and as node-only (%s); it cannot be both", row.Port, row.Impl)
+		}
+		if row.WritesEdges {
+			merging++
+		}
+
+		switch {
+		case row.Port == sharedPort:
+			// The shared-projection port carries its family as a runtime
+			// `domain` argument, and those values are MaterializedEdgeFamilies().
+			if isEdge || isNode {
+				t.Errorf("%s is the shared-projection port and must be in neither direct table", row.Port)
+			}
+		case row.WritesEdges && !isEdge:
+			t.Errorf("reducer graph-write port %s (%s) MERGEs a relationship — %q — but is not a declared direct materialized-edge family. The Ifá ledger cannot see the family it writes: declare it in directMaterializedEdgeFamilyByPort (go/internal/reducer/direct_materialized_edge_families.go) and give it a ledger row.",
+				row.Port, row.Impl, row.Evidence)
+		case isEdge && !row.WritesEdges:
+			t.Errorf("%s is declared a direct materialized-edge family but reaches no relationship MERGE in %s; either the writer stopped materializing its family, or the declaration is stale", row.Port, row.Impl)
+		case isNode && row.WritesEdges:
+			t.Errorf("%s is declared node-only but MERGEs a relationship in %s: %q. It materializes an edge family the ledger cannot see — move it to directMaterializedEdgeFamilyByPort", row.Port, row.Impl, row.Evidence)
+		}
+	}
+
+	// A scan that suddenly finds no relationship MERGE anywhere would let every
+	// check above pass by finding nothing to check. The package demonstrably
+	// merges relationships, so zero means the scan broke, not that the writers
+	// stopped writing.
+	if merging == 0 {
+		t.Fatal("no reducer port was found to reach a relationship MERGE; the Cypher scan broke and every check above passed vacuously")
+	}
+
+	for _, port := range reducer.DirectMaterializedEdgeWritePorts() {
+		if _, ok := seen[port]; !ok {
+			t.Errorf("direct edge family declared for port %s, which is no longer a reducer interface method implemented in go/internal/storage/cypher; remove the stale entry", port)
+		}
+	}
+	for _, port := range reducer.DirectMaterializedEdgeNodeOnlyWritePorts() {
+		if _, ok := seen[port]; !ok {
+			t.Errorf("node-only classification declared for port %s, which is no longer a reducer interface method implemented in go/internal/storage/cypher; remove the stale entry", port)
+		}
+	}
+	if _, ok := seen[sharedPort]; !ok {
+		t.Errorf("shared-projection port %s no longer resolves; SharedProjectionEdgeWritePort is stale", sharedPort)
+	}
 }
 
-// TestDirectMaterializationFamiliesAreEnumerated proves whether the Ifá
-// materialized-edge exhaustiveness gate can SEE the direct-materialization edge
-// families, and fails naming every family it cannot (#6181).
+// TestDirectMaterializationFamiliesAreEnumerated proves the Ifá
+// materialized-edge exhaustiveness gate can SEE every direct-materialization
+// edge family, and fails naming each one it cannot (#6181).
 //
 // The gate's whole purpose is to make one defect class unreachable: an edge
 // family silently regressing to zero rows. It delivers that for every family in
@@ -66,131 +134,52 @@ type directEdgeWritePort struct {
 // is the distinction this test exists to hold. A waiver is a tracked, named
 // exemption: RunMaterializedEdgeCoverage still emits a finding for it, still
 // prints its issue, and an operator reading the report sees the gap. A family
-// nobody enumerated produces no row, no finding, and no line of output. The gate
-// is not lenient about it, it is BLIND to it, and blindness appears in no waiver
-// count a reviewer would read.
+// nobody enumerated produces no row, no finding, and no line of output. The
+// gate is not lenient about it, it is BLIND to it, and blindness appears in no
+// waiver count a reviewer would read.
 //
-// # Why this is worth more than the count pin
-//
-// TestMaterializedEdgeFamilyCountClaimsMatchTheCode pins the prose count
-// against reducer.MaterializedEdgeFamilies(). That catches a family being
-// REMOVED from the enumeration. It cannot catch a family that was never added,
-// because both sides of the comparison derive from the same enumeration — a
-// sixth direct family landing tomorrow moves neither. This test derives the
-// left-hand side from the reducer's SOURCE instead, so a new direct edge-write
-// port fails it on the commit that adds the port.
-//
-// # Why the derived family name does not weaken the failure
-//
-// Family is derived mechanically from the port's method name, and the eventual
-// ledger key for these families is a design decision that is not this test's to
-// make. That would matter if the ledger held these families under some OTHER
-// name — the test would then report a false gap. It does not, and the companion
-// assertion below proves it rather than assuming it: the ledger's complete
-// surface-key set is compared against reducer.MaterializedEdgeFamilies(), so
-// "the ledger contains no direct family under ANY name" is established
-// independently of what this test chose to call them.
+// This is a distinct claim from the drift guard above. That one holds the
+// enumeration to the code; this one holds the LEDGER to the enumeration. A
+// family can be correctly enumerated and still have no row, which is exactly
+// the state #6181 found.
 func TestDirectMaterializationFamiliesAreEnumerated(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	ports := scanDirectEdgeWritePorts(t, filepath.Join(repoRoot, "go", "internal", "reducer"))
-	if len(ports) == 0 {
-		t.Fatalf("scanned go/internal/reducer and found no %q ports; the scan went vacuous and would pass no matter how many families are blind", directEdgeWritePortName.String())
-	}
-
 	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
-
-	// Companion assertion, and the load-bearing one: the ledger holds EXACTLY
-	// the shared-projection families. Any direct family present under a name
-	// this test did not guess would show up here as an unexpected surface key.
-	enumerated := reducer.MaterializedEdgeFamilies()
-	if diff := symmetricDiff(ledger, enumerated); len(diff) != 0 {
-		t.Errorf("the coverage ledger's surface keys and reducer.MaterializedEdgeFamilies() disagree on %v; the per-port report below derives its family names mechanically and assumes this set is exactly the shared-projection families", diff)
+	direct := reducer.DirectMaterializedEdgeFamilies()
+	if len(direct) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeFamilies() returned zero families; the enumeration itself is broken")
 	}
 
-	var blind []directEdgeWritePort
-	for _, p := range ports {
-		if _, ok := ledger[p.Family]; !ok {
-			blind = append(blind, p)
+	var blind []string
+	for _, family := range direct {
+		if _, ok := ledger[family]; !ok {
+			blind = append(blind, family)
 		}
 	}
-	if len(blind) == 0 {
-		return
-	}
-
-	t.Errorf("%d direct-materialization edge famil(ies) are absent from specs/%s entirely — not waived, UNENUMERATED, so the exhaustiveness gate cannot know they exist and reports green without them (#6181):", len(blind), MaterializedEdgeManifestFileName)
-	for _, p := range blind {
-		t.Errorf("  %-34s %s (%s)", p.Family, p.Method, p.File)
-	}
-	t.Errorf("each needs a row in specs/%s — a coverage row, or an explicit waiver naming a tracked issue, but PRESENT either way", MaterializedEdgeManifestFileName)
-}
-
-// scanDirectEdgeWritePorts AST-parses every non-test .go file in dir and
-// returns the direct edge-write ports it declares, sorted by family.
-//
-// AST rather than a text scan for the reason
-// TestPropertyKeyedRelationshipMergesMatchKnownAllowList already records for
-// its own scan of go/internal/storage/cypher: a doc comment quoting an example
-// port signature is never part of the expression tree, so it cannot be mistaken
-// for a declaration. A regex over raw source would need exclusion logic to tell
-// the two apart, and that logic is where such a scan goes quietly wrong.
-//
-// Only interface methods count. A concrete method or a local helper that
-// happens to match the name is not a port the reducer depends on, and counting
-// one would report a family the reducer cannot actually reach.
-func scanDirectEdgeWritePorts(t *testing.T, dir string) []directEdgeWritePort {
-	t.Helper()
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read %s: %v", dir, err)
-	}
-
-	fset := token.NewFileSet()
-	var out []directEdgeWritePort
-	seen := map[string]struct{}{}
-
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	if len(blind) > 0 {
+		t.Errorf("%d direct-materialization edge famil(ies) are absent from specs/%s entirely — not waived, UNENUMERATED, so the exhaustiveness gate cannot know they exist and reports green without them (#6181):", len(blind), MaterializedEdgeManifestFileName)
+		for _, family := range blind {
+			t.Errorf("  %s", family)
 		}
-		path := filepath.Join(dir, name)
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", path, parseErr)
-		}
-		rel := filepath.Join("go", "internal", "reducer", name)
-
-		ast.Inspect(file, func(n ast.Node) bool {
-			iface, ok := n.(*ast.InterfaceType)
-			if !ok || iface.Methods == nil {
-				return true
-			}
-			for _, field := range iface.Methods.List {
-				if _, isFunc := field.Type.(*ast.FuncType); !isFunc {
-					continue
-				}
-				for _, ident := range field.Names {
-					m := directEdgeWritePortName.FindStringSubmatch(ident.Name)
-					if m == nil {
-						continue
-					}
-					family := snakeCase(m[1])
-					if _, dup := seen[family]; dup {
-						continue
-					}
-					seen[family] = struct{}{}
-					out = append(out, directEdgeWritePort{File: rel, Method: ident.Name, Family: family})
-				}
-			}
-			return true
-		})
+		t.Errorf("each needs a row in specs/%s — a coverage row, or an explicit waiver naming a tracked issue, but PRESENT either way", MaterializedEdgeManifestFileName)
 	}
 
-	sort.Slice(out, func(i, j int) bool { return out[i].Family < out[j].Family })
-	return out
+	// The reverse direction: a ledger row naming nothing the code enumerates is
+	// a claim about a family that does not exist, and it would quietly inflate
+	// the covered/waived counts a reviewer reads.
+	known := setOf(append(reducer.MaterializedEdgeFamilies(), direct...))
+	var orphaned []string
+	for family := range ledger {
+		if _, ok := known[family]; !ok {
+			orphaned = append(orphaned, family)
+		}
+	}
+	sort.Strings(orphaned)
+	for _, family := range orphaned {
+		t.Errorf("specs/%s names family %q, which neither reducer.MaterializedEdgeFamilies() nor reducer.DirectMaterializedEdgeFamilies() enumerates; remove the stale row", MaterializedEdgeManifestFileName, family)
+	}
 }
 
 // loadMaterializedEdgeLedgerSurfaces reads the committed coverage manifest as
@@ -199,11 +188,11 @@ func scanDirectEdgeWritePorts(t *testing.T, dir string) []directEdgeWritePort {
 //
 // Text rather than the typed loaders (replaycoverage.LoadManifest /
 // LoadMaterializedEdgeWaivers) on purpose: those validate rows against the
-// enumerated family set and would reject or drop a surface naming a family
-// reducer.MaterializedEdgeFamilies() does not return. That is exactly the row
-// this test needs to be able to see — a ledger entry for a family the
-// enumeration is blind to would be invisible to a typed read, and the companion
-// assertion would then pass by construction.
+// enumerated family set and would reject or drop a surface naming a family the
+// enumeration does not return. That is exactly the row this test needs to be
+// able to see — a ledger entry for a family the enumeration is blind to would
+// be invisible to a typed read, and the orphaned-row check would then pass by
+// construction.
 func loadMaterializedEdgeLedgerSurfaces(t *testing.T, path string) map[string]struct{} {
 	t.Helper()
 
@@ -221,33 +210,11 @@ func loadMaterializedEdgeLedgerSurfaces(t *testing.T, path string) map[string]st
 	return out
 }
 
-// symmetricDiff returns the families present in exactly one of a set and a
-// slice, sorted, so a mismatch report names what actually differs rather than
-// dumping both sides.
-func symmetricDiff(set map[string]struct{}, list []string) []string {
-	other := make(map[string]struct{}, len(list))
-	for _, s := range list {
-		other[s] = struct{}{}
+// setOf renders a slice as a lookup set.
+func setOf(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		out[v] = struct{}{}
 	}
-	var diff []string
-	for k := range set {
-		if _, ok := other[k]; !ok {
-			diff = append(diff, "only-in-ledger:"+k)
-		}
-	}
-	for k := range other {
-		if _, ok := set[k]; !ok {
-			diff = append(diff, "only-in-enumeration:"+k)
-		}
-	}
-	sort.Strings(diff)
-	return diff
-}
-
-// snakeCase renders an exported Go identifier as the lower_snake_case token the
-// materialized_edges:<family> surface keys use, keeping acronym runs intact
-// (IAMCanPerform -> iam_can_perform, S3LogsTo -> s3_logs_to).
-func snakeCase(s string) string {
-	out := camelBoundary.ReplaceAllString(s, "${1}${3}_${2}${4}")
-	return strings.ToLower(out)
+	return out
 }
