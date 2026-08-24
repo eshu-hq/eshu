@@ -22,7 +22,9 @@ refs, and deterministic/provider-gated/optional-semantic truth profiles.
 The dependency-neutral `toolcontract` child package owns the
 `ToolDefinition` data shape. `mcp.ToolDefinition` remains an alias for source
 compatibility, while ordered registration, routing, dispatch, transport, and
-authorization stay in this root package.
+authorization stay in this root package. The `documentation` child package
+owns the six documentation registration definitions; documentation routing
+stays here.
 
 ## Where this fits in the pipeline
 
@@ -172,13 +174,13 @@ are assembled dynamically and are not broken out here).
 | `freshnessTools` | 3 | `tools_freshness.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
-| `documentationTools` | 4 | `tools_documentation.go` |
+| `documentationTools` | 4 | `documentation/tools.go` |
 | `queryPlaybookTools` | 2 | `tools_query_playbooks.go` |
 | `investigationWorkflowTools` | 2 | `tools_investigation_workflows.go` |
 | `investigationPacketTools` | 3 | `tools_investigation_packets.go` |
 | `semanticEvidenceTools` | 2 | `tools_semantic_evidence.go` |
 | `semanticSearchTools` | 1 | `tools_semantic_search.go` |
-| `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
+| `documentationFindingAggregateTools` | 2 | `documentation/finding_aggregate_tools.go` |
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
 | `runtimeTools` | 8 | `tools_runtime.go` |
@@ -499,6 +501,7 @@ with a giant body.
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
+`internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
 shape),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
