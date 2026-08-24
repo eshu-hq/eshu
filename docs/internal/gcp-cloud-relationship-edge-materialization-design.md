@@ -18,7 +18,7 @@ for GCP, gated on the GCP `CloudResource` node substrate from #2358.
   `go/internal/storage/cypher/gcp_cloud_resource_edge_writer.go` — a `GCP_`-prefixed
   sibling of the AWS edge writer (`GCP_RELATIONSHIP` statement label, evidence
   source `reducer/gcp-relationships`).
-- Projector trigger: `buildGCPRelationshipMaterializationReducerIntent`, anchored
+- Projector trigger: `gcp.BuildRelationshipMaterializationReducerIntent`, anchored
   on the first `gcp_cloud_relationship` fact and keyed to the same
   `gcp_resource_materialization:<scope>` entity key as the node intent so the
   readiness gate resolves the exact published phase.

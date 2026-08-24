@@ -21,7 +21,7 @@ resolve against. This domain builds that substrate, mirroring the AWS path.
   `go/internal/reducer/gcp_resource_materialization.go`.
 - Writer: reuses the provider-neutral `CloudResourceNodeWriter`
   (`canonicalCloudResourceUpsertCypher`) — no new Cypher.
-- Projector trigger: `buildGCPResourceMaterializationReducerIntent` enqueues one
+- Projector trigger: `gcp.BuildResourceMaterializationReducerIntent` enqueues one
   scope-keyed intent when any `gcp_cloud_resource` fact is present, anchored on
   the first such fact for a stable reducer claim.
 

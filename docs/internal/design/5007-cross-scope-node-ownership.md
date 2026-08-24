@@ -89,7 +89,7 @@ a conflict key hashed from the per-scope entity key
 GCP/Azure fall back to the per-scope `resource_scope` key (`:69-77`,
 `:171`, `:267-269`). Intents from two different scopes never share a
 conflict key (the entity key embeds the scope id,
-`go/internal/projector/gcp_resource_materialization_intents.go:37`), so two
+`go/internal/projector/gcp/resource_materialization_intents.go:37`), so two
 scopes' writes to the same uid run on concurrent reducer workers, in
 separate transactions, with no ordering between them. The domain definitions
 declare `CrossScope: true, CanonicalWrite: true` — shared cross-scope nodes

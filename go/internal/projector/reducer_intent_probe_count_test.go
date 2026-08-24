@@ -119,8 +119,8 @@ func TestReducerIntentProbeKey(t *testing.T) {
 	}{
 		{
 			name:       "root builder",
-			expression: ast.NewIdent("buildGCPResourceMaterializationReducerIntent"),
-			wantKey:    "buildGCPResourceMaterializationReducerIntent",
+			expression: ast.NewIdent("buildAWSResourceMaterializationReducerIntent"),
+			wantKey:    "buildAWSResourceMaterializationReducerIntent",
 			wantOK:     true,
 		},
 		{
@@ -130,6 +130,15 @@ func TestReducerIntentProbeKey(t *testing.T) {
 				Sel: ast.NewIdent("BuildResourceMaterializationReducerIntent"),
 			},
 			wantKey: "projectorazure.BuildResourceMaterializationReducerIntent",
+			wantOK:  true,
+		},
+		{
+			name: "second extracted family builder",
+			expression: &ast.SelectorExpr{
+				X:   ast.NewIdent("projectorgcp"),
+				Sel: ast.NewIdent("BuildRelationshipMaterializationReducerIntent"),
+			},
+			wantKey: "projectorgcp.BuildRelationshipMaterializationReducerIntent",
 			wantOK:  true,
 		},
 		{

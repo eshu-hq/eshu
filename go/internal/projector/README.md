@@ -204,13 +204,13 @@ disagree about the same AWS resource. A scope carrying both AWS and GCP/Azure
 facts still enqueues this intent, for its GCP/Azure coverage.
 GCP cloud facts follow the same source-local rule. When a generation contains
 one or more `gcp_cloud_resource` facts,
-`buildGCPResourceMaterializationReducerIntent` emits one
+`gcp.BuildResourceMaterializationReducerIntent` emits one
 `gcp_resource_materialization` reducer intent for the scope/generation, keyed to
 `gcp_resource_materialization:<scope>` so the reducer materializes GCP
 `CloudResource` graph nodes and publishes the canonical-nodes phase the GCP
 relationship edge projection (#2348) gates on. The same `gcp_cloud_relationship`
 generation also emits one `gcp_relationship_materialization` intent via
-`buildGCPRelationshipMaterializationReducerIntent`, keyed to the same
+`gcp.BuildRelationshipMaterializationReducerIntent`, keyed to the same
 `gcp_resource_materialization:<scope>` entity key so the reducer waits for the
 GCP CloudResource substrate before projecting `GCP_<TYPE>` edges. The projector
 does not create GCP nodes or edges itself. The scope-generation-level intent
@@ -246,9 +246,9 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure` family imports that neutral lookup without importing
-root projector assembly; remaining root builders keep using the private
-forwarders until their move PRs land.
+`internal/projector/azure` and `internal/projector/gcp` families import that
+neutral lookup without importing root projector assembly; remaining root
+builders keep using the private forwarders until their move PRs land.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
 The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
