@@ -60,6 +60,6 @@ run_ifa_determinism_pin_behaviour_cases() {
 	rm -rf "${det_probe_dir}"
 	[[ "${det_pin_checked}" -ge 5 ]] \
 		|| fail "determinism pin-helper behaviour check exercised only ${det_pin_checked} helper(s); discovery has collapsed"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${det_pin_checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter and comment-tail heredoc probes\n' "${det_pin_checked}"
 
 }

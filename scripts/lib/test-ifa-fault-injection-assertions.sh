@@ -259,7 +259,7 @@ assert_pin_helpers_bind_code() {
 	rm -rf "${probe_dir}"
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "pin-helper behaviour check exercised only ${checked} helper(s); discovery has collapsed and this gate is checking nothing"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter and comment-tail heredoc probes\n' "${checked}"
 }
 assert_libs_parse() {
 	local lib_var lib_path syntax_checked
@@ -369,7 +369,7 @@ _ifa_count_code_lines_exact() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
-		if [[ "${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "${needle}" ]] && n=$((n + 1))
@@ -388,10 +388,10 @@ _ifa_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
-		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently

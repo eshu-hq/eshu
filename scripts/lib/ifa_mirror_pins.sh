@@ -25,10 +25,23 @@
 #   - A `#` inside a QUOTED STRING therefore truncates the line early, so a
 #     needle sitting after it reads as ABSENT and the pin REDS. That direction is
 #     chosen: a false RED is a human minute, a false GREEN is a dead gate.
+#     This holds for COUNTING only. Heredoc recognition is deliberately tested
+#     against the UNTRUNCATED line, because truncating first let a `#` inside a
+#     quoted string delete the opener from the line the test sees --
+#     `printf 'x #1' >/dev/null; cat <<PARKED` then never entered heredoc mode
+#     and its body counted as live code. That is the false-GREEN direction, and
+#     it is why the two steps read different strings.
+#   - The residual cost of that choice: a line like `printf '%s' "see <<EOF"
+#     # note` IS read as opening a heredoc, so a needle after it reads absent
+#     and the pin REDS. Separating the two would need real lexing; the false-RED
+#     direction is the one this file elects.
 #   - It counts LINES, not occurrences. Two needles on one line count 1, which
 #     again can only over-report absence.
 #   - A quoted heredoc delimiter on a line that also carries other code is
 #     tracked by delimiter only, with no attempt to model quoting.
+#   - Delimiters may contain `-` (`<<'PARKED-1'`) and may be backslash-quoted
+#     (`<<\PARKED`). Both were once invisible, which made their bodies count as
+#     live code; both are matched now and both are in the probe set below.
 
 # IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
 #
@@ -152,10 +165,10 @@ ifa_mirror_count_code_matches() {
 			continue
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
-		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_-]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*|[[:space:]]+#.*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -256,7 +269,7 @@ ifa_mirror_assert_pins_bind_code() {
 	# collapse, and total collapse is the one case that is obvious anyway.
 	[[ "${checked}" -ge 2 ]] \
 		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter and comment-tail heredoc probes\n' "${checked}"
 }
 
 # _ifa_mirror_pin_probe_run executes one pin helper against one synthetic target.
