@@ -2,8 +2,9 @@
 # shellcheck shell=bash disable=SC2034
 # Negative controls for the real Ifá live-gate registry matcher. Split out of
 # scripts/lib/ifa_live_gate_selector_cases.sh once that file reached 488 of the
-# blocking 500-line cap, and sourced back into it so the consuming loop in
-# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh sees one array.
+# blocking 500-line cap, and sourced back into it so the consuming loops in
+# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh see both arrays
+# declared here.
 #
 # This split is the thing #6200 is about, done deliberately instead of by
 # accident. Before this change the four Ifá gates named 71 scripts/lib/ files
@@ -89,4 +90,29 @@ ifa_live_gate_negative_seams=(
 	'scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh'
 	'scripts/lib/test-precommit-go-filecap-cases.sh'
 	'scripts/lib/golden-corpus-fixtures.sh'
+)
+
+# The array above asks "selects NEITHER live gate", which is the only question
+# worth asking about a path no Ifá gate should touch. It cannot ask anything
+# about ifa-dead-letter-matrix, the fourth Ifá gate, and every loop in
+# scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh names only
+# ifa-determinism and ifa-fault-injection -- so a trigger widened on the
+# dead-letter gate fails no assertion anywhere in this repository.
+#
+# That is not hypothetical. An earlier commit on this branch gave
+# ifa-dead-letter-matrix 'scripts/lib/ifa_determinism_*.sh' when the only lib
+# scripts/verify-ifa-dead-letter-matrix.sh sources is
+# ifa_determinism_common.sh, so editing ifa_determinism_lifecycle.sh made
+# `make pre-pr` select a live Docker gate that cannot observe the file. The
+# trigger is ifa_determinism_common*.sh now; this array is what keeps it there.
+#
+# Entries are path|required|forbidden. The path is a real file that must keep
+# selecting the required gate and must never select the forbidden one, which
+# is why it cannot live in the array above -- that array's question is
+# "selects nothing", and this file's whole point is that it selects something.
+# Naming the required gate is what stops the control from passing because the
+# path went dark: "still selects SOMETHING" is not available as a weaker form,
+# since no-diff-fragments and no-ai-attribution trigger on "**".
+ifa_live_gate_negative_gate_seams=(
+	'scripts/lib/ifa_determinism_lifecycle.sh|ifa-determinism|ifa-dead-letter-matrix'
 )

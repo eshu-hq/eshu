@@ -2676,16 +2676,38 @@ gates:
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
-      # Glob, not the one filename (#6200). This gate's whole scripts/lib
-      # surface was a single literal, so a split of ifa_determinism_common.sh
-      # -- a 500-line-cap split like the ones that already darkened two
-      # test-ifa-fault-injection-* files -- would leave the new half
-      # triggering nothing while the original entry kept the list looking
-      # complete. Costs nothing in CI: this job shares
+      # Glob, not the one filename (#6200) -- but scoped to the one lib this
+      # gate loads, not to the whole ifa_determinism_ prefix.
+      # scripts/verify-ifa-dead-letter-matrix.sh:75 sources
+      # ifa_determinism_common.sh and nothing else, and that file sources
+      # nothing itself, so a 500-line-cap split of it -- the same split that
+      # already darkened two test-ifa-fault-injection-* files -- would leave
+      # the new half triggering nothing while the original entry kept the
+      # list looking complete.
+      #
+      # ifa_determinism_*.sh, the wider form ifa-determinism carries, would
+      # also hand this gate ifa_determinism_lifecycle.sh, which only
+      # verify-ifa-determinism.sh sources. Editing it would then make
+      # `make pre-pr` select a second live Docker gate that cannot observe
+      # the file. CI cost is zero either way -- this job shares
       # ifa-determinism-gate.yml's single on.paths filter with the
       # determinism and fault-injection jobs and carries no per-job if:, so
-      # it already runs whenever any of them does.
-      - "scripts/lib/ifa_determinism_*.sh"
+      # it already runs whenever any of them does -- but the local runner
+      # pays for it, and it is the exact over-trigger this branch adds
+      # negative controls against. ifa_live_gate_negative_gate_seams pins it.
+      #
+      # The glob is the only thing protecting this dependency, and that is
+      # worth knowing before someone narrows it further. The sourced-to-
+      # triggered drift walk (go/internal/cigates/scripttrigger.go) starts at
+      # a gate's local.command, which here is
+      # test-verify-ifa-dead-letter-matrix.sh -- a static mirror that reads
+      # verify-ifa-dead-letter-matrix.sh as data (bash -n, text assertions)
+      # and sources nothing. So the walk never reaches
+      # ifa_determinism_common.sh from this gate. common*.sh catches a split
+      # that keeps the prefix, which is what a cap-driven split does; a split
+      # renamed off the prefix and then sourced would still go dark, here and
+      # under the wider form alike.
+      - "scripts/lib/ifa_determinism_common*.sh"
     local:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"

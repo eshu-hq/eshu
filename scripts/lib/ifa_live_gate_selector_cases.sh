@@ -4,11 +4,15 @@
 # Patterns appear once per representative path so wildcard drift cannot hide
 # behind a string-only workflow/registry check.
 #
-# The negative controls (ifa_live_gate_negative_seams) live in the sibling file
-# sourced immediately below. They were split out when this file reached 488 of
-# the blocking 500-line cap; both halves are covered by the
-# scripts/lib/ifa_live_gate_*.sh trigger both live gates now carry (#6200), so
-# unlike every earlier split in this directory the new half is not dark.
+# The negative controls live in the sibling file sourced immediately below:
+# ifa_live_gate_negative_seams (paths that must select neither live gate) and
+# ifa_live_gate_negative_gate_seams (path|required|forbidden, for a path that
+# must keep selecting one gate and must not have been widened onto another --
+# ifa-dead-letter-matrix is the case that needed it). They were split out when
+# this file reached 488 of the blocking 500-line cap; both halves are covered
+# by the scripts/lib/ifa_live_gate_*.sh trigger both live gates now carry
+# (#6200), so unlike every earlier split in this directory the new half is
+# not dark.
 #
 # Sourced by variable path, which internal/cigates/scripttrigger.go's
 # sourced-to-triggered drift walk cannot resolve -- the rg pin below is what

@@ -191,4 +191,33 @@ for negative_path in "${ifa_live_gate_negative_seams[@]}"; do
 		fi
 	done
 done
+
+# Per-gate negative controls. The loop above covers paths that must select no
+# live gate at all; this one covers a path that legitimately selects one gate
+# and must not have been widened onto another. ifa-dead-letter-matrix is the
+# only Ifá gate no loop in this file otherwise names, which is how it carried
+# an over-wide scripts/lib glob through a full review round unchallenged.
+#
+# Each seam is path|required|forbidden, and the required half carries as much
+# weight as the forbidden one. A negative-only control passes just as happily
+# when the path stopped selecting anything at all -- and "asserted it still
+# selects SOMETHING" would not have caught that either, because no-diff-
+# fragments and no-ai-attribution trigger on "**" and so match every path in
+# the repository. The gate has to be named.
+for negative_gate_seam in "${ifa_live_gate_negative_gate_seams[@]}"; do
+	IFS='|' read -r negative_path required_gate forbidden_gate <<<"${negative_gate_seam}"
+	[[ -n "${negative_path}" && -n "${required_gate}" && -n "${forbidden_gate}" ]] \
+		|| fail "per-gate negative control is not path|required|forbidden: ${negative_gate_seam}"
+	[[ -e "${repo_root}/${negative_path}" ]] \
+		|| fail "per-gate negative control names a path that no longer exists, so it proves nothing: ${negative_path}"
+	selection="$(printf '%s\n' "${negative_path}" | (
+		cd "${repo_root}/go"
+		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
+	))"
+	_ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${required_gate}[[:space:]]" \
+		|| fail "per-gate negative control no longer selects ${required_gate}, so its forbidden half proves nothing: ${negative_path}"
+	if _ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${forbidden_gate}[[:space:]]"; then
+		fail "${negative_path} must not arm ${forbidden_gate}: that gate cannot observe the file"
+	fi
+done
 }
