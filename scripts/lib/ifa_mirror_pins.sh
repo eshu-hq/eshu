@@ -20,7 +20,7 @@
 # and here together, and re-run the behavioural probe at the bottom of this file.
 #
 # WHAT IT DOES NOT DO, stated plainly:
-#   - It does not parse bash. It tracks unquoted heredoc delimiters and cuts the
+#   - It does not parse bash. It tracks heredoc delimiters and cuts the
 #     line at a `#` that follows whitespace or one of `; | & ( ) < > \``.
 #   - A `#` inside a QUOTED STRING therefore truncates the line early, so a
 #     needle sitting after it reads as ABSENT and the pin REDS. That direction is
@@ -49,6 +49,17 @@
 #     the false-RED direction this file elects, and the strict-tail rule bounds
 #     it -- the same mention followed by more text, `printf 'see <<Word-1 here'`,
 #     is not read as an opener.
+#   - Delimiter shapes still INVISIBLE, measured: a digit start (`<<'1EOF'`), a
+#     space (`<<'EOF 1'`), a dot or plus (`<<'EOF.1'`, `<<'EOF+1'`), and a
+#     leading dash (`<<--foo`). Their bodies count as live code, which is the
+#     false-GREEN direction -- the same family as the hyphen case above, which
+#     is why they are named here rather than left for the next reader to find.
+#   - A false POSITIVE that predates all of this: an arithmetic left shift with
+#     a variable operand, `n=$(( n << shift ))`, reads as opening a heredoc
+#     delimited by `shift` and swallows the file until a line equal to it. No
+#     counted file has that shape today (all 61 detected openers are genuine
+#     `cat <<WORD`), and the direction is false-RED, but a counted file that
+#     gained one would blind every pin after it.
 
 # IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
 #
@@ -243,6 +254,7 @@ ifa_mirror_assert_pins_bind_code() {
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 	local -a extra=()
 	while IFS= read -r fn; do
@@ -259,7 +271,7 @@ ifa_mirror_assert_pins_bind_code() {
 			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
-		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi
@@ -276,7 +288,7 @@ ifa_mirror_assert_pins_bind_code() {
 	# collapse, and total collapse is the one case that is obvious anyway.
 	[[ "${checked}" -ge 2 ]] \
 		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter and comment-tail heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc, trailing-redirection, backslash-delimiter, comment-tail and hyphen-delimiter heredoc probes\n' "${checked}"
 }
 
 # _ifa_mirror_pin_probe_run executes one pin helper against one synthetic target.
