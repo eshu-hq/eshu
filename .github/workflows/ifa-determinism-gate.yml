@@ -83,6 +83,16 @@ on:
       # jobs run; 19 were dark, including the shared Odù machinery (odu.go,
       # expectations.go, coverage.go) and the compiled Odù for code_call and
       # rationale. Same string-exact registry lockstep as the two globs above.
+      #
+      # Deliberate cost, not an oversight: a paths: glob cannot carve out
+      # *_test.go, so this row and the reducer/factschema globs also sweep in
+      # 826 test files (27 here, 768 under go/internal/reducer/**, 31 in
+      # sdk/go/factschema). A test-only edit therefore arms both live Docker
+      # gates even though test files compile into no binary those gates build.
+      # The "one package, one binary" rationale above covers production files
+      # only; the alternative is re-enumerating filenames, which is the drift
+      # this glob exists to end. Accepted: over-triggering costs CI minutes,
+      # under-triggering ships a dark gate (#6200).
       - 'go/internal/ifa/*.go'
       # ifa-dead-letter-matrix's own two registry triggers, kept as literals
       # beside the glob that already covers them: that gate shares this
