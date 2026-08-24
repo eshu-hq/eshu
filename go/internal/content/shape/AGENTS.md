@@ -33,8 +33,11 @@
   projector check: a label in `entityTypeLabelMap` that no bucket row produces
   must be listed in `nonBucketProjectorLabels` with the fact source that writes
   it. Without it a registry entry can be inert — no bucket, no fact, no node —
-  and adding the graph schema constraint alongside it makes every other gate in
-  the tree pass.
+  and adding the graph schema constraint alongside it leaves the whole projector
+  suite green; the one other gate that reds,
+  `TestSchemaApplicationsDeclareCompatibilityDecision` in `internal/graph`, is a
+  schema-fingerprint pin, so re-pinning the fingerprint clears it without ever
+  noticing the label is inert.
 - **Deterministic output** — entities are sorted by `lineNumber()`, then label,
   then `Name` before building `content.EntityRecord` values. Tests assert this
   order; do not remove the sort.
