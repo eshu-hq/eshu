@@ -77,11 +77,10 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			controlRepoID: sqlRetractOutRepoID,
 			controlPath:   sqlRetractOutPath,
 			// The per-repo refresh payload buildSQLRelationshipRefreshIntents
-			// emits on a full generation. It is not decoration: since #6166
-			// sql_relationships binds collectWholeScopeRefreshRepoIDs on its
-			// non-delta branch, so a nil payload here builds no statement and
-			// this case fails on fixtures it just wrote and never retracted
-			// (#6166).
+			// emits on a full generation (#6166). sql_relationships binds
+			// collectWholeScopeRefreshRepoIDs on its non-delta branch, so the
+			// nil payload this case used to carry builds no statement, and the
+			// case then fails on fixtures it wrote and never retracted.
 			retractPayload: wholeScopeRefreshRetractPayload(sqlRetractInRepoID),
 		},
 		{
