@@ -87,7 +87,10 @@ on:
       # ifa-dead-letter-matrix's own two registry triggers, kept as literals
       # beside the glob that already covers them: that gate shares this
       # workflow's single paths: filter, and the registry-subset-of-workflow
-      # lockstep compares trigger STRINGS without expanding globs (#6200).
+      # lockstep compares trigger STRINGS without expanding globs. That loop
+      # covers ifa-dead-letter-matrix as of #6200 -- before that it iterated
+      # only determinism and fault-injection, so nothing asserted this gate's
+      # triggers were a subset at all and these literals were unenforced.
       - 'go/internal/ifa/mutate.go'
       - 'go/internal/ifa/dead_letters.go'
       - 'scripts/lib/ifa_fault_injection_workload_dependency_cells.sh'
@@ -463,6 +466,18 @@ on:
       - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
       - 'go/internal/ifa/sql_relationship_odu*.go'
       - 'go/internal/reducer/sql_relationship_*.go'
+      #
+      # The rest of ifa-dead-letter-matrix's registry triggers, as literals.
+      # Globs above already cover these files, so the gate did fire without
+      # them -- but it fired by coincidence of those globs, not because
+      # anything asserted it. The registry-subset-of-workflow loop in
+      # scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh now covers
+      # ifa-dead-letter-matrix too, and it compares trigger STRINGS, so these
+      # rows are what make that invariant asserted rather than incidental
+      # (#6200).
+      - 'go/cmd/ifa/mutate_cassette.go'
+      - 'go/cmd/ifa/dead_letters.go'
+      - 'scripts/lib/ifa_determinism_common*.sh'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

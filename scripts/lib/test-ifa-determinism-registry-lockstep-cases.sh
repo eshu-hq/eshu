@@ -60,6 +60,7 @@ run_ifa_determinism_registry_lockstep_cases() {
 _ifa_det_test_text_match_helper
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
+dead_letter_registry="$(sed -n '/^  - id: ifa-dead-letter-matrix$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
 rg --quiet --fixed-strings --line-regexp -- 'source "${selector_cases_lib}"' "${BASH_SOURCE[0]}" \
 	|| fail "selector cases must be sourced from scripts/lib/ifa_live_gate_selector_cases.sh"
@@ -96,9 +97,16 @@ done
 # This second loop closes the other direction: registry ⊆ workflow, derived from
 # the committed registry rather than from any hand-maintained list, so it cannot
 # drift out of date the way the table can.
-for gate_id in ifa-determinism ifa-fault-injection; do
+# ifa-dead-letter-matrix joined this loop in #6200. It shares this workflow's
+# single paths: filter, so the same invariant applies to it -- but before #6200
+# it was never iterated here, which is exactly the hole the sibling
+# negative-cases file names ("a trigger widened on the dead-letter gate fails no
+# assertion anywhere"). Its triggers were satisfied by broader globs in the
+# workflow, so the gate did fire; nothing asserted that it would.
+for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix; do
 	case "${gate_id}" in
 	ifa-determinism) gate_block="${determinism_registry}" ;;
+	ifa-dead-letter-matrix) gate_block="${dead_letter_registry}" ;;
 	*) gate_block="${fault_registry}" ;;
 	esac
 	while IFS= read -r registry_trigger; do
