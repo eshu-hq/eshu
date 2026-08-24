@@ -42,6 +42,13 @@
 #   - Delimiters may contain `-` (`<<'PARKED-1'`) and may be backslash-quoted
 #     (`<<\PARKED`). Both were once invisible, which made their bodies count as
 #     live code; both are matched now and both are in the probe set below.
+#     Admitting `-` widens one existing false POSITIVE: a line ending in a
+#     quoted mention, `printf 'see <<Word-1'`, now reads as opening a heredoc,
+#     exactly as `printf 'see <<Word'` already did. Measured: arithmetic shifts
+#     (`1 << 2`, `n << -2`) and `<<--foo` are still rejected. The cost lands in
+#     the false-RED direction this file elects, and the strict-tail rule bounds
+#     it -- the same mention followed by more text, `printf 'see <<Word-1 here'`,
+#     is not read as an opener.
 
 # IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
 #
