@@ -62,11 +62,15 @@ cd go && go test ./internal/query -run "TestBuildAskResponse|TestAskHandler_Succ
 cd go && go test ./internal/query -run TestAskHandler_EngineError_Returns503 -count=1
 ```
 
-**MCP tool registration** — `go/internal/mcp/tools_ask_test.go`: `TestAskToolIsRegistered` and
-`TestResolveRouteMapsAsk`. Reproduce:
+**MCP tool registration** — `go/internal/mcp/ask/tools_test.go`:
+`TestToolsPreserveAskRegistrationContract` and
+`TestToolsReturnIndependentDefinitions`. Root routing remains covered by
+`go/internal/mcp/dispatch_ask_test.go`:
+`TestReadOnlyToolsKeepsAskRegistrationPosition` and `TestResolveRouteMapsAsk`.
+Reproduce:
 
 ```bash
-cd go && go test ./internal/mcp -run TestAskToolIsRegistered -count=1
+cd go && go test ./internal/mcp/ask ./internal/mcp -run 'TestToolsPreserveAskRegistrationContract|TestToolsReturnIndependentDefinitions|TestReadOnlyToolsKeepsAskRegistrationPosition|TestResolveRouteMapsAsk' -count=1
 ```
 
 ## Notes

@@ -28,6 +28,8 @@ stays here. The `cloud` child package owns the cloud inventory and runtime-drift
 registration definitions; cloud routing also stays here. The `visualization`
 child package owns the visualization-packet registration definition;
 visualization routing stays here.
+The `ask` child package owns the natural-language answer registration
+definition; Ask routing and execution also stay here.
 
 ## Where this fits in the pipeline
 
@@ -144,8 +146,8 @@ dispatch observability surface.
 `ReadOnlyTools` assembles the registered tools from the tool definition files.
 `ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
 count; the per-group table below lists the major static groups for orientation
-and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
-are assembled dynamically and are not broken out here).
+and is not an exhaustive enumeration (reachability is assembled dynamically and
+is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
@@ -187,6 +189,7 @@ are assembled dynamically and are not broken out here).
 | `componentExtensionTools` | 2 | `tools_component_extensions.go` |
 | `collectorExtractionReadinessTools` | 2 | `tools_collector_extraction_readiness.go` |
 | `runtimeTools` | 8 | `tools_runtime.go` |
+| `askTools` | 1 | `ask/tools.go` |
 | relationship-edges + repository-files (inline, #4007) | 2 | `tools_relationship_edges.go`, `tools_repository_files.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
@@ -504,6 +507,7 @@ with a giant body.
 ## Dependencies
 
 Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
+`internal/mcp/ask` (Ask Eshu tool registration),
 `internal/mcp/cloud` (cloud inventory and runtime-drift tool registrations),
 `internal/mcp/documentation` (documentation tool registration definitions),
 `internal/mcp/toolcontract` (dependency-neutral `ToolDefinition` registration
