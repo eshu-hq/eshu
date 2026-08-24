@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Static regression tests for scripts/dev/pre-pr.sh whole-module gate scheduling.
+# Regression tests for pre-PR scheduling and the fast local test runner.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-pr.sh"
 precommit_script="${repo_root}/scripts/dev/precommit-go.sh"
+fast_runner="${repo_root}/tests/run_tests.sh"
 
 fail() {
 	printf 'test-pre-pr-whole-module-gates: %s\n' "$*" >&2
@@ -48,6 +49,8 @@ reject_precommit() {
 bash -n "${script}" || fail "pre-pr.sh has a syntax error"
 [[ -f "${precommit_script}" ]] || fail "missing ${precommit_script}"
 bash -n "${precommit_script}" || fail "precommit-go.sh has a syntax error"
+[[ -f "${fast_runner}" ]] || fail "missing ${fast_runner}"
+bash -n "${fast_runner}" || fail "tests/run_tests.sh has a syntax error"
 
 cache_paths="$("${precommit_script}" cache-paths)" ||
 	fail "precommit-go.sh cache-paths failed"
@@ -326,4 +329,31 @@ test_selection_suite="${repo_root}/scripts/lib/test-pre-pr-test-selection.sh"
 [[ -f "${test_selection_suite}" ]] || fail "missing ${test_selection_suite}"
 bash "${test_selection_suite}" || fail "focused Go test selection behavioural suite failed -- see its output above"
 
-printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
+fake_go_dir="${temp_root}/run-tests-bin"
+mkdir -p "${fake_go_dir}"
+cat > "${fake_go_dir}/go" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${RUN_TESTS_GO_ARGS_LOG:?}"
+printf '%s\n' "$@" >> "${RUN_TESTS_GO_ARGS_LOG}"
+EOF
+chmod +x "${fake_go_dir}/go"
+
+assert_fast_runner_parser_tree() {
+	local mode="$1" log_file parser_tree_count
+	log_file="${temp_root}/run-tests-${mode}.args"
+	RUN_TESTS_GO_ARGS_LOG="${log_file}" PATH="${fake_go_dir}:${PATH}" \
+		bash "${fast_runner}" "${mode}" >/dev/null ||
+		fail "tests/run_tests.sh ${mode} failed with the fake Go command"
+	parser_tree_count="$(rg --fixed-strings --line-regexp -c -- './internal/parser/...' "${log_file}" || printf '0\n')"
+	[[ "${parser_tree_count}" == "1" ]] ||
+		fail "tests/run_tests.sh ${mode} selected ./internal/parser/... ${parser_tree_count} time(s), want 1"
+	if rg --fixed-strings --line-regexp --quiet -- './internal/parser' "${log_file}"; then
+		fail "tests/run_tests.sh ${mode} still selects only the parent parser package"
+	fi
+}
+
+assert_fast_runner_parser_tree unit
+assert_fast_runner_parser_tree fast
+
+printf 'PASS: pre-pr scheduling and fast local parser selection are pinned\n'

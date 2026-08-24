@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GO_DIR="$REPO_ROOT/go"
 
 UNIT_PACKAGES=(
-    ./internal/parser
+    ./internal/parser/...
     ./internal/query
     ./internal/runtime
     ./internal/reducer
