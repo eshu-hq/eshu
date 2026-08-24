@@ -2661,6 +2661,34 @@ gates:
       - "go/internal/storage/postgres/ingestion_reopen*.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
+      # Restored as explicit entries alongside the broader globs above.
+      # The broader globs cover these paths, but materialized_edges_lockstep_test.go
+      # pins the literal trigger text (slices.Contains, not a path match), and the
+      # pin is the thing that stops a catalog or vacuity-guard edit from drifting
+      # out of the live gates unnoticed. Keep both: the glob for coverage, the
+      # explicit row for the pin (#6200).
+      - "go/internal/ifa/catalog_seed.go"
+      - "go/internal/ifa/code_call_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/documentation_family_catalog.go"
+      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/reducer/code_call*.go"
+      - "go/internal/reducer/deployable_unit*.go"
+      - "go/internal/reducer/documentation_edge*.go"
+      - "scripts/lib/ifa_rationale_live.sh"
+      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Stem-bearing rows for symbol_runtime and sql_relationship.
+      # TestEveryCoveredFamilyTriggersBothLiveGates requires each covered family
+      # to have at least one trigger whose TEXT contains the family stem, so a
+      # directory glob that covers the same files does not satisfy it. Keeping
+      # these explicit is what ties the coverage row to a gate that re-runs (#6200).
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -3156,6 +3184,34 @@ gates:
       - "go/internal/storage/postgres/ingestion_reopen*.go"
       - "go/internal/storage/cypher/materialized_edge_repo_dependency.go"
       - "go/internal/storage/cypher/canonical_relationships.go"
+      # Restored as explicit entries alongside the broader globs above.
+      # The broader globs cover these paths, but materialized_edges_lockstep_test.go
+      # pins the literal trigger text (slices.Contains, not a path match), and the
+      # pin is the thing that stops a catalog or vacuity-guard edit from drifting
+      # out of the live gates unnoticed. Keep both: the glob for coverage, the
+      # explicit row for the pin (#6200).
+      - "go/internal/ifa/catalog_seed.go"
+      - "go/internal/ifa/code_call_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_catalog.go"
+      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/documentation_family_catalog.go"
+      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/reducer/code_call*.go"
+      - "go/internal/reducer/deployable_unit*.go"
+      - "go/internal/reducer/documentation_edge*.go"
+      - "scripts/lib/ifa_rationale_live.sh"
+      - "sdk/go/factschema/codegraph/v1/repository.go"
+      # Stem-bearing rows for symbol_runtime and sql_relationship.
+      # TestEveryCoveredFamilyTriggersBothLiveGates requires each covered family
+      # to have at least one trigger whose TEXT contains the family stem, so a
+      # directory glob that covers the same files does not satisfy it. Keeping
+      # these explicit is what ties the coverage row to a gate that re-runs (#6200).
+      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/reducer/symbol_runtime*.go"
+      - "scripts/lib/ifa_symbol_runtime_live.sh"
+      - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/sql_relationship_*.go"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
