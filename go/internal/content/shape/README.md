@@ -88,6 +88,13 @@ around the `Materialize` call.
   pinned by `canonicalEntityPhaseSkipOwners` in
   `go/internal/projector/canonical_unwritten_entity_labels_test.go` (#6206), so
   stranding another label, or re-enabling this one, has to move that pin.
+- The reverse also holds, and is checked here rather than in the projector:
+  `TestEveryProjectorLabelHasASource` requires every label in
+  `entityTypeLabelMap` to be produced by a bucket row or declared in
+  `nonBucketProjectorLabels` with its fact source. Eighteen labels are legitimately
+  non-bucket — the OCI and package-registry families, `Parameter`, `ShellCommand`
+  — and they are named there. A nineteenth that nobody classifies is a registry
+  entry no fact can ever reach.
 - Terraform buckets cover authored configuration and parser evidence such as
   backends, imports, moved blocks, removed blocks, checks, lockfile providers,
   and declared PagerDuty module/tfvars evidence. Keep those labels in step with

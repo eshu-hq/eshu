@@ -28,6 +28,13 @@
   `go/internal/projector/canonical_unwritten_entity_labels_test.go`; a new
   entry there means a label was stranded, and removing `Variable`'s means
   re-enabling its projection, which changes projected truth.
+- **Every projector label is classified** — `TestEveryProjectorLabelHasASource`
+  in `bucket_sync_projector_orphans_test.go` runs the reverse of the bucket ->
+  projector check: a label in `entityTypeLabelMap` that no bucket row produces
+  must be listed in `nonBucketProjectorLabels` with the fact source that writes
+  it. Without it a registry entry can be inert — no bucket, no fact, no node —
+  and adding the graph schema constraint alongside it makes every other gate in
+  the tree pass.
 - **Deterministic output** — entities are sorted by `lineNumber()`, then label,
   then `Name` before building `content.EntityRecord` values. Tests assert this
   order; do not remove the sort.
