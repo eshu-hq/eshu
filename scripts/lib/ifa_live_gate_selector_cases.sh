@@ -389,7 +389,7 @@ ifa_live_gate_fault_only_seams=(
 	'go/internal/storage/cypher/canonical_node_writer_metadata.go|go/internal/storage/cypher/canonical_node_writer_metadata.go'
 	'go/internal/projector/scope_generation_intents.go|go/internal/projector/scope_generation_intents.go'
 	'go/internal/projector/reducer_intent_fact_index.go|go/internal/projector/reducer_intent_fact_index.go'
-	'go/internal/projector/gcp_resource_materialization_intents.go|go/internal/projector/gcp_resource_materialization_intents.go'
+	'go/internal/projector/gcp/resource_materialization_intents.go|go/internal/projector/gcp/resource_materialization_intents.go'
 	'go/internal/reducer/defaults_additive_domains.go|go/internal/reducer/defaults_additive_domains.go'
 	'go/internal/reducer/defaults_additive_domains_cloud_nodes.go|go/internal/reducer/defaults_additive_domains_cloud_nodes.go'
 	'go/internal/reducer/defaults_additive_domains_gcp.go|go/internal/reducer/defaults_additive_domains_gcp.go'

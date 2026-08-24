@@ -49,19 +49,19 @@ boundary measured 153,377-155,926 ns/op, 74,928-74,930 B/op, and 178 allocs/op.
 No graph backend participates in this in-process benchmark, and it creates no
 queue rows; the terminal count is the parity test's unchanged 42 intents.
 
-No-Regression Evidence: `internal/projector/azure` imports this contract for
-its complete resource and relationship intent builders while root assembly
-passes the shared `FactLookup`. Focused family and ordered fan-out tests plus the
-full projector tree preserve exact trigger, value, and order behavior. The
-measurement above shows no allocation or byte regression and comparable CPU
-cost on the same host and fixture.
+No-Regression Evidence: `internal/projector/azure` and
+`internal/projector/gcp` import this contract for their complete resource and
+relationship intent builders while root assembly passes the shared
+`FactLookup`. Focused family and ordered fan-out tests plus the full projector
+tree preserve exact trigger, value, and order behavior. Same-shape fan-out
+measurements preserve the allocation count and comparable CPU cost on the same
+host and fixture.
 
-No-Observability-Change (Azure extraction): the boundary adds no metric, span,
-log, status field,
-queue behavior, or runtime setting. Existing projection and reducer-intent
-enqueue telemetry remains owned by the root projector package; the telemetry
-coverage verifier confirms the moved stages remain mapped to
-`eshu_dp_reducer_intents_enqueued_total`.
+No-Observability-Change (Azure and GCP extractions): the boundary adds no
+metric, span, log, status field, queue behavior, or runtime setting. Existing
+projection and reducer-intent enqueue telemetry remains owned by the root
+projector package; the telemetry coverage verifier confirms the moved stages
+remain mapped to `eshu_dp_reducer_intents_enqueued_total`.
 
 ## Related docs
 

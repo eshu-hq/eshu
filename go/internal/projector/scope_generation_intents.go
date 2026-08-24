@@ -6,6 +6,7 @@ package projector
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
+	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -19,9 +20,11 @@ import (
 //
 // It builds one shared reducerIntentFactIndex over inputFacts and passes it to
 // every builder below instead of the raw slice (issue #4875): inputFacts is
-// immutable once a scope generation is claimed for projection, so the 44
-// builders that used to each independently re-scan the full slice can safely
-// share one read-only, pre-grouped index built in a single O(N) pass.
+// immutable once a scope generation is claimed for projection, so all 44
+// builders can safely share the same read-only lookup. intent.NewFactLookup
+// builds that lookup in two O(N) passes, first counting facts per kind and then
+// filling exact-capacity position slices. Root builds it once so each builder
+// can select its trigger facts without rescanning or rebuilding the index.
 func appendScopeGenerationReducerIntents(
 	intents []ReducerIntent,
 	scopeValue scope.IngestionScope,
@@ -42,10 +45,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildGCPResourceMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorgcp.BuildResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildGCPRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorgcp.BuildRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorazure.BuildResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
