@@ -11,13 +11,16 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-replay-drive.sh"
 pins_lib="${repo_root}/scripts/lib/ifa_mirror_pins.sh"
+private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
 
 fail() { printf 'test-verify-ifa-replay-drive: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-ifa-replay-drive.sh must be executable"
 [[ -f "${pins_lib}" ]] || fail "missing ${pins_lib}"
+[[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"
 bash -n "${pins_lib}" || fail "ifa_mirror_pins.sh has a syntax error"
+bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-ifa-replay-drive.sh has a syntax error"
@@ -27,6 +30,8 @@ bash -n "${script}" || fail "verify-ifa-replay-drive.sh has a syntax error"
 # whole-file match this used to be was satisfied by a comment, which is #6161.
 # shellcheck source=scripts/lib/ifa_mirror_pins.sh
 source "${pins_lib}"
+# shellcheck source=scripts/lib/ifa_private_data_pattern.sh
+source "${private_data_pattern_lib}"
 
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
@@ -116,14 +121,27 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${script}"; then
 fi
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
+# The pattern and its positive control live in ifa_private_data_pattern.sh, and
+# the only way to reach the pattern is through the helper, which proves it still
+# detects one planted token per alternative before it hands it over. This mirror
+# carried a hand-copied literal instead: nothing measured it, so it could drift
+# from the hardened copy, and replacing it with anything uncompilable left the
+# mirror at exit 0 scanning nothing (#6161).
+ifa_private_data_pattern private_pattern
 # Scans the shared pin lib too, not just the gate: it was added by #6161 and
 # nothing else in the tree covers it -- the determinism mirror's derived scan
 # only reaches *_lib variables bound in ITS scope.
 for private_target in "${script}" "${pins_lib}"; do
-	if rg --pcre2 --quiet -- "${private_pattern}" "${private_target}"; then
-		fail "$(basename "${private_target}") looks like it contains private data"
-	fi
+	# rc is CAPTURED, not tested through `if`: rg exits 2 on a pattern it cannot
+	# compile, `if` reads that as "no match", and `set -e` does not apply inside an
+	# `if` condition -- so one uncompilable pattern made every file read as clean
+	# and this mirror still passed (#6161).
+	private_rc=0
+	rg --pcre2 --quiet -- "${private_pattern}" "${private_target}" || private_rc=$?
+	[[ "${private_rc}" -ne 0 ]] \
+		|| fail "$(basename "${private_target}") looks like it contains private data"
+	[[ "${private_rc}" -eq 1 ]] \
+		|| fail "the private-data scan could not run over $(basename "${private_target}") (rg exit ${private_rc}); a scanner that cannot run must never read as clean"
 done
 
 # Every pin helper above must BIND CODE. Run last, so `compgen -A function`

@@ -2646,6 +2646,10 @@ gates:
       - "go/internal/ifa/dead_letters.go"
       - "go/cmd/ifa/mutate_cassette.go"
       - "go/cmd/ifa/dead_letters.go"
+      # The pattern this mirror's private-data scan runs, and its positive
+      # control. The scan sources it now instead of carrying a hand-copied
+      # literal; without a row here, neutering the pattern re-runs nothing (#6161).
+      - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -3168,6 +3172,10 @@ gates:
       - "scripts/lib/ifa_mirror_pins.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
+      # The pattern this mirror's private-data scan runs, and its positive
+      # control. The scan sources it now instead of carrying a hand-copied
+      # literal; without a row here, neutering the pattern re-runs nothing (#6161).
+      - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/verify-ifa-replay-drive.sh"
       - "scripts/test-verify-ifa-replay-drive.sh"
     local:
