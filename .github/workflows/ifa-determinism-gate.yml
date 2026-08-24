@@ -261,6 +261,7 @@ on:
       - 'go/internal/projector/scope_generation_intents.go'
       - 'go/internal/projector/gcp/resource_materialization_intents.go'
       - 'go/internal/projector/gcp/relationship_materialization_intents.go'
+      - 'go/internal/projector/security/group_reachability_intents.go'
       - 'go/internal/projector/reducer_intent_fact_index.go'
       - 'go/internal/projector/runtime_phase.go'
       - 'go/internal/projector/canonical_entity_identity.go'

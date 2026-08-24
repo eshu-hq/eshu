@@ -117,6 +117,25 @@ func TestBuildProjectionQueuesSecurityAlertReconciliationForPackageRegistryPacka
 	}
 }
 
+func TestBuildProjectionRejectsStaleSecurityIntentFact(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "repo://github/eshu-hq/eshu"}
+	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-current"}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:       "alert-stale",
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-stale",
+		FactKind:     facts.SecurityAlertRepositoryAlertFactKind,
+	}})
+	if err == nil {
+		t.Fatal("buildProjection() error = nil, want stale generation rejection")
+	}
+	if len(projection.reducerIntents) != 0 {
+		t.Fatalf("reducer intents = %#v, want none for rejected stale fact", projection.reducerIntents)
+	}
+}
+
 func requireSecurityAlertReconciliationIntent(t *testing.T, intents []ReducerIntent) ReducerIntent {
 	t.Helper()
 	for _, intent := range intents {

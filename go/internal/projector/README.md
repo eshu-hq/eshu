@@ -246,9 +246,10 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure` and `internal/projector/gcp` families import that
-neutral lookup without importing root projector assembly; remaining root
-builders keep using the private forwarders until their move PRs land.
+`internal/projector/azure`, `internal/projector/gcp`, and
+`internal/projector/security` families import that neutral lookup without
+importing root projector assembly; remaining root builders keep using the
+private forwarders until their move PRs land.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
 The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`

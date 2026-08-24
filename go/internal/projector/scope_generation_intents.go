@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
+	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -138,7 +139,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSecurityAlertReconciliationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsecurity.BuildSecurityAlertReconciliationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildKubernetesCorrelationReducerIntent(scopeValue, generation, index); ok {
@@ -156,13 +157,13 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSecurityGroupEndpointMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSecurityGroupRuleMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsecurity.BuildSecurityGroupRuleMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := buildSecurityGroupReachabilityMaterializationReducerIntent(scopeValue, generation, index); ok {
+	if intent, ok := projectorsecurity.BuildSecurityGroupReachabilityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	return intents
