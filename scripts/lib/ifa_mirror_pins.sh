@@ -64,6 +64,49 @@
 #      (the needle's code-match count dropped by exactly one) and that the file
 #      still parses.
 #
+# EVERY CENSUS FIGURE CARRIES THE COMMIT IT WAS MEASURED AT. Method, so it can
+# be re-run rather than re-argued: wrap all three code-portion counters
+# (ifa_mirror_count_code_matches here, _ifa_count_code_matches and
+# _ifa_det_count_code_matches in the two large mirrors) to log count / caller
+# file / caller line / target / needle; run all four mirrors; drop the
+# meta-gate's synthetic probe targets; classify each evaluation weak or exact by
+# reading the comparison on the caller's own line -- by OPERATOR, per point 1
+# above, never by helper name.
+#
+#   commit                            weak `-ge 1` pins over >=2 code occurrences
+#   71e0da200b (commit  2 of 19)      68 pins / 186 occurrences
+#   339afbc2f0 (commit 11 of 19)      42 pins / 119 occurrences
+#   92afe8a388 (commit 19 of 19)      17 pins /  55 occurrences
+#   93cc866fd6 (this comment's parent) 14 pins /  49 occurrences
+#
+# "42 pins / 119 occurrences" was written up as this audit's OPENING count. It
+# reproduces exactly -- at commit ELEVEN, on a tree already carrying ten commits
+# of repairs. The opening figure is 68 / 186. The distinction is not pedantry:
+# the "20 repaired plus 6 cleared" tally was reconciled against 42, so it read as
+# a complete accounting of a population that was never 42. Earlier than
+# 71e0da200b there is no comparable number at all -- the two smaller mirrors had
+# no code-portion counter, so every one of their assertions was satisfiable by a
+# comment and "weak" describes all of them.
+#
+# FOURTEEN REMAIN at the figure above, listed rather than summarised so the next
+# auditor starts from a measured list instead of building one. Four carry a
+# written clearance beside them (cell_start in the cells and SQL-cells libs,
+# `wall=%ss`, and `graph-dump -digest`); all four are reporting-only or bound by
+# a separate guard. The other TEN have no stated disposition and have not been
+# seeded -- they are candidates, not findings:
+#
+#   ifa_fault_injection_documentation_ack_barrier.sh
+#     ifa_documentation_census_ack_holder (4), ifa_documentation_census_ack_waiter (3),
+#     ifa_documentation_signal_ack_producers (2), ifa_documentation_join_ack_producers (2),
+#     "1|true" (2)
+#   ifa_fault_injection_driver.sh          ifa_documentation_stop_ack_producers (2)
+#   ifa_fault_injection_documentation_cells.sh   ifa_documentation_claim_snapshot (2)
+#   ifa_fault_injection_deployable_unit_cells.sh
+#     ifa_deployable_unit_live_assert_empty_before_maintenance (3)
+#   verify-ifa-determinism.sh
+#     done < <(ifa_family_registry_names) (2),
+#     "lower N, retry, or otherwise normalize this away" (2)
+#
 # A SECOND LIMIT, and the one most likely to bite: discovery is
 # `compgen -A function | rg '^require'`, so the probe executes only helpers whose
 # NAME starts with `require`. An identically weak helper named `pin_foo` is
