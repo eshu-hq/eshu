@@ -8,7 +8,79 @@ and `eshu-diagnostic-rigor`.
 - **Load is the only entry point for YAML.** Never parse the YAML outside
   `Load`. Add new fields to `registryFile` / `gateFile` and map them in `Load`.
 - **Select is a pure function.** It must not touch git, the filesystem, or any
-  external service. Git access belongs at the CLI boundary in `cmd/ci-gates`.
+  external service, so `ci-gates select --paths-from` is reproducible from its
+  inputs alone. `Validate` is the one exception, and only for trigger
+  resolution: it already stats scripts, workflows, and literal triggers, and
+  since #6159 it also asks git for the tracked path set that glob triggers
+  resolve against (`loadTrackedPaths` in `globtrigger.go` — the only
+  `exec.Command` in this package's production code; the test fixtures run git
+  too). Do not widen that seam; anything else
+  needing git belongs at the CLI boundary in `cmd/ci-gates`.
+- **A trigger that matches nothing is an error, never a warning.** A literal
+  trigger is stat-checked (#6055); a glob trigger must select at least one
+  tracked FILE (#6159). There is no waiver field and no warn-only mode: a
+  trigger matching zero paths can never select its gate, so the gate reads as
+  wired for a surface it no longer guards. If the tracked path set cannot be
+  read, that is an error too, not a skip — an unverifiable trigger must not
+  read as present. Resolve globs against the TRACKED set, never a filesystem
+  walk: a walk lets a build artifact satisfy a trigger CI can never fire on,
+  and makes the verdict depend on the developer's tree.
+- **The universe is FILES. Do not put directories back in it, on either half.**
+  `Select` matches triggers against changed paths, and every caller supplies
+  files (`git diff --name-only`, GitHub's pull-files response), never the
+  directories containing them: `MatchGlob("go/internal/*",
+  "go/internal/cigates")` is true while
+  `MatchGlob("go/internal/*", "go/internal/cigates/glob.go")` is false, and
+  only the second is a question `Select` asks. So `loadTrackedPaths` derives
+  NO ancestor directories, and `checkTriggerPathsExist` rejects a literal
+  trigger that stats as a directory for the same reason. #6159's first draft
+  did the opposite, on the reasoning that the literal half accepted one via
+  `os.Stat`, and certified `go/cmd/collector-**` — the golden-corpus gate's
+  only claim on the collector binaries — which matched the directory
+  `go/cmd/collector-tempo` and no file under it. `directoryMatch` derives
+  directories on the FAILURE path only, to name the working `dir/**` spelling;
+  never to feed a passing verdict. README.md carries the dialect gap that
+  produced it, which recurs whenever a trigger is copied from a workflow.
+- **Answering "no match" is bounded, and the bound is load-bearing.**
+  `matchSegments` branches at every `**`, so two or more let a naive recursion
+  re-explore (pattern suffix, path suffix) states exponentially — 24.7s for
+  ONE 18-segment candidate against 17 consecutive `**` plus a missing literal,
+  times the ~20k candidates every trigger is run through. The memo on those
+  states makes the always-on check safe (11µs after). It is allocated only for
+  patterns carrying two or more `**`, and `matchesAny` decides that ONCE per
+  pattern via `matchSegmentsBounded`, not per candidate — folding the count
+  back into the per-candidate call measured 49ms -> 62ms. Do not "simplify" it
+  to normalizing `**/**` into `**`: that fixes only the adjacent spelling. The
+  two `NoMatchIsBoundedOnAdversarialPattern` cases cover both spellings on
+  both entry points; their fixture DEPTH is load-bearing, since the blow-up
+  scales with path length and the standard 4-segment fixture let the
+  `Validate` case pass with the memo disabled.
+- **The tracked path universe is enumerated once per `Validate` call.** ~500
+  glob triggers against ~20k paths is ~10M pattern comparisons; re-enumerating
+  or re-splitting per trigger is the shape `checkTriggerPathsExist` already
+  had to have a comment written about. `matchesAny` reuses `matchSegments`
+  behind a first-segment index rather than calling `MatchGlob` per path, and
+  the two tests guarding that are not interchangeable:
+  `TestTrackedPaths_MatchesAnyAgreesWithMatchGlob` keeps the two matchers in
+  lockstep on VERDICTS — extend it when either side gains a guard clause — and
+  `TestTrackedPaths_MatchesAnyConsultsTheFirstSegmentIndex` keeps the index
+  itself. Only the second one notices `matchesAny` collapsing back into the
+  per-path scan, because both forms answer identically and differ only in
+  cost. It works by handing `matchesAny` a deliberately desynchronised
+  universe; keep that, or the design has no guard again.
+- **`loadTrackedPaths` runs git under `gitTreeEnv`, never a plain inherit.**
+  `git -C <repoRoot>` does not decide which repository git reads: an ambient
+  `GIT_DIR` overrides it and the gate then PASSES against another checkout's
+  tree. `GIT_INDEX_FILE` is kept on purpose — a pre-commit hook exports it to
+  name the pending index the hook should be validating, so scrubbing it makes
+  the gate judge the tree on disk instead. Do not "simplify" this back to
+  `os.Environ()`, and do not "finish the scrub" by adding `GIT_INDEX_FILE` to
+  the map; `TestLoadTrackedPaths_HonoursThePendingIndexAHookNames` reds if you
+  do. Note a hook exports GIT_DIR too in a **linked worktree** (measured six
+  ways, including through pre-commit 4.6.2 — see `gitTreeEnv`'s comment), so
+  dropping it is not a no-op on the hook path; it is safe because git
+  rediscovers the same gitdir from `repoRoot`, which was verified against the
+  real gate under the full hook pair.
 - **Validate accumulates errors.** Never return early from `Validate`; collect
   all integrity errors in a single pass so a single run surfaces every broken
   reference.

@@ -14,7 +14,8 @@ It answers two related questions:
 | `registry.go` | Types (`Registry`, `Gate`, `Tier`, `Category`, `Requirement`, `Local`, `CI`) and `Load` |
 | `select.go` | `(*Registry).Select` — pure path-trigger matcher |
 | `required.go` | `(*Registry).RequiredGates` — every path-selected blocking CI job, including CI-only and heavy tiers |
-| `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks |
+| `validate.go` | `(*Registry).Validate` — script (command + test_command) + workflow existence checks, plus literal-trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055)) |
+| `globtrigger.go` | `trackedPaths` + `checkGlobTriggerResolves`, called from `Validate` — a glob trigger must select at least one tracked path, or it can never select its gate ([#6159](https://github.com/eshu-hq/eshu/issues/6159)) |
 | `drift.go` | `DriftCheck` — `.pre-commit-config.yaml` / `.github/workflows` lockstep ([#4220](https://github.com/eshu-hq/eshu/issues/4220)), plus `ci.job` check-name resolution ([#5010](https://github.com/eshu-hq/eshu/issues/5010)) |
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
 | `requiredworkflow_concurrency.go` | serialized per-head publisher concurrency contract |
@@ -101,6 +102,29 @@ who can both weaken a leaf check and approve or merge the same change.
 - All other characters are literal.
 
 Patterns with a leading `/` or trailing `/` never match.
+
+## Trigger existence ([#6055](https://github.com/eshu-hq/eshu/issues/6055), [#6159](https://github.com/eshu-hq/eshu/issues/6159))
+
+`Validate` requires every trigger to name something real, because a trigger that matches nothing stops selecting its gate silently — the gate still reads as wired for the surface, and the registry gate stays green. #6142 carried two stale glob-shaped entries through a full review round exactly that way.
+
+- A **literal** trigger (no `*`) is stat-checked, and must name a **file**. A trigger escaping the root — lexically via `..`, or through a symlink — is reported instead of resolved, and a stat that cannot complete is an error rather than a pass.
+- A **glob** trigger must match at least one path in the tracked path universe: every **file** `git ls-files` reports at the repo root. Zero matches is a hard error. There is no waiver and no warn-only mode.
+
+Both halves reject a trigger that names a **directory**, because selection never sees one. `Select` matches triggers against changed paths, and both callers supply files — `git diff --name-only` names files, and GitHub's pull-files response names files — so `MatchGlob("go/internal/cigates", "go/internal/cigates/glob.go")` is `false` and a trigger stopping at a directory can never select its gate. The spelling that works is `dir/**`, and the error message says so by name.
+
+That is not a hypothetical. `go/cmd/collector-**` sat in the committed registry as the golden-corpus gate's only claim on the collector binaries, copied from the gate workflow's `on.pull_request.paths`. GitHub's `**` crosses `/`, so the workflow copy works; this package's `**` is a whole segment, so glued to `collector-` it degraded to an ordinary single-segment wildcard that matched the directory `go/cmd/collector-tempo` and no file under it. A change to any collector command selected none of that gate's 86 triggers. An earlier draft of this check derived ancestor directories into the universe and passed it ([#6223](https://github.com/eshu-hq/eshu/pull/6223) review); the trigger is now `go/cmd/collector-*/**`.
+
+The tracked set — not a filesystem walk — is the universe because it is what CI selects on. A walk would let an untracked build artifact or a gitignored cache satisfy a trigger that CI can never fire on, and would make the verdict depend on what a developer's tree happens to hold.
+
+If the tracked set cannot be read at all (git missing, `repo-root` not a work tree, git exiting non-zero, an empty tracked set), that is one reported error and the run fails: an unverifiable trigger must not read as present. This is the only place the package runs git; `Select` and `Load` stay pure.
+
+The universe is enumerated once per `Validate` call and indexed by first path segment. Measured on this repository — 20,220 tracked files against 499 glob triggers, median of 7 runs in one process on one machine: matching costs 47.9ms, against 552.5ms for a per-path `MatchGlob` scan (both stopping at a trigger's first match), with the same verdicts (499/499 resolve either way). Building the universe costs a further 38.6ms end to end on that machine (best of 9), split about evenly between the `git ls-files` subprocess (19.7ms for 1.1MB of output) and the in-memory split and index.
+
+Matching is also bounded against a pattern that is legal and simply matches nothing. Resolution branches at every `**` segment, and with two or more of them a naive recursion re-explores the same (pattern suffix, path suffix) states exponentially: 14 consecutive `**` plus a missing literal took 396ms to answer "no match" for a *single* 15-segment candidate, and `Validate` runs every trigger against ~20k of them. `matchSegments` memoizes those states — only for patterns carrying two or more `**`, so the shapes the registry actually holds (85 triggers with none, 414 with exactly one) keep the allocation-free walk. Same case afterwards: 47.6µs. Collapsing consecutive `**` into one would have fixed only that spelling; the same blow-up reappears when the `**` segments are separated by literals (254ms before, 3.9µs after), which is why this memoizes states instead of rewriting patterns.
+
+`git -C <repo-root>` does not by itself decide which repository git reads. An ambient `GIT_DIR` overrides it, and pointed at a second checkout of the same repository the gate exits 0 and prints `PASS` having resolved every trigger against the other tree — measured at 20,194 paths from the wrong checkout against 20,197 from the right one. `loadTrackedPaths` therefore drops `GIT_DIR` and its siblings from the child environment. `GIT_INDEX_FILE` is kept, because a pre-commit hook exports it to name the pending index of the tree being committed, and that pending tree is what the hook must validate; a hand-exported one naming another repository's index is a residual the code comment records.
+
+A hook exports more than that one variable, and dropping `GIT_DIR` is not a no-op on the hook path. Measured on git 2.50.1 across six configurations — main checkout and linked worktree, each under a raw `.git/hooks/pre-commit`, under `git commit -a`, and under pre-commit 4.6.2 (this repo's hook driver) — `GIT_INDEX_FILE` is exported every time, while `GIT_DIR` is absent in a main checkout and **exported in a linked worktree**, which is the shape this repository mandates. Dropping it there is still correct: git rediscovers the same gitdir from `repo-root`, so the hook's value and the derived one agree. Verified by running the gate in a linked worktree under the full hook pair (`GIT_DIR` plus `GIT_INDEX_FILE`) — exit 0 and `PASS`, identical to a clean run. The drop exists for the other `GIT_DIR`: one naming a *different* checkout, measured above to flip the gate to a false `PASS`.
 
 ## Drift semantics ([#4220](https://github.com/eshu-hq/eshu/issues/4220))
 

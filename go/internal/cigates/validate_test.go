@@ -13,7 +13,13 @@ import (
 )
 
 // buildHermeticRepo creates a temporary directory tree mimicking a repo root
-// with specific scripts and workflows present.
+// with specific scripts and workflows present. The tree is a git work tree
+// with everything staged: glob-trigger resolution (#6159) reads the tracked
+// path set, so a fixture that is not one has an empty path universe and every
+// glob case would fail for the wrong reason. Files written into the fixture
+// AFTER this call are untracked until writeTracked or gitInitAndTrack stages
+// them — deliberate, and what
+// TestValidate_GlobTriggerMatchingOnlyAnUntrackedFileFails relies on.
 func buildHermeticRepo(t *testing.T, scripts []string, workflows []string) string {
 	t.Helper()
 	root := t.TempDir()
@@ -40,6 +46,7 @@ func buildHermeticRepo(t *testing.T, scripts []string, workflows []string) strin
 			t.Fatal(err)
 		}
 	}
+	gitInitAndTrack(t, root)
 	return root
 }
 
@@ -50,6 +57,7 @@ func TestValidate_AllRefsPresent(t *testing.T) {
 		[]string{"scripts/verify-openapi.sh", "scripts/test-verify-openapi.sh"},
 		[]string{"verify-openapi.yml"},
 	)
+	writeTracked(t, root, "go/internal/query/openapi_types.go")
 	reg := buildRegistry([]cigates.Gate{
 		{
 			ID:       "openapi-surface",
@@ -166,6 +174,7 @@ func TestValidate_CIOnlySkipsScriptCheck(t *testing.T) {
 		[]string{}, // no scripts needed — gate is CI-only
 		[]string{"reducer-contention-gate.yml"},
 	)
+	writeTracked(t, root, "go/internal/storage/postgres/queue.go")
 	reg := buildRegistry([]cigates.Gate{
 		{
 			ID:           "reducer-contention",
@@ -266,36 +275,6 @@ func TestValidate_LiteralTriggerPresentPasses(t *testing.T) {
 	errs := reg.Validate(root)
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for an existing literal trigger, got: %v", errs)
-	}
-}
-
-// TestValidate_GlobTriggerNeverRequiresExistence proves the existence check
-// is scoped to LITERAL triggers only (isLiteralTrigger's own definition,
-// shared with checkPathFilterCoverage): a glob trigger matching zero files
-// today is a legitimate future-proofing entry, not a stale one, and must
-// never be flagged.
-func TestValidate_GlobTriggerNeverRequiresExistence(t *testing.T) {
-	t.Parallel()
-	root := buildHermeticRepo(
-		t,
-		[]string{"scripts/verify-openapi.sh"},
-		[]string{"verify-openapi.yml"},
-	)
-	reg := buildRegistry([]cigates.Gate{
-		{
-			ID:       "openapi-surface",
-			Name:     "Verify OpenAPI Surface",
-			Category: cigates.CategoryExactness,
-			Tier:     cigates.TierPrePR,
-			Blocking: true,
-			Triggers: []string{"go/internal/collector/nothing/matches/this/**"},
-			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
-			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
-		},
-	})
-	errs := reg.Validate(root)
-	if len(errs) != 0 {
-		t.Errorf("expected no errors for a glob trigger matching nothing, got: %v", errs)
 	}
 }
 

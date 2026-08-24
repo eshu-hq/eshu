@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # CI gate registry integrity checker (#4213, drift extension #4220). Verifies
 # that every entry in specs/ci-gates.v1.yaml references a script and workflow
-# file that exists on disk, AND (unconditionally as of #6055 — see below)
+# file that exists on disk and that every gate trigger still names something
+# real — a literal trigger must name a tracked FILE (#6055, #6159), and a glob
+# trigger must select at least one, because a trigger matching nothing stops
+# selecting its gate without ever failing. The universe is files only: the
+# paths a change hands the selector are files, from a git diff or a GitHub
+# pull-files list, so a trigger that stops at a directory can never select.
+# Directories are derived on the FAILURE path alone, to name a working "dir/**"
+# spelling in the error. Re-adding them to the universe would re-introduce the
+# defect this checks for. AND (unconditionally as of #6055 — see below)
 # checks pre-commit-hook and workflow registry completeness against
 # .pre-commit-config.yaml and .github/workflows/, including
 # checkPathFilterCoverage (go/internal/cigates/pathfilter.go): every literal

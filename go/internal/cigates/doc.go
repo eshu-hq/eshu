@@ -22,8 +22,10 @@
 // (*Registry).Select(changed []string, tier Tier) evaluates each gate in
 // registry order and returns a []Selection. Each Selection records whether the
 // gate was chosen, skipped (trigger mismatch or tier exceeded), or CI-only. The
-// function is a pure, hermetic function of its inputs — git is touched only at
-// the CLI boundary in cmd/ci-gates.
+// function is a pure, hermetic function of its inputs: selection never reads
+// the tree, so `ci-gates select --paths-from` is reproducible from its inputs
+// alone. Validate is the exception and only for trigger resolution — see
+// Validation below.
 //
 // # Required checks
 //
@@ -36,8 +38,23 @@
 //
 // (*Registry).Validate(repoRoot string) checks that every local command's script
 // file (and test_command, when present) and every CI workflow file exist on
-// disk. It accumulates all errors so a single pass surfaces every broken
-// reference.
+// disk, and that every gate trigger still names something real. It accumulates
+// all errors so a single pass surfaces every broken reference.
+//
+// The two trigger shapes carry different evidence. A literal trigger is
+// stat-checked, with guards against one that escapes the repository root
+// directly or through a symlink (#6055). A glob trigger must select at least
+// one FILE git tracks at repoRoot (#6159); zero matches is an error, because a
+// trigger that matches nothing can never select its gate, leaving the gate
+// reading as wired for a surface it no longer guards. Both shapes reject a
+// trigger naming a directory: Select is handed changed paths, and those are
+// always files, so a trigger stopping at a directory can never select either.
+// The spelling that works is "dir/**", which the error names. Resolving that is the one place this package runs git,
+// and it is why Validate — unlike Select — is a reader of the work tree rather
+// than a pure function; a tracked path set that cannot be read, or that comes
+// back empty, is an error too, never a skip. That git call runs with the
+// ambient repository pointers stripped, so an inherited GIT_DIR cannot make it
+// verify triggers against a different checkout and still report success.
 //
 // # Drift (#4220)
 //
