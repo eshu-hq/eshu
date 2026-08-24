@@ -4,10 +4,12 @@
 package materializededges
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -91,7 +93,11 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 		_, isNode := declaredNode[row.Port]
 
 		if isEdge && isNode {
-			t.Errorf("%s is declared both as a direct edge family and as node-only (%s); it cannot be both", row.Port, row.Impl)
+			family, err := directEdgeFamilyOrBug(row.Port)
+			if err != nil {
+				t.Error(err)
+			}
+			t.Errorf("%s is declared both as a direct edge family (%q) and as node-only (%s); it cannot be both", row.Port, family, row.Impl)
 		}
 		if row.WritesEdges {
 			merging++
@@ -117,7 +123,18 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 			t.Errorf("reducer graph-write port %s (%s) MERGEs a relationship — %q — but is not a declared direct materialized-edge family. The Ifá ledger cannot see the family it writes: declare it in directMaterializedEdgeFamilyByPort (%s) and give it a ledger row in specs/%s.",
 				row.Port, row.Impl, row.Evidence, directMaterializedEdgeFamilyTableFile, MaterializedEdgeDirectManifestFileName)
 		case isEdge && !row.WritesEdges:
-			t.Errorf("%s is declared a direct materialized-edge family but reaches no relationship MERGE in %s; either the writer stopped materializing its family, or the declaration is stale", row.Port, row.Impl)
+			// The family, not just the port. The ledger is keyed by family and
+			// this guard reports by port, so an operator handed only the port
+			// has to open the table to learn which specs/ row is now claiming a
+			// family nothing writes. directEdgeFamilyOrBug fails closed instead
+			// of printing a blank family that names no row.
+			family, err := directEdgeFamilyOrBug(row.Port)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+			t.Errorf("%s is declared to write direct materialized-edge family %q but reaches no relationship MERGE in %s; either the writer stopped materializing that family, or the declaration is stale -- reconcile %s with the ledger row for %q in specs/%s",
+				row.Port, family, row.Impl, directMaterializedEdgeFamilyTableFile, family, MaterializedEdgeDirectManifestFileName)
 		}
 	}
 
@@ -142,6 +159,29 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 	if _, ok := seen[sharedPort]; !ok {
 		t.Errorf("shared-projection port %s no longer resolves; SharedProjectionEdgeWritePort is stale", sharedPort)
 	}
+}
+
+// directEdgeFamilyOrBug resolves a port already known to be DECLARED as a
+// direct edge-write port to the family it writes, and reports a bug instead of
+// a blank family when the two accessors disagree.
+//
+// reducer.DirectMaterializedEdgeWritePorts() and
+// reducer.DirectMaterializedEdgeFamilyForPort() read the same table, so a port
+// in the first and absent from the second cannot happen while that table is
+// intact. That is precisely why the second return is checked rather than
+// dropped: the only way to reach it is a registration bug, and
+// DirectMaterializedEdgeFamilyForPort's contract says a caller MUST fail closed
+// on it. Dropping it would print a failure about family "" and send an operator
+// looking for a ledger row nobody ever wrote.
+func directEdgeFamilyOrBug(port string) (string, error) {
+	family, ok := reducer.DirectMaterializedEdgeFamilyForPort(port)
+	if !ok {
+		return "", fmt.Errorf("port %s is enumerated by DirectMaterializedEdgeWritePorts() but DirectMaterializedEdgeFamilyForPort reports no family for it; both read the same table in %s, so this is a registration bug there, not a family that happens to be absent", port, directMaterializedEdgeFamilyTableFile)
+	}
+	if strings.TrimSpace(family) == "" {
+		return "", fmt.Errorf("port %s is declared a direct edge-write port in %s with a blank family; a blank family key names no row in specs/%s", port, directMaterializedEdgeFamilyTableFile, MaterializedEdgeDirectManifestFileName)
+	}
+	return family, nil
 }
 
 // TestDirectMaterializationFamiliesAreEnumerated proves the Ifá
@@ -259,4 +299,53 @@ func setOf(values []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
+}
+
+// TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort holds
+// reducer.DirectMaterializedEdgeFamilyForPort to the contract its doc comment
+// states: the second return is false for an unclassified port, and a caller
+// MUST fail closed on it rather than treat the family as absent (#6181).
+//
+// The distinction is not academic. The drift guard above reports by PORT and
+// the ledger is keyed by FAMILY, so the guard resolves one to the other before
+// telling an operator which row to touch. A caller that dropped the second
+// return would print a failure naming family "" and send that operator hunting
+// a ledger row that was never written — a wrong pointer, which reads as precise
+// and is worse than no pointer at all.
+func TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort(t *testing.T) {
+	t.Parallel()
+
+	declared := reducer.DirectMaterializedEdgeWritePorts()
+	if len(declared) == 0 {
+		t.Fatal("reducer.DirectMaterializedEdgeWritePorts() returned zero ports; every check below would pass vacuously")
+	}
+	for _, port := range declared {
+		family, err := directEdgeFamilyOrBug(port)
+		if err != nil {
+			t.Errorf("directEdgeFamilyOrBug(%s): %v", port, err)
+			continue
+		}
+		if family == "" {
+			t.Errorf("directEdgeFamilyOrBug(%s) resolved a blank family with no error", port)
+		}
+	}
+
+	// The ports that are deliberately NOT direct edge families. Each must
+	// resolve false: a node-only port answering with a family would mean the
+	// two tables overlap, and the shared-projection port answering with one
+	// would mean its runtime `domain` families are being double-counted as a
+	// fixed direct family.
+	for _, port := range append(reducer.DirectMaterializedEdgeNodeOnlyWritePorts(), reducer.SharedProjectionEdgeWritePort()) {
+		if family, ok := reducer.DirectMaterializedEdgeFamilyForPort(port); ok {
+			t.Errorf("DirectMaterializedEdgeFamilyForPort(%s) = (%q, true); that port is classified node-only or shared-projection and must not resolve to a direct family", port, family)
+		}
+	}
+
+	const unclassified = "WriteReviewProbeNotARealPortEdges"
+	if family, ok := reducer.DirectMaterializedEdgeFamilyForPort(unclassified); ok || family != "" {
+		t.Errorf("DirectMaterializedEdgeFamilyForPort(%s) = (%q, %t), want (\"\", false)", unclassified, family, ok)
+	}
+	if _, err := directEdgeFamilyOrBug(unclassified); err == nil {
+		t.Errorf("directEdgeFamilyOrBug(%s) returned no error; an unrecognised port is a registration bug, never a valid steady state, and swallowing it is what turns a missing declaration into a silent blank family", unclassified)
+	}
 }
