@@ -121,10 +121,11 @@ _ifa_det_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
 		[[ "${stripped}" == "${needle}" ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -141,10 +142,11 @@ _ifa_det_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently

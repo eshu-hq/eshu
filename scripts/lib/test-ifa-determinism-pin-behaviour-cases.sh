@@ -19,6 +19,8 @@ run_ifa_determinism_pin_behaviour_cases() {
 	# heredoc mode and its BODY counted as live code -- a pin could then be
 	# satisfied by dead text (#6161).
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${det_needle}" >"${det_probe_dir}/heredoc_redirect_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${det_needle}" >"${det_probe_dir}/heredoc_bslash_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${det_needle}" >"${det_probe_dir}/heredoc_comment_tail_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${det_needle}" >"${det_probe_dir}/real_code.sh"
 	_ifa_det_pin_probe_run() {
 		local fn="$1" target="$2"
@@ -49,7 +51,7 @@ run_ifa_determinism_pin_behaviour_cases() {
 			_ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/real_code.sh" "${det_needle}" "${det_extra[@]}" \
 				|| fail "${det_fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken"
 		fi
-		for det_probe in comment_only heredoc_only heredoc_redirect_only; do
+		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only; do
 			if _ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/${det_probe}.sh" "${det_needle}" "${det_extra[@]}"; then
 				fail "${det_fn}() accepted a needle that appears only in a ${det_probe%%_*} -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
 			fi

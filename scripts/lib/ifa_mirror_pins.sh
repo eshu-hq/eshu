@@ -151,11 +151,11 @@ ifa_mirror_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
-			heredoc="${BASH_REMATCH[1]}"
-		fi
 		[[ "${stripped}" == "#"* ]] && continue
 		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+			heredoc="${BASH_REMATCH[1]}"
+		fi
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -221,6 +221,8 @@ ifa_mirror_assert_pins_bind_code() {
 	# to the end-anchored recogniser, so its body read as code and a helper that
 	# only "found" its needle there passed as binding (#6161).
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 	local -a extra=()
 	while IFS= read -r fn; do
@@ -237,7 +239,7 @@ ifa_mirror_assert_pins_bind_code() {
 			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
-		for probe in comment_only heredoc_only heredoc_redirect_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only; do
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi

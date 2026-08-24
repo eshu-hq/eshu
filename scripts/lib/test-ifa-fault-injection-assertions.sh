@@ -229,7 +229,7 @@ assert_pin_helpers_bind_code() {
 	needle='__ifa_pin_probe_needle__'
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
-	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"  # trailing-redirection heredoc; packed for the 500-line cap
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"  # trailing-redirection, backslash-quoted and comment-tailed heredocs; packed for the 500-line cap
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
 	while IFS= read -r fn; do
@@ -246,7 +246,7 @@ assert_pin_helpers_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken, so its comment result proves nothing"
 		fi
 		local probe
-		for probe in comment_only heredoc_only heredoc_redirect_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
 			rc=0
@@ -368,10 +368,10 @@ _ifa_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		if [[ "${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
 		[[ "${stripped}" == "${needle}" ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
@@ -387,10 +387,11 @@ _ifa_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
+		[[ "${stripped}" == "#"* ]] && continue
+		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
+		if [[ "${code}" =~ \<\<-?[[:space:]]*\\?[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
-		[[ "${stripped}" == "#"* ]] && continue
 		# Truncate at a `#` that STARTS A WORD (preceded by whitespace), which is
 		# what shell treats as a comment. A blanket `%%#*` also cut at `${#arr[@]}`
 		# and `${var#prefix}`, making any line using those unpinnable -- it silently
@@ -402,7 +403,6 @@ _ifa_count_code_matches() {
 		# which reproduced on HEAD the exact defect the previous round closed --
 		# the shell checker does not flag it, `bash -n` passes, and no gate runs it
 		# on these scripts, so nothing else would have caught it.
-		code="${line%%[[:space:]\;\|\&\(\)\<\>\`]#*}"
 		[[ "${code}" == *"${needle}"* ]] && n=$((n + 1))
 	done < "${file}"
 	printf '%s\n' "${n}"
