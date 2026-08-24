@@ -2128,7 +2128,7 @@ gates:
     ci_only_reason: ""
 
   - id: content-entity-bucket-sync
-    name: Content-entity bucket->label three-way sync (#5531)
+    name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
     category: exactness
     tier: pre-pr
     blocking: true
@@ -2137,14 +2137,23 @@ gates:
     # the projector map must select this gate — those are exactly the edits it
     # exists to catch, and triggering only on the shape package would leave the
     # two most likely edits unguarded.
+    #
+    # The -run list is hand-maintained, so a new gate test in that package is
+    # not run here until it is named. TestEveryProjectorLabelHasASource (#6206)
+    # walks projector -> bucket, the reverse of
+    # TestContentEntityLabelsHaveProjectorLabels, and catches a registry entry
+    # no bucket can ever feed. It ran only incidentally, under
+    # race-graph-writes' unfiltered ./internal/content/shape/... , until it was
+    # added below; one narrowing of that race gate's package list and the
+    # coverage would have vanished with nothing red.
     triggers:
       - "go/internal/content/shape/**"
       - "go/internal/collector/gitrepo/git_snapshot_entity_buckets.go"
       - "go/internal/projector/canonical.go"
       - "specs/ci-gates.v1.yaml"
     local:
-      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
-      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
+      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
+      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify content-entity bucket sync gate"
