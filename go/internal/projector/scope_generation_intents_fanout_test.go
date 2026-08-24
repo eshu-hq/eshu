@@ -192,7 +192,18 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// must be their anchor.
 		observabilityAWSResourceEnvelope("aws-resource-observability-1", scopeID, generationID, "aws_cloudwatch_alarm"),
 
-		sgRuleFactEnvelope(),
+		{
+			FactKind: facts.AWSSecurityGroupRuleFactKind,
+			FactID:   "fact-sg-rule-1",
+			Payload: map[string]any{
+				"account_id":  "111122223333",
+				"region":      "us-east-1",
+				"group_id":    "sg-0abc",
+				"direction":   "ingress",
+				"ip_protocol": "tcp",
+				"source_kind": "cidr_ipv4",
+			},
+		},
 
 		{FactID: "decoy-4", FactKind: "code_symbol_reference"},
 

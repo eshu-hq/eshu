@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package security
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // securityAlertReconciliationCandidateFactKinds are the fact kinds
@@ -17,23 +15,25 @@ var securityAlertReconciliationCandidateFactKinds = []string{
 	facts.SecurityAlertRepositoryAlertFactKind, facts.PackageRegistryPackageFactKind,
 }
 
-func buildSecurityAlertReconciliationReducerIntent(
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	index *reducerIntentFactIndex,
-) (ReducerIntent, bool) {
-	envelope, ok := index.firstAcrossKinds(securityAlertReconciliationTriggerFact, securityAlertReconciliationCandidateFactKinds...)
+// BuildSecurityAlertReconciliationReducerIntent builds the scope-generation
+// work item that reconciles provider alerts with package registry identities.
+func BuildSecurityAlertReconciliationReducerIntent(
+	scopeID string,
+	generationID string,
+	lookup projectorintent.FactLookup,
+) (projectorintent.ReducerIntent, bool) {
+	envelope, ok := lookup.FirstAcrossKinds(securityAlertReconciliationTriggerFact, securityAlertReconciliationCandidateFactKinds...)
 	if !ok {
-		return ReducerIntent{}, false
+		return projectorintent.ReducerIntent{}, false
 	}
-	return ReducerIntent{
-		ScopeID:      scopeValue.ScopeID,
-		GenerationID: generation.GenerationID,
+	return projectorintent.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
 		Domain:       reducer.DomainSecurityAlertReconciliation,
-		EntityKey:    "security_alert_reconciliation:" + scopeValue.ScopeID,
+		EntityKey:    "security_alert_reconciliation:" + scopeID,
 		Reason:       securityAlertReconciliationReason(envelope),
 		FactID:       envelope.FactID,
-		SourceSystem: securityAlertSourceSystem(envelope),
+		SourceSystem: projectorintent.SourceSystem(envelope),
 	}, true
 }
 
@@ -52,11 +52,4 @@ func securityAlertReconciliationReason(envelope facts.Envelope) string {
 		return "package registry identity observed"
 	}
 	return "provider security alert evidence observed"
-}
-
-func securityAlertSourceSystem(envelope facts.Envelope) string {
-	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
-		return value
-	}
-	return strings.TrimSpace(envelope.CollectorKind)
 }

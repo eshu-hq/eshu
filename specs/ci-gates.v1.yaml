@@ -2840,6 +2840,7 @@ gates:
       - "schema/data-plane/postgres/012_graph_projection_phase_state.sql"
       - "go/internal/projector/gcp/resource_materialization_intents.go"
       - "go/internal/projector/gcp/relationship_materialization_intents.go"
+      - "go/internal/projector/security/group_reachability_intents.go"
       - "go/internal/reducer/defaults_additive_domains.go"
       - "go/internal/reducer/defaults_additive_domains_cloud_nodes.go"
       - "go/internal/reducer/defaults_additive_domains_gcp.go"
