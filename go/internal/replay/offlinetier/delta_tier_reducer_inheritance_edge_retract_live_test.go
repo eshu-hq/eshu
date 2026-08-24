@@ -134,7 +134,17 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 	// Production retract path: repo-scoped rows route to per-child-label
 	// statements, run sequentially (#5116/#4367).
 	retractRows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "retract", RepositoryID: inheritEdgeInScopeRepoID},
+		{
+			IntentID:     "retract",
+			RepositoryID: inheritEdgeInScopeRepoID,
+			// The per-repo refresh payload buildInheritanceRefreshIntents
+			// emits (#6166). inheritance_edges binds
+			// collectWholeScopeRefreshRepoIDs on its non-delta branch, so a
+			// row without the refresh intent_type builds no statement at all
+			// and every "gone" assertion below fails against edges this test
+			// just wrote.
+			Payload: wholeScopeRefreshRetractPayload(inheritEdgeInScopeRepoID),
+		},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainInheritanceEdges, retractRows, inheritEdgeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)

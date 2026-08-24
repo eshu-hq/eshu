@@ -141,8 +141,14 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 
 	// Whole-repo retract (single-label Rationale anchor, probed working):
 	// clears the remaining edge, completing the retractable_edge:EXPLAINS claim.
+	// The payload is the per-repo refresh intent buildRationaleRefreshIntents
+	// emits, not a bare row (#6166): rationale_edges binds
+	// collectWholeScopeRefreshRepoIDs on its non-delta branch, so a row without
+	// the refresh intent_type contributes nothing, RetractEdges returns before
+	// issuing a DELETE, and the assertion below fails against the edge this
+	// test just wrote.
 	repoRows := []reducer.SharedProjectionIntentRow{
-		{IntentID: "retract-repo", RepositoryID: ratRepoID},
+		{IntentID: "retract-repo", RepositoryID: ratRepoID, Payload: wholeScopeRefreshRetractPayload(ratRepoID)},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainRationaleEdges, repoRows, ratEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges(repo): %v", err)

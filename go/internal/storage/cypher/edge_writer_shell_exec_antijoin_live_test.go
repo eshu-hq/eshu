@@ -164,8 +164,14 @@ SET rel.evidence_source = $other_evidence_source`,
 	writer := NewEdgeWriter(&boltTestExecutor{runner: runner}, 0)
 	writer.Reader = &boltOrphanSweepReader{runner: runner}
 
+	// The per-repo refresh payload buildShellExecRefreshIntents emits (#6166).
+	// shell_exec binds collectWholeScopeRefreshRepoIDs on its non-delta branch,
+	// so a bare {"repo_id": ...} payload -- an unmarked legacy per-edge row no
+	// emitter produces -- returns before any statement is built. The edge DELETE
+	// and the orphan sweep would both be skipped, and the orphan assertion below
+	// would fail against a graph this test never touched.
 	rows := []reducer.SharedProjectionIntentRow{
-		{RepositoryID: repoID, Payload: map[string]any{"repo_id": repoID}},
+		{RepositoryID: repoID, Payload: wholeScopeRefreshPayload(repoID)},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, rows, scopeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
