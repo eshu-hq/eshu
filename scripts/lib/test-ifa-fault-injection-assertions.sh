@@ -303,22 +303,16 @@ assert_libs_parse() {
 		|| fail "syntax check covered only ${syntax_checked} lib(s); the *_lib derivation has collapsed and nothing is being parsed"
 }
 assert_no_private_data() {
-	local private_pattern f v
+	local private_pattern f v rc
 	local -a targets
-	# Every alternative below brackets one character, so the pattern does not
-	# contain its own literals. A bracketed single-character class matches exactly
-	# the same text as the bare character, so detection is unchanged.
-	#
-	# This is required now that the scan covers every declared *_lib, including
-	# this file. Spelling any of these tokens plainly in this function -- even in
-	# prose explaining them -- makes the scanner flag itself on every run. That
-	# happened twice while writing this comment, which is why it now describes the
-	# tokens rather than quoting them.
-	#
-	# The hazard was latent before, not absent: the literal used to live in the
-	# mirror, whose ${script} points at the GATE, so the mirror never scanned
-	# itself and never noticed.
-	private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
+	# The pattern and its positive control live in ifa_private_data_pattern.sh,
+	# which asserts one planted token per alternative still matches before it
+	# hands the pattern over. It was a literal here and an identical literal in
+	# the determinism scan module, bound by nothing: replacing it with anything
+	# unmatchable left this gate at exit 0, still printing its file count
+	# (#6161). It ASSIGNS rather than prints, because a `fail` inside a command
+	# substitution exits only the subshell and the caller would scan on regardless.
+	ifa_private_data_pattern private_pattern
 
 	# Built as an ARRAY, not an unquoted word list: a repo path containing a
 	# space or a glob character would otherwise split or expand and mis-scan.
@@ -349,9 +343,15 @@ assert_no_private_data() {
 
 	for f in "${targets[@]}"; do
 		[[ -f "${f}" ]] || fail "assert_no_private_data: ${f} does not exist -- a scan that skips a missing file proves nothing"
-		if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
-			fail "$(basename "${f}") looks like it contains private data"
-		fi
+		# rc is CAPTURED, not tested through `if`: rg exits 2 on a pattern it
+		# cannot compile, `if` reads that as "no match", and `set -e` does not
+		# apply inside an `if` condition, so one uncompilable pattern made every
+		# file read as clean and this gate passed (#6161).
+		rc=0
+		rg --pcre2 --quiet -- "${private_pattern}" "${f}" || rc=$?
+		[[ "${rc}" -ne 0 ]] || fail "$(basename "${f}") looks like it contains private data"
+		[[ "${rc}" -eq 1 ]] \
+			|| fail "the private-data scan could not run over $(basename "${f}") (rg exit ${rc}); a scanner that cannot run must never read as clean"
 	done
 	printf 'private-data scan: %s file(s) scanned\n' "${#targets[@]}"
 }

@@ -35,7 +35,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"  # packed for the 500-line cap
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -64,7 +64,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"
 [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -86,7 +86,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -455,6 +455,8 @@ run_ifa_determinism_teeth_cases
 # against the 500-line cap and a scan plus its floor is one coherent unit.
 # Sourced HERE, not at the top, because the *_lib derivation inside it reads
 # `compgen -v`: it must see every case module's variables already bound.
+# shellcheck source=scripts/lib/ifa_private_data_pattern.sh
+source "${private_data_pattern_lib}"
 # shellcheck source=scripts/lib/test-ifa-determinism-private-data-cases.sh
 source "${private_data_cases_lib}"
 run_ifa_determinism_private_data_cases "${BASH_SOURCE[0]}"

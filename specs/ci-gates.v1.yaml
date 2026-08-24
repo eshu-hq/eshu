@@ -2261,6 +2261,10 @@ gates:
     blocking: true
     triggers:
       - "scripts/lib/test-ifa-determinism-private-data-cases.sh"
+      # The pattern this mirror scans with, and its positive control. Both
+      # mirrors source it; without a row here, neutering the pattern re-runs
+      # nothing (#6161).
+      - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/lib/ifa_live_gate_selector_cases.sh"
       - "go/internal/storage/postgres/migrations/**"
       - "go/internal/graphschemacompat/**"
@@ -2965,6 +2969,7 @@ gates:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/test-ifa-fault-injection-assertions.sh"
+      - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/lib/test-ifa-fault-injection-review-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-marker-cases.sh"
       - "scripts/lib/ifa_fault_injection_rationale_cells.sh"

@@ -31,6 +31,7 @@ on:
       - 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh'
       - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
       - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
+      - 'scripts/lib/ifa_private_data_pattern.sh'
       - 'scripts/lib/ifa_live_gate_selector_cases.sh'
       # The family registry and the libraries that consume it. The registry
       # decides which families each gate drives and which blocker every kill

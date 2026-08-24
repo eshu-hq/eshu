@@ -77,8 +77,9 @@ generic_modules_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-generic-m
 # non-vacuity precondition this change rests on.
 generic_shared_intent_lock_lib="${repo_root}/scripts/lib/ifa_fault_generic_shared_intent_lock.sh"
 generic_runner_wait_lib="${repo_root}/scripts/lib/ifa_fault_generic_runner_wait.sh"
+private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${private_data_pattern_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -103,6 +104,8 @@ rg --fixed-strings --quiet -- 'ifa_fault_injection_documentation_ack_setup.sh' "
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-ifa-fault-injection.sh must stay under 500 lines"
 
+# shellcheck source=scripts/lib/ifa_private_data_pattern.sh
+source "${private_data_pattern_lib}"
 # shellcheck source=scripts/lib/test-ifa-fault-injection-assertions.sh
 source "${assertions_lib}"
 # Parses every declared *_lib and floors the count; defined in the assertions

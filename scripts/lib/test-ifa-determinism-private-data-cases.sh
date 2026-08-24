@@ -13,7 +13,7 @@
 # It must run AFTER every case module has been sourced: the *_lib derivation is
 # `compgen -v`, so it covers exactly the libraries that are bound at call time.
 run_ifa_determinism_private_data_cases() {
-	local mirror="$1" private_lib_var private_target lib_cap_checked private_pattern
+	local mirror="$1" private_lib_var private_target lib_cap_checked private_pattern private_rc
 	# No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 	#
 	# DERIVED, not hand-typed. The previous form named five targets out of the
@@ -23,11 +23,15 @@ run_ifa_determinism_private_data_cases() {
 	# which is the same defect the sibling fault mirror carried until it was
 	# derived; this is that fix applied here.
 	#
-	# The pattern brackets one character per alternative so it does not match its
-	# own definition now that the scan covers this file too. A bracketed
-	# single-character class matches exactly the text the bare character does, so
-	# detection is unchanged -- verified alternative by alternative.
-	private_pattern='gh[p]_|github_pa[t]_|glpa[t]-|AKI[A]|ASI[A]|xo[x][baprs]-|arn:aw[s]:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/[U]sers/|/[h]ome/[a-z]'
+	# The pattern and its positive control live in ifa_private_data_pattern.sh,
+	# which asserts one planted token per alternative still matches before it
+	# hands the pattern over. It used to be a literal here and an identical
+	# literal in the fault mirror's scan, verified "alternative by alternative"
+	# by hand in a comment -- and nothing measured it, so replacing it with
+	# anything unmatchable left this gate at exit 0 still printing its file count
+	# (#6161). The helper assigns into private_pattern rather than printing,
+	# because a `fail` inside a command substitution exits only the subshell.
+	ifa_private_data_pattern private_pattern
 	local -a private_targets=("${script}" "${mirror}")
 	lib_cap_checked=0 # floors the *_lib loop itself -- see _ifa_det_assert_lib_cap_floor's own comment
 	while IFS= read -r private_lib_var; do
@@ -67,12 +71,28 @@ run_ifa_determinism_private_data_cases() {
 	# would count as a third match and make the pin unsatisfiable.
 	[[ "$(_ifa_det_count_code_matches '"${#private_targets[@]}" -ge 20' "${BASH_SOURCE[0]}")" -eq 2 ]] \
 		|| fail "the private-data scan floor was removed or altered (expected the floor line plus this pin's own line)"
+	# The positive control is a guard, so it gets what every other guard here
+	# gets: a pin, or it can be deleted in silence and the pattern goes back to
+	# being handed over unchecked. EXACTLY ONE of each in the shared module --
+	# the control loop's own assertion, and the hand-written sample count that
+	# catches a deleted sample leaving one alternative unguarded.
+	[[ "$(_ifa_det_count_code_matches '[[ "${rc}" -eq 0 ]] || {' "${private_data_pattern_lib}")" -eq 1 ]] \
+		|| fail "the private-data pattern's positive control no longer asserts that each planted sample matches -- the pattern would be handed over unchecked"
+	[[ "$(_ifa_det_count_code_matches '"${#samples[@]}" -eq 14' "${private_data_pattern_lib}")" -eq 1 ]] \
+		|| fail "the private-data pattern's sample set is no longer counted at 14 -- add the sample for the new alternative and bump both numbers together"
 	for private_target in "${private_targets[@]}"; do
 		[[ -f "${private_target}" ]] \
 			|| fail "private-data scan target ${private_target} does not exist -- a scan that skips a missing file proves nothing"
-		if rg --pcre2 --quiet -- "${private_pattern}" "${private_target}"; then
-			fail "$(basename "${private_target}") looks like it contains private data"
-		fi
+		# rc is CAPTURED, not tested through `if`. rg exits 2 on a pattern it
+		# cannot compile, `if` reads that as "no match", and `set -e` does not
+		# apply inside an `if` condition -- so one uncompilable pattern made every
+		# file read as clean and this gate passed (#6161).
+		private_rc=0
+		rg --pcre2 --quiet -- "${private_pattern}" "${private_target}" || private_rc=$?
+		[[ "${private_rc}" -ne 0 ]] \
+			|| fail "$(basename "${private_target}") looks like it contains private data"
+		[[ "${private_rc}" -eq 1 ]] \
+			|| fail "the private-data scan could not run over $(basename "${private_target}") (rg exit ${private_rc}); a scanner that cannot run must never read as clean"
 	done
 	printf 'private-data scan: %s file(s) scanned\n' "${#private_targets[@]}"
 }
