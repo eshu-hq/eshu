@@ -71,8 +71,11 @@ This package imports tree-sitter, the Go standard library, and
 `internal/parser/shared` for payload, source, tree, path, and option helpers.
 The local alias file only exposes helper names with package-local callers.
 Production code must not import the parent parser package, collector packages,
-graph storage, or reducer code. The external Fastify benchmark is test-only and
-imports the parent parser to measure the public `Engine.ParsePath` path.
+graph storage, or reducer code. `fastify_threading_bench_test.go` and the
+TypeScript implemented-interface regression are external-package tests; both
+import the parent parser to exercise the public `Engine.ParsePath` path. The
+separate `fastify_threading_characterization_test.go` stays in `package
+javascript` and exercises package-local helpers without importing the parent.
 
 ## AST extraction and retained within-string regexes
 
@@ -274,10 +277,13 @@ parser engine and runtime instrumentation.
 `Parse` accepts a `ParserFactory` instead of a parent Engine so the child
 package cannot depend on `internal/parser`.
 
-`fastify_threading_bench_test.go` uses the external `javascript_test` package.
-It may import `internal/parser` because Go compiles it only for tests; production
-files remain parent-independent. Keep that exception limited to black-box tests
-of the public parent engine.
+`fastify_threading_bench_test.go` and
+`engine_typescript_implements_test.go` use the external `javascript_test`
+package. They may import `internal/parser` because Go compiles them only for
+tests; production files remain parent-independent. Keep that exception limited
+to black-box tests of the public parent engine. The separate
+`fastify_threading_characterization_test.go` uses `package javascript` to
+compare package-local Fastify computations and does not import the parent.
 
 TypeScript config files use JSONC, so comments and trailing commas are accepted
 before unmarshalling.
