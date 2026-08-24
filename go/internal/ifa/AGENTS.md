@@ -115,13 +115,15 @@
   declare at least one trigger in BOTH the `ifa-determinism` and
   `ifa-fault-injection` blocks of `specs/ci-gates.v1.yaml`, and a non-blank
   entry in `materializedEdgeFamilyTriggerStems`
-  (`materializededges/materialized_edges_lockstep_test.go`) holding a substring that at least one
-  of those triggers contains.
-  `TestEveryCoveredFamilyTriggersBothLiveGates` enforces both. The stem
-  map is total over `reducer.MaterializedEdgeFamilies()` in both directions, so
-  a new family needs an entry the day it is enumerated, not the day it is
-  covered — declare the stem the family's triggers WILL use; nothing checks it
-  until the coverage row lands. Without a trigger, the gate never re-runs when
+  (`materializededges/materialized_edges_trigger_stems_test.go`) holding a
+  substring that at least one of those triggers contains.
+  `TestEveryCoveredFamilyTriggersBothLiveGates` enforces both, over the MERGED
+  ledger and BOTH family enumerations. A SHARED family needs its stem the day it
+  is enumerated, not the day it is covered — declare the stem the family's
+  triggers WILL use; nothing checks it until the coverage row lands. A DIRECT
+  family (#6181) owes its stem the day it claims a coverage row instead: #6228
+  writes the live wiring, and a stem declared before those triggers exist would
+  be a guess. Without a trigger, the gate never re-runs when
   that family's Odù, cassette, extractor, or writer changes, and the coverage
   row keeps asserting a proof that has gone stale. Note what this does NOT
   check: whether the declared triggers are the RIGHT ones for the family. No
@@ -235,7 +237,7 @@ what does not.
 | Cell names in the hand-authored literal list | `ifa_full_cell_list_literal` in `scripts/lib/test-ifa-fault-injection-shard-cases.sh` | Nothing but you. It is typed by hand ON PURPOSE — deriving it from the arrays it checks would make the check agree with itself |
 | Coverage row (what makes the family COUNT as covered) | `specs/ifa-materialized-edge-coverage.v1.yaml` | The coverage-row contract above. Add it only once both gates really drive and assert the family — a row added earlier claims a proof that is not being run |
 | Seam fixtures for the family's triggers | `scripts/lib/ifa_live_gate_selector_cases.sh` | The registry↔workflow lockstep, which runs the REAL matcher over a concrete path. Adding a trigger without a fixture here is silent: a string-only comparison agrees on a broken glob too. One representative path per pattern, in the list matching where the file EXECUTES (common / fault-only / determinism-only) |
-| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materializededges/materialized_edges_lockstep_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
+| Trigger stem | `materializedEdgeFamilyTriggerStems`, `go/internal/ifa/materializededges/materialized_edges_trigger_stems_test.go` | `TestEveryCoveredFamilyTriggersBothLiveGates` can only check a family whose stem is registered. This one fails loudly rather than silently, but it is on the path |
 
 A new family's `materialized_edges_<family>.go` guard belongs in the
 `materializededges` subpackage, NOT here. Its `<family>_family_odu.go` and

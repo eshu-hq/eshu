@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
-	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
+	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 )
 
 // TestCommittedRegistrySelectsIfaBlockingGate proves the P4 (#4397)
@@ -87,9 +87,20 @@ func TestCommittedRegistrySelectsIfaBlockingGate(t *testing.T) {
 
 // TestCoverageGateTriggersEveryFamilyCassette derives, rather than hard-codes,
 // the set of cassette directories ifa-materialized-edge-coverage must trigger
-// on: every Odù ref named by a materialized_edges:* row in
-// specs/ifa-materialized-edge-coverage.v1.yaml, resolved to the directory whose
-// cassette file is named for that ref.
+// on: every Odù ref named by a materialized_edges:* row in the coverage ledger,
+// resolved to the directory whose cassette file is named for that ref.
+//
+// BOTH halves of that ledger (#6181). It read only
+// specs/ifa-materialized-edge-coverage.v1.yaml, the shared-projection half,
+// while the reconciliation the gate performs accepts rows from the direct half
+// (specs/ifa-materialized-edge-coverage-direct.v1.yaml) on identical terms. So
+// when #6228 replaces a direct family's waiver with a real coverage row, that
+// row created no obligation here: its cassette could sit in a directory the
+// gate does not trigger on, and the compiled-Odù/cassette lockstep would be
+// silently skipped for it -- the same hole this test closed for the shared half,
+// reopened one ledger file over. Seeding a direct row whose cassette lives in
+// testdata/cassettes/replaydelta passed this test before the merged read and
+// fails after it.
 //
 // That gate is the one which RECONCILES the coverage manifest. A cassette edit
 // that changes facts while leaving the edge set identical is invisible to the
@@ -117,9 +128,14 @@ func TestCoverageGateTriggersEveryFamilyCassette(t *testing.T) {
 	// manifest's YAML form. A structural read handles every YAML spelling
 	// because the parser does, and a non-Odù ref is simply skipped instead of
 	// producing a false failure.
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(root, "specs", "ifa-materialized-edge-coverage.v1.yaml"))
+	// LoadMaterializedEdgeLedger, not a per-file LoadManifest: it is the one
+	// entry point the reconciliation itself comes through, and its doc comment
+	// says every caller reading the whole surface must use it rather than
+	// opening one half. Going through it also means a row duplicated across the
+	// halves is rejected here instead of being counted twice.
+	manifest, _, err := materializededges.LoadMaterializedEdgeLedger(filepath.Join(root, "specs"))
 	if err != nil {
-		t.Fatalf("replaycoverage.LoadManifest: %v", err)
+		t.Fatalf("materializededges.LoadMaterializedEdgeLedger: %v", err)
 	}
 	if len(manifest.Coverage) < 10 {
 		t.Fatalf("coverage manifest parsed %d row(s), want >= 10; the load has collapsed and every assertion below would pass vacuously", len(manifest.Coverage))
