@@ -60,6 +60,16 @@
 #     counted file has that shape today (all 61 detected openers are genuine
 #     `cat <<WORD`), and the direction is false-RED, but a counted file that
 #     gained one would blind every pin after it.
+#   - Why delimiter false positives are survivable at all: a spurious opener
+#     puts the counter into heredoc mode, and heredoc mode SKIPS lines, so a
+#     wrong delimiter can only make counts go DOWN. Every comparison these
+#     mirrors make on a counter is `-ge 1` or `-eq N`, and the one absence pin
+#     (`-eq 0`, deployable-unit kill-isolation) is paired with an `-eq 1` over
+#     the same file, so a lower count reds it too. No comparison here can be
+#     SATISFIED by a lower count, which is what makes this class structurally
+#     false-RED-only rather than merely false-RED in today's corpus. Widening
+#     the delimiter is safe in that direction; narrowing what counts as code
+#     is not, and is what the probe set below guards.
 
 # IF YOU ARE ADDING A NEW Ifá MIRROR, READ THIS.
 #
