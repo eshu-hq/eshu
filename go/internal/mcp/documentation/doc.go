@@ -6,4 +6,6 @@
 // Tools and FindingAggregateTools return fresh, ordered definitions for the six
 // documentation tools. The parent mcp package keeps global registration order,
 // route resolution, dispatch, authorization, and telemetry.
+// The declared name doctools intentionally distinguishes registration data
+// from the documentation domain while the import path remains documentation.
 package doctools
