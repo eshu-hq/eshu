@@ -229,7 +229,7 @@ assert_pin_helpers_bind_code() {
 	needle='__ifa_pin_probe_needle__'
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
-	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"  # trailing-redirection, backslash-quoted and comment-tailed heredocs; packed for the 500-line cap ; printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF >/dev/null\n%s\nIFAEOF\n:\n' '\' "${needle}" >"${probe_dir}/heredoc_bslash_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF  # parked\n%s\nIFAEOF\n:\n' '' "${needle}" >"${probe_dir}/heredoc_comment_tail_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF-1\n%s\nIFAEOF-1\n:\n' '' "${needle}" >"${probe_dir}/heredoc_hyphen_delim_only.sh"  # trailing-redirection, backslash-quoted, comment-tailed and hyphen-delimiter heredocs; packed for the 500-line cap
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
 	while IFS= read -r fn; do
@@ -249,7 +249,7 @@ assert_pin_helpers_bind_code() {
 		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
-			rc=0
+			rc=0; [[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			_ifa_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}" || rc=$?
 			[[ "${rc}" -ne 0 ]] \
 				|| fail "${fn}() accepted a needle that appears only in a ${probe//_/ } -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"

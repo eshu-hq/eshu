@@ -282,6 +282,7 @@ ifa_mirror_assert_pins_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
 		for probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
+			[[ -s "${probe_dir}/${probe}.sh" ]] && rg -qF -- "${needle}" "${probe_dir}/${probe}.sh" || fail "probe ${probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi

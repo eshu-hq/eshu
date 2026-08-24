@@ -53,6 +53,7 @@ run_ifa_determinism_pin_behaviour_cases() {
 				|| fail "${det_fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken"
 		fi
 		for det_probe in comment_only heredoc_only heredoc_redirect_only heredoc_bslash_only heredoc_comment_tail_only heredoc_hyphen_delim_only; do
+			[[ -s "${det_probe_dir}/${det_probe}.sh" ]] && rg -qF -- "${det_needle}" "${det_probe_dir}/${det_probe}.sh" || fail "probe ${det_probe}.sh was not written or lacks the needle; the negative below then fails for the wrong reason and this assertion passes unconditionally"
 			if _ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/${det_probe}.sh" "${det_needle}" "${det_extra[@]}"; then
 				fail "${det_fn}() accepted a needle that appears only in a ${det_probe%%_*} -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
 			fi
