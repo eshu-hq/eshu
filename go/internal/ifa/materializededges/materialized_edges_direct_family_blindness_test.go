@@ -81,7 +81,12 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 		t.Fatal("no reducer interface port resolved to a cypher implementation; the scan went vacuous and would pass no matter how many families are blind")
 	}
 
-	declaredEdge := setOf(reducer.DirectMaterializedEdgeWritePorts())
+	// isEdge is derived from DirectMaterializedEdgeFamilyForPort rather than from
+	// a set built out of DirectMaterializedEdgeWritePorts(). Both read the same
+	// table, so the set form made the lookup's fail-closed branch unreachable:
+	// every call site sat behind `isEdge`, which already meant "the lookup would
+	// succeed". A contract that cannot fire is not a contract, and this guard
+	// exists to keep exactly that shape out of the ledger.
 	declaredNode := setOf(reducer.DirectMaterializedEdgeNodeOnlyWritePorts())
 	sharedPort := reducer.SharedProjectionEdgeWritePort()
 
@@ -89,15 +94,15 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 	seen := map[string]struct{}{}
 	for _, row := range classified {
 		seen[row.Port] = struct{}{}
-		_, isEdge := declaredEdge[row.Port]
+		edgeFamily, isEdge := reducer.DirectMaterializedEdgeFamilyForPort(row.Port)
+		if isEdge && strings.TrimSpace(edgeFamily) == "" {
+			t.Errorf("%s is declared a direct materialized-edge port but maps to a blank family in %s; a blank family names no ledger row and would report as covered by nothing",
+				row.Port, directMaterializedEdgeFamilyTableFile)
+		}
 		_, isNode := declaredNode[row.Port]
 
 		if isEdge && isNode {
-			family, err := directEdgeFamilyOrBug(row.Port)
-			if err != nil {
-				t.Error(err)
-			}
-			t.Errorf("%s is declared both as a direct edge family (%q) and as node-only (%s); it cannot be both", row.Port, family, row.Impl)
+			t.Errorf("%s is declared both as a direct edge family (%q) and as node-only (%s); it cannot be both", row.Port, edgeFamily, row.Impl)
 		}
 		if row.WritesEdges {
 			merging++
@@ -128,11 +133,7 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 			// has to open the table to learn which specs/ row is now claiming a
 			// family nothing writes. directEdgeFamilyOrBug fails closed instead
 			// of printing a blank family that names no row.
-			family, err := directEdgeFamilyOrBug(row.Port)
-			if err != nil {
-				t.Error(err)
-				continue
-			}
+			family := edgeFamily
 			t.Errorf("%s is declared to write direct materialized-edge family %q but reaches no relationship MERGE in %s; either the writer stopped materializing that family, or the declaration is stale -- reconcile %s with the ledger row for %q in specs/%s",
 				row.Port, family, row.Impl, directMaterializedEdgeFamilyTableFile, family, MaterializedEdgeDirectManifestFileName)
 		}
