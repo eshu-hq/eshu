@@ -171,10 +171,17 @@ require_driver "fresh_stack fails closed when teardown fails" 'die "${cell}: doc
 require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
 require_sql_cells "probe 2: SQL edges asserted after the drain" "assert-edges is set-exact"
 require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
-# Two occurrences; the second is the diagnostic that prints the matching log
-# lines. Seeded both: mangling the branch condition reds, mangling the
-# diagnostic does not (#6161 audit).
-require_sql_cells "the write-failure branch uses the single-source prefix variable" "IFA_ONCE_MARKER_WRITE_FAILED_PREFIX"
+# IFA_ONCE_MARKER_WRITE_FAILED_PREFIX has TWO code occurrences in the SQL cells
+# lib and both do work: the branch condition that tells a failed marker WRITE
+# apart from a fault that never fired, and the diagnostic that prints the
+# matching reducer-log lines. A -ge 1 pin on the bare variable name is satisfied
+# by either, so mangling the branch condition left this gate green while the cell
+# stopped distinguishing the two failure modes -- the exact confusion #5974 was
+# reopened over. Re-measured on this branch: the note that used to sit here
+# claimed mangling the condition reds, and it does not. One pin per occurrence,
+# each carrying enough of its own line to name it (#6161).
+require_sql_cells "the write-failure branch condition uses the single-source prefix variable" '== *"${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}"*'
+require_sql_cells "the write-failure diagnostic prints the matching log lines" 'sed -n "/${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}/p"'
 require_sql_cells "the two marker failure modes are told apart by exit code" 'marker_rc}" -eq 2'
 # The old message asserted a single cause. It must not come back.
 if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fired marker" "${sql_cells_lib}"; then

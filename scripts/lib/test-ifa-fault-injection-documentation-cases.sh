@@ -68,10 +68,16 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
-	# Two occurrences; the second is an argument to the retry assertion. Seeded
-	# both: mangling the claimed-row wait reds, mangling the other does not
-	# (#6161 audit).
-	require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
+	# Two code occurrences, both load-bearing: the claimed-row wait at the top of
+	# the kill cell, and an argument to the retry assertion at the bottom. One
+	# -ge 1 pin on the bare operation name is satisfied by either survivor, so the
+	# pin labelled "claimed row" stayed green with the WAIT mangled -- the cell
+	# then kills the worker without waiting for the row to be claimed and becomes
+	# a race that passes when it wins. The note here previously claimed that seed
+	# reds; re-measured on this branch, it does not. One pin per occurrence, each
+	# carrying enough of its own line to name it (#6161).
+	require_documentation_cells "claimed row wait targets documentation materialization" '"${CLAIMED_ROW_WAIT_TIMEOUT}" "documentation_materialization"'
+	require_documentation_cells "retry assertion targets documentation materialization" '"${baseline_documentation_retried}" 15 "documentation_materialization"'
 	require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
 	require_documentation_cells "graph-write cell targets durable documentation marker" "ifa_fault_assert_once_fault_marker"
