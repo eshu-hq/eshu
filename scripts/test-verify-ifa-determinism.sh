@@ -121,7 +121,7 @@ _ifa_det_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
@@ -141,7 +141,7 @@ _ifa_det_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "#"* ]] && continue

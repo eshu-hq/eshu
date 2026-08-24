@@ -229,7 +229,7 @@ assert_pin_helpers_bind_code() {
 	needle='__ifa_pin_probe_needle__'
 	probe_dir="$(mktemp -d -t ifa-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
-	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"; printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"  # trailing-redirection heredoc; packed for the 500-line cap
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 
 	while IFS= read -r fn; do
@@ -246,7 +246,7 @@ assert_pin_helpers_bind_code() {
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken, so its comment result proves nothing"
 		fi
 		local probe
-		for probe in comment_only heredoc_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only; do
 			# Every *_lib-shaped variable is repointed at the probe file, so whichever
 			# target this helper happens to read, it reads the probe.
 			rc=0
@@ -259,7 +259,7 @@ assert_pin_helpers_bind_code() {
 	rm -rf "${probe_dir}"
 	[[ "${checked}" -ge 20 ]] \
 		|| fail "pin-helper behaviour check exercised only ${checked} helper(s); discovery has collapsed and this gate is checking nothing"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment and heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${checked}"
 }
 assert_libs_parse() {
 	local lib_var lib_path syntax_checked
@@ -368,7 +368,7 @@ _ifa_count_code_lines_exact() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
@@ -387,7 +387,7 @@ _ifa_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "#"* ]] && continue

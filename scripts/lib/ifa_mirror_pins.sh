@@ -131,6 +131,18 @@
 # ifa_mirror_count_code_matches counts lines of ${2} whose CODE portion contains
 # ${1}. Lines that are wholly comments, and lines inside a heredoc body, are not
 # code and are skipped.
+#
+# Heredoc recognition deliberately allows anything after the delimiter word, as
+# long as it starts with a redirection, a pipe or a command separator. It used to
+# be anchored at end-of-line, so `cat <<EOF >/dev/null` -- valid Bash, and the
+# obvious way to park a block of text -- never entered heredoc mode at all, and
+# every line of that heredoc's BODY was counted as live code. A probe carrying
+# `set -euo pipefail` only inside such a body counted 1, which means the real
+# statement could be deleted and any pin on it would stay green: the exact
+# false-green this file exists to close (#6161). The trailing part must still
+# begin with one of `< > | ; & )` (after optional file-descriptor digits, for
+# `2>&1`), so a needle string that merely CONTAINS `<< Word` mid-line does not
+# put the counter into heredoc mode and swallow the rest of the file.
 ifa_mirror_count_code_matches() {
 	local needle="$1" file="$2" n=0 line stripped code heredoc=""
 	while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -139,7 +151,7 @@ ifa_mirror_count_code_matches() {
 			[[ "${stripped}" == "${heredoc}" ]] && heredoc=""
 			continue
 		fi
-		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*$ ]]; then
+		if [[ "${line}" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?[[:space:]]*([0-9]*[\<\>\|\;\&\)].*)?$ ]]; then
 			heredoc="${BASH_REMATCH[1]}"
 		fi
 		[[ "${stripped}" == "#"* ]] && continue
@@ -205,6 +217,10 @@ ifa_mirror_assert_pins_bind_code() {
 	probe_dir="$(mktemp -d -t ifa-mirror-pin-probe.XXXXXX)"
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${needle}" >"${probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_only.sh"
+	# Same heredoc, opened with a TRAILING redirection. This form was invisible
+	# to the end-anchored recogniser, so its body read as code and a helper that
+	# only "found" its needle there passed as binding (#6161).
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${needle}" >"${probe_dir}/heredoc_redirect_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${needle}" >"${probe_dir}/real_code.sh"
 	local -a extra=()
 	while IFS= read -r fn; do
@@ -221,7 +237,7 @@ ifa_mirror_assert_pins_bind_code() {
 			_ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/real_code.sh" "${needle}" "${extra[@]}" \
 				|| fail "${fn}() rejected a needle that IS live code under both call shapes -- the probe cannot tell binding from broken"
 		fi
-		for probe in comment_only heredoc_only; do
+		for probe in comment_only heredoc_only heredoc_redirect_only; do
 			if _ifa_mirror_pin_probe_run "${fn}" "${probe_dir}/${probe}.sh" "${needle}" "${extra[@]}"; then
 				fail "${fn}() accepted a needle that appears only in a ${probe%%_*} -- it is not binding code, so a commented-out or deleted call site would satisfy every pin that uses it"
 			fi
@@ -238,7 +254,7 @@ ifa_mirror_assert_pins_bind_code() {
 	# collapse, and total collapse is the one case that is obvious anyway.
 	[[ "${checked}" -ge 2 ]] \
 		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment and heredoc probes\n' "${checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${checked}"
 }
 
 # _ifa_mirror_pin_probe_run executes one pin helper against one synthetic target.

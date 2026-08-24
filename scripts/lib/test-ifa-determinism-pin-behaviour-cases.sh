@@ -14,6 +14,11 @@ run_ifa_determinism_pin_behaviour_cases() {
 	det_needle='__ifa_det_pin_probe__'
 	printf '#!/usr/bin/env bash\n# %s\n:\n' "${det_needle}" >"${det_probe_dir}/comment_only.sh"
 	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s\n%s\nIFAEOF\n:\n' "'" "'" "${det_needle}" >"${det_probe_dir}/heredoc_only.sh"
+	# Same heredoc, opened with a TRAILING redirection. Heredoc recognition used
+	# to be anchored at end-of-line, so `cat <<EOF >/dev/null` never entered
+	# heredoc mode and its BODY counted as live code -- a pin could then be
+	# satisfied by dead text (#6161).
+	printf '#!/usr/bin/env bash\n: <<%sIFAEOF%s >/dev/null\n%s\nIFAEOF\n:\n' "'" "'" "${det_needle}" >"${det_probe_dir}/heredoc_redirect_only.sh"
 	printf '#!/usr/bin/env bash\n%s\n' "${det_needle}" >"${det_probe_dir}/real_code.sh"
 	_ifa_det_pin_probe_run() {
 		local fn="$1" target="$2"
@@ -44,7 +49,7 @@ run_ifa_determinism_pin_behaviour_cases() {
 			_ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/real_code.sh" "${det_needle}" "${det_extra[@]}" \
 				|| fail "${det_fn}() rejected a needle that IS live code under both call shapes -- the probe cannot distinguish binding from broken"
 		fi
-		for det_probe in comment_only heredoc_only; do
+		for det_probe in comment_only heredoc_only heredoc_redirect_only; do
 			if _ifa_det_pin_probe_run "${det_fn}" "${det_probe_dir}/${det_probe}.sh" "${det_needle}" "${det_extra[@]}"; then
 				fail "${det_fn}() accepted a needle that appears only in a ${det_probe%%_*} -- it is not binding code, so a commented-out or dead call site would satisfy every pin that uses it"
 			fi
@@ -53,6 +58,6 @@ run_ifa_determinism_pin_behaviour_cases() {
 	rm -rf "${det_probe_dir}"
 	[[ "${det_pin_checked}" -ge 5 ]] \
 		|| fail "determinism pin-helper behaviour check exercised only ${det_pin_checked} helper(s); discovery has collapsed"
-	printf 'pin-helper behaviour check: %s helper(s) executed against comment and heredoc probes\n' "${det_pin_checked}"
+	printf 'pin-helper behaviour check: %s helper(s) executed against comment, heredoc and trailing-redirection heredoc probes\n' "${det_pin_checked}"
 
 }
