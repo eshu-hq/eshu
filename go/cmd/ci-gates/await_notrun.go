@@ -15,12 +15,13 @@ import (
 //
 // The aggregate's `default:` arm treats "anything that is not pass, pending, or
 // a known cancellation" as a failed gate, and publishes "A required gate
-// failed". Three GitHub shapes reach that arm without any gate having failed.
+// failed". Three GitHub shapes reach that arm without any gate having failed,
+// and a fourth reaches the same dead end by producing no rollup row at all.
 // They are collected here rather than in await.go so the classification and
 // the one API call it needs stay next to each other, and so await.go stays
 // clear of the 500-line cap.
 //
-// All three resolve to the same operator repair -- re-run the workflow -- so
+// All four resolve to the same operator repair -- re-run the workflow -- so
 // they share exit code 13 and the publisher arm that already exists for it,
 // rather than each earning a code, a workflow arm, and a mirrored constant.
 
@@ -68,13 +69,48 @@ func isSkippedCheck(check checkRollup) bool {
 	return strings.EqualFold(check.State, "SKIPPED")
 }
 
+// runConclusions maps a workflow NAME -- the same identity `gh pr checks`
+// reports in its `workflow` field, so the two join directly -- to the
+// lower-cased conclusion of the run that owns this head's checks for it.
+//
+// Three states, not two, and the third is why this is not a map of bool
+// (#6189, third round). A re-run of a cancelled workflow is the repair the
+// cancelled-gate description tells an operator to perform, and between the
+// replacement run starting and its check runs replacing the old ones in the
+// rollup, the aggregate sees a SKIPPED check whose owning run has not
+// concluded. Collapsing that into "not cancelled" republishes "A required gate
+// failed" on a head where nothing failed -- the overclaim this change exists to
+// remove, reintroduced on its own repair path.
+//
+//   - absent: no run for that workflow was seen on this head. Unknown, so a
+//     SKIPPED gate keeps failing closed. A failed lookup lands here too, by
+//     returning a nil map.
+//   - present and empty: the run exists and has NOT concluded. Its verdict is
+//     not knowable yet, so the gate stays pending.
+//   - present and non-empty: the run's terminal conclusion.
+type runConclusions map[string]string
+
+// cancelled reports whether the run owning this workflow's checks on the head
+// concluded `cancelled`.
+func (r runConclusions) cancelled(workflow string) bool {
+	return r[workflow] == "cancelled"
+}
+
+// inFlight reports whether a run for this workflow exists on the head but has
+// not concluded. Distinct from absent: absent is unknown and fails closed,
+// in-flight is a verdict that has not arrived yet and is worth waiting for.
+func (r runConclusions) inFlight(workflow string) bool {
+	conclusion, ok := r[workflow]
+	return ok && conclusion == ""
+}
+
 // isNotAGateResult reports whether a check describes something other than a
 // verdict the gate reached, and so must not publish `failure`.
 //
-// cancelledRuns maps a workflow NAME to whether that workflow's run for this
-// head was cancelled. A nil or absent entry means "not known to be cancelled",
-// which keeps a skipped gate failing closed -- the safe default, and the one a
-// failed lookup falls back to.
+// runs carries the conclusion of the run owning each workflow's checks. A nil
+// or absent entry means "not known to be cancelled", which keeps a skipped gate
+// failing closed -- the safe default, and the one a failed lookup falls back
+// to.
 //
 // The asymmetry between the three is the point. CANCELLED and STALE are
 // self-describing: the check itself says it never produced a verdict. SKIPPED
@@ -83,33 +119,109 @@ func isSkippedCheck(check checkRollup) bool {
 // second is a genuine discrepancy between the registry's selection and the
 // workflow's own conditions, which MUST keep failing closed. The only thing
 // that separates them is the conclusion of the workflow run that owns the job.
-func isNotAGateResult(check checkRollup, cancelledRuns map[string]bool) bool {
+func isNotAGateResult(check checkRollup, runs runConclusions) bool {
 	switch {
 	case isCancelledCheck(check):
 		return true
 	case isStaleCheck(check):
 		return true
 	case isSkippedCheck(check):
-		return cancelledRuns[check.Workflow]
+		return runs.cancelled(check.Workflow)
 	default:
 		return false
 	}
 }
 
-// anySelectedCheckSkipped reports whether any selected gate resolved to a
-// SKIPPED check, which is the only reason to spend an API call on run
-// conclusions. The await loop polls every 30 seconds for up to 55 minutes, so
-// an unconditional extra call per poll would be real traffic for a lookup that
-// almost never changes an outcome.
-func anySelectedCheckSkipped(required []resolvedRequiredGate, checks []checkRollup) bool {
+// isAwaitingRunConclusion reports whether a SKIPPED check cannot be classified
+// yet because the workflow run that owns it is still executing.
+//
+// This is the re-run window. GitHub returns runs newest-first, so once a
+// cancelled workflow is re-run the newest run for that name is the replacement,
+// and it carries `conclusion: null` until it finishes -- while the check rollup
+// still reports the cancelled run's SKIPPED job, because the replacement's
+// check runs have not landed in it. required-gates.yml triggers the aggregate
+// on `in_progress`, so the aggregate really does read that pair.
+//
+// Neither terminal answer is honest there. "Cancelled" would publish `error`
+// against a run that may yet pass, and "not cancelled" would publish "A
+// required gate failed" against a run that has not failed. Waiting is, and the
+// wait terminates: the replacement run's own completion re-triggers this
+// workflow with a rollup that can be decided.
+func isAwaitingRunConclusion(check checkRollup, runs runConclusions) bool {
+	return isSkippedCheck(check) && runs.inFlight(check.Workflow)
+}
+
+// missingCheckIsCancellationArtifact reports whether a gate with NO check at
+// all is missing because the workflow run that owned the job was cancelled
+// before GitHub created it.
+//
+// This is the fourth door the same cancellation reaches the aggregate through,
+// and the only one that arrives as no rollup row (#6189). Cancel a run early
+// enough and the job's check run is never created, so `gh pr checks` has
+// nothing to report for it and the gate resolves to zero matches. Waiting for
+// that check cannot terminate: nothing will ever create it, so the aggregate
+// timed out, exited 11, published nothing, and left required-gates-complete on
+// the pending status the first step wrote -- blocked, with no red to act on.
+//
+// A check missing for ANY OTHER reason keeps failing closed, which is the same
+// asymmetry isNotAGateResult draws for SKIPPED. A run that finished without
+// producing the job is a real disagreement between the registry's selection
+// and the workflow's own definition; a workflow with no run on this head at
+// all is unknown; a failed lookup returns a nil map and lands here too. All
+// three stay pending, because "this gate has not reported" is the honest
+// answer and "probably fine" would be a silent hole in the status that guards
+// every merge.
+func missingCheckIsCancellationArtifact(gate resolvedRequiredGate, runs runConclusions) bool {
+	return runs.cancelled(gate.WorkflowName)
+}
+
+// needsRunConclusions reports whether this poll must spend an API call reading
+// workflow run conclusions. The await loop polls every 30 seconds for up to 55
+// minutes, so an unconditional call per poll would be real traffic for a
+// lookup that almost never changes an outcome.
+//
+// Two questions need it, and they are gated differently.
+//
+// A SKIPPED selected check needs it unconditionally: SKIPPED is ambiguous the
+// moment it appears, and the answer decides between `error` and a published
+// gate failure.
+//
+// A MISSING selected gate needs it only once nothing else is still running.
+// Early in a head's life most selected gates have no rollup row yet -- their
+// workflows have not started -- so asking on every such poll would put the
+// call on nearly every poll of nearly every aggregate, which is exactly what
+// this function exists to avoid. Deferring costs nothing: while any selected
+// check is genuinely still running the aggregate keeps waiting whatever the
+// missing gate turns out to be, so the answer cannot change the outcome. Once
+// those finish, the next poll asks and resolves it, so the deferral cannot
+// strand the head either.
+//
+// STALE is excluded from "still running" deliberately. gh sends STALE through
+// its bucket switch's default arm, so it arrives bucketed "pending" while
+// being entirely terminal -- the same trap isStaleCheck documents. Counting it
+// as running would defer the missing-gate lookup forever on a head that has
+// one, which is the strand this change removes, reintroduced through the door
+// next to it.
+func needsRunConclusions(required []resolvedRequiredGate, checks []checkRollup) bool {
+	missing, skipped, running := false, false, false
 	for _, gate := range required {
-		for _, check := range matchingChecks(gate, checks) {
-			if isSkippedCheck(check) {
-				return true
+		matches := matchingChecks(gate, checks)
+		if len(matches) == 0 {
+			missing = true
+			continue
+		}
+		for _, check := range matches {
+			switch {
+			case isSkippedCheck(check):
+				skipped = true
+			case isStaleCheck(check):
+				// Terminal despite its bucket; see above.
+			case strings.EqualFold(check.Bucket, "pending"):
+				running = true
 			}
 		}
 	}
-	return false
+	return skipped || (missing && !running)
 }
 
 // workflowRunConclusion is the slice of a workflow run this command reads.
@@ -119,9 +231,8 @@ type workflowRunConclusion struct {
 	Conclusion string `json:"conclusion"`
 }
 
-// cancelledWorkflowRuns maps each pull-request workflow run on this head to
-// whether it was cancelled, keyed by workflow NAME -- the same identity
-// `gh pr checks` reports in its `workflow` field, so the two join directly.
+// workflowRunConclusions reads the conclusion of each pull-request workflow run
+// on this head, keyed by workflow NAME.
 //
 // Needs the `actions: read` permission, which the aggregate job already
 // declares in .github/workflows/required-gates.yml; no new token scope and no
@@ -131,13 +242,18 @@ type workflowRunConclusion struct {
 // recently started check for a name, so taking the first run seen per workflow
 // name matches the row the rollup reported. A re-run therefore replaces the
 // cancelled run's conclusion, which is what should happen: once the workflow
-// has been re-run, its skipped jobs are no longer cancellation artifacts.
+// has been re-run, its skipped jobs are no longer cancellation artifacts. While
+// that replacement is still executing its conclusion is empty rather than
+// absent, which runConclusions.inFlight reads as "wait" rather than as either
+// terminal answer.
 //
-// Both directions of a mismatch fail closed. Reading a cancelled run as
-// not-cancelled leaves a skipped gate publishing `failure`, which is today's
-// behaviour; reading a live run as cancelled downgrades it to `error`, which
-// still blocks the merge. Neither can turn a skipped gate green.
-func cancelledWorkflowRuns(ctx context.Context, runner ghRunner, repo, headSHA string) (map[string]bool, error) {
+// No direction of a mismatch can open the gate. Reading a cancelled run as
+// not-cancelled leaves a skipped gate publishing `failure`, which is the
+// behaviour that predates #6189; reading a live run as cancelled downgrades it
+// to `error`, which still blocks the merge; reading a concluded run as
+// in-flight leaves the gate pending, which publishes nothing at all. None of
+// the three can turn a skipped gate green.
+func workflowRunConclusions(ctx context.Context, runner ghRunner, repo, headSHA string) (runConclusions, error) {
 	endpoint := "repos/" + repo + "/actions/runs?per_page=100&head_sha=" + url.QueryEscape(headSHA)
 	output, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
 	if err != nil {
@@ -149,16 +265,22 @@ func cancelledWorkflowRuns(ctx context.Context, runner ghRunner, repo, headSHA s
 	if err := json.Unmarshal(output, &pages); err != nil {
 		return nil, fmt.Errorf("decode workflow runs for %s: %w", headSHA, err)
 	}
-	cancelled := make(map[string]bool)
-	seen := make(map[string]bool)
+	conclusions := make(runConclusions)
 	for _, page := range pages {
 		for _, run := range page.WorkflowRuns {
-			if run.Event != "pull_request" || seen[run.Name] {
+			if run.Event != "pull_request" {
 				continue
 			}
-			seen[run.Name] = true
-			cancelled[run.Name] = strings.EqualFold(run.Conclusion, "cancelled")
+			// Newest-first, so the first run seen for a name wins; a later
+			// page repeating the name is an older attempt.
+			if _, seen := conclusions[run.Name]; seen {
+				continue
+			}
+			// GitHub sends `conclusion: null` for a run that has not
+			// finished, which decodes to the empty string -- the in-flight
+			// state runConclusions.inFlight reads.
+			conclusions[run.Name] = strings.ToLower(run.Conclusion)
 		}
 	}
-	return cancelled, nil
+	return conclusions, nil
 }

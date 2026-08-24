@@ -155,10 +155,12 @@ jobs:
           # authoritative, and makes any lander abandon a green PR.
           #
           # `failure` is reserved for a gate that genuinely concluded failure.
-          # A gate that never produced a verdict is not one (#6189). Three
-          # shapes qualify: a CANCELLED check, a STALE one GitHub orphaned, and
+          # A gate that never produced a verdict is not one (#6189). Four
+          # shapes qualify: a CANCELLED check, a STALE one GitHub orphaned,
           # one GitHub marked SKIPPED because the run that owned it was
-          # cancelled. All three are background noise, all three want the same
+          # cancelled, and one MISSING outright because that run was cancelled
+          # before the job was created, so no check run exists to report at
+          # all. All four are background noise, all four want the same
           # repair, and calling any of them "A required gate failed" is the
           # same overclaim in a different costume. They publish `error`, which
           # still blocks the merge -- the ruleset requires `success`, and a

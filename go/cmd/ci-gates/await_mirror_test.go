@@ -90,3 +90,27 @@ func TestGateCancelledCodeMatchesAwaitContract(t *testing.T) {
 		t.Fatalf("internal/cigates mirrors gate-cancelled as %d; awaitExitGateCancelled is %d", got, awaitExitGateCancelled)
 	}
 }
+
+// TestPublisherMirrorsEveryAwaitExitCode extends the pair above to the whole
+// set. The published-status contract in internal/cigates now runs the
+// publisher once per exit code, so every mirrored constant decides which arm
+// gets exercised -- a drifted one would quietly test an arm nobody meant and
+// leave the real one unchecked.
+func TestPublisherMirrorsEveryAwaitExitCode(t *testing.T) {
+	t.Parallel()
+
+	for name, want := range map[string]int{
+		"awaitExitPassedCode":        awaitOutcomePassed.exitCode(),
+		"awaitExitGateFailedCode":    awaitExitGateFailed,
+		"awaitExitStillRunningCode":  awaitExitStillRunning,
+		"awaitExitBrokenCode":        awaitExitBroken,
+		"awaitExitGateCancelledCode": awaitExitGateCancelled,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := mirroredAwaitExitCode(t, name); got != want {
+				t.Fatalf("internal/cigates mirrors %s as %d; the await contract says %d", name, got, want)
+			}
+		})
+	}
+}

@@ -351,7 +351,7 @@ fi
 run_merge_group_checks "${t}"
 
 # --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
-# #5814) are the names branch protection points at, so each must hold the same
+# #5814) are the names the repository ruleset points at, so each must hold the same
 # three-part contract: always reports, accepts a genuine docs-only skip as pass,
 # and REFUSES to accept that skip when the `changes` gate itself failed.
 #

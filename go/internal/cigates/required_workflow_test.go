@@ -42,13 +42,13 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           case "${AGGREGATE_CODE}" in
-            0) state=success ;;
-            10) state=failure ;;
+            0) state=success; description='All gates passed' ;;
+            10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
-            13) state=error ;;
-            *) state=error ;;
+            13) state=error; description='A required gate was cancelled' ;;
+            *) state=error; description='Aggregation broke' ;;
           esac
-          gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete
+          gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete -f description="${description}"
 `
 
 func writeRequiredWorkflowFixture(t *testing.T, body string) string {
@@ -383,36 +383,39 @@ func TestCheckRequiredStatusWorkflows_RequiresUnconditionalPendingStatus(t *test
 func TestCheckRequiredStatusWorkflows_BindsEachStatusPublisherContext(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]string{
-		"pending publisher": strings.Replace(
-			trustedRequiredWorkflow,
-			"state=pending -f context=required-gates-complete",
-			"state=pending -f context=unrelated-context",
-			1,
-		),
-		"terminal publisher": strings.Replace(
-			trustedRequiredWorkflow,
-			`state="${state}" -f context=required-gates-complete`,
-			`state="${state}" -f context=unrelated-context`,
-			1,
-		),
+	// The two publishers are checked by different mechanisms, so they report
+	// differently. The pending status is a fixed literal in the YAML, which a
+	// text check reads correctly; the terminal one's context is whatever the
+	// shell ends up passing, so it is observed by running the step
+	// (requiredworkflow_publishcontract.go).
+	tests := map[string]struct{ body, want string }{
+		"pending publisher": {
+			body: strings.Replace(
+				trustedRequiredWorkflow,
+				"state=pending -f context=required-gates-complete",
+				"state=pending -f context=unrelated-context",
+				1,
+			),
+			want: "pending status publisher must target the required context",
+		},
+		"terminal publisher": {
+			body: strings.Replace(
+				trustedRequiredWorkflow,
+				`state="${state}" -f context=required-gates-complete`,
+				`state="${state}" -f context=unrelated-context`,
+				1,
+			),
+			want: `posts context="unrelated-context"`,
+		},
 	}
-	for name, body := range tests {
+	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, tc.body), requiredWorkflowRegistry())
 			if len(errs) == 0 {
 				t.Fatal("each status publisher must target the required context")
 			}
-			found := false
-			for _, err := range errs {
-				if strings.Contains(err.Error(), "status") && strings.Contains(err.Error(), "required context") {
-					found = true
-				}
-			}
-			if !found {
-				t.Fatalf("expected required-context error, got: %v", errs)
-			}
+			requireErrorContaining(t, errs, tc.want)
 		})
 	}
 }

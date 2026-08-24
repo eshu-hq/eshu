@@ -90,12 +90,25 @@
 // publisher's workflow_run source, event boundary, serialized per-head
 // concurrency, first-step pending invalidation, permissions, default-branch
 // checkout, secret independence, status-publishing command, and
-// cancellation-safe terminal condition. It also validates the cancelled-gate
-// arm of that publisher's AGGREGATE_CODE branch (#6189): the arm must exist,
-// must not map a cancelled dependency gate to state=failure, and must publish
-// state=error, so a workflow-only revert cannot quietly restore "A required
-// gate failed" for a head where nothing failed. Like the rest of the package
-// it needs no network, Docker, or credentials.
+// cancellation-safe terminal condition. It also validates the actual
+// verdict that publisher puts on the head SHA for each await exit code
+// (#6075, #6189).
+//
+// That last part is not read out of the workflow's text -- it is observed.
+// EvaluatePublisher runs the publisher step's own shell under bash with `gh`
+// replaced by a recorder, once per exit code, and the contract is asserted
+// against the argv the publisher actually handed it: 0 posts success, 10
+// posts failure, 11 posts nothing, 12 and anything unclassified post error,
+// 13 posts error, every publish carries the required context and targets the
+// head SHA it was given, and no two outcomes describe themselves identically.
+// Four review rounds tried to prove the same thing by matching substrings in
+// that step, and three of them were defeated by an ordinary prose comment
+// moving an anchor; a spelling nobody anticipated cannot hide from an
+// assertion that never looks at the spelling (#6194 is the same lesson at
+// nine rounds' length). The harness is hermetic -- one empty PATH entry, a
+// private HOME, empty token variables, a bounded timeout -- and its
+// boundaries are documented on EvaluatePublisher itself. Like the rest of the
+// package it needs no network, Docker, or credentials.
 //
 // # Glob matching
 //

@@ -74,12 +74,58 @@ published only after every selected check reports `pass`. Failed, neutral,
 missing, and timed-out checks fail closed, and so does a check GitHub skipped
 for its own reasons. A check that never produced a verdict is the carve-out
 ([#6189](https://github.com/eshu-hq/eshu/issues/6189)) -- a cancelled check, a
-stale one, or one skipped because the run that owned the job was cancelled.
+stale one, one skipped because the run that owned the job was cancelled, or one
+missing outright because that run was cancelled before the job was created.
 That is infrastructure state, not a gate result, so the aggregate publishes
-`error` naming the re-run instead of claiming a gate failed, and
-`validateCancelledArm` rejects a publisher whose cancelled-gate arm is missing,
-maps that outcome to `state=failure`, or publishes anything other than
-`state=error`. `error` still blocks the merge, so the carve-out changes what
+`error` naming the re-run instead of claiming a gate failed.
+
+How that is held is worth reading before changing it, because it was got wrong
+four times. The publisher's contract is a mapping: for each await exit code,
+put this state and this description on the head SHA. Four review rounds tried
+to prove that mapping by READING the step's shell -- one check per case arm,
+one for the `-f state=` argument, one for the lines between `esac` and the
+`gh api` call. Each check located its target with a substring, and the step is
+55 lines of which 34 are prose comments, so prose is not an exotic input there.
+Three of the four were defeated by a comment. The last one needed a single
+line: `# the gh api -X POST call below publishes the status`, placed above an
+injected `state=success`, moved two independent guards' anchors past the
+injection and left both green while a genuinely failed gate published
+`success` on the status this repository's ruleset requires.
+[#6194](https://github.com/eshu-hq/eshu/issues/6194) is the same story at
+length -- nine review rounds growing a textual model of bash one bypass at a
+time without ever closing it.
+
+So the mapping is no longer read. It is **run**.
+`requiredworkflow_publishrun.go` executes the publisher's own `run:` script
+under bash with `gh` replaced by a recorder, once per exit code, and
+`requiredworkflow_publishcontract.go` asserts on the argv the publisher
+actually handed that recorder: exit 0 posts `success`, 10 posts `failure`, 11
+posts nothing at all, 12 and anything unclassified post `error`, 13 posts
+`error`, every publish carries the required context and targets the head SHA it
+was given, and no two outcomes describe themselves identically. A spelling
+nobody anticipated cannot hide from that, because the assertion never looks at
+the spelling -- `export state=success`, `state=$(printf success)` and a
+reworded arm are not cases to model, they are just inputs that produce an
+observable value.
+
+Two consequences worth knowing. The description is now REQUIRED rather than
+merely bound to a variable: a cancelled gate and a broken aggregation both
+publish `error`, so with the descriptions gone nothing separates them and
+deleting the cancelled arm would be invisible. And distinctness is asserted
+rather than any particular phrase, so the workflow's prose can be reworded
+freely -- an earlier draft that required the word "cancel" turned an ordinary
+rewording into a red, which is the wording-pin failure in miniature.
+
+What the harness does not cover is written down on `EvaluatePublisher` itself:
+the shell flags it runs under, the environment it does not model, the `gh`
+spellings a bash function cannot intercept (all of which fail closed, because
+PATH holds nothing), and the fact that GitHub's API is not modelled at all.
+`cmd/ci-gates` uses the same harness through `TerminalPublisherRun` and
+`EvaluatePublisher` rather than keeping a second copy, so there is one
+mechanism to defeat rather than two that can be defeated separately -- which
+is precisely how round 4's finding got through.
+
+`error` still blocks the merge, so the carve-out changes what
 the status says, not whether it holds the PR. The classification itself lives
 in `cmd/ci-gates`; this package only holds the publisher to the arm it implies.
 `DriftCheck` rejects an

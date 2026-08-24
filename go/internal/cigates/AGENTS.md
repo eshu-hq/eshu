@@ -90,6 +90,23 @@ and `eshu-diagnostic-rigor`.
   `validRequirements` are the authoritative sets. Adding a new value requires
   updating both the constant and the map, plus a table test in the relevant
   `_test.go`.
+- **The terminal publisher's verdict is OBSERVED, never read.** Do not add a
+  check that decides what `required-gates.yml` publishes by matching text in
+  its `run:` script. Four review rounds on #6218 did exactly that -- one check
+  per case arm, one for the `-f state=` argument, one for the lines between
+  `esac` and the publish -- and three were defeated by an ordinary prose
+  comment moving a substring anchor, the last one by a single line reading
+  `# the gh api -X POST call below publishes the status`. That step is 55
+  lines of which 34 are comments, so prose is its normal content, not an
+  exotic input. `requiredworkflow_publishrun.go` runs the step under bash with
+  `gh` intercepted and `requiredworkflow_publishcontract.go` asserts on the
+  recorded argv; add new publisher rules there, as claims about a posted
+  VALUE. Two related traps this already fell into: do not require a
+  particular PHRASE in a description (a rewording then reds -- assert
+  distinctness instead), and do not select the terminal step by a literal it
+  happens to contain (`state=failure` was the old selector, so rewording that
+  arm silently switched the whole contract off).
+
 - **Files stay under 500 lines.** If any file approaches the cap, split into a
   new file before committing.
 - **`pathfilter.go`'s `checkPathFilterCoverage` is registry-vs-CI-filter only,

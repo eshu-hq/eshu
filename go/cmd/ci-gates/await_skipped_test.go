@@ -50,6 +50,9 @@ type routedRunner struct {
 	// gate quietly returns to publishing failure. That degradation is
 	// fail-closed, which is exactly why no other assertion notices it.
 	runsArgs []string
+	// checksCalls counts `gh pr checks` polls, so a test can prove a verdict
+	// was reached on the first poll rather than by waiting out the timeout.
+	checksCalls int
 }
 
 func (r *routedRunner) Run(_ context.Context, args ...string) ([]byte, error) {
@@ -61,6 +64,7 @@ func (r *routedRunner) Run(_ context.Context, args ...string) ([]byte, error) {
 		}
 		return r.runs, nil
 	}
+	r.checksCalls++
 	return r.checks, nil
 }
 
@@ -171,11 +175,29 @@ func TestAwaitSkipCausedByCancelledRunDoesNotPublishFailure(t *testing.T) {
 		t.Fatalf("skipped-by-cancellation published state=%q (exit %d); want error", state, code)
 	}
 	if runner.runsCalls == 0 {
-		t.Error("the skipped gate must have been resolved against the owning run's conclusion")
+		t.Fatal("the skipped gate must have been resolved against the owning run's conclusion")
 	}
 	for _, want := range []string{"--paginate", "--slurp"} {
 		if !slices.Contains(runner.runsArgs, want) {
 			t.Errorf("run lookup argv %q is missing %q; without it gh answers with a single object instead of an array of pages, the decode fails, and every cancellation-skipped gate silently reverts to publishing failure", runner.runsArgs, want)
+		}
+	}
+	// The ENDPOINT is as load-bearing as the flags, and nothing else in this
+	// suite reads it. `head_sha` is the only thing that makes "the runs this
+	// lookup reads own this head's checks" true -- the claim
+	// workflowRunConclusions' doc comment makes. Drop it and `gh api
+	// --paginate` walks the repository's ENTIRE run history, thousands of
+	// requests against a 1000/hour token budget, inside a loop that polls for
+	// up to 55 minutes, and answers "was THIS head's run cancelled?" with some
+	// other pull request's run. Swapping the repo and head arguments at the
+	// call site compiles -- both parameters are `string` -- and corrupts both
+	// halves the same way. Every one of those degradations is fail-closed,
+	// which is exactly why no outcome assertion in this file can see them.
+	endpoint := runner.runsArgs[len(runner.runsArgs)-1]
+	for _, want := range []string{"repos/eshu-hq/eshu/actions/runs", "head_sha=" + headSHAFixture} {
+		if !strings.Contains(endpoint, want) {
+			t.Errorf("run lookup endpoint %q is missing %q; the lookup must be scoped to this repository and this head, or it answers with another head's runs",
+				endpoint, want)
 		}
 	}
 }
@@ -312,7 +334,7 @@ func TestEvaluateRequiredChecksKeepsGenuinelyPendingGatesWaiting(t *testing.T) {
 			Name: "go-core", Workflow: "Build Test", Event: "pull_request",
 			Bucket: "pending", State: state,
 		}}
-		got := evaluateRequiredChecks(required, checks, map[string]bool{"Build Test": true})
+		got := evaluateRequiredChecks(required, checks, runConclusions{"Build Test": "cancelled"})
 		if len(got.Pending) != 1 {
 			t.Errorf("state=%s: pending = %#v; a running gate must keep the wait alive even when its run is cancelled",
 				state, got.Pending)
@@ -337,17 +359,18 @@ func TestEvaluateRequiredChecksNeutralKeepsFailingClosed(t *testing.T) {
 		Bucket: "skipping", State: "NEUTRAL",
 	}}
 
-	got := evaluateRequiredChecks(required, checks, map[string]bool{"Build Test": true})
+	got := evaluateRequiredChecks(required, checks, runConclusions{"Build Test": "cancelled"})
 	if len(got.Failed) != 1 {
 		t.Fatalf("failed = %#v; NEUTRAL is a conclusion the job reached and fails closed", got.Failed)
 	}
 }
 
-// TestCancelledWorkflowRunsKeepsTheNewestRunPerWorkflow covers the re-run
+// TestWorkflowRunConclusionsKeepsTheNewestRunPerWorkflow covers the re-run
 // case. GitHub returns runs newest-first; once a cancelled workflow has been
 // re-run, its skipped jobs are no longer cancellation artifacts, so the newer
-// conclusion has to win.
-func TestCancelledWorkflowRunsKeepsTheNewestRunPerWorkflow(t *testing.T) {
+// conclusion has to win -- including while that newer run has not concluded at
+// all, which is neither cancelled nor a verdict.
+func TestWorkflowRunConclusionsKeepsTheNewestRunPerWorkflow(t *testing.T) {
 	t.Parallel()
 
 	page := []byte(`[{"workflow_runs":[
@@ -358,17 +381,26 @@ func TestCancelledWorkflowRunsKeepsTheNewestRunPerWorkflow(t *testing.T) {
 	]}]`)
 	runner := &routedRunner{runs: page}
 
-	got, err := cancelledWorkflowRuns(context.Background(), runner, "eshu-hq/eshu", headSHAFixture)
+	got, err := workflowRunConclusions(context.Background(), runner, "eshu-hq/eshu", headSHAFixture)
 	if err != nil {
-		t.Fatalf("cancelledWorkflowRuns: %v", err)
+		t.Fatalf("workflowRunConclusions: %v", err)
 	}
-	if got["Build Test"] {
+	if got.cancelled("Build Test") {
 		t.Error("the newest Build Test run is a re-run that has not concluded; its skipped jobs are not cancellation artifacts")
 	}
-	if !got["Static Contract Gates"] {
+	if !got.inFlight("Build Test") {
+		t.Error("a re-run with conclusion null is in flight, not a verdict; calling it either terminal answer publishes a status the head has not earned")
+	}
+	if !got.cancelled("Static Contract Gates") {
 		t.Error("a cancelled pull-request run must be reported cancelled")
+	}
+	if got.inFlight("Static Contract Gates") {
+		t.Error("a run that concluded is not in flight")
 	}
 	if _, ok := got["Frontend"]; ok {
 		t.Error("a push-event run does not own the pull-request checks this aggregate evaluates")
+	}
+	if got.inFlight("Frontend") {
+		t.Error("a workflow with no run on this head is unknown, not in flight; treating it as in flight would wait out a gate that must fail closed")
 	}
 }

@@ -4,16 +4,14 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
 // Why this file exists (#6189).
@@ -32,58 +30,47 @@ import (
 // while the workflow still published "A required gate failed" -- an
 // expected-fail passing for the wrong reason.
 
-// publishedRequiredStatus evaluates the real publisher's AGGREGATE_CODE case
-// block from .github/workflows/required-gates.yml for one exit code and
-// returns the (state, description) it would post, plus whether it posts at
-// all. The block is executed by bash rather than re-implemented in Go, so the
-// test reads the same shell the runner does; re-implementing the mapping here
-// would let the two drift and still agree with each other.
+// publishedRequiredStatus runs the real publisher from
+// .github/workflows/required-gates.yml for one exit code and returns the
+// (state, description) it actually posted, plus whether it posted at all.
 //
-// Only the AGGREGATE_CODE mapping is evaluated. The step's outer
-// PENDING_OUTCOME guard is a separate contract (#5980) and is asserted by
-// checkRequiredStatusWorkflows in internal/cigates.
+// It delegates to cigates.EvaluatePublisher rather than carrying its own copy
+// of the machinery. That is deliberate. This helper used to slice the step's
+// shell out of the YAML with its own substring markers, and round 4 of the
+// #6218 review defeated exactly that: both this helper and the registry gate
+// anchored on the FIRST `gh api -X POST`, so one comment line carrying that
+// text moved both anchors above an injected `state=success`, and both stayed
+// green while the publisher posted `success` for a genuinely failed gate.
+// Running the whole step under bash with `gh` intercepted leaves no region to
+// slice and no anchor to move -- and one mechanism serving both callers
+// rather than two that can be defeated separately.
+//
+// What this binds is the exit code the Go classifier PRODUCES to the status
+// the workflow POSTS, which is the half neither side can check alone. What
+// the harness itself does and does not cover is documented on
+// cigates.EvaluatePublisher.
 func publishedRequiredStatus(t *testing.T, code int) (state, description string, published bool) {
 	t.Helper()
 
 	workflow := filepath.Join(repoRoot(t), ".github", "workflows", "required-gates.yml")
-	raw, err := os.ReadFile(workflow) // #nosec G304 -- fixed repo-relative test fixture path
+	run, err := cigates.TerminalPublisherRun(workflow)
 	if err != nil {
-		t.Fatalf("read %s: %v", workflow, err)
+		t.Fatalf("locate the terminal publisher in %s: %v", workflow, err)
 	}
-	const openMarker = `case "${AGGREGATE_CODE}" in`
-	const closeMarker = "esac"
-	start := bytes.Index(raw, []byte(openMarker))
-	if start < 0 {
-		t.Fatalf("required-gates.yml has no %q block; the publisher contract moved", openMarker)
-	}
-	rest := string(raw[start:])
-	end := strings.Index(rest, closeMarker)
-	if end < 0 {
-		t.Fatalf("required-gates.yml %q block is unterminated", openMarker)
-	}
-	block := rest[:end+len(closeMarker)]
-
-	bash, err := exec.LookPath("bash")
+	observed, err := cigates.EvaluatePublisher(run, code)
 	if err != nil {
-		t.Skipf("bash not available to evaluate the publisher case block: %v", err)
+		t.Fatalf("run the terminal publisher for exit code %d: %v", code, err)
 	}
-	script := "set -u\nAGGREGATE_CODE=" + strconv.Itoa(code) + "\nstate=\ndescription=\n" + block +
-		"\nprintf 'PUBLISH\\t%s\\t%s\\n' \"${state}\" \"${description}\"\n"
-	out, err := exec.Command(bash, "-c", script).CombinedOutput() // #nosec G204 -- script is built from a committed workflow file, not input
-	if err != nil {
-		t.Fatalf("evaluate publisher case block for code %d: %v\n%s", code, err, out)
+	switch len(observed.Publishes) {
+	case 0:
+		return "", "", false
+	case 1:
+		return observed.Publishes[0].State, observed.Publishes[0].Description, true
+	default:
+		t.Fatalf("publisher posted %d statuses for exit code %d; exactly one or none is the contract",
+			len(observed.Publishes), code)
+		return "", "", false
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if !strings.HasPrefix(line, "PUBLISH\t") {
-			continue
-		}
-		fields := strings.SplitN(strings.TrimPrefix(line, "PUBLISH\t"), "\t", 2)
-		if len(fields) != 2 {
-			t.Fatalf("malformed publisher result %q", line)
-		}
-		return fields[0], fields[1], true
-	}
-	return "", "", false
 }
 
 // cancelledTranscriptChecks reproduces the eleven-gate rollup from the #6189

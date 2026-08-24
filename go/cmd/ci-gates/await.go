@@ -109,9 +109,10 @@ type requiredCheckEvaluation struct {
 	Pending []requiredCheckFinding
 	Failed  []requiredCheckFinding
 	// Cancelled holds gates whose check never produced a verdict (#6189):
-	// CANCELLED, STALE, or SKIPPED because the workflow run that owned the job
-	// was cancelled. All three are infrastructure state rather than a gate
-	// result, and all three want the same operator repair, so they share one
+	// CANCELLED, STALE, SKIPPED because the workflow run that owned the job was
+	// cancelled, or MISSING because that run was cancelled before the job was
+	// created at all. All four are infrastructure state rather than a gate
+	// result, and all four want the same operator repair, so they share one
 	// bucket and one exit code. It keeps the name `Cancelled` because that is
 	// what exit 13, errGateCancelled, the publisher arm, and the four
 	// documents describing this contract all call it; see isNotAGateResult in
@@ -175,12 +176,19 @@ func resolveRequiredGateWorkflows(repoRoot string, gates []cigates.RequiredGate)
 func evaluateRequiredChecks(
 	required []resolvedRequiredGate,
 	checks []checkRollup,
-	cancelledRuns map[string]bool,
+	runs runConclusions,
 ) requiredCheckEvaluation {
 	var evaluation requiredCheckEvaluation
 	for _, gate := range required {
 		matches := matchingChecks(gate, checks)
 		if len(matches) == 0 {
+			// No check run for this job exists at all; only the owning run's
+			// conclusion says whether one ever will. See
+			// missingCheckIsCancellationArtifact for both directions (#6189).
+			if missingCheckIsCancellationArtifact(gate, runs) {
+				evaluation.Cancelled = append(evaluation.Cancelled, findingFor(gate, "MISSING (run cancelled)"))
+				continue
+			}
 			evaluation.Pending = append(evaluation.Pending, findingFor(gate, "MISSING"))
 			continue
 		}
@@ -195,8 +203,14 @@ func evaluateRequiredChecks(
 			// Before the pending bucket, deliberately: gh reports STALE
 			// with bucket "pending", so testing pending first would file a
 			// permanently-stale check as still-running and wait it out.
-			case isNotAGateResult(*check, cancelledRuns):
+			case isNotAGateResult(*check, runs):
 				gateCancellation = check
+			// Before the pending-bucket test for the same reason STALE is:
+			// gh files SKIPPED in its "skipping" bucket, so a skip whose
+			// owning run is still executing would otherwise fall to
+			// `default:` and be called a gate failure (#6189, third round).
+			case isAwaitingRunConclusion(*check, runs):
+				gatePending = true
 			case strings.EqualFold(check.Bucket, "pending"):
 				gatePending = true
 			default:
@@ -369,22 +383,26 @@ func awaitPRRequiredChecks(
 		if err != nil {
 			return err
 		}
-		// Only a SKIPPED selected check needs the run conclusions, and a
-		// skipped selected check is rare, so the call is not made on the
-		// common path (#6189). A lookup failure is reported and then treated
-		// as "nothing known cancelled", which leaves a skipped gate publishing
-		// `failure` exactly as it did before this change -- degraded to the
-		// old behaviour, never to a pass.
-		var cancelledRuns map[string]bool
-		if anySelectedCheckSkipped(required, checks) {
-			cancelledRuns, err = cancelledWorkflowRuns(ctx, runner, repo, headSHA)
+		// A SKIPPED selected check, or a selected gate with no check at all
+		// once nothing else is still running, needs the run conclusions;
+		// neither is the common path, so the call is not made on it (#6189).
+		// needsRunConclusions carries why each is gated the way it is.
+		//
+		// A lookup failure is reported and then treated as "nothing known
+		// cancelled", which leaves a skipped gate publishing `failure` exactly
+		// as it did before this change and a missing gate pending exactly as
+		// it did -- degraded to the old behaviour, never to a pass.
+		var runs runConclusions
+		if needsRunConclusions(required, checks) {
+			runs, err = workflowRunConclusions(ctx, runner, repo, headSHA)
 			if err != nil {
 				_, _ = fmt.Fprintf(out,
-					"required-gates: could not read workflow run conclusions (%v); a skipped gate stays a failure\n", err)
-				cancelledRuns = nil
+					"required-gates: could not read workflow run conclusions (%v); "+
+						"a skipped gate stays a failure and a missing gate stays pending\n", err)
+				runs = nil
 			}
 		}
-		evaluation := evaluateRequiredChecks(required, checks, cancelledRuns)
+		evaluation := evaluateRequiredChecks(required, checks, runs)
 		if len(evaluation.Failed) > 0 {
 			// Wrapped so classifyAwaitOutcome recognises this structurally
 			// (#6075): this is the one outcome allowed to publish `failure`.

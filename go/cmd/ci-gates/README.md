@@ -109,7 +109,7 @@ teaches people to read a red required status as noise. Once every selected gate
 is terminal and at least one never produced a verdict, await exits 13 and the
 publisher posts `error` naming the re-run.
 
-Three shapes qualify, and they cost different things to recognise:
+Four shapes qualify, and they cost different things to recognise:
 
 - **Cancelled**, detected from either `state=CANCELLED` or `bucket=cancel`,
   because the runner's `gh` version is not pinned and older releases folded
@@ -124,7 +124,37 @@ Three shapes qualify, and they cost different things to recognise:
   same `SKIPPED` conclusion whether a `needs:` dependency was cancelled or the
   job's own `if:` excluded it. The aggregate reads the owning workflow run's
   conclusion (`actions: read`, already granted) and treats the skip as a
-  cancellation artifact only when that run was cancelled.
+  cancellation artifact only when that run was cancelled. A run that exists but
+  has **not concluded** is neither: that is the window the `gh run rerun`
+  repair passes through, where the replacement run is executing but its check
+  runs have not yet replaced the cancelled run's in the rollup. Calling it
+  "cancelled" would publish `error` against a run that may still pass, and
+  calling it "not cancelled" would publish "A required gate failed" against a
+  run that has not failed, so the aggregate keeps waiting instead. That wait
+  terminates: the replacement run's own completion re-triggers the aggregate
+  with a rollup it can decide. A workflow with no run on this head at all is
+  unknown, not in flight, and keeps failing closed.
+- **Missing entirely because the run was cancelled before the job existed.**
+  Cancel a run early enough and GitHub never creates the job's check run, so
+  `gh pr checks` reports nothing for it and the gate matches no row at all.
+  Waiting cannot terminate -- nothing will ever create that check -- so before
+  this the aggregate timed out, exited 11, published nothing, and left the
+  status on `pending` with no red to act on. It is resolved from the same
+  owning-run conclusion the skipped shape uses. **A check missing for any
+  other reason keeps the aggregate waiting**, never resolves: a run that
+  finished without producing the job is a real disagreement between the
+  registry and the workflow, a workflow with no run on this head is unknown,
+  and a failed lookup is both. Only a `cancelled` owning run turns a missing
+  check into a verdict.
+
+  Its lookup is deferred while any selected check is genuinely still running,
+  which keeps it off the common path: early in a head's life most selected
+  gates have no row yet, and asking then would put the call on nearly every
+  poll of nearly every aggregate. Deferring is free -- the aggregate waits
+  either way until those checks finish -- and cannot strand the head, because
+  the next poll after they finish asks. `STALE` is excluded from "still
+  running" for this purpose, since it arrives in gh's `pending` bucket while
+  being entirely terminal.
 
 **A gate skipped for its own reasons still publishes `failure`.** The registry
 selected it for these paths, so a skip the workflow chose is a real
@@ -155,7 +185,7 @@ The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
 | `10` | a selected gate concluded failure | `failure` |
 | `11` | selected gates still running (timeout or superseded run) | nothing; the status stays pending for the next run |
 | `12` | aggregation could not reach a verdict (API error, bad token, unreadable registry) | `error` |
-| `13` | every selected gate is terminal and at least one never produced a verdict (cancelled, stale, or skipped by its run's cancellation) | `error` |
+| `13` | every selected gate is terminal and at least one never produced a verdict (cancelled, stale, skipped by its run's cancellation, or missing because that run was cancelled before the job existed) | `error` |
 
 Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
 be mistaken for a gate result. `internal/cigates` re-declares `11` and `13` to
