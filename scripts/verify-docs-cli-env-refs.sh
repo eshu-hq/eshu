@@ -13,7 +13,8 @@
 # command's flags are never attributed to another. Any other shell form on the
 # line -- `||`, a background `&`, `|&`, `;;`, a subshell, or command
 # substitution -- keeps the whole line outside the gate's scope, and so does an
-# empty segment. Operators inside quotes, after a backslash, or in a trailing
+# empty segment. A subshell or substitution excludes the line whether or not it
+# carries a list operator. Operators inside quotes, after a backslash, or in a trailing
 # `#` comment are not segment boundaries.
 #
 # Every run prints how many command segments it attributed and how many `eshu`

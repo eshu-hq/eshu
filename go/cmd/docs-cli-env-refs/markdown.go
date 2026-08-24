@@ -31,8 +31,8 @@ type reference struct {
 // scanCounts records how much of a page the flag scanner actually inspected.
 // AttributedSegments is the denominator -- Eshu command segments whose flags
 // were resolved against a command -- and SkippedLines is the gate's own blind
-// spot: logical lines naming an `eshu` command that fell outside the supported
-// command-segment grammar. Reported together, they separate a genuinely clean
+// spot: logical lines that invoke an `eshu` command and fell outside the
+// supported command-segment grammar. Reported together, they separate a genuinely clean
 // run from a scanner that silently stopped reading shell fences; either number
 // alone cannot.
 type scanCounts struct {

@@ -57,10 +57,16 @@ against an earlier one.
 The grammar is a deliberate under-approximation, and everything outside it keeps
 the pre-#6108 behaviour of skipping the whole logical line rather than guessing:
 `||`, a background `&`, `|&`, `;;`, an unquoted `(`, `)`, or backtick anywhere
-on a list line, and an empty segment from a leading, trailing, or doubled
-separator. Operators inside quoted values, escaped values, or trailing shell
-comments are not segment boundaries and do not exclude the line. A line with no
-unquoted list operator is parsed exactly as before.
+on the line, and an empty segment from a leading, trailing, or doubled
+separator. An unquoted subshell or command substitution excludes the line
+whether or not it also carries a list operator, so
+`eshu docs verify $(echo --flag)` is out of scope rather than resolved against
+the command `docs verify $(echo`. Operators inside quoted values, escaped
+values, or trailing shell comments are not segment boundaries and do not
+exclude the line: a backslash escapes the next character everywhere except
+inside single quotes, so the pipe in `eshu docs verify "a\"|b" --stale` is
+quoted and `--stale` is still checked. A line with no unquoted list operator or
+grouping is parsed exactly as before.
 
 An unresolved flag is reported with the command it was attributed to, so a
 failure on a piped or chained example says which segment owns the flag.
@@ -77,7 +83,12 @@ docs-cli-env-refs: 190 Eshu command segment(s) attributed, 1 Eshu command line(s
 
 Both are asserted, because a number in a summary nobody checks is decoration:
 
-- **Skipped lines** are pinned exactly, in both directions, by
+- **Skipped lines** count logical lines that *invoke* `eshu` -- the word in
+  command position, optionally behind `VAR=value` assignments or a console
+  prompt -- and fell outside the grammar. A line that merely passes `eshu` as
+  an argument, such as `docker compose logs eshu 2>&1`, is not one of them,
+  because an exact pin turns over-reporting into a gate failure on an unrelated
+  docs edit. They are pinned exactly, in both directions, by
   `pinnedSkippedEshuLines`. Growth means a new unparseable example slipped into
   a public page: rewrite it into the supported grammar, or re-pin with the
   reason. A shrink also fails, demanding a re-pin, so the population cannot

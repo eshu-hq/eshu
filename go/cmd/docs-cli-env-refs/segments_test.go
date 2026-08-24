@@ -221,3 +221,176 @@ func TestScanMarkdownReportsSkippedEshuLines(t *testing.T) {
 		t.Fatalf("scanMarkdown() skipped = %d, want 2", counts.SkippedLines)
 	}
 }
+
+// TestScanMarkdownHonoursBackslashEscapesInsideDoubleQuotes is the reviewer's
+// case on PR #6239. A `\"` inside a double-quoted word does not close the
+// quote, so the operator behind it is not a segment boundary. A scanner that
+// closes the quote there splits the line, the tail segment no longer starts
+// with `eshu`, and every flag on it silently escapes validation -- a false
+// negative in exactly the class #6108 exists to close.
+func TestScanMarkdownHonoursBackslashEscapesInsideDoubleQuotes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want []reference
+	}{
+		{
+			name: "escaped quote hides a pipe",
+			line: `eshu docs verify "a\"|b" --stale-behind-escaped-quote`,
+			want: []reference{{Kind: referenceKindFlag, Document: "guide.md", Command: `docs/verify/a"|b`, Value: "--stale-behind-escaped-quote"}},
+		},
+		{
+			name: "escaped quote hides an and list",
+			line: `eshu docs verify "a\"&&b" --stale-behind-escaped-and`,
+			want: []reference{{Kind: referenceKindFlag, Document: "guide.md", Command: `docs/verify/a"&&b`, Value: "--stale-behind-escaped-and"}},
+		},
+		{
+			name: "escaped quote hides a semicolon",
+			line: `eshu docs verify "a\";b" --stale-behind-escaped-semicolon`,
+			want: []reference{{Kind: referenceKindFlag, Document: "guide.md", Command: `docs/verify/a";b`, Value: "--stale-behind-escaped-semicolon"}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, _ := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("scanMarkdown(%q) = %#v, want %#v", test.line, got, test.want)
+			}
+		})
+	}
+}
+
+// TestScanMarkdownStillSplitsWhereTheQuoteReallyCloses is the other half of the
+// escape rule, and the guard against over-correcting it. An escaped backslash
+// consumes only itself, so the quote that follows it really does close and the
+// operator after it really is a boundary; a single-quoted word processes no
+// escapes at all, exactly as POSIX sh and splitShellFields treat it.
+func TestScanMarkdownStillSplitsWhereTheQuoteReallyCloses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want []reference
+	}{
+		{
+			name: "escaped backslash lets the closing quote close",
+			line: `eshu docs verify "a\\" --before-real-pipe-invalid | eshu graph status --after-real-pipe`,
+			want: []reference{
+				{Kind: referenceKindFlag, Document: "guide.md", Command: `docs/verify/a\`, Value: "--before-real-pipe-invalid"},
+				{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--after-real-pipe"},
+			},
+		},
+		{
+			name: "single quotes process no escape",
+			line: `eshu docs verify 'a\' --before-single-quote-pipe-invalid | eshu graph status --after-single-quote-pipe`,
+			want: []reference{
+				{Kind: referenceKindFlag, Document: "guide.md", Command: `docs/verify/a\`, Value: "--before-single-quote-pipe-invalid"},
+				{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--after-single-quote-pipe"},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, _ := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("scanMarkdown(%q) = %#v, want %#v", test.line, got, test.want)
+			}
+		})
+	}
+}
+
+// TestScanMarkdownCountsOnlyEshuInvocationsAsSkippedLines pins what the skipped
+// count means. Since #6108 the count is asserted exactly in both directions, so
+// a line that merely carries the word `eshu` as an argument -- a container name,
+// an rg pattern, a quoted literal -- must not inflate it: over-reporting turns
+// an unrelated future docs edit into a gate failure. An `eshu` invocation behind
+// leading environment assignments still counts, because that one really is a
+// command line the scanner declined to parse.
+func TestScanMarkdownCountsOnlyEshuInvocationsAsSkippedLines(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want int
+	}{
+		{
+			name: "eshu as a container argument",
+			line: `docker compose logs eshu 2>&1`,
+			want: 0,
+		},
+		{
+			name: "eshu as a quoted literal and a search pattern",
+			line: `echo "eshu docs verify" | rg eshu 2>&1`,
+			want: 0,
+		},
+		{
+			name: "backgrounded eshu behind environment assignments",
+			line: `ESHU_PPROF_ADDR=127.0.0.1:0 eshu graph start --logs terminal > /tmp/run.log 2>&1 &`,
+			want: 1,
+		},
+		{
+			name: "eshu invocation on an unsupported or list",
+			line: `eshu docs verify --json || eshu docs verify --after-or`,
+			want: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, counts := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
+			if counts.SkippedLines != test.want {
+				t.Fatalf("scanMarkdown(%q) skipped = %d, want %d", test.line, counts.SkippedLines, test.want)
+			}
+		})
+	}
+}
+
+// TestScanMarkdownKeepsGroupingOutOfScopeWithoutAListOperator covers the shape
+// the unsupported-form suite missed: grouping and substitution on a line that
+// carries no list operator at all. Command substitution is documented as out of
+// scope, so `$(echo --fake-flag )` must not resolve `--fake-flag` against the
+// command `eshu docs verify/$(echo` and fail the gate on a form the grammar
+// never claimed.
+func TestScanMarkdownKeepsGroupingOutOfScopeWithoutAListOperator(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		line        string
+		wantSkipped int
+	}{
+		{
+			name:        "dollar substitution with no list operator",
+			line:        `eshu docs verify $(echo --fake-flag )`,
+			wantSkipped: 1,
+		},
+		{
+			name:        "backtick substitution with no list operator",
+			line:        "eshu docs verify `echo x` --backtick-invalid",
+			wantSkipped: 1,
+		},
+		{
+			name:        "subshell group with no list operator",
+			line:        `(eshu docs verify --in-subshell)`,
+			wantSkipped: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, counts := scanMarkdown("guide.md", "```bash\n"+test.line+"\n```\n")
+			if len(got) != 0 {
+				t.Fatalf("scanMarkdown(%q) = %#v, want the unsupported form skipped", test.line, got)
+			}
+			if counts.SkippedLines != test.wantSkipped {
+				t.Fatalf("scanMarkdown(%q) skipped = %d, want %d", test.line, counts.SkippedLines, test.wantSkipped)
+			}
+		})
+	}
+}

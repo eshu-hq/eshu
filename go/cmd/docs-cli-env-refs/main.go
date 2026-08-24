@@ -30,8 +30,11 @@ const (
 	rootCommandBaselineToken      = "<root>"
 
 	// pinnedSkippedEshuLines is the exact number of logical lines under
-	// docs/public that name an `eshu` command and fall outside the supported
-	// command-segment grammar. It is pinned in BOTH directions, the way the
+	// docs/public that invoke an `eshu` command and fall outside the supported
+	// command-segment grammar. A line that merely carries the word `eshu` as an
+	// argument, such as `docker compose logs eshu`, is not one of them: this
+	// count is asserted in both directions, so over-reporting would fail the
+	// gate on an unrelated docs edit. It is pinned in BOTH directions, the way the
 	// dirgate grandfather rows are: growth means a new unparseable example
 	// slipped in, and a shrink that is not re-pinned lets the population creep
 	// back up under a stale number. Today's one line is a backgrounded

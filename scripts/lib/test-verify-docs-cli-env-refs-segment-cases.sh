@@ -82,23 +82,62 @@ test_unsupported_shell_forms_stay_skipped() {
     'eshu docs verify --json ;; eshu docs verify --not-a-real-flag-after-case' \
     'eshu docs verify --json 2>&1 ; eshu docs verify --not-a-real-flag-after-redirect' \
     'eshu docs verify --json $(echo a | eshu docs verify --not-a-real-flag-in-subst)' \
+    'eshu docs verify $(echo --not-a-real-flag-in-plain-subst )' \
     '(eshu docs verify --json ; eshu docs verify --not-a-real-flag-in-subshell)' \
     '| eshu docs verify --not-a-real-flag-after-leading-pipe' \
     'eshu docs verify --not-a-real-flag-before-trailing-pipe |' \
     '```'
   : >"${baseline}"
-  if ESHU_TEST_PINNED_SKIPPED=8 run_verifier "${root}" "${baseline}" "${out}"; then
+  if ESHU_TEST_PINNED_SKIPPED=9 run_verifier "${root}" "${baseline}" "${out}"; then
     record_pass "unsupported shell forms stay outside the gate's scope"
   else
     record_fail "unsupported shell forms stay outside the gate's scope"
     sed -n '1,160p' "${out}" >&2
   fi
+  # A substitution with no list operator on the line is the shape the earlier
+  # fixtures missed: it reached the single-command path, and --fake-flag was
+  # resolved against the command `docs verify $(echo`.
+  assert_absent "--not-a-real-flag-in-plain-subst" "${out}" \
+    "a substitution with no list operator stays out of scope"
   # The positive half of the same claim. Exiting 0 proves only that nothing was
-  # reported; the count proves the eight lines were SEEN and deliberately
+  # reported; the count proves the nine lines were SEEN and deliberately
   # declined, not that the scanner stopped reading the fence.
   assert_output_line \
-    '^docs-cli-env-refs: 0 Eshu command segment\(s\) attributed, 8 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    '^docs-cli-env-refs: 0 Eshu command segment\(s\) attributed, 9 Eshu command line\(s\) skipped as unsupported shell forms$' \
     "${out}" "every unsupported line is counted, not silently dropped"
+}
+
+# test_escaped_quote_does_not_hide_a_later_flag is the PR #6239 review case, at
+# the gate rather than in a unit test. A `\"` does not close a double-quoted
+# word, so the pipe behind it is not a segment boundary. A scanner that closes
+# the quote there splits the line, the tail no longer starts with `eshu`, and
+# every flag on it is never checked -- the gate exits 0 on a stale flag.
+test_escaped_quote_does_not_hide_a_later_flag() {
+  local root="${tmp_root}/escaped-quote/docs/public"
+  local baseline="${tmp_root}/escaped-quote/baseline.txt"
+  local out="${tmp_root}/escaped-quote.out"
+  write_doc "${root}" "escaped-quote.md" \
+    '```bash' \
+    'eshu docs verify "a\"|b" --not-a-real-flag-behind-escaped-quote' \
+    'eshu docs verify "a\\" | eshu graph status --not-a-real-flag-after-real-pipe' \
+    '```'
+  : >"${baseline}"
+  if run_verifier "${root}" "${baseline}" "${out}"; then
+    record_fail "a flag behind an escaped quote is still checked"
+  else
+    record_pass "a flag behind an escaped quote is still checked"
+  fi
+  assert_output_line \
+    '^docs-cli-env-refs: escaped-quote\.md cites unknown flag --not-a-real-flag-behind-escaped-quote on command .eshu docs verify. \(not in .*\)$' \
+    "${out}" "an escaped quote keeps the pipe inside one command segment"
+  # The escaped backslash consumes only itself, so THIS closing quote really
+  # closes and the pipe after it really is a boundary.
+  assert_output_line \
+    '^docs-cli-env-refs: escaped-quote\.md cites unknown flag --not-a-real-flag-after-real-pipe on command .eshu graph status. \(not in .*\)$' \
+    "${out}" "an escaped backslash still lets the closing quote close"
+  assert_output_line \
+    '^docs-cli-env-refs: 3 Eshu command segment\(s\) attributed, 0 Eshu command line\(s\) skipped as unsupported shell forms$' \
+    "${out}" "both escaped-quote lines stay inside the attributed population"
 }
 
 # test_scan_coverage_pins_are_enforced proves the coverage numbers are asserted,
