@@ -40,6 +40,30 @@
 # ifa_mirror_assert_pins_bind_code at the very end of your mirror, and pin that
 # call with an exact count the way the two mirrors here do.
 #
+# IF YOU AUDIT THESE PINS, TWO THINGS COST US A ROUND EACH. Both are ways of
+# getting a confident answer that is not an answer, which is the same shape as
+# the defect the pins themselves have.
+#
+#   1. ENUMERATE BY OPERATOR, NOT BY NAME. To find the pins a deletion can
+#      survive you want every `-ge 1` check whose needle has more than one code
+#      occurrence. The reliable way is to instrument the counters and log what
+#      they actually evaluated; deriving it from the source by regex measures
+#      what the source looks like instead. When the #6161 census did that, it
+#      still excluded one check on the grounds that its NEIGHBOURS were all
+#      exact-count -- and that one was `-ge 1`, over a three-occurrence needle,
+#      guarding the private-data file list. One assumption in an otherwise
+#      measured census, and the assumption is where the miss was.
+#
+#   2. SEED WITHOUT BREAKING SYNTAX. To test whether a pin can fail, change the
+#      line rather than delete it: replace the call with `true`, or alter a
+#      character inside an identifier. DELETING the only line inside an `if`
+#      block, or mangling a trailing `then`, makes the mirror red on `bash -n`
+#      -- which looks exactly like the pin doing its job and proves nothing
+#      about the pin. That is the mirror image of a seed that silently no-ops
+#      and reads as a clean pass. Assert both directions: that the edit landed
+#      (the needle's code-match count dropped by exactly one) and that the file
+#      still parses.
+#
 # A SECOND LIMIT, and the one most likely to bite: discovery is
 # `compgen -A function | rg '^require'`, so the probe executes only helpers whose
 # NAME starts with `require`. An identically weak helper named `pin_foo` is
