@@ -139,7 +139,7 @@ Review target:
 - PR:
 - no PR exists yet: yes|no
 - review phase: preliminary|final
-- preliminary review head and P0/P1/P2-blocking/P2-deferred counts:
+- preliminary review head and P0/P1/P2-blocking/P2-deferred/P3 counts:
 - pre-pr command and result:
 - post-preflight head and clean-status result:
 
@@ -434,7 +434,7 @@ Every finding must include:
 - pass: `0`, `1`, `2`, `3`, or `4`;
 - class: one hostile-read class or `correctness`, `performance`,
   `concurrency`, `security`, `docs`, `workflow`;
-- severity: `P0`, `P1`, or `P2`;
+- severity: `P0`, `P1`, `P2`, or `P3`;
 - confidence: `high`, `medium`, or `low`;
 - disposition: one of the allowed dispositions below;
 - file:line or exact evidence location;
@@ -456,6 +456,33 @@ Severity:
   its severity-table category, and merge. Count fix-induced findings
   separately. Full bar and the unbounded loop it prevents:
   `references/merge-bar.md`.
+- **P3**: cosmetic and non-actionable. A typo, a formatting slip, a wording
+  preference, a number in a narrative sentence that changes no decision. Fix it
+  inline when it is a line, and never open an issue for one — a tracked typo is
+  backlog, not progress. P3 never blocks, and a review returning only P3s is a
+  clean review.
+
+  A P3 takes disposition `fixed` or `not-a-bug-with-evidence` like any other
+  finding. It may NOT take `deferred-to-linked-follow-up`, because that
+  disposition means a linked issue exists and P3s do not get issues. A P3 left
+  unfixed is recorded in the verdict's P3 list and named in the PR; that list
+  is a record, not a disposition, and nothing downstream waits on it.
+
+**P3 is decided by consequence, not by file type.** "It is markdown" is not a
+severity. Documentation in this repo is the control plane: `AGENTS.md`, the
+skills under `.agents/skills/`, and the hook docs are read and followed by
+agents, so text that misdirects one is as expensive as code that misbehaves.
+Prose stays at P2 or above whenever it is an instruction an agent follows, a
+diagnostic procedure, an evidence table or claim a reviewer relies on, or
+anywhere the documentation contradicts the code — that last one is already a
+blocking condition and does not become weaker for being written in English.
+
+Worked examples, all real findings on #6220, all documentation, none of them
+P3: a diagnostic naming a stamp file the hook no longer writes, so following it
+produces the wrong conclusion; an escape hatch documented as "not blocked" when
+it blocks; a block message naming three variables when the guard probes five,
+so an agent following it stays blocked; and an evidence table understating its
+own test count by ten. A file-extension rule would have downgraded all four.
 
 Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between
@@ -494,6 +521,13 @@ The verdict is `blocked` when any of these are true:
 
 Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
-Ready means `P0=0`, `P1=0`, `P2-blocking=0`, every deferred P2 tracked per
+Ready does not mean an empty findings list. It means `P0=0`, `P1=0`,
+`P2-blocking=0`, with P3s fixed inline where they are a line and listed where
+they are not. Chasing the count to nothing is the unbounded loop
+`references/merge-bar.md` exists to stop: a reviewer can always find one more
+cosmetic thing, and P3 makes producing them cheaper, so the exit condition
+stays on what blocks rather than on what remains.
+
+Ready also means every deferred P2 tracked per
 `references/merge-bar.md`, the full-picture gate is complete,
 every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are dispositioned honestly — fixed inline by default, and routed to a tracked follow-up only when the fix cannot ride along and the owner agreed — without overstating readiness, and the review was repeated after fixes.

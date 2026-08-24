@@ -83,7 +83,7 @@ Cross-pass comparison:
 - Follow-on validation required:
 
 Disposition:
-- P0=<n>, P1=<n>, P2-blocking=<n>, P2-deferred=<n>
+- P0=<n>, P1=<n>, P2-blocking=<n>, P2-deferred=<n>, P3=<n>
 - Fixed/reviewed again:
 - Deferred follow-ups:
 
