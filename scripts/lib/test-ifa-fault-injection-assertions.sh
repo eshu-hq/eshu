@@ -431,6 +431,20 @@ require_generic_cells() {
 # it from ungranted-waiters to all locks and the mirror stayed green (#6161).
 # Each of those predicates narrows the join to the exact lock under test, so
 # losing one from one query is a correctness break in a concurrency proof.
+# The *_count wrappers route through one inner so adding another costs a line,
+# not a block -- this file is near the 500-line cap. Each exists because its
+# needle has several code occurrences that ALL do work, which `-ge 1` cannot
+# express: it is satisfied by whichever survives (#6161). `_ifa_require_count_in`
+# is deliberately not named require*, so the probe exercises the real wrappers.
+_ifa_require_count_in() {
+	local label="$1" needle="$2" want="$3" file="$4" got
+	got="$(_ifa_count_code_matches "${needle}" "${file}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in ${file##*/}, found ${got} -- each one does work, so a -ge 1 pin stays green when one of them is deleted: ${needle}"
+}
+require_cells_count() { _ifa_require_count_in "$1" "$2" "$3" "${cells_lib}"; }
+require_delivery_cells_count() { _ifa_require_count_in "$1" "$2" "$3" "${delivery_cells_lib}"; }
+require_documentation_barrier_setup_count() { _ifa_require_count_in "$1" "$2" "$3" "${documentation_barrier_setup_lib}"; }
 require_documentation_barrier_count() {
 	local label="$1" needle="$2" want="$3" got
 	got="$(_ifa_count_code_matches "${needle}" "${documentation_barrier_lib}")"

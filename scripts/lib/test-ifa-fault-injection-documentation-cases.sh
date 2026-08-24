@@ -68,6 +68,9 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_lib "documentation drive command" 'eshu-ifa" drive -cassette "${cassette}" -workers "${workers}"'
 	require_documentation_lib "documentation exact assertion domain" "-domain documentation_edges"
 	require_documentation_lib "documentation non-vacuity framing" "three-edge exact set"
+	# Two occurrences; the second is an argument to the retry assertion. Seeded
+	# both: mangling the claimed-row wait reds, mangling the other does not
+	# (#6161 audit).
 	require_documentation_cells "claimed row targets documentation materialization" '"documentation_materialization"'
 	require_documentation_cells "kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
 	require_documentation_cells "graph-write cell selects queue-retry" '"queue-retry"'
@@ -79,7 +82,8 @@ run_ifa_documentation_live_static_cases() {
 	# precondition below left it green -- a guard pinned to the explanation of a
 	# thing rather than the thing.
 	require_documentation_cells "graph-write cell probes fresh DOCUMENTS edges" 'ifa_documentation_require_fresh_documents_edges "fail-graph-write-once-then-succeed-documentation"'
-	require_documentation_cells "both cells exact-assert three edges" "ifa_documentation_assert"
+	require_documentation_cells "blocked kill cell exact-asserts three edges" 'ifa_documentation_assert "killworkerdocumentation-blocked"'
+	require_documentation_cells "kill cell exact-asserts three edges" 'ifa_documentation_assert "killworkerdocumentation"'
 	require_framing "documentation retry baseline is captured by the shared baseline cell" "baseline_documentation_retried is captured by cell_baseline" "${documentation_cells_lib}"
 	require_documentation_cells "kill cell joins and untracks its owned reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 	require_documentation_cells "documentation kill cell installs its ACK barrier" "ifa_documentation_start_ack_barrier"
@@ -102,7 +106,11 @@ run_ifa_documentation_live_static_cases() {
 	require_documentation_barrier_setup "documentation ACK barrier uses a transaction advisory lock" "pg_advisory_xact_lock(5998, 5994)"
 	require_documentation_barrier_setup "documentation ACK barrier holder uses the matching session lock" "pg_advisory_lock(5998, 5994)"
 	require_documentation_barrier_setup "documentation ACK barrier contention is nonblocking" "pg_try_advisory_lock(5998, 5994)"
-	require_documentation_barrier_setup "documentation ACK cleanup tracks holder ownership separately" "ifa_documentation_ack_holder_owned"
+	# EXACTLY SIX. Ownership is set at each point the holder is taken or released,
+	# including the one `=0`; five of the six could be deleted individually with
+	# this pin green on the survivor, and dropping any single transition is what
+	# makes cleanup skip a holder it owns or release one it does not (#6161).
+	require_documentation_barrier_setup_count "documentation ACK cleanup tracks holder ownership at every transition" "ifa_documentation_ack_holder_owned" 6
 	require_documentation_barrier_setup "documentation ACK cleanup tracks DDL ownership separately" "ifa_documentation_ack_ddl_owned"
 	rg -U --pcre2 --quiet -- 'ifa_documentation_start_ack_holder[\s\S]*ifa_documentation_install_ack_barrier' "${documentation_barrier_setup_lib}" \
 		|| fail "documentation ACK startup does not acquire its session holder before DDL preflight/setup"
@@ -149,9 +157,15 @@ run_ifa_documentation_live_static_cases() {
 	# barrier lock it is trying to remove (#6161).
 	require_documentation_barrier_count "documentation ACK cleanup DDL is time-bounded" "SET LOCAL lock_timeout = '2s'" 2
 	require_documentation_barrier_count "documentation ACK cleanup DDL is statement-bounded" "SET LOCAL statement_timeout = '5s'" 2
-	require_code "global cleanup invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
-	require_code "global cleanup joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
-	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" "ifa_documentation_cleanup_ack_barrier"
+	# The guard and the call it guards, named separately. The bare function name
+	# matched both, so either could go: losing the call skips barrier cleanup,
+	# losing the `declare -F` guard skips it just as silently (#6161).
+	require_code "global cleanup guards on the ACK barrier cleanup helper" 'if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then'
+	require_code "global cleanup invokes documentation ACK barrier cleanup" 'ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-killworkerdocumentation}"'
+	require_code "global cleanup guards on the ACK producer join helper" 'if declare -F ifa_documentation_stop_ack_producers >/dev/null; then'
+	require_code "global cleanup joins ACK producers before DB cleanup" 'ifa_documentation_stop_ack_producers || barrier_cleanup_rc=$?'
+	require_driver "per-cell teardown guards on the ACK barrier cleanup helper" 'if declare -F ifa_documentation_cleanup_ack_barrier >/dev/null; then'
+	require_driver "per-cell teardown invokes documentation ACK barrier cleanup" 'ifa_documentation_cleanup_ack_barrier "${ifa_documentation_ack_barrier_cell:-${cell}}"'
 	require_driver "per-cell teardown joins ACK producers before DB cleanup" "ifa_documentation_stop_ack_producers"
 	rg -U --pcre2 --quiet -- 'ifa_documentation_stop_ack_producers \|\| \{ failed=1; holder_safe=0; \}[\s\S]*ifa_documentation_census_ack_waiter[\s\S]*ifa_documentation_census_ack_holder[\s\S]*ifa_documentation_drop_ack_trigger[\s\S]*ifa_documentation_drop_ack_function' \
 		"${documentation_barrier_lib}" \
@@ -243,7 +257,11 @@ run_ifa_documentation_live_static_cases() {
 	# pin-binding check with the mirror still green.
 	[[ "$(_ifa_count_code_matches 'assert_pin_helpers_bind_code' "${static_test}")" -ge 1 ]] \
 		|| fail "the fault mirror no longer calls assert_pin_helpers_bind_code -- nothing would check that pin helpers bind code"
-	[[ "$(_ifa_count_code_matches 'compgen -v | rg' "${assertions_src}")" -ge 1 ]] \
+	# Bind the derivation this message is about. `compgen -v | rg` has three code
+	# occurrences in that file -- the probe's var repointing, assert_libs_parse's
+	# loop, and this one -- so the private-data file list could stop deriving
+	# itself with the pin green on either of the others (#6161).
+	[[ "$(_ifa_count_code_matches "done < <(compgen -v | rg '_lib\$' | sort)" "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer derives its file list from the declared *_lib vars -- a hand-typed list stops growing when the tree does"
 	[[ "$(_ifa_count_code_matches 'does not exist -- a scan that skips a missing file proves nothing' "${assertions_src}")" -ge 1 ]] \
 		|| fail "private-data scan no longer fails closed on a missing file"
@@ -441,7 +459,11 @@ run_ifa_fault_injection_documentation_registry_cases() {
 		&& fail "ifa_documentation_require_fresh_documents_edges must not query shared_projection_intents any more (vacuous for this family -- documentationEdgeMaterializationHandler never writes it) in ${documentation_cells_lib}"
 	rg --quiet --fixed-strings -- 'ifa_documentation_require_fresh_intents() {' "${documentation_cells_lib}" \
 		&& fail "the old ifa_documentation_require_fresh_intents name must not survive as a callable function definition in ${documentation_cells_lib} (the name may still appear in prose explaining the rename)"
-	require_documentation_cells "graph-write cell exact-asserts three edges" "ifa_documentation_assert"
+	# Named by cell. The bare helper name matched all three asserts, so this pin
+	# and its "both cells" sibling below were each satisfied by whichever cell
+	# still had one -- and an exact-edge-set assertion deleted from a cell is
+	# that cell proving nothing (#6161).
+	require_documentation_cells "graph-write cell exact-asserts three edges" 'ifa_documentation_assert "failgraphwritedocumentation"'
 	# #6149 follow-up item 9: the fail-graph-write cell used to also print a
 	# documentation_edges shared_projection_intents "intent window" that
 	# always read total=0 (the same vacuous table this family never writes --

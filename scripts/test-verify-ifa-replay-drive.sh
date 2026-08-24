@@ -59,6 +59,14 @@ require "compose -p flag on up" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJE
 # green on any of the other four. Losing it leaks the containers and the volume,
 # which is exactly the isolation the comment block above claims.
 require "compose -p flag on down" 'docker compose -p "${REPLAY_DRIVE_COMPOSE_PROJECT}" -f "${compose_file}" down -v'
+# The two readiness probes had no pin at all -- not a pin bound to the wrong
+# line, just an absent one. Deleting either left every gate in the tree green,
+# and the gate would then drive its cassette against a backend that has not
+# finished starting: a flake that reads as a determinism failure. Bound to the
+# health check each one performs, not to the compose invocation, since the bare
+# -p flag is what could not tell these two apart in the first place.
+require "waits for the NornicDB health endpoint before driving" 'wget --spider -q http://localhost:7474/health'
+require "waits for Postgres to accept connections before driving" 'pg_isready -U eshu -d eshu'
 if rg --fixed-strings --quiet -- 'ESHU_POSTGRES_PORT:=15432' "${script}"; then
 	fail "must not reuse verify-golden-corpus-gate.sh's default Postgres port 15432"
 fi

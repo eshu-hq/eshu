@@ -410,6 +410,10 @@ require_code "per-cell down -v inside the loop" 'docker compose -p "${DETERMINIS
 
 # Graph-truth capture and the digest-equality assertion.
 require_code "graph-dump full-bytes capture" "graph-dump -out"
+# Two occurrences, and this stays -ge 1 deliberately: the second is the `|| die`
+# message beside the call. Seeded both -- mangling the real call reds on the
+# separate exactly-one-executable-anchor guard, mangling the message does not
+# and should not (#6161 audit).
 require_code "graph-dump digest capture" "graph-dump -digest"
 require_code "digest storage per N" "digests[\${n}]="
 require_code "digest mismatch detection" "MISMATCH:"
@@ -426,6 +430,9 @@ require_code "no-normalize-away directive" "do NOT lower N, retry, or otherwise 
 
 # Per-cell wall time is reported.
 require_code "per-cell wall time capture" "cell_end - cell_start"
+# Two identical printf lines in the two summary blocks. Left as -ge 1 on
+# purpose: this is reporting, not proof, so losing one costs a line of output
+# and nothing else (#6161 audit).
 require_code "wall time in PASS reporting" "wall=%ss"
 
 # The drain must be polled by the gate binary, not slept.

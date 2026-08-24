@@ -163,10 +163,17 @@ fi
 # three close the gap: the stack is provably fresh, the edge provably exists,
 # and a failed marker write is no longer silent.
 require_driver "fresh_stack fails loudly when teardown fails" "the stack is NOT fresh"
-require_driver "fresh_stack captures teardown output instead of discarding it" 'compose-down-${cell}.log'
+# The redirect and the fail-closed die, named separately: the bare log-path
+# needle also matched the tail and the die message, so the capture the label
+# names could be dropped back to >/dev/null with this pin green (#6161).
+require_driver "fresh_stack captures teardown output instead of discarding it" '>"${log_dir}/compose-down-${cell}.log" 2>&1; then'
+require_driver "fresh_stack fails closed when teardown fails" 'die "${cell}: docker compose down -v failed'
 require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
 require_sql_cells "probe 2: SQL edges asserted after the drain" "assert-edges is set-exact"
 require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
+# Two occurrences; the second is the diagnostic that prints the matching log
+# lines. Seeded both: mangling the branch condition reds, mangling the
+# diagnostic does not (#6161 audit).
 require_sql_cells "the write-failure branch uses the single-source prefix variable" "IFA_ONCE_MARKER_WRITE_FAILED_PREFIX"
 require_sql_cells "the two marker failure modes are told apart by exit code" 'marker_rc}" -eq 2'
 # The old message asserted a single cause. It must not come back.
@@ -288,7 +295,11 @@ require_lib "dead-letter count query" "SELECT count(*) FROM fact_work_items WHER
 
 # Per-cell wall time is captured by every cell and reported in the driver's
 # final summary.
+# Fifteen occurrences across five cells (declare, assign, subtract). Left as
+# -ge 1: wall time is reporting, not proof, and an exact count here would churn
+# with every added cell for no assertion gained (#6161 audit).
 require_cells "per-cell wall time capture" "cell_start"
+# Same reasoning as the cells-lib wall-time pin above (#6161 audit).
 require_sql_cells "per-cell wall time capture (sql cells)" "cell_start"
 require_code "wall time in summary" "wall=%ss"
 

@@ -46,6 +46,15 @@ require_deployable_unit_cells() {
 	[[ "$(_ifa_count_code_matches "${needle}" "${deployable_unit_cells_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (deployable-unit cells lib), or it survives only inside a comment: ${needle}"
 }
+# Exact-count sibling, for needles whose every occurrence is load-bearing. The
+# maintenance pass and the family-scoped queries each appear once per cell, so
+# `-ge 1` was satisfied by whichever cell still had one (#6161).
+require_deployable_unit_cells_count() {
+	local label="$1" needle="$2" want="$3" got
+	got="$(_ifa_count_code_matches "${needle}" "${deployable_unit_cells_lib}")"
+	[[ "${got}" == "${want}" ]] \
+		|| fail "${label}: expected ${want} code occurrence(s) in ${deployable_unit_cells_lib##*/}, found ${got} -- one per cell, so a -ge 1 pin covers whichever cell survives: ${needle}"
+}
 
 # run_ifa_fault_injection_deployable_unit_cases asserts the family-scoped
 # baseline cell, its two fault cells, and their dispatch ordering. Wrapped in
@@ -415,8 +424,16 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	# needle, so the real count could vanish and leave the retry proof vacuous.
 	require_deployable_unit_cells "baseline cell captures the retry baseline" 'baseline_deployable_unit_retried="$(ifa_fault_count_retried'
 	require_deployable_unit_cells "pre-maintenance drain before the maintenance pass" "ifa_deployable_unit_live_assert_empty_before_maintenance"
-	require_deployable_unit_cells "maintenance pass invocation" "ifa_deployable_unit_live_run_maintenance_pass"
-	require_deployable_unit_cells "kill cell scopes the claimed-row wait to deployable_unit_correlation" '"deployable_unit_correlation")"'
+	# One per cell, three in all. The bare needle let the kill cell's maintenance
+	# pass be deleted while the baseline and graph-write cells kept the pin green
+	# -- that cell then asserts a graph the maintenance pass never built (#6161).
+	require_deployable_unit_cells_count "maintenance pass invocation, one per cell" "ifa_deployable_unit_live_run_maintenance_pass" 3
+	# Three family-scoped queries: the baseline retry count, the kill cell's
+	# claimed-row wait, and the killed retry count. Unscoping any ONE of them
+	# widens it to every domain the gate touches, which is how a retry from an
+	# unrelated family would satisfy this cell -- and -ge 1 covered whichever
+	# stayed scoped (#6161).
+	require_deployable_unit_cells_count "all three deployable-unit queries stay scoped to the family" '"deployable_unit_correlation")"' 3
 	# Bind the COMPARISON, not the variable. The bare `"${baseline_..._retried}"`
 	# needle also matched the printf two lines under the baseline capture, so the
 	# `-gt` line -- the only thing that turns "the cell ran" into "the cell proved

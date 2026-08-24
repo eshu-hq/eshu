@@ -19,7 +19,11 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# digest comparison passes vacuously -- the inert-gate defect #5974 records.
 	require_delivery_cells "duplicate-delivery redelivers via the shared helper" "ifa_fault_redeliver_succeeded"
 	require_delivery_cells "duplicate-delivery asserts the redelivery was non-vacuous" '[[ -n "${reset_count}" && "${reset_count}" -gt 0 ]]'
-	require_delivery_cells "duplicate-delivery drains a second time after redelivery" "run_drain_gate duplicatedelivery"
+	# EXACTLY TWO, and the second is the point: the cell drains, redelivers, then
+	# drains AGAIN. Both calls are the same line, so a -ge 1 pin stayed green with
+	# the post-redelivery drain -- the half that proves redelivery converges --
+	# deleted (#6161).
+	require_delivery_cells_count "duplicate-delivery drains before AND after redelivery" "run_drain_gate duplicatedelivery" 2
 	require_delivery_cells "duplicate-delivery proves idempotency against the baseline" "assert_matches_baseline duplicatedelivery"
 	require_lib "redelivery clears the lease, not only the status" "lease_owner = NULL"
 	require_lib "redelivery makes the row visible again" "visible_at = now()"
@@ -63,7 +67,11 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# Candidate-adjacent kill/reclaim cells (generic, SQL, code-call,
 	# documentation, and rationale):
 	# real kill -9 + a fresh process, not the hermetic-only faultreplay kind.
-	require_cells "claimed-row wait before kill" "ifa_fault_wait_for_claimed"
+	# EXACTLY TWO: the killworker and expirelease cells each wait for a claimed
+	# row before firing, and the two call sites are byte-identical. `-ge 1` was
+	# satisfied by either, so one cell could fire its fault before anything was
+	# claimed and prove nothing, with the mirror green (#6161).
+	require_cells_count "claimed-row wait before kill, in both kill cells" "ifa_fault_wait_for_claimed" 2
 	require_cells "kill, join, and untrack the live reducer" 'ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL'
 	require_cells "fresh reducer process after kill" "reducer-killworker-after"
 	require_sql_cells "SQL-targeted claimed-row wait before kill" "ifa_fault_wait_for_claimed"
