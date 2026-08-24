@@ -230,7 +230,7 @@ truth.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
-passes it to all 44 `build*ReducerIntent` probes instead of the raw
+passes it to all 44 reducer-intent builder probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
@@ -244,17 +244,18 @@ candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 exact same "earliest fact in original `inputFacts` order" anchor selection the
 old full scan made — not "earliest fact of the first-checked kind" — so anchor
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
-The root index implements the exported `intent.FactLookup` read port through
-forwarding methods. Family packages can import `internal/projector/intent`
-without importing the root projector package, while existing root builders keep
-using the private helpers until their own move PRs land. `ReducerIntent` in the
-root package is a type alias, so existing writer and command wiring remains
-source-compatible.
+Root assembly constructs one concrete `intent.FactLookup` per generation and
+retains a compatibility wrapper for unmoved family builders. The extracted
+`internal/projector/azure` family imports that neutral lookup without importing
+root projector assembly; remaining root builders keep using the private
+forwarders until their move PRs land.
+`ReducerIntent` in the root package is a type alias, so existing writer and
+command wiring remains source-compatible.
 The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
 in `reducer_intent_fact_index.go` pins it, and
 `TestReducerIntentProbeCountMatchesDocumentedCount` parses
 `scope_generation_intents.go` with `go/ast` to count the real distinct
-`build*ReducerIntent` calls and fails if that constant (and, by extension,
+reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
 RDS posture facts follow that same reducer-owned handoff. When a generation

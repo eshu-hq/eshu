@@ -15,7 +15,7 @@ import (
 
 // TestReducerIntentProbeCountMatchesDocumentedCount is a documentation-drift
 // guard. reducer_intent_fact_index.go and README.md both cite a specific
-// build*ReducerIntent probe count in prose, and that prose has gone stale
+// reducer-intent builder count in prose, and that prose has gone stale
 // silently more than once: it said "41" while the source already called 43
 // distinct probes, and the #5759 change that added a 44th probe bumped the
 // prose to "42" instead of 44. Neither drift tripped any gate because nothing
@@ -23,8 +23,8 @@ import (
 //
 // This test parses scope_generation_intents.go with go/ast -- not a regex, so
 // reordering, comments, or reformatting the file cannot fool it -- finds
-// appendScopeGenerationReducerIntents's body, and counts the distinct
-// build*ReducerIntent identifiers it actually calls. That count must equal
+// appendScopeGenerationReducerIntents's body, and counts its distinct root and
+// package-qualified reducer-intent builder calls. That count must equal
 // documentedReducerIntentProbeCount (go/internal/projector/reducer_intent_fact_index.go),
 // the single constant the doc prose cites. Whoever adds or removes a probe
 // must update that constant -- and the "N probes" prose in
@@ -37,7 +37,7 @@ func TestReducerIntentProbeCountMatchesDocumentedCount(t *testing.T) {
 	got := countReducerIntentProbeCalls(t)
 	if got != documentedReducerIntentProbeCount {
 		t.Fatalf(
-			"appendScopeGenerationReducerIntents calls %d distinct build*ReducerIntent probes, "+
+			"appendScopeGenerationReducerIntents calls %d distinct reducer-intent builder probes, "+
 				"but documentedReducerIntentProbeCount = %d; update that constant AND the \"N probes\" "+
 				"prose in reducer_intent_fact_index.go and README.md that cites it",
 			got, documentedReducerIntentProbeCount,
@@ -46,8 +46,10 @@ func TestReducerIntentProbeCountMatchesDocumentedCount(t *testing.T) {
 }
 
 // countReducerIntentProbeCalls parses scope_generation_intents.go (a sibling
-// of this test file) and returns the number of distinct build*ReducerIntent
-// identifiers called from within appendScopeGenerationReducerIntents's body.
+// of this test file) and returns the number of distinct reducer-intent builders
+// called from within appendScopeGenerationReducerIntents's body. Root builders
+// are identifiers named build*ReducerIntent; extracted family builders are
+// package-qualified selectors named Build*ReducerIntent.
 func countReducerIntentProbeCalls(t *testing.T) int {
 	t.Helper()
 
@@ -81,14 +83,68 @@ func countReducerIntentProbeCalls(t *testing.T) int {
 		if !ok {
 			return true
 		}
-		ident, ok := call.Fun.(*ast.Ident)
+		key, ok := reducerIntentProbeKey(call.Fun)
 		if !ok {
 			return true
 		}
-		if strings.HasPrefix(ident.Name, "build") && strings.HasSuffix(ident.Name, "ReducerIntent") {
-			seen[ident.Name] = struct{}{}
-		}
+		seen[key] = struct{}{}
 		return true
 	})
 	return len(seen)
+}
+
+func reducerIntentProbeKey(expression ast.Expr) (string, bool) {
+	switch callable := expression.(type) {
+	case *ast.Ident:
+		if strings.HasPrefix(callable.Name, "build") && strings.HasSuffix(callable.Name, "ReducerIntent") {
+			return callable.Name, true
+		}
+	case *ast.SelectorExpr:
+		qualifier, ok := callable.X.(*ast.Ident)
+		if ok && strings.HasPrefix(callable.Sel.Name, "Build") && strings.HasSuffix(callable.Sel.Name, "ReducerIntent") {
+			return qualifier.Name + "." + callable.Sel.Name, true
+		}
+	}
+	return "", false
+}
+
+func TestReducerIntentProbeKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		expression ast.Expr
+		wantKey    string
+		wantOK     bool
+	}{
+		{
+			name:       "root builder",
+			expression: ast.NewIdent("buildGCPResourceMaterializationReducerIntent"),
+			wantKey:    "buildGCPResourceMaterializationReducerIntent",
+			wantOK:     true,
+		},
+		{
+			name: "extracted builder",
+			expression: &ast.SelectorExpr{
+				X:   ast.NewIdent("projectorazure"),
+				Sel: ast.NewIdent("BuildResourceMaterializationReducerIntent"),
+			},
+			wantKey: "projectorazure.BuildResourceMaterializationReducerIntent",
+			wantOK:  true,
+		},
+		{
+			name:       "unrelated call",
+			expression: ast.NewIdent("append"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			gotKey, gotOK := reducerIntentProbeKey(test.expression)
+			if gotKey != test.wantKey || gotOK != test.wantOK {
+				t.Fatalf("reducerIntentProbeKey() = %q, %v; want %q, %v", gotKey, gotOK, test.wantKey, test.wantOK)
+			}
+		})
+	}
 }

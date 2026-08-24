@@ -18,9 +18,10 @@
 // explicit repo_id; cloud, registry, and provider scopes without repository
 // ownership still project canonical and reducer-owned evidence but do not write
 // repository content rows or source ref metadata.
-// The neutral internal/projector/intent contract is the boundary for forthcoming
-// reducer-intent family packages; this root package currently remains its sole
-// production consumer and owns family assembly and the fact index.
+// The neutral internal/projector/intent contract is the boundary for extracted
+// reducer-intent family packages. Azure family builders live in
+// internal/projector/azure; this root package owns lookup construction and
+// lifetime, family assembly, and enqueue.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.

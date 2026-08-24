@@ -288,7 +288,7 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 |---|---|---|
 | query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `querycontract.GraphQuery`, `ContentStore`, profiles, envelopes, HTTP helpers, and family-local capability registration |
 | reducer | 48 `.Handler = <Family>Handler{}` construction sites across 10 of the 11 `defaults_additive_domains*.go` wiring files — e.g. `defaults_additive_domains_correlation.go:66-67`, which calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `Intent`, `Result` and the `Handler` interface (`container_image_identity.go:52,73`) |
-| projector | `scope_generation_intents.go` has 44 `build*ReducerIntent` call sites, defined across 41 family files | `ReducerIntent` (`runtime.go:50`) |
+| projector | `scope_generation_intents.go` has 44 reducer-intent builder call sites, defined across 41 family files | `ReducerIntent` (`runtime.go:50`) |
 | mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |
 
 Collector and coordinator are genuinely clear: their families are constructed

@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// fanOutParityExpectation pins one build*ReducerIntent probe's exact
+// fanOutParityExpectation pins one reducer-intent builder probe's exact
 // emission decision (anchor fact, entity key, reason, source system, and
 // payload) against fanOutParityFixture.
 type fanOutParityExpectation struct {
@@ -25,7 +25,7 @@ type fanOutParityExpectation struct {
 // by running appendScopeGenerationReducerIntents (the pre-#4875 full-scan
 // implementation, unmodified) against fanOutParityFixture, before the shared
 // reducerIntentFactIndex refactor touched any of the then-39
-// build*ReducerIntent probes. New probes extend the same fixture and expectation
+// reducer-intent builder probes. New probes extend the same fixture and expectation
 // map. TestAppendScopeGenerationReducerIntentsFanOutParity asserts the current
 // implementation produces this exact set. A change that
 // intentionally alters a probe's emission decision must update this map in
@@ -300,7 +300,7 @@ var fanOutParityExpectedOrder = []reducer.Domain{
 
 // TestAppendScopeGenerationReducerIntentsFanOutParity is the #4875 accuracy
 // gate: it proves appendScopeGenerationReducerIntents (and, after the shared
-// reducerIntentFactIndex lands, the 44 build*ReducerIntent probes it fans out
+// reducerIntentFactIndex lands, the 44 reducer-intent builder probes it fans out
 // to) emits byte-identical intents — same anchor fact, entity key, reason,
 // source system, and payload for every domain — before and after the index
 // refactor. fanOutParityExpectations was captured from the pre-refactor
