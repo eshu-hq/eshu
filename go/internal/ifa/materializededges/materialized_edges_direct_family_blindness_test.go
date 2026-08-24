@@ -349,3 +349,56 @@ func TestDirectEdgeFamilyResolutionFailsClosedOnAnUnclassifiedPort(t *testing.T)
 		t.Errorf("directEdgeFamilyOrBug(%s) returned no error; an unrecognised port is a registration bug, never a valid steady state, and swallowing it is what turns a missing declaration into a silent blank family", unclassified)
 	}
 }
+
+// TestEachLedgerHalfHoldsOnlyItsOwnFamilies pins WHICH file a family's row lives
+// in, not merely that some file holds one.
+//
+// loadMaterializedEdgeLedgerSurfaces folds both manifests into one
+// family -> first-file map, and every other check here reads the union. That is
+// the right shape for asking "is this family covered anywhere", and the wrong
+// shape for the split itself: a direct family's row dropped into the shared
+// manifest, or a shared family's row into the direct one, satisfies every union
+// check and no gate notices. The two-file split is what keeps each half
+// readable and under the 500-line cap, and #6181 treats it as load-bearing — so
+// it needs an assertion rather than a convention.
+//
+// The direction that matters is misplacement, not absence: absence is already
+// caught by the coverage gate, which requires every (surface, proof_gate) pair
+// to be covered or waived.
+func TestEachLedgerHalfHoldsOnlyItsOwnFamilies(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRootDir(t)
+	ledger := loadMaterializedEdgeLedgerSurfaces(t, filepath.Join(repoRoot, "specs"))
+	if len(ledger) == 0 {
+		t.Fatal("ledger parsed to zero surfaces; this check would assert nothing")
+	}
+
+	shared := setOf(reducer.MaterializedEdgeFamilies())
+	direct := setOf(reducer.DirectMaterializedEdgeFamilies())
+	if len(shared) == 0 || len(direct) == 0 {
+		t.Fatal("one of the two family enumerations is empty; every row would resolve to the other half for the wrong reason")
+	}
+
+	checked := 0
+	for family, file := range ledger {
+		_, isShared := shared[family]
+		_, isDirect := direct[family]
+		switch file {
+		case MaterializedEdgeManifestFileName:
+			if !isShared {
+				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it is a direct-materialization family its row belongs in %s -- a row in the wrong half satisfies every union check in this file and no gate reports it",
+					file, family, "reducer.MaterializedEdgeFamilies()", MaterializedEdgeDirectManifestFileName)
+			}
+		case MaterializedEdgeDirectManifestFileName:
+			if !isDirect {
+				t.Errorf("%s carries a row for %q, which %s does not enumerate. If it reaches the graph through the shared-projection intent path its row belongs in %s",
+					file, family, "reducer.DirectMaterializedEdgeFamilies()", MaterializedEdgeManifestFileName)
+			}
+		default:
+			t.Fatalf("ledger surface %q came from unexpected file %q", family, file)
+		}
+		checked++
+	}
+	t.Logf("checked %d ledger row(s) against the half that owns them", checked)
+}
