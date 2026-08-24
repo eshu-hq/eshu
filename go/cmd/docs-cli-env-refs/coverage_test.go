@@ -73,3 +73,42 @@ func TestValidateScanCoverageFailsInBothDirections(t *testing.T) {
 		t.Fatalf("validateScanCoverage() on the pinned shape error = %v, want nil", err)
 	}
 }
+
+// TestReferenceScopeRendersEveryDiagnosticBranch pins the command-scope suffix
+// #6108 added to the unknown-reference diagnostic. Only the subcommand branch
+// was asserted anywhere, so a wrong environment or root-level suffix could ship
+// through both suites unnoticed. Each branch is now checked as an operator
+// reads it.
+func TestReferenceScopeRendersEveryDiagnosticBranch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		ref  reference
+		want string
+	}{
+		{
+			name: "environment reference carries no command scope",
+			ref:  reference{Kind: referenceKindEnv, Document: "guide.md", Value: "ESHU_NOT_REGISTERED"},
+			want: "",
+		},
+		{
+			name: "root-level flag names the bare binary",
+			ref:  reference{Kind: referenceKindFlag, Document: "guide.md", Value: "--not-a-real-root-flag"},
+			want: " on command `eshu`",
+		},
+		{
+			name: "subcommand flag names its full command path",
+			ref:  reference{Kind: referenceKindFlag, Document: "guide.md", Command: "graph/status", Value: "--unknown-after-and"},
+			want: " on command `eshu graph status`",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := referenceScope(test.ref); got != test.want {
+				t.Fatalf("referenceScope(%#v) = %q, want %q", test.ref, got, test.want)
+			}
+		})
+	}
+}
