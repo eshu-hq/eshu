@@ -25,7 +25,39 @@
 # is the file where the function is lexically defined, not the caller) --
 # both the check and the `source` line it is checking for must stay together
 # in this same file for that to keep working.
+# Feed in-memory text through process substitution. The producer then lives
+# outside the command's pipefail status, and Bash does not prefill a large
+# here-input before starting rg (#4718/#5098).
+_ifa_det_text_matches() {
+	local text="$1"
+	shift
+	rg "$@" < <(printf '%s\n' "${text}")
+}
+
+_ifa_det_test_text_match_helper() {
+	local hazard_window_tail hazard_window_text oversized_tail oversized_text
+	printf -v hazard_window_tail '%*s' 32768 ''
+	printf -v oversized_tail '%*s' 1048576 ''
+	hazard_window_text='EARLY-MATCH'$'\n'"${hazard_window_tail}"
+	oversized_text='EARLY-MATCH'$'\n'"${oversized_tail}"
+
+	_ifa_det_text_matches 'literal[1]' --quiet --fixed-strings -- 'literal[1]' \
+		|| fail "text matcher lost fixed-string semantics"
+	_ifa_det_text_matches $'SELECTED\tifa-determinism reason' --quiet -- '^SELECTED[[:space:]]+ifa-determinism[[:space:]]' \
+		|| fail "text matcher lost regex semantics"
+	_ifa_det_text_matches $'prefix\n      - "trigger"\nsuffix' --quiet --fixed-strings --line-regexp -- '      - "trigger"' \
+		|| fail "text matcher lost whole-line semantics"
+	if _ifa_det_text_matches 'present' --quiet --fixed-strings -- 'absent'; then
+		fail "text matcher reports a match for absent text"
+	fi
+	_ifa_det_text_matches "${hazard_window_text}" --quiet --fixed-strings -- 'EARLY-MATCH' \
+		|| fail "text matcher fails inside the Bash large-here-input hazard window"
+	_ifa_det_text_matches "${oversized_text}" --quiet --fixed-strings -- 'EARLY-MATCH' \
+		|| fail "text matcher fails when an oversized input matches before the pipe-capacity boundary"
+}
+
 run_ifa_determinism_registry_lockstep_cases() {
+_ifa_det_test_text_match_helper
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
@@ -38,16 +70,16 @@ for seam in "${ifa_live_gate_common_seams[@]}"; do
 	concrete_path="${seam#*|}"
 	rg --fixed-strings --quiet -- "- '${trigger}'" "${workflow}" \
 		|| fail "workflow does not retrigger the live matrices for IFA proof input: ${trigger}"
-	printf '%s\n' "${determinism_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
+	_ifa_det_text_matches "${determinism_registry}" --fixed-strings --quiet -- "- \"${trigger}\"" \
 		|| fail "ifa-determinism registry entry omits IFA proof input: ${trigger}"
-	printf '%s\n' "${fault_registry}" | rg --fixed-strings --quiet -- "- \"${trigger}\"" \
+	_ifa_det_text_matches "${fault_registry}" --fixed-strings --quiet -- "- \"${trigger}\"" \
 		|| fail "ifa-fault-injection registry entry omits IFA proof input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
 		cd "${repo_root}/go"
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
 	for gate in ifa-determinism ifa-fault-injection; do
-		printf '%s\n' "${selection}" | rg --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]" \
+		_ifa_det_text_matches "${selection}" --quiet -- "^SELECTED[[:space:]]+${gate}[[:space:]]" \
 			|| fail "${concrete_path} does not select ${gate} through the real registry matcher"
 	done
 done
@@ -92,15 +124,15 @@ for seam in "${ifa_live_gate_fault_only_seams[@]}"; do
 	concrete_path="${seam#*|}"
 	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
 		|| fail "workflow does not retrigger fault injection for fault-only input: ${trigger}"
-	printf '%s\n' "${fault_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
+	_ifa_det_text_matches "${fault_registry}" --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
 		|| fail "ifa-fault-injection registry entry omits fault-only input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
 		cd "${repo_root}/go"
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
-	printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
+	_ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]' \
 		|| fail "${concrete_path} does not select ifa-fault-injection through the real registry matcher"
-	if printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
+	if _ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]'; then
 		fail "fault-only input must not select ifa-determinism: ${concrete_path}"
 	fi
 done
@@ -121,15 +153,15 @@ for seam in "${ifa_live_gate_determinism_only_seams[@]}"; do
 	concrete_path="${seam#*|}"
 	rg --quiet --fixed-strings --line-regexp -- "      - '${trigger}'" "${workflow}" \
 		|| fail "workflow does not retrigger the determinism matrix for determinism-only input: ${trigger}"
-	printf '%s\n' "${determinism_registry}" | rg --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
+	_ifa_det_text_matches "${determinism_registry}" --quiet --fixed-strings --line-regexp -- "      - \"${trigger}\"" \
 		|| fail "ifa-determinism registry entry omits determinism-only input: ${trigger}"
 	selection="$(printf '%s\n' "${concrete_path}" | (
 		cd "${repo_root}/go"
 		go run ./cmd/ci-gates select --registry "${registry}" --tier pre-pr --paths-from - --explain
 	))"
-	printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]' \
+	_ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-determinism[[:space:]]' \
 		|| fail "${concrete_path} does not select ifa-determinism through the real registry matcher"
-	if printf '%s\n' "${selection}" | rg --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]'; then
+	if _ifa_det_text_matches "${selection}" --quiet '^SELECTED[[:space:]]+ifa-fault-injection[[:space:]]'; then
 		fail "determinism-only input must not select ifa-fault-injection: ${concrete_path}"
 	fi
 done
