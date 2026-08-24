@@ -5,6 +5,7 @@ package javascript_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -13,9 +14,7 @@ import (
 func TestDefaultEngineParsePathTypeScriptEmitsImplementedInterfaces(t *testing.T) {
 	t.Parallel()
 
-	repoRoot := filepath.Join(
-		"..", "..", "..", "..", "tests", "fixtures", "sample_projects", "sample_project_typescript",
-	)
+	repoRoot := sampleTypeScriptFixturePath(t)
 	filePath := filepath.Join(repoRoot, "src", "classes-inheritance.ts")
 
 	engine, err := parser.DefaultEngine()
@@ -48,4 +47,19 @@ func TestDefaultEngineParsePathTypeScriptEmitsImplementedInterfaces(t *testing.T
 	if len(interfaces) != 2 || interfaces[0] != "Flyable" || interfaces[1] != "Swimmable" {
 		t.Fatalf("implemented_interfaces = %#v, want [Flyable Swimmable]", interfaces)
 	}
+}
+
+func sampleTypeScriptFixturePath(t *testing.T) string {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+		return ""
+	}
+
+	return filepath.Join(
+		filepath.Dir(file), "..", "..", "..", "..",
+		"tests", "fixtures", "sample_projects", "sample_project_typescript",
+	)
 }

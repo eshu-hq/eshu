@@ -86,7 +86,7 @@ so re-projection stays idempotent.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'Inheritance|Implements' -count=1`,
 `go test ./internal/storage/cypher -run 'Inheritance|Implements|RetractInheritance' -count=1`,
-and `go test ./internal/parser -run 'EmitsImplementedInterfaces' -count=1` fail
+and `go test ./internal/parser/... -run 'EmitsImplementedInterfaces' -count=1` fail
 before the IMPLEMENTS field/edge exist and pass after. The change adds one
 metadata read and a bounded inner loop over a type's declared interfaces inside
 the existing per-entity pass; it adds no new content-entity scan, no new graph
