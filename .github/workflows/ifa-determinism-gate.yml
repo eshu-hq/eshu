@@ -28,6 +28,8 @@ on:
       # `push:` above has no paths filter, so main-push coverage is unaffected.
       - 'scripts/lib/ifa_mirror_pins.sh'
       - 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh'
+      - 'scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh'
       - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
       - 'scripts/lib/ifa_live_gate_selector_cases.sh'
       # The family registry and the libraries that consume it. The registry

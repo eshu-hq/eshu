@@ -3010,6 +3010,11 @@ gates:
       - "scripts/lib/ifa_deployable_unit_live_converge.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-ordering-cases.sh"
+      - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
+      # Sourced by the deployable-unit cases module rather than by the mirror
+      # itself, which is how it went untriggered: editing it selected no gate
+      # at all until this row existed.
+      - "scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
       # Shared with the ifa-determinism gate, which also lists it. The fault
       # gate sources it for cell_deltaretract (#5544), so a change to the
       # shared helper has to select BOTH gates, not just determinism.
