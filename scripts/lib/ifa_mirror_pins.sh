@@ -185,8 +185,16 @@ ifa_mirror_assert_pins_bind_code() {
 		done
 	done < <(compgen -A function | rg '^require' | sort)
 	rm -rf "${probe_dir}"
-	[[ "${checked}" -ge 1 ]] \
-		|| fail "pin-helper behaviour check exercised ${checked} helper(s); discovery has collapsed"
+	# Both mirrors that source this file execute exactly two pin helpers, so the
+	# floor is 2, not 1. At -ge 1 the message claimed a property it did not have:
+	# renaming require() to pin() -- which is precisely how discovery collapses,
+	# since the loop below matches on the NAME -- halved the set, left the check
+	# reporting "1 helper(s) executed", and passed. That let the pre-#6161
+	# whole-file matcher back in with the mirror green. Siblings floor at 20 and
+	# 5 for the same reason: a floor below the real count only catches total
+	# collapse, and total collapse is the one case that is obvious anyway.
+	[[ "${checked}" -ge 2 ]] \
+		|| fail "pin-helper behaviour check exercised ${checked} helper(s), expected at least 2; discovery has collapsed or a pin helper was renamed out of it"
 	printf 'pin-helper behaviour check: %s helper(s) executed against comment and heredoc probes\n' "${checked}"
 }
 

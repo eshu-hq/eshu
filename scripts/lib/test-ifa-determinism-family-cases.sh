@@ -137,10 +137,15 @@ require_rationale_lib "rationale expected-set argument" '-expected "${expected_e
 # for this family could be replaced wholesale and no gate would notice.
 require_rationale_lib "exact durable tuple" 'ifa_rationale_expected_tuple="1|1|0|4|3|1|4|0"'
 require_rationale_lib "exact delta-generation durable tuple" 'ifa_rationale_delta_expected_tuple="1|1|0|1|0|1|1|0"'
-# Two occurrences; the second is the printf that reports the count. Seeded
-# both: mangling the SQL reds, mangling the printf does not, which is correct
-# (#6161 audit).
-require_rationale_lib "accepted generation exact count" "shared_projection_acceptance"
+# Two occurrences of the bare table name -- the acceptance query and the printf
+# that reports its result -- so an -ge 1 pin on it is satisfied by the printf
+# alone. The note here used to claim mangling the SQL reds; re-measured, it left
+# THIS mirror green and reddened the fault-injection one, which is a different
+# gate and a different failure message. True of the tree, false where it was
+# written, in a note whose whole job is to save the next person the measurement.
+# Bound to the query text now, so mangling the SQL reds here, on this label.
+# The printf stays unpinned on purpose: it reports, nothing reads it (#6161).
+require_rationale_lib "accepted generation exact count" "SELECT count(*) FROM shared_projection_acceptance"
 require_delta_lib "rationale delta is driven before the shared drain" 'ifa_rationale_drive "delta-n${n}"'
 sql_delta_drive_line="$(rg -n --fixed-strings -- 'eshu-ifa" drive -cassette "${sql_delta_cassette}"' "${delta_lib}" | cut -d: -f1 || true)"
 rationale_delta_drive_line="$(rg -n --fixed-strings -- 'ifa_rationale_drive "delta-n${n}"' "${delta_lib}" | cut -d: -f1 || true)"
