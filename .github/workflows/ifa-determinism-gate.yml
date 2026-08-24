@@ -18,6 +18,9 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - 'scripts/lib/ifa_mirror_pins.sh'
+      - 'scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh'
+      - 'scripts/lib/test-ifa-determinism-private-data-cases.sh'
       - 'scripts/lib/ifa_live_gate_selector_cases.sh'
       # The family registry and the libraries that consume it. The registry
       # decides which families each gate drives and which blocker every kill

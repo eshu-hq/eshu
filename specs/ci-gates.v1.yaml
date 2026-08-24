@@ -2260,6 +2260,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/test-ifa-determinism-private-data-cases.sh"
       - "scripts/lib/ifa_live_gate_selector_cases.sh"
       - "go/internal/storage/postgres/migrations/**"
       - "go/internal/graphschemacompat/**"
@@ -2636,6 +2637,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/ifa_mirror_pins.sh"
       - "go/internal/ifa/mutate.go"
       - "go/internal/ifa/dead_letters.go"
       - "go/cmd/ifa/mutate_cassette.go"
@@ -2659,6 +2661,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"
       - "scripts/lib/ifa_live_gate_selector_cases.sh"
       - "go/internal/storage/postgres/migrations/**"
       - "go/internal/graphschemacompat/**"
@@ -3148,6 +3151,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "scripts/lib/ifa_mirror_pins.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "scripts/verify-ifa-replay-drive.sh"
