@@ -33,7 +33,7 @@ which is exactly the class the canon says to write down instead:
 > Inline only role boundaries or actions whose ambiguity can mutate external
 > state before CI runs. Everything CI enforces, let CI enforce.
 
-## The rule behind all four playbooks
+## The rule behind all five playbooks
 
 **Inherit the reading. Re-prove the claims.**
 
@@ -70,7 +70,7 @@ indistinguishable from a step that was never there.
 
 ## Liveness is not mtime
 
-This applies across all four playbooks, so it lives here.
+This applies across all five playbooks, so it lives here.
 
 A subagent that is thinking writes no files. Its transcript buffer stays small
 until it completes. Judging "this agent is dead" or "this worktree is
